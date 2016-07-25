@@ -1,0 +1,105 @@
+##########################
+#
+# Master parameters
+#
+
+[master]
+
+# uid
+uname = @@panda_user@@
+
+# gid
+gname = @@panda_group@@
+
+# logger name
+loggername = harvester
+
+
+
+
+##########################
+#
+# Database parameters
+#
+
+[db]
+
+# filename
+database_filename = /tmp/tmaeno/test.db
+
+
+
+
+
+##########################
+#
+# Panda Connection parameters
+#
+
+[pandacon]
+
+# number of connections
+nConnections = 5
+
+# timeout
+timeout = 180
+
+# CA file
+ca_cert = /etc/pki/tls/certs/CERN-bundle.pem
+
+# certificate
+cert_file = FIXME
+
+# key
+key_file = FIXME
+
+# base URL via http
+pandaURL = http://pandaserver.cern.ch:25080/server/panda
+
+# base URL via https
+pandaURLSSL = https://pandaserver.cern.ch:25443/server/panda
+
+# base URL via proxy
+pandaURLProxy = http://pandaserver.cern.ch:25080/server/panda
+
+
+
+
+##########################
+#
+# Queue Config parameters
+#
+
+[qconf]
+
+# config file
+configFile = panda_queueconfig.json
+
+# queue list : one queue name folloing a whitespace per line
+queueList =
+ FIXME_1
+ FIXME_2
+
+
+##########################
+#
+# Job Fetcher parameters
+#
+
+[jobfetch]
+
+# number of threads
+nThreads = 3
+
+# number of queues to fetch jobs in one cycle
+nQueues = 5
+
+# max number of jobs per queue in one cycle
+maxJobs = 500
+
+# lookup interval in sec
+lookupTime = 60
+
+# sleep interval in sec
+sleepTime = 60
+

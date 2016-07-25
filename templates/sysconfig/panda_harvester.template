@@ -1,0 +1,12 @@
+# Ensure python is 2.5
+PATH=/bin:/usr/local/bin:/usr/bin:$PATH
+
+# panda home
+export PANDA_HOME=/data/atlpan
+
+# timezone
+export TZ=UTC
+
+# import panda modules
+export PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@
+
