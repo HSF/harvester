@@ -1,5 +1,3 @@
-import time
-import random
 import socket
 import datetime
 import threading
@@ -64,6 +62,7 @@ class JobFetcher (threading.Thread):
                         jobSpec.status = 'starting'
                         jobSpec.subStatus = 'fetched'
                         jobSpec.creationTime = datetime.datetime.utcnow()
+                        jobSpec.stateChangeTime = datetime.datetime.utcnow()-datetime.timedelta(hours=1)
                         jobSpecs.append(jobSpec)
                     # insert to DB
                     self.dbProxy.insertJobs(jobSpecs)
@@ -71,6 +70,5 @@ class JobFetcher (threading.Thread):
             if self.singleMode:
                 return
             # sleep
-            time.sleep(random.randint(int(harvester_config.jobfetch.sleepTime*0.8),
-                                      int(harvester_config.jobfetch.sleepTime*1.2)))
+            CoreUtils.sleep(harvester_config.jobfetch.sleepTime)
 

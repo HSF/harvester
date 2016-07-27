@@ -85,6 +85,18 @@ class SpecBase(object):
 
 
 
+    # return an expression of bind variables for UPDATE to update only changed attributes
+    def bindUpdateChangesExpression(self):
+        ret = ""
+        for attr in self.attributes:
+            if attr in self.changedAttrs:
+                ret += '%s=:%s,' % (attr,attr)
+        ret  = ret[:-1]
+        ret += ' '
+        return ret
+
+
+
     # return map of values
     def valuesMap(self,onlyChanged=False):
         ret = {}

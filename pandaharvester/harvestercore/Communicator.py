@@ -7,6 +7,11 @@ import os
 import sys
 import requests
 
+# TO BE REMOVED for python2.7
+import requests.packages.urllib3
+requests.packages.urllib3.disable_warnings()
+
+
 import CoreUtils
 from pandaharvester.harvesterconfig import harvester_config
 

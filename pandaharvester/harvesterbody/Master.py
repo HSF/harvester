@@ -7,7 +7,6 @@ import daemon
 import argparse
 import datetime
 
-
 from pandaharvester.harvesterconfig import harvester_config
 
 
@@ -31,12 +30,20 @@ class Master:
     def start(self):
         # thread list
         thrList = []
-        # setup JobFetcher
+        # JobFetcher
         from pandaharvester.harvesterbody.JobFetcher import JobFetcher
         nThr = harvester_config.jobfetch.nThreads
         for iThr in range(nThr):
             thr = JobFetcher(self.communicatorPool,
                              self.queueConfigMapper,
+                             singleMode=self.singleMode)
+            thr.start()
+            thrList.append(thr)
+        # Propagator
+        from pandaharvester.harvesterbody.Propagator import Propagator
+        nThr = harvester_config.prop.nThreads
+        for iThr in range(nThr):
+            thr = Propagator(self.communicatorPool,
                              singleMode=self.singleMode)
             thr.start()
             thrList.append(thr)

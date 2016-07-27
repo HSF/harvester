@@ -4,8 +4,10 @@ utilities
 """
 
 import sys
-import traceback
+import time
+import random
 import inspect
+import traceback
 
 from pandalogger.LogWrapper import LogWrapper
 
@@ -36,3 +38,9 @@ def dumpErrorMessage(tmpLog,errStr=None):
         errStr.strip()
         errStr += traceback.format_exc()
     tmpLog.error(errStr)
+
+
+
+# sleep for randome duration
+def sleep(interval):
+    time.sleep(random.randint(int(interval*0.8),int(interval*1.2)))

@@ -17,7 +17,8 @@ class JobSpec(SpecBase):
                            'creationTime:timestamp',
                            'modificationTime:timestamp',
                            'stateChangeTime:timestamp',
-                           'jobParams:blob'
+                           'jobParams:blob',
+                           'propLock:text'
                            )
 
 

@@ -103,3 +103,31 @@ lookupTime = 60
 # sleep interval in sec
 sleepTime = 60
 
+
+
+
+##########################
+#
+# Propagator parameters
+#
+
+[prop]
+
+# number of threads
+nThreads = 3
+
+# max number of jobs tp update in one cycle
+maxJobs = 100
+
+# number of jobs in bulk update
+nJobsInBulk = 10
+
+# lock interval in sec
+lockInterval = 180
+
+# update interval in sec
+updateInterval = 1800
+
+# sleep interval in sec
+sleepTime = 60
+
