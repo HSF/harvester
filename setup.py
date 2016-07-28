@@ -171,6 +171,7 @@ setup(
                'pandaharvester.harvesterconfig',
                'pandaharvester.harvesterbody',
                'pandaharvester.harvestertest',
+               'pandaharvester.harvesterpreparator',
               ],
     data_files=[
                 # config and cron files

@@ -38,6 +38,7 @@ class Propagator (threading.Thread):
             nJobs = harvester_config.prop.nJobsInBulk
             while iJobs < len(jobSpecs):
                 jobList = jobSpecs[iJobs:iJobs+nJobs]
+                iJobs += nJobs
                 retList = self.communicator.updateJobs(jobList)
                 okPandaIDs = []
                 # logging
@@ -46,11 +47,11 @@ class Propagator (threading.Thread):
                         mainLog.debug('updated PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                               tmpJobSpec.status))
                         # release job
-                        tmpJobSpec.propLock = None
+                        tmpJobSpec.propagatorLock = None
                         if tmpJobSpec.status in ['finished','failed','cancelled']:
                             # unset to disable further updating
-                            tmpJobSpec.stateChangeTime = None
-                        self.dbProxy.updateJob(tmpJobSpec,{'propLock':self.ident})
+                            tmpJobSpec.propagatorTime = None
+                        self.dbProxy.updateJob(tmpJobSpec,{'propagatorLock':self.ident})
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))

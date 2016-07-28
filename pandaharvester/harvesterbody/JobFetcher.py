@@ -56,13 +56,15 @@ class JobFetcher (threading.Thread):
                 if len(jobs) > 0:
                     jobSpecs = []
                     for job in jobs:
+                        timeNow = datetime.datetime.utcnow()
                         jobSpec = JobSpec()
                         jobSpec.convertJobJson(job)
                         jobSpec.computingSite = queueName
                         jobSpec.status = 'starting'
                         jobSpec.subStatus = 'fetched'
-                        jobSpec.creationTime = datetime.datetime.utcnow()
-                        jobSpec.stateChangeTime = datetime.datetime.utcnow()-datetime.timedelta(hours=1)
+                        jobSpec.creationTime = timeNow
+                        jobSpec.stateChangeTime = timeNow
+                        jobSpec.triggerPropagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB
                     self.dbProxy.insertJobs(jobSpecs)

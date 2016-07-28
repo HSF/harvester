@@ -46,6 +46,7 @@ class DBProxy:
         self.con.row_factory = sqlite3.Row
         self.cur = self.con.cursor()
         self.lockDB = False
+        self.verbLog = None
 
 
 
@@ -59,8 +60,7 @@ class DBProxy:
         items = re.findall(':[^ $,)]+',sql)
         for item in items:
             if not item in varMap:
-                raise KeyError, '{0} is missing in SQL parameters sql={1} var={2}'.format(item,sql,
-                                                                                          str(varMap))
+                raise KeyError, '{0} is missing in SQL parameters'.format(item)
             if not item in paramList:
                 paramList.append(varMap[item])
         # lock database
@@ -78,6 +78,11 @@ class DBProxy:
         if not self.lockDB:
             conLock.acquire()
         try:
+            # verbose
+            if harvester_config.db.verbose:
+                if self.verbLog == None:
+                    self.verbLog = CoreUtils.makeLogger(_logger)
+                self.verbLog.debug('sql={0} var={1}'.format(sql,str(varMap)))
             # convert param dict
             params = self.convertParams(sql,varMap)
             # execute
@@ -97,6 +102,11 @@ class DBProxy:
         if not self.lockDB:
             conLock.acquire()
         try:
+            # verbose
+            if harvester_config.db.verbose:
+                if self.verbLog == None:
+                    self.verbLog = CoreUtils.makeLogger(_logger)
+                self.verbLog.debug('sql={0} var={1}'.format(sql,str(varMap)))
             # convert param dict
             paramList = []
             for varMap in varMapList:
@@ -253,19 +263,21 @@ class DBProxy:
     def updateJob(self,jobSpec,criteria=None):
         try:
             # get logger
-            tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
+            tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0} subStatus={1}'.format(jobSpec.PandaID,
+                                                                                     jobSpec.subStatus))
             tmpLog.debug('start')
             if criteria == None:
                 criteria = {}
             # sql to update job
             sql  = "UPDATE {0} SET {1} ".format(jobTableName,jobSpec.bindUpdateChangesExpression())
-            sql += "WHERE PandaID=:pandaID "
+            sql += "WHERE PandaID=:PandaID "
             # update job
             varMap = jobSpec.valuesMap(onlyChanged=True)
             for tmpKey,tmpVal in criteria.iteritems():
                 mapKey = ':{0}_cr'.format(tmpKey)
                 sql += "AND {0}={1} ".format(tmpKey,mapKey)
                 varMap[mapKey] = tmpVal
+            varMap[':PandaID'] = jobSpec.PandaID
             self.execute(sql,varMap)
             nRow = self.cur.rowcount
             # commit
@@ -371,51 +383,6 @@ class DBProxy:
 
 
     # get jobs to propagate checkpoints
-    def getJobsToPropagate(self,maxJobs,lookupTime,lockedBy):
-        try:
-            # get logger
-            tmpLog = CoreUtils.makeLogger(_logger,'thr={0}'.format(lockedBy))
-            tmpLog.debug('start')
-            # sql to get jobs
-            sql  = "SELECT {0} FROM {1} ".format(JobSpec.columnNames(),jobTableName)
-            sql += "WHERE stateChangeTime IS NOT NULL AND stateChangeTime<:timeLimit "
-            sql += "ORDER BY stateChangeTime LIMIT {0} ".format(maxJobs)
-            # sql to lock job
-            sqlL  = "UPDATE {0} SET stateChangeTime=:timeNow,propLock=:lockedBy "
-            sqlL += "WHERE PandaID=:PandaID "
-            # get jobs
-            timeNow = datetime.datetime.utcnow()
-            varMap = {}
-            varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookupTime)
-            self.execute(sql,varMap)
-            resList = self.cur.fetchall()
-            jobSpecList  = []
-            for res in resList:
-                # make job
-                jobSpec = JobSpec()
-                jobSpec.pack(res)
-                # lock job
-                varMap = {}
-                varMap[':PandaID'] = jobSpec.PandaID
-                self.execute(sqlL,varMap)
-                nRow = self.cur.rowcount
-                if nRow > 0:
-                    jobSpecList.append(jobSpec)
-            # commit
-            self.commit()
-            tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
-            return jobSpecList
-        except:
-            # roll back
-            self.rollback()
-            # dump error
-            CoreUtils.dumpErrorMessage(_logger)
-            # return
-            return []
-
-
-
-    # unset stateChangeTime to release 
     def getJobsToPropagate(self,maxJobs,lockInterval,updateInterval,lockedBy):
         try:
             # get logger
@@ -423,12 +390,12 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get jobs
             sql  = "SELECT {0} FROM {1} ".format(JobSpec.columnNames(),jobTableName)
-            sql += "WHERE stateChangeTime IS NOT NULL "
-            sql += "AND ((stateChangeTime<:lockTimeLimit AND propLock IS NOT NULL) "
-            sql += "OR stateChangeTime<:updateTimeLimit) "
-            sql += "ORDER BY stateChangeTime LIMIT {0} ".format(maxJobs)
+            sql += "WHERE propagatorTime IS NOT NULL "
+            sql += "AND ((propagatorTime<:lockTimeLimit AND propagatorLock IS NOT NULL) "
+            sql += "OR propagatorTime<:updateTimeLimit) "
+            sql += "ORDER BY propagatorTime LIMIT {0} ".format(maxJobs)
             # sql to lock job
-            sqlL  = "UPDATE {0} SET stateChangeTime=:timeNow,propLock=:lockedBy "
+            sqlL  = "UPDATE {0} SET propagatorTime=:timeNow,propagatorLock=:lockedBy ".format(jobTableName)
             sqlL += "WHERE PandaID=:PandaID "
             # get jobs
             timeNow = datetime.datetime.utcnow()
@@ -444,9 +411,96 @@ class DBProxy:
                 jobSpec.pack(res)
                 # lock job
                 varMap = {}
-                varMap[':PandaID'] = jobSpec.PandaID
+                varMap[':PandaID']  = jobSpec.PandaID
+                varMap[':timeNow']  = timeNow
+                varMap[':lockedBy'] = lockedBy
                 self.execute(sqlL,varMap)
                 nRow = self.cur.rowcount
+                if nRow > 0:
+                    jobSpec.propagatorLock = lockedBy
+                    jobSpecList.append(jobSpec)
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
+            return jobSpecList
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return []
+
+
+
+    # get jobs in substatus
+    def getJobsInSubStatus(self,subStatus,maxJobs,timeColumn=None,lockColumn=None,intervalWithLock=None,
+                           intervalWoLock=None,lockedBy=None,newSubStatus=None):
+        try:
+            # get logger
+            if lockedBy == None:
+                msgPfx = None
+            else:
+                msgPfx = 'thr={0}'.format(lockedBy)
+            tmpLog = CoreUtils.makeLogger(_logger,msgPfx)
+            tmpLog.debug('start subStatus={0} timeColumn={1}'.format(subStatus,timeColumn))
+            # sql to count jobs beeing processed
+            sqlC  = "SELECT COUNT(*) FROM {0} ".format(jobTableName)
+            sqlC += "WHERE ({0} IS NOT NULL AND subStatus=:subStatus) ".format(lockColumn)
+            sqlC += "OR subStatus=:newSubStatus "
+            # count jobs
+            if maxJobs > 0 and newSubStatus != None:
+                varMap = {}
+                varMap[':subStatus'] = subStatus
+                varMap[':newSubStatus'] = newSubStatus
+                self.execute(sqlC,varMap)
+                nProcessing, = self.cur.fetchone()
+                if nProcessing >= maxJobs:
+                    # commit
+                    self.commit()
+                    tmpLog.debug('enough jobs {0} are beeing processed'.format(len(nProcessing)))
+                    return []
+                maxJobs -= nProcessing
+            # sql to get jobs
+            sql  = "SELECT {0} FROM {1} ".format(JobSpec.columnNames(),jobTableName)
+            sql += "WHERE subStatus=:subStatus "
+            if timeColumn != None:
+                sql += "AND ({0} IS NULL ".format(timeColumn)
+                if intervalWithLock != None:
+                    sql += "OR ({0}<:lockTimeLimit AND {1} IS NOT NULL) ".format(timeColumn,lockColumn)
+                if intervalWoLock != None:
+                    sql += "OR {0}<:updateTimeLimit ".format(timeColumn)
+                sql += ') '
+                sql += "ORDER BY {0} ".format(timeColumn)
+            sql += "LIMIT {0} ".format(maxJobs)
+            # sql to lock job
+            sqlL  = "UPDATE {0} SET {1}=:timeNow,{2}=:lockedBy ".format(jobTableName,timeColumn,lockColumn)
+            sqlL += "WHERE PandaID=:PandaID "
+            # get jobs
+            timeNow = datetime.datetime.utcnow()
+            varMap = {}
+            varMap[':subStatus'] = subStatus
+            if intervalWithLock != None:
+                varMap[':lockTimeLimit']   = timeNow - datetime.timedelta(seconds=intervalWithLock)
+            if intervalWoLock != None:
+                varMap[':updateTimeLimit'] = timeNow - datetime.timedelta(seconds=intervalWoLock)
+            self.execute(sql,varMap)
+            resList = self.cur.fetchall()
+            jobSpecList  = []
+            for res in resList:
+                # make job
+                jobSpec = JobSpec()
+                jobSpec.pack(res)
+                # lock job
+                if lockedBy != None:
+                    varMap = {}
+                    varMap[':PandaID']  = jobSpec.PandaID
+                    varMap[':timeNow']  = timeNow
+                    varMap[':lockedBy'] = lockedBy
+                    self.execute(sqlL,varMap)
+                    nRow = self.cur.rowcount
+                else:
+                    nRow = 1
                 if nRow > 0:
                     jobSpecList.append(jobSpec)
             # commit

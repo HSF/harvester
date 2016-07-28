@@ -27,6 +27,8 @@ loggername = harvester
 # filename
 database_filename = /tmp/tmaeno/test.db
 
+# verbose
+verbose = False
 
 
 
@@ -127,6 +129,37 @@ lockInterval = 180
 
 # update interval in sec
 updateInterval = 1800
+
+# sleep interval in sec
+sleepTime = 60
+
+
+
+
+##########################
+#
+# Preparator parameters
+#
+
+[preparator]
+
+# number of threads
+nThreads = 3
+
+# max number of jobs to check in one cycle
+maxJobsToCheck = 100
+
+# max number of jobs to trigger in one cycle
+maxJobsToTrigger = 100
+
+# lock interval in sec
+lockInterval = 180
+
+# check interval in sec
+checkInterval = 180
+
+# trigger interval in sec
+triggerInterval = 180
 
 # sleep interval in sec
 sleepTime = 60

@@ -95,4 +95,14 @@ class Communicator:
             except:
                 CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
         return []
-                
+
+
+
+    # update jobs TOBEFIXED
+    def updateJobs(self,jobList):
+        retList = []
+        for jobSpec in jobList:
+            retMap = {}
+            retMap['StatusCode'] = 0
+            retList.append(retMap)
+        return retList

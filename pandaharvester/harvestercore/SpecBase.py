@@ -19,6 +19,7 @@ class SpecBase(object):
         object.__setattr__(self,'serializedAttrs',set())
         for attr in self.attributesWithTypes:
             attr,attrType = attr.split(':')
+            attrType = attrType.split()[0]
             self.attributes.append(attr)
             if attrType in ['blob']:
                 self.serializedAttrs.add(attr)

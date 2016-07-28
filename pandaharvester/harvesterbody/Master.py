@@ -50,6 +50,18 @@ class Master:
         # join
         for thr in thrList:
             thr.join()
+        # Preparator
+        from pandaharvester.harvesterbody.Preparator import Preparator
+        nThr = harvester_config.preparator.nThreads
+        for iThr in range(nThr):
+            thr = Preparator(self.communicatorPool,
+                             self.queueConfigMapper,
+                             singleMode=self.singleMode)
+            thr.start()
+            thrList.append(thr)
+        # join
+        for thr in thrList:
+            thr.join()
 
 
 

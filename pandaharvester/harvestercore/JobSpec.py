@@ -4,12 +4,13 @@ Job spec class
 """
 
 import json
+import datetime
 
 from SpecBase import SpecBase
 
 class JobSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('PandaID:int',
+    attributesWithTypes = ('PandaID:int primary key',
                            'status:text',
                            'subStatus:text',
                            'currentPriority:int',
@@ -18,7 +19,10 @@ class JobSpec(SpecBase):
                            'modificationTime:timestamp',
                            'stateChangeTime:timestamp',
                            'jobParams:blob',
-                           'propLock:text'
+                           'propagatorLock:text',
+                           'propagatorTime:timestamp',
+                           'preparatorLock:text',
+                           'preparatorTime:timestamp',
                            )
 
 
@@ -33,3 +37,9 @@ class JobSpec(SpecBase):
         self.PandaID = data['PandaID']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
+
+
+
+    # trigger propagation
+    def triggerPropagation(self):
+        self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
