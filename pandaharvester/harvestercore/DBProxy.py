@@ -13,7 +13,9 @@ import traceback
 import threading
 
 from JobSpec import JobSpec
+from WorkSpec import WorkSpec
 from PandaQueueSpec import PandaQueueSpec
+from JobWorkerRelationSpec import JobWorkerRelationSpec
 
 import CoreUtils
 from pandaharvester.harvesterconfig import harvester_config
@@ -27,6 +29,7 @@ _logger = PandaLogger().getLogger('DBProxy')
 jobTableName        = 'job_table'
 workTableName       = 'work_table'
 pandaQueueTableName = 'pq_table'
+jobWorkerTableName  = 'jw_table'
 
 
 # connection lock
@@ -106,7 +109,7 @@ class DBProxy:
             if harvester_config.db.verbose:
                 if self.verbLog == None:
                     self.verbLog = CoreUtils.makeLogger(_logger)
-                self.verbLog.debug('sql={0} var={1}'.format(sql,str(varMap)))
+                self.verbLog.debug('sql={0} var={1}'.format(sql,str(varMapList)))
             # convert param dict
             paramList = []
             for varMap in varMapList:
@@ -189,7 +192,9 @@ class DBProxy:
     # make tables
     def makeTables(self,queueConfigMapper):
         self.makeTable(JobSpec,jobTableName)
+        self.makeTable(WorkSpec,workTableName)
         self.makeTable(PandaQueueSpec,pandaQueueTableName)
+        self.makeTable(JobWorkerRelationSpec,jobWorkerTableName)
         # fill PandaQueue table
         self.fillPandaQueueTable(harvester_config.qconf.queueList,queueConfigMapper)
 
@@ -201,7 +206,7 @@ class DBProxy:
             # get logger
             tmpLog = CoreUtils.makeLogger(_logger)
             tmpLog.debug('{0} jobs'.format(len(jobSpecs)))
-            # sql to insert job
+            # sql to insert a job
             sql  = "INSERT INTO {0} ({1}) ".format(jobTableName,JobSpec.columnNames())
             sql += JobSpec.bindValuesExpression()
             # loop over all jobs
@@ -303,14 +308,16 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get job
             sql  = "INSERT INTO {0} ".format(pandaQueueTableName)
-            sql += "(queueName,nQueueLimit) VALUES (:queueName,:nQueueLimit) "
+            sql += "(queueName,nQueueLimitJob,nQueueLimitWorker) VALUES "
+            sql += "(:queueName,:nQueueLimitJob,:nQueueLimitWorker) "
             # insert queues
             for queueName in pandaQueues:
                 queueConfig = queueConfigMapper.getQueue(queueName)
                 if queueConfig != None:
                     varMap = {}
                     varMap[':queueName'] = queueName
-                    varMap[':nQueueLimit'] = queueConfig.nQueueLimit
+                    varMap[':nQueueLimitJob']  = queueConfig.nQueueLimitJob
+                    varMap[':nQueueLimitWorker'] = queueConfig.nQueueLimitWorker
                     self.execute(sql,varMap)
             # commit
             self.commit()
@@ -335,7 +342,7 @@ class DBProxy:
             tmpLog.debug('start')
             retMap = {}
             # sql to get queues
-            sqlQ  = "SELECT queueName,nQueueLimit FROM {0} ".format(pandaQueueTableName)
+            sqlQ  = "SELECT queueName,nQueueLimitJob FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE jobFetchTime IS NULL OR jobFetchTime<:timeLimit "
             sqlQ += "ORDER BY jobFetchTime "
             # sql to count nQueue
@@ -517,3 +524,189 @@ class DBProxy:
 
 
 
+    # register a worker
+    def registerWorker(self,worker,jobList,lockedBy):
+        try:
+            tmpLog = CoreUtils.makeLogger(_logger,'batchID={0}'.format(worker.batchID))
+            tmpLog.debug('start')
+            retMap = {}
+            # sql to insert a worker
+            sql  = "INSERT INTO {0} ({1}) ".format(workTableName,WorkSpec.columnNames())
+            sql += WorkSpec.bindValuesExpression()
+            # sql to insert job and worker relationship
+            sqlR  = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName,JobWorkerRelationSpec.columnNames())
+            sqlR += JobWorkerRelationSpec.bindValuesExpression()
+            # insert worker
+            varMap = worker.valuesList()
+            self.execute(sql,varMap)
+            # get workerID
+            worker.workerID = self.cur.lastrowid
+            # collect values to update jobs or insert job/worker mapping
+            varMapsR = []
+            for jobSpec in jobList:
+                # sql to update job
+                sqlJ  = "UPDATE {0} SET {1} ".format(jobTableName,jobSpec.bindUpdateChangesExpression())
+                sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
+                # update job
+                varMap = jobSpec.valuesMap(onlyChanged=True)
+                varMap[':cr_PandaID'] = jobSpec.PandaID
+                varMap[':cr_lockedBy'] = lockedBy
+                self.execute(sqlJ,varMap)
+                if jobSpec.subStatus == 'submitted':
+                    # values for job/worker mapping
+                    jwRelation = JobWorkerRelationSpec()
+                    jwRelation.PandaID = jobSpec.PandaID
+                    jwRelation.workerID = worker.workerID
+                    varMap = jwRelation.valuesList()
+                    varMapsR.append(varMap)
+            # insert job/worker mapping
+            if len(varMapsR) > 0:
+                self.executemany(sqlR,varMapsR)
+            # commit
+            self.commit()
+            # return
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return False
+
+
+
+    # get queues to submit workers
+    def getQueuesToSubmit(self,nQueues,interval):
+        try:
+            # get logger
+            tmpLog = CoreUtils.makeLogger(_logger)
+            tmpLog.debug('start')
+            retMap = {}
+            # sql to get queues
+            sqlQ  = "SELECT queueName,nQueueLimitWorker FROM {0} ".format(pandaQueueTableName)
+            sqlQ += "WHERE submitTime IS NULL OR submitTime<:timeLimit "
+            sqlQ += "ORDER BY submitTime "
+            # sql to count nQueue
+            sqlN  = "SELECT count(*) FROM {0} ".format(workTableName)
+            sqlN += "WHERE computingSite=:computingSite AND status=:status "
+            # sql to update timestamp
+            sqlU  = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
+            sqlU += "WHERE queueName=:queueName "
+            # get queues
+            timeNow = datetime.datetime.utcnow()
+            varMap = {}
+            varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
+            self.execute(sqlQ,varMap)
+            resQ = self.cur.fetchall()
+            for queueName,nQueueLimit in resQ:
+                # count nQueue
+                varMap = {}
+                varMap[':computingSite'] = queueName
+                varMap[':status'] = 'submitted'
+                self.execute(sqlN,varMap)
+                nQueue, = self.cur.fetchone()
+                # more jobs need to be queued
+                if nQueue < nQueueLimit:
+                    retMap[queueName] = nQueueLimit - nQueue
+                # update timestamp
+                varMap = {}
+                varMap[':queueName'] = queueName
+                varMap[':submitTime'] = timeNow
+                self.execute(sqlU,varMap)
+                # enough queues
+                if len(retMap) >= nQueues:
+                    break
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return {}
+
+
+
+
+    # get job chunks to make workers
+    def getJobChunksForWorkers(self,queueName,nWorkers,nJobsPerWorker,nWorkersPerJob,useJobLateBinding,
+                               checkInterval,lockInterval,lockedBy):
+        try:
+            # get logger
+            tmpLog = CoreUtils.makeLogger(_logger,'queue={0}'.format(queueName))
+            tmpLog.debug('start')
+            # define maxJobs
+            if nJobsPerWorker != None:
+                maxJobs = nWorkers * nJobsPerWorker
+            else:
+                maxJobs = -(-nWorkers // nWorkersPerJob)
+            # sql to get jobs
+            sql  = "SELECT {0} FROM {1} ".format(JobSpec.columnNames(),jobTableName)
+            sql += "WHERE subStatus=:subStatus "
+            sql += "AND (submitterTime IS NULL "
+            sql += "OR ((submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sql += "OR submitterTime<:checkTimeLimit)) "
+            sql += "AND computingSite=:queueName "
+            sql += "ORDER BY currentPriority DESC,taskID,PandaID LIMIT {0} ".format(maxJobs)
+            # sql to lock job
+            sqlL  = "UPDATE {0} SET submitterTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
+            sqlL += "WHERE PandaID=:PandaID "
+            # get jobs
+            timeNow = datetime.datetime.utcnow()
+            varMap = {}
+            varMap[':subStatus'] = 'prepared'
+            varMap[':queueName'] = queueName
+            varMap[':lockTimeLimit']  = timeNow - datetime.timedelta(seconds=lockInterval)
+            varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=checkInterval)
+            self.execute(sql,varMap)
+            resList = self.cur.fetchall()
+            jobChunkList  = []
+            jobChunk = []
+            for res in resList:
+                # make job
+                jobSpec = JobSpec()
+                jobSpec.pack(res)
+                # new chunk
+                if len(jobChunk) > 0 and jobChunk[0].taskID != jobSpec.taskID:
+                    jobChunkList.append(jobChunk)
+                    jobChunk = []
+                jobChunk.append(jobSpec)
+                # enough jobs in chunk
+                if nJobsPerWorker != None and len(jobChunk) >= nJobsPerWorker:
+                    jobChunkList.append(jobChunk)
+                    jobChunk = []
+                # one job per multiple workers
+                elif nWorkersPerJob != None:
+                    for i in range(nWorkersPerJob):
+                        jobChunkList.append(jobChunk)
+                    jobChunk = []
+                # lock job
+                varMap = {}
+                varMap[':PandaID']  = jobSpec.PandaID
+                varMap[':timeNow']  = timeNow
+                varMap[':lockedBy'] = lockedBy
+                self.execute(sqlL,varMap)
+                nRow = self.cur.rowcount
+                jobSpec.lockedBy = lockedBy
+                if useJobLateBinding:
+                    jobSpec.subStatus = 'queued'
+                else:
+                    jobSpec.subStatus = 'submitted'
+                # enough job chunks
+                if len(jobChunkList) >= nWorkers:
+                    break
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} job chunks'.format(len(jobChunkList)))
+            return jobChunkList
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return []

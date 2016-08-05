@@ -26,19 +26,19 @@ class Preparator (threading.Thread):
         self.pluginFactory = PluginFactory()
 
 
-
     # main loop
     def run (self):
+        lockedBy = 'preparator-{0}'.format(self.ident)
         while True:
-            mainLog = CoreUtils.makeLogger(_logger,'id={0}'.format(self.ident))
+            mainLog = CoreUtils.makeLogger(_logger,'id={0}'.format(lockedBy))
             mainLog.debug('getting number of jobs to be fetched')
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.getJobsInSubStatus('preparing',
                                                           harvester_config.preparator.maxJobsToCheck,
-                                                          'preparatorTime','preparatorLock',
+                                                          'preparatorTime','lockedBy',
                                                           harvester_config.preparator.checkInterval,
                                                           harvester_config.preparator.lockInterval,
-                                                          self.ident)
+                                                          lockedBy)
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
@@ -50,17 +50,17 @@ class Preparator (threading.Thread):
                     continue
                 queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
                 # get plugin
-                pCore = self.pluginFactory.getPlugin(queueConifg.preparator)
-                if pCore == None:
+                preparatorCore = self.pluginFactory.getPlugin(queueConifg.preparator)
+                if preparatorCore == None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
-                tmpStat,tmpStr = pCore.checkStatus(jobSpec)
+                tmpStat,tmpStr = preparatorCore.checkStatus(jobSpec)
                 # still running
                 if tmpStat == None:
                     # update job
-                    jobSpec.preparatorLock = None
-                    self.dbProxy.updateJob(tmpJobSpec,{'preparatorLock':self.ident,
+                    jobSpec.lockedBy = None
+                    self.dbProxy.updateJob(tmpJobSpec,{'lockedBy':lockedBy,
                                                        'subStatus':'preparing'})
                     tmpLog.debug('still running')
                     continue
@@ -68,28 +68,29 @@ class Preparator (threading.Thread):
                 if tmpStat == True:
                     # update job
                     jobSpec.subStatus = 'prepared'
-                    jobSpec.preparatorLock = None
+                    jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
-                    self.dbProxy.updateJob(jobSpec,{'preparatorLock':self.ident,
+                    self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':'preparing'})
                     tmpLog.debug('successed')
                 else:
                     # update job
                     jobSpec.status = 'failed'
-                    jobSpec.preparatorLock = None
+                    jobSpec.subStatus = 'failedtoprepare'
+                    jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
                     jobSpec.triggerPropagation()
-                    self.dbProxy.updateJob(jobSpec,{'preparatorLock':self.ident,
+                    self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':'preparing'})
                     tmpLog.debug('failed with {0}'.format(tmpStr))
             # get jobs to trigger preparation
             jobsToTrigger = self.dbProxy.getJobsInSubStatus('fetched',
                                                             harvester_config.preparator.maxJobsToTrigger,
-                                                            'preparatorTime','preparatorLock',
+                                                            'preparatorTime','lockedBy',
                                                             harvester_config.preparator.triggerInterval,
                                                             harvester_config.preparator.lockInterval,
-                                                            self.ident,
+                                                            lockedBy,
                                                             'preparing')
             mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
             # loop over all jobs
@@ -102,29 +103,31 @@ class Preparator (threading.Thread):
                     continue
                 queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
                 # get plugin
-                pCore = self.pluginFactory.getPlugin(queueConifg.preparator)
-                if pCore == None:
+                preparatorCore = self.pluginFactory.getPlugin(queueConifg.preparator)
+                if preparatorCore == None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
-                tmpStat,tmpStr = pCore.triggerPreparation(jobSpec)
+                # trigger preparation
+                tmpStat,tmpStr = preparatorCore.triggerPreparation(jobSpec)
                 # successed
                 if tmpStat == True:
                     # update job
                     jobSpec.subStatus = 'preparing'
-                    jobSpec.preparatorLock = None
+                    jobSpec.lockedBy = None
                     jobSpec.preparatorTime = datetime.datetime.utcnow()
-                    self.dbProxy.updateJob(jobSpec,{'preparatorLock':self.ident,
+                    self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':'fetched'})
                     tmpLog.debug('successfully triggered')
                 else:
                     # update job
                     jobSpec.status = 'failed'
-                    jobSpec.preparatorLock = None
+                    jobSpec.subStatus = 'failedtoprepare'
+                    jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
                     jobSpec.triggerPropagation()
-                    self.dbProxy.updateJob(jobSpec,{'preparatorLock':self.ident,
+                    self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':'fetched'})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
             mainLog.debug('done')

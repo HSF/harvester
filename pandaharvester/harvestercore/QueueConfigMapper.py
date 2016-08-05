@@ -6,7 +6,11 @@ from pandaharvester.harvesterconfig import harvester_config
 
 # class for queue config
 class QueueConfig:
-    pass
+    def __init__(self,queueName):
+        self.queueName = queueName
+        # default parameters
+        self.mapType = '1Jto1W'
+        self.useJobLateBinding = False
 
 
 
@@ -38,7 +42,7 @@ class QueueConfigMapper:
         f.close()
         # set attributes
         for queueName,queueDict in queueConfigJson.iteritems():
-            queueConfig = QueueConfig()
+            queueConfig = QueueConfig(queueName)
             for key,val in queueDict.iteritems():
                 setattr(queueConfig,key,val)
             self.queueConfig[queueName] = queueConfig

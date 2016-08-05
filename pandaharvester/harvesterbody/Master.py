@@ -47,9 +47,6 @@ class Master:
                              singleMode=self.singleMode)
             thr.start()
             thrList.append(thr)
-        # join
-        for thr in thrList:
-            thr.join()
         # Preparator
         from pandaharvester.harvesterbody.Preparator import Preparator
         nThr = harvester_config.preparator.nThreads
@@ -59,6 +56,15 @@ class Master:
                              singleMode=self.singleMode)
             thr.start()
             thrList.append(thr)
+        # Submitter
+        from pandaharvester.harvesterbody.Submitter import Submitter
+        nThr = harvester_config.submitter.nThreads
+        for iThr in range(nThr):
+            thr = Submitter(self.queueConfigMapper,
+                            singleMode=self.singleMode)
+            thr.start()
+            thrList.append(thr)
+        ##################
         # join
         for thr in thrList:
             thr.join()

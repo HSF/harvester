@@ -34,8 +34,7 @@ def dumpErrorMessage(tmpLog,errStr=None):
     # error
     if errStr == None:
         errtype,errvalue = sys.exc_info()[:2]
-        errStr = "{0} {1} {2}".format(methodName,errtype.__name__,errvalue)
-        errStr.strip()
+        errStr = "{0} {1} {2} ".format(methodName,errtype.__name__,errvalue)
         errStr += traceback.format_exc()
     tmpLog.error(errStr)
 

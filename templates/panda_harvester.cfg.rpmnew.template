@@ -164,3 +164,31 @@ triggerInterval = 180
 # sleep interval in sec
 sleepTime = 60
 
+
+
+
+##########################
+#
+# Submitter parameters
+#
+
+[submitter]
+
+# number of threads
+nThreads = 3
+
+# max number of queues to try in one cycle
+nQueues = 3
+
+# interval for queue lookup
+lookupTime = 60
+
+# lock interval in sec
+lockInterval = 180
+
+# check interval in sec
+checkInterval = 180
+
+# sleep interval in sec
+sleepTime = 60
+

@@ -1,9 +1,12 @@
+from pandaharvester.harvestercore.PluginBase import PluginBase
+
+
 # dummy plugin for preparator
-class DummyPlugin:
+class DummyPreparator (PluginBase):
     
     # constructor
-    def __init__(self):
-        pass
+    def __init__(self,**kwarg):
+        PluginBase.__init__(self,**kwarg)
 
 
     # check status

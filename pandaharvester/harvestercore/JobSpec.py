@@ -3,26 +3,27 @@ Job spec class
 
 """
 
-import json
 import datetime
 
 from SpecBase import SpecBase
 
 class JobSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('PandaID:int primary key',
+    attributesWithTypes = ('PandaID:integer primary key',
+                           'taskID:integer',
                            'status:text',
                            'subStatus:text',
-                           'currentPriority:int',
+                           'currentPriority:integer',
                            'computingSite:text',
                            'creationTime:timestamp',
                            'modificationTime:timestamp',
                            'stateChangeTime:timestamp',
                            'jobParams:blob',
+                           'lockedBy:text',
                            'propagatorLock:text',
                            'propagatorTime:timestamp',
-                           'preparatorLock:text',
                            'preparatorTime:timestamp',
+                           'submitterTime:timestamp',
                            )
 
 
@@ -35,6 +36,7 @@ class JobSpec(SpecBase):
     # convert from Job JSON
     def convertJobJson(self,data):
         self.PandaID = data['PandaID']
+        self.taskID = data['taskID']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
 
