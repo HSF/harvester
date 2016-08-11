@@ -5,6 +5,7 @@ Connection to the PanDA server
 
 import os
 import sys
+import copy
 import requests
 
 # TO BE REMOVED for python2.7
@@ -76,7 +77,7 @@ class Communicator:
     def getJobs(self,siteName,nodeName,prodSourceLabel,computingElement,nJobs):
         # get logger
         tmpLog = CoreUtils.makeLogger(_logger,'siteName={0}'.format(siteName))
-        tmpLog.debug('getting {0} jobs'.format(nJobs))
+        tmpLog.debug('try to get {0} jobs'.format(nJobs))
         data = {}
         data['siteName']         = siteName
         data['node']             = nodeName
@@ -98,11 +99,33 @@ class Communicator:
 
 
 
-    # update jobs TOBEFIXED
+    # update jobs TOBEFIXED to use bulk method
     def updateJobs(self,jobList):
         retList = []
         for jobSpec in jobList:
-            retMap = {}
-            retMap['StatusCode'] = 0
+            tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
+            tmpLog.debug('start')
+            if jobSpec.jobAttributes == None:
+                data = {}
+            else:
+                data = copy.copy(jobSpec.jobAttributes)
+            data['jobId'] = jobSpec.PandaID
+            data['state'] = jobSpec.status
+            data['attemptNr'] = jobSpec.attemptNr
+            data['jobSubStatus'] = jobSpec.subStatus
+            tmpStat,tmpRes = self.postSSL('updateJob',data)
+            retMap = None
+            if tmpStat == False:
+                errStr = CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+            else:
+                try:
+                    retMap = tmpRes.json()
+                except:
+                    errStr = CoreUtils.dumpErrorMessage(tmpLog)
+            if retMap == None:
+                retMap = {}
+                retMap['StatusCode'] = 999
+                retMap['ErrorDiag'] = errStr
             retList.append(retMap)
+            tmpLog.debug('done with {0}'.format(str(retMap)))
         return retList

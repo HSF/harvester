@@ -11,6 +11,7 @@ class JobSpec(SpecBase):
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
                            'taskID:integer',
+                           'attemptNr:integer',
                            'status:text',
                            'subStatus:text',
                            'currentPriority:integer',
@@ -40,6 +41,7 @@ class JobSpec(SpecBase):
     def convertJobJson(self,data):
         self.PandaID = data['PandaID']
         self.taskID = data['taskID']
+        self.attemptNr = data['attemptNr']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
 
