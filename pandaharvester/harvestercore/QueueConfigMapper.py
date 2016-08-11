@@ -2,6 +2,7 @@ import os
 import json
 
 from pandaharvester.harvesterconfig import harvester_config
+from WorkSpec import WorkSpec
 
 
 # class for queue config
@@ -9,7 +10,7 @@ class QueueConfig:
     def __init__(self,queueName):
         self.queueName = queueName
         # default parameters
-        self.mapType = '1Jto1W'
+        self.mapType = WorkSpec.MT_OneToOne
         self.useJobLateBinding = False
 
 

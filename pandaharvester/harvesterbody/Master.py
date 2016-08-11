@@ -26,11 +26,18 @@ class Master:
         dbProxy.makeTables(self.queueConfigMapper)
 
 
+
     # main loop
     def start(self):
         # thread list
         thrList = []
-        # JobFetcher
+        # Credential Manager
+        from pandaharvester.harvesterbody.CredManager import CredManager
+        thr = CredManager(singleMode=self.singleMode)
+        thr.execute()
+        thr.start()
+        thrList.append(thr)
+        # Job Fetcher
         from pandaharvester.harvesterbody.JobFetcher import JobFetcher
         nThr = harvester_config.jobfetch.nThreads
         for iThr in range(nThr):
@@ -41,10 +48,18 @@ class Master:
             thrList.append(thr)
         # Propagator
         from pandaharvester.harvesterbody.Propagator import Propagator
-        nThr = harvester_config.prop.nThreads
+        nThr = harvester_config.propagator.nThreads
         for iThr in range(nThr):
             thr = Propagator(self.communicatorPool,
                              singleMode=self.singleMode)
+            thr.start()
+            thrList.append(thr)
+        # Monitor
+        from pandaharvester.harvesterbody.Monitor import Monitor
+        nThr = harvester_config.monitor.nThreads
+        for iThr in range(nThr):
+            thr = Monitor(self.queueConfigMapper,
+                          singleMode=self.singleMode)
             thr.start()
             thrList.append(thr)
         # Preparator

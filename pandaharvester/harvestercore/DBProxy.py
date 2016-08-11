@@ -85,7 +85,8 @@ class DBProxy:
             if harvester_config.db.verbose:
                 if self.verbLog == None:
                     self.verbLog = CoreUtils.makeLogger(_logger)
-                self.verbLog.debug('sql={0} var={1}'.format(sql,str(varMap)))
+                self.verbLog.debug('sql={0} var={1} exec={2}'.format(sql,str(varMap),
+                                                                     inspect.stack()[1][3]))
             # convert param dict
             params = self.convertParams(sql,varMap)
             # execute
@@ -506,6 +507,8 @@ class DBProxy:
                     varMap[':lockedBy'] = lockedBy
                     self.execute(sqlL,varMap)
                     nRow = self.cur.rowcount
+                    jobSpec.lockedBy = lockedBy
+                    setattr(jobSpec,timeColumn,timeNow)
                 else:
                     nRow = 1
                 if nRow > 0:
@@ -710,3 +713,191 @@ class DBProxy:
             CoreUtils.dumpErrorMessage(_logger)
             # return
             return []
+
+
+
+    # get queues to submit workers
+    def getWorkersToUpdate(self,maxWorkers,checkInterval,lockInterval,lockedBy):
+        try:
+            # get logger
+            tmpLog = CoreUtils.makeLogger(_logger)
+            tmpLog.debug('start')
+            # sql to get workers
+            sqlW  = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW += "WHERE status IN (:st_submitted,:st_running,:st_queued) "
+            sqlW += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sqlW += "OR modificationTime<:checkTimeLimit) "
+            sqlW += "ORDER BY modificationTime LIMIT {0} ".format(maxWorkers)
+            # sql to lock worker
+            sqlL  = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID "
+            # sql to get associated workerIDs
+            sqlA  = "SELECT t.workerID FROM {0} t, {0} s ".format(jobWorkerTableName)
+            sqlA += "WHERE s.PandaID=t.PandaID AND s.workerID=:workerID "
+            # sql to get associated workers
+            sqlG  = "SELECT {0} FROM {1} ".format(WorkSpec.columnNames(),workTableName)
+            sqlG += "WHERE workerID=:workerID "
+            # get workerIDs
+            timeNow = datetime.datetime.utcnow()
+            varMap = {}
+            varMap[':st_submitted'] = WorkSpec.ST_submitted
+            varMap[':st_running']   = WorkSpec.ST_running
+            varMap[':st_queued']    = WorkSpec.ST_queued
+            varMap[':lockTimeLimit']  = timeNow - datetime.timedelta(seconds=lockInterval)
+            varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=checkInterval)
+            self.execute(sqlW,varMap)
+            resW = self.cur.fetchall()
+            tmpWorkers = set()
+            for workerID, in resW:
+                tmpWorkers.add(workerID)
+            checkedIDs = set()
+            retVal = {}
+            for workerID in tmpWorkers:
+                # skip 
+                if workerID in checkedIDs:
+                    continue
+                # get associated workerIDs
+                varMap = {}
+                varMap[':workerID'] = workerID
+                self.execute(sqlA,varMap)
+                resA = self.cur.fetchall()
+                # get workers
+                queueName = None
+                workersList = []
+                for tmpWorkID, in resA:
+                    checkedIDs.add(tmpWorkID)
+                    # get worker
+                    varMap = {}
+                    varMap[':workerID'] = tmpWorkID
+                    self.execute(sqlG,varMap)
+                    resG =  self.cur.fetchone()
+                    workSpec = WorkSpec()
+                    workSpec.pack(resG)
+                    if queueName == None:
+                        queueName = workSpec.computingSite
+                    workersList.append(workSpec)
+                    # lock worker
+                    varMap = {}
+                    varMap[':workerID'] = tmpWorkID
+                    varMap[':lockedBy'] = lockedBy
+                    varMap[':timeNow'] = timeNow
+                    self.execute(sqlL,varMap)
+                # add
+                if queueName != None:
+                    if not queueName in retVal:
+                        retVal[queueName] = []
+                    retVal[queueName].append(workersList)
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retVal)))
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return {}
+
+
+
+
+    # update jobs and workers
+    def updateJobsWorkers(self,jobSpecs,workSpecs,lockedBy):
+        try:
+            timeNow = datetime.datetime.utcnow()
+            # update job
+            for jobSpec in jobSpecs:
+                tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
+                tmpLog.debug('updating')
+                # sql to update job
+                sqlJ  = "UPDATE {0} SET {1} ".format(jobTableName,jobSpec.bindUpdateChangesExpression())
+                sqlJ += "WHERE PandaID=:PandaID AND lockedBy=:cr_lockedBy "
+                jobSpec.lockedBy = None
+                jobSpec.modificationTime = timeNow
+                varMap = jobSpec.valuesMap(onlyChanged=True)
+                varMap[':PandaID'] = jobSpec.PandaID
+                varMap[':cr_lockedBy'] = lockedBy
+                self.execute(sqlJ,varMap)
+                nRow = self.cur.rowcount
+                tmpLog.debug('done with {0}'.format(nRow))
+            # update worker
+            for workSpec in workSpecs:
+                tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+                tmpLog.debug('update')
+                # sql to update worker
+                sqlW  = "UPDATE {0} SET {1} ".format(workTableName,workSpec.bindUpdateChangesExpression())
+                sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
+                workSpec.lockedBy = None
+                workSpec.modificationTime = timeNow
+                varMap = workSpec.valuesMap(onlyChanged=True)
+                varMap[':workerID'] = workSpec.workerID
+                varMap[':cr_lockedBy'] = lockedBy
+                self.execute(sqlW,varMap)
+                nRow = self.cur.rowcount
+                tmpLog.debug('done with {0}'.format(nRow))
+            # commit
+            self.commit()
+            # return
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return False
+
+
+
+    # get jobs with workerID
+    def getJobsWithWorkerID(self,workerID,lockedBy):
+        try:
+            # get logger
+            tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workerID))
+            tmpLog.debug('start')
+            # sql to get PandaIDs
+            sqlP  = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
+            sqlP += "WHERE workerID=:workerID "
+            # sql to get jobs
+            sqlJ  = "SELECT {0} FROM {1} ".format(JobSpec.columnNames(),jobTableName)
+            sqlJ += "WHERE PandaID=:PandaID "
+            # sql to lock job
+            sqlL  = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
+            sqlL += "WHERE PandaID=:PandaID "
+            # get jobs
+            jobChunkList = []
+            timeNow = datetime.datetime.utcnow()
+            varMap = {}
+            varMap[':workerID'] = workerID
+            self.execute(sqlP,varMap)
+            resW = self.cur.fetchall()
+            for pandaID, in resW:
+                # get job
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                self.execute(sqlJ,varMap)
+                resJ = self.cur.fetchone()
+                # make job
+                jobSpec = JobSpec()
+                jobSpec.pack(resJ)
+                jobSpec.lockedBy = lockedBy
+                # lock job
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':lockedBy'] = lockedBy
+                varMap[':timeNow'] = timeNow
+                self.execute(sqlL,varMap)
+                jobChunkList.append(jobSpec)
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} job chunks'.format(len(jobChunkList)))
+            return jobChunkList
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return []
+

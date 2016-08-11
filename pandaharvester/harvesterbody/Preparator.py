@@ -115,7 +115,7 @@ class Preparator (threading.Thread):
                     # update job
                     jobSpec.subStatus = 'preparing'
                     jobSpec.lockedBy = None
-                    jobSpec.preparatorTime = datetime.datetime.utcnow()
+                    jobSpec.preparatorTime = None
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':'fetched'})
                     tmpLog.debug('successfully triggered')

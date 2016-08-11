@@ -4,8 +4,27 @@ Base class for XyzSpec
 """
 
 import json
+import pickle
 
 
+# encoder for non-native json objects
+class PythonObjectEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj,(set,dict,list)):
+            return json.JSONEncoder.default(self,obj)
+        return {'_non_json_object': pickle.dumps(obj)}
+
+
+# hook for decoder
+def as_python_object(dct):
+    if '_non_json_object' in dct:
+        return pickle.loads(str(dct['_non_json_object']))
+    return dct
+
+
+
+
+# base class for XyzSpec
 class SpecBase(object):
     # to be set
     attributesWithTypes = ()
@@ -51,12 +70,18 @@ class SpecBase(object):
 
 
 
+    # force update
+    def forceUpdate(self,name):
+        if name in self.attributes:
+            self.changedAttrs[name] = getattr(self,name)
+
+
     # pack into attributes
     def pack(self,values):
         for attr in self.attributes:
             val = values[attr]
             if attr in self.serializedAttrs:
-                val = json.loads(val)
+                val = json.loads(val,object_hook=as_python_object)
             object.__setattr__(self,attr,val)
 
 
@@ -113,7 +138,7 @@ class SpecBase(object):
                 else:
                     val = None
             if attr in self.serializedAttrs:
-                val = json.dumps(val)
+                val = json.dumps(val,cls=PythonObjectEncoder)
             ret[':%s' % attr] = val
         return ret
 
@@ -134,6 +159,6 @@ class SpecBase(object):
                 else:
                     val = None
             if attr in self.serializedAttrs:
-                val = json.dumps(val)
+                val = json.dumps(val,cls=PythonObjectEncoder)
             ret.append(val)
         return ret

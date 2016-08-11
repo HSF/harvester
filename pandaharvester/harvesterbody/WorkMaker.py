@@ -52,3 +52,17 @@ class WorkMaker:
 
 
     
+    # get number of jobs per worker
+    def getNumJobsPerWorker(self,queueConfig):
+        # get plugin
+        maker = self.pluginFactory.getPlugin(queueConfig.workMaker)
+        return maker.getNumJobsPerWorker()
+
+
+
+    # get number of workers per job
+    def getNumWorkersPerJob(self,queueConfig):
+        # get plugin
+        maker = self.pluginFactory.getPlugin(queueConfig.workMaker)
+        return maker.getNumWorkersPerJob()
+

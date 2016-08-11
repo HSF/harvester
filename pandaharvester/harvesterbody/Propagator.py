@@ -28,14 +28,14 @@ class Propagator (threading.Thread):
         while True:
             mainLog = CoreUtils.makeLogger(_logger,'id={0}'.format(self.ident))
             mainLog.debug('getting jobs to propagate')
-            jobSpecs = self.dbProxy.getJobsToPropagate(harvester_config.prop.maxJobs,
-                                                       harvester_config.prop.lockInterval,
-                                                       harvester_config.prop.updateInterval,
+            jobSpecs = self.dbProxy.getJobsToPropagate(harvester_config.propagator.maxJobs,
+                                                       harvester_config.propagator.lockInterval,
+                                                       harvester_config.propagator.updateInterval,
                                                        self.ident)
             mainLog.debug('got {0} jobs'.format(len(jobSpecs)))
             # update jobs in central database
             iJobs = 0
-            nJobs = harvester_config.prop.nJobsInBulk
+            nJobs = harvester_config.propagator.nJobsInBulk
             while iJobs < len(jobSpecs):
                 jobList = jobSpecs[iJobs:iJobs+nJobs]
                 iJobs += nJobs
@@ -59,4 +59,4 @@ class Propagator (threading.Thread):
             if self.singleMode:
                 return
             # sleep
-            CoreUtils.sleep(harvester_config.prop.sleepTime)
+            CoreUtils.sleep(harvester_config.propagator.sleepTime)

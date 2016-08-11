@@ -18,6 +18,18 @@ class SimpleWorkMaker (PluginBase):
         workSpec = WorkSpec()
         workSpec.computingSite = queueConifg.queueName
         workSpec.creationTime = datetime.datetime.utcnow()
-        workSpec.setDiskAccessPoint(queueConifg.workMaker['workDir'])
         workSpec.nCore = jobSpec.jobParams['coreCount']
         return workSpec
+
+
+
+    # get number of jobs per worker
+    def getNumJobsPerWorker(self):
+        return 1
+
+
+
+    # get number of workers per job
+    def getNumWorkersPerJob(self):
+        return 1
+

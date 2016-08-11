@@ -1,4 +1,5 @@
-##########################
+#
+#########################
 #
 # Master parameters
 #
@@ -113,7 +114,7 @@ sleepTime = 60
 # Propagator parameters
 #
 
-[prop]
+[propagator]
 
 # number of threads
 nThreads = 3
@@ -191,4 +192,54 @@ checkInterval = 180
 
 # sleep interval in sec
 sleepTime = 60
+
+
+
+
+##########################
+#
+# Monitor parameters
+#
+
+[monitor]
+
+# number of threads
+nThreads = 3
+
+# max number of wokers per queue to try in one cycle
+maxWorkers = 500
+
+# lock interval in sec
+lockInterval = 180
+
+# check interval in sec
+checkInterval = 300
+
+# sleep interval in sec
+sleepTime = 60
+
+
+
+
+##########################
+#
+# Credential Manager parameters
+#
+
+[credmanager]
+
+# module name
+moduleName = pandaharvester.harvestercredmanager.NoVomsCredManager
+
+# class name
+className = NoVomsCredManager
+
+# cert file
+certFile = FIXME
+
+# voms
+voms = atlas:/atlas/Role=production
+
+# sleep interval in sec
+sleepTime = 1800
 

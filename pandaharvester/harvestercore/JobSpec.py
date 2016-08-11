@@ -19,6 +19,9 @@ class JobSpec(SpecBase):
                            'modificationTime:timestamp',
                            'stateChangeTime:timestamp',
                            'jobParams:blob',
+                           'jobAttributes:blob',
+                           'outputFiles:blob',
+                           'stagedFiles:blob',
                            'lockedBy:text',
                            'propagatorLock:text',
                            'propagatorTime:timestamp',
@@ -45,3 +48,29 @@ class JobSpec(SpecBase):
     # trigger propagation
     def triggerPropagation(self):
         self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+
+
+
+
+    # set attributes
+    def setAttributes(self,attrs):
+        self.jobAttributes = attrs
+
+
+
+    # set outputs
+    def setOutputs(self,outputFiles):
+        # append new output files
+        if self.outputFiles == None:
+            self.outputFiles = outputFiles
+        else:
+            for tmpLFN,fileVar in outputFiles:
+                if not tmpLFN in self.outputFiles and not tmpLFN in self.stagedFiles:
+                    self.outputFiles[tmpLFN] = fileVar
+        # remove staged filesremove 
+        if self.outputFiles != None and self.stagedFiles != None:
+            for tmpLFN in self.outputFiles.keys():
+                if tmpLFN in self.stagedFiles:
+                    del self.outputFiles[tmpLFN]
+        # flag the attribute
+        self.forceUpdate('outputFiles')

@@ -4,6 +4,7 @@ import threading
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import CoreUtils
+from pandaharvester.harvestercore.WorkSpec import WorkSpec
 from pandaharvester.harvestercore.DBProxy import DBProxy
 from pandaharvester.harvestercore.PluginFactory import PluginFactory
 from WorkMaker import WorkMaker
@@ -45,16 +46,16 @@ class Submitter (threading.Thread):
                 if not self.queueConfigMapper.hasQueue(queueName):
                     tmpLog.error('config not found')
                     continue
-                # get config
+                # get queue
                 jobChunks = []
                 queueConfig = self.queueConfigMapper.getQueue(queueName)
                 # actions based on mapping type
-                if queueConfig.mapType == '0Jto1W':
+                if queueConfig.mapType == WorkSpec.MT_NoJob:
                     # workers without jobs
                     jobChunks = []
                     for i in range(nWorkers):
                         jobChunks.append([])
-                elif queueConfig.mapType == '1Jto1W':
+                elif queueConfig.mapType == WorkSpec.MT_OneToOne:
                     # one woker per one job
                     jobChunks = self.dbProxy.getJobChunksForWorkers(queueName,
                                                                     nWorkers,1,None,
@@ -62,14 +63,27 @@ class Submitter (threading.Thread):
                                                                     harvester_config.submitter.checkInterval,
                                                                     harvester_config.submitter.lockInterval,
                                                                     lockedBy)
-                elif queueConfig.mapType == 'NJto1W':
+                elif queueConfig.mapType == WorkSpec.MT_MultiJobs:
                     # one worker for multiple jobs
-                    # FIXME
-                    pass
-                elif queueConfig.mapType == '1JtoNW':
+                    nJobsPerWorker = self.workMaker.getNumJobsPerWorker(queueConfig)
+                    jobChunks = self.dbProxy.getJobChunksForWorkers(queueName,
+                                                                    nWorkers,nJobsPerWorker,None,
+                                                                    queueConfig.useJobLateBinding,
+                                                                    harvester_config.submitter.checkInterval,
+                                                                    harvester_config.submitter.lockInterval,
+                                                                    lockedBy)
+                elif queueConfig.mapType == WorkSpec.MT_MultiWorkers:
                     # multiple workers for one job
-                    # FIXME
-                    pass
+                    nWorkersPerJob = self.workMaker.getNumWorkersPerJob(queueConfig)
+                    jobChunks = self.dbProxy.getJobChunksForWorkers(queueName,
+                                                                    nWorkers,None,nWorkersPerJob,
+                                                                    queueConfig.useJobLateBinding,
+                                                                    harvester_config.submitter.checkInterval,
+                                                                    harvester_config.submitter.lockInterval,
+                                                                    lockedBy)
+                else:
+                    tmpLog.error('unknown mapType={0}'.format(queueConfig.mapType))
+                    continue
                 tmpLog.debug('got {0} job chunks'.format(len(jobChunks)))
                 if len(jobChunks) == 0:
                     continue
@@ -88,10 +102,12 @@ class Submitter (threading.Thread):
                         self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                         'subStatus':'prepared'})
                 # OK
-                workerList = []
-                for worker,okJobs in okChunks:
-                    workerList.append(worker)
-                if len(workerList) > 0:
+                workSpecList = []
+                for workSpec,okJobs in okChunks:
+                    # set access point
+                    workSpec.accessPoint = queueConfig.messenger['accessPoint']
+                    workSpecList.append(workSpec)
+                if len(workSpecList) > 0:
                     # get plugin
                     submitterCore = self.pluginFactory.getPlugin(queueConfig.submitter)
                     if submitterCore == None:
@@ -99,7 +115,7 @@ class Submitter (threading.Thread):
                         tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                         continue
                     # submit
-                    tmpRetList,tmpStrList = submitterCore.submitWorkers(workerList)
+                    tmpRetList,tmpStrList = submitterCore.submitWorkers(workSpecList)
                     for iWorker,(tmpRet,tmpStr) in enumerate(zip(tmpRetList,tmpStrList)):
                         worker,jobList = okChunks[iWorker]
                         # failed
@@ -117,6 +133,7 @@ class Submitter (threading.Thread):
                             continue
                         # succeeded
                         worker.status = 'submitted'
+                        worker.mapType = queueConfig.mapType
                         worker.submitTime = timeNow
                         worker.stateChangeTime = timeNow
                         worker.modificationTime = timeNow
