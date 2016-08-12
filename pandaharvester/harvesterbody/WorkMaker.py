@@ -20,7 +20,7 @@ class WorkMaker:
 
 
     # make workers
-    def makeWorkers(self,jobChunkList,queueConfig):
+    def makeWorkers(self,jobChunkList,queueConfig,nReady):
         try:
             tmpLog = CoreUtils.makeLogger(_logger,'queue={0}'.format(queueConfig.queueName))
             tmpLog.debug('start')
@@ -30,17 +30,26 @@ class WorkMaker:
                 # not found
                 tmpLog.error('plugin for {0} not found'.format(queueConfig.queueName))
                 return [],jobChunkList
+            # get ready workers
+            readyWorkers = self.dbProxy.getReadyWorkers(queueConfig.queueName,nReady)
             # loop over all chunks
             okChunks = []
             ngChunks = []
-            for jobChunk in jobChunkList:
+            for iChunk,jobChunk in enumerate(jobChunkList):
                 # make a worker
-                woker = maker.makeWorker(jobChunk,queueConfig)
+                if iChunk >= nReady:
+                    workSpec = maker.makeWorker(jobChunk,queueConfig)
+                else:
+                    # use ready worker
+                    if iChunk < len(readyWorkers):
+                        workSpec = readyWorkers[iChunk]
+                    else:
+                        workSpec = None
                 # failed
-                if woker == None:
+                if workSpec == None:
                     ngChunks.append(jobChunk)
                     continue
-                okChunks.append((woker,jobChunk))
+                okChunks.append((workSpec,jobChunk))
             # dump
             tmpLog.debug('made {0} workers while {1} chunks failed'.format(len(okChunks),
                                                                            len(ngChunks)))

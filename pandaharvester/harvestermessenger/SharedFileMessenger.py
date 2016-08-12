@@ -14,7 +14,16 @@ _logger = PandaLogger().getLogger('SharedFileMessenger')
 jsonAttrsFileName = 'worker_attributes.json'
 
 # json for outputs
-jsonOutputsFileName = 'worker_outputs.json'
+jsonOutputsFileName = 'worker_filestostageout.json'
+
+# json for job request
+jsonJobRequestFileName = 'worker_requestjob.json'
+
+# json for job spec
+jsonJobSpecFileName = 'worker_jobspec.json'
+
+# json for event request
+jsonEventsRequestFileName = 'worker_requestevents.json'
 
 
 
@@ -27,8 +36,25 @@ class SharedFileMessenger (PluginBase):
 
 
 
+    # update job attributes with workers
+    def updateJobAttributesWithWorkers(self,mapType,jobSpecs,workSpecs,filesToStageOut):
+        if mapType == WorkSpec.MT_OneToOne:
+            jobSpec  = jobSpecs[0]
+            workSpec = workSpecs[0]
+            tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0} workerID={1}'.format(jobSpec.PandaID,workSpec.workerID))
+            jobSpec.setAttributes(workSpec.workAttributes)
+            jobSpec.setFilesToStageOut(filesToStageOut)
+            jobSpec.status,jobSpec.subStatus = workSpec.convertToJobStatus()
+            tmpLog.debug('new jobStatus={0} subStatus={1}'.format(jobSpec.status,jobSpec.subStatus))
+        elif mapType == WorkSpec.MT_MultiJobs:
+            # TOBEFIXED
+            pass
+        return True
+
+
+
     # get attributes of a worker which should be propagated to job(s).
-    # the worker needs to put worker_attributes.json under the accesspoint
+    #  * the worker needs to put worker_attributes.json under the accesspoint
     def getWorkAttributes(self,workSpec):
         # get logger
         tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
@@ -55,9 +81,9 @@ class SharedFileMessenger (PluginBase):
 
 
 
-    # get output files in a dictionary which should be staged-out.
-    # the worker needs to put worker_outputs.json under the accesspoint
-    def getOutputFiles(self,workSpec):
+    # get files to stage-out in a dictionary.
+    #  * the worker needs to put worker_filestostageout.json under the accesspoint
+    def getFilesToStageOut(self,workSpec):
         # get logger
         tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
         retDict = {}
@@ -82,15 +108,43 @@ class SharedFileMessenger (PluginBase):
 
 
 
-    # update job attributes with workers
-    def updateJobAttributesWithWorkers(self,mapType,jobSpecs,workSpecs,outputFiles):
-        if mapType == WorkSpec.MT_OneToOne:
-            jobSpec  = jobSpecs[0]
-            workSpec = workSpecs[0]
-            tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0} workerID={1}'.format(jobSpec.PandaID,workSpec.workerID))
-            jobSpec.setAttributes(workSpec.workAttributes)
-            jobSpec.setOutputs(outputFiles)
-        elif mapType == WorkSpec.MT_MultiJobs:
+    # check if job is requested.
+    # * the worker needs to put worker_requestjob.json under the accesspoint
+    def jobRequested(self,workSpec):
+        # get logger
+        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        # look for the json just under the accesspoint
+        jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonJobRequestFileName)
+        tmpLog.debug('looking for job request file {0}'.format(jsonFilePath))
+        if not os.path.exists(jsonFilePath):
+            # not found
+            tmpLog.debug('not found')
+            return False
+        tmpLog.debug('found')
+        return True
+
+
+
+    # feed jobs
+    # * worker_requestjob.json is put under the accesspoint
+    def feedJobs(self,workSpec,jobList):
+        # get logger
+        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        retVal = True
+        if workSpec.mapType == WorkSpec.MT_OneToOne:
+            jobSpec = jobList[0]
+            # put the json just under the accesspoint
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonJobSpecFileName)
+            tmpLog.debug('feeding jobs to {0}'.format(jsonFilePath))
+            try:
+                with open(jsonFilePath,'w') as jsonFile:
+                    json.dump(jobSpec.jobParams,jsonFile)
+            except:
+                CoreUtils.dumpErrorMessage(tmpLog)
+                retVal = False
+        elif workSpec.mapType == WorkSpec.MT_MultiJobs:
             # TOBEFIXED
             pass
-        return True
+        tmpLog.debug('done')
+        return retVal
+        

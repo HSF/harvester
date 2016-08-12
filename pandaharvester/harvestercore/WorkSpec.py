@@ -3,6 +3,7 @@ Work spec class
 
 """
 
+import re
 from SpecBase import SpecBase
 
 
@@ -11,18 +12,18 @@ class WorkSpec(SpecBase):
 
     # worker statues
     ST_submitted = 'submitted'
-    ST_queued    = 'queued'
     ST_running   = 'running'
     ST_finished  = 'finished'
     ST_failed    = 'failed'
+    ST_ready     = 'ready'
     ST_cancelled = 'cancelled'
 
     # list of worker statuses
     ST_LIST = [ST_submitted,
-               ST_queued,
                ST_running,
                ST_finished,
                ST_failed,
+               ST_ready,
                ST_cancelled]
 
     # type of mapping between job and worker
@@ -37,6 +38,7 @@ class WorkSpec(SpecBase):
                            'mapType:text',
                            'queueName:text',
                            'status:text',
+                           'hasJob:integer',
                            'workParams:blob',
                            'workAttributes:blob',
                            'computingSite:text',
@@ -62,6 +64,14 @@ class WorkSpec(SpecBase):
 
     # get accesspoint
     def getAccessPoint(self):
+        # replace placeholders
+        if '$' in self.accessPoint:
+            patts = re.findall('\$\{([a-zA-Z\d]+)\}',self.accessPoint)
+            for patt in patts:
+                if hasattr(self,patt):
+                    tmpVar = getattr(self,patt)
+                    tmpKey = '${' + patt + '}'
+                    self.accessPoint = self.accessPoint.replace(tmpKey,tmpVar)
         return self.accessPoint
 
 
@@ -96,13 +106,14 @@ class WorkSpec(SpecBase):
 
 
 
-    # convert to job status
-    def convertJobStatus(self):
-        if self.status in ['submitted','queued']:
-            return 'starting'
-        if self.status in ['finished','failed','cancelled']:
-            return self.status
-        return 'running'
-
+    # convert worker status to job status
+    def convertToJobStatus(self):
+        if self.status in [self.ST_submitted,self.ST_ready]:
+            jobStatus = 'starting'
+        elif self.status in [self.ST_finished,self.ST_failed,self.ST_cancelled]:
+            jobStatus ='transferring'
+        else:
+            jobStatus = 'running'
+        return jobStatus,self.status
 
 

@@ -63,7 +63,7 @@ class Monitor (threading.Thread):
                     jobSpecs = None
                     for workSpec in workSpecs:
                         tmpLog = CoreUtils.makeLogger(_logger,'workID={0}'.format(workSpec.workerID))
-                        newStatus,diagMessage,workAttributes,outputFiles = tmpOut[iWorker]
+                        newStatus,diagMessage,workAttributes,filesToStageOut = tmpOut[iWorker]
                         tmpLog.debug('newStatus={0} diag={1}'.format(newStatus,diagMessage))
                         iWorker += 1
                         # check status
@@ -74,13 +74,14 @@ class Monitor (threading.Thread):
                         workSpec.status = newStatus
                         workSpec.workAttributes = workAttributes
                         # get associated jobs for the worker chunk
-                        if jobSpecs == None:
+                        if workSpec.hasJob == 1 and jobSpecs == None:
                             jobSpecs = self.dbProxy.getJobsWithWorkerID(workSpec.workerID,
                                                                         lockedBy)
                     # update jobs and workers
-                    tmpQueLog.debug('update {0} jobs with {1} workers'.format(len(jobSpecs),len(workSpecs)))
-                    messenger.updateJobAttributesWithWorkers(queueConfig.mapType,jobSpecs,workSpecs,
-                                                             outputFiles)
+                    if jobSpecs != None:
+                        tmpQueLog.debug('update {0} jobs with {1} workers'.format(len(jobSpecs),len(workSpecs)))
+                        messenger.updateJobAttributesWithWorkers(queueConfig.mapType,jobSpecs,workSpecs,
+                                                                 filesToStageOut)
                     # update local database
                     self.dbProxy.updateJobsWorkers(jobSpecs,workSpecs,lockedBy)
                 tmpQueLog.debug('done')    

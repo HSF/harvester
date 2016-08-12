@@ -10,6 +10,7 @@ class PandaQueueSpec(SpecBase):
     attributesWithTypes = ('queueName:text',
                            'nQueueLimitJob:integer',
                            'nQueueLimitWorker:integer',
+                           'maxWorkers:integer',
                            'jobFetchTime:timestamp',
                            'submitTime:timestamp',
                            )

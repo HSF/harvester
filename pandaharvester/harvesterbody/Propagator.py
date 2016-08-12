@@ -48,9 +48,10 @@ class Propagator (threading.Thread):
                                                                               tmpJobSpec.status))
                         # release job
                         tmpJobSpec.propagatorLock = None
-                        if tmpJobSpec.status in ['finished','failed','cancelled']:
+                        if tmpJobSpec.isFinalStatus():
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
+                            tmpJobSpec.subStatus = 'done'
                         self.dbProxy.updateJob(tmpJobSpec,{'propagatorLock':self.ident})
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,

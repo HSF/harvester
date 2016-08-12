@@ -113,6 +113,11 @@ class Communicator:
             data['state'] = jobSpec.status
             data['attemptNr'] = jobSpec.attemptNr
             data['jobSubStatus'] = jobSpec.subStatus
+            if jobSpec.isFinalStatus():
+                if jobSpec.metaData != None:
+                    data['metadata'] = jobSpec.metaData
+                if jobSpec.outputFiles != None:
+                    data['xml'] = jobSpec.outputFiles
             tmpStat,tmpRes = self.postSSL('updateJob',data)
             retMap = None
             if tmpStat == False:

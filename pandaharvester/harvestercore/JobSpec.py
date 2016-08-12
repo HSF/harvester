@@ -3,6 +3,7 @@ Job spec class
 
 """
 
+import copy
 import datetime
 
 from SpecBase import SpecBase
@@ -22,7 +23,9 @@ class JobSpec(SpecBase):
                            'jobParams:blob',
                            'jobAttributes:blob',
                            'outputFiles:blob',
+                           'filesToStageOut:blob',
                            'stagedFiles:blob',
+                           'metaData:blob',
                            'lockedBy:text',
                            'propagatorLock:text',
                            'propagatorTime:timestamp',
@@ -56,12 +59,22 @@ class JobSpec(SpecBase):
 
     # set attributes
     def setAttributes(self,attrs):
+        if attrs == None:
+            return
+        attrs = copy.copy(attrs)
+        # set metadata and outputs to dedicated attributes
+        if 'metadata' in attrs:
+            self.metaData = attrs['metadata']
+            del attrs['metadata']
+        if 'xml' in attrs:
+            self.outputFiles = attrs['xml']
+            del attrs['xml']
         self.jobAttributes = attrs
 
 
 
-    # set outputs
-    def setOutputs(self,outputFiles):
+    # set files to stage out
+    def setFilesToStageOut(self,outputFiles):
         # append new output files
         if self.outputFiles == None:
             self.outputFiles = outputFiles
@@ -76,3 +89,9 @@ class JobSpec(SpecBase):
                     del self.outputFiles[tmpLFN]
         # flag the attribute
         self.forceUpdate('outputFiles')
+
+
+
+    # check if final status
+    def isFinalStatus(self):
+        return self.status in ['finished','failed','cancelled']

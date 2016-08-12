@@ -96,7 +96,7 @@ class Preparator (threading.Thread):
             # loop over all jobs
             for jobSpec in jobsToTrigger:
                 tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
-                tmpLog.debug('trigger preparation')
+                tmpLog.debug('try to trigger preparation')
                 # get queue
                 if not self.queueConfigMapper.hasQueue(jobSpec.computingSite):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
@@ -118,7 +118,7 @@ class Preparator (threading.Thread):
                     jobSpec.preparatorTime = None
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':'fetched'})
-                    tmpLog.debug('successfully triggered')
+                    tmpLog.debug('triggered')
                 else:
                     # update job
                     jobSpec.status = 'failed'
