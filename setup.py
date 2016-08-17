@@ -175,6 +175,7 @@ setup(
                'pandaharvester.harvesterworkmaker',
                'pandaharvester.harvestersubmitter',
                'pandaharvester.harvestermonitor',
+               'pandaharvester.harvesterstager',
                'pandaharvester.harvestermessenger',
                'pandaharvester.harvestercredmanager',
               ],

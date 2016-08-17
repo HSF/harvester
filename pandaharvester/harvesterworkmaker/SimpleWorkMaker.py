@@ -14,11 +14,11 @@ class SimpleWorkMaker (PluginBase):
 
     # make a worker from a job with a disk access point
     def makeWorker(self,jobChunk,queueConifg):
-        jobSpec = jobChunk[0]
         workSpec = WorkSpec()
-        workSpec.computingSite = queueConifg.queueName
         workSpec.creationTime = datetime.datetime.utcnow()
-        workSpec.nCore = jobSpec.jobParams['coreCount']
+        if len(jobChunk) > 0:
+            jobSpec = jobChunk[0]
+            workSpec.nCore = jobSpec.jobParams['coreCount']
         return workSpec
 
 

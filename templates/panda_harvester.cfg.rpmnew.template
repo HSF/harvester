@@ -89,7 +89,7 @@ queueList =
 # Job Fetcher parameters
 #
 
-[jobfetch]
+[jobfetcher]
 
 # number of threads
 nThreads = 3
@@ -242,4 +242,59 @@ voms = atlas:/atlas/Role=production
 
 # sleep interval in sec
 sleepTime = 1800
+
+
+
+
+
+##########################
+#
+# Stager parameters
+#
+
+[stager]
+
+# number of threads
+nThreads = 3
+
+# max number of jobs to check in one cycle
+maxJobsToCheck = 100
+
+# max number of jobs to trigger in one cycle
+maxJobsToTrigger = 100
+
+# lock interval in sec
+lockInterval = 180
+
+# check interval in sec
+checkInterval = 180
+
+# trigger interval in sec
+triggerInterval = 180
+
+# sleep interval in sec
+sleepTime = 60
+
+
+
+
+
+##########################
+#
+# EventFeeder parameters
+#
+
+[eventfeeder]
+
+# number of threads
+nThreads = 3
+
+# max number of workers per queue to try in one cycle
+maxWorkers = 500
+
+# lock interval in sec
+lockInterval = 180
+
+# sleep interval in sec
+sleepTime = 60
 

@@ -113,8 +113,13 @@ class Submitter (threading.Thread):
                             workSpec.hasJob = 0
                         else:
                             workSpec.hasJob = 1
+                        # queue name
+                        workSpec.computingSite = queueConfig.queueName
                         # set access point
                         workSpec.accessPoint = queueConfig.messenger['accessPoint']
+                        # events
+                        if len(okJobs) > 0 and ('eventService' in okJobs[0].jobParams or 'cloneJob' in okJobs[0].jobParams):
+                            workSpec.eventsRequest = WorkSpec.EV_useEvents
                         workSpecList.append(workSpec)
                 if len(workSpecList) > 0:
                     # get plugin for submitter
@@ -137,7 +142,10 @@ class Submitter (threading.Thread):
                         if tmpRet == None:
                             continue
                         # succeeded
-                        workSpec.status = WorkSpec.ST_submitted
+                        if queueConfig.useJobLateBinding and workSpec.hasJob == 1:
+                            workSpec.status = WorkSpec.ST_running
+                        else:
+                            workSpec.status = WorkSpec.ST_submitted
                         workSpec.mapType = queueConfig.mapType
                         workSpec.submitTime = timeNow
                         workSpec.stateChangeTime = timeNow

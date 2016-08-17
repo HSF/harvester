@@ -39,7 +39,7 @@ class Master:
         thrList.append(thr)
         # Job Fetcher
         from pandaharvester.harvesterbody.JobFetcher import JobFetcher
-        nThr = harvester_config.jobfetch.nThreads
+        nThr = harvester_config.jobfetcher.nThreads
         for iThr in range(nThr):
             thr = JobFetcher(self.communicatorPool,
                              self.queueConfigMapper,
@@ -77,6 +77,23 @@ class Master:
         for iThr in range(nThr):
             thr = Submitter(self.queueConfigMapper,
                             singleMode=self.singleMode)
+            thr.start()
+            thrList.append(thr)
+        # Stager
+        from pandaharvester.harvesterbody.Stager import Stager
+        nThr = harvester_config.stager.nThreads
+        for iThr in range(nThr):
+            thr = Stager(self.queueConfigMapper,
+                         singleMode=self.singleMode)
+            thr.start()
+            thrList.append(thr)
+        # EventFeeder
+        from pandaharvester.harvesterbody.EventFeeder import EventFeeder
+        nThr = harvester_config.stager.nThreads
+        for iThr in range(nThr):
+            thr = EventFeeder(self.communicatorPool,
+                              self.queueConfigMapper,
+                              singleMode=self.singleMode)
             thr.start()
             thrList.append(thr)
         ##################

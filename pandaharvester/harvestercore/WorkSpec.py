@@ -32,6 +32,11 @@ class WorkSpec(SpecBase):
     MT_MultiJobs    = 'MultiJobs'
     MT_MultiWorkers = 'MultiWorkers'
 
+    # events
+    EV_noEvents      = 0
+    EV_useEvents     = 1
+    EV_requestEvents = 2
+    
     # attributes
     attributesWithTypes = ('workerID:integer primary key',
                            'batchID:text',
@@ -41,6 +46,8 @@ class WorkSpec(SpecBase):
                            'hasJob:integer',
                            'workParams:blob',
                            'workAttributes:blob',
+                           'eventsRequestParams:blob',
+                           'eventsRequest:integer',
                            'computingSite:text',
                            'creationTime:timestamp',
                            'submitTime:timestamp',
@@ -51,6 +58,7 @@ class WorkSpec(SpecBase):
                            'accessPoint:text',
                            'modificationTime:timestamp',
                            'stateChangeTime:timestamp',
+                           'eventFeedTime:timestamp',
                            'lockedBy:text'
                            )
 
@@ -110,10 +118,14 @@ class WorkSpec(SpecBase):
     def convertToJobStatus(self):
         if self.status in [self.ST_submitted,self.ST_ready]:
             jobStatus = 'starting'
+            jobSubStatus = self.status
         elif self.status in [self.ST_finished,self.ST_failed,self.ST_cancelled]:
-            jobStatus ='transferring'
+            jobStatus = self.status
+            jobSubStatus = 'totransfer'
         else:
             jobStatus = 'running'
-        return jobStatus,self.status
+            jobSubStatus = self.status
+        return jobStatus,jobSubStatus
+
 
 

@@ -105,19 +105,30 @@ class Communicator:
         for jobSpec in jobList:
             tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
             tmpLog.debug('start')
+            # update events
+            eventRanges = []
+            for eventSpec in jobSpec.events:
+                eventRanges.append(eventSpec.toData())
+            if eventRanges != []:
+                tmpRet = self.updateEventRanges(eventRanges,tmpLog)
+                if tmpRet['StatusCode'] == 0:
+                    for eventSpec,retVal in zip(jobSpec.events,tmpRet['Returns']):
+                        if retVal in [True,False]:
+                            eventSpec.subStatus = 'done'
+            # update job
             if jobSpec.jobAttributes == None:
                 data = {}
             else:
                 data = copy.copy(jobSpec.jobAttributes)
             data['jobId'] = jobSpec.PandaID
-            data['state'] = jobSpec.status
+            data['state'] = jobSpec.getStatus()
             data['attemptNr'] = jobSpec.attemptNr
             data['jobSubStatus'] = jobSpec.subStatus
             if jobSpec.isFinalStatus():
                 if jobSpec.metaData != None:
                     data['metadata'] = jobSpec.metaData
-                if jobSpec.outputFiles != None:
-                    data['xml'] = jobSpec.outputFiles
+                if jobSpec.outputFilesToReport != None:
+                    data['xml'] = jobSpec.outputFilesToReport
             tmpStat,tmpRes = self.postSSL('updateJob',data)
             retMap = None
             if tmpStat == False:
@@ -133,4 +144,48 @@ class Communicator:
                 retMap['ErrorDiag'] = errStr
             retList.append(retMap)
             tmpLog.debug('done with {0}'.format(str(retMap)))
+        return retList
+
+
+
+    # get events
+    def getEventRanges(self,data):
+        # get logger
+        tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(data['pandaID']))
+        tmpLog.debug('start')
+        tmpStat,tmpRes = self.postSSL('getEventRanges',data)
+        retVal = False,{}
+        if tmpStat == False:
+            CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+        else:
+            try:
+                tmpDict = tmpRes.json()
+                if tmpDict['StatusCode'] == 0:
+                    retVal = True,tmpDict['eventRanges']
+            except:
+                CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+        tmpLog.debug('done with {0}'.format(str(retVal)))
+        return retVal
+
+
+
+
+    # update events
+    def updateEventRanges(self,eventRanges,tmpLog):
+        tmpLog.debug('start updateEventRanges')
+        data = {}
+        data['eventRanges'] = eventRanges
+        tmpStat,tmpRes = self.postSSL('updateEventRanges',data)
+        retMap = None
+        if tmpStat == False:
+            errStr = CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+        else:
+            try:
+                retMap = tmpRes.json()
+            except:
+                errStr = CoreUtils.dumpErrorMessage(tmpLog)
+        if retMap == None:
+            retMap = {}
+            retMap['StatusCode'] = 999
+        tmpLog.debug('done updateEventRanges with {0}'.format(str(retMap)))
         return retList

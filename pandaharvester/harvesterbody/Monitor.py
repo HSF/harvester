@@ -49,21 +49,24 @@ class Monitor (threading.Thread):
                 # get plugins
                 monCore = self.pluginFactory.getPlugin(queueConfig.monitor)
                 messenger = self.pluginFactory.getPlugin(queueConfig.messenger)
-                monCore.setMessenger(messenger)
                 # check workers
                 allWorkers = [item for sublist in workSpecsList for item in sublist]
                 tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
-                tmpStat,tmpOut = monCore.checkWorkers(allWorkers)
-                if not tmpStat:
-                    tmpQueLog.error('failed to check workers with {0}'.format(tmpOut))
-                    continue
+                tmpRetMap = self.checkWorkers(monCore,messenger,allWorkers,tmpQueLog)
                 # loop over all worker chunks
                 iWorker = 0
                 for workSpecs in workSpecsList:
                     jobSpecs = None
+                    eventSpecs = []
                     for workSpec in workSpecs:
                         tmpLog = CoreUtils.makeLogger(_logger,'workID={0}'.format(workSpec.workerID))
-                        newStatus,diagMessage,workAttributes,filesToStageOut = tmpOut[iWorker]
+                        tmpOut = tmpRetMap[workSpec.workerID]
+                        newStatus = tmpOut['newStatus']
+                        diagMessage = tmpOut['diagMessage']
+                        workAttributes = tmpOut['workAttributes']
+                        eventsToUpdate = tmpOut['eventsToUpdate']
+                        filesToStageOut = tmpOut['filesToStageOut']
+                        eventsRequestParams = tmpOut['eventsRequestParams']
                         tmpLog.debug('newStatus={0} diag={1}'.format(newStatus,diagMessage))
                         iWorker += 1
                         # check status
@@ -73,6 +76,10 @@ class Monitor (threading.Thread):
                         # update worker
                         workSpec.status = newStatus
                         workSpec.workAttributes = workAttributes
+                        # request events
+                        if eventsRequestParams != {}:
+                            workSpec.eventsRequest = WorkSpec.EV_requestEvents
+                            workSpec.eventsRequestParams = eventsRequestParams
                         # get associated jobs for the worker chunk
                         if workSpec.hasJob == 1 and jobSpecs == None:
                             jobSpecs = self.dbProxy.getJobsWithWorkerID(workSpec.workerID,
@@ -81,7 +88,7 @@ class Monitor (threading.Thread):
                     if jobSpecs != None:
                         tmpQueLog.debug('update {0} jobs with {1} workers'.format(len(jobSpecs),len(workSpecs)))
                         messenger.updateJobAttributesWithWorkers(queueConfig.mapType,jobSpecs,workSpecs,
-                                                                 filesToStageOut)
+                                                                 filesToStageOut,eventsToUpdate)
                     # update local database
                     self.dbProxy.updateJobsWorkers(jobSpecs,workSpecs,lockedBy)
                 tmpQueLog.debug('done')    
@@ -90,3 +97,54 @@ class Monitor (threading.Thread):
                 return
             # sleep
             CoreUtils.sleep(harvester_config.monitor.sleepTime)
+
+
+
+    # wrapper for checkWorkers
+    def checkWorkers(self,monCore,messenger,allWorkers,tmpQueLog):
+        workersToCheck = []
+        retMap = {}
+        for workSpec in allWorkers:
+            eventsRequestParams = {}
+            eventsToUpdate = []
+            # job-level late binding
+            if workSpec.hasJob == 0:
+                # check if job is requested
+                jobRequested = messenger.jobRequested(workSpec)
+                if jobRequested:
+                    # set ready when job is requested 
+                    workStatus = WorkSpec.ST_ready
+                else:
+                    workStatus = workSpec.status
+                workAttributes = None
+                filesToStageOut = None
+            else:
+                workStatus = None
+                workersToCheck.append(workSpec)
+                # request events
+                if workSpec.eventsRequest == WorkSpec.EV_useEvents:
+                    eventsRequestParams = messenger.eventsRequested(workSpec)
+                # update events
+                if workSpec.eventsRequest in [WorkSpec.EV_useEvents,WorkSpec.EV_requestEvents]:
+                    eventsToUpdate = messenger.eventsToUpdate(workSpec)
+                # get work attributes and output files
+                workAttributes  = messenger.getWorkAttributes(workSpec)
+                filesToStageOut = messenger.getFilesToStageOut(workSpec)
+            # add
+            retMap[workSpec.workerID] = {'newStatus':workStatus,
+                                         'workAttributes':workAttributes,
+                                         'filesToStageOut':filesToStageOut,
+                                         'eventsRequestParams':eventsRequestParams,
+                                         'eventsToUpdate':eventsToUpdate,
+                                         'diagMessage':''}
+        # check workers
+        tmpStat,tmpOut = monCore.checkWorkers(workersToCheck)
+        if not tmpStat:
+            tmpQueLog.error('failed to check workers with {0}'.format(tmpOut))
+        else:
+            for workerID,tmpVar in tmpOut.iteritems():
+                if workerID in retMap:
+                    retMap[workerID]['newStatus'] = tmpVar['newStatus']
+                    retMap[workerID]['diagMessage'] = tmpVar['diagMessage']
+        return retMap
+

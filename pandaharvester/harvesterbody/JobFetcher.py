@@ -32,8 +32,8 @@ class JobFetcher (threading.Thread):
             mainLog = CoreUtils.makeLogger(_logger,'id={0}'.format(self.ident))
             mainLog.debug('getting number of jobs to be fetched')
             # get number of jobs to be fetched
-            nJobsPerQueue = self.dbProxy.getNumJobsToFetch(harvester_config.jobfetch.nQueues,
-                                                           harvester_config.jobfetch.lookupTime)
+            nJobsPerQueue = self.dbProxy.getNumJobsToFetch(harvester_config.jobfetcher.nQueues,
+                                                           harvester_config.jobfetcher.lookupTime)
             mainLog.debug('got {0} queues'.format(len(nJobsPerQueue)))
             # loop over all queues
             for queueName,nJobs in nJobsPerQueue.iteritems():
@@ -44,8 +44,8 @@ class JobFetcher (threading.Thread):
                 # get queue
                 queueConfig = self.queueConfigMapper.getQueue(queueName)
                 # upper limit
-                if nJobs > harvester_config.jobfetch.maxJobs:
-                    nJobs = harvester_config.jobfetch.maxJobs
+                if nJobs > harvester_config.jobfetcher.maxJobs:
+                    nJobs = harvester_config.jobfetcher.maxJobs
                 # get jobs
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
                 jobs = self.communicator.getJobs(queueName,self.nodeName,
@@ -72,5 +72,5 @@ class JobFetcher (threading.Thread):
             if self.singleMode:
                 return
             # sleep
-            CoreUtils.sleep(harvester_config.jobfetch.sleepTime)
+            CoreUtils.sleep(harvester_config.jobfetcher.sleepTime)
 

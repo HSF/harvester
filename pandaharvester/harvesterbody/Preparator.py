@@ -31,7 +31,7 @@ class Preparator (threading.Thread):
         lockedBy = 'preparator-{0}'.format(self.ident)
         while True:
             mainLog = CoreUtils.makeLogger(_logger,'id={0}'.format(lockedBy))
-            mainLog.debug('getting number of jobs to be fetched')
+            mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.getJobsInSubStatus('preparing',
                                                           harvester_config.preparator.maxJobsToCheck,
@@ -49,6 +49,7 @@ class Preparator (threading.Thread):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
                     continue
                 queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                oldSubStatus = jobSpec.subStatus
                 # get plugin
                 preparatorCore = self.pluginFactory.getPlugin(queueConifg.preparator)
                 if preparatorCore == None:
@@ -60,8 +61,8 @@ class Preparator (threading.Thread):
                 if tmpStat == None:
                     # update job
                     jobSpec.lockedBy = None
-                    self.dbProxy.updateJob(tmpJobSpec,{'lockedBy':lockedBy,
-                                                       'subStatus':'preparing'})
+                    self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
+                                                    'subStatus':oldSubStatus})
                     tmpLog.debug('still running')
                     continue
                 # successed
@@ -71,7 +72,7 @@ class Preparator (threading.Thread):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
-                                                    'subStatus':'preparing'})
+                                                    'subStatus':oldSubStatus})
                     tmpLog.debug('successed')
                 else:
                     # update job
@@ -82,9 +83,10 @@ class Preparator (threading.Thread):
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
                     jobSpec.triggerPropagation()
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
-                                                    'subStatus':'preparing'})
+                                                    'subStatus':oldSubStatus})
                     tmpLog.debug('failed with {0}'.format(tmpStr))
             # get jobs to trigger preparation
+            mainLog.debug('try to get jobs to prepare')
             jobsToTrigger = self.dbProxy.getJobsInSubStatus('fetched',
                                                             harvester_config.preparator.maxJobsToTrigger,
                                                             'preparatorTime','lockedBy',
@@ -92,7 +94,7 @@ class Preparator (threading.Thread):
                                                             harvester_config.preparator.lockInterval,
                                                             lockedBy,
                                                             'preparing')
-            mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
+            mainLog.debug('got {0} jobs to prepare'.format(len(jobsToTrigger)))
             # loop over all jobs
             for jobSpec in jobsToTrigger:
                 tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
@@ -102,6 +104,7 @@ class Preparator (threading.Thread):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
                     continue
                 queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                oldSubStatus = jobSpec.subStatus
                 # get plugin
                 preparatorCore = self.pluginFactory.getPlugin(queueConifg.preparator)
                 if preparatorCore == None:
@@ -117,7 +120,7 @@ class Preparator (threading.Thread):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
-                                                    'subStatus':'fetched'})
+                                                    'subStatus':oldSubStatus})
                     tmpLog.debug('triggered')
                 else:
                     # update job
@@ -128,7 +131,7 @@ class Preparator (threading.Thread):
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
                     jobSpec.triggerPropagation()
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
-                                                    'subStatus':'fetched'})
+                                                    'subStatus':oldSubStatus})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
             mainLog.debug('done')
             if self.singleMode:

@@ -9,6 +9,12 @@ import datetime
 from SpecBase import SpecBase
 
 class JobSpec(SpecBase):
+
+    # has output file
+    HO_noOutput    = 0
+    HO_hasOutput   = 1
+    HO_hasTransfer = 2
+
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
                            'taskID:integer',
@@ -22,21 +28,36 @@ class JobSpec(SpecBase):
                            'stateChangeTime:timestamp',
                            'jobParams:blob',
                            'jobAttributes:blob',
-                           'outputFiles:blob',
-                           'filesToStageOut:blob',
-                           'stagedFiles:blob',
+                           'hasOutFile:integer',
                            'metaData:blob',
+                           'outputFilesToReport:blob',
                            'lockedBy:text',
                            'propagatorLock:text',
                            'propagatorTime:timestamp',
                            'preparatorTime:timestamp',
                            'submitterTime:timestamp',
+                           'stagerLock:text',
+                           'stagerTime:timestamp',
                            )
 
 
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
+        object.__setattr__(self,'outFiles',set())
+        object.__setattr__(self,'events',set())
+
+
+
+    # add output file
+    def addOutFile(self,fileSpec):
+        self.outFiles.add(fileSpec)
+
+
+
+    # add event
+    def addEvent(self,eventSpec):
+        self.events.add(eventSpec)
 
 
 
@@ -67,31 +88,32 @@ class JobSpec(SpecBase):
             self.metaData = attrs['metadata']
             del attrs['metadata']
         if 'xml' in attrs:
-            self.outputFiles = attrs['xml']
+            self.outputFilesToReport = attrs['xml']
             del attrs['xml']
         self.jobAttributes = attrs
-
-
-
-    # set files to stage out
-    def setFilesToStageOut(self,outputFiles):
-        # append new output files
-        if self.outputFiles == None:
-            self.outputFiles = outputFiles
-        else:
-            for tmpLFN,fileVar in outputFiles:
-                if not tmpLFN in self.outputFiles and not tmpLFN in self.stagedFiles:
-                    self.outputFiles[tmpLFN] = fileVar
-        # remove staged filesremove 
-        if self.outputFiles != None and self.stagedFiles != None:
-            for tmpLFN in self.outputFiles.keys():
-                if tmpLFN in self.stagedFiles:
-                    del self.outputFiles[tmpLFN]
-        # flag the attribute
-        self.forceUpdate('outputFiles')
 
 
 
     # check if final status
     def isFinalStatus(self):
         return self.status in ['finished','failed','cancelled']
+
+
+
+    # get status
+    def getStatus(self):
+        # don't report the final status while staging-out
+        if self.isFinalStatus() and (self.subStatus in ['totransfer','transferring'] or not self.allEventsDone()):
+            return 'transferring'
+        return self.status
+
+
+
+    # check if all events are done
+    def allEventsDone(self):
+        retVal = True
+        for eventSpec in self.events:
+            if eventSpec.subStatus != 'done':
+                retVal = False
+                break
+        return retVal
