@@ -117,3 +117,10 @@ class JobSpec(SpecBase):
                 retVal = False
                 break
         return retVal
+
+
+
+    # all files are triggered to stage-out
+    def allFilesTriggeredToStageOut(self):
+        for fileSpec in self.outFiles:
+            fileSpec.status = 'transferring'

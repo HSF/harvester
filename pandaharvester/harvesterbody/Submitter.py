@@ -185,9 +185,10 @@ class Submitter (threading.Thread):
                 strList.append('')
             else:
                 workersToSubmit.append(workSpec)
-        tmpRetList,tmpStrList = submitterCore.submitWorkers(workersToSubmit)
-        retList += tmpRetList
-        strList += tmpStrList
+        tmpRetList = submitterCore.submitWorkers(workersToSubmit)
+        for tmpRet,tmpStr in tmpRetList:
+            retList.append(tmpRet)
+            strList.append(tmpStr)
         newSpecList += workersToSubmit
         return newSpecList,retList,strList
 

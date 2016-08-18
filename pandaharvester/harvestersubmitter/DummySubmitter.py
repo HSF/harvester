@@ -13,12 +13,11 @@ class DummySubmitter (PluginBase):
 
 
     # submit workers
-    def submitWorkers(self,workerList):
+    def submitWorkers(self,workSpecs):
         retList = []
         retStrList = []
-        for worker in workerList:
-            worker.batchID = uuid.uuid4().hex
-            retList.append(True)
-            retStrList.append('')
-        return retList,retStrList
+        for workSpec in workSpecs:
+            workSpec.batchID = uuid.uuid4().hex
+            retList.append((True,''))
+        return retList
 

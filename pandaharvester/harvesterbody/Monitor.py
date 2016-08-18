@@ -142,9 +142,10 @@ class Monitor (threading.Thread):
         if not tmpStat:
             tmpQueLog.error('failed to check workers with {0}'.format(tmpOut))
         else:
-            for workerID,tmpVar in tmpOut.iteritems():
+            for workSpec,(newStatus,diagMessage) in zip(workersToCheck,tmpOut): 
+                workerID = workSpec.workerID
                 if workerID in retMap:
-                    retMap[workerID]['newStatus'] = tmpVar['newStatus']
-                    retMap[workerID]['diagMessage'] = tmpVar['diagMessage']
+                    retMap[workerID]['newStatus']   = newStatus
+                    retMap[workerID]['diagMessage'] = diagMessage
         return retMap
 

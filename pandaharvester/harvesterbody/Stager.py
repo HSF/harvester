@@ -89,8 +89,9 @@ class Stager (threading.Thread):
                 # trigger preparation
                 tmpStat,tmpStr = stagerCore.triggerStageOut(jobSpec)
                 # successed
-                if tmpStat == True: 
+                if tmpStat == True:
                     # update job
+                    jobSpec.allFilesTriggeredToStageOut()
                     newSubStatus = self.dbProxy.updateJobForStageOut(jobSpec)
                     tmpLog.debug('triggered newSubStatus={0}'.format(newSubStatus))
                 else:

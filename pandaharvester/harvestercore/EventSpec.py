@@ -15,7 +15,7 @@ class EventSpec(SpecBase):
                            'eventStatus:text',
                            'coreCount:integer',
                            'cpuConsumptionTime:integer',
-                           'objstoreID:timestamp',
+                           'objstoreID:integer',
                            'subStatus:text'
                            )
 

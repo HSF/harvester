@@ -20,7 +20,5 @@ class DummyStager (PluginBase):
 
     # trigger stage out
     def triggerStageOut(self,jobSpec):
-        for fileSpec in jobSpec.outFiles:
-            fileSpec.status = 'transferring'
         return True,''
 

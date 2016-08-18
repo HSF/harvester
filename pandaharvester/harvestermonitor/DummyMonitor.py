@@ -13,16 +13,16 @@ class DummyMonitor (PluginBase):
 
     # check workers
     def checkWorkers(self,workSpecs):
-        retMap = {}
+        retList = []
         for workSpec in workSpecs:
             dummyFilePath = os.path.join(workSpec.getAccessPoint(),'status.txt')
             newStatus = WorkSpec.ST_finished
             with open(dummyFilePath) as dummyFile:
                 newStatus = dummyFile.readline()
                 newStatus = newStatus.strip()
-            retMap[workSpec.workerID] = {'newStatus':newStatus,
-                                         'diagMessage':''}
-        return True,retMap
+            retList.append((newStatus,''))
+        return True,retList
+
 
 
 
