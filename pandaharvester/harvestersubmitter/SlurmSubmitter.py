@@ -22,6 +22,7 @@ class SlurmSubmitter (PluginBase):
 #SBATCH -N {nodes}
 #SBATCH -t {time}
 #SBATCH -L {license}
+#SBATCH -D {workDir}
 srun {application} {accessPoint}
 """
         # remove the first newline
@@ -73,6 +74,7 @@ srun {application} {accessPoint}
                                            time=self.time,
                                            license=self.license,
                                            application=self.application,
+                                           workDir=self.workDir,
                                            accessPoint=workSpec.accessPoint)
                       )
         tmpFile.close()
