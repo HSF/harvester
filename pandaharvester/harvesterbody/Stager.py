@@ -9,8 +9,8 @@ from pandaharvester.harvestercore.DBProxy import DBProxy
 from pandaharvester.harvestercore.PluginFactory import PluginFactory
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('Stager')
+_logger = CoreUtils.setupLogger()
+
 
 
 # class for srage-out

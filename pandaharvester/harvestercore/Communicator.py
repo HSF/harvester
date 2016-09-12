@@ -17,8 +17,8 @@ import CoreUtils
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('Communicator')
+_logger = CoreUtils.setupLogger()
+
 
 
 # connection class

@@ -23,8 +23,7 @@ import CoreUtils
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('DBProxy')
+_logger = CoreUtils.setupLogger()
 
 
 # table names
@@ -1038,6 +1037,8 @@ class DBProxy:
                         resFC = self.cur.fetchone()
                         # insert file
                         if resFC == None:
+                            if fileSpec.isZip == None:
+                                fileSpec.isZip = 0
                             varMap = fileSpec.valuesList()
                             varMaps.append(varMap)
                     if varMaps != []:

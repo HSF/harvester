@@ -3,10 +3,9 @@ import subprocess
 from pandaharvester.harvestercore.PluginBase import PluginBase
 from pandaharvester.harvestercore import CoreUtils
 
-
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('NoVomsCredManager')
+_logger = CoreUtils.setupLogger()
+
 
 
 # credential manager with no-voms proxy

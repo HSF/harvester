@@ -8,8 +8,8 @@ from pandaharvester.harvestercore.JobSpec import JobSpec
 from pandaharvester.harvestercore.DBProxy import DBProxy
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('JobFetcher')
+_logger = CoreUtils.setupLogger()
+
 
 
 # class to fetch jobs

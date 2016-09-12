@@ -9,8 +9,8 @@ from pandaharvester.harvestercore.DBProxy import DBProxy
 from pandaharvester.harvestercore.PluginFactory import PluginFactory
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('Preparator')
+_logger = CoreUtils.setupLogger()
+
 
 
 # class to prepare jobs

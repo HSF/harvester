@@ -5,10 +5,9 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import CoreUtils
 from pandaharvester.harvestercore.PluginFactory import PluginFactory
 
-
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('CredManager')
+_logger = CoreUtils.setupLogger()
+
 
 
 # credential manager

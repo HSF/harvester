@@ -10,13 +10,17 @@ from SpecBase import SpecBase
 
 class FileSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('PandaID:integer',
+    attributesWithTypes = ('fileID:integer primary key',
+                           'PandaID:integer',
                            'taskID:integer',
                            'lfn:text',
                            'status:text',
+                           'fileType:text',
                            'eventRangeID:text',
                            'modificationTime:timestamp',
                            'fileAttributes:blob',
+                           'isZip:integer',
+                           'zipFileID:integer'
                            )
 
 

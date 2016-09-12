@@ -7,8 +7,8 @@ from pandaharvester.harvestercore.JobSpec import JobSpec
 from pandaharvester.harvestercore.DBProxy import DBProxy
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('Propagator')
+_logger = CoreUtils.setupLogger()
+
 
 
 # propagate important checkpoints to panda

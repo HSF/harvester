@@ -7,10 +7,9 @@ from pandaharvester.harvestercore.DBProxy import DBProxy
 from pandaharvester.harvestercore.WorkSpec import WorkSpec
 from pandaharvester.harvestercore.PluginFactory import PluginFactory
 
-
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('Monitor')
+_logger = CoreUtils.setupLogger()
+
 
 
 # propagate important checkpoints to panda

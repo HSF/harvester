@@ -9,7 +9,16 @@ import random
 import inspect
 import traceback
 
+from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
+
+
+# setup logger
+def setupLogger():
+    frm = inspect.stack()[1][0]
+    mod = inspect.getmodule(frm)
+    return PandaLogger().getLogger(mod.__name__.split('.')[-1])
+
 
 
 # make logger

@@ -11,8 +11,8 @@ from WorkMaker import WorkMaker
 
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('Submitter')
+_logger = CoreUtils.setupLogger()
+
 
 
 # class to submit workers

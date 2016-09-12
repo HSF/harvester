@@ -1,8 +1,8 @@
 import CoreUtils
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('PluginFactory')
+_logger = CoreUtils.setupLogger()
+
 
 
 # plugin factory

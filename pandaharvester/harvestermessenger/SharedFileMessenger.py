@@ -7,10 +7,7 @@ from pandaharvester.harvestercore.EventSpec import EventSpec
 from pandaharvester.harvestercore.PluginBase import PluginBase
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('SharedFileMessenger')
-
-
+_logger = CoreUtils.setupLogger()
 
 # json for worker attributes
 jsonAttrsFileName = 'worker_attributes.json'
@@ -60,6 +57,7 @@ class SharedFileMessenger (PluginBase):
                 fileSpec.PandaID = jobSpec.PandaID
                 fileSpec.taskID  = jobSpec.taskID
                 fileSpec.status  = 'defined'
+                fileSpec.fileType = fileAttributes['type']
                 fileSpec.fileAttributes = fileAtters
                 if 'eventRangeID' in fileAtters:
                     fileSpec.eventRangeID = fileAtters['eventRangeID']
