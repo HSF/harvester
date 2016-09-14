@@ -11,9 +11,10 @@ from SpecBase import SpecBase
 class JobSpec(SpecBase):
 
     # has output file
-    HO_noOutput    = 0
-    HO_hasOutput   = 1
-    HO_hasTransfer = 2
+    HO_noOutput     = 0
+    HO_hasOutput    = 1
+    HO_hasZipOutput = 2
+    HO_hasTransfer  = 3
 
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
@@ -38,14 +39,17 @@ class JobSpec(SpecBase):
                            'submitterTime:timestamp',
                            'stagerLock:text',
                            'stagerTime:timestamp',
+                           'zipPerMB:integer',
                            )
 
 
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
-        object.__setattr__(self,'outFiles',set())
         object.__setattr__(self,'events',set())
+        object.__setattr__(self,'zipEventMap',{})
+        object.__setattr__(self,'outFiles',set())
+        object.__setattr__(self,'zipFileMap',{})
 
 
 
@@ -56,7 +60,15 @@ class JobSpec(SpecBase):
 
 
     # add event
-    def addEvent(self,eventSpec):
+    def addEvent(self,eventSpec,zipFileSpec):
+        if zipFileSpec == None:
+            zipFileID = None
+        else:
+            zipFileID = zipFileSpec.fileID
+        if not zipFileID in self.zipEventMap:
+            self.zipEventMap[zipFileID] = {'events':set(),
+                                           'zip':zipFileSpec}
+        self.zipEventMap[zipFileID]['events'].add(eventSpec)
         self.events.add(eventSpec)
 
 
@@ -68,6 +80,8 @@ class JobSpec(SpecBase):
         self.attemptNr = data['attemptNr']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
+        if 'zipPerMB' in data:
+            self.zipPerMB = data['zipPerMB']
 
 
 
@@ -124,3 +138,30 @@ class JobSpec(SpecBase):
     def allFilesTriggeredToStageOut(self):
         for fileSpec in self.outFiles:
             fileSpec.status = 'transferring'
+
+
+
+    # all files are zipped
+    def allFilesZipped(self):
+        for fileSpec in self.outFiles:
+            fileSpec.status = 'defined'
+
+
+
+    # convert to event data
+    def toEventData(self):
+        data = []
+        eventSpecs = []
+        for zipFileID,eventsData in  self.zipEventMap.iteritems():
+            eventRanges = []
+            for eventSpec in eventsData['events']:
+                eventRanges.append(eventSpec.toData())
+                eventSpecs.append(eventSpec)
+            tmpData = {}
+            tmpData['eventRanges'] = eventRanges
+            if zipFileID != None:
+                zipFileSpec = eventsData['zip']
+                tmpData['zipFile'] = {'lfn':zipFileSpec.lfn,
+                                      'objstoreID':zipFileSpec.objstoreID}
+            data.append(tmpData)
+        return data,eventSpecs

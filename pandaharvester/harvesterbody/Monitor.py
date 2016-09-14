@@ -90,6 +90,10 @@ class Monitor (threading.Thread):
                                                                  filesToStageOut,eventsToUpdate)
                     # update local database
                     self.dbProxy.updateJobsWorkers(jobSpecs,workSpecs,lockedBy)
+                    # send ACK to workers for events
+                    if eventsToUpdate != []:
+                        for workSpec in workSpecs:
+                            messenger.acknowledgeEvents(workSpec)
                 tmpQueLog.debug('done')    
             mainLog.debug('done')
             if self.singleMode:

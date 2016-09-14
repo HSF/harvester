@@ -64,6 +64,8 @@ class JobFetcher (threading.Thread):
                         jobSpec.subStatus = 'fetched'
                         jobSpec.creationTime = timeNow
                         jobSpec.stateChangeTime = timeNow
+                        if queueConfig.zipPerMB != None and jobSpec.zipPerMB == None:
+                            jobSpec.zipPerMB = queueConfig.zipPerMB
                         jobSpec.triggerPropagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB

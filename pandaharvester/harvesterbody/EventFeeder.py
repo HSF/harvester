@@ -50,6 +50,7 @@ class EventFeeder (threading.Thread):
                 for workSpec in workSpecList:
                     tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
                     # get events
+                    tmpLog.debug('get events')
                     tmpStat,events = self.communicator.getEventRanges(workSpec.eventsRequestParams)
                     # failed
                     if tmpStat == False:

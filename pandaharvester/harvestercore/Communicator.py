@@ -6,6 +6,7 @@ Connection to the PanDA server
 import os
 import sys
 import copy
+import json
 import requests
 
 # TO BE REMOVED for python2.7
@@ -106,13 +107,11 @@ class Communicator:
             tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
             tmpLog.debug('start')
             # update events
-            eventRanges = []
-            for eventSpec in jobSpec.events:
-                eventRanges.append(eventSpec.toData())
+            eventRanges,eventSpecs = jobSpec.toEventData()
             if eventRanges != []:
                 tmpRet = self.updateEventRanges(eventRanges,tmpLog)
                 if tmpRet['StatusCode'] == 0:
-                    for eventSpec,retVal in zip(jobSpec.events,tmpRet['Returns']):
+                    for eventSpec,retVal in zip(eventSpecs,tmpRet['Returns']):
                         if retVal in [True,False]:
                             eventSpec.subStatus = 'done'
             # update job
@@ -129,6 +128,7 @@ class Communicator:
                     data['metadata'] = jobSpec.metaData
                 if jobSpec.outputFilesToReport != None:
                     data['xml'] = jobSpec.outputFilesToReport
+            tmpLog.debug('data={0}'.format(str(data)))
             tmpStat,tmpRes = self.postSSL('updateJob',data)
             retMap = None
             if tmpStat == False:
@@ -174,7 +174,9 @@ class Communicator:
     def updateEventRanges(self,eventRanges,tmpLog):
         tmpLog.debug('start updateEventRanges')
         data = {}
-        data['eventRanges'] = eventRanges
+        data['eventRanges'] = json.dumps(eventRanges)
+        data['version'] = 1
+        tmpLog.debug('data={0}'.format(str(data)))
         tmpStat,tmpRes = self.postSSL('updateEventRanges',data)
         retMap = None
         if tmpStat == False:
@@ -188,4 +190,4 @@ class Communicator:
             retMap = {}
             retMap['StatusCode'] = 999
         tmpLog.debug('done updateEventRanges with {0}'.format(str(retMap)))
-        return retList
+        return retMap

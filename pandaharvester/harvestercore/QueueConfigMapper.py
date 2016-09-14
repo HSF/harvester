@@ -12,6 +12,7 @@ class QueueConfig:
         # default parameters
         self.mapType = WorkSpec.MT_OneToOne
         self.useJobLateBinding = False
+        self.zipPerMB = None
 
 
 

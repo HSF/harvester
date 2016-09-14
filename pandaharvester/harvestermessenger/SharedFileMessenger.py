@@ -54,11 +54,14 @@ class SharedFileMessenger (PluginBase):
             for lfn,fileAtters in filesToStageOut.iteritems():
                 fileSpec = FileSpec()
                 fileSpec.lfn = lfn
-                fileSpec.PandaID = jobSpec.PandaID
-                fileSpec.taskID  = jobSpec.taskID
-                fileSpec.status  = 'defined'
-                fileSpec.fileType = fileAttributes['type']
+                fileSpec.PandaID  = jobSpec.PandaID
+                fileSpec.taskID   = jobSpec.taskID
+                fileSpec.path     = fileAtters['path']
+                fileSpec.fsize    = fileAtters['fsize']
+                fileSpec.fileType = fileAtters['type']
                 fileSpec.fileAttributes = fileAtters
+                if 'isZip' in fileAtters:
+                    fileSpec.isZip = fileAtters['isZip']
                 if 'eventRangeID' in fileAtters:
                     fileSpec.eventRangeID = fileAtters['eventRangeID']
                 jobSpec.addOutFile(fileSpec)
@@ -66,7 +69,7 @@ class SharedFileMessenger (PluginBase):
             for data in eventsToUpdate:
                 eventSpec = EventSpec()
                 eventSpec.fromData(data)
-                jobSpec.addEvent(eventSpec)
+                jobSpec.addEvent(eventSpec,None)
             jobSpec.status,jobSpec.subStatus = workSpec.convertToJobStatus()
             tmpLog.debug('new jobStatus={0} subStatus={1}'.format(jobSpec.status,jobSpec.subStatus))
         elif mapType == WorkSpec.MT_MultiJobs:
@@ -255,4 +258,21 @@ class SharedFileMessenger (PluginBase):
             return {}
         tmpLog.debug('found')
         return retDict
+
+
+
+
+    # acknowledge events.
+    # * the events json is deleted to let worker know that the info was received
+    def acknowledgeEvents(self,workSpec):
+        # get logger
+        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        # remove request file
+        try:
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonEventsUpdateFileName)
+            os.remove(jsonFilePath)
+        except:
+            pass
+        tmpLog.debug('done')
+        return
 

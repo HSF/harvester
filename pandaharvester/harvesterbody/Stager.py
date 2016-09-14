@@ -97,6 +97,41 @@ class Stager (threading.Thread):
                 else:
                     # failed
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
+            # get jobs to zip output
+            jobsToZip = self.dbProxy.getJobsForStageOut(harvester_config.stager.maxJobsToZip,
+                                                            harvester_config.stager.triggerInterval,
+                                                            harvester_config.stager.lockInterval,
+                                                            lockedBy,'totransfer',
+                                                            JobSpec.HO_hasZipOutput)
+            mainLog.debug('got {0} jobs to zip'.format(len(jobsToZip)))
+            # loop over all jobs
+            for jobSpec in jobsToZip:
+                tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
+                tmpLog.debug('try to zip output')
+                # get queue
+                if not self.queueConfigMapper.hasQueue(jobSpec.computingSite):
+                    tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                oldSubStatus = jobSpec.subStatus
+                # get plugin
+                stagerCore = self.pluginFactory.getPlugin(queueConifg.stager)
+                if stagerCore == None:
+                    # not found
+                    tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # trigger preparation
+                tmpStat,tmpStr = stagerCore.zipOutput(jobSpec)
+                # successed
+                if tmpStat == True:
+                    # update job
+                    jobSpec.allFilesZipped()
+                    newSubStatus = self.dbProxy.updateJobForStageOut(jobSpec)
+                    tmpLog.debug('zipped newSubStatus={0}'.format(newSubStatus))
+                else:
+                    # failed
+                    tmpLog.debug('failed to zip with {0}'.format(tmpStr))
+
             mainLog.debug('done')
             if self.singleMode:
                 return

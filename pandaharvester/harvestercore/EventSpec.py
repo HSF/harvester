@@ -15,8 +15,8 @@ class EventSpec(SpecBase):
                            'eventStatus:text',
                            'coreCount:integer',
                            'cpuConsumptionTime:integer',
-                           'objstoreID:integer',
-                           'subStatus:text'
+                           'subStatus:text',
+                           'fileID:integer'
                            )
 
 
@@ -32,16 +32,15 @@ class EventSpec(SpecBase):
         for attr in self.attributes:
             # ignore some attributes
             if not attr in ['eventRangeID','eventStatus','coreCount',
-                            'cpuConsumptionTime','objstoreID']:
+                            'cpuConsumptionTime']:
                 continue
             val = getattr(self,attr)
             # don't propagate finished until subStatus is finished
             if attr == 'eventStatus':
                 if val == 'finished' and not self.subStatus in ['finished','done']:
-                    var == 'running'
+                    val == 'running'
             if val != None:
                 data[attr] = val
-            
         return data
 
 

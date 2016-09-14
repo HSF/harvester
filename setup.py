@@ -186,7 +186,7 @@ setup(
                                ]
                  ),
                 # sysconfig
-                ('etc/sysconfig', ['templates/sysconfig/panda_harvester.template',
+                ('etc/sysconfig', ['templates/sysconfig/panda_harvester.rpmnew.template',
                                    ]
                  ),
                 # init script
