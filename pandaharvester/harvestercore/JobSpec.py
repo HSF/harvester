@@ -165,3 +165,38 @@ class JobSpec(SpecBase):
                                       'objstoreID':zipFileSpec.objstoreID}
             data.append(tmpData)
         return data,eventSpecs
+
+
+
+    # get input file attributes
+    def getInputFileAttributes(self):
+        inFiles = {}
+        lfns     = self.jobParams['inFiles'].split(',')
+        fsizes   = self.jobParams['fsize'].split(',')
+        chksums  = self.jobParams['checksum'].split(',') 
+        scopes   = self.jobParams['scopeIn'].split(',') 
+        datasets = self.jobParams['realDatasetsIn'].split(',')  
+        for lfn,fsize,chksum,scope,dataset in zip(lfns,fsizes,chksums,scopes,datasets):
+            inFiles[lfn] = {'fsize':long(fsize),
+                            'checksum':chksum,
+                            'scope':scope,
+                            'dataset':dataset}
+        return inFiles
+
+
+
+    # get output file attributes
+    def getOutputFileAttributes(self):
+        outFiles = {}
+        lfns      = self.jobParams['outFiles'].split(',')
+        scopes    = self.jobParams['scopeOut'].split(',') 
+        scopeLog  = self.jobParams['scopeLog']
+        logLFN    = self.jobParams['logFile']
+        scopes.insert(lfns.index(logLFN),scopeLog)
+        datasets  = self.jobParams['realDatasets'].split(',')  
+        endpoints = self.jobParams['ddmEndPointOut'].split(',')  
+        for lfn,scope,dataset,endpoint in zip(lfns,scopes,datasets,endpoints):
+            outFiles[lfn] = {'scope':scope,
+                             'dataset':dataset,
+                             'endpoint':endpoint}
+        return outFiles
