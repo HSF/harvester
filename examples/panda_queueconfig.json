@@ -40,12 +40,14 @@
 	       "mapType":"OneToOne",
 	       "useJobLateBinding":true,
 	       "preparator":{
-			"name":"DummyPreparator",
-			"module":"pandaharvester.harvesterpreparator.DummyPreparator"
+			"name":"GoPreparator",
+			"module":"pandaharvester.harvesterpreparator.GoPreparator",
+			"srcEndpoint":"nersc#dtn",
+			"dstEndpoint":"go#ep1"
 			},
 		"submitter":{
-			"name":"DummySubmitter",
-			"module":"pandaharvester.harvestersubmitter.DummySubmitter"
+			"name":"SlurmSubmitter",
+			"module":"pandaharvester.harvestersubmitter.SlurmSubmitter"
 			},
 		"workMaker":{
 			"name":"SimpleWorkMaker",
