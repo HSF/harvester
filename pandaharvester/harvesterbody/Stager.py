@@ -131,7 +131,6 @@ class Stager (threading.Thread):
                 else:
                     # failed
                     tmpLog.debug('failed to zip with {0}'.format(tmpStr))
-
             mainLog.debug('done')
             if self.singleMode:
                 return

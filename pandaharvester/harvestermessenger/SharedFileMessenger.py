@@ -1,5 +1,7 @@
 import json
+import os
 import os.path
+import xml.dom.minidom
 from pandaharvester.harvestercore import CoreUtils
 from pandaharvester.harvestercore.WorkSpec import WorkSpec
 from pandaharvester.harvestercore.FileSpec import FileSpec
@@ -15,17 +17,20 @@ jsonAttrsFileName = 'worker_attributes.json'
 # json for outputs
 jsonOutputsFileName = 'worker_filestostageout.json'
 
+# xml for outputs
+xmlOutputsBaseFileName = '_event_status.dump'
+
 # json for job request
 jsonJobRequestFileName = 'worker_requestjob.json'
 
 # json for job spec
-jsonJobSpecFileName = 'worker_jobspec.json'
+jsonJobSpecFileName = 'HPCJobs.json'
 
 # json for event request
 jsonEventsRequestFileName = 'worker_requestevents.json'
 
 # json to feed events
-jsonEventsFeedFileName = 'worker_events.json'
+jsonEventsFeedFileName = 'JobsEventRanges.json'
 
 # json to update events
 jsonEventsUpdateFileName = 'worker_updateevents.json'
@@ -126,6 +131,9 @@ class SharedFileMessenger (PluginBase):
                     retDict = json.load(jsonFile)
             except:
                 tmpLog.debug('failed to load json')
+            # read event dump from XML which is an old convention    
+            xmlRetDict = self.takeXmlEventOutputDump(workSpec.getAccessPoint(),tmpLog)
+            retDict.update(xmlRetDict)
         elif workSpec.mapType == WorkSpec.MT_MultiJobs:
             # look for json files under accesspoint/${PandaID}
             # TOBEFIXED
@@ -133,6 +141,55 @@ class SharedFileMessenger (PluginBase):
         return retDict
 
 
+
+    # get and parse XML event output dump
+    def takeXmlEventOutputDump(self,accessPoint,tmpLog):
+        try:
+            # scan access point
+            fileDict = {}
+            eventsList = []
+            for tmpRoot,tmpDirs,tmpFiles in os.walk(accessPoint):
+                for tmpFile in tmpFiles:
+                    # look for XML files
+                    if not tmpFile.startswith(xmlOutputsBaseFileName):
+                        continue
+                    # get PandaID
+                    try:
+                        pandaID = long(tmpFile.split('_')[0])
+                    except:
+                        continue
+                    # parse XML
+                    xmlRoot = xml.dom.minidom.parse(tmpFile)
+                    fileItems = root.getElementsByTagName('File')
+                    for fileItem in fileItems:
+                        # get event range ID and status
+                        eventRangeID = str(fileItem.getAttribute('EventRangeID'))
+                        eventStatus = str(fileItem.getAttribute('Status'))
+                        # get pfn
+                        physNode = fileItem.getElementsByTagName('physical')[0]
+                        pfnNode  = physNode.getElementsByTagName('pfn')[0]
+                        pfn = str(pfnNode.getAttribute('name'))
+                        lfn = pfn.split('/')[-1]
+                        # make file dict
+                        tmpDict = {}
+                        tmpDict['path'] = pfn
+                        tmpDict['fsize'] = 0 # FIXME
+                        tmpDict['type'] = 'output' # FIXME
+                        tmpDict['eventRangeID'] = eventRangeID
+                        fileDict[lfn] = tmpDict
+                        # add events
+                        eventsList.append({'eventRangeID':eventRangeID,
+                                           'eventStatus':eventStatus})
+            # dump events
+            if eventsList != []:
+                f = open(os.path.join(accessPoint,jsonEventsUpdateFileName),'w')
+                json.dump(eventsList,f)
+                f.close()
+        except:
+            pass 
+        return fileDict
+                
+                        
 
     # check if job is requested.
     # * the worker needs to put worker_requestjob.json under the accesspoint
@@ -164,7 +221,7 @@ class SharedFileMessenger (PluginBase):
             tmpLog.debug('feeding jobs to {0}'.format(jsonFilePath))
             try:
                 with open(jsonFilePath,'w') as jsonFile:
-                    json.dump(jobSpec.jobParams,jsonFile)
+                    json.dump([jobSpec.jobParams],jsonFile)
             except:
                 CoreUtils.dumpErrorMessage(tmpLog)
                 retVal = False

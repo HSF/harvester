@@ -161,7 +161,7 @@ class Communicator:
             try:
                 tmpDict = tmpRes.json()
                 if tmpDict['StatusCode'] == 0:
-                    retVal = True,tmpDict['eventRanges']
+                    retVal = True,{data['pandaID']:tmpDict['eventRanges']}
             except:
                 CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
         tmpLog.debug('done with {0}'.format(str(retVal)))
