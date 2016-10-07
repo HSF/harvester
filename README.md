@@ -39,6 +39,7 @@ Several parameters need to be adjusted in the setup file (etc/sysconfig/panda_ha
 and two system config files (etc/panda/panda_common.cfg and etc/panda/panda_harvester.cfg).
 
 The following parameters need to be modified in the setup file.
+
 Name | Description  
 --- | --- 
 PANDA_HOME | Config files must be under $PANDA_HOME/etc
@@ -51,6 +52,7 @@ export PYTHONPATH=$VIRTUAL_ENV/lib/python2.6/site-packages/pandacommon
 ```
 
 The **logdir** needs to be set in etc/panda/panda_common.cfg. It is recommended to use a non-NFS directory to avoid buffering.
+
 Name | Description 
 --- | --- 
 logdir | A directory for log files
