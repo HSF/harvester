@@ -39,8 +39,8 @@ Several parameters need to be adjusted in the setup file (etc/sysconfig/panda_ha
 and two system config files (etc/panda/panda_common.cfg and etc/panda/panda_harvester.cfg).
 
 The following parameters need to be modified in the setup file.
-| Name | Description  
-- | - 
+Name | Description  
+--- | --- 
 PANDA_HOME | Config files must be under $PANDA_HOME/etc
 PYTHONPATH | Must contain the pandacommon package
 
@@ -51,9 +51,9 @@ export PYTHONPATH=$VIRTUAL_ENV/lib/python2.6/site-packages/pandacommon
 ```
 
 The **logdir** needs to be set in etc/panda/panda_common.cfg. It is recommended to use a non-NFS directory to avoid buffering.
-| Name | Description 
-- | - | - 
-- logdir | A directory for log files
+Name | Description 
+--- | --- 
+logdir | A directory for log files
 
 Example :
 ```
@@ -62,8 +62,8 @@ logdir = /var/log/panda
 
 The following list shows parameters need to be adjusted in etc/panda/panda_harvester.cfg.
 
-| Name | Description  
-- | - 
+Name | Description  
+--- | --- 
 master.uname | User ID of the daemon process
 master.gname | Group ID of the daemon process
 db.database_filename | Filename of the local database
@@ -78,7 +78,7 @@ credmanager.className | The class name of the credential manager
 credmanager.certFile | A grid proxy without VOMS extension. NoVomsCredManager generates VOMS proxy using the file
 
 
-##### Queue configuration file
+#### Queue configuration file
 
 Plug-ins for each PandaQueue is configured in the queue configuration file.
 The filename is defined in **qconf.configFile** and has to be put in the $PANDA_HOME/etc/panda
@@ -87,7 +87,7 @@ now it has to be manually created. Here is an
 [example](https://github.com/PanDAWMS/panda-harvester/blob/master/examples/panda_queueconfig.json)
 of the queue configuration file. The contents is a json dump of 
 
-```json
+```python
 {
 "PandaQueueName1": {
 		   "QueueAttributeName1": ValueQ_1,
