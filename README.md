@@ -11,11 +11,13 @@ Harvester is a resource-facing service between the PanDA server and collection o
 ### Installation
 > Harvester can be installed with or without  root privilege.
 >
+
 #### Without root privilege
-```
+```sh
 $ virtualenv harvester
 $ cd harvester
 $ . bin/activate
 $ pip install git+git://github.com/PanDAWMS/panda-harvester.git
 ```
+
 #### With root privilege
