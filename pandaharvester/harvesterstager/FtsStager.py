@@ -134,7 +134,7 @@ class FstStager (PluginBase):
                 try:
                     url = "{0}/jobs".format(self.ftsServer)
                     res = requests.post(url,
-                                        json={"Files"files},
+                                        json={"Files":files},
                                         timeout=self.ftsLookupTimeout,
                                         verify=self.ca_cert,
                                         cert=(harvester_config.pandacon.cert_file,
