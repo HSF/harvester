@@ -74,6 +74,13 @@ class Communicator:
 
 
 
+    # check server
+    def isAlive(self):
+        tmpStat,tmpRes = self.postSSL('isAlive',{})
+        return tmpStat,tmpRes.status_code,tmpRes.text
+
+
+
     # get jobs
     def getJobs(self,siteName,nodeName,prodSourceLabel,computingElement,nJobs):
         # get logger

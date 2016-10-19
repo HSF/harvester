@@ -2,7 +2,9 @@
 
 ### Introduction
 
-Harvester is a resource-facing service between the PanDA server and collection of pilots. It is a lightweight stateless service running on a VObox or an edge node of HPC centers to provide a uniform view for various resources.
+Harvester is a resource-facing service between the PanDA server and collection of pilots.
+It is a lightweight stateless service running on a VObox or an edge node of HPC centers
+to provide a uniform view for various resources.
 
 ----------
 
@@ -14,6 +16,7 @@ Harvester can be installed with or without root privilege.
 
 #### Without root privilege
 ```sh
+# # setup virtualenv
 $ virtualenv harvester
 $ cd harvester
 $ . bin/activate
@@ -21,6 +24,7 @@ $ . bin/activate
 $ # install additional python packages if missing
 $ pip install pip --upgrade
 $ pip install python-daemon
+$ pip install requests
 
 $ # install panda components
 $ pip install git+git://github.com/PanDAWMS/panda-common.git@setuptools
@@ -38,17 +42,17 @@ $ mv etc/panda/panda_harvester.cfg.rpmnew.template etc/panda/panda_harvester.cfg
 Several parameters need to be adjusted in the setup file (etc/sysconfig/panda_harvester)
 and two system config files (etc/panda/panda_common.cfg and etc/panda/panda_harvester.cfg).
 
-The following parameters need to be modified in the setup file.
+The following parameters need to be modified in etc/sysconfig/panda_harvester.
 
 Name | Description  
 --- | --- 
 PANDA_HOME | Config files must be under $PANDA_HOME/etc
-PYTHONPATH | Must contain the pandacommon package
+PYTHONPATH | Must contain the pandacommon package and site-packages where the pandaharvester package is available
 
-Example	   :
+- Example
 ```
 export PANDA_HOME=$VIRTUAL_ENV
-export PYTHONPATH=$VIRTUAL_ENV/lib/python2.6/site-packages/pandacommon
+export PYTHONPATH=$VIRTUAL_ENV/lib/python2.7/site-packages/pandacommon:$VIRTUAL_ENV/lib/python2.7/site-packages
 ```
 
 The **logdir** needs to be set in etc/panda/panda_common.cfg. It is recommended to use a non-NFS directory to avoid buffering.
@@ -57,7 +61,7 @@ Name | Description
 --- | --- 
 logdir | A directory for log files
 
-Example :
+- Example
 ```
 logdir = /var/log/panda
 ```
@@ -120,3 +124,29 @@ of the queue configuration file. The contents is a json dump of
 
 }
 ```
+
+Here is the list of queue attributes.
+
+Name | Description  
+--- | --- 
+prodSourceLabel | Source label of the queue. _managed_ for production
+nQueueLimitJob | The max number of jobs pre-fetched and queued
+nQueueLimitWorker | The max number of workers queued in the batch system
+maxWorkers | The max number of workers. maxWorkers-nQueueLimitWorker is the number of running workers
+mapType | Mapping between jobs and workers. OneToOne = (1 job x 1 worker). OneToMany = 1xN. ManyToOne = Nx1 
+useJobLateBinding | true if the queue uses job-level late-binding
+
+Agent is **preparator**, **submitter**, **workMaker**, **messenger**,
+**stager**, **monitor**, and **sweeper**. Two agent parameters `name` and `module`
+are mandatory to define the class name module names of the agent.
+Roguly speaking,
+```python
+from agentModle import agentName
+agent = agentName()
+```
+is internally invoked. Other agent attributes are set to the agent instance as instance variables.
+
+----------
+
+### Tests
+

@@ -1,5 +1,5 @@
 import os
-os.environ['PANDA_HOME'] = '/afs/cern.ch/user/t/tmaeno/harvester'
+from pandaharvester.harvesterconfig import harvester_config
 
 try:
     os.remove(harvester_config.db.database_filename)
@@ -21,11 +21,27 @@ job = JobSpec()
 job.PandaID = 1
 import datetime
 job.modificationTime = datetime.datetime.now()
-proxy.insertJobs([job])
-
+print "check database access"
+print "INSERT ..."
+tmpRet = proxy.insertJobs([job])
+if tmpRet:
+    print " OK"
+else:
+    print " NG"
+print "READ ..."
 newJob = proxy.getJob(1)
+if newJob != None:
+    print " OK"
+else:
+    print " NG"
 
-
+print
+print "check panda access"
 from pandaharvester.harvestercore.CommunicatorPool import CommunicatorPool
 a = CommunicatorPool()
-a.getJobs('siteName','nodeName','prodSourceLabel','computingElement',1)
+tmpRet,tmpCode,tmpStr = a.isAlive()
+if tmpRet == True and tmpCode == 200 and tmpStr == 'alive=yes':
+    print " OK"
+else:
+    print " NG ret:{0} code:{1} out:{2}".format(tmpRet,tmpCode,tmpStr)
+print
