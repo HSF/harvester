@@ -150,3 +150,31 @@ is internally invoked. Other agent attributes are set to the agent instance as i
 
 ### Tests
 
+First setup environment variables.
+```sh
+$ source etc/sysconfig/panda_harvester
+```
+All log files are available in the logdir which is defined in etc/panda/panda_common.cfg.
+The filename is panda-[ClassName].log where ClassName is a plugin or agent class name.
+
+#### Unit tests
+* Testing the local database and connection to PanDA
+```sh
+$ python lib/python*/site-packages/pandaharvester/harvestertest/basicTest.py
+```
+
+* Testing submission and monitoring with the batch system
+```sh
+$ python lib/python*/site-packages/pandaharvester/harvestertest/submitterTest.py [PandaQueueName]
+```
+
+* Testing stage-in
+
+* Testing stage-out
+
+
+#### Functional tests
+Harvester functions can be executed step by step using
+```sh
+$ python -i lib/python2.7/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
+```

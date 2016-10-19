@@ -10,8 +10,14 @@
 			"module":"pandaharvester.harvesterpreparator.DummyPreparator"
 			},
 		"submitter":{
-			"name":"DummySubmitter",
-			"module":"pandaharvester.harvestersubmitter.DummySubmitter"
+			"name":"SlurmSubmitter",
+			"module":"pandaharvester.harvestersubmitter.SlurmSubmitter",
+			"partition":"debug",
+			"nodes":2,
+			"time":"00:10:00",
+			"license":"SCRATCH",
+			"application":"-n 48 echo",
+			"workDir":"/global/homes/t/tmaeno/tmp"
 			},
 		"workMaker":{
 			"name":"SimpleWorkMaker",
@@ -28,8 +34,8 @@
 			"module":"pandaharvester.harvesterstager.DummyStager"
 			},
 		"monitor":{
-			"name":"DummyMonitor",
-			"module":"pandaharvester.harvestermonitor.DummyMonitor"
+			"name":"SlurmMonitor",
+			"module":"pandaharvester.harvestermonitor.SlurmMonitor"
 			}
 	       },
 "CERN_PROD_1":{
