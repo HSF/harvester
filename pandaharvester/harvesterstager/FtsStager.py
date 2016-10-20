@@ -1,7 +1,9 @@
 import os
 import sys
 import json
+import os.path
 import zipfile
+import hashlib
 import requests
 
 # TO BE REMOVED for python2.7
@@ -19,7 +21,7 @@ baseLogger = CoreUtils.setupLogger()
 
 
 # plugin for stager with FTS
-class FstStager (PluginBase):
+class FtsStager (PluginBase):
     
     # constructor
     def __init__(self,**kwarg):
@@ -33,6 +35,8 @@ class FstStager (PluginBase):
         tmpLog = CoreUtils.makeLogger(baseLogger,'PandaID={0}'.format(jobSpec.PandaID))
         tmpLog.debug('start')
         # loop over all files
+        allChecked = True
+        oneErrMsg = None
         trasnferStatus = {}
         for fileSpec in jobSpec.outFiles:
             # get transfer ID
@@ -63,18 +67,25 @@ class FstStager (PluginBase):
                         errMsg = "{0} {1}".format(errtype.__name__,errvalue)
                 # failed
                 if errMsg != None:
+                    allChecked = False
                     tmpLog.error('failed to get status for {0} with {1}'.format(transferID,
                                                                                 errMsg))
                     # set dummy not to lookup again
                     trasnferStatus[transferID] = None
+                    # keep one message
+                    if oneErrMsg == None:
+                        oneErrMsg = errMsg
             # final status
             if trasnferStatus[transferID] == 'DONE':
                 fileSpec.status = 'finished'
             elif trasnferStatus[transferID] in ['FAILED','CANCELED']:
                 fileSpec.status = 'failed'
-        return True,''
+        if allChecked:
+            return True,''
+        else:
+            return False,oneErrMsg
 
-
+            
 
     # trigger stage out
     def triggerStageOut(self,jobSpec):
@@ -86,6 +97,7 @@ class FstStager (PluginBase):
         # loop over all files
         files = []
         lfns = set()
+        fileAttrs = jobSpec.getOutputFileAttributes()
         for fileSpec in jobSpec.outFiles:
             # skip zipped files
             if fileSpec.zipFileID != None:
@@ -97,7 +109,7 @@ class FstStager (PluginBase):
                 # set OS ID
                 fileSpec.objstoreID = self.esObjStoreID
             else:
-                scope = jobSpec.getOutputFileAttributes[fileSpec.lfn]
+                scope = fileAttrs[fileSpec.lfn]['scope']
                 hash = hashlib.md5()
                 hash.update('%s:%s' % (scope,fileSpec.lfn))
                 hash_hex = hash.hexdigest()
@@ -159,8 +171,8 @@ class FstStager (PluginBase):
                         errMsg = "{0} {1}".format(errtype.__name__,errvalue)
                 # failed
                 if errMsg != None:
-                    tmpLog.error('failed to submit transfer with {0}'.format(errMsg))
-                    tmpRetVal = (False,errStr)
+                    tmpLog.error('failed to submit transfer to {0} with {1}'.format(url,errMsg))
+                    tmpRetVal = (False,errMsg)
         # return
         tmpLog.debug('done')
         return tmpRetVal
@@ -174,7 +186,12 @@ class FstStager (PluginBase):
         tmpLog.debug('start')
         try:
             for fileSpec in jobSpec.outFiles:
-                zipPath = os.path.join(self.zipDir,fileSpec.lfn)
+                if self.zipDir == "${SRCDIR}":
+                    # the same directory as src
+                    zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
+                else:
+                    zipDir = self.zipDir
+                zipPath = os.path.join(zipDir,fileSpec.lfn)
                 # remove zip file just in case
                 try:
                     os.remove(zipPath)
@@ -190,10 +207,8 @@ class FstStager (PluginBase):
                 statInfo = os.stat(zipPath)
                 fileSpec.fsize = statInfo.st_size
         except:
-            errtype,errvalue = sys.exc_info()[:2]
-            errMsg = "{0} {1}".format(errtype.__name__,errvalue)
-            tmpLog.error('failed to zip with {0}'.format(errMsg))
-            return False,errMsg
+            errMsg = CoreUtils.dumpErrorMessage(tmpLog)
+            return False,'failed to zip with {0}'.format(errMsg)
         tmpLog.debug('done')
         return True,''
 

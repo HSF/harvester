@@ -171,10 +171,13 @@ $ python lib/python*/site-packages/pandaharvester/harvestertest/submitterTest.py
 * Testing stage-in
 
 * Testing stage-out
-
+```sh
+python -i lib/python*/site-packages/pandaharvester/harvestertest/stageOutTest.py [PandaQueueName]
+```
 
 #### Functional tests
-Harvester functions can be executed step by step using
+Harvester runs multiple threads in parallesl so that debugging is rather complicated. However, functions can be
+gradually executed by using
 ```sh
-$ python -i lib/python2.7/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
+$ python -i lib/python*/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
 ```
