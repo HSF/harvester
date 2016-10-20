@@ -181,3 +181,30 @@ gradually executed by using
 ```sh
 $ python -i lib/python*/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
 ```
+
+
+
+### Misc
+
+#### How to setup virtualenv if unavailable by default
+* For NERSC
+```sh
+$ module load virtualenv
+```
+* For others
+```sh
+$ pip install virtualenv --user
+```
+or more details in https://virtualenv.pypa.io/en/stable/installation/ .
+
+
+
+#### How to install python-daemon on Edison@NERSC
+```sh
+$ wget docutils-*.tar.gz from https://pypi.python.org/pypi/docutils
+$ pip install docutils-*.tar.gz
+$ wget lockfile-*.tar.gz from https://pypi.python.org/pypi/lockfile
+$ pip install lockfile-*.tar.gz
+$ wget python-daemon-*.tar.gz from https://pypi.python.org/pypi/python-daemon
+$ pip install python-daemon-*.tar.gz
+```
