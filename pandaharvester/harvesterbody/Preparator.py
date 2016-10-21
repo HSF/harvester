@@ -48,10 +48,10 @@ class Preparator (threading.Thread):
                 if not self.queueConfigMapper.hasQueue(jobSpec.computingSite):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
                     continue
-                queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                queueConfig = self.queueConfigMapper.getQueue(jobSpec.computingSite)
                 oldSubStatus = jobSpec.subStatus
                 # get plugin
-                preparatorCore = self.pluginFactory.getPlugin(queueConifg.preparator)
+                preparatorCore = self.pluginFactory.getPlugin(queueConfig.preparator)
                 if preparatorCore == None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
@@ -67,6 +67,14 @@ class Preparator (threading.Thread):
                     continue
                 # successed
                 if tmpStat == True:
+                    # resolve path
+                    tmpStat,tmpStr = preparatorCore.resolveInputPaths(jobSpec)
+                    if tmpStat == False:
+                        jobSpec.lockedBy = None
+                        self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
+                                                        'subStatus':oldSubStatus})
+                        tmpLog.error('failed to resolve input file paths : {0}'.format(tmpStr))
+                        continue
                     # update job
                     jobSpec.subStatus = 'prepared'
                     jobSpec.lockedBy = None
@@ -84,7 +92,7 @@ class Preparator (threading.Thread):
                     jobSpec.triggerPropagation()
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':oldSubStatus})
-                    tmpLog.debug('failed with {0}'.format(tmpStr))
+                    tmpLog.error('failed with {0}'.format(tmpStr))
             # get jobs to trigger preparation
             mainLog.debug('try to get jobs to prepare')
             jobsToTrigger = self.dbProxy.getJobsInSubStatus('fetched',
@@ -103,10 +111,10 @@ class Preparator (threading.Thread):
                 if not self.queueConfigMapper.hasQueue(jobSpec.computingSite):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
                     continue
-                queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                queueConfig = self.queueConfigMapper.getQueue(jobSpec.computingSite)
                 oldSubStatus = jobSpec.subStatus
                 # get plugin
-                preparatorCore = self.pluginFactory.getPlugin(queueConifg.preparator)
+                preparatorCore = self.pluginFactory.getPlugin(queueConfig.preparator)
                 if preparatorCore == None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))

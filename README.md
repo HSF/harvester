@@ -40,7 +40,7 @@ $ mv etc/panda/panda_harvester.cfg.rpmnew.template etc/panda/panda_harvester.cfg
 
 #### Setup and system configuration files
 Several parameters need to be adjusted in the setup file (etc/sysconfig/panda_harvester)
-and two system config files (etc/panda/panda_common.cfg and etc/panda/panda_harvester.cfg).
+and two config files (etc/panda/panda_common.cfg and etc/panda/panda_harvester.cfg).
 
 The following parameters need to be modified in etc/sysconfig/panda_harvester.
 
@@ -179,7 +179,7 @@ python -i lib/python*/site-packages/pandaharvester/harvestertest/stageOutTest.py
 Harvester runs multiple threads in parallesl so that debugging is rather complicated. However, functions can be
 gradually executed by using
 ```sh
-$ python -i lib/python*/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
+$ python lib/python*/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
 ```
 
 
@@ -189,22 +189,34 @@ $ python -i lib/python*/site-packages/pandaharvester/harvesterbody/Master.py --p
 #### How to setup virtualenv if unavailable by default
 * For NERSC
 ```sh
+$ module load python
 $ module load virtualenv
 ```
 * For others
 ```sh
 $ pip install virtualenv --user
 ```
-or more details in https://virtualenv.pypa.io/en/stable/installation/ .
+or more details in https://virtualenv.pypa.io/en/stable/installation/
 
 
 
 #### How to install python-daemon on Edison@NERSC
 ```sh
+$ module load python
+$ cd harvester
+$ . bin/activate
 $ wget docutils-*.tar.gz from https://pypi.python.org/pypi/docutils
 $ pip install docutils-*.tar.gz
 $ wget lockfile-*.tar.gz from https://pypi.python.org/pypi/lockfile
 $ pip install lockfile-*.tar.gz
 $ wget python-daemon-*.tar.gz from https://pypi.python.org/pypi/python-daemon
 $ pip install python-daemon-*.tar.gz
+```
+
+
+
+# How to install local panda-harvester package
+```sh
+$ cd panda-harvester
+$ python setup.py sdist; pip install dist/pandaharvester-*.tar.gz --upgrade
 ```

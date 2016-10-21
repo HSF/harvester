@@ -137,3 +137,17 @@ class GoPreparator (PluginBase):
     def makeLabel(self,jobSpec):
         return "IN-{computingSite}-{PandaID}".format(computingSite=jobSpec.computingSite,
                                                       PandaID=jobSpec.PandaID)
+
+
+
+    # resolve input file paths
+    def resolveInputPaths(self,jobSpec):
+        # get input files
+        inFiles = jobSpec.getInputFileAttributes()
+        # set path to each file
+        for inLFN,inFile in inFiles.iteritems():
+            # FIXME
+            inFile['path'] = 'dummypath/{0}'.format(inLFN)
+        # set
+        jobSpec.setInputFilePaths(inFiles)    
+        return True,''

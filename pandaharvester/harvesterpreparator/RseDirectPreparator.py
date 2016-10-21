@@ -1,8 +1,9 @@
 from pandaharvester.harvestercore.PluginBase import PluginBase
+import PreparatorUtils
 
 
-# dummy plugin for preparator
-class DummyPreparator (PluginBase):
+# plugin for preparator with RSE + directIO
+class RseDirectPreparator (PluginBase):
     
     # constructor
     def __init__(self,**kwarg):
@@ -27,7 +28,7 @@ class DummyPreparator (PluginBase):
         inFiles = jobSpec.getInputFileAttributes()
         # set path to each file
         for inLFN,inFile in inFiles.iteritems():
-            inFile['path'] = 'dummypath/{0}'.format(inLFN)
+            inFile['path'] = PreparatorUtils.constructFilePath(self.basePath,inFile['dataset'],inFile['scope'],inLFN)
         # set
         jobSpec.setInputFilePaths(inFiles)    
         return True,''

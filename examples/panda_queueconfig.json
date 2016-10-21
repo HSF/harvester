@@ -6,8 +6,9 @@
 	       "maxWorkers":5,	
 	       "mapType":"OneToOne",
 	       "preparator":{
-			"name":"DummyPreparator",
-			"module":"pandaharvester.harvesterpreparator.DummyPreparator"
+			"name":"RseDirectPreparator",
+			"module":"pandaharvester.harvesterpreparator.RseDirectPreparator",
+			"basePath":"/global/homes/t/tmaeno/rucio"
 			},
 		"submitter":{
 			"name":"SlurmSubmitter",

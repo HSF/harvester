@@ -176,12 +176,29 @@ class JobSpec(SpecBase):
         chksums  = self.jobParams['checksum'].split(',') 
         scopes   = self.jobParams['scopeIn'].split(',') 
         datasets = self.jobParams['realDatasetsIn'].split(',')  
-        for lfn,fsize,chksum,scope,dataset in zip(lfns,fsizes,chksums,scopes,datasets):
+        endpoints = self.jobParams['ddmEndPointIn'].split(',')  
+        for lfn,fsize,chksum,scope,dataset,endpoint in zip(lfns,fsizes,chksums,scopes,datasets,endpoints):
             inFiles[lfn] = {'fsize':long(fsize),
                             'checksum':chksum,
                             'scope':scope,
-                            'dataset':dataset}
+                            'dataset':dataset,
+                            'endpoint':endpoint}
+        # add path
+        if 'inFilePaths' in self.jobParams:
+            paths = self.jobParams['inFilePaths'].split(',')
+            for lfn,path in zip(lfns,paths):
+                inFiles[lfn]['path'] = path
         return inFiles
+
+
+
+    # set input file paths
+    def setInputFilePaths(self,inFiles):
+        lfns = self.jobParams['inFiles'].split(',')
+        paths = []
+        for lfn in lfns:
+            paths.append(inFiles[lfn]['path'])
+        self.jobParams['inFilePaths'] = ','.join(paths)
 
 
 
