@@ -215,7 +215,7 @@ $ pip install python-daemon-*.tar.gz
 
 
 
-# How to install local panda-harvester package
+#### How to install local panda-harvester package
 ```sh
 $ cd panda-harvester
 $ python setup.py sdist; pip install dist/pandaharvester-*.tar.gz --upgrade
