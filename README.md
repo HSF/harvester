@@ -185,7 +185,7 @@ gradually executed by using
 $ python lib/python*/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
 ```
 
-
+----------
 
 ### Misc
 
@@ -224,6 +224,6 @@ $ cd panda-harvester
 $ python setup.py sdist; pip install dist/pandaharvester-*.tar.gz --upgrade
 ```
 
-
+----------
 
 ### Plug-in descriptions
