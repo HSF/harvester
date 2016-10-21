@@ -155,7 +155,7 @@ First setup environment variables.
 $ source etc/sysconfig/panda_harvester
 ```
 All log files are available in the logdir which is defined in etc/panda/panda_common.cfg.
-The filename is panda-[ClassName].log where ClassName is a plugin or agent class name.
+The filename is panda-*ClassName*.log where *ClassName* is a plug-in or agent class name.
 
 #### Unit tests
 * Testing the local database and connection to PanDA
@@ -169,6 +169,9 @@ $ python lib/python*/site-packages/pandaharvester/harvestertest/submitterTest.py
 ```
 
 * Testing stage-in
+```
+python -i lib/python*/site-packages/pandaharvester/harvestertest/stageInTest.py [PandaQueueName]
+```
 
 * Testing stage-out
 ```sh
@@ -220,3 +223,7 @@ $ pip install python-daemon-*.tar.gz
 $ cd panda-harvester
 $ python setup.py sdist; pip install dist/pandaharvester-*.tar.gz --upgrade
 ```
+
+
+
+### Plug-in descriptions
