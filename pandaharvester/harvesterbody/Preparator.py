@@ -65,7 +65,7 @@ class Preparator (threading.Thread):
                                                     'subStatus':oldSubStatus})
                     tmpLog.debug('still running')
                     continue
-                # successed
+                # succeeded
                 if tmpStat == True:
                     # resolve path
                     tmpStat,tmpStr = preparatorCore.resolveInputPaths(jobSpec)
@@ -81,7 +81,7 @@ class Preparator (threading.Thread):
                     jobSpec.preparatorTime = None
                     self.dbProxy.updateJob(jobSpec,{'lockedBy':lockedBy,
                                                     'subStatus':oldSubStatus})
-                    tmpLog.debug('successed')
+                    tmpLog.debug('succeeded')
                 else:
                     # update job
                     jobSpec.status = 'failed'
@@ -121,7 +121,7 @@ class Preparator (threading.Thread):
                     continue
                 # trigger preparation
                 tmpStat,tmpStr = preparatorCore.triggerPreparation(jobSpec)
-                # successed
+                # succeeded
                 if tmpStat == True:
                     # update job
                     jobSpec.subStatus = 'preparing'
