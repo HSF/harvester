@@ -34,7 +34,7 @@ def makeLogger(tmpLog,token=None):
 
                         
 
-# dump error message                                                                          
+# dump error message
 def dumpErrorMessage(tmpLog,errStr=None):
     if not isinstance(tmpLog,LogWrapper):
         methodName = '{0} : '.format(inspect.stack()[1][3])
@@ -50,6 +50,6 @@ def dumpErrorMessage(tmpLog,errStr=None):
 
 
 
-# sleep for randome duration
+# sleep for random duration
 def sleep(interval):
     time.sleep(random.randint(int(interval*0.8),int(interval*1.2)))
