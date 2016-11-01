@@ -13,7 +13,7 @@ _logger = CoreUtils.setupLogger()
 
 
 
-# class for srage-out
+# class for stage-out
 class Stager (threading.Thread):
     
     # constructor
@@ -46,16 +46,16 @@ class Stager (threading.Thread):
                 if not self.queueConfigMapper.hasQueue(jobSpec.computingSite):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
                     continue
-                queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                queueConfig = self.queueConfigMapper.getQueue(jobSpec.computingSite)
                 oldSubStatus = jobSpec.subStatus
                 # get plugin
-                stagerCore = self.pluginFactory.getPlugin(queueConifg.stager)
+                stagerCore = self.pluginFactory.getPlugin(queueConfig.stager)
                 if stagerCore == None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
                 tmpStat,tmpStr = stagerCore.checkStatus(jobSpec)
-                # successed
+                # succeeded
                 if tmpStat == True:
                     # update job
                     newSubStatus = self.dbProxy.updateJobForStageOut(jobSpec)
@@ -78,10 +78,10 @@ class Stager (threading.Thread):
                 if not self.queueConfigMapper.hasQueue(jobSpec.computingSite):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
                     continue
-                queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                queueConfig = self.queueConfigMapper.getQueue(jobSpec.computingSite)
                 oldSubStatus = jobSpec.subStatus
                 # get plugin
-                stagerCore = self.pluginFactory.getPlugin(queueConifg.stager)
+                stagerCore = self.pluginFactory.getPlugin(queueConfig.stager)
                 if stagerCore == None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
@@ -112,10 +112,10 @@ class Stager (threading.Thread):
                 if not self.queueConfigMapper.hasQueue(jobSpec.computingSite):
                     tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
                     continue
-                queueConifg = self.queueConfigMapper.getQueue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.getQueue(jobSpec.computingSite)
                 oldSubStatus = jobSpec.subStatus
                 # get plugin
-                stagerCore = self.pluginFactory.getPlugin(queueConifg.stager)
+                stagerCore = self.pluginFactory.getPlugin(queueConfig.stager)
                 if stagerCore == None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))

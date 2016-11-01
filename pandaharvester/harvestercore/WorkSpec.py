@@ -10,7 +10,7 @@ from SpecBase import SpecBase
 # work spec
 class WorkSpec(SpecBase):
 
-    # worker statues
+    # worker statuses
     ST_submitted = 'submitted'
     ST_running   = 'running'
     ST_finished  = 'finished'

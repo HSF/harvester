@@ -156,7 +156,7 @@ class Submitter (threading.Thread):
                         tmpStat = self.dbProxy.registerWorker(workSpec,jobList,lockedBy)
                         for jobSpec in jobList:
                             if tmpStat:
-                                tmpLog.debug('submtted a workerID={0} for PandaID={1} with batchID={2}'.format(workSpec.workerID,
+                                tmpLog.debug('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(workSpec.workerID,
                                                                                                                jobSpec.PandaID,
                                                                                                                workSpec.batchID))
                             else:
