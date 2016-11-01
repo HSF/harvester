@@ -5,6 +5,7 @@ Connection to the PanDA server
 
 # disable SNI for TLSV1_UNRECOGNIZED_NAME in requests
 import ssl
+
 ssl.HAS_SNI = False
 
 import os
@@ -15,8 +16,8 @@ import requests
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
-requests.packages.urllib3.disable_warnings()
 
+requests.packages.urllib3.disable_warnings()
 
 import CoreUtils
 from pandaharvester.harvesterconfig import harvester_config
@@ -25,80 +26,70 @@ from pandaharvester.harvesterconfig import harvester_config
 _logger = CoreUtils.setupLogger()
 
 
-
 # connection class
 class Communicator:
-    
     # constrictor
     def __init__(self):
         pass
 
-
-
     # POST with http
-    def post(self,path,data):
+    def post(self, path, data):
         try:
-            url = '{0}/{1}'.format(harvester_config.pandacon.pandaURL,path)
+            url = '{0}/{1}'.format(harvester_config.pandacon.pandaURL, path)
             res = requests.post(url,
                                 data=data,
-                                headers={"Accept":"application/json"},
+                                headers={"Accept": "application/json"},
                                 timeout=harvester_config.pandacon.timeout)
             if res.status_code == 200:
-                return True,res
+                return True, res
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
         except:
-            errType,errValue = sys.exc_info()[:2]
-            errMsg = "failed to post with {0}:{1}".format(errType,errValue)
-        return False,errMsg
-
-
+            errType, errValue = sys.exc_info()[:2]
+            errMsg = "failed to post with {0}:{1}".format(errType, errValue)
+        return False, errMsg
 
     # POST with https
-    def postSSL(self,path,data):
+    def postSSL(self, path, data):
         try:
-            url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL,path)
+            url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
             res = requests.post(url,
                                 data=data,
-                                headers={"Accept":"application/json"},
+                                headers={"Accept": "application/json"},
                                 timeout=harvester_config.pandacon.timeout,
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=(harvester_config.pandacon.cert_file,
                                       harvester_config.pandacon.key_file))
             if res.status_code == 200:
-                return True,res
+                return True, res
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
         except:
-            errType,errValue = sys.exc_info()[:2]
-            errMsg = "failed to post with {0}:{1}".format(errType,errValue)
-        return False,errMsg
-
-
+            errType, errValue = sys.exc_info()[:2]
+            errMsg = "failed to post with {0}:{1}".format(errType, errValue)
+        return False, errMsg
 
     # check server
     def isAlive(self):
-        tmpStat,tmpRes = self.postSSL('isAlive',{})
-        return tmpStat,tmpRes.status_code,tmpRes.text
-
-
+        tmpStat, tmpRes = self.postSSL('isAlive', {})
+        return tmpStat, tmpRes.status_code, tmpRes.text
 
     # get jobs
-    def getJobs(self,siteName,nodeName,prodSourceLabel,computingElement,nJobs):
+    def getJobs(self, siteName, nodeName, prodSourceLabel, computingElement, nJobs):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'siteName={0}'.format(siteName))
+        tmpLog = CoreUtils.makeLogger(_logger, 'siteName={0}'.format(siteName))
         tmpLog.debug('try to get {0} jobs'.format(nJobs))
         data = {}
-        data['siteName']         = siteName
-        data['node']             = nodeName
-        data['prodSourceLabel']  = prodSourceLabel
+        data['siteName'] = siteName
+        data['node'] = nodeName
+        data['prodSourceLabel'] = prodSourceLabel
         data['computingElement'] = computingElement
-        data['nJobs']            = nJobs
-        tmpStat,tmpRes = self.postSSL('getJob',data)
+        data['nJobs'] = nJobs
+        tmpStat, tmpRes = self.postSSL('getJob', data)
         if tmpStat == False:
-            CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+            CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         else:
             try:
                 tmpDict = tmpRes.json()
@@ -106,24 +97,22 @@ class Communicator:
                     return tmpDict['jobs']
                 return []
             except:
-                CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+                CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         return []
 
-
-
     # update jobs TOBEFIXED to use bulk method
-    def updateJobs(self,jobList):
+    def updateJobs(self, jobList):
         retList = []
         for jobSpec in jobList:
-            tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
+            tmpLog = CoreUtils.makeLogger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
             tmpLog.debug('start')
             # update events
-            eventRanges,eventSpecs = jobSpec.toEventData()
+            eventRanges, eventSpecs = jobSpec.toEventData()
             if eventRanges != []:
-                tmpRet = self.updateEventRanges(eventRanges,tmpLog)
+                tmpRet = self.updateEventRanges(eventRanges, tmpLog)
                 if tmpRet['StatusCode'] == 0:
-                    for eventSpec,retVal in zip(eventSpecs,tmpRet['Returns']):
-                        if retVal in [True,False]:
+                    for eventSpec, retVal in zip(eventSpecs, tmpRet['Returns']):
+                        if retVal in [True, False]:
                             eventSpec.subStatus = 'done'
             # update job
             if jobSpec.jobAttributes == None:
@@ -140,10 +129,10 @@ class Communicator:
                 if jobSpec.outputFilesToReport != None:
                     data['xml'] = jobSpec.outputFilesToReport
             tmpLog.debug('data={0}'.format(str(data)))
-            tmpStat,tmpRes = self.postSSL('updateJob',data)
+            tmpStat, tmpRes = self.postSSL('updateJob', data)
             retMap = None
             if tmpStat == False:
-                errStr = CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+                errStr = CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
             else:
                 try:
                     retMap = tmpRes.json()
@@ -157,41 +146,36 @@ class Communicator:
             tmpLog.debug('done with {0}'.format(str(retMap)))
         return retList
 
-
-
     # get events
-    def getEventRanges(self,data):
+    def getEventRanges(self, data):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(data['pandaID']))
+        tmpLog = CoreUtils.makeLogger(_logger, 'PandaID={0}'.format(data['pandaID']))
         tmpLog.debug('start')
-        tmpStat,tmpRes = self.postSSL('getEventRanges',data)
-        retVal = False,{}
+        tmpStat, tmpRes = self.postSSL('getEventRanges', data)
+        retVal = False, {}
         if tmpStat == False:
-            CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+            CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         else:
             try:
                 tmpDict = tmpRes.json()
                 if tmpDict['StatusCode'] == 0:
-                    retVal = True,{data['pandaID']:tmpDict['eventRanges']}
+                    retVal = True, {data['pandaID']: tmpDict['eventRanges']}
             except:
-                CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+                CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         tmpLog.debug('done with {0}'.format(str(retVal)))
         return retVal
 
-
-
-
     # update events
-    def updateEventRanges(self,eventRanges,tmpLog):
+    def updateEventRanges(self, eventRanges, tmpLog):
         tmpLog.debug('start updateEventRanges')
         data = {}
         data['eventRanges'] = json.dumps(eventRanges)
         data['version'] = 1
         tmpLog.debug('data={0}'.format(str(data)))
-        tmpStat,tmpRes = self.postSSL('updateEventRanges',data)
+        tmpStat, tmpRes = self.postSSL('updateEventRanges', data)
         retMap = None
         if tmpStat == False:
-            errStr = CoreUtils.dumpErrorMessage(tmpLog,tmpRes)
+            errStr = CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         else:
             try:
                 retMap = tmpRes.json()

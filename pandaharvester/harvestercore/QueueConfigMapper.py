@@ -7,7 +7,7 @@ from WorkSpec import WorkSpec
 
 # class for queue config
 class QueueConfig:
-    def __init__(self,queueName):
+    def __init__(self, queueName):
         self.queueName = queueName
         # default parameters
         self.mapType = WorkSpec.MT_OneToOne
@@ -15,10 +15,8 @@ class QueueConfig:
         self.zipPerMB = None
 
 
-
 # mapper
 class QueueConfigMapper:
-    
     # constructor
     def __init__(self):
         self.queueConfig = {}
@@ -43,22 +41,18 @@ class QueueConfigMapper:
         queueConfigJson = json.load(f)
         f.close()
         # set attributes
-        for queueName,queueDict in queueConfigJson.iteritems():
+        for queueName, queueDict in queueConfigJson.iteritems():
             queueConfig = QueueConfig(queueName)
-            for key,val in queueDict.iteritems():
-                setattr(queueConfig,key,val)
+            for key, val in queueDict.iteritems():
+                setattr(queueConfig, key, val)
             self.queueConfig[queueName] = queueConfig
 
-
-
     # check if valid queue
-    def hasQueue(self,queueName):
+    def hasQueue(self, queueName):
         return queueName in self.queueConfig
 
-
-    
     # get queue config
-    def getQueue(self,queueName):
+    def getQueue(self, queueName):
         if not self.hasQueue(queueName):
             return None
         return self.queueConfig[queueName]

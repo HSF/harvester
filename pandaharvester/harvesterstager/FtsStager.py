@@ -8,31 +8,27 @@ import requests
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
+
 requests.packages.urllib3.disable_warnings()
 
 from pandaharvester.harvestercore import CoreUtils
 from pandaharvester.harvestercore.PluginBase import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 
-
 # logger
 baseLogger = CoreUtils.setupLogger()
 
 
-
 # plugin for stager with FTS
-class FtsStager (PluginBase):
-    
+class FtsStager(PluginBase):
     # constructor
-    def __init__(self,**kwarg):
-        PluginBase.__init__(self,**kwarg)
-
-
+    def __init__(self, **kwarg):
+        PluginBase.__init__(self, **kwarg)
 
     # check status
-    def checkStatus(self,jobSpec):
+    def checkStatus(self, jobSpec):
         # make logger
-        tmpLog = CoreUtils.makeLogger(baseLogger,'PandaID={0}'.format(jobSpec.PandaID))
+        tmpLog = CoreUtils.makeLogger(baseLogger, 'PandaID={0}'.format(jobSpec.PandaID))
         tmpLog.debug('start')
         # loop over all files
         allChecked = True
@@ -63,8 +59,8 @@ class FtsStager (PluginBase):
                                                              res.text)
                 except:
                     if errMsg == None:
-                        errtype,errvalue = sys.exc_info()[:2]
-                        errMsg = "{0} {1}".format(errtype.__name__,errvalue)
+                        errtype, errvalue = sys.exc_info()[:2]
+                        errMsg = "{0} {1}".format(errtype.__name__, errvalue)
                 # failed
                 if errMsg != None:
                     allChecked = False
@@ -78,22 +74,20 @@ class FtsStager (PluginBase):
             # final status
             if trasnferStatus[transferID] == 'DONE':
                 fileSpec.status = 'finished'
-            elif trasnferStatus[transferID] in ['FAILED','CANCELED']:
+            elif trasnferStatus[transferID] in ['FAILED', 'CANCELED']:
                 fileSpec.status = 'failed'
         if allChecked:
-            return True,''
+            return True, ''
         else:
-            return False,oneErrMsg
-
-            
+            return False, oneErrMsg
 
     # trigger stage out
-    def triggerStageOut(self,jobSpec):
+    def triggerStageOut(self, jobSpec):
         # make logger
-        tmpLog = CoreUtils.makeLogger(baseLogger,'PandaID={0}'.format(jobSpec.PandaID))
+        tmpLog = CoreUtils.makeLogger(baseLogger, 'PandaID={0}'.format(jobSpec.PandaID))
         tmpLog.debug('start')
         # default return
-        tmpRetVal = (True,'')
+        tmpRetVal = (True, '')
         # loop over all files
         files = []
         lfns = set()
@@ -111,7 +105,7 @@ class FtsStager (PluginBase):
             else:
                 scope = fileAttrs[fileSpec.lfn]['scope']
                 hash = hashlib.md5()
-                hash.update('%s:%s' % (scope,fileSpec.lfn))
+                hash.update('%s:%s' % (scope, fileSpec.lfn))
                 hash_hex = hash.hexdigest()
                 correctedscope = "/".join(scope.split('.'))
                 if fileSpec.fileType == 'output':
@@ -133,56 +127,54 @@ class FtsStager (PluginBase):
                                                                                lfn=fileSpec.lfn)
                 else:
                     continue
-            tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL,dstURL=dstURL))
+            tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
             files.append({
-                    "sources":[srcURL],
-                    "destinations":[dstURL],
-                    })
+                "sources": [srcURL],
+                "destinations": [dstURL],
+            })
             lfns.add(fileSpec.lfn)
         # submit
         if files != []:
-                # get status
-                errMsg = None
-                try:
-                    url = "{0}/jobs".format(self.ftsServer)
-                    res = requests.post(url,
-                                        json={"Files":files},
-                                        timeout=self.ftsLookupTimeout,
-                                        verify=self.ca_cert,
-                                        cert=(harvester_config.pandacon.cert_file,
-                                              harvester_config.pandacon.key_file)
-                                        )
-                    if res.status_code == 200:
-                        transferData = res.json()
-                        transferID = transferData["job_id"]
-                        tmpLog.debug('successfully submitted id={0}'.format(transferID))
-                        # set
-                        for fileSpec in jobSpec.outFiles:
-                            if fileSpec.fileAttributes == None:
-                                fileSpec.fileAttributes = {}
-                            fileSpec.fileAttributes['transferID'] = transferID
-                    else:
-                        # HTTP error
-                        errMsg = 'StatusCode={0} {1}'.format(res.status_code,
-                                                             res.text)
-                except:
-                    if errMsg == None:
-                        errtype,errvalue = sys.exc_info()[:2]
-                        errMsg = "{0} {1}".format(errtype.__name__,errvalue)
-                # failed
-                if errMsg != None:
-                    tmpLog.error('failed to submit transfer to {0} with {1}'.format(url,errMsg))
-                    tmpRetVal = (False,errMsg)
+            # get status
+            errMsg = None
+            try:
+                url = "{0}/jobs".format(self.ftsServer)
+                res = requests.post(url,
+                                    json={"Files": files},
+                                    timeout=self.ftsLookupTimeout,
+                                    verify=self.ca_cert,
+                                    cert=(harvester_config.pandacon.cert_file,
+                                          harvester_config.pandacon.key_file)
+                                    )
+                if res.status_code == 200:
+                    transferData = res.json()
+                    transferID = transferData["job_id"]
+                    tmpLog.debug('successfully submitted id={0}'.format(transferID))
+                    # set
+                    for fileSpec in jobSpec.outFiles:
+                        if fileSpec.fileAttributes == None:
+                            fileSpec.fileAttributes = {}
+                        fileSpec.fileAttributes['transferID'] = transferID
+                else:
+                    # HTTP error
+                    errMsg = 'StatusCode={0} {1}'.format(res.status_code,
+                                                         res.text)
+            except:
+                if errMsg == None:
+                    errtype, errvalue = sys.exc_info()[:2]
+                    errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+            # failed
+            if errMsg != None:
+                tmpLog.error('failed to submit transfer to {0} with {1}'.format(url, errMsg))
+                tmpRetVal = (False, errMsg)
         # return
         tmpLog.debug('done')
         return tmpRetVal
 
-
-
     # zip output files
-    def zipOutput(self,jobSpec):
+    def zipOutput(self, jobSpec):
         # make logger
-        tmpLog = CoreUtils.makeLogger(baseLogger,'PandaID={0}'.format(jobSpec.PandaID))
+        tmpLog = CoreUtils.makeLogger(baseLogger, 'PandaID={0}'.format(jobSpec.PandaID))
         tmpLog.debug('start')
         try:
             for fileSpec in jobSpec.outFiles:
@@ -191,7 +183,7 @@ class FtsStager (PluginBase):
                     zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
                 else:
                     zipDir = self.zipDir
-                zipPath = os.path.join(zipDir,fileSpec.lfn)
+                zipPath = os.path.join(zipDir, fileSpec.lfn)
                 # remove zip file just in case
                 try:
                     os.remove(zipPath)
@@ -208,7 +200,6 @@ class FtsStager (PluginBase):
                 fileSpec.fsize = statInfo.st_size
         except:
             errMsg = CoreUtils.dumpErrorMessage(tmpLog)
-            return False,'failed to zip with {0}'.format(errMsg)
+            return False, 'failed to zip with {0}'.format(errMsg)
         tmpLog.debug('done')
-        return True,''
-
+        return True, ''

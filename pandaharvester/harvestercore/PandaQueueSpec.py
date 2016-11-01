@@ -5,6 +5,7 @@ Panda Queue class
 
 from SpecBase import SpecBase
 
+
 class PandaQueueSpec(SpecBase):
     # attributes
     attributesWithTypes = ('queueName:text',

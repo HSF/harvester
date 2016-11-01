@@ -17,12 +17,13 @@ proxy.makeTables(queueConfigMapper)
 job = JobSpec()
 job.PandaID = 1
 import datetime
+
 job.modificationTime = datetime.datetime.now()
 proxy.insertJobs([job])
 
 newJob = proxy.getJob(1)
 
-
 from pandaharvester.harvestercore.CommunicatorPool import CommunicatorPool
+
 a = CommunicatorPool()
-a.getJobs('siteName','nodeName','prodSourceLabel','computingElement',1)
+a.getJobs('siteName', 'nodeName', 'prodSourceLabel', 'computingElement', 1)

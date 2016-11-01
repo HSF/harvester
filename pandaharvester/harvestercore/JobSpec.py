@@ -8,13 +8,13 @@ import datetime
 
 from SpecBase import SpecBase
 
-class JobSpec(SpecBase):
 
+class JobSpec(SpecBase):
     # has output file
-    HO_noOutput     = 0
-    HO_hasOutput    = 1
+    HO_noOutput = 0
+    HO_hasOutput = 1
     HO_hasZipOutput = 2
-    HO_hasTransfer  = 3
+    HO_hasTransfer = 3
 
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
@@ -42,39 +42,32 @@ class JobSpec(SpecBase):
                            'zipPerMB:integer',
                            )
 
-
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
-        object.__setattr__(self,'events',set())
-        object.__setattr__(self,'zipEventMap',{})
-        object.__setattr__(self,'outFiles',set())
-        object.__setattr__(self,'zipFileMap',{})
-
-
+        object.__setattr__(self, 'events', set())
+        object.__setattr__(self, 'zipEventMap', {})
+        object.__setattr__(self, 'outFiles', set())
+        object.__setattr__(self, 'zipFileMap', {})
 
     # add output file
-    def addOutFile(self,fileSpec):
+    def addOutFile(self, fileSpec):
         self.outFiles.add(fileSpec)
 
-
-
     # add event
-    def addEvent(self,eventSpec,zipFileSpec):
+    def addEvent(self, eventSpec, zipFileSpec):
         if zipFileSpec == None:
             zipFileID = None
         else:
             zipFileID = zipFileSpec.fileID
         if not zipFileID in self.zipEventMap:
-            self.zipEventMap[zipFileID] = {'events':set(),
-                                           'zip':zipFileSpec}
+            self.zipEventMap[zipFileID] = {'events': set(),
+                                           'zip': zipFileSpec}
         self.zipEventMap[zipFileID]['events'].add(eventSpec)
         self.events.add(eventSpec)
 
-
-
     # convert from Job JSON
-    def convertJobJson(self,data):
+    def convertJobJson(self, data):
         self.PandaID = data['PandaID']
         self.taskID = data['taskID']
         self.attemptNr = data['attemptNr']
@@ -83,17 +76,12 @@ class JobSpec(SpecBase):
         if 'zipPerMB' in data:
             self.zipPerMB = data['zipPerMB']
 
-
-
     # trigger propagation
     def triggerPropagation(self):
         self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 
-
-
-
     # set attributes
-    def setAttributes(self,attrs):
+    def setAttributes(self, attrs):
         if attrs == None:
             return
         attrs = copy.copy(attrs)
@@ -106,22 +94,16 @@ class JobSpec(SpecBase):
             del attrs['xml']
         self.jobAttributes = attrs
 
-
-
     # check if final status
     def isFinalStatus(self):
-        return self.status in ['finished','failed','cancelled']
-
-
+        return self.status in ['finished', 'failed', 'cancelled']
 
     # get status
     def getStatus(self):
         # don't report the final status while staging-out
-        if self.isFinalStatus() and (self.subStatus in ['totransfer','transferring'] or not self.allEventsDone()):
+        if self.isFinalStatus() and (self.subStatus in ['totransfer', 'transferring'] or not self.allEventsDone()):
             return 'transferring'
         return self.status
-
-
 
     # check if all events are done
     def allEventsDone(self):
@@ -132,27 +114,21 @@ class JobSpec(SpecBase):
                 break
         return retVal
 
-
-
     # all files are triggered to stage-out
     def allFilesTriggeredToStageOut(self):
         for fileSpec in self.outFiles:
             fileSpec.status = 'transferring'
-
-
 
     # all files are zipped
     def allFilesZipped(self):
         for fileSpec in self.outFiles:
             fileSpec.status = 'defined'
 
-
-
     # convert to event data
     def toEventData(self):
         data = []
         eventSpecs = []
-        for zipFileID,eventsData in  self.zipEventMap.iteritems():
+        for zipFileID, eventsData in self.zipEventMap.iteritems():
             eventRanges = []
             for eventSpec in eventsData['events']:
                 eventRanges.append(eventSpec.toData())
@@ -161,59 +137,53 @@ class JobSpec(SpecBase):
             tmpData['eventRanges'] = eventRanges
             if zipFileID != None:
                 zipFileSpec = eventsData['zip']
-                tmpData['zipFile'] = {'lfn':zipFileSpec.lfn,
-                                      'objstoreID':zipFileSpec.objstoreID}
+                tmpData['zipFile'] = {'lfn': zipFileSpec.lfn,
+                                      'objstoreID': zipFileSpec.objstoreID}
             data.append(tmpData)
-        return data,eventSpecs
-
-
+        return data, eventSpecs
 
     # get input file attributes
     def getInputFileAttributes(self):
         inFiles = {}
-        lfns     = self.jobParams['inFiles'].split(',')
-        fsizes   = self.jobParams['fsize'].split(',')
-        chksums  = self.jobParams['checksum'].split(',') 
-        scopes   = self.jobParams['scopeIn'].split(',') 
-        datasets = self.jobParams['realDatasetsIn'].split(',')  
-        endpoints = self.jobParams['ddmEndPointIn'].split(',')  
-        for lfn,fsize,chksum,scope,dataset,endpoint in zip(lfns,fsizes,chksums,scopes,datasets,endpoints):
-            inFiles[lfn] = {'fsize':long(fsize),
-                            'checksum':chksum,
-                            'scope':scope,
-                            'dataset':dataset,
-                            'endpoint':endpoint}
+        lfns = self.jobParams['inFiles'].split(',')
+        fsizes = self.jobParams['fsize'].split(',')
+        chksums = self.jobParams['checksum'].split(',')
+        scopes = self.jobParams['scopeIn'].split(',')
+        datasets = self.jobParams['realDatasetsIn'].split(',')
+        endpoints = self.jobParams['ddmEndPointIn'].split(',')
+        for lfn, fsize, chksum, scope, dataset, endpoint in zip(lfns, fsizes, chksums, scopes, datasets, endpoints):
+            inFiles[lfn] = {'fsize': long(fsize),
+                            'checksum': chksum,
+                            'scope': scope,
+                            'dataset': dataset,
+                            'endpoint': endpoint}
         # add path
         if 'inFilePaths' in self.jobParams:
             paths = self.jobParams['inFilePaths'].split(',')
-            for lfn,path in zip(lfns,paths):
+            for lfn, path in zip(lfns, paths):
                 inFiles[lfn]['path'] = path
         return inFiles
 
-
-
     # set input file paths
-    def setInputFilePaths(self,inFiles):
+    def setInputFilePaths(self, inFiles):
         lfns = self.jobParams['inFiles'].split(',')
         paths = []
         for lfn in lfns:
             paths.append(inFiles[lfn]['path'])
         self.jobParams['inFilePaths'] = ','.join(paths)
 
-
-
     # get output file attributes
     def getOutputFileAttributes(self):
         outFiles = {}
-        lfns      = self.jobParams['outFiles'].split(',')
-        scopes    = self.jobParams['scopeOut'].split(',') 
-        scopeLog  = self.jobParams['scopeLog']
-        logLFN    = self.jobParams['logFile']
-        scopes.insert(lfns.index(logLFN),scopeLog)
-        datasets  = self.jobParams['realDatasets'].split(',')  
-        endpoints = self.jobParams['ddmEndPointOut'].split(',')  
-        for lfn,scope,dataset,endpoint in zip(lfns,scopes,datasets,endpoints):
-            outFiles[lfn] = {'scope':scope,
-                             'dataset':dataset,
-                             'endpoint':endpoint}
+        lfns = self.jobParams['outFiles'].split(',')
+        scopes = self.jobParams['scopeOut'].split(',')
+        scopeLog = self.jobParams['scopeLog']
+        logLFN = self.jobParams['logFile']
+        scopes.insert(lfns.index(logLFN), scopeLog)
+        datasets = self.jobParams['realDatasets'].split(',')
+        endpoints = self.jobParams['ddmEndPointOut'].split(',')
+        for lfn, scope, dataset, endpoint in zip(lfns, scopes, datasets, endpoints):
+            outFiles[lfn] = {'scope': scope,
+                             'dataset': dataset,
+                             'endpoint': endpoint}
         return outFiles

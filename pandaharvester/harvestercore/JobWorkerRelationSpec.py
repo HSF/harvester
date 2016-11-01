@@ -14,7 +14,6 @@ class JobWorkerRelationSpec(SpecBase):
                            'relationType:text',
                            )
 
-
     # constructor
     def __init__(self):
         SpecBase.__init__(self)

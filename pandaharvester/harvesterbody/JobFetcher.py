@@ -11,36 +11,32 @@ from pandaharvester.harvestercore.DBProxy import DBProxy
 _logger = CoreUtils.setupLogger()
 
 
-
 # class to fetch jobs
-class JobFetcher (threading.Thread):
-    
+class JobFetcher(threading.Thread):
     # constructor
-    def __init__(self,communicator,queueConfigMapper,singleMode=False):
+    def __init__(self, communicator, queue_config_mapper, single_mode=False):
         threading.Thread.__init__(self)
         self.dbProxy = DBProxy()
         self.communicator = communicator
         self.nodeName = socket.gethostname()
-        self.queueConfigMapper = queueConfigMapper
-        self.singleMode = singleMode
-
-
+        self.queueConfigMapper = queue_config_mapper
+        self.singleMode = single_mode
 
     # main loop
-    def run (self):
+    def run(self):
         while True:
-            mainLog = CoreUtils.makeLogger(_logger,'id={0}'.format(self.ident))
+            mainLog = CoreUtils.makeLogger(_logger, 'id={0}'.format(self.ident))
             mainLog.debug('getting number of jobs to be fetched')
             # get number of jobs to be fetched
             nJobsPerQueue = self.dbProxy.getNumJobsToFetch(harvester_config.jobfetcher.nQueues,
                                                            harvester_config.jobfetcher.lookupTime)
             mainLog.debug('got {0} queues'.format(len(nJobsPerQueue)))
             # loop over all queues
-            for queueName,nJobs in nJobsPerQueue.iteritems():
+            for queueName, nJobs in nJobsPerQueue.iteritems():
                 # check queue
                 if not self.queueConfigMapper.hasQueue(queueName):
                     continue
-                tmpLog = CoreUtils.makeLogger(_logger,'queueName={0}'.format(queueName))
+                tmpLog = CoreUtils.makeLogger(_logger, 'queueName={0}'.format(queueName))
                 # get queue
                 queueConfig = self.queueConfigMapper.getQueue(queueName)
                 # upper limit
@@ -48,9 +44,9 @@ class JobFetcher (threading.Thread):
                     nJobs = harvester_config.jobfetcher.maxJobs
                 # get jobs
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
-                jobs = self.communicator.getJobs(queueName,self.nodeName,
+                jobs = self.communicator.getJobs(queueName, self.nodeName,
                                                  queueConfig.prodSourceLabel,
-                                                 self.nodeName,nJobs)
+                                                 self.nodeName, nJobs)
                 tmpLog.debug('got {0} jobs'.format(len(jobs)))
                 # convert to JobSpec
                 if len(jobs) > 0:
@@ -64,7 +60,7 @@ class JobFetcher (threading.Thread):
                         jobSpec.subStatus = 'fetched'
                         jobSpec.creationTime = timeNow
                         jobSpec.stateChangeTime = timeNow
-                        if queueConfig.zipPerMB != None and jobSpec.zipPerMB == None:
+                        if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                             jobSpec.zipPerMB = queueConfig.zipPerMB
                         jobSpec.triggerPropagation()
                         jobSpecs.append(jobSpec)
@@ -75,4 +71,3 @@ class JobFetcher (threading.Thread):
                 return
             # sleep
             CoreUtils.sleep(harvester_config.jobfetcher.sleepTime)
-

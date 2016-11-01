@@ -9,13 +9,12 @@ from SpecBase import SpecBase
 
 # work spec
 class WorkSpec(SpecBase):
-
     # worker statuses
     ST_submitted = 'submitted'
-    ST_running   = 'running'
-    ST_finished  = 'finished'
-    ST_failed    = 'failed'
-    ST_ready     = 'ready'
+    ST_running = 'running'
+    ST_finished = 'finished'
+    ST_failed = 'failed'
+    ST_ready = 'ready'
     ST_cancelled = 'cancelled'
 
     # list of worker statuses
@@ -27,16 +26,16 @@ class WorkSpec(SpecBase):
                ST_cancelled]
 
     # type of mapping between job and worker
-    MT_NoJob        = 'NoJob'
-    MT_OneToOne     = 'OneToOne'
-    MT_MultiJobs    = 'MultiJobs'
+    MT_NoJob = 'NoJob'
+    MT_OneToOne = 'OneToOne'
+    MT_MultiJobs = 'MultiJobs'
     MT_MultiWorkers = 'MultiWorkers'
 
     # events
-    EV_noEvents      = 0
-    EV_useEvents     = 1
+    EV_noEvents = 0
+    EV_useEvents = 1
     EV_requestEvents = 2
-    
+
     # attributes
     attributesWithTypes = ('workerID:integer',
                            'batchID:text',
@@ -62,71 +61,52 @@ class WorkSpec(SpecBase):
                            'lockedBy:text'
                            )
 
-
-
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
-        object.__setattr__(self,'isNew',False)
-
-
+        object.__setattr__(self, 'isNew', False)
 
     # get accesspoint
     def getAccessPoint(self):
         # replace placeholders
         if '$' in self.accessPoint:
-            patts = re.findall('\$\{([a-zA-Z\d]+)\}',self.accessPoint)
+            patts = re.findall('\$\{([a-zA-Z\d]+)\}', self.accessPoint)
             for patt in patts:
-                if hasattr(self,patt):
-                    tmpVar = str(getattr(self,patt))
+                if hasattr(self, patt):
+                    tmpVar = str(getattr(self, patt))
                     tmpKey = '${' + patt + '}'
-                    self.accessPoint = self.accessPoint.replace(tmpKey,tmpVar)
+                    self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
         return self.accessPoint
-
-
 
     # set status to submitted
     def setSubmitted(self):
         self.status = 'submitted'
 
-
-
     # set status to running
     def setRunning(self):
         self.status = 'running'
-
-
 
     # set status to finished
     def setFinished(self):
         self.status = 'finished'
 
-
-
     # set status to failed
     def setFailed(self):
         self.status = 'failed'
-
-
 
     # set status to cancelled
     def setCancelled(self):
         self.status = 'cancelled'
 
-
-
     # convert worker status to job status
     def convertToJobStatus(self):
-        if self.status in [self.ST_submitted,self.ST_ready]:
+        if self.status in [self.ST_submitted, self.ST_ready]:
             jobStatus = 'starting'
             jobSubStatus = self.status
-        elif self.status in [self.ST_finished,self.ST_failed,self.ST_cancelled]:
+        elif self.status in [self.ST_finished, self.ST_failed, self.ST_cancelled]:
             jobStatus = self.status
             jobSubStatus = 'totransfer'
         else:
             jobStatus = 'running'
             jobSubStatus = self.status
-        return jobStatus,jobSubStatus
-
-
-
+        return jobStatus, jobSubStatus

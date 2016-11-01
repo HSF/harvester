@@ -8,6 +8,7 @@ import datetime
 
 from SpecBase import SpecBase
 
+
 class EventSpec(SpecBase):
     # attributes
     attributesWithTypes = ('eventRangeID:text',
@@ -19,39 +20,34 @@ class EventSpec(SpecBase):
                            'fileID:integer'
                            )
 
-
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
-
-
 
     # convert to data
     def toData(self):
         data = {}
         for attr in self.attributes:
             # ignore some attributes
-            if not attr in ['eventRangeID','eventStatus','coreCount',
+            if not attr in ['eventRangeID', 'eventStatus', 'coreCount',
                             'cpuConsumptionTime']:
                 continue
-            val = getattr(self,attr)
+            val = getattr(self, attr)
             # don't propagate finished until subStatus is finished
             if attr == 'eventStatus':
-                if val == 'finished' and not self.subStatus in ['finished','done']:
+                if val == 'finished' and not self.subStatus in ['finished', 'done']:
                     val == 'running'
             if val != None:
                 data[attr] = val
         return data
 
-
-
     # convert from data
-    def fromData(self,data):
-        for attr,val in data.iteritems():
+    def fromData(self, data):
+        for attr, val in data.iteritems():
             # skip non attibutes
             if not attr in self.attributes:
                 continue
-            setattr(self,attr,val)
+            setattr(self, attr, val)
         if self.eventRangeID != None:
             try:
                 self.PandaID = long(self.eventRangeID.split('-')[1])

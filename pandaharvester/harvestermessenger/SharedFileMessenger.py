@@ -36,33 +36,28 @@ jsonEventsFeedFileName = 'JobsEventRanges.json'
 jsonEventsUpdateFileName = 'worker_updateevents.json'
 
 
-
-
-
 # messenger with shared file system
-class SharedFileMessenger (PluginBase):
-    
+class SharedFileMessenger(PluginBase):
     # constructor
-    def __init__(self,**kwarg):
-        PluginBase.__init__(self,**kwarg)
-
-
+    def __init__(self, **kwarg):
+        PluginBase.__init__(self, **kwarg)
 
     # update job attributes with workers
-    def updateJobAttributesWithWorkers(self,mapType,jobSpecs,workSpecs,filesToStageOut,eventsToUpdate):
+    def updateJobAttributesWithWorkers(self, mapType, jobSpecs, workSpecs, filesToStageOut, eventsToUpdate):
         if mapType == WorkSpec.MT_OneToOne:
-            jobSpec  = jobSpecs[0]
+            jobSpec = jobSpecs[0]
             workSpec = workSpecs[0]
-            tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0} workerID={1}'.format(jobSpec.PandaID,workSpec.workerID))
+            tmpLog = CoreUtils.makeLogger(_logger,
+                                          'PandaID={0} workerID={1}'.format(jobSpec.PandaID, workSpec.workerID))
             jobSpec.setAttributes(workSpec.workAttributes)
             # add files
-            for lfn,fileAtters in filesToStageOut.iteritems():
+            for lfn, fileAtters in filesToStageOut.iteritems():
                 fileSpec = FileSpec()
                 fileSpec.lfn = lfn
-                fileSpec.PandaID  = jobSpec.PandaID
-                fileSpec.taskID   = jobSpec.taskID
-                fileSpec.path     = fileAtters['path']
-                fileSpec.fsize    = fileAtters['fsize']
+                fileSpec.PandaID = jobSpec.PandaID
+                fileSpec.taskID = jobSpec.taskID
+                fileSpec.path = fileAtters['path']
+                fileSpec.fsize = fileAtters['fsize']
                 fileSpec.fileType = fileAtters['type']
                 fileSpec.fileAttributes = fileAtters
                 if 'isZip' in fileAtters:
@@ -74,25 +69,23 @@ class SharedFileMessenger (PluginBase):
             for data in eventsToUpdate:
                 eventSpec = EventSpec()
                 eventSpec.fromData(data)
-                jobSpec.addEvent(eventSpec,None)
-            jobSpec.status,jobSpec.subStatus = workSpec.convertToJobStatus()
-            tmpLog.debug('new jobStatus={0} subStatus={1}'.format(jobSpec.status,jobSpec.subStatus))
+                jobSpec.addEvent(eventSpec, None)
+            jobSpec.status, jobSpec.subStatus = workSpec.convertToJobStatus()
+            tmpLog.debug('new jobStatus={0} subStatus={1}'.format(jobSpec.status, jobSpec.subStatus))
         elif mapType == WorkSpec.MT_MultiJobs:
             # TOBEFIXED
             pass
         return True
 
-
-
     # get attributes of a worker which should be propagated to job(s).
     #  * the worker needs to put worker_attributes.json under the accesspoint
-    def getWorkAttributes(self,workSpec):
+    def getWorkAttributes(self, workSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         retDict = {}
         if workSpec.mapType == WorkSpec.MT_OneToOne:
             # look for the json just under the accesspoint
-            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonAttrsFileName)
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonAttrsFileName)
             tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
             if not os.path.exists(jsonFilePath):
                 # not found
@@ -108,19 +101,16 @@ class SharedFileMessenger (PluginBase):
             # TOBEFIXED
             pass
         return retDict
-    
-
-
 
     # get files to stage-out.
     #  * the worker needs to put worker_filestostageout.json under the accesspoint
-    def getFilesToStageOut(self,workSpec):
+    def getFilesToStageOut(self, workSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         retDict = {}
         if workSpec.mapType == WorkSpec.MT_OneToOne:
             # look for the json just under the accesspoint
-            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonOutputsFileName)
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonOutputsFileName)
             tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
             if not os.path.exists(jsonFilePath):
                 # not found
@@ -132,7 +122,7 @@ class SharedFileMessenger (PluginBase):
             except:
                 tmpLog.debug('failed to load json')
             # read event dump from XML which is an old convention    
-            xmlRetDict = self.takeXmlEventOutputDump(workSpec.getAccessPoint(),tmpLog)
+            xmlRetDict = self.takeXmlEventOutputDump(workSpec.getAccessPoint(), tmpLog)
             retDict.update(xmlRetDict)
         elif workSpec.mapType == WorkSpec.MT_MultiJobs:
             # look for json files under accesspoint/${PandaID}
@@ -140,15 +130,13 @@ class SharedFileMessenger (PluginBase):
             pass
         return retDict
 
-
-
     # get and parse XML event output dump
-    def takeXmlEventOutputDump(self,accessPoint,tmpLog):
+    def takeXmlEventOutputDump(self, accessPoint, tmpLog):
         try:
             # scan access point
             fileDict = {}
             eventsList = []
-            for tmpRoot,tmpDirs,tmpFiles in os.walk(accessPoint):
+            for tmpRoot, tmpDirs, tmpFiles in os.walk(accessPoint):
                 for tmpFile in tmpFiles:
                     # look for XML files
                     if not tmpFile.startswith(xmlOutputsBaseFileName):
@@ -167,37 +155,35 @@ class SharedFileMessenger (PluginBase):
                         eventStatus = str(fileItem.getAttribute('Status'))
                         # get pfn
                         physNode = fileItem.getElementsByTagName('physical')[0]
-                        pfnNode  = physNode.getElementsByTagName('pfn')[0]
+                        pfnNode = physNode.getElementsByTagName('pfn')[0]
                         pfn = str(pfnNode.getAttribute('name'))
                         lfn = pfn.split('/')[-1]
                         # make file dict
                         tmpDict = {}
                         tmpDict['path'] = pfn
-                        tmpDict['fsize'] = 0 # FIXME
-                        tmpDict['type'] = 'output' # FIXME
+                        tmpDict['fsize'] = 0  # FIXME
+                        tmpDict['type'] = 'output'  # FIXME
                         tmpDict['eventRangeID'] = eventRangeID
                         fileDict[lfn] = tmpDict
                         # add events
-                        eventsList.append({'eventRangeID':eventRangeID,
-                                           'eventStatus':eventStatus})
+                        eventsList.append({'eventRangeID': eventRangeID,
+                                           'eventStatus': eventStatus})
             # dump events
             if eventsList != []:
-                f = open(os.path.join(accessPoint,jsonEventsUpdateFileName),'w')
-                json.dump(eventsList,f)
+                f = open(os.path.join(accessPoint, jsonEventsUpdateFileName), 'w')
+                json.dump(eventsList, f)
                 f.close()
         except:
-            pass 
+            pass
         return fileDict
-                
-                        
 
     # check if job is requested.
     # * the worker needs to put worker_requestjob.json under the accesspoint
-    def jobRequested(self,workSpec):
+    def jobRequested(self, workSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         # look for the json just under the accesspoint
-        jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonJobRequestFileName)
+        jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonJobRequestFileName)
         tmpLog.debug('looking for job request file {0}'.format(jsonFilePath))
         if not os.path.exists(jsonFilePath):
             # not found
@@ -206,22 +192,20 @@ class SharedFileMessenger (PluginBase):
         tmpLog.debug('found')
         return True
 
-
-
     # feed jobs
     # * worker_jobspec.json is put under the accesspoint
-    def feedJobs(self,workSpec,jobList):
+    def feedJobs(self, workSpec, jobList):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         retVal = True
         if workSpec.mapType == WorkSpec.MT_OneToOne:
             jobSpec = jobList[0]
             # put the json just under the accesspoint
-            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonJobSpecFileName)
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonJobSpecFileName)
             tmpLog.debug('feeding jobs to {0}'.format(jsonFilePath))
             try:
-                with open(jsonFilePath,'w') as jsonFile:
-                    json.dump({jobSpec.PandaID:jobSpec.jobParams},jsonFile)
+                with open(jsonFilePath, 'w') as jsonFile:
+                    json.dump({jobSpec.PandaID: jobSpec.jobParams}, jsonFile)
             except:
                 CoreUtils.dumpErrorMessage(tmpLog)
                 retVal = False
@@ -230,23 +214,20 @@ class SharedFileMessenger (PluginBase):
             pass
         # remove request file
         try:
-            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonJobRequestFileName)
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonJobRequestFileName)
             os.remove(jsonFilePath)
         except:
             pass
         tmpLog.debug('done')
         return retVal
-        
-
-
 
     # request events.
     # * the worker needs to put worker_requestevents.json under the accesspoint
-    def eventsRequested(self,workSpec):
+    def eventsRequested(self, workSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         # look for the json just under the accesspoint
-        jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonEventsRequestFileName)
+        jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonEventsRequestFileName)
         tmpLog.debug('looking for event request file {0}'.format(jsonFilePath))
         if not os.path.exists(jsonFilePath):
             # not found
@@ -261,22 +242,19 @@ class SharedFileMessenger (PluginBase):
         tmpLog.debug('found')
         return retDict
 
-
-
-
     # feed events
     # * worker_events.json is put under the accesspoint
-    def feedEvents(self,workSpec,eventsDict):
+    def feedEvents(self, workSpec, eventsDict):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         retVal = True
         if workSpec.mapType == WorkSpec.MT_OneToOne:
             # put the json just under the accesspoint
-            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonEventsFeedFileName)
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonEventsFeedFileName)
             tmpLog.debug('feeding events to {0}'.format(jsonFilePath))
             try:
-                with open(jsonFilePath,'w') as jsonFile:
-                    json.dump(eventsDict,jsonFile)
+                with open(jsonFilePath, 'w') as jsonFile:
+                    json.dump(eventsDict, jsonFile)
             except:
                 CoreUtils.dumpErrorMessage(tmpLog)
                 retVal = False
@@ -285,23 +263,20 @@ class SharedFileMessenger (PluginBase):
             pass
         # remove request file
         try:
-            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonEventsRequestFileName)
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonEventsRequestFileName)
             os.remove(jsonFilePath)
         except:
             pass
         tmpLog.debug('done')
         return retVal
-        
-
-
 
     # update events.
     # * the worker needs to put a json under the accesspoint
-    def eventsToUpdate(self,workSpec):
+    def eventsToUpdate(self, workSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         # look for the json just under the accesspoint
-        jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonEventsUpdateFileName)
+        jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonEventsUpdateFileName)
         tmpLog.debug('looking for event update file {0}'.format(jsonFilePath))
         if not os.path.exists(jsonFilePath):
             # not found
@@ -316,24 +291,19 @@ class SharedFileMessenger (PluginBase):
         tmpLog.debug('found')
         return retDict
 
-
-
-
     # acknowledge events.
     # * the events json is deleted to let worker know that the info was received
-    def acknowledgeEvents(self,workSpec):
+    def acknowledgeEvents(self, workSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'workerID={0}'.format(workSpec.workerID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         # remove request file
         try:
-            jsonFilePath = os.path.join(workSpec.getAccessPoint(),jsonEventsUpdateFileName)
+            jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonEventsUpdateFileName)
             os.remove(jsonFilePath)
         except:
             pass
         tmpLog.debug('done')
         return
-
-
 
     # setup access points
     def setup_access_points(self, workspec_list):

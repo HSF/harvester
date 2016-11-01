@@ -5,6 +5,7 @@ sequential number class
 
 from SpecBase import SpecBase
 
+
 class SeqNumberSpec(SpecBase):
     # attributes
     attributesWithTypes = ('numberName:text',

@@ -10,23 +10,19 @@ from pandaharvester.harvestercore.DBProxy import DBProxy
 _logger = CoreUtils.setupLogger()
 
 
-
 # propagate important checkpoints to panda
-class Propagator (threading.Thread):
-
+class Propagator(threading.Thread):
     # constructor
-    def __init__(self,communicator,singleMode=False):
+    def __init__(self, communicator, single_mode=False):
         threading.Thread.__init__(self)
         self.dbProxy = DBProxy()
         self.communicator = communicator
-        self.singleMode = singleMode
-
-
+        self.singleMode = single_mode
 
     # main loop
-    def run (self):
+    def run(self):
         while True:
-            mainLog = CoreUtils.makeLogger(_logger,'id={0}'.format(self.ident))
+            mainLog = CoreUtils.makeLogger(_logger, 'id={0}'.format(self.ident))
             mainLog.debug('getting jobs to propagate')
             jobSpecs = self.dbProxy.getJobsToPropagate(harvester_config.propagator.maxJobs,
                                                        harvester_config.propagator.lockInterval,
@@ -37,12 +33,12 @@ class Propagator (threading.Thread):
             iJobs = 0
             nJobs = harvester_config.propagator.nJobsInBulk
             while iJobs < len(jobSpecs):
-                jobList = jobSpecs[iJobs:iJobs+nJobs]
+                jobList = jobSpecs[iJobs:iJobs + nJobs]
                 iJobs += nJobs
                 retList = self.communicator.updateJobs(jobList)
                 okPandaIDs = []
                 # logging
-                for tmpJobSpec,tmpRet in zip(jobList,retList):
+                for tmpJobSpec, tmpRet in zip(jobList, retList):
                     if tmpRet['StatusCode'] == 0:
                         mainLog.debug('updated PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                               tmpJobSpec.status))
@@ -52,7 +48,7 @@ class Propagator (threading.Thread):
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'
-                        self.dbProxy.updateJob(tmpJobSpec,{'propagatorLock':self.ident})
+                        self.dbProxy.updateJob(tmpJobSpec, {'propagatorLock': self.ident})
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))

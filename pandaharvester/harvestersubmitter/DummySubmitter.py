@@ -8,23 +8,19 @@ baseLogger = CoreUtils.setupLogger()
 
 
 # dummy submitter
-class DummySubmitter (PluginBase):
-
+class DummySubmitter(PluginBase):
     # constructor
-    def __init__(self,**kwarg):
-        PluginBase.__init__(self,**kwarg)
-
-
+    def __init__(self, **kwarg):
+        PluginBase.__init__(self, **kwarg)
 
     # submit workers
-    def submitWorkers(self,workSpecs):
+    def submitWorkers(self, workSpecs):
         tmpLog = CoreUtils.makeLogger(baseLogger)
         tmpLog.debug('start nWorkers={0}'.format(len(workSpecs)))
         retList = []
         retStrList = []
         for workSpec in workSpecs:
             workSpec.batchID = uuid.uuid4().hex
-            retList.append((True,''))
+            retList.append((True, ''))
         tmpLog.debug('done')
         return retList
-

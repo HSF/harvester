@@ -9,69 +9,62 @@ from pandaharvester.harvestercore import CoreUtils
 _logger = CoreUtils.setupLogger()
 
 
-
 # preparator with Globus Online
-class GoPreparator (PluginBase):
-    
+class GoPreparator(PluginBase):
     # constructor
-    def __init__(self,**kwarg):
-        PluginBase.__init__(self,**kwarg)
-
-
+    def __init__(self, **kwarg):
+        PluginBase.__init__(self, **kwarg)
 
     # check status
-    def checkStatus(self,jobSpec):
+    def checkStatus(self, jobSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
         # get label
         label = self.makeLabel(jobSpec)
         tmpLog.debug('label={0}'.format(label))
         # get transfer task
-        tmpStat,transferTasks = self.getTransferTasks(label)
+        tmpStat, transferTasks = self.getTransferTasks(label)
         # return a temporary error when failed to get task
         if not tmpStat:
             errStr = 'failed to get transfer task'
             tmpLog.error(errStr)
-            return None,errStr
+            return None, errStr
         # return a fatal error when task is missing # FIXME retry instead?
         if not label in transferTasks:
             errStr = 'transfer task is missing'
             tmpLog.error(errStr)
-            return False,errStr
+            return False, errStr
         # succeeded
         if transferTasks[label]['status'] == 'SUCCEEDED':
             tmpLog.debug('transfer task succeeded')
-            return True,''
+            return True, ''
         # failed
         if transferTasks[label]['status'] == 'FAILED':
             errStr = 'transfer task failed'
             tmpLog.error(errStr)
-            return False,errStr
+            return False, errStr
         # another status
         tmpStr = 'transfer task is in {0}'.format(transferTasks[label]['status'])
         tmpLog.debug(tmpStr)
-        return None,''
-
-
-
+        return None, ''
 
     # trigger preparation
-    def triggerPreparation(self,jobSpec):
+    def triggerPreparation(self, jobSpec):
         # get logger
-        tmpLog = CoreUtils.makeLogger(_logger,'PandaID={0}'.format(jobSpec.PandaID))
+        tmpLog = CoreUtils.makeLogger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
         # get label
         label = self.makeLabel(jobSpec)
         tmpLog.debug('label={0}'.format(label))
         # get transfer tasks
-        tmpStat,transferTasks = self.getTransferTasks(label)
+        tmpStat, transferTasks = self.getTransferTasks(label)
         if not tmpStat:
             errStr = 'failed to get transfer tasks'
             tmpLog.error(errStr)
-            return False,errStr
+            return False, errStr
         # check if already queued
         if label in transferTasks:
             tmpLog.debug('skip since already queued with {0}'.format(str(transferTasks[label])))
-            return True,''
+            return True, ''
         # get input file attributes
         inFiles = jobSpec.getInputFileAttributes()
         tmpLog.debug('transfer {0} input files'.format(len(inFiles)))
@@ -84,7 +77,7 @@ class GoPreparator (PluginBase):
                                  label=label,
                                  sync_level="checksum")
             # loop over all input files
-            for lfn,fileAttrs in inFiles.iteritems():
+            for lfn, fileAttrs in inFiles.iteritems():
                 # source path # FIXME
                 srcPath = "/" + lfn
                 # destination path
@@ -92,23 +85,21 @@ class GoPreparator (PluginBase):
                                                                           dataset=fileAttrs['dataset'],
                                                                           lfn=lfn)
                 # add
-                tdata.add_item(srcPath,dstPath)
+                tdata.add_item(srcPath, dstPath)
             # submit
             transfer_result = tc.submit_transfer(tdata)
             # check status code and message
             tmpLog.debug(str(transfer_result))
-            if False: # FIXME
-                return False,'...'
+            if False:  # FIXME
+                return False, '...'
             # succeeded
-            return True,''
+            return True, ''
         except:
             CoreUtils.dumpErrorMessage(tmpLog)
-            return False,{}
-
-
+            return False, {}
 
     # get transfer tasks
-    def getTransferTasks(self,label=None):
+    def getTransferTasks(self, label=None):
         # get logger
         tmpLog = CoreUtils.makeLogger(_logger)
         try:
@@ -122,32 +113,28 @@ class GoPreparator (PluginBase):
             # parse output
             tasks = {}
             for res in gRes:
-                label  = res.data['label']
+                label = res.data['label']
                 tasks[label] = res.data
             # return
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
-            return True,tasks
+            return True, tasks
         except:
             CoreUtils.dumpErrorMessage(tmpLog)
-            return False,{}
-
-
+            return False, {}
 
     # make label for transfer task
-    def makeLabel(self,jobSpec):
+    def makeLabel(self, jobSpec):
         return "IN-{computingSite}-{PandaID}".format(computingSite=jobSpec.computingSite,
-                                                      PandaID=jobSpec.PandaID)
-
-
+                                                     PandaID=jobSpec.PandaID)
 
     # resolve input file paths
-    def resolveInputPaths(self,jobSpec):
+    def resolveInputPaths(self, jobSpec):
         # get input files
         inFiles = jobSpec.getInputFileAttributes()
         # set path to each file
-        for inLFN,inFile in inFiles.iteritems():
+        for inLFN, inFile in inFiles.iteritems():
             # FIXME
             inFile['path'] = 'dummypath/{0}'.format(inLFN)
         # set
-        jobSpec.setInputFilePaths(inFiles)    
-        return True,''
+        jobSpec.setInputFilePaths(inFiles)
+        return True, ''
