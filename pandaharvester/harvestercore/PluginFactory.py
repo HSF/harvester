@@ -19,6 +19,8 @@ class PluginFactory:
         moduleName = pluginConf['module']
         className  = pluginConf['name']
         pluginKey = '{0}.{1}'.format(moduleName,className)
+        if moduleName is None or className is None:
+            return None
         # get class
         if not pluginKey in self.classMap:
             tmpLog = CoreUtils.makeLogger(_logger)

@@ -1,6 +1,3 @@
-import os
-os.environ['PANDA_HOME'] = '/afs/cern.ch/user/t/tmaeno/harvester'
-
 try:
     os.remove(harvester_config.db.database_filename)
 except:

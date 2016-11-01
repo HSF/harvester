@@ -134,6 +134,8 @@ class Submitter (threading.Thread):
                         # not found
                         tmpLog.error('messenger plugin for {0} not found'.format(jobSpec.computingSite))
                         continue
+                    # setup access points
+                    messenger.setup_access_points(workSpecList)
                     # submit
                     workSpecList,tmpRetList,tmpStrList = self.submitWorkers(submitterCore,workSpecList)
                     for iWorker,(tmpRet,tmpStr) in enumerate(zip(tmpRetList,tmpStrList)):
@@ -161,7 +163,7 @@ class Submitter (threading.Thread):
                                 tmpLog.error('failed to register a worker for PandaID={0} with batchID={1}'.format(jobSpec.PandaID,
                                                                                                                    workSpec.batchID))
                         # feed jobs
-                        if workSpec.hasJob == 1:
+                        if tmpStat and workSpec.hasJob == 1:
                             tmpStat = messenger.feedJobs(workSpec,jobList)
                             tmpLog.debug('sent jobs to workerID={0} with {1}'.format(workSpec.workerID,tmpStat))
             mainLog.debug('done')

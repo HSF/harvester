@@ -38,11 +38,13 @@ class SlurmMonitor (PluginBase):
             stdOut,stdErr = p.communicate()
             retCode = p.returncode
             tmpLog.debug('retCode={0}'.format(retCode))
+            errStr = ''
             if retCode == 0:
                 # parse
                 for tmpLine in stdOut.split('\n'):
                     tmpMatch = re.search('JobState=([^ ]+)',tmpLine)
                     if tmpMatch != None:
+                        errStr = tmpLine
                         batchStatus = tmpMatch.group(1)
                         if batchStatus in ['RUNNING','COMPLETING','STOPPED','SUSPENDED']:
                             newStatus = WorkSpec.ST_running
@@ -57,11 +59,13 @@ class SlurmMonitor (PluginBase):
                         tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus,
                                                                                   newStatus))
                         break
-                retList.append((newStatus,''))
+                retList.append((newStatus,errStr))
             else:
                 # failed
                 errStr = stdOut+' '+stdErr
                 tmpLog.error(errStr)
+                if 'slurm_load_jobs error: Invalid job id specified' in errStr:
+                    newStatus = WorkSpec.ST_failed
                 retList.append((newStatus,errStr))
         return True,retList
 

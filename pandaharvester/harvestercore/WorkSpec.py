@@ -38,7 +38,7 @@ class WorkSpec(SpecBase):
     EV_requestEvents = 2
     
     # attributes
-    attributesWithTypes = ('workerID:integer primary key',
+    attributesWithTypes = ('workerID:integer',
                            'batchID:text',
                            'mapType:text',
                            'queueName:text',
@@ -67,6 +67,7 @@ class WorkSpec(SpecBase):
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
+        object.__setattr__(self,'isNew',False)
 
 
 
@@ -77,7 +78,7 @@ class WorkSpec(SpecBase):
             patts = re.findall('\$\{([a-zA-Z\d]+)\}',self.accessPoint)
             for patt in patts:
                 if hasattr(self,patt):
-                    tmpVar = getattr(self,patt)
+                    tmpVar = str(getattr(self,patt))
                     tmpKey = '${' + patt + '}'
                     self.accessPoint = self.accessPoint.replace(tmpKey,tmpVar)
         return self.accessPoint

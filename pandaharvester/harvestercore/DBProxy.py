@@ -16,6 +16,7 @@ from JobSpec import JobSpec
 from WorkSpec import WorkSpec
 from FileSpec import FileSpec
 from EventSpec import EventSpec
+from SeqNumberSpec import SeqNumberSpec 
 from PandaQueueSpec import PandaQueueSpec
 from JobWorkerRelationSpec import JobWorkerRelationSpec
 
@@ -31,6 +32,7 @@ jobTableName        = 'job_table'
 workTableName       = 'work_table'
 fileTableName       = 'file_table'
 eventTableName      = 'event_table'
+seqNumberTableName  = 'seq_table'
 pandaQueueTableName = 'pq_table'
 jobWorkerTableName  = 'jw_table'
 
@@ -224,10 +226,13 @@ class DBProxy:
         self.makeTable(WorkSpec,workTableName)
         self.makeTable(FileSpec,fileTableName)
         self.makeTable(EventSpec,eventTableName)
+        self.makeTable(SeqNumberSpec,seqNumberTableName)
         self.makeTable(PandaQueueSpec,pandaQueueTableName)
         self.makeTable(JobWorkerRelationSpec,jobWorkerTableName)
         # fill PandaQueue table
         self.fillPandaQueueTable(harvester_config.qconf.queueList,queueConfigMapper)
+        # add seqential numbers
+        self.add_seq_number('SEQ_workerID', 1)
 
 
 
@@ -678,16 +683,13 @@ class DBProxy:
             sqlR  = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName,JobWorkerRelationSpec.columnNames())
             sqlR += JobWorkerRelationSpec.bindValuesExpression()
             # insert worker if new
-            if workSpec.workerID == None:
+            if workSpec.isNew:
                 varMap = workSpec.valuesList()
                 self.execute(sqlI,varMap)
             else:
                 varMap = workSpec.valuesMap(onlyChanged=True)
                 varMap[':workerID'] = workSpec.workerID
                 self.execute(sqlU,varMap)
-            # get workerID
-            if workSpec.workerID == None:
-                workSpec.workerID = self.cur.lastrowid
             # collect values to update jobs or insert job/worker mapping
             varMapsR = []
             for jobSpec in jobList:
@@ -761,13 +763,13 @@ class DBProxy:
                 nQueue = 0
                 nReady = 0
                 nRunning = 0
-                for workerStatus,nQueue in self.cur.fetchall():
+                for workerStatus,tmpNum in self.cur.fetchall():
                     if workerStatus in [WorkSpec.ST_submitted]:
-                        nQueue += 1
+                        nQueue += tmpNum
                     elif workerStatus in [WorkSpec.ST_ready]:
-                        nReady += 1
+                        nReady += tmpNum
                     elif workerStatus in [WorkSpec.ST_running]:
-                        nRunning += 1
+                        nRunning += tmpNum
                 # include ready workers
                 nWorkers = nReady
                 # new workers
@@ -1547,6 +1549,69 @@ class DBProxy:
             tmpLog.debug('done')
             # return
             return jobSpec.subStatus
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return None
+
+
+    # add a seq number
+    def add_seq_number(self, number_name, init_value):
+        try:
+            # get logger
+            tmpLog = CoreUtils.makeLogger(_logger, 'name={0}'.format(number_name))
+            # check if already there
+            sqlC = "SELECT curVal FROM {0} WHERE numberName=:numberName ".format(seqNumberTableName)
+            varMap = {}
+            varMap[':numberName'] = number_name
+            self.execute(sqlC, varMap)
+            res = self.cur.fetchone()
+            # insert if missing
+            if res is None:
+                # make spec
+                seqNumberSpec = SeqNumberSpec()
+                seqNumberSpec.numberName = number_name
+                seqNumberSpec.curVal = init_value
+                # insert
+                sqlI  = "INSERT INTO {0} ({1}) ".format(seqNumberTableName, SeqNumberSpec.columnNames())
+                sqlI += SeqNumberSpec.bindValuesExpression()
+                varMap = seqNumberSpec.valuesList()
+                self.execute(sqlI,varMap)
+            # commit
+            self.commit()
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            CoreUtils.dumpErrorMessage(_logger)
+            # return
+            return False
+
+
+    # get next value for a seq number
+    def get_next_seq_number(self, number_name):
+        try:
+            # get logger
+            tmpLog = CoreUtils.makeLogger(_logger, 'name={0}'.format(number_name))
+            # increment
+            sqlU = "UPDATE {0} SET curVal=curVal+1 WHERE numberName=:numberName ".format(seqNumberTableName)
+            varMap = {}
+            varMap[':numberName'] = number_name
+            self.execute(sqlU, varMap)
+            # get
+            sqlG = "SELECT curVal FROM {0} WHERE numberName=:numberName ".format(seqNumberTableName)
+            varMap = {}
+            varMap[':numberName'] = number_name
+            self.execute(sqlG, varMap)
+            retVal, = self.cur.fetchone()
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(retVal))
+            return retVal
         except:
             # roll back
             self.rollback()

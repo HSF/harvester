@@ -3,7 +3,7 @@
 	       "prodSourceLabel":"managed",
 	       "nQueueLimitJob":5,
 	       "nQueueLimitWorker":5,
-	       "maxWorkers":5,	
+	       "maxWorkers":1,	
 	       "mapType":"OneToOne",
 	       "preparator":{
 			"name":"RseDirectPreparator",
@@ -13,12 +13,7 @@
 		"submitter":{
 			"name":"SlurmSubmitter",
 			"module":"pandaharvester.harvestersubmitter.SlurmSubmitter",
-			"partition":"debug",
-			"nodes":2,
-			"time":"00:10:00",
-			"license":"SCRATCH",
-			"application":"-n 48 echo",
-			"workDir":"/global/homes/t/tmaeno/tmp"
+			"templateFile":"/global/homes/t/tmaeno/panda-harvester/examples/slurm_submit.sh"
 			},
 		"workMaker":{
 			"name":"SimpleWorkMaker",
@@ -28,7 +23,7 @@
 		"messenger":{
 			"name":"SharedFileMessenger",
 			"module":"pandaharvester.harvestermessenger.SharedFileMessenger",
-			"accessPoint":"/tmp/tmaeno/workdir/panda/${batchID}"
+			"accessPoint":"/global/homes/t/tmaeno/workdir/panda/${workerID}"
 			},
 	       "stager":{
 			"name":"FtsStager",

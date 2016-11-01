@@ -3,6 +3,10 @@ Connection to the PanDA server
 
 """
 
+# disable SNI for TLSV1_UNRECOGNIZED_NAME in requests
+import ssl
+ssl.HAS_SNI = False
+
 import os
 import sys
 import copy

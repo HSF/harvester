@@ -221,7 +221,7 @@ class SharedFileMessenger (PluginBase):
             tmpLog.debug('feeding jobs to {0}'.format(jsonFilePath))
             try:
                 with open(jsonFilePath,'w') as jsonFile:
-                    json.dump([jobSpec.jobParams],jsonFile)
+                    json.dump({jobSpec.PandaID:jobSpec.jobParams},jsonFile)
             except:
                 CoreUtils.dumpErrorMessage(tmpLog)
                 retVal = False
@@ -333,3 +333,12 @@ class SharedFileMessenger (PluginBase):
         tmpLog.debug('done')
         return
 
+
+
+    # setup access points
+    def setup_access_points(self, workspec_list):
+        for workSpec in workspec_list:
+            accessPoint = workSpec.getAccessPoint()
+            # make the dir if missing
+            if not os.path.exists(accessPoint):
+                os.makedirs(accessPoint)

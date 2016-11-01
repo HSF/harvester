@@ -48,6 +48,10 @@ class WorkMaker:
                 if workSpec == None:
                     ngChunks.append(jobChunk)
                     continue
+                # set workerID
+                if workSpec.workerID is None:
+                    workSpec.workerID = self.dbProxy.get_next_seq_number('SEQ_workerID')
+                    workSpec.isNew = True
                 okChunks.append((workSpec,jobChunk))
             # dump
             tmpLog.debug('made {0} workers while {1} chunks failed'.format(len(okChunks),

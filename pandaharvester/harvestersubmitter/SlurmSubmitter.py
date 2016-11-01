@@ -16,17 +16,9 @@ class SlurmSubmitter (PluginBase):
     def __init__(self,**kwarg):
         PluginBase.__init__(self,**kwarg)
         # template for batch script
-        self.template = """
-#!/bin/bash -l
-#SBATCH -p {partition}
-#SBATCH -N {nodes}
-#SBATCH -t {time}
-#SBATCH -L {license}
-#SBATCH -D {workDir}
-srun {application} {accessPoint}
-"""
-        # remove the first newline
-        self.template = self.template[1:]
+        tmpFile = open(self.templateFile)
+        self.template = tmpFile.read()
+        tmpFile.close()
         
 
 
@@ -40,7 +32,7 @@ srun {application} {accessPoint}
             # make batch script
             batchFile = self.makeBatchScript(workSpec)
             # command
-            comStr = "sbatch {0}".format(batchFile)
+            comStr = "sbatch -D {0} {1}".format(workSpec.getAccessPoint(),batchFile)
             # submit
             tmpLog.debug('submit with {0}'.format(batchFile))
             p = subprocess.Popen(comStr.split(),
@@ -69,12 +61,7 @@ srun {application} {accessPoint}
     # make batch script
     def makeBatchScript(self,workSpec):
         tmpFile = tempfile.NamedTemporaryFile(delete=False)
-        tmpFile.write(self.template.format(partition=self.partition,
-                                           nodes=self.nodes,
-                                           time=self.time,
-                                           license=self.license,
-                                           application=self.application,
-                                           workDir=self.workDir,
+        tmpFile.write(self.template.format(nCore=workSpec.nCore,
                                            accessPoint=workSpec.accessPoint)
                       )
         tmpFile.close()

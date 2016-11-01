@@ -42,6 +42,9 @@ class CredManager (threading.Thread):
 
     # main
     def execute(self):
+        # do nothing
+        if self.exeCore is None:
+            return 
         # make logger
         mainLog = CoreUtils.makeLogger(_logger)
         # check credential

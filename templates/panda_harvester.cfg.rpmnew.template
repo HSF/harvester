@@ -153,9 +153,6 @@ maxJobsToCheck = 100
 # max number of jobs to trigger in one cycle
 maxJobsToTrigger = 100
 
-# max number of jobs to zip in one cycle
-maxJobsToZip = 100
-
 # lock interval in sec
 lockInterval = 180
 
@@ -265,6 +262,9 @@ maxJobsToCheck = 100
 
 # max number of jobs to trigger in one cycle
 maxJobsToTrigger = 100
+
+# max number of jobs to zip in one cycle
+maxJobsToZip = 100
 
 # lock interval in sec
 lockInterval = 180

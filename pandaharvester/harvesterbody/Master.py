@@ -89,7 +89,7 @@ class Master:
             thrList.append(thr)
         # EventFeeder
         from pandaharvester.harvesterbody.EventFeeder import EventFeeder
-        nThr = harvester_config.stager.nThreads
+        nThr = harvester_config.eventfeeder.nThreads
         for iThr in range(nThr):
             thr = EventFeeder(self.communicatorPool,
                               self.queueConfigMapper,
