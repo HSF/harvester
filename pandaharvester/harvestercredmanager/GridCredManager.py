@@ -1,14 +1,14 @@
 import subprocess
 
-from pandaharvester.harvestercore.PluginBase import PluginBase
 from pandaharvester.harvestercore import CoreUtils
+from pandaharvester.harvestercore.PluginBase import PluginBase
 
 # logger
 _logger = CoreUtils.setupLogger()
 
 
-# credential manager with no-voms proxy
-class NoVomsCredManager(PluginBase):
+# credential manager using grid-proxy
+class GridCredManager(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
@@ -17,7 +17,7 @@ class NoVomsCredManager(PluginBase):
     def checkCredential(self, proxy_file):
         # make logger
         self.mainLog = CoreUtils.makeLogger(_logger)
-        comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(proxy_file)
+        comStr = "grid-proxy-info -exists -hours 72 -file {0}".format(proxy_file)
         self.mainLog.debug(comStr)
         p = subprocess.Popen(comStr.split(),
                              shell=False,
@@ -30,9 +30,8 @@ class NoVomsCredManager(PluginBase):
 
     # renew proxy
     def renewCredential(self, proxy_file):
-        comStr = "voms-proxy-init -voms {0} -out {1} -valid 96:00 -cert={2}".format(self.config.voms,
-                                                                                    proxy_file,
-                                                                                    self.config.certFile)
+        comStr = "grid-proxy-init -out {0} -valid 96:00 -cert {1}".format(proxy_file,
+                                                                          self.config.certFile)
         p = subprocess.Popen(comStr.split(),
                              shell=False,
                              stdout=subprocess.PIPE,
