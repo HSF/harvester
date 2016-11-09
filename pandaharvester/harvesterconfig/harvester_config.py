@@ -12,7 +12,8 @@ tmpConf.read('panda_harvester.cfg')
 
 # dummy section class
 class _SectionClass:
-    pass
+    def __init__(self):
+        pass
 
 
 # loop over all sections

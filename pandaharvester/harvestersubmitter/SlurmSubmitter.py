@@ -54,7 +54,7 @@ class SlurmSubmitter(PluginBase):
 
     # make batch script
     def makeBatchScript(self, workSpec):
-        tmpFile = tempfile.NamedTemporaryFile(delete=False)
+        tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workSpec.getAccessPoint())
         tmpFile.write(self.template.format(nCore=workSpec.nCore,
                                            accessPoint=workSpec.accessPoint)
                       )

@@ -3,12 +3,10 @@ Connection to the PanDA server
 
 """
 
-# disable SNI for TLSV1_UNRECOGNIZED_NAME in requests
+# disable SNI for TLSV1_UNRECOGNIZED_NAME before importing requests
 import ssl
-
 ssl.HAS_SNI = False
 
-import os
 import sys
 import copy
 import json
@@ -88,7 +86,7 @@ class Communicator:
         data['computingElement'] = computingElement
         data['nJobs'] = nJobs
         tmpStat, tmpRes = self.postSSL('getJob', data)
-        if tmpStat == False:
+        if tmpStat is False:
             CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         else:
             try:
@@ -115,7 +113,7 @@ class Communicator:
                         if retVal in [True, False]:
                             eventSpec.subStatus = 'done'
             # update job
-            if jobSpec.jobAttributes == None:
+            if jobSpec.jobAttributes is None:
                 data = {}
             else:
                 data = copy.copy(jobSpec.jobAttributes)
@@ -124,21 +122,22 @@ class Communicator:
             data['attemptNr'] = jobSpec.attemptNr
             data['jobSubStatus'] = jobSpec.subStatus
             if jobSpec.isFinalStatus():
-                if jobSpec.metaData != None:
+                if jobSpec.metaData is not None:
                     data['metadata'] = jobSpec.metaData
-                if jobSpec.outputFilesToReport != None:
+                if jobSpec.outputFilesToReport is not None:
                     data['xml'] = jobSpec.outputFilesToReport
             tmpLog.debug('data={0}'.format(str(data)))
             tmpStat, tmpRes = self.postSSL('updateJob', data)
             retMap = None
-            if tmpStat == False:
+            errStr = ''
+            if tmpStat is False:
                 errStr = CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
             else:
                 try:
                     retMap = tmpRes.json()
                 except:
                     errStr = CoreUtils.dumpErrorMessage(tmpLog)
-            if retMap == None:
+            if retMap is None:
                 retMap = {}
                 retMap['StatusCode'] = 999
                 retMap['ErrorDiag'] = errStr
@@ -153,7 +152,7 @@ class Communicator:
         tmpLog.debug('start')
         tmpStat, tmpRes = self.postSSL('getEventRanges', data)
         retVal = False, {}
-        if tmpStat == False:
+        if tmpStat is False:
             CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         else:
             try:
@@ -174,14 +173,14 @@ class Communicator:
         tmpLog.debug('data={0}'.format(str(data)))
         tmpStat, tmpRes = self.postSSL('updateEventRanges', data)
         retMap = None
-        if tmpStat == False:
+        if tmpStat is False:
             errStr = CoreUtils.dumpErrorMessage(tmpLog, tmpRes)
         else:
             try:
                 retMap = tmpRes.json()
             except:
                 errStr = CoreUtils.dumpErrorMessage(tmpLog)
-        if retMap == None:
+        if retMap is None:
             retMap = {}
             retMap['StatusCode'] = 999
         tmpLog.debug('done updateEventRanges with {0}'.format(str(retMap)))

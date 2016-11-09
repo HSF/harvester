@@ -3,11 +3,11 @@ try:
 except:
     pass
 
+import datetime
 from pandaharvester.harvestercore.DBProxy import DBProxy
 from pandaharvester.harvestercore.JobSpec import JobSpec
 from pandaharvester.harvestercore.QueueConfigMapper import QueueConfigMapper
-
-from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore.CommunicatorPool import CommunicatorPool
 
 queueConfigMapper = QueueConfigMapper()
 
@@ -16,14 +16,13 @@ proxy.makeTables(queueConfigMapper)
 
 job = JobSpec()
 job.PandaID = 1
-import datetime
+
 
 job.modificationTime = datetime.datetime.now()
 proxy.insertJobs([job])
 
 newJob = proxy.getJob(1)
 
-from pandaharvester.harvestercore.CommunicatorPool import CommunicatorPool
 
 a = CommunicatorPool()
 a.getJobs('siteName', 'nodeName', 'prodSourceLabel', 'computingElement', 1)

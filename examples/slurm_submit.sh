@@ -6,8 +6,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
 #SBATCH -J ES_job
-#SBATCH -o athena_stdout.txt
-#SBATCH -e athena_stderr.txt
+#SBATCH -o {accessPoint}/athena_stdout.txt
+#SBATCH -e {accessPoint}/athena_stderr.txt
 
 module load mpi4py
 
@@ -26,6 +26,7 @@ export PILOT_DIR=/global/homes/t/tmaeno/pilot
 export PYTHONPATH=$PILOT_DIR:$PYTHONPATH
 
 export WORK_DIR={accessPoint}
+cd $WORK_DIR
 
 srun -N 2 python-mpi $PILOT_DIR/HPC/HPCJob.py \
     --globalWorkingDir=$WORK_DIR  --localWorkingDir=$WORK_DIR --dumpEventOutputs

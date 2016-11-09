@@ -2,9 +2,11 @@ import os
 import sys
 import json
 
-workerID = int(sys.argv[1])
-
 from pandaharvester.harvestercore.DBProxy import DBProxy
+from pandaharvester.harvestercore.CommunicatorPool import CommunicatorPool
+from pandaharvester.harvestermessenger import SharedFileMessenger
+
+workerID = int(sys.argv[1])
 
 proxy = DBProxy()
 workSpec = proxy.getWorkerWithID(workerID)
@@ -22,8 +24,10 @@ node['pandaID'] = jobSpec.PandaID
 node['jobsetID'] = jobSpec.jobParams['jobsetID']
 node['taskID'] = jobSpec.taskID
 
-from pandaharvester.harvestermessenger import SharedFileMessenger
 
-f = open(os.path.join(accessPoint, SharedFileMessenger.jsonEventsRequestFileName), 'w')
-json.dump(node, f)
-f.close()
+a = CommunicatorPool()
+tmpStat, tmpVal = a.getEventRanges(node)
+
+mess = SharedFileMessenger.SharedFileMessenger()
+mess.feedEvents(workSpec, tmpVal)
+
