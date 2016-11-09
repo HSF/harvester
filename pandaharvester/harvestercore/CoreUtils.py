@@ -50,3 +50,27 @@ def dumpErrorMessage(tmpLog, errStr=None):
 # sleep for random duration
 def sleep(interval):
     time.sleep(random.randint(int(interval * 0.8), int(interval * 1.2)))
+
+
+# make PFC
+def make_pool_file_catalog(jobspec_list):
+    xmlStr = """<?xml version="1.0" ?>
+<!DOCTYPE POOLFILECATALOG  SYSTEM "InMemory">
+<POOLFILECATALOG>
+    """
+    doneLFNs = set()
+    for jobSpec in jobspec_list:
+        inFiles = jobSpec.getInputFileAttributes()
+        for inLFN, inFile in inFiles.iteritems():
+            if inLFN in doneLFNs:
+                continue
+            doneLFNs.add(inLFN)
+            xmlStr += """  <File ID="{guid}">
+    <physical>
+      <pfn filetype="ROOT_All" name="{lfn}"/>
+    </physical>
+    <logical/>
+  </File>
+  """.format(guid=inFile['guid'], lfn=inLFN)
+    xmlStr += "</POOLFILECATALOG>"
+    return xmlStr

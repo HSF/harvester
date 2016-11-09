@@ -35,6 +35,9 @@ jsonEventsFeedFileName = 'JobsEventRanges.json'
 # json to update events
 jsonEventsUpdateFileName = 'worker_updateevents.json'
 
+# PFC for input files
+xmlPoolCatalogFileName = 'PoolFileCatalog_H.xml'
+
 
 # messenger with shared file system
 class SharedFileMessenger(PluginBase):
@@ -198,14 +201,25 @@ class SharedFileMessenger(PluginBase):
         # get logger
         tmpLog = CoreUtils.makeLogger(_logger, 'workerID={0}'.format(workSpec.workerID))
         retVal = True
+        # get PFC
+        pfc = CoreUtils.make_pool_file_catalog(jobList)
         if workSpec.mapType == WorkSpec.MT_OneToOne:
             jobSpec = jobList[0]
-            # put the json just under the accesspoint
             jsonFilePath = os.path.join(workSpec.getAccessPoint(), jsonJobSpecFileName)
+            xmlFilePath = os.path.join(workSpec.getAccessPoint(), xmlPoolCatalogFileName)
             tmpLog.debug('feeding jobs to {0}'.format(jsonFilePath))
             try:
+                # put job spec json
                 with open(jsonFilePath, 'w') as jsonFile:
                     json.dump({jobSpec.PandaID: jobSpec.jobParams}, jsonFile)
+                # put PFC.xml
+                with open(xmlFilePath, 'w') as pfcFile:
+                    pfcFile.write(pfc)
+                # make symlink
+                inFiles = jobSpec.getInputFileAttributes()
+                for inLFN, inFile in inFiles.iteritems():
+                    dstPath = os.path.join(workSpec.getAccessPoint(), inLFN)
+                    os.symlink(inFile['path'], dstPath)
             except:
                 CoreUtils.dumpErrorMessage(tmpLog)
                 retVal = False

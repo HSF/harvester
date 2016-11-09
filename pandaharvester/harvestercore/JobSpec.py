@@ -146,13 +146,20 @@ class JobSpec(SpecBase):
     def getInputFileAttributes(self):
         inFiles = {}
         lfns = self.jobParams['inFiles'].split(',')
+        guids = self.jobParams['GUID'].split(',')
         fsizes = self.jobParams['fsize'].split(',')
         chksums = self.jobParams['checksum'].split(',')
         scopes = self.jobParams['scopeIn'].split(',')
         datasets = self.jobParams['realDatasetsIn'].split(',')
         endpoints = self.jobParams['ddmEndPointIn'].split(',')
-        for lfn, fsize, chksum, scope, dataset, endpoint in zip(lfns, fsizes, chksums, scopes, datasets, endpoints):
-            inFiles[lfn] = {'fsize': long(fsize),
+        for lfn, guid, fsize, chksum, scope, dataset, endpoint in \
+                zip(lfns, guids, fsizes, chksums, scopes, datasets, endpoints):
+            try:
+                fsize = long(fsize)
+            except:
+                fsize = None
+            inFiles[lfn] = {'fsize': fsize,
+                            'guid': guid,
                             'checksum': chksum,
                             'scope': scope,
                             'dataset': dataset,
@@ -171,6 +178,8 @@ class JobSpec(SpecBase):
         for lfn in lfns:
             paths.append(inFiles[lfn]['path'])
         self.jobParams['inFilePaths'] = ','.join(paths)
+        # trigger updating
+        self.forceUpdate('jobParams')
 
     # get output file attributes
     def getOutputFileAttributes(self):
