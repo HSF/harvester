@@ -606,7 +606,7 @@ class DBProxy:
                 jobSpec = JobSpec()
                 jobSpec.pack(res)
                 # lock job
-                if locked_by != None:
+                if locked_by is not None:
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
                     varMap[':timeNow'] = timeNow
@@ -1425,7 +1425,7 @@ class DBProxy:
                 self.execute(sqlF, varMap)
                 # update events
                 eventRangeIDs = []
-                if fileSpec.eventRangeID != None:
+                if fileSpec.eventRangeID is not None:
                     eventRangeIDs.append(fileSpec.eventRangeID)
                 elif fileSpec.isZip == 1:
                     # get files associated with zip file
