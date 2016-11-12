@@ -172,11 +172,11 @@ class JobSpec(SpecBase):
         return inFiles
 
     # set input file paths
-    def set_input_file_paths(self, inFiles):
+    def set_input_file_paths(self, in_files):
         lfns = self.jobParams['inFiles'].split(',')
         paths = []
         for lfn in lfns:
-            paths.append(inFiles[lfn]['path'])
+            paths.append(in_files[lfn]['path'])
         self.jobParams['inFilePaths'] = ','.join(paths)
         # trigger updating
         self.force_update('jobParams')

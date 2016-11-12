@@ -67,7 +67,7 @@ class DBProxy:
         items = re.findall(':[^ $,)]+', sql)
         for item in items:
             if item not in varmap:
-                raise KeyError, '{0} is missing in SQL parameters'.format(item)
+                raise KeyError('{0} is missing in SQL parameters'.format(item))
             if item not in paramList:
                 paramList.append(varmap[item])
         return sql, paramList
@@ -81,7 +81,7 @@ class DBProxy:
             if thrName is not None:
                 thrName = thrName.ident
         if varmap is None:
-            varmap = {}
+            varmap = dict()
         # get lock
         if not self.lockDB:
             if harvester_config.db.verbose:
@@ -112,7 +112,7 @@ class DBProxy:
     def executemany(self, sql, varmap_list):
         if harvester_config.db.verbose:
             thrName = threading.current_thread()
-            if thrName != None:
+            if thrName is not None:
                 thrName = thrName.ident
         # get lock
         if not self.lockDB:
@@ -131,8 +131,8 @@ class DBProxy:
             paramList = []
             newSQL = sql
             for varMap in varmap_list:
-                if varMap == None:
-                    varMap = {}
+                if varMap is None:
+                    varMap = dict()
                 newSQL, params = self.convert_params(sql, varMap)
                 paramList.append(params)
             # execute
@@ -171,15 +171,15 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger)
             tmpLog.debug('table={0}'.format(table_name))
             # check if table already exists
-            varMap = {}
+            varMap = dict()
             varMap[':type'] = 'table'
             varMap[':name'] = table_name
             sqlC = 'SELECT name FROM sqlite_master WHERE type=:type AND tbl_name=:name '
             self.execute(sqlC, varMap)
             resC = self.cur.fetchone()
             # not exists
-            if resC == None:
-                # 
+            if resC is None:
+                #  sql to make table
                 sqlM = 'CREATE TABLE {0}('.format(table_name)
                 # collect columns
                 for attr in cls.attributesWithTypes:
@@ -254,7 +254,7 @@ class DBProxy:
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
             sql += "WHERE PandaID=:pandaID "
             # get job
-            varMap = {}
+            varMap = dict()
             varMap[':pandaID'] = panda_id
             self.execute(sql, varMap)
             resJ = self.cur.fetchone()
@@ -365,14 +365,14 @@ class DBProxy:
                     # check if alrady exist
                     sqlC = "SELECT 1 FROM {0} ".format(pandaQueueTableName)
                     sqlC += "WHERE queueName=:queueName "
-                    varMap = {}
+                    varMap = dict()
                     varMap[':queueName'] = queueName
                     self.execute(sqlC, varMap)
                     resC = self.cur.fetchone()
                     if resC is not None:
                         continue
                     # insert queue
-                    varMap = {}
+                    varMap = dict()
                     varMap[':queueName'] = queueName
                     sqlP = "INSERT INTO {0} (".format(pandaQueueTableName)
                     sqlS = "VALUES ("
@@ -420,13 +420,13 @@ class DBProxy:
             sqlU += "WHERE queueName=:queueName "
             # get queues
             timeNow = datetime.datetime.utcnow()
-            varMap = {}
+            varMap = dict()
             varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             for queueName, nQueueLimit in resQ:
                 # count nQueue
-                varMap = {}
+                varMap = dict()
                 varMap[':computingSite'] = queueName
                 varMap[':status'] = 'starting'
                 self.execute(sqlN, varMap)
@@ -435,7 +435,7 @@ class DBProxy:
                 if nQueue < nQueueLimit:
                     retMap[queueName] = nQueueLimit - nQueue
                 # update timestamp
-                varMap = {}
+                varMap = dict()
                 varMap[':queueName'] = queueName
                 varMap[':jobFetchTime'] = timeNow
                 self.execute(sqlU, varMap)
@@ -483,7 +483,7 @@ class DBProxy:
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
             updateTimeLimit = timeNow - datetime.timedelta(seconds=update_interval)
-            varMap = {}
+            varMap = dict()
             varMap[':lockTimeLimit'] = lockTimeLimit
             varMap[':updateTimeLimit'] = updateTimeLimit
             self.execute(sql, varMap)
@@ -494,7 +494,7 @@ class DBProxy:
                 jobSpec = JobSpec()
                 jobSpec.pack(res)
                 # lock job
-                varMap = {}
+                varMap = dict()
                 varMap[':PandaID'] = jobSpec.PandaID
                 varMap[':timeNow'] = timeNow
                 varMap[':lockedBy'] = locked_by
@@ -505,7 +505,7 @@ class DBProxy:
                     jobSpec.propagatorLock = locked_by
                     zipFiles = {}
                     # read events
-                    varMap = {}
+                    varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
                     varMap[':statusDone'] = 'done'
                     self.execute(sqlE, varMap)
@@ -516,14 +516,14 @@ class DBProxy:
                         zipFileSpec = None
                         # get associated zip file if any
                         if eventSpec.fileID is not None:
-                            varMap = {}
+                            varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
                             varMap[':fileID'] = eventSpec.fileID
                             self.execute(sqlZ, varMap)
                             zipFileID, = self.cur.fetchone()
                             if zipFileID is not None:
-                                if not zipFileID in zipFiles:
-                                    varMap = {}
+                                if zipFileID not in zipFiles:
+                                    varMap = dict()
                                     varMap[':PandaID'] = jobSpec.PandaID
                                     varMap[':fileID'] = zipFileID
                                     self.execute(sqlF, varMap)
@@ -562,8 +562,8 @@ class DBProxy:
             sqlC += "WHERE ({0} IS NOT NULL AND subStatus=:subStatus) ".format(lock_column)
             sqlC += "OR subStatus=:newSubStatus "
             # count jobs
-            if max_jobs > 0 and new_sub_status != None:
-                varMap = {}
+            if max_jobs > 0 and new_sub_status is not None:
+                varMap = dict()
                 varMap[':subStatus'] = sub_status
                 varMap[':newSubStatus'] = new_sub_status
                 self.execute(sqlC, varMap)
@@ -577,11 +577,11 @@ class DBProxy:
             # sql to get jobs
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
             sql += "WHERE subStatus=:subStatus "
-            if time_column != None:
+            if time_column is not None:
                 sql += "AND ({0} IS NULL ".format(time_column)
-                if interval_with_lock != None:
+                if interval_with_lock is not None:
                     sql += "OR ({0}<:lockTimeLimit AND {1} IS NOT NULL) ".format(time_column, lock_column)
-                if interval_without_lock != None:
+                if interval_without_lock is not None:
                     sql += "OR {0}<:updateTimeLimit ".format(time_column)
                 sql += ') '
                 sql += "ORDER BY {0} ".format(time_column)
@@ -592,11 +592,11 @@ class DBProxy:
             sqlL += "WHERE PandaID=:PandaID "
             # get jobs
             timeNow = datetime.datetime.utcnow()
-            varMap = {}
+            varMap = dict()
             varMap[':subStatus'] = sub_status
-            if interval_with_lock != None:
+            if interval_with_lock is not None:
                 varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=interval_with_lock)
-            if interval_without_lock != None:
+            if interval_without_lock is not None:
                 varMap[':updateTimeLimit'] = timeNow - datetime.timedelta(seconds=interval_without_lock)
             self.execute(sql, varMap)
             resList = self.cur.fetchall()
@@ -607,7 +607,7 @@ class DBProxy:
                 jobSpec.pack(res)
                 # lock job
                 if locked_by != None:
-                    varMap = {}
+                    varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
                     varMap[':timeNow'] = timeNow
                     varMap[':lockedBy'] = locked_by
@@ -713,13 +713,13 @@ class DBProxy:
             sqlU += "WHERE queueName=:queueName "
             # get queues
             timeNow = datetime.datetime.utcnow()
-            varMap = {}
+            varMap = dict()
             varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             for queueName, nQueueLimit, maxWorkers in resQ:
                 # count nQueue
-                varMap = {}
+                varMap = dict()
                 varMap[':computingSite'] = queueName
                 self.execute(sqlN, varMap)
                 nQueue = 0
@@ -738,7 +738,7 @@ class DBProxy:
                 if nQueueLimit > 0 and nQueue >= nQueueLimit:
                     # only ready workers since enough queued workers are there
                     pass
-                elif maxWorkers > 0 and nQueue + nReady + nRunning >= maxWorkers:
+                elif maxWorkers > 0 and (nQueue + nReady + nRunning) >= maxWorkers:
                     # only ready workers since enough workers are there
                     pass
                 else:
@@ -748,7 +748,7 @@ class DBProxy:
                 retMap[queueName] = {'nWorkers': nWorkers,
                                      'nReady': nReady}
                 # update timestamp
-                varMap = {}
+                varMap = dict()
                 varMap[':queueName'] = queueName
                 varMap[':submitTime'] = timeNow
                 self.execute(sqlU, varMap)
@@ -775,7 +775,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_name))
             tmpLog.debug('start')
             # define maxJobs
-            if n_jobs_per_worker != None:
+            if n_jobs_per_worker is not None:
                 maxJobs = (n_workers + n_ready) * n_jobs_per_worker
             else:
                 maxJobs = -(-(n_workers + n_ready) // n_workers_per_job)
@@ -793,7 +793,7 @@ class DBProxy:
             sqlL += "WHERE PandaID=:PandaID "
             # get jobs
             timeNow = datetime.datetime.utcnow()
-            varMap = {}
+            varMap = dict()
             varMap[':subStatus1'] = 'prepared'
             varMap[':subStatus2'] = 'queued'
             varMap[':queueName'] = queue_name
@@ -816,16 +816,16 @@ class DBProxy:
                     continue
                 jobChunk.append(jobSpec)
                 # enough jobs in chunk
-                if n_jobs_per_worker != None and len(jobChunk) >= n_jobs_per_worker:
+                if n_jobs_per_worker is not None and len(jobChunk) >= n_jobs_per_worker:
                     jobChunkList.append(jobChunk)
                     jobChunk = []
                 # one job per multiple workers
-                elif n_workers_per_job != None:
+                elif n_workers_per_job is not None:
                     for i in range(n_workers_per_job):
                         jobChunkList.append(jobChunk)
                     jobChunk = []
                 # lock job
-                varMap = {}
+                varMap = dict()
                 varMap[':PandaID'] = jobSpec.PandaID
                 varMap[':timeNow'] = timeNow
                 varMap[':lockedBy'] = locked_by
@@ -871,7 +871,7 @@ class DBProxy:
             sqlG += "WHERE workerID=:workerID "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
-            varMap = {}
+            varMap = dict()
             varMap[':st_submitted'] = WorkSpec.ST_submitted
             varMap[':st_running'] = WorkSpec.ST_running
             varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
@@ -888,7 +888,7 @@ class DBProxy:
                 if workerID in checkedIDs:
                     continue
                 # get associated workerIDs
-                varMap = {}
+                varMap = dict()
                 varMap[':workerID'] = workerID
                 self.execute(sqlA, varMap)
                 resA = self.cur.fetchall()
@@ -903,17 +903,17 @@ class DBProxy:
                 for tmpWorkID in workerIDtoScan:
                     checkedIDs.add(tmpWorkID)
                     # get worker
-                    varMap = {}
+                    varMap = dict()
                     varMap[':workerID'] = tmpWorkID
                     self.execute(sqlG, varMap)
                     resG = self.cur.fetchone()
                     workSpec = WorkSpec()
                     workSpec.pack(resG)
-                    if queueName == None:
+                    if queueName is None:
                         queueName = workSpec.computingSite
                     workersList.append(workSpec)
                     # lock worker
-                    varMap = {}
+                    varMap = dict()
                     varMap[':workerID'] = tmpWorkID
                     varMap[':lockedBy'] = locked_by
                     varMap[':timeNow'] = timeNow
@@ -959,7 +959,7 @@ class DBProxy:
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
-            varMap = {}
+            varMap = dict()
             varMap[':status'] = WorkSpec.ST_running
             varMap[':eventsRequest'] = WorkSpec.EV_requestEvents
             varMap[':lockTimeLimit'] = lockTimeLimit
@@ -971,7 +971,7 @@ class DBProxy:
             retVal = {}
             for workerID in tmpWorkers:
                 # lock worker
-                varMap = {}
+                varMap = dict()
                 varMap[':workerID'] = workerID
                 varMap[':timeNow'] = timeNow
                 varMap[':status'] = WorkSpec.ST_running
@@ -981,7 +981,7 @@ class DBProxy:
                 nRow = self.cur.rowcount
                 if nRow > 0:
                     # get worker
-                    varMap = {}
+                    varMap = dict()
                     varMap[':workerID'] = workerID
                     self.execute(sqlG, varMap)
                     resG = self.cur.fetchone()
@@ -1039,14 +1039,14 @@ class DBProxy:
                     fileIdMap = {}
                     for fileSpec in jobSpec.outFiles:
                         # check file
-                        varMap = {}
+                        varMap = dict()
                         varMap[':PandaID'] = fileSpec.PandaID
                         varMap[':lfn'] = fileSpec.lfn
                         self.execute(sqlFC, varMap)
                         resFC = self.cur.fetchone()
                         # insert file
                         if resFC is None:
-                            if jobSpec.zipPerMB == None or fileSpec.isZip == 0:
+                            if jobSpec.zipPerMB is None or fileSpec.isZip == 0:
                                 fileSpec.status = 'defined'
                                 jobSpec.hasOutFile = JobSpec.HO_hasOutput
                             else:
@@ -1055,13 +1055,13 @@ class DBProxy:
                             self.execute(sqlFI, varMap)
                             nFiles += 1
                             # mapping between event range ID and file ID
-                            if fileSpec.eventRangeID != None:
+                            if fileSpec.eventRangeID is not None:
                                 fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
                     if nFiles > 0:
                         tmpLog.debug('inserted {0} files'.format(nFiles))
                     # check pending files
                     if jobSpec.zipPerMB is not None and not (jobSpec.zipPerMB == 0 and jobSpec.status != 'totransfer'):
-                        varMap = {}
+                        varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
                         varMap[':status'] = 'pending'
                         self.execute(sqlFP, varMap)
@@ -1097,7 +1097,7 @@ class DBProxy:
                             # update pending files
                             varMaps = []
                             for tmpFileID, tmpLFN in subFileIDs:
-                                varMap = {}
+                                varMap = dict()
                                 varMap[':status'] = 'zipped'
                                 varMap[':fileID'] = tmpFileID
                                 varMap[':zipFileID'] = self.cur.lastrowid
@@ -1111,7 +1111,7 @@ class DBProxy:
                         # set subStatus
                         if eventSpec.eventStatus == 'finished':
                             # check associated file
-                            varMap = {}
+                            varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
                             varMap[':eventRangeID'] = eventSpec.eventRangeID
                             self.execute(sqlEF, varMap)
@@ -1129,7 +1129,7 @@ class DBProxy:
                         if eventSpec.eventRangeID in fileIdMap:
                             eventSpec.fileID = fileIdMap[eventSpec.eventRangeID]
                         # check event
-                        varMap = {}
+                        varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
                         varMap[':eventRangeID'] = eventSpec.eventRangeID
                         self.execute(sqlEC, varMap)
@@ -1139,7 +1139,7 @@ class DBProxy:
                             varMap = eventSpec.values_list()
                             varMapsEI.append(varMap)
                         else:
-                            varMap = {}
+                            varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
                             varMap[':eventRangeID'] = eventSpec.eventRangeID
                             varMap[':eventStatus'] = eventSpec.eventStatus
@@ -1208,13 +1208,13 @@ class DBProxy:
             # get jobs
             jobChunkList = []
             timeNow = datetime.datetime.utcnow()
-            varMap = {}
+            varMap = dict()
             varMap[':workerID'] = worker_id
             self.execute(sqlP, varMap)
             resW = self.cur.fetchall()
             for pandaID, in resW:
                 # get job
-                varMap = {}
+                varMap = dict()
                 varMap[':PandaID'] = pandaID
                 self.execute(sqlJ, varMap)
                 resJ = self.cur.fetchone()
@@ -1223,7 +1223,7 @@ class DBProxy:
                 jobSpec.pack(resJ)
                 jobSpec.lockedBy = locked_by
                 # lock job
-                varMap = {}
+                varMap = dict()
                 varMap[':PandaID'] = pandaID
                 varMap[':lockedBy'] = locked_by
                 varMap[':timeNow'] = timeNow
@@ -1252,7 +1252,7 @@ class DBProxy:
             sqlG += "WHERE status=:status AND computingSite=:queueName "
             sqlG += "ORDER BY modificationTime LIMIT {0} ".format(n_ready)
             # get workers
-            varMap = {}
+            varMap = dict()
             varMap[':status'] = WorkSpec.ST_ready
             varMap[':queueName'] = queue_name
             self.execute(sqlG, varMap)
@@ -1284,7 +1284,7 @@ class DBProxy:
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "
             # get a worker
-            varMap = {}
+            varMap = dict()
             varMap[':workerID'] = worker_id
             self.execute(sqlG, varMap)
             res = self.cur.fetchone()
@@ -1335,7 +1335,7 @@ class DBProxy:
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=interval_with_lock)
             updateTimeLimit = timeNow - datetime.timedelta(seconds=interval_without_lock)
-            varMap = {}
+            varMap = dict()
             varMap[':subStatus'] = sub_status
             varMap[':hasOutFile'] = has_out_file
             varMap[':lockTimeLimit'] = lockTimeLimit
@@ -1348,7 +1348,7 @@ class DBProxy:
                 jobSpec = JobSpec()
                 jobSpec.pack(res)
                 # lock job
-                varMap = {}
+                varMap = dict()
                 varMap[':PandaID'] = jobSpec.PandaID
                 varMap[':timeNow'] = timeNow
                 varMap[':lockedBy'] = locked_by
@@ -1360,7 +1360,7 @@ class DBProxy:
                     jobSpec.stagerLock = locked_by
                     jobSpec.stagerTime = timeNow
                     # get files
-                    varMap = {}
+                    varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
                     if has_out_file == JobSpec.HO_hasOutput:
                         varMap[':status'] = 'defined'
@@ -1378,7 +1378,7 @@ class DBProxy:
                     # get associated files
                     if has_out_file == JobSpec.HO_hasZipOutput:
                         for fileSpec in jobSpec.outFiles:
-                            varMap = {}
+                            varMap = dict()
                             varMap[':PandaID'] = fileSpec.PandaID
                             varMap[':zipFileID'] = fileSpec.fileID
                             self.execute(sqlAF, varMap)
@@ -1429,7 +1429,7 @@ class DBProxy:
                     eventRangeIDs.append(fileSpec.eventRangeID)
                 elif fileSpec.isZip == 1:
                     # get files associated with zip file
-                    varMap = {}
+                    varMap = dict()
                     varMap[':PandaID'] = fileSpec.PandaID
                     varMap[':zipFileID'] = fileSpec.fileID
                     self.execute(sqlAE, varMap)
@@ -1438,7 +1438,7 @@ class DBProxy:
                         eventRangeIDs.append(eventRangeID)
                 varMaps = []
                 for eventRangeID in eventRangeIDs:
-                    varMap = {}
+                    varMap = dict()
                     varMap[':PandaID'] = fileSpec.PandaID
                     varMap[':eventRangeID'] = eventRangeID
                     varMap[':eventStatus'] = fileSpec.status
@@ -1450,7 +1450,7 @@ class DBProxy:
             # count files
             sqlC = "SELECT COUNT(*),status FROM {0} ".format(fileTableName)
             sqlC += "WHERE PandaID=:PandaID GROUP BY status "
-            varMap = {}
+            varMap = dict()
             varMap[':PandaID'] = jobspec.PandaID
             self.execute(sqlC, varMap)
             resC = self.cur.fetchall()
@@ -1508,7 +1508,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, 'name={0}'.format(number_name))
             # check if already there
             sqlC = "SELECT curVal FROM {0} WHERE numberName=:numberName ".format(seqNumberTableName)
-            varMap = {}
+            varMap = dict()
             varMap[':numberName'] = number_name
             self.execute(sqlC, varMap)
             res = self.cur.fetchone()
@@ -1541,12 +1541,12 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, 'name={0}'.format(number_name))
             # increment
             sqlU = "UPDATE {0} SET curVal=curVal+1 WHERE numberName=:numberName ".format(seqNumberTableName)
-            varMap = {}
+            varMap = dict()
             varMap[':numberName'] = number_name
             self.execute(sqlU, varMap)
             # get
             sqlG = "SELECT curVal FROM {0} WHERE numberName=:numberName ".format(seqNumberTableName)
-            varMap = {}
+            varMap = dict()
             varMap[':numberName'] = number_name
             self.execute(sqlG, varMap)
             retVal, = self.cur.fetchone()
@@ -1618,7 +1618,7 @@ class DBProxy:
             else:
                 # update
                 sqlU = "UPDATE {0} SET {1} ".format(cacheTableName, cacheSpec.bind_update_changes_expression())
-                sqlU += "WHERE WHERE mainKey=:mainKey "
+                sqlU += "WHERE mainKey=:mainKey "
                 varMap = cacheSpec.values_map(only_changed=True)
                 varMap[":mainKey"] = main_key
                 if sub_key is not None:

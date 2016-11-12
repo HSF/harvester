@@ -21,6 +21,9 @@ setup(
     author_email='atlas-adc-panda@cern.ch',
     url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
     packages=find_packages(),
+    install_requires=['requests',
+                      'python-daemon',
+                      ],
     data_files=[
         # config and cron files
         ('etc/panda', ['templates/panda_harvester.cfg.rpmnew.template',

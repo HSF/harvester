@@ -48,7 +48,7 @@ class SpecBase(object):
         # map of changed attributes
         object.__setattr__(self, 'changedAttrs', {})
 
-    # override __setattr__ to collecte the changed attributes
+    # override __setattr__ to collect changed attributes
     def __setattr__(self, name, value):
         oldVal = getattr(self, name)
         object.__setattr__(self, name, value)
