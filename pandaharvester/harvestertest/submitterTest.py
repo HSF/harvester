@@ -2,26 +2,26 @@ import sys
 
 queueName = sys.argv[1]
 
-from pandaharvester.harvestercore.QueueConfigMapper import QueueConfigMapper
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 queueConfigMapper = QueueConfigMapper()
 
-queueConfig = queueConfigMapper.getQueue(queueName)
+queueConfig = queueConfigMapper.get_queue(queueName)
 
 import os
-from pandaharvester.harvestercore.WorkSpec import WorkSpec
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 workSpec = WorkSpec()
 workSpec.accessPoint = os.getcwd()
 
-from pandaharvester.harvestercore.PluginFactory import PluginFactory
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 pluginFactory = PluginFactory()
 
 # get submitter plugin
-submitterCore = pluginFactory.getPlugin(queueConfig.submitter)
+submitterCore = pluginFactory.get_plugin(queueConfig.submitter)
 print "testing submission with plugin={0}".format(submitterCore.__class__.__name__)
-tmpRetList = submitterCore.submitWorkers([workSpec])
+tmpRetList = submitterCore.submit_workers([workSpec])
 tmpStat, tmpOut = tmpRetList[0]
 if tmpStat:
     print " OK batchID={0}".format(workSpec.batchID)
@@ -32,10 +32,10 @@ else:
 print
 
 # get monitoring plug-in
-monCore = pluginFactory.getPlugin(queueConfig.monitor)
+monCore = pluginFactory.get_plugin(queueConfig.monitor)
 print "testing monitoring for batchID={0} with plugin={1}".format(workSpec.batchID,
                                                                   monCore.__class__.__name__)
-tmpStat, tmpOut = monCore.checkWorkers([workSpec])
+tmpStat, tmpOut = monCore.check_workers([workSpec])
 tmpOut = tmpOut[0]
 if tmpStat:
     print " OK workerStatus={0}".format(tmpOut[0])

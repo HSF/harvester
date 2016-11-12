@@ -7,27 +7,27 @@
 	       "mapType":"OneToOne",
 	       "preparator":{
 			"name":"RseDirectPreparator",
-			"module":"pandaharvester.harvesterpreparator.RseDirectPreparator",
+			"module":"pandaharvester.harvesterpreparator.rse_direct_preparator",
 			"basePath":"/global/homes/t/tmaeno/rucio"
 			},
 		"submitter":{
 			"name":"SlurmSubmitter",
-			"module":"pandaharvester.harvestersubmitter.SlurmSubmitter",
+			"module":"pandaharvester.harvestersubmitter.slurm_submitter",
 			"templateFile":"/global/homes/t/tmaeno/panda-harvester/examples/slurm_submit.sh"
 			},
 		"workMaker":{
 			"name":"SimpleWorkMaker",
-			"module":"pandaharvester.harvesterworkmaker.SimpleWorkMaker",
+			"module":"pandaharvester.harvesterworkmaker.simple_work_maker",
 			"workDir":"${TMPDIR}/panda/${BATCHID}"
 			},
 		"messenger":{
 			"name":"SharedFileMessenger",
-			"module":"pandaharvester.harvestermessenger.SharedFileMessenger",
+			"module":"pandaharvester.harvestermessenger.shared_file_messenger",
 			"accessPoint":"/global/homes/t/tmaeno/workdir/panda/${workerID}"
 			},
 	       "stager":{
 			"name":"FtsStager",
-			"module":"pandaharvester.harvesterstager.FtsStager",
+			"module":"pandaharvester.harvesterstager.fts_stager",
 			"ftsServer":"https://fts.usatlas.bnl.gov:8446",
 			"ftsLookupTimeout":180,
 			"ca_cert":"/etc/grid-security/certificates/cilogon-osg.pem",
@@ -41,7 +41,7 @@
 			},
 		"monitor":{
 			"name":"SlurmMonitor",
-			"module":"pandaharvester.harvestermonitor.SlurmMonitor"
+			"module":"pandaharvester.harvestermonitor.slurm_monitor"
 			}
 	       },
 "CERN_PROD_1":{
@@ -53,27 +53,27 @@
 	       "useJobLateBinding":true,
 	       "preparator":{
 			"name":"GoPreparator",
-			"module":"pandaharvester.harvesterpreparator.GoPreparator",
+			"module":"pandaharvester.harvesterpreparator.go_preparator",
 			"srcEndpoint":"nersc#dtn",
 			"dstEndpoint":"go#ep1"
 			},
 		"submitter":{
 			"name":"SlurmSubmitter",
-			"module":"pandaharvester.harvestersubmitter.SlurmSubmitter"
+			"module":"pandaharvester.harvestersubmitter.slurm_submitter"
 			},
 		"workMaker":{
 			"name":"SimpleWorkMaker",
-			"module":"pandaharvester.harvesterworkmaker.SimpleWorkMaker",
+			"module":"pandaharvester.harvesterworkmaker.simple_work_maker",
 			"workDir":"${TMPDIR}/panda/${PANDAID}"
 			},
 		"messenger":{
 			"name":"SharedFileMessenger",
-			"module":"pandaharvester.harvestermessenger.SharedFileMessenger",
+			"module":"pandaharvester.harvestermessenger.shared_file_messenger",
 			"accessPoint":"/tmp/tmaeno/workdir/panda/${batchID}"
 			},
 	       "stager":{
 			"name":"FtsStager",
-			"module":"pandaharvester.harvesterstager.FtsStager",
+			"module":"pandaharvester.harvesterstager.fts_stager",
 			"ftsServer":"https://fts3-pilot.cern.ch:8446",
 			"ftsLookupTimeout":180,
 			"ca_cert":"/etc/grid-security/certificates/CERN-Root-2.pem",
@@ -87,7 +87,7 @@
 			},
 		"monitor":{
 			"name":"DummyMonitor",
-			"module":"pandaharvester.harvestermonitor.DummyMonitor"
+			"module":"pandaharvester.harvestermonitor.dummy_monitor"
 			}
 	       }
 }

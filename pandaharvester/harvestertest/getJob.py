@@ -3,19 +3,19 @@ import sys
 
 workerID = int(sys.argv[1])
 
-from pandaharvester.harvestercore.DBProxy import DBProxy
+from pandaharvester.harvestercore.db_proxy import DBProxy
 
 proxy = DBProxy()
-workSpec = proxy.getWorkerWithID(workerID)
+workSpec = proxy.get_worker_with_id(workerID)
 
-accessPoint = workSpec.getAccessPoint()
+accessPoint = workSpec.get_access_point()
 
 try:
     os.makedirs(accessPoint)
 except:
     pass
 
-from pandaharvester.harvestermessenger import SharedFileMessenger
+from pandaharvester.harvestermessenger import shared_file_messenger
 
-f = open(os.path.join(accessPoint, SharedFileMessenger.jsonJobRequestFileName), 'w')
+f = open(os.path.join(accessPoint, shared_file_messenger.jsonJobRequestFileName), 'w')
 f.close()

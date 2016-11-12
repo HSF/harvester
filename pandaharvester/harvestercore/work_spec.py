@@ -1,0 +1,112 @@
+"""
+Work spec class
+
+"""
+
+import re
+from spec_base import SpecBase
+
+
+# work spec
+class WorkSpec(SpecBase):
+    # worker statuses
+    ST_submitted = 'submitted'
+    ST_running = 'running'
+    ST_finished = 'finished'
+    ST_failed = 'failed'
+    ST_ready = 'ready'
+    ST_cancelled = 'cancelled'
+
+    # list of worker statuses
+    ST_LIST = [ST_submitted,
+               ST_running,
+               ST_finished,
+               ST_failed,
+               ST_ready,
+               ST_cancelled]
+
+    # type of mapping between job and worker
+    MT_NoJob = 'NoJob'
+    MT_OneToOne = 'OneToOne'
+    MT_MultiJobs = 'MultiJobs'
+    MT_MultiWorkers = 'MultiWorkers'
+
+    # events
+    EV_noEvents = 0
+    EV_useEvents = 1
+    EV_requestEvents = 2
+
+    # attributes
+    attributesWithTypes = ('workerID:integer',
+                           'batchID:text',
+                           'mapType:text',
+                           'queueName:text',
+                           'status:text',
+                           'hasJob:integer',
+                           'workParams:blob',
+                           'workAttributes:blob',
+                           'eventsRequestParams:blob',
+                           'eventsRequest:integer',
+                           'computingSite:text',
+                           'creationTime:timestamp',
+                           'submitTime:timestamp',
+                           'startTime:timestamp',
+                           'endTime:timestamp',
+                           'nCore:integer',
+                           'walltime:timestamp',
+                           'accessPoint:text',
+                           'modificationTime:timestamp',
+                           'stateChangeTime:timestamp',
+                           'eventFeedTime:timestamp',
+                           'lockedBy:text'
+                           )
+
+    # constructor
+    def __init__(self):
+        SpecBase.__init__(self)
+        object.__setattr__(self, 'isNew', False)
+
+    # get access point
+    def get_access_point(self):
+        # replace placeholders
+        if '$' in self.accessPoint:
+            patts = re.findall('\$\{([a-zA-Z\d]+)\}', self.accessPoint)
+            for patt in patts:
+                if hasattr(self, patt):
+                    tmpVar = str(getattr(self, patt))
+                    tmpKey = '${' + patt + '}'
+                    self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
+        return self.accessPoint
+
+    # set status to submitted
+    def set_submitted(self):
+        self.status = 'submitted'
+
+    # set status to running
+    def set_running(self):
+        self.status = 'running'
+
+    # set status to finished
+    def set_finished(self):
+        self.status = 'finished'
+
+    # set status to failed
+    def set_failed(self):
+        self.status = 'failed'
+
+    # set status to cancelled
+    def set_cancelled(self):
+        self.status = 'cancelled'
+
+    # convert worker status to job status
+    def convert_to_job_status(self):
+        if self.status in [self.ST_submitted, self.ST_ready]:
+            jobStatus = 'starting'
+            jobSubStatus = self.status
+        elif self.status in [self.ST_finished, self.ST_failed, self.ST_cancelled]:
+            jobStatus = self.status
+            jobSubStatus = 'totransfer'
+        else:
+            jobStatus = 'running'
+            jobSubStatus = self.status
+        return jobStatus, jobSubStatus

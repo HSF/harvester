@@ -182,7 +182,7 @@ python -i lib/python*/site-packages/pandaharvester/harvestertest/stageOutTest.py
 Harvester runs multiple threads in parallesl so that debugging is rather complicated. However, functions can be
 gradually executed by using
 ```sh
-$ python lib/python*/site-packages/pandaharvester/harvesterbody/Master.py --pid tmp.pid --single
+$ python lib/python*/site-packages/pandaharvester/harvesterbody/master.py --pid tmp.pid --single
 ```
 
 ----------
@@ -216,6 +216,13 @@ $ wget python-daemon-*.tar.gz from https://pypi.python.org/pypi/python-daemon
 $ pip install python-daemon-*.tar.gz
 ```
 
+
+#### How to install boto on Edison@NERSC
+```sh
+$ cd harvester
+$ . bin/activate
+$ pip install --index-url=http://pypi.python.org/simple/ --trusted-host pypi.python.org boto
+```
 
 
 #### How to install local panda-harvester package

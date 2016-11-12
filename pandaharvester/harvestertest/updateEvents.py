@@ -1,19 +1,19 @@
 import os
 import sys
 import json
+from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestermessenger import shared_file_messenger
 
 workerID = int(sys.argv[1])
 
-id = sys.argv[2]
+eventID = sys.argv[2]
 status = sys.argv[3]
 
-from pandaharvester.harvestercore.DBProxy import DBProxy
-
 proxy = DBProxy()
-workSpec = proxy.getWorkerWithID(workerID)
-jobSpec = proxy.getJobsWithWorkerID(workerID, None)[0]
+workSpec = proxy.get_worker_with_id(workerID)
+jobSpec = proxy.get_jobs_with_worker_id(workerID, None)[0]
 
-accessPoint = workSpec.getAccessPoint()
+accessPoint = workSpec.get_access_point()
 
 try:
     os.makedirs(accessPoint)
@@ -21,12 +21,10 @@ except:
     pass
 
 node = {}
-node['eventRangeID'] = id
+node['eventRangeID'] = eventID
 node['eventStatus'] = status
 
-from pandaharvester.harvestermessenger import SharedFileMessenger
-
-f = open(os.path.join(accessPoint, SharedFileMessenger.jsonEventsUpdateFileName), 'w')
+f = open(os.path.join(accessPoint, shared_file_messenger.jsonEventsUpdateFileName), 'w')
 json.dump([node], f)
 f.close()
 
@@ -36,9 +34,9 @@ if status == 'finished':
     data['path'] = os.path.join(accessPoint, lfn)
     data['type'] = 'output'
     data['fsize'] = 10 * 1024 * 1024
-    data['eventRangeID'] = id
+    data['eventRangeID'] = eventID
     node = {}
     node[lfn] = data
-    f = open(os.path.join(accessPoint, SharedFileMessenger.jsonOutputsFileName), 'w')
+    f = open(os.path.join(accessPoint, shared_file_messenger.jsonOutputsFileName), 'w')
     json.dump(node, f)
     f.close()
