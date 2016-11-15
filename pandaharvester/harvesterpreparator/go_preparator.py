@@ -30,7 +30,7 @@ class GoPreparator(PluginBase):
             tmpLog.error(errStr)
             return None, errStr
         # return a fatal error when task is missing # FIXME retry instead?
-        if not label in transferTasks:
+        if label not in transferTasks:
             errStr = 'transfer task is missing'
             tmpLog.error(errStr)
             return False, errStr

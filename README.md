@@ -182,7 +182,7 @@ python -i lib/python*/site-packages/pandaharvester/harvestertest/stageOutTest.py
 Harvester runs multiple threads in parallesl so that debugging is rather complicated. However, functions can be
 gradually executed by using
 ```sh
-$ python lib/python*/site-packages/pandaharvester/harvesterbody/master.py --pid tmp.pid --single
+$ python lib/python*/site-packages/pandaharvester/harvesterbody/master.py --pid $PWD/tmp.pid --single
 ```
 
 ----------
@@ -208,20 +208,23 @@ or more details in https://virtualenv.pypa.io/en/stable/installation/
 $ module load python
 $ cd harvester
 $ . bin/activate
-$ wget docutils-*.tar.gz from https://pypi.python.org/pypi/docutils
-$ pip install docutils-*.tar.gz
-$ wget lockfile-*.tar.gz from https://pypi.python.org/pypi/lockfile
-$ pip install lockfile-*.tar.gz
-$ wget python-daemon-*.tar.gz from https://pypi.python.org/pypi/python-daemon
-$ pip install python-daemon-*.tar.gz
+$ pip install --index-url=http://pypi.python.org/simple/ --trusted-host pypi.python.org  python-daemon
 ```
 
 
-#### How to install boto on Edison@NERSC
+#### How to install rucio-client on Edison@NERSC (Required only if RucioStager is used)
 ```sh
 $ cd harvester
 $ . bin/activate
-$ pip install --index-url=http://pypi.python.org/simple/ --trusted-host pypi.python.org boto
+$ pip install --index-url=http://pypi.python.org/simple/ --trusted-host pypi.python.org rucio-clients
+$ cat etc/rucio.cfg.atlas.client.template | grep -v ca_cert > etc/rucio.cfg
+$ echo "ca_cert = /etc/pki/tls/certs/CERN-bundle.pem" >> etc/rucio.cfg
+$ echo "auth_type = x509_proxy" >> etc/rucio.cfg
+$
+$ # For tests
+$ export X509_USER_PROXY=...
+$ export RUCIO_ACCOUNT=...
+$ rucio ping
 ```
 
 

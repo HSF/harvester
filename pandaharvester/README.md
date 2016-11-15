@@ -5,6 +5,7 @@
 * **Cred manager**: Module to renew proxy
 * **Messenger**: Communication classes to interact between workers and harvester
 * **Monitor**: Classes to monitor jobs, e.g. through SLURM, SAGA...
+* **Mover**: Base classes or tools for Preparator and Stager
 * **Preparator**: Classes to prepare (stage **in**) data for jobs
 * **Stager**: Classes to stage **out** data
 * **Submitter**: Classes to submit jobs to the batch system

@@ -6,7 +6,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from worker_maker import WorkMaker
+from worker_maker import WorkerMaker
 
 # logger
 _logger = core_utils.setup_logger()
@@ -20,7 +20,7 @@ class Submitter(threading.Thread):
         self.queueConfigMapper = queue_config_mapper
         self.dbProxy = DBProxy()
         self.singleMode = single_mode
-        self.workMaker = WorkMaker()
+        self.workerMaker = WorkerMaker()
         self.pluginFactory = PluginFactory()
 
     # main loop
@@ -61,7 +61,7 @@ class Submitter(threading.Thread):
                                                                         lockedBy)
                 elif queueConfig.mapType == WorkSpec.MT_MultiJobs:
                     # one worker for multiple jobs
-                    nJobsPerWorker = self.workMaker.getNumJobsPerWorker(queueConfig)
+                    nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig)
                     jobChunks = self.dbProxy.get_job_chunks_for_workers(queueName,
                                                                         nWorkers, nReady, nJobsPerWorker, None,
                                                                         queueConfig.useJobLateBinding,
@@ -70,7 +70,7 @@ class Submitter(threading.Thread):
                                                                         lockedBy)
                 elif queueConfig.mapType == WorkSpec.MT_MultiWorkers:
                     # multiple workers for one job
-                    nWorkersPerJob = self.workMaker.getNumWorkersPerJob(queueConfig)
+                    nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig)
                     jobChunks = self.dbProxy.get_job_chunks_for_workers(queueName,
                                                                         nWorkers, nReady, None, nWorkersPerJob,
                                                                         queueConfig.useJobLateBinding,
@@ -84,7 +84,7 @@ class Submitter(threading.Thread):
                 if len(jobChunks) == 0:
                     continue
                 # make workers
-                okChunks, ngChunks = self.workMaker.makeWorkers(jobChunks, queueConfig, nReady)
+                okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queueConfig, nReady)
                 tmpLog.debug('made {0} workers while {1} failed'.format(len(okChunks), len(ngChunks)))
                 timeNow = datetime.datetime.utcnow()
                 # NG
@@ -96,7 +96,7 @@ class Submitter(threading.Thread):
                         jobSpec.lockedBy = None
                         jobSpec.trigger_propagation()
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                         'subStatus': 'prepared'})
+                                                          'subStatus': 'prepared'})
                 # OK
                 workSpecList = []
                 if len(okChunks) > 0:
@@ -131,7 +131,7 @@ class Submitter(threading.Thread):
                     # setup access points
                     messenger.setup_access_points(workSpecList)
                     # submit
-                    workSpecList, tmpRetList, tmpStrList = self.submitWorkers(submitterCore, workSpecList)
+                    workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)
                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                         workSpec, jobList = okChunks[iWorker]
                         # failed
@@ -169,7 +169,7 @@ class Submitter(threading.Thread):
             core_utils.sleep(harvester_config.submitter.sleepTime)
 
     # wrapper for submitWorkers to skip ready workers
-    def submitWorkers(self, submitter_core, workspec_list):
+    def submit_workers(self, submitter_core, workspec_list):
         retList = []
         strList = []
         newSpecList = []

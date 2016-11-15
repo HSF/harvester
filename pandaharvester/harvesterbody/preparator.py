@@ -59,7 +59,7 @@ class Preparator(threading.Thread):
                     # update job
                     jobSpec.lockedBy = None
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                     'subStatus': oldSubStatus})
+                                                      'subStatus': oldSubStatus})
                     tmpLog.debug('still running')
                     continue
                 # succeeded
@@ -69,7 +69,7 @@ class Preparator(threading.Thread):
                     if tmpStat is False:
                         jobSpec.lockedBy = None
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                         'subStatus': oldSubStatus})
+                                                          'subStatus': oldSubStatus})
                         tmpLog.error('failed to resolve input file paths : {0}'.format(tmpStr))
                         continue
                     # update job
@@ -77,7 +77,7 @@ class Preparator(threading.Thread):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                     'subStatus': oldSubStatus})
+                                                      'subStatus': oldSubStatus})
                     tmpLog.debug('succeeded')
                 else:
                     # update job
@@ -88,13 +88,13 @@ class Preparator(threading.Thread):
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
                     jobSpec.trigger_propagation()
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                     'subStatus': oldSubStatus})
+                                                      'subStatus': oldSubStatus})
                     tmpLog.error('failed with {0}'.format(tmpStr))
             # get jobs to trigger preparation
             mainLog.debug('try to get jobs to prepare')
             jobsToTrigger = self.dbProxy.get_jobs_in_sub_status('fetched',
                                                                 harvester_config.preparator.maxJobsToTrigger,
-                                                            'preparatorTime', 'lockedBy',
+                                                                'preparatorTime', 'lockedBy',
                                                                 harvester_config.preparator.triggerInterval,
                                                                 harvester_config.preparator.lockInterval,
                                                                 lockedBy,
@@ -125,7 +125,7 @@ class Preparator(threading.Thread):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                     'subStatus': oldSubStatus})
+                                                      'subStatus': oldSubStatus})
                     tmpLog.debug('triggered')
                 else:
                     # update job
@@ -136,7 +136,7 @@ class Preparator(threading.Thread):
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
                     jobSpec.trigger_propagation()
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                     'subStatus': oldSubStatus})
+                                                      'subStatus': oldSubStatus})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
             mainLog.debug('done')
             if self.singleMode:

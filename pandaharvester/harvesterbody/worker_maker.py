@@ -1,4 +1,3 @@
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -8,19 +7,19 @@ _logger = core_utils.setup_logger()
 
 
 # class to make worker
-class WorkMaker:
+class WorkerMaker:
     # constructor
     def __init__(self):
         self.pluginFactory = PluginFactory()
         self.dbProxy = DBProxy()
 
     # make workers
-    def makeWorkers(self, jobchunk_list, queue_config, n_ready):
+    def make_workers(self, jobchunk_list, queue_config, n_ready):
+        tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName))
+        tmpLog.debug('start')
         try:
-            tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName))
-            tmpLog.debug('start')
             # get plugin
-            maker = self.pluginFactory.get_plugin(queue_config.workMaker)
+            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
             if maker is None:
                 # not found
                 tmpLog.error('plugin for {0} not found'.format(queue_config.queueName))
@@ -59,13 +58,13 @@ class WorkMaker:
             return [], jobchunk_list
 
     # get number of jobs per worker
-    def getNumJobsPerWorker(self, queue_config):
+    def get_num_jobs_per_worker(self, queue_config):
         # get plugin
         maker = self.pluginFactory.get_plugin(queue_config.workMaker)
         return maker.get_num_jobs_per_worker()
 
     # get number of workers per job
-    def getNumWorkersPerJob(self, queue_config):
+    def get_num_workers_per_job(self, queue_config):
         # get plugin
         maker = self.pluginFactory.get_plugin(queue_config.workMaker)
         return maker.get_num_workers_per_job()

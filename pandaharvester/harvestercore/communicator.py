@@ -106,7 +106,7 @@ class Communicator:
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
             tmpLog.debug('start')
             # update events
-            eventRanges, eventSpecs = jobSpec.toEventData()
+            eventRanges, eventSpecs = jobSpec.to_event_data()
             if eventRanges != []:
                 tmpRet = self.update_event_ranges(eventRanges, tmpLog)
                 if tmpRet['StatusCode'] == 0:

@@ -74,6 +74,7 @@ class DBProxy:
 
     # wrapper for execute
     def execute(self, sql, varmap=None):
+        thrName = None
         if harvester_config.db.verbose:
             if self.verbLog is None:
                 self.verbLog = core_utils.make_logger(_logger)
@@ -110,6 +111,7 @@ class DBProxy:
 
     # wrapper for executemany
     def executemany(self, sql, varmap_list):
+        thrName = None
         if harvester_config.db.verbose:
             thrName = threading.current_thread()
             if thrName is not None:
@@ -218,10 +220,10 @@ class DBProxy:
 
     # insert jobs
     def insert_jobs(self, jobspec_list):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger)
+        tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
         try:
-            # get logger
-            tmpLog = core_utils.make_logger(_logger)
-            tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
             # sql to insert a job
             sql = "INSERT INTO {0} ({1}) ".format(jobTableName, JobSpec.column_names())
             sql += JobSpec.bind_values_expression()
@@ -636,7 +638,6 @@ class DBProxy:
         try:
             tmpLog = core_utils.make_logger(_logger, 'batchID={0}'.format(workspec.batchID))
             tmpLog.debug('start')
-            retMap = {}
             # sql to insert a worker
             sqlI = "INSERT INTO {0} ({1}) ".format(workTableName, WorkSpec.column_names())
             sqlI += WorkSpec.bind_values_expression()
@@ -830,7 +831,6 @@ class DBProxy:
                 varMap[':timeNow'] = timeNow
                 varMap[':lockedBy'] = locked_by
                 self.execute(sqlL, varMap)
-                nRow = self.cur.rowcount
                 jobSpec.lockedBy = locked_by
                 # enough job chunks
                 if len(jobChunkList) >= n_workers:
@@ -1145,10 +1145,10 @@ class DBProxy:
                             varMap[':eventStatus'] = eventSpec.eventStatus
                             varMap[':subStatus'] = eventSpec.subStatus
                             varMapsEU.append(varMap)
-                    if varMapsEI != []:
+                    if len(varMapsEI) > 0:
                         self.executemany(sqlEI, varMapsEI)
                         tmpLog.debug('inserted {0} event'.format(len(varMapsEI)))
-                    if varMapsEU != []:
+                    if len(varMapsEU) > 0:
                         self.executemany(sqlEU, varMapsEU)
                         tmpLog.debug('updated {0} event'.format(len(varMapsEU)))
                     tmpLog.debug('update job')
@@ -1504,8 +1504,6 @@ class DBProxy:
     # add a seq number
     def add_seq_number(self, number_name, init_value):
         try:
-            # get logger
-            tmpLog = core_utils.make_logger(_logger, 'name={0}'.format(number_name))
             # check if already there
             sqlC = "SELECT curVal FROM {0} WHERE numberName=:numberName ".format(seqNumberTableName)
             varMap = dict()
@@ -1627,6 +1625,7 @@ class DBProxy:
             self.execute(sqlU, varMap)
             # commit
             self.commit()
+            tmpLog.debug('refreshed')
             return True
         except:
             # roll back

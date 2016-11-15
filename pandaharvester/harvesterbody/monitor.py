@@ -46,7 +46,7 @@ class Monitor(threading.Thread):
                 # check workers
                 allWorkers = [item for sublist in workSpecsList for item in sublist]
                 tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
-                tmpRetMap = self.checkWorkers(monCore, messenger, allWorkers, tmpQueLog)
+                tmpRetMap = self.check_workers(monCore, messenger, allWorkers, tmpQueLog)
                 # loop over all worker chunks
                 iWorker = 0
                 for workSpecs in workSpecsList:
@@ -97,7 +97,7 @@ class Monitor(threading.Thread):
             core_utils.sleep(harvester_config.monitor.sleepTime)
 
     # wrapper for checkWorkers
-    def checkWorkers(self, mon_core, messenger, all_workers, tmp_log):
+    def check_workers(self, mon_core, messenger, all_workers, tmp_log):
         workersToCheck = []
         retMap = {}
         for workSpec in all_workers:

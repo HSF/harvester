@@ -15,9 +15,9 @@
 			"module":"pandaharvester.harvestersubmitter.slurm_submitter",
 			"templateFile":"/global/homes/t/tmaeno/panda-harvester/examples/slurm_submit.sh"
 			},
-		"workMaker":{
-			"name":"SimpleWorkMaker",
-			"module":"pandaharvester.harvesterworkmaker.simple_work_maker",
+		"workerMaker":{
+			"name":"SimpleWorkerMaker",
+			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker",
 			"workDir":"${TMPDIR}/panda/${BATCHID}"
 			},
 		"messenger":{
@@ -26,17 +26,14 @@
 			"accessPoint":"/global/homes/t/tmaeno/workdir/panda/${workerID}"
 			},
 	       "stager":{
-			"name":"FtsStager",
-			"module":"pandaharvester.harvesterstager.fts_stager",
-			"ftsServer":"https://fts.usatlas.bnl.gov:8446",
-			"ftsLookupTimeout":180,
-			"ca_cert":"/etc/grid-security/certificates/cilogon-osg.pem",
-			"srcEndpointOut":"gsiftp://dtn01.nersc.gov/",
-			"dstEndpointOut":"srm://dcsrm.usatlas.bnl.gov:8443/srm/managerv2?SFN=/pnfs/usatlas.bnl.gov/BNLT0D1/rucio/",
-			"srcEndpointES":"gsiftp://dtn01.nersc.gov/",
-			"dstEndpointES":"srm://dcsrm.usatlas.bnl.gov:8443/srm/managerv2?SFN=/???",
-			"esObjStoreID":117,
-			"srcEndpointLog":null,
+			"name":"RucioStager",
+			"module":"pandaharvester.harvesterstager.rucio_stager",
+			"srcRSE":"gsiftp://dtn01.nersc.gov/",
+			"dstRSE_ES":"",
+			"dstRSE_Out":null,
+			"dstRSE_Log":null,
+			"objStoreID_ES":117,
+			"srcBasePath":null,
 			"zipDir":"${SRCDIR}"
 			},
 		"monitor":{
@@ -61,9 +58,9 @@
 			"name":"SlurmSubmitter",
 			"module":"pandaharvester.harvestersubmitter.slurm_submitter"
 			},
-		"workMaker":{
-			"name":"SimpleWorkMaker",
-			"module":"pandaharvester.harvesterworkmaker.simple_work_maker",
+		"workerMaker":{
+			"name":"SimpleWorkerMaker",
+			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker",
 			"workDir":"${TMPDIR}/panda/${PANDAID}"
 			},
 		"messenger":{

@@ -117,15 +117,17 @@ class JobSpec(SpecBase):
     # all files are triggered to stage-out
     def all_files_triggered_to_stage_out(self):
         for fileSpec in self.outFiles:
-            fileSpec.status = 'transferring'
+            if fileSpec.status not in ['finished', 'failed']:
+                fileSpec.status = 'transferring'
 
     # all files are zipped
     def all_files_zipped(self):
         for fileSpec in self.outFiles:
-            fileSpec.status = 'defined'
+            if fileSpec.status not in ['finished', 'failed']:
+                fileSpec.status = 'defined'
 
     # convert to event data
-    def toEventData(self):
+    def to_event_data(self):
         data = []
         eventSpecs = []
         for zipFileID, eventsData in self.zipEventMap.iteritems():

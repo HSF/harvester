@@ -5,7 +5,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 
 
 # simple maker
-class SimpleWorkMaker(PluginBase):
+class SimpleWorkerMaker(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)

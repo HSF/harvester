@@ -1,19 +1,16 @@
 import sys
-
-queueName = sys.argv[1]
-
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-
-queueConfigMapper = QueueConfigMapper()
-
-queueConfig = queueConfigMapper.get_queue(queueName)
-
 import os
 import uuid
 import random
 import string
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+
+queueName = sys.argv[1]
+queueConfigMapper = QueueConfigMapper()
+queueConfig = queueConfigMapper.get_queue(queueName)
 
 fileSpec = FileSpec()
 fileSpec.fileType = 'output'
@@ -38,8 +35,6 @@ jobSpec.jobParams = {'outFiles': fileSpec.lfn + ',log',
                      }
 jobSpec.add_out_file(fileSpec)
 
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
-
 pluginFactory = PluginFactory()
 
 # get stage-out plugin
@@ -54,8 +49,6 @@ else:
     print " NG {0}".format(tmpOut)
 
 print
-
-sys.exit(0)
 
 print "testing standard stage-out"
 tmpStat, tmpOut = stagerCore.trigger_stage_out(jobSpec)
