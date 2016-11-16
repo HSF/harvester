@@ -10,4 +10,4 @@
 * **Stager**: Classes to stage **out** data
 * **Submitter**: Classes to submit jobs to the batch system
 * **Test**: Test scripts
-* **Workmaker**: Makes workers
+* **Worker Maker**: Makes workers

@@ -46,14 +46,13 @@ class RucioStager(PluginBase):
             transferID = fileSpec.fileAttributes['transferID']
             if transferID not in transferStatus:
                 # get status
-                errMsg = None
                 try:
                     rucioAPI = RucioClient()
-                    ruleInfo = rucioAPI.get_replication_rule(ruleID)
+                    ruleInfo = rucioAPI.get_replication_rule(transferID)
                     tmpTransferStatus = ruleInfo['state']
-                    tmpLog.debug('got state={0} for rule={1}'.format(tmpTransferStatus, ruleID))
+                    tmpLog.debug('got state={0} for rule={1}'.format(tmpTransferStatus, transferID))
                 except RuleNotFound:
-                    tmpLog.error('rule {0} not found'.format(ruleID))
+                    tmpLog.error('rule {0} not found'.format(transferID))
                     tmpTransferStatus = 'FAILED'
                 except:
                     err_type, err_value = sys.exc_info()[:2]
@@ -105,18 +104,22 @@ class RucioStager(PluginBase):
             # make path where file is copied for transfer
             scope = fileAttrs[fileSpec.lfn]['scope']
             datasetName = fileAttrs[fileSpec.lfn]['dataset']
-            srcPath = fileAttrs[fileSpec.lfn]['path']
+            srcPath = fileSpec.path
             dstPath = mover_utils.construct_file_path(self.srcBasePath, datasetName, scope, fileSpec.lfn)
             # remove
             if os.path.exists(dstPath):
                 os.remove(dstPath)
             # copy
             tmpLog.debug('src={srcPath} dst={dstPath}'.format(srcPath=srcPath, dstPath=dstPath))
+            dstDir = os.path.dirname(dstPath)
+            if not os.path.exists(dstDir):
+                os.makedirs(dstDir)
             shutil.copyfile(srcPath, dstPath)
             # collect files
             tmpFile = dict()
             tmpFile['scope'] = scope
             tmpFile['name'] = fileSpec.lfn
+            tmpFile['bytes'] = fileSpec.fsize
             if fileSpec.fileType not in files:
                 files[fileSpec.fileType] = []
             files[fileSpec.fileType].append(tmpFile)
@@ -150,11 +153,13 @@ class RucioStager(PluginBase):
                                          )
                     transferDatasets[fileType] = tmpDS
                     # add rule
-                    tmpDID = '{0}:{1}'.format(tmpScope, tmpDS)
+                    tmpDID = dict()
+                    tmpDID['scope'] = tmpScope
+                    tmpDID['name'] = tmpDS
                     tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
                                                            lifetime=7*24*60*60
                                                            )
-                    transferIDs[fileType] = tmpRet['rule_id']
+                    transferIDs[fileType] = tmpRet[0]
                 except:
                     errMsg = core_utils.dump_error_message(tmpLog)
                     return (False, errMsg)

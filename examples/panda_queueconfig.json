@@ -28,12 +28,12 @@
 	       "stager":{
 			"name":"RucioStager",
 			"module":"pandaharvester.harvesterstager.rucio_stager",
-			"srcRSE":"gsiftp://dtn01.nersc.gov/",
-			"dstRSE_ES":"",
+			"srcRSE":"NERSC_DATADISK",
+			"dstRSE_ES":"BNL-OSG2_SCRATCHDISK",
 			"dstRSE_Out":null,
 			"dstRSE_Log":null,
 			"objStoreID_ES":117,
-			"srcBasePath":null,
+			"srcBasePath":"/global/homes/t/tmaeno/rucio",
 			"zipDir":"${SRCDIR}"
 			},
 		"monitor":{
