@@ -5,15 +5,8 @@ import os.path
 import zipfile
 import uuid
 
-# TO BE REMOVED for python2.7
-import requests.packages.urllib3
-try:
-    requests.packages.urllib3.disable_warnings()
-except:
-    pass
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
 
 from rucio.client import Client as RucioClient
@@ -99,11 +92,16 @@ class RucioStager(PluginBase):
                     transferIDs[fileSpec.fileType] = fileSpec.fileAttributes['transferID']
                 continue
             # set OS ID
-            if fileSpec.fileType == 'es_output':
+            if fileSpec.fileType == ['es_output', 'zip_output']:
                 fileSpec.objstoreID = self.objStoreID_ES
             # make path where file is copied for transfer
-            scope = fileAttrs[fileSpec.lfn]['scope']
-            datasetName = fileAttrs[fileSpec.lfn]['dataset']
+            if fileSpec.fileType != 'zip_output':
+                scope = fileAttrs[fileSpec.lfn]['scope']
+                datasetName = fileAttrs[fileSpec.lfn]['dataset']
+            else:
+                # use panda scope for zipped files
+                scope = 'panda'
+                datasetName = 'dummy'
             srcPath = fileSpec.path
             dstPath = mover_utils.construct_file_path(self.srcBasePath, datasetName, scope, fileSpec.lfn)
             # remove
@@ -127,7 +125,7 @@ class RucioStager(PluginBase):
         rucioAPI = RucioClient()
         for fileType, fileList in files.iteritems():
             # set destination RSE
-            if fileType == 'es_output':
+            if fileType in ['es_output', 'zip_output']:
                 dstRSE = self.dstRSE_ES
             elif fileType == 'output':
                 dstRSE = self.dstRSE_Out
@@ -159,7 +157,9 @@ class RucioStager(PluginBase):
                     tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
                                                            lifetime=7*24*60*60
                                                            )
-                    transferIDs[fileType] = tmpRet[0]
+                    tmpTransferIDs = tmpRet[0]
+                    transferIDs[fileType] = tmpTransferIDs
+                    tmpLog.debug('register dataset {0} with rule {1}'.format(tmpDS, str(tmpTransferIDs)))
                 except:
                     errMsg = core_utils.dump_error_message(tmpLog)
                     return (False, errMsg)
@@ -169,6 +169,7 @@ class RucioStager(PluginBase):
                     tmpScope = 'panda'
                     tmpDS = transferDatasets[fileType]
                     rucioAPI.add_files_to_dataset(tmpScope, tmpDS, fileList, self.srcRSE)
+                    tmpLog.debug('added files to {0}'.format(tmpDS))
                 except:
                     errMsg = core_utils.dump_error_message(tmpLog)
                     return (False, errMsg)
@@ -224,6 +225,9 @@ class RucioStager(PluginBase):
                 # get size
                 statInfo = os.stat(zipPath)
                 fileSpec.fsize = statInfo.st_size
+                # added empty attributes
+                fileSpec.fileAttributes = dict()
+                tmpLog.debug('zipped {0}'.format(zipPath))
         except:
             errMsg = core_utils.dump_error_message(tmpLog)
             return False, 'failed to zip with {0}'.format(errMsg)

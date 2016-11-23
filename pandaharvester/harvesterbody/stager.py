@@ -62,7 +62,8 @@ class Stager(threading.Thread):
                                                                 harvester_config.stager.triggerInterval,
                                                                 harvester_config.stager.lockInterval,
                                                                 lockedBy, 'totransfer',
-                                                                JobSpec.HO_hasOutput)
+                                                                JobSpec.HO_hasOutput,
+                                                                JobSpec.HO_hasZipOutput)
             mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
             # loop over all jobs
             for jobSpec in jobsToTrigger:
@@ -95,7 +96,8 @@ class Stager(threading.Thread):
                                                             harvester_config.stager.triggerInterval,
                                                             harvester_config.stager.lockInterval,
                                                             lockedBy, 'totransfer',
-                                                            JobSpec.HO_hasZipOutput)
+                                                            JobSpec.HO_hasZipOutput,
+                                                            JobSpec.HO_hasOutput)
             mainLog.debug('got {0} jobs to zip'.format(len(jobsToZip)))
             # loop over all jobs
             for jobSpec in jobsToZip:

@@ -147,23 +147,26 @@ class Communicator:
         return retList
 
     # get events
-    def get_event_ranges(self, data):
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']))
-        tmpLog.debug('start')
-        tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
-        retVal = False, {}
-        if tmpStat is False:
-            core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                tmpDict = tmpRes.json()
-                if tmpDict['StatusCode'] == 0:
-                    retVal = True, {data['pandaID']: tmpDict['eventRanges']}
-            except:
+    def get_event_ranges(self, data_map):
+        retStat = False
+        retVal = dict()
+        for pandaID, data in data_map.iteritems():
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']))
+            tmpLog.debug('start')
+            tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
+            if tmpStat is False:
                 core_utils.dump_error_message(tmpLog, tmpRes)
-        tmpLog.debug('done with {0}'.format(str(retVal)))
-        return retVal
+            else:
+                try:
+                    tmpDict = tmpRes.json()
+                    if tmpDict['StatusCode'] == 0:
+                        retStat = True
+                        retVal[data['pandaID']] = tmpDict['eventRanges']
+                except:
+                    core_utils.dump_error_message(tmpLog, tmpRes)
+            tmpLog.debug('done with {0}'.format(str(retVal)))
+        return retStat, retVal
 
     # update events
     def update_event_ranges(self, event_ranges, tmp_log):

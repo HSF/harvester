@@ -51,7 +51,7 @@ class Monitor(threading.Thread):
                 iWorker = 0
                 for workSpecs in workSpecsList:
                     jobSpecs = None
-                    filesToStageOut = {}
+                    filesToStageOut = dict()
                     for workSpec in workSpecs:
                         tmpLog = core_utils.make_logger(_logger, 'workID={0}'.format(workSpec.workerID))
                         tmpOut = tmpRetMap[workSpec.workerID]
@@ -85,10 +85,10 @@ class Monitor(threading.Thread):
                                                                      filesToStageOut, eventsToUpdate)
                     # update local database
                     self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy)
-                    # send ACK to workers for events
-                    if eventsToUpdate != []:
+                    # send ACK to workers for events and files
+                    if eventsToUpdate != [] or filesToStageOut != {}:
                         for workSpec in workSpecs:
-                            messenger.acknowledge_events(workSpec)
+                            messenger.acknowledge_events_files(workSpec)
                 tmpQueLog.debug('done')
             mainLog.debug('done')
             if self.singleMode:
@@ -117,12 +117,12 @@ class Monitor(threading.Thread):
             else:
                 workStatus = None
                 workersToCheck.append(workSpec)
+                # get events to update
+                if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
+                    eventsToUpdate = messenger.events_to_update(workSpec)
                 # request events
                 if workSpec.eventsRequest == WorkSpec.EV_useEvents:
                     eventsRequestParams = messenger.events_requested(workSpec)
-                # update events
-                if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
-                    eventsToUpdate = messenger.events_to_update(workSpec)
                 # get work attributes and output files
                 workAttributes = messenger.get_work_attributes(workSpec)
                 filesToStageOut = messenger.get_files_to_stage_out(workSpec)
@@ -141,6 +141,10 @@ class Monitor(threading.Thread):
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
                 if workerID in retMap:
+                    # set running while there are events to update or files to stage out
+                    if len(retMap[workerID]['filesToStageOut']) > 0 or \
+                                    len(retMap[workerID]['eventsToUpdate']) > 0:
+                        newStatus = WorkSpec.ST_running
                     retMap[workerID]['newStatus'] = newStatus
                     retMap[workerID]['diagMessage'] = diagMessage
         return retMap

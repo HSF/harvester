@@ -22,7 +22,7 @@ class SlurmMonitor(PluginBase):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
             # command
-            comStr = "scontrol show job {0}".format(workSpec.batchID)
+            comStr = "sacct --jobs={0}".format(workSpec.batchID)
             # check
             tmpLog.debug('check with {0}'.format(comStr))
             p = subprocess.Popen(comStr.split(),
@@ -38,10 +38,10 @@ class SlurmMonitor(PluginBase):
             if retCode == 0:
                 # parse
                 for tmpLine in stdOut.split('\n'):
-                    tmpMatch = re.search('JobState=([^ ]+)', tmpLine)
+                    tmpMatch = re.search('{0} '.format(workSpec.batchID), tmpLine)
                     if tmpMatch is not None:
                         errStr = tmpLine
-                        batchStatus = tmpMatch.group(1)
+                        batchStatus = tmpLine.split()[5]
                         if batchStatus in ['RUNNING', 'COMPLETING', 'STOPPED', 'SUSPENDED']:
                             newStatus = WorkSpec.ST_running
                         elif batchStatus in ['COMPLETED', 'PREEMPTED', 'TIMEOUT']:

@@ -1,7 +1,6 @@
 import json
 import os
 import os.path
-import xml.dom.minidom
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
@@ -15,7 +14,7 @@ _logger = core_utils.setup_logger()
 jsonAttrsFileName = 'worker_attributes.json'
 
 # json for outputs
-jsonOutputsFileName = 'worker_filestostageout.json'
+jsonOutputsFileName = 'event_status.dump.json'
 
 # xml for outputs
 xmlOutputsBaseFileName = '_event_status.dump'
@@ -38,6 +37,9 @@ jsonEventsUpdateFileName = 'worker_updateevents.json'
 # PFC for input files
 xmlPoolCatalogFileName = 'PoolFileCatalog_H.xml'
 
+# suffix to read json
+suffixReadJson = '.read'
+
 
 # messenger with shared file system
 class SharedFileMessenger(PluginBase):
@@ -55,25 +57,27 @@ class SharedFileMessenger(PluginBase):
                                                                                        workSpec.workerID))
             jobSpec.set_attributes(workSpec.workAttributes)
             # add files
-            for lfn, fileAtters in files_to_stage_out.iteritems():
-                fileSpec = FileSpec()
-                fileSpec.lfn = lfn
-                fileSpec.PandaID = jobSpec.PandaID
-                fileSpec.taskID = jobSpec.taskID
-                fileSpec.path = fileAtters['path']
-                fileSpec.fsize = fileAtters['fsize']
-                fileSpec.fileType = fileAtters['type']
-                fileSpec.fileAttributes = fileAtters
-                if 'isZip' in fileAtters:
-                    fileSpec.isZip = fileAtters['isZip']
-                if 'eventRangeID' in fileAtters:
-                    fileSpec.eventRangeID = fileAtters['eventRangeID']
-                jobSpec.add_out_file(fileSpec)
+            if jobSpec.PandaID in files_to_stage_out:
+                for lfn, fileAtters in files_to_stage_out[jobSpec.PandaID].iteritems():
+                    fileSpec = FileSpec()
+                    fileSpec.lfn = lfn
+                    fileSpec.PandaID = jobSpec.PandaID
+                    fileSpec.taskID = jobSpec.taskID
+                    fileSpec.path = fileAtters['path']
+                    fileSpec.fsize = fileAtters['fsize']
+                    fileSpec.fileType = fileAtters['type']
+                    fileSpec.fileAttributes = fileAtters
+                    if 'isZip' in fileAtters:
+                        fileSpec.isZip = fileAtters['isZip']
+                    if 'eventRangeID' in fileAtters:
+                        fileSpec.eventRangeID = fileAtters['eventRangeID']
+                    jobSpec.add_out_file(fileSpec)
             # add events
-            for data in events_to_update:
-                eventSpec = EventSpec()
-                eventSpec.from_data(data)
-                jobSpec.add_event(eventSpec, None)
+            if jobSpec.PandaID in events_to_update:
+                for data in events_to_update[jobSpec.PandaID]:
+                    eventSpec = EventSpec()
+                    eventSpec.from_data(data)
+                    jobSpec.add_event(eventSpec, None)
             jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status()
             tmpLog.debug('new jobStatus={0} subStatus={1}'.format(jobSpec.status, jobSpec.subStatus))
         elif map_type == WorkSpec.MT_MultiJobs:
@@ -111,75 +115,66 @@ class SharedFileMessenger(PluginBase):
     def get_files_to_stage_out(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
-        retDict = {}
+        fileDict = dict()
         if workspec.mapType == WorkSpec.MT_OneToOne:
-            # look for the json just under the accesspoint
+            # look for the json just under the access point
             jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
-            tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
-            if not os.path.exists(jsonFilePath):
-                # not found
-                tmpLog.debug('not found')
-                return {}
+            readJsonPath = jsonFilePath + suffixReadJson
+            # first look for json.read which is not yet acknowledged
+            tmpLog.debug('looking for output file {0}'.format(readJsonPath))
+            if os.path.exists(readJsonPath):
+                pass
+            else:
+                tmpLog.debug('looking for event update file {0}'.format(jsonFilePath))
+                if not os.path.exists(jsonFilePath):
+                    # not found
+                    tmpLog.debug('not found')
+                    return {}
+                try:
+                    # rename to prevent from being overwritten
+                    os.rename(jsonFilePath, readJsonPath)
+                except:
+                    tmpLog.error('failed to rename json')
+                    return {}
+            # load json
             try:
-                with open(jsonFilePath) as jsonFile:
-                    retDict = json.load(jsonFile)
+                with open(readJsonPath) as jsonFile:
+                    loadDict = json.load(jsonFile)
             except:
                 tmpLog.debug('failed to load json')
-            # read event dump from XML which is an old convention    
-            xmlRetDict = self.take_xml_event_output_dump(workspec.get_access_point(), tmpLog)
-            retDict.update(xmlRetDict)
+                return {}
+            # collect files and events
+            eventsList = dict()
+            for tmpPandaID, tmpEventMap in loadDict.iteritems():
+                tmpPandaID = long(tmpPandaID)
+                for tmpEventRangeID, tmpEventInfo in tmpEventMap.iteritems():
+                    tmpFileDict = dict()
+                    pfn = tmpEventInfo['path']
+                    lfn = os.path.basename(pfn)
+                    tmpFileDict['path'] = pfn
+                    tmpFileDict['fsize'] = os.stat(pfn).st_size
+                    tmpFileDict['type'] = 'es_output'
+                    tmpFileDict['eventRangeID'] = tmpEventRangeID
+                    if tmpPandaID not in fileDict:
+                        fileDict[tmpPandaID] = dict()
+                    fileDict[tmpPandaID][lfn] = tmpFileDict
+                    if tmpPandaID not in eventsList:
+                        eventsList[tmpPandaID] = list()
+                    eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
+                                                   'eventStatus': tmpEventInfo['eventStatus']})
+            # dump events
+            if eventsList != []:
+                curName = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
+                newName = curName + '.new'
+                f = open(newName, 'w')
+                json.dump(eventsList, f)
+                f.close()
+                os.rename(newName, curName)
         elif workspec.mapType == WorkSpec.MT_MultiJobs:
             # look for json files under access_point/${PandaID}
             # TOBEFIXED
             pass
-        return retDict
-
-    # get and parse XML event output dump
-    def take_xml_event_output_dump(self, access_point, tmp_log):
-        fileDict = {}
-        eventsList = []
-        try:
-            # scan access point
-
-            for tmpRoot, tmpDirs, tmpFiles in os.walk(access_point):
-                for tmpFile in tmpFiles:
-                    # look for XML files
-                    if not tmpFile.startswith(xmlOutputsBaseFileName):
-                        continue
-                    # get PandaID
-                    try:
-                        pandaID = long(tmpFile.split('_')[0])
-                    except:
-                        continue
-                    # parse XML
-                    xmlRoot = xml.dom.minidom.parse(tmpFile)
-                    fileItems = xmlRoot.getElementsByTagName('File')
-                    for fileItem in fileItems:
-                        # get event range ID and status
-                        eventRangeID = str(fileItem.getAttribute('EventRangeID'))
-                        eventStatus = str(fileItem.getAttribute('Status'))
-                        # get pfn
-                        physNode = fileItem.getElementsByTagName('physical')[0]
-                        pfnNode = physNode.getElementsByTagName('pfn')[0]
-                        pfn = str(pfnNode.getAttribute('name'))
-                        lfn = pfn.split('/')[-1]
-                        # make file dict
-                        tmpDict = {}
-                        tmpDict['path'] = pfn
-                        tmpDict['fsize'] = 0  # FIXME
-                        tmpDict['type'] = 'output'  # FIXME
-                        tmpDict['eventRangeID'] = eventRangeID
-                        fileDict[lfn] = tmpDict
-                        # add events
-                        eventsList.append({'eventRangeID': eventRangeID,
-                                           'eventStatus': eventStatus})
-            # dump events
-            if eventsList != []:
-                f = open(os.path.join(access_point, jsonEventsUpdateFileName), 'w')
-                json.dump(eventsList, f)
-                f.close()
-        except:
-            pass
+        tmpLog.debug('got {0}'.format(str(fileDict)))
         return fileDict
 
     # check if job is requested.
@@ -242,7 +237,7 @@ class SharedFileMessenger(PluginBase):
     def events_requested(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
-        # look for the json just under the accesspoint
+        # look for the json just under the access point
         jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsRequestFileName)
         tmpLog.debug('looking for event request file {0}'.format(jsonFilePath))
         if not os.path.exists(jsonFilePath):
@@ -293,33 +288,60 @@ class SharedFileMessenger(PluginBase):
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         # look for the json just under the access point
         jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
-        tmpLog.debug('looking for event update file {0}'.format(jsonFilePath))
-        if not os.path.exists(jsonFilePath):
-            # not found
-            tmpLog.debug('not found')
-            return {}
+        readJsonPath = jsonFilePath + suffixReadJson
+        # first look for json.read which is not yet acknowledged
+        tmpLog.debug('looking for event update file {0}'.format(readJsonPath))
+        if os.path.exists(readJsonPath):
+            pass
+        else:
+            tmpLog.debug('looking for event update file {0}'.format(jsonFilePath))
+            if not os.path.exists(jsonFilePath):
+                # not found
+                tmpLog.debug('not found')
+                return {}
+            try:
+                # rename to prevent from being overwritten
+                os.rename(jsonFilePath, readJsonPath)
+            except:
+                tmpLog.error('failed to rename json')
+                return {}
+        # load json
         try:
-            with open(jsonFilePath) as jsonFile:
+            with open(readJsonPath) as jsonFile:
                 retDict = json.load(jsonFile)
+                newDict = dict()
+                # change the key from str to int
+                for tmpPandaID, tmpDict in retDict.iteritems():
+                    tmpPandaID = long(tmpPandaID)
+                    newDict[tmpPandaID] = tmpDict
+                retDict = newDict
         except:
             tmpLog.debug('failed to load json')
             return {}
-        tmpLog.debug('found')
+        tmpLog.debug('got {0}'.format(str(retDict)))
         return retDict
 
-    # acknowledge events.
-    # * the events json is deleted to let worker know that the info was received
-    def acknowledge_events(self, workspec):
+    # acknowledge events and files
+    # * delete json.read files
+    def acknowledge_events_files(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         # remove request file
         try:
             jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
+            jsonFilePath += suffixReadJson
+            os.remove(jsonFilePath)
+        except:
+            pass
+        try:
+            jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
+            jsonFilePath += suffixReadJson
             os.remove(jsonFilePath)
         except:
             pass
         tmpLog.debug('done')
         return
+
 
     # setup access points
     def setup_access_points(self, workspec_list):

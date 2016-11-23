@@ -146,6 +146,17 @@ class Submitter(threading.Thread):
                         workSpec.submitTime = timeNow
                         workSpec.stateChangeTime = timeNow
                         workSpec.modificationTime = timeNow
+                        # prefetch events
+                        if workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
+                            workSpec.eventsRequest = WorkSpec.EV_requestEvents
+                            eventsRequestParams = dict()
+                            for jobSpec in jobList:
+                                eventsRequestParams[jobSpec.PandaID] = {'pandaID': jobSpec.PandaID,
+                                                                        'taskID': jobSpec.taskID,
+                                                                        'jobsetID': jobSpec.jobParams['jobsetID'],
+                                                                        'nRanges': jobSpec.jobParams['coreCount'],
+                                                                        }
+                            workSpec.eventsRequestParams = eventsRequestParams
                         # register worker
                         tmpStat = self.dbProxy.register_worker(workSpec, jobList, lockedBy)
                         for jobSpec in jobList:

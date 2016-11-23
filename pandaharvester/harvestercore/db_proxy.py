@@ -943,8 +943,8 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger)
             tmpLog.debug('start')
             # sql to get workers
-            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
-            sqlW += "WHERE eventsRequest=:eventsRequest AND status=:status "
+            sqlW = "SELECT workerID, status FROM {0} ".format(workTableName)
+            sqlW += "WHERE eventsRequest=:eventsRequest AND status IN (:status1,:status2) "
             sqlW += "AND (eventFeedTime IS NULL OR eventFeedTime<:lockTimeLimit) "
             sqlW += "ORDER BY eventFeedTime LIMIT {0} ".format(max_workers)
             sqlW += "FOR UPDATE "
@@ -960,21 +960,22 @@ class DBProxy:
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
             varMap = dict()
-            varMap[':status'] = WorkSpec.ST_running
+            varMap[':status1'] = WorkSpec.ST_running
+            varMap[':status2'] = WorkSpec.ST_submitted
             varMap[':eventsRequest'] = WorkSpec.EV_requestEvents
             varMap[':lockTimeLimit'] = lockTimeLimit
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
-            tmpWorkers = set()
-            for workerID, in resW:
-                tmpWorkers.add(workerID)
+            tmpWorkers = dict()
+            for tmpWorkerID, tmpWorkStatus in resW:
+                tmpWorkers[tmpWorkerID] = tmpWorkStatus
             retVal = {}
-            for workerID in tmpWorkers:
+            for workerID, workStatus in tmpWorkers.iteritems():
                 # lock worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
                 varMap[':timeNow'] = timeNow
-                varMap[':status'] = WorkSpec.ST_running
+                varMap[':status'] = workStatus
                 varMap[':eventsRequest'] = WorkSpec.EV_requestEvents
                 varMap[':lockTimeLimit'] = lockTimeLimit
                 self.execute(sqlL, varMap)
@@ -1060,7 +1061,8 @@ class DBProxy:
                     if nFiles > 0:
                         tmpLog.debug('inserted {0} files'.format(nFiles))
                     # check pending files
-                    if jobSpec.zipPerMB is not None and not (jobSpec.zipPerMB == 0 and jobSpec.status != 'totransfer'):
+                    if jobSpec.zipPerMB is not None and \
+                            not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'totransfer'):
                         varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
                         varMap[':status'] = 'pending'
@@ -1079,7 +1081,7 @@ class DBProxy:
                                 subTotalSize = 0
                             subTotalSize += tmpFsize
                             subFileIDs.append((tmpFileID, tmpLFN))
-                        if (jobSpec.status == 'totransfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
+                        if (jobSpec.subStatus == 'totransfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
                                 and len(subFileIDs) > 0:
                             zippedFileIDs.append(subFileIDs)
                         # make zip files
@@ -1087,8 +1089,8 @@ class DBProxy:
                             # insert zip file
                             fileSpec = FileSpec()
                             fileSpec.status = 'zipping'
-                            fileSpec.lfn = subFileIDs[0][-1] + '.zip'
-                            fileSpec.fileType = 'zipoutput'
+                            fileSpec.lfn = 'panda.' + subFileIDs[0][-1] + '.zip'
+                            fileSpec.fileType = 'zip_output'
                             fileSpec.PandaID = jobSpec.PandaID
                             fileSpec.taskID = jobSpec.taskID
                             fileSpec.isZip = 1
@@ -1103,6 +1105,8 @@ class DBProxy:
                                 varMap[':zipFileID'] = self.cur.lastrowid
                                 varMaps.append(varMap)
                             self.executemany(sqlFU, varMaps)
+                        # set zip output flag
+                        if len(zippedFileIDs) > 0:
                             jobSpec.hasOutFile = JobSpec.HO_hasZipOutput
                     # insert or update events
                     varMapsEI = []
@@ -1304,7 +1308,7 @@ class DBProxy:
 
     # get jobs to trigger or check output transfer or zip output
     def get_jobs_for_stage_out(self, max_jobs, interval_with_lock, interval_without_lock, locked_by,
-                               sub_status, has_out_file):
+                               sub_status, has_out_file_flag, bad_has_out_file_flag=None):
         try:
             # get logger
             msgPfx = 'thr={0}'.format(locked_by)
@@ -1312,7 +1316,9 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get jobs
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
-            sql += "WHERE subStatus=:subStatus OR hasOutFile=:hasOutFile "
+            sql += "WHERE (subStatus=:subStatus OR hasOutFile=:hasOutFile) "
+            if bad_has_out_file_flag is not None:
+                sql += "AND hasOutFile<>:badHasOutFile "
             sql += "AND (stagerTime IS NULL "
             sql += "OR (stagerTime<:lockTimeLimit AND stagerLock IS NOT NULL) "
             sql += "OR stagerTime<:updateTimeLimit) "
@@ -1337,7 +1343,9 @@ class DBProxy:
             updateTimeLimit = timeNow - datetime.timedelta(seconds=interval_without_lock)
             varMap = dict()
             varMap[':subStatus'] = sub_status
-            varMap[':hasOutFile'] = has_out_file
+            varMap[':hasOutFile'] = has_out_file_flag
+            if bad_has_out_file_flag is not None:
+                varMap[':badHasOutFile'] = bad_has_out_file_flag
             varMap[':lockTimeLimit'] = lockTimeLimit
             varMap[':updateTimeLimit'] = updateTimeLimit
             self.execute(sql, varMap)
@@ -1362,9 +1370,9 @@ class DBProxy:
                     # get files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
-                    if has_out_file == JobSpec.HO_hasOutput:
+                    if has_out_file_flag == JobSpec.HO_hasOutput:
                         varMap[':status'] = 'defined'
-                    elif has_out_file == JobSpec.HO_hasZipOutput:
+                    elif has_out_file_flag == JobSpec.HO_hasZipOutput:
                         varMap[':status'] = 'zipping'
                     else:
                         varMap[':status'] = 'transferring'
@@ -1376,7 +1384,7 @@ class DBProxy:
                         jobSpec.add_out_file(fileSpec)
                     jobSpecList.append(jobSpec)
                     # get associated files
-                    if has_out_file == JobSpec.HO_hasZipOutput:
+                    if has_out_file_flag == JobSpec.HO_hasZipOutput:
                         for fileSpec in jobSpec.outFiles:
                             varMap = dict()
                             varMap[':PandaID'] = fileSpec.PandaID

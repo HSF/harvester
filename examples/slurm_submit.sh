@@ -29,4 +29,5 @@ export WORK_DIR={accessPoint}
 cd $WORK_DIR
 
 srun -N 2 python-mpi $PILOT_DIR/HPC/HPCJob.py \
-    --globalWorkingDir=$WORK_DIR  --localWorkingDir=$WORK_DIR --dumpEventOutputs
+    --globalWorkingDir=$WORK_DIR  --localWorkingDir=$WORK_DIR --dumpEventOutputs \
+    --dumpFormat json

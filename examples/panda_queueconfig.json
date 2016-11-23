@@ -1,10 +1,11 @@
 {
 "BNL_PROD_5": {
 	       "prodSourceLabel":"managed",
-	       "nQueueLimitJob":5,
-	       "nQueueLimitWorker":5,
+	       "nQueueLimitJob":1,
+	       "nQueueLimitWorker":1,
 	       "maxWorkers":1,	
 	       "mapType":"OneToOne",
+	       "zipPerMB":1024,
 	       "preparator":{
 			"name":"RseDirectPreparator",
 			"module":"pandaharvester.harvesterpreparator.rse_direct_preparator",
