@@ -52,7 +52,7 @@ class Stager(threading.Thread):
                 # succeeded
                 if tmpStat is True:
                     # update job
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec)
+                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
                     tmpLog.debug('succeeded newSubStatus={0}'.format(newSubStatus))
                 else:
                     # failed
@@ -86,7 +86,7 @@ class Stager(threading.Thread):
                 if tmpStat is True:
                     # update job
                     jobSpec.all_files_triggered_to_stage_out()
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec)
+                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
                     tmpLog.debug('triggered newSubStatus={0}'.format(newSubStatus))
                 else:
                     # failed
@@ -120,7 +120,7 @@ class Stager(threading.Thread):
                 if tmpStat is True:
                     # update job
                     jobSpec.all_files_zipped()
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec)
+                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
                     tmpLog.debug('zipped newSubStatus={0}'.format(newSubStatus))
                 else:
                     # failed

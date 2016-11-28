@@ -1408,7 +1408,7 @@ class DBProxy:
             return []
 
     # update job for stage-out
-    def update_job_for_stage_out(self, jobspec):
+    def update_job_for_stage_out(self, jobspec, update_event_status):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0} subStatus={1}'.format(jobspec.PandaID,
@@ -1428,33 +1428,35 @@ class DBProxy:
                 sqlF = "UPDATE {0} SET {1} ".format(fileTableName, fileSpec.bind_update_changes_expression())
                 sqlF += "WHERE PandaID=:PandaID AND fileID=:fileID "
                 varMap = fileSpec.values_map(only_changed=True)
-                varMap[':PandaID'] = fileSpec.PandaID
-                varMap[':fileID'] = fileSpec.fileID
-                self.execute(sqlF, varMap)
-                # update events
-                eventRangeIDs = []
-                if fileSpec.eventRangeID is not None:
-                    eventRangeIDs.append(fileSpec.eventRangeID)
-                elif fileSpec.isZip == 1:
-                    # get files associated with zip file
-                    varMap = dict()
+                if len(varMap) > 0:
                     varMap[':PandaID'] = fileSpec.PandaID
-                    varMap[':zipFileID'] = fileSpec.fileID
-                    self.execute(sqlAE, varMap)
-                    resAE = self.cur.fetchall()
-                    for eventRangeID, in resAE:
-                        eventRangeIDs.append(eventRangeID)
-                varMaps = []
-                for eventRangeID in eventRangeIDs:
-                    varMap = dict()
-                    varMap[':PandaID'] = fileSpec.PandaID
-                    varMap[':eventRangeID'] = eventRangeID
-                    varMap[':eventStatus'] = fileSpec.status
-                    varMap[':subStatus'] = fileSpec.status
-                    varMap[':statusFailed'] = 'failed'
-                    varMap[':statusDone'] = 'done'
-                    varMaps.append(varMap)
-                self.executemany(sqlEU, varMaps)
+                    varMap[':fileID'] = fileSpec.fileID
+                    self.execute(sqlF, varMap)
+                # update event status
+                if update_event_status:
+                    eventRangeIDs = []
+                    if fileSpec.eventRangeID is not None:
+                        eventRangeIDs.append(fileSpec.eventRangeID)
+                    elif fileSpec.isZip == 1:
+                        # get files associated with zip file
+                        varMap = dict()
+                        varMap[':PandaID'] = fileSpec.PandaID
+                        varMap[':zipFileID'] = fileSpec.fileID
+                        self.execute(sqlAE, varMap)
+                        resAE = self.cur.fetchall()
+                        for eventRangeID, in resAE:
+                            eventRangeIDs.append(eventRangeID)
+                    varMaps = []
+                    for eventRangeID in eventRangeIDs:
+                        varMap = dict()
+                        varMap[':PandaID'] = fileSpec.PandaID
+                        varMap[':eventRangeID'] = eventRangeID
+                        varMap[':eventStatus'] = fileSpec.status
+                        varMap[':subStatus'] = fileSpec.status
+                        varMap[':statusFailed'] = 'failed'
+                        varMap[':statusDone'] = 'done'
+                        varMaps.append(varMap)
+                    self.executemany(sqlEU, varMaps)
             # count files
             sqlC = "SELECT COUNT(*),status FROM {0} ".format(fileTableName)
             sqlC += "WHERE PandaID=:PandaID GROUP BY status "
@@ -1477,9 +1479,9 @@ class DBProxy:
                 jobspec.hasOutFile = JobSpec.HO_noOutput
             if jobspec.subStatus == 'totransfer':
                 # change subStatus when no more files to trigger transfer
-                if jobspec.hasOutFile in [JobSpec.HO_hasOutput, JobSpec.HO_hasZipOutput]:
+                if jobspec.hasOutFile not in [JobSpec.HO_hasOutput, JobSpec.HO_hasZipOutput]:
                     jobspec.subStatus = 'transferring'
-                    jobspec.stagerTime = None
+                jobspec.stagerTime = None
             elif jobspec.subStatus == 'transferring':
                 # all done
                 if jobspec.hasOutFile == JobSpec.HO_noOutput:

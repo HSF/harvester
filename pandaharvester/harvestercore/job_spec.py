@@ -27,6 +27,8 @@ class JobSpec(SpecBase):
                            'creationTime:timestamp',
                            'modificationTime:timestamp',
                            'stateChangeTime:timestamp',
+                           'startTime:timestamp',
+                           'endTime:timestamp',
                            'jobParams:blob',
                            'jobAttributes:blob',
                            'hasOutFile:integer',
@@ -198,3 +200,14 @@ class JobSpec(SpecBase):
                              'dataset': dataset,
                              'endpoint': endpoint}
         return outFiles
+
+    # set start time
+    def set_start_time(self, force=False):
+        if self.startTime is None or force is True:
+            self.startTime = datetime.datetime.utcnow()
+
+    # set end time
+    def set_end_time(self, force=False):
+        if self.endTime is None or force is True:
+            self.endTime = datetime.datetime.utcnow()
+

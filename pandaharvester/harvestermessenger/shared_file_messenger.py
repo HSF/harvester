@@ -56,6 +56,11 @@ class SharedFileMessenger(PluginBase):
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0} workerID={1}'.format(jobSpec.PandaID,
                                                                                        workSpec.workerID))
             jobSpec.set_attributes(workSpec.workAttributes)
+            # set start and end times
+            if workSpec.status in [WorkSpec.ST_running]:
+                jobSpec.set_start_time()
+            elif workSpec.status in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                jobSpec.set_end_time()
             # add files
             if jobSpec.PandaID in files_to_stage_out:
                 for lfn, fileAtters in files_to_stage_out[jobSpec.PandaID].iteritems():
