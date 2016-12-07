@@ -25,6 +25,8 @@ class SlurmSubmitter(PluginBase):
         for workSpec in workspec_list:
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            # set nCore
+            workSpec.nCore = self.nCore
             # make batch script
             batchFile = self.make_batch_script(workSpec)
             # command
@@ -55,7 +57,8 @@ class SlurmSubmitter(PluginBase):
     # make batch script
     def make_batch_script(self, workspec):
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
-        tmpFile.write(self.template.format(nCore=workspec.nCore,
+        tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
+                                           nNode=workspec.nCore / self.nCorePerNode,
                                            accessPoint=workspec.accessPoint)
                       )
         tmpFile.close()

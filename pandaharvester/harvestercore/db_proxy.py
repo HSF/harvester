@@ -247,7 +247,7 @@ class DBProxy:
             return False
 
     # get job
-    def get_job(self, panda_id):
+    def get_job(self, panda_id, with_file_status=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id))
@@ -267,6 +267,20 @@ class DBProxy:
             # make job
             jobSpec = JobSpec()
             jobSpec.pack(resJ)
+            # get files
+            if with_file_status is not None:
+                # sql to get files
+                sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+                sqlF += "WHERE PandaID=:PandaID AND status=:status "
+                varMap = dict()
+                varMap[':PandaID'] = panda_id
+                varMap[':status'] = with_file_status
+                self.execute(sqlF, varMap)
+                resFileList = self.cur.fetchall()
+                for resFile in resFileList:
+                    fileSpec = FileSpec()
+                    fileSpec.pack(resFile)
+                    jobSpec.add_out_file(fileSpec)
             tmpLog.debug('done')
             # return
             return jobSpec
@@ -1062,7 +1076,7 @@ class DBProxy:
                         tmpLog.debug('inserted {0} files'.format(nFiles))
                     # check pending files
                     if jobSpec.zipPerMB is not None and \
-                            not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'totransfer'):
+                            not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'to_transfer'):
                         varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
                         varMap[':status'] = 'pending'
@@ -1081,7 +1095,7 @@ class DBProxy:
                                 subTotalSize = 0
                             subTotalSize += tmpFsize
                             subFileIDs.append((tmpFileID, tmpLFN))
-                        if (jobSpec.subStatus == 'totransfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
+                        if (jobSpec.subStatus == 'to_transfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
                                 and len(subFileIDs) > 0:
                             zippedFileIDs.append(subFileIDs)
                         # make zip files
@@ -1175,7 +1189,10 @@ class DBProxy:
                 sqlW = "UPDATE {0} SET {1} ".format(workTableName, workSpec.bind_update_changes_expression())
                 sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
                 workSpec.lockedBy = None
-                workSpec.modificationTime = timeNow
+                if not workSpec.nextLookup:
+                    workSpec.modificationTime = timeNow
+                else:
+                    workSpec.nextLookup = False
                 varMap = workSpec.values_map(only_changed=True)
                 varMap[':workerID'] = workSpec.workerID
                 varMap[':cr_lockedBy'] = locked_by
@@ -1227,11 +1244,12 @@ class DBProxy:
                 jobSpec.pack(resJ)
                 jobSpec.lockedBy = locked_by
                 # lock job
-                varMap = dict()
-                varMap[':PandaID'] = pandaID
-                varMap[':lockedBy'] = locked_by
-                varMap[':timeNow'] = timeNow
-                self.execute(sqlL, varMap)
+                if locked_by is not None:
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    varMap[':lockedBy'] = locked_by
+                    varMap[':timeNow'] = timeNow
+                    self.execute(sqlL, varMap)
                 jobChunkList.append(jobSpec)
             # commit
             self.commit()
@@ -1477,7 +1495,7 @@ class DBProxy:
                 jobspec.hasOutFile = JobSpec.HO_hasTransfer
             else:
                 jobspec.hasOutFile = JobSpec.HO_noOutput
-            if jobspec.subStatus == 'totransfer':
+            if jobspec.subStatus == 'to_transfer':
                 # change subStatus when no more files to trigger transfer
                 if jobspec.hasOutFile not in [JobSpec.HO_hasOutput, JobSpec.HO_hasZipOutput]:
                     jobspec.subStatus = 'transferring'
@@ -1488,9 +1506,26 @@ class DBProxy:
                     jobspec.trigger_propagation()
                     if 'failed' in cntMap:
                         jobspec.status = 'failed'
-                        jobspec.subStatus = 'failedtostageout'
+                        jobspec.subStatus = 'failed_to_stage_out'
                     else:
                         jobspec.subStatus = 'staged'
+                        # get finished files
+                        jobspec.reset_out_file()
+                        sqlFF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+                        sqlFF += "WHERE PandaID=:PandaID AND status=:status AND fileType IN (:type1,:type2) "
+                        varMap = dict()
+                        varMap[':PandaID'] = jobspec.PandaID
+                        varMap[':status'] = 'finished'
+                        varMap[':type1'] = 'output'
+                        varMap[':type2'] = 'log'
+                        self.execute(sqlFF, varMap)
+                        resFileList = self.cur.fetchall()
+                        for resFile in resFileList:
+                            fileSpec = FileSpec()
+                            fileSpec.pack(resFile)
+                            jobspec.add_out_file(fileSpec)
+                        # make file report
+                        jobspec.outputFilesToReport = core_utils.get_output_file_report(jobspec)
             # sql to update job
             sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobspec.bind_update_changes_expression())
             sqlJ += "WHERE PandaID=:PandaID "

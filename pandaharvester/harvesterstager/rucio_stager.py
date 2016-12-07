@@ -57,6 +57,7 @@ class RucioStager(PluginBase):
                     # keep one message
                     if oneErrMsg is None:
                         oneErrMsg = errMsg
+                tmpTransferStatus = 'OK'
                 transferStatus[transferID] = tmpTransferStatus
             # final status
             if transferStatus[transferID] == 'OK':
@@ -108,7 +109,7 @@ class RucioStager(PluginBase):
             if os.path.exists(dstPath):
                 os.remove(dstPath)
             # copy
-            tmpLog.debug('src={srcPath} dst={dstPath}'.format(srcPath=srcPath, dstPath=dstPath))
+            tmpLog.debug('copy src={srcPath} dst={dstPath}'.format(srcPath=srcPath, dstPath=dstPath))
             dstDir = os.path.dirname(dstPath)
             if not os.path.exists(dstDir):
                 os.makedirs(dstDir)

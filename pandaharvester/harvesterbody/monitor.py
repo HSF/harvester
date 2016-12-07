@@ -46,7 +46,7 @@ class Monitor(threading.Thread):
                 # check workers
                 allWorkers = [item for sublist in workSpecsList for item in sublist]
                 tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
-                tmpRetMap = self.check_workers(monCore, messenger, allWorkers, tmpQueLog)
+                tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog)
                 # loop over all worker chunks
                 iWorker = 0
                 for workSpecs in workSpecsList:
@@ -97,9 +97,9 @@ class Monitor(threading.Thread):
             core_utils.sleep(harvester_config.monitor.sleepTime)
 
     # wrapper for checkWorkers
-    def check_workers(self, mon_core, messenger, all_workers, tmp_log):
+    def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log):
         workersToCheck = []
-        retMap = {}
+        retMap = dict()
         for workSpec in all_workers:
             eventsRequestParams = {}
             eventsToUpdate = []
@@ -142,9 +142,20 @@ class Monitor(threading.Thread):
                 workerID = workSpec.workerID
                 if workerID in retMap:
                     # set running while there are events to update or files to stage out
-                    if len(retMap[workerID]['filesToStageOut']) > 0 or \
-                                    len(retMap[workerID]['eventsToUpdate']) > 0:
-                        newStatus = WorkSpec.ST_running
+                    if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                        if not workSpec.is_post_processed():
+                            # get associated jobIDs
+                            jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
+                                                                            None)
+                            # post processing
+                            messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
+                            workSpec.post_processed()
+                            newStatus = WorkSpec.ST_running
+                        elif len(retMap[workerID]['filesToStageOut']) > 0 or \
+                                len(retMap[workerID]['eventsToUpdate']) > 0:
+                            newStatus = WorkSpec.ST_running
+                        # reset modification time to immediately trigger subsequent lookup
+                        workSpec.trigger_next_lookup()
                     retMap[workerID]['newStatus'] = newStatus
                     retMap[workerID]['diagMessage'] = diagMessage
         return retMap

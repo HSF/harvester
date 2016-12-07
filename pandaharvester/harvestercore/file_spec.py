@@ -14,6 +14,7 @@ class FileSpec(SpecBase):
                            'lfn:text',
                            'status:text',
                            'fsize:integer',
+                           'chksum:text',
                            'path:text',
                            'fileType:text',
                            'eventRangeID:text',

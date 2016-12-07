@@ -5,6 +5,8 @@ utilities
 
 import sys
 import time
+import zlib
+import uuid
 import random
 import inspect
 import traceback
@@ -74,3 +76,50 @@ def make_pool_file_catalog(jobspec_list):
   """.format(guid=inFile['guid'], lfn=inLFN)
     xmlStr += "</POOLFILECATALOG>"
     return xmlStr
+
+
+# calculate adler32
+def calc_adler32(file_name):
+    val = 1
+    blockSize = 32 * 1024 * 1024
+    with open(file_name) as fp:
+        while True:
+            data = fp.read(blockSize)
+            if not data:
+                break
+            val = zlib.adler32(data, val)
+    if val < 0:
+        val += 2 ** 32
+    return hex(val)[2:10].zfill(8).lower()
+
+
+# get output file report
+def get_output_file_report(jobspec):
+    # header
+    xml = """<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+    <!-- ATLAS file meta-data catalog -->
+    <!DOCTYPE POOLFILECATALOG SYSTEM "InMemory">
+    <POOLFILECATALOG>
+    """
+    # body
+    for fileSpec in jobspec.outFiles:
+        # only successful files
+        if fileSpec.status != 'finished':
+            continue
+        # extract guid
+        if fileSpec.fileType == 'log':
+            guid = jobspec.get_logfile_info()['guid']
+        else:
+            guid = str(uuid.uuid4())
+        xml += """"<File ID="{guid}">
+        <logical>
+        <lfn name="{lfn}"/>
+        </logical>
+        <metadata att_name="fsize" att_value = "{fsize}"/>
+        <metadata att_name="adler32" att_value="{chksum}"/>
+        </File> """.format(guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=fileSpec.chksum)
+    # tailor
+    xml += """
+    </POOLFILECATALOG>
+    """
+    return xml

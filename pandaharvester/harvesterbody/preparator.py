@@ -32,7 +32,7 @@ class Preparator(threading.Thread):
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.get_jobs_in_sub_status('preparing',
                                                               harvester_config.preparator.maxJobsToCheck,
-                                                          'preparatorTime', 'lockedBy',
+                                                              'preparatorTime', 'lockedBy',
                                                               harvester_config.preparator.checkInterval,
                                                               harvester_config.preparator.lockInterval,
                                                               lockedBy)

@@ -29,6 +29,7 @@ class JobSpec(SpecBase):
                            'stateChangeTime:timestamp',
                            'startTime:timestamp',
                            'endTime:timestamp',
+                           'nCore:integer',
                            'jobParams:blob',
                            'jobAttributes:blob',
                            'hasOutFile:integer',
@@ -55,6 +56,10 @@ class JobSpec(SpecBase):
     # add output file
     def add_out_file(self, filespec):
         self.outFiles.add(filespec)
+
+    # reset output file list
+    def reset_out_file(self):
+        self.outFiles.clear()
 
     # add event
     def add_event(self, eventspec, zip_filespec):
@@ -84,7 +89,7 @@ class JobSpec(SpecBase):
 
     # set attributes
     def set_attributes(self, attrs):
-        if attrs == None:
+        if attrs is None:
             return
         attrs = copy.copy(attrs)
         # set metadata and outputs to dedicated attributes
@@ -103,7 +108,7 @@ class JobSpec(SpecBase):
     # get status
     def get_status(self):
         # don't report the final status while staging-out
-        if self.is_final_status() and (self.subStatus in ['totransfer', 'transferring'] or not self.all_events_done()):
+        if self.is_final_status() and (self.subStatus in ['to_transfer', 'transferring'] or not self.all_events_done()):
             return 'transferring'
         return self.status
 
@@ -201,6 +206,13 @@ class JobSpec(SpecBase):
                              'endpoint': endpoint}
         return outFiles
 
+    # get log file information
+    def get_logfile_info(self):
+        retMap = dict()
+        retMap['lfn'] = self.jobParams['logFile']
+        retMap['guid'] = self.jobParams['logGUID']
+        return retMap
+
     # set start time
     def set_start_time(self, force=False):
         if self.startTime is None or force is True:
@@ -210,4 +222,3 @@ class JobSpec(SpecBase):
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
             self.endTime = datetime.datetime.utcnow()
-

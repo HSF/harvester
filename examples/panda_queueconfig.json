@@ -14,7 +14,9 @@
 		"submitter":{
 			"name":"SlurmSubmitter",
 			"module":"pandaharvester.harvestersubmitter.slurm_submitter",
-			"templateFile":"/global/homes/t/tmaeno/panda-harvester/examples/slurm_submit.sh"
+			"templateFile":"/global/homes/t/tmaeno/panda-harvester/examples/slurm_submit.sh",
+			"nCorePerNode": 24,
+			"nCore": 24
 			},
 		"workerMaker":{
 			"name":"SimpleWorkerMaker",
@@ -57,8 +59,10 @@
 			},
 		"submitter":{
 			"name":"SlurmSubmitter",
-			"module":"pandaharvester.harvestersubmitter.slurm_submitter"
-			},
+			"module":"pandaharvester.harvestersubmitter.slurm_submitter",
+			"nCorePerNode": 24,
+			"nCore": 48
+		    },
 		"workerMaker":{
 			"name":"SimpleWorkerMaker",
 			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker",

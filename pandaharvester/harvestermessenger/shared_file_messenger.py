@@ -1,6 +1,9 @@
 import json
 import os
+import re
 import os.path
+import tarfile
+import fnmatch
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
@@ -12,6 +15,9 @@ _logger = core_utils.setup_logger()
 
 # json for worker attributes
 jsonAttrsFileName = 'worker_attributes.json'
+
+# json for job report
+jsonJobReport = 'jobReport.json'
 
 # json for outputs
 jsonOutputsFileName = 'event_status.dump.json'
@@ -61,6 +67,9 @@ class SharedFileMessenger(PluginBase):
                 jobSpec.set_start_time()
             elif workSpec.status in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
                 jobSpec.set_end_time()
+            # core count
+            if workSpec.nCore is not None:
+                jobSpec.nCore = workSpec.nCore
             # add files
             if jobSpec.PandaID in files_to_stage_out:
                 for lfn, fileAtters in files_to_stage_out[jobSpec.PandaID].iteritems():
@@ -74,6 +83,8 @@ class SharedFileMessenger(PluginBase):
                     fileSpec.fileAttributes = fileAtters
                     if 'isZip' in fileAtters:
                         fileSpec.isZip = fileAtters['isZip']
+                    if 'chksum' in fileAtters:
+                        fileSpec.chksum = fileAtters['chksum']
                     if 'eventRangeID' in fileAtters:
                         fileSpec.eventRangeID = fileAtters['eventRangeID']
                     jobSpec.add_out_file(fileSpec)
@@ -97,18 +108,32 @@ class SharedFileMessenger(PluginBase):
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         retDict = {}
         if workspec.mapType == WorkSpec.MT_OneToOne:
-            # look for the json just under the accesspoint
+            # look for the json just under the access point
             jsonFilePath = os.path.join(workspec.get_access_point(), jsonAttrsFileName)
+            tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
+            retDict = dict()
+            if not os.path.exists(jsonFilePath):
+                # not found
+                tmpLog.debug('not found')
+            else:
+                try:
+                    with open(jsonFilePath) as jsonFile:
+                        retDict = json.load(jsonFile)
+                except:
+                    tmpLog.debug('failed to load {0}'.format(jsonFilePath))
+            # look for job report
+            jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
             tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
             if not os.path.exists(jsonFilePath):
                 # not found
                 tmpLog.debug('not found')
-                return {}
-            try:
-                with open(jsonFilePath) as jsonFile:
-                    retDict = json.load(jsonFile)
-            except:
-                tmpLog.debug('failed to load json')
+            else:
+                try:
+                    with open(jsonFilePath) as jsonFile:
+                        tmpDict = json.load(jsonFile)
+                        retDict['metadata'] = tmpDict
+                except:
+                    tmpLog.debug('failed to load {0}'.format(jsonFilePath))
         elif workspec.mapType == WorkSpec.MT_MultiJobs:
             # look for json files under accesspoint/${PandaID}
             # TOBEFIXED
@@ -158,11 +183,20 @@ class SharedFileMessenger(PluginBase):
                     lfn = os.path.basename(pfn)
                     tmpFileDict['path'] = pfn
                     tmpFileDict['fsize'] = os.stat(pfn).st_size
-                    tmpFileDict['type'] = 'es_output'
-                    tmpFileDict['eventRangeID'] = tmpEventRangeID
+                    tmpFileDict['type'] = tmpEventInfo['type']
+                    if 'isZip' in tmpEventInfo:
+                        tmpFileDict['isZip'] = tmpEventInfo['isZip']
+                    # get checksum
+                    if 'chksum' not in tmpEventInfo:
+                        tmpEventInfo['chksum'] = core_utils.calc_adler32(pfn)
+                    tmpFileDict['chksum'] = tmpEventInfo['chksum']
                     if tmpPandaID not in fileDict:
                         fileDict[tmpPandaID] = dict()
                     fileDict[tmpPandaID][lfn] = tmpFileDict
+                    # skip if unrelated to events
+                    if tmpFileDict['type'] not in ['es_output']:
+                        continue
+                    tmpFileDict['eventRangeID'] = tmpEventRangeID
                     if tmpPandaID not in eventsList:
                         eventsList[tmpPandaID] = list()
                     eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
@@ -347,7 +381,6 @@ class SharedFileMessenger(PluginBase):
         tmpLog.debug('done')
         return
 
-
     # setup access points
     def setup_access_points(self, workspec_list):
         for workSpec in workspec_list:
@@ -355,3 +388,42 @@ class SharedFileMessenger(PluginBase):
             # make the dir if missing
             if not os.path.exists(accessPoint):
                 os.makedirs(accessPoint)
+
+    # filter for log.tar.gz
+    def filter_log_tgz(self, name):
+        for tmpPatt in ['*.log', '*.txt', '*.xml', '*.json', 'log*']:
+            if fnmatch.fnmatch(name, tmpPatt):
+                return True
+        return False
+
+    # post-processing (archiving log files and collecting job metrics)
+    def post_processing(self, workspec, jobspec_list, map_type):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        if map_type == WorkSpec.MT_OneToOne:
+            jobSpec = jobspec_list[0]
+            logFileInfo = jobSpec.get_logfile_info()
+            # make log.tar.gz
+            logFilePath = os.path.join(workspec.get_access_point(), logFileInfo['lfn'])
+            tmpLog.debug('making {0}'.format(logFilePath))
+            with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
+                accessPoint = workspec.get_access_point()
+                for tmpRoot, tmpDirs, tmpFiles in os.walk(accessPoint):
+                    for tmpFile in tmpFiles:
+                        if not self.filter_log_tgz(tmpFile):
+                            continue
+                        tmpFullPath = os.path.join(tmpRoot, tmpFile)
+                        tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
+                        tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+            # make json
+            fileDict = dict()
+            fileDict[jobSpec.PandaID] = dict()
+            fileDict[jobSpec.PandaID][logFileInfo['lfn']] = {'path': logFilePath,
+                                                             'type': 'log',
+                                                             'isZip': 0}
+            jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
+            with open(jsonFilePath, 'w') as jsonFile:
+                json.dump(fileDict, jsonFile)
+        else:
+            # FIXME
+            pass

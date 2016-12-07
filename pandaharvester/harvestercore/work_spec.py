@@ -4,6 +4,7 @@ Work spec class
 """
 
 import re
+import datetime
 from spec_base import SpecBase
 
 
@@ -58,13 +59,15 @@ class WorkSpec(SpecBase):
                            'modificationTime:timestamp',
                            'stateChangeTime:timestamp',
                            'eventFeedTime:timestamp',
-                           'lockedBy:text'
+                           'lockedBy:text',
+                           'postProcessed:integer'
                            )
 
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
         object.__setattr__(self, 'isNew', False)
+        object.__setattr__(self, 'nextLookup', False)
 
     # get access point
     def get_access_point(self):
@@ -105,8 +108,21 @@ class WorkSpec(SpecBase):
             jobSubStatus = self.status
         elif self.status in [self.ST_finished, self.ST_failed, self.ST_cancelled]:
             jobStatus = self.status
-            jobSubStatus = 'totransfer'
+            jobSubStatus = 'to_transfer'
         else:
             jobStatus = 'running'
             jobSubStatus = self.status
         return jobStatus, jobSubStatus
+
+    # check if post processed
+    def is_post_processed(self):
+        return self.postProcessed == 1
+
+    # set post processed flag
+    def post_processed(self):
+        self.postProcessed = 1
+
+    # trigger next lookup
+    def trigger_next_lookup(self):
+        self.nextLookup = True
+        self.modificationTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)

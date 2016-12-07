@@ -1,10 +1,10 @@
 #!/bin/bash -l
 #SBATCH -p debug
-#SBATCH -N 2
+#SBATCH -N {nNode}
 #SBATCH --signal=SIGUSR1@60
 #SBATCH -t 00:30:00
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=24
+#SBATCH --cpus-per-task={nCorePerNode}
 #SBATCH -J ES_job
 #SBATCH -o {accessPoint}/athena_stdout.txt
 #SBATCH -e {accessPoint}/athena_stderr.txt
@@ -28,6 +28,6 @@ export PYTHONPATH=$PILOT_DIR:$PYTHONPATH
 export WORK_DIR={accessPoint}
 cd $WORK_DIR
 
-srun -N 2 python-mpi $PILOT_DIR/HPC/HPCJob.py \
+srun -N {nNode} python-mpi $PILOT_DIR/HPC/HPCJob.py \
     --globalWorkingDir=$WORK_DIR  --localWorkingDir=$WORK_DIR --dumpEventOutputs \
     --dumpFormat json

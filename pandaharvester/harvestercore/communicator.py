@@ -122,9 +122,15 @@ class Communicator:
             data['state'] = jobSpec.get_status()
             data['attemptNr'] = jobSpec.attemptNr
             data['jobSubStatus'] = jobSpec.subStatus
-            if jobSpec.is_final_status():
+            if jobSpec.startTime is not None:
+                data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
+            if jobSpec.endTime is not None:
+                data['endTime'] = jobSpec.endTime.strftime('%Y-%m-%d %H:%M:%S')
+            if jobSpec.nCore is not None:
+                data['coreCount'] = jobSpec.nCore
+            if jobSpec.is_final_status() and jobSpec.status == jobSpec.get_status():
                 if jobSpec.metaData is not None:
-                    data['metadata'] = jobSpec.metaData
+                    data['metaData'] = json.dumps(jobSpec.metaData)
                 if jobSpec.outputFilesToReport is not None:
                     data['xml'] = jobSpec.outputFilesToReport
             tmpLog.debug('data={0}'.format(str(data)))

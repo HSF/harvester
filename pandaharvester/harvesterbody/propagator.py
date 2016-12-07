@@ -42,7 +42,7 @@ class Propagator(threading.Thread):
                                                                               tmpJobSpec.status))
                         # release job
                         tmpJobSpec.propagatorLock = None
-                        if tmpJobSpec.is_final_status() and tmpJobSpec.all_events_done():
+                        if tmpJobSpec.is_final_status() and tmpJobSpec.status == tmpJobSpec.get_status():
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'

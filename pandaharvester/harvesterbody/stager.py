@@ -61,7 +61,7 @@ class Stager(threading.Thread):
             jobsToTrigger = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToTrigger,
                                                                 harvester_config.stager.triggerInterval,
                                                                 harvester_config.stager.lockInterval,
-                                                                lockedBy, 'totransfer',
+                                                                lockedBy, 'to_transfer',
                                                                 JobSpec.HO_hasOutput,
                                                                 JobSpec.HO_hasZipOutput)
             mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
@@ -95,7 +95,7 @@ class Stager(threading.Thread):
             jobsToZip = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToZip,
                                                             harvester_config.stager.triggerInterval,
                                                             harvester_config.stager.lockInterval,
-                                                            lockedBy, 'totransfer',
+                                                            lockedBy, 'to_transfer',
                                                             JobSpec.HO_hasZipOutput,
                                                             JobSpec.HO_hasOutput)
             mainLog.debug('got {0} jobs to zip'.format(len(jobsToZip)))
