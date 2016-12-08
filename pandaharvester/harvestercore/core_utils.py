@@ -49,9 +49,17 @@ def dump_error_message(tmp_log, err_str=None):
     return err_str
 
 
-# sleep for random duration
-def sleep(interval):
-    time.sleep(random.randint(int(interval * 0.8), int(interval * 1.2)))
+# sleep for random duration and return True if no more sleep is needed
+def sleep(interval, stop_event):
+    randInterval = random.randint(int(interval * 0.8), int(interval * 1.2))
+    if stop_event is None:
+        time.sleep(randInterval)
+    else:
+        for i in range(randInterval):
+            stop_event.wait(1)
+            if stop_event.is_set():
+                return True
+    return False
 
 
 # make PFC

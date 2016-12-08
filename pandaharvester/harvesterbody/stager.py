@@ -1,24 +1,23 @@
-import threading
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # class for stage-out
-class Stager(threading.Thread):
+class Stager(AgentBase):
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
         self.queueConfigMapper = queue_config_mapper
-        self.singleMode = single_mode
         self.pluginFactory = PluginFactory()
+
 
     # main loop
     def run(self):
@@ -126,7 +125,7 @@ class Stager(threading.Thread):
                     # failed
                     tmpLog.debug('failed to zip with {0}'.format(tmpStr))
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.stager.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.stager.sleepTime)

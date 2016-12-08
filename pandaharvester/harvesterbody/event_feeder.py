@@ -1,24 +1,22 @@
-import threading
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # class to feed events to workers
-class EventFeeder(threading.Thread):
+class EventFeeder(AgentBase):
     # constructor
     def __init__(self, communicator, queue_config_mapper, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
         self.queueConfigMapper = queue_config_mapper
         self.communicator = communicator
-        self.singleMode = single_mode
         self.pluginFactory = PluginFactory()
 
     # main loop
@@ -65,7 +63,7 @@ class EventFeeder(threading.Thread):
                     tmpLog.debug('done with {0}'.format(tmpStat))
                 tmpQueLog.debug('done')
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.eventfeeder.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.eventfeeder.sleepTime)

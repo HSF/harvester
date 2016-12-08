@@ -1,23 +1,21 @@
-import threading
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # propagate important checkpoints to panda
-class Monitor(threading.Thread):
+class Monitor(AgentBase):
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.queueConfigMapper = queue_config_mapper
         self.dbProxy = DBProxy()
-        self.singleMode = single_mode
         self.pluginFactory = PluginFactory()
 
     # main loop
@@ -91,10 +89,11 @@ class Monitor(threading.Thread):
                             messenger.acknowledge_events_files(workSpec)
                 tmpQueLog.debug('done')
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.monitor.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.monitor.sleepTime)
+
 
     # wrapper for checkWorkers
     def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log):

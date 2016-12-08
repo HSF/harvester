@@ -3,9 +3,10 @@ import pwd
 import grp
 import sys
 import signal
-import daemon
+import daemon.pidfile
 import argparse
 import datetime
+import threading
 
 from pandaharvester.harvesterconfig import harvester_config
 
@@ -13,9 +14,10 @@ from pandaharvester.harvesterconfig import harvester_config
 # the master class which runs the main process
 class Master:
     # constrictor
-    def __init__(self, single_mode=False):
+    def __init__(self, single_mode=False, stop_event=None):
         # initialize database and config
         self.singleMode = single_mode
+        self.stopEvent = stop_event
         from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
         self.communicatorPool = CommunicatorPool()
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -31,6 +33,7 @@ class Master:
         # Cacher
         from pandaharvester.harvesterbody.cacher import Cacher
         thr = Cacher(single_mode=True)
+        thr.set_stop_event(self.stopEvent)
         thr.run()
         thr.set_single_mode(self.singleMode)
         thr.start()
@@ -38,6 +41,7 @@ class Master:
         # Credential Manager
         from pandaharvester.harvesterbody.cred_manager import CredManager
         thr = CredManager(single_mode=self.singleMode)
+        thr.set_stop_event(self.stopEvent)
         thr.execute()
         thr.start()
         thrList.append(thr)
@@ -48,6 +52,7 @@ class Master:
             thr = JobFetcher(self.communicatorPool,
                              self.queueConfigMapper,
                              single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
         # Propagator
@@ -56,6 +61,7 @@ class Master:
         for iThr in range(nThr):
             thr = Propagator(self.communicatorPool,
                              single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
         # Monitor
@@ -64,6 +70,7 @@ class Master:
         for iThr in range(nThr):
             thr = Monitor(self.queueConfigMapper,
                           single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
         # Preparator
@@ -73,6 +80,7 @@ class Master:
             thr = Preparator(self.communicatorPool,
                              self.queueConfigMapper,
                              single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
         # Submitter
@@ -81,6 +89,7 @@ class Master:
         for iThr in range(nThr):
             thr = Submitter(self.queueConfigMapper,
                             single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
         # Stager
@@ -89,6 +98,7 @@ class Master:
         for iThr in range(nThr):
             thr = Stager(self.queueConfigMapper,
                          single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
         # EventFeeder
@@ -98,18 +108,21 @@ class Master:
             thr = EventFeeder(self.communicatorPool,
                               self.queueConfigMapper,
                               single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+        # set stop event
+        for thr in thrList:
+            thr.set_stop_event(self.stopEvent)
+        # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
+        while True:
+            self.stopEvent.wait(1)
+            if self.stopEvent.is_set():
+                break
         ##################
         # join
         for thr in thrList:
             thr.join()
-
-
-# kill whole process
-def catch_sig(sig, frame):
-    # kill
-    os.killpg(os.getpgrp(), signal.SIGKILL)
 
 
 # main
@@ -126,20 +139,32 @@ if __name__ == "__main__":
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
     timeNow = datetime.datetime.utcnow()
     print "{0} Master: INFO    start".format(str(timeNow))
+
     # make daemon context
     dc = daemon.DaemonContext(stdout=sys.stdout,
                               stderr=sys.stderr,
                               uid=uid,
-                              gid=gid)
+                              gid=gid,
+                              pidfile=daemon.pidfile.PIDLockFile(options.pid))
     with dc:
-        # record PID
-        pidFile = open(options.pid, 'w')
-        pidFile.write('{0}'.format(os.getpid()))
-        pidFile.close()
+        # stop event
+        stopEvent = threading.Event()
+
+        # signal handlers
+        def catch_sigkill(sig, frame):
+            os.killpg(os.getpgrp(), signal.SIGKILL)
+
+        def catch_sigterm(sig, frame):
+            stopEvent.set()
+
         # set handler
-        signal.signal(signal.SIGINT, catch_sig)
-        signal.signal(signal.SIGHUP, catch_sig)
-        signal.signal(signal.SIGTERM, catch_sig)
+        signal.signal(signal.SIGINT, catch_sigkill)
+        signal.signal(signal.SIGHUP, catch_sigkill)
+        signal.signal(signal.SIGTERM, catch_sigterm)
+        signal.signal(signal.SIGUSR2, catch_sigterm)
+
         # start master
-        master = Master(single_mode=options.singleMode)
+        master = Master(single_mode=options.singleMode, stop_event=stopEvent)
         master.start()
+    timeNow = datetime.datetime.utcnow()
+    print "{0} Master: INFO    terminated".format(str(timeNow))

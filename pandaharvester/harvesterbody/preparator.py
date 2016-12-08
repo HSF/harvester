@@ -1,27 +1,25 @@
-import socket
 import datetime
-import threading
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # class to prepare jobs
-class Preparator(threading.Thread):
+class Preparator(AgentBase):
     # constructor
     def __init__(self, communicator, queue_config_mapper, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
         self.communicator = communicator
         self.queueConfigMapper = queue_config_mapper
-        self.singleMode = single_mode
         self.pluginFactory = PluginFactory()
+
 
     # main loop
     def run(self):
@@ -139,7 +137,7 @@ class Preparator(threading.Thread):
                                                       'subStatus': oldSubStatus})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.preparator.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.preparator.sleepTime)

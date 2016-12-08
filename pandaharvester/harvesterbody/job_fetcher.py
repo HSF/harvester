@@ -1,26 +1,26 @@
 import socket
 import datetime
-import threading
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # class to fetch jobs
-class JobFetcher(threading.Thread):
+class JobFetcher(AgentBase):
     # constructor
     def __init__(self, communicator, queue_config_mapper, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
         self.communicator = communicator
         self.nodeName = socket.gethostname()
         self.queueConfigMapper = queue_config_mapper
-        self.singleMode = single_mode
+
 
     # main loop
     def run(self):
@@ -67,7 +67,8 @@ class JobFetcher(threading.Thread):
                     # insert to DB
                     self.dbProxy.insert_jobs(jobSpecs)
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.jobfetcher.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.jobfetcher.sleepTime)
+

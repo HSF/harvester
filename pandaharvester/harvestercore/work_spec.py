@@ -68,6 +68,7 @@ class WorkSpec(SpecBase):
         SpecBase.__init__(self)
         object.__setattr__(self, 'isNew', False)
         object.__setattr__(self, 'nextLookup', False)
+        object.__setattr__(self, 'jobspec_list', None)
 
     # get access point
     def get_access_point(self):
@@ -80,6 +81,14 @@ class WorkSpec(SpecBase):
                     tmpKey = '${' + patt + '}'
                     self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
         return self.accessPoint
+
+    # set job spec list
+    def set_jobspec_list(self, jobspec_list):
+        self.jobspec_list = jobspec_list
+
+    # get job spec list
+    def get_jobspec_list(self):
+        return self.jobspec_list
 
     # set status to submitted
     def set_submitted(self):

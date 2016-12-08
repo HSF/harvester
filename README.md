@@ -187,6 +187,19 @@ $ python lib/python*/site-packages/pandaharvester/harvesterbody/master.py --pid 
 
 ----------
 
+### Run
+Start daemon
+```sh
+$ python lib/python*/site-packages/pandaharvester/harvesterbody/master.py --pid $PWD/tmp.pid
+```
+Stop deamon
+
+```sh
+$ kill -USR2 `cat $PWD/tmp.pid`
+```
+
+----------
+
 ### Misc
 
 #### How to setup virtualenv if unavailable by default

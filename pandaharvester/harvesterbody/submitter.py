@@ -1,27 +1,27 @@
 import datetime
-import threading
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from worker_maker import WorkerMaker
+from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # class to submit workers
-class Submitter(threading.Thread):
+class Submitter(AgentBase):
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.queueConfigMapper = queue_config_mapper
         self.dbProxy = DBProxy()
-        self.singleMode = single_mode
         self.workerMaker = WorkerMaker()
         self.pluginFactory = PluginFactory()
+
 
     # main loop
     def run(self):
@@ -106,6 +106,7 @@ class Submitter(threading.Thread):
                             workSpec.hasJob = 0
                         else:
                             workSpec.hasJob = 1
+                            workSpec.set_jobspec_list(okJobs)
                         # queue name
                         workSpec.computingSite = queueConfig.queueName
                         # set access point
@@ -174,10 +175,11 @@ class Submitter(threading.Thread):
                             tmpStat = messenger.feed_jobs(workSpec, jobList)
                             tmpLog.debug('sent jobs to workerID={0} with {1}'.format(workSpec.workerID, tmpStat))
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.submitter.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.submitter.sleepTime)
+
 
     # wrapper for submitWorkers to skip ready workers
     def submit_workers(self, submitter_core, workspec_list):

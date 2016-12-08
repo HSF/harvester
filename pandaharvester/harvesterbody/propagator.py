@@ -1,21 +1,20 @@
-import threading
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # propagate important checkpoints to panda
-class Propagator(threading.Thread):
+class Propagator(AgentBase):
     # constructor
     def __init__(self, communicator, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
         self.communicator = communicator
-        self.singleMode = single_mode
+
 
     # main loop
     def run(self):
@@ -51,7 +50,7 @@ class Propagator(threading.Thread):
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.propagator.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.propagator.sleepTime)

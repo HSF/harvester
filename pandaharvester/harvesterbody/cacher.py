@@ -1,23 +1,23 @@
 import json
 import datetime
-import threading
 import requests
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # cache information
-class Cacher(threading.Thread):
+class Cacher(AgentBase):
     # constructor
     def __init__(self, single_mode=False):
-        threading.Thread.__init__(self)
+        AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
-        self.singleMode = single_mode
+
 
     # main loop
     def run(self):
@@ -47,10 +47,10 @@ class Cacher(threading.Thread):
                 if tmpStat:
                     mainLog.debug('refreshed key={0} subKey={1}'.format(mainKey, subKey))
             mainLog.debug('done')
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.cacher.sleepTime):
+                mainLog.debug('terminated')
                 return
-            # sleep
-            core_utils.sleep(harvester_config.cacher.sleepTime)
 
 
     # get new data

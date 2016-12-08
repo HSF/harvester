@@ -1,19 +1,18 @@
-import threading
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger()
 
 
 # credential manager
-class CredManager(threading.Thread):
+class CredManager(AgentBase):
+
     # constructor
     def __init__(self, single_mode=False):
-        threading.Thread.__init__(self)
-        self.singleMode = single_mode
+        AgentBase.__init__(self, single_mode)
         self.pluginFactory = PluginFactory()
         # get plugin
         pluginPar = {}
@@ -22,16 +21,16 @@ class CredManager(threading.Thread):
         pluginPar['config'] = harvester_config.credmanager
         self.exeCore = self.pluginFactory.get_plugin(pluginPar)
 
+
     # main loop
     def run(self):
         while True:
             # execute
             self.execute()
-            # escape if single mode
-            if self.singleMode:
+            # check if being terminated
+            if self.terminated(harvester_config.credmanager.sleepTime):
                 return
-            # sleep
-            core_utils.sleep(harvester_config.credmanager.sleepTime)
+
 
     # main
     def execute(self):

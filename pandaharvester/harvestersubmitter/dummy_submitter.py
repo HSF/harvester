@@ -20,6 +20,10 @@ class DummySubmitter(PluginBase):
         retList = []
         retStrList = []
         for workSpec in workspec_list:
+            for jobSpec in workSpec.get_jobspec_list():
+                tmpLog.debug('PandaID={0} nCore={1} RAM={2}'.format(jobSpec.PandaID,
+                                                                    jobSpec.jobParams['coreCount'],
+                                                                    jobSpec.jobParams['minRamCount']))
             workSpec.batchID = uuid.uuid4().hex
             retList.append((True, ''))
         tmpLog.debug('done')
