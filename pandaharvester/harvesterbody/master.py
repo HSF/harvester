@@ -111,9 +111,7 @@ class Master:
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
-        # set stop event
-        for thr in thrList:
-            thr.set_stop_event(self.stopEvent)
+        ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
         while True:
             self.stopEvent.wait(1)
@@ -166,5 +164,6 @@ if __name__ == "__main__":
         # start master
         master = Master(single_mode=options.singleMode, stop_event=stopEvent)
         master.start()
+
     timeNow = datetime.datetime.utcnow()
     print "{0} Master: INFO    terminated".format(str(timeNow))
