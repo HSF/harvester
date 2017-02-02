@@ -51,7 +51,7 @@ class Monitor(AgentBase):
                     jobSpecs = None
                     filesToStageOut = dict()
                     for workSpec in workSpecs:
-                        tmpLog = core_utils.make_logger(_logger, 'workID={0}'.format(workSpec.workerID))
+                        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
                         tmpOut = tmpRetMap[workSpec.workerID]
                         newStatus = tmpOut['newStatus']
                         diagMessage = tmpOut['diagMessage']

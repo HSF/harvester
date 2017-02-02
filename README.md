@@ -16,7 +16,7 @@ Harvester can be installed with or without root privilege.
 
 #### Without root privilege
 ```sh
-# # setup virtualenv
+# # setup virtualenv (N.B. if your system supports conda instead of virtualenv see "How to use conda" in the Misc section) 
 $ virtualenv harvester
 $ cd harvester
 $ . bin/activate
@@ -247,6 +247,18 @@ $ cd panda-harvester
 $ python setup.py sdist; pip install dist/pandaharvester-*.tar.gz --upgrade
 ```
 
+
+#### How to use conda
+If your system supports conda instead of virtualenv, setup conda before using pip.
+* For Cori@NERSC
+```sh
+$ module load python
+$ conda create --name harvester python
+$ mkdir harvester
+$ cd harvester
+$ source activate harvester
+```
+ 
 ----------
 
 ### Plug-in descriptions

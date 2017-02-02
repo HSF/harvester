@@ -187,7 +187,7 @@ lookupTime = 60
 lockInterval = 180
 
 # check interval in sec
-checkInterval = 180
+checkInterval = 60
 
 # sleep interval in sec
 sleepTime = 60
@@ -212,7 +212,7 @@ maxWorkers = 500
 lockInterval = 180
 
 # check interval in sec
-checkInterval = 300
+checkInterval = 120
 
 # sleep interval in sec
 sleepTime = 60
