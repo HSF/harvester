@@ -262,24 +262,21 @@ $ source activate harvester
 ----------
 
 ### State diagrams
-* Job state diagram
-![Event state diagram](images/Harvester_Job_Stat.png)
+
+* Job state diagram  
+![alt text](images/Harvester_Job_Stat.png "Job state diagram")  
 
 
-
-* Worker state diagram
-![Worker state diagram](images/Harvester_Worker_Stat.png)
-
+* Worker state diagram  
+![alt text](images/Harvester_Worker_Stat.png "Worker state diagram")  
 
 
-* File state diagram
-
-![File state diagram](images/Harvester_File_Stat.png)
-
+* File state diagram  
+![alt text](images/Harvester_File_Stat.png "File state diagram")  
 
 
-* Event state diagram
-![Event state diagram](images/Harvester_Event_Stat.png)
+* Event state diagram  
+![alt text](images/Harvester_Event_Stat.png)  
 
 
 ----------
