@@ -261,4 +261,27 @@ $ source activate harvester
  
 ----------
 
+### State diagrams
+* Job state diagram
+![Event state diagram](images/Harvester_Job_Stat.png)
+
+
+
+* Worker state diagram
+![Worker state diagram](images/Harvester_Worker_Stat.png)
+
+
+
+* File state diagram
+
+![File state diagram](images/Harvester_File_Stat.png)
+
+
+
+* Event state diagram
+![Event state diagram](images/Harvester_Event_Stat.png)
+
+
+----------
+
 ### Plug-in descriptions
