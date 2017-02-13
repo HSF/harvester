@@ -36,7 +36,7 @@ $ mv etc/panda/panda_common.cfg.rpmnew.template etc/panda/panda_common.cfg
 $ mv etc/panda/panda_harvester.cfg.rpmnew.template etc/panda/panda_harvester.cfg
 
 ```
-
+The python-daemon package has to be **version >= 1.6**.
 
 #### Setup and system configuration files
 Several parameters need to be adjusted in the setup file (etc/sysconfig/panda_harvester)
