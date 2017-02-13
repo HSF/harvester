@@ -228,7 +228,7 @@ sleepTime = 60
 [credmanager]
 
 # module name
-moduleName = pandaharvester.harvestercredmanager.NoVomsCredManager
+moduleName = pandaharvester.harvestercredmanager.no_voms_cred_manager
 
 # class name
 className = NoVomsCredManager
