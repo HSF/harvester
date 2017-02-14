@@ -13,7 +13,7 @@ from pandaharvester.harvesterconfig import harvester_config
 
 # the master class which runs the main process
 class Master:
-    # constrictor
+    # constructor
     def __init__(self, single_mode=False, stop_event=None):
         # initialize database and config
         self.singleMode = single_mode
@@ -30,6 +30,14 @@ class Master:
     def start(self):
         # thread list
         thrList = []
+        # Command manager
+        from pandaharvester.harvesterbody.command_manager import CommandManager
+        thr = CommandManager(single_mode=True)
+        thr.set_stop_event(self.stopEvent)
+        thr.run()
+        thr.set_single_mode(self.singleMode)
+        thr.start()
+        thrList.append(thr)
         # Cacher
         from pandaharvester.harvesterbody.cacher import Cacher
         thr = Cacher(single_mode=True)

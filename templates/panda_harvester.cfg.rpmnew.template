@@ -77,7 +77,7 @@ pandaURLProxy = http://pandaserver.cern.ch:25080/server/panda
 # config file
 configFile = panda_queueconfig.json
 
-# queue list : one queue name folloing a whitespace per line
+# queue list : one queue name follwoing a whitespace per line
 queueList =
  FIXME_1
  FIXME_2
@@ -228,7 +228,7 @@ sleepTime = 60
 [credmanager]
 
 # module name
-moduleName = pandaharvester.harvestercredmanager.NoVomsCredManager
+moduleName = pandaharvester.harvestercredmanager.no_voms_cred_manager
 
 # class name
 className = NoVomsCredManager

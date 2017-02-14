@@ -139,7 +139,7 @@ useJobLateBinding | true if the queue uses job-level late-binding
 Agent is **preparator**, **submitter**, **workMaker**, **messenger**,
 **stager**, **monitor**, and **sweeper**. Two agent parameters `name` and `module`
 are mandatory to define the class name module names of the agent.
-Roguly speaking,
+Roughly speaking,
 ```python
 from agentModle import agentName
 agent = agentName()
@@ -179,7 +179,7 @@ python -i lib/python*/site-packages/pandaharvester/harvestertest/stageOutTest.py
 ```
 
 #### Functional tests
-Harvester runs multiple threads in parallesl so that debugging is rather complicated. However, functions can be
+Harvester runs multiple threads in parallel so that debugging is rather complicated. However, functions can be
 gradually executed by using
 ```sh
 $ python lib/python*/site-packages/pandaharvester/harvesterbody/master.py --pid $PWD/tmp.pid --single
