@@ -14,19 +14,10 @@
 
 # Table structure
 
-SQLite DB structures are generated in the harvestercore/db_proxy.py. Current tables are:
-```python
-jobTableName = 'job_table'
-workTableName = 'work_table'
-fileTableName = 'file_table'
-cacheTableName = 'cache_table'
-eventTableName = 'event_table'
-seqNumberTableName = 'seq_table'
-pandaQueueTableName = 'pq_table'
-jobWorkerTableName = 'jw_table'
-```
+SQLite DB structures are generated in the harvestercore/db_proxy.py. Individual table structure is defined in each *_spec.py file. The initial definitions below, but will evolve over time, so please consult the relevant spec file for the up to date structure.
 
-Individual table structure is defined in each *_spec.py file. The initial definitions below, but will evolve over time, so please consult the relevant spec file for the up to date structure.
+![alt text](../images/db_diagram.png "DB ER diagram")  
+
 ### job_table
 ```python
 'PandaID:integer primary key',
