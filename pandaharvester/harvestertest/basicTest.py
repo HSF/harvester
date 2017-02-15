@@ -1,4 +1,6 @@
 import os
+import sys
+import logging
 import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.db_proxy import DBProxy
@@ -9,6 +11,16 @@ try:
     os.remove(harvester_config.db.database_filename)
 except:
     pass
+
+for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
+    if loggerName.startswith('panda.log'):
+        if len(loggerObj.handlers) == 0:
+            continue
+        if loggerName.split('.')[-1] in ['db_proxy']:
+            continue
+        stdoutHandler = logging.StreamHandler(sys.stdout)
+        stdoutHandler.setFormatter(loggerObj.handlers[0].formatter)
+        loggerObj.addHandler(stdoutHandler)
 
 queueConfigMapper = QueueConfigMapper()
 

@@ -378,7 +378,7 @@ class DBProxy:
             for queueName in panda_queue_list:
                 queueConfig = queue_config_mapper.get_queue(queueName)
                 if queueConfig is not None:
-                    # check if alrady exist
+                    # check if already exist
                     sqlC = "SELECT 1 FROM {0} ".format(pandaQueueTableName)
                     sqlC += "WHERE queueName=:queueName "
                     varMap = dict()
@@ -714,73 +714,73 @@ class DBProxy:
             # get logger
             tmpLog = core_utils.make_logger(_logger)
             tmpLog.debug('start')
-            retMap = {}
+            retMap = dict()
+            siteName = None
+            # sql to get a site
+            sqlS = "SELECT siteName FROM {0} ".format(pandaQueueTableName)
+            sqlS += "WHERE submitTime IS NULL OR submitTime<:timeLimit "
+            sqlS += "ORDER BY submitTime "
+            sqlS += "FOR UPDATE "
             # sql to get queues
-            sqlQ = "SELECT queueName,nQueueLimitWorker,maxWorkers FROM {0} ".format(pandaQueueTableName)
-            sqlQ += "WHERE submitTime IS NULL OR submitTime<:timeLimit "
-            sqlQ += "ORDER BY submitTime "
-            sqlQ += "FOR UPDATE "
+            sqlQ = "SELECT queueName FROM {0} ".format(pandaQueueTableName)
+            sqlQ += "WHERE siteName=:siteName "
             # sql to count nQueue
             sqlN = "SELECT status,count(*) FROM {0} ".format(workTableName)
             sqlN += "WHERE computingSite=:computingSite GROUP BY status "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
             sqlU += "WHERE queueName=:queueName "
-            # get queues
+            # get sites
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
             varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
-            self.execute(sqlQ, varMap)
-            resQ = self.cur.fetchall()
-            for queueName, nQueueLimit, maxWorkers in resQ:
-                # count nQueue
+            self.execute(sqlS, varMap)
+            resS = self.cur.fetchone()
+            if resS is not None:
+                # get queues
+                siteName, = resS
                 varMap = dict()
-                varMap[':computingSite'] = queueName
-                self.execute(sqlN, varMap)
-                nQueue = 0
-                nReady = 0
-                nRunning = 0
-                for workerStatus, tmpNum in self.cur.fetchall():
-                    if workerStatus in [WorkSpec.ST_submitted]:
-                        nQueue += tmpNum
-                    elif workerStatus in [WorkSpec.ST_ready]:
-                        nReady += tmpNum
-                    elif workerStatus in [WorkSpec.ST_running]:
-                        nRunning += tmpNum
-                # include ready workers
-                nWorkers = nReady
-                # new workers
-                if nQueueLimit > 0 and nQueue >= nQueueLimit:
-                    # only ready workers since enough queued workers are there
-                    pass
-                elif maxWorkers > 0 and (nQueue + nReady + nRunning) >= maxWorkers:
-                    # only ready workers since enough workers are there
-                    pass
-                else:
-                    # add new workers
-                    nWorkers += min(max(nQueueLimit - nQueue, 0), max(maxWorkers - nQueue + nReady + nRunning, 0))
-                # add
-                retMap[queueName] = {'nWorkers': nWorkers,
-                                     'nReady': nReady}
-                # update timestamp
-                varMap = dict()
-                varMap[':queueName'] = queueName
-                varMap[':submitTime'] = timeNow
-                self.execute(sqlU, varMap)
-                # enough queues
-                if len(retMap) >= n_queues:
-                    break
+                varMap[':siteName'] = siteName
+                self.execute(sqlQ, varMap)
+                resQ = self.cur.fetchall()
+                for queueName, in resQ:
+                    # count nQueue
+                    varMap = dict()
+                    varMap[':computingSite'] = queueName
+                    self.execute(sqlN, varMap)
+                    nQueue = 0
+                    nReady = 0
+                    nRunning = 0
+                    for workerStatus, tmpNum in self.cur.fetchall():
+                        if workerStatus in [WorkSpec.ST_submitted]:
+                            nQueue += tmpNum
+                        elif workerStatus in [WorkSpec.ST_ready]:
+                            nReady += tmpNum
+                        elif workerStatus in [WorkSpec.ST_running]:
+                            nRunning += tmpNum
+                    # add
+                    retMap[queueName] = {'nReady': nReady,
+                                         'nRunning': nRunning,
+                                         'nQueue': nQueue}
+                    # update timestamp
+                    varMap = dict()
+                    varMap[':queueName'] = queueName
+                    varMap[':submitTime'] = timeNow
+                    self.execute(sqlU, varMap)
+                    # enough queues
+                    if len(retMap) >= n_queues:
+                        break
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
-            return retMap
+            return retMap, siteName
         except:
             # roll back
             self.rollback()
             # dump error
             core_utils.dump_error_message(_logger)
             # return
-            return {}
+            return {}, None
 
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
@@ -1700,7 +1700,7 @@ class DBProxy:
             self.commit()
             if resJ is None:
                 return None
-            # make job
+            # make spec
             cacheSpec = CacheSpec()
             cacheSpec.pack(resJ)
             tmpLog.debug('done')

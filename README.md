@@ -264,21 +264,57 @@ $ source activate harvester
 ### State diagrams
 
 * Job state diagram  
-![alt text](images/Harvester_Job_Stat.png "Job state diagram")  
+![alt text](images/Stat_Job.png "Job state diagram")  
 
 
 * Worker state diagram  
-![alt text](images/Harvester_Worker_Stat.png "Worker state diagram")  
+![alt text](images/Stat_Worker.png "Worker state diagram")  
 
 
 * File state diagram  
-![alt text](images/Harvester_File_Stat.png "File state diagram")  
+![alt text](images/Stat_File.png "File state diagram")  
 
 
 * Event state diagram  
-![alt text](images/Harvester_Event_Stat.png)  
+![alt text](images/Stat_Event.png)  
 
 
+----------
+
+### Sequence diagrams for agents
+
+* CredManager  
+![alt text](images/Seq_CredManager.png)  
+  
+  
+* EventFeeder 
+![alt text](images/Seq_EventFeeder.png)  
+  
+  
+* JobFetcher
+![alt text](images/Seq_JobFetcher.png)  
+  
+  
+* Monitor  
+![alt text](images/Seq_Monitor.png)  
+  
+  
+* Preparator
+![alt text](images/Seq_Preparator.png)  
+  
+  
+* Propagator  
+![alt text](images/Seq_Propagator.png)  
+  
+  
+* Stager  
+![alt text](images/Seq_Stager.png)  
+  
+  
+* Submitter
+![alt text](images/Seq_Submitter.png)  
+  
+  
 ----------
 
 ### Plug-in descriptions
