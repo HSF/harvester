@@ -287,11 +287,11 @@ $ source activate harvester
 ![alt text](images/Seq_CredManager.png)  
   
   
-* EventFeeder 
+* EventFeeder  
 ![alt text](images/Seq_EventFeeder.png)  
   
   
-* JobFetcher
+* JobFetcher  
 ![alt text](images/Seq_JobFetcher.png)  
   
   
@@ -299,7 +299,7 @@ $ source activate harvester
 ![alt text](images/Seq_Monitor.png)  
   
   
-* Preparator
+* Preparator  
 ![alt text](images/Seq_Preparator.png)  
   
   
@@ -311,7 +311,7 @@ $ source activate harvester
 ![alt text](images/Seq_Stager.png)  
   
   
-* Submitter
+* Submitter  
 ![alt text](images/Seq_Submitter.png)  
   
   
