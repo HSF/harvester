@@ -195,3 +195,26 @@ class Communicator:
             retMap['StatusCode'] = 999
         tmp_log.debug('done updateEventRanges with {0}'.format(str(retMap)))
         return retMap
+
+    # get proxy
+    def get_proxy(self, voms_role):
+        retVal = None
+        retMsg = ''
+        # get logger
+        tmpLog = core_utils.make_logger(_logger)
+        tmpLog.debug('start')
+        data = {'role': voms_role}
+        tmpStat, tmpRes = self.post_ssl('getProxy', data)
+        if tmpStat is False:
+            core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                tmpDict = tmpRes.json()
+                if tmpDict['StatusCode'] == 0:
+                    retVal = tmpDict['userProxy']
+                else:
+                    retMsg = tmpDict['errorDialog']
+            except:
+                retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
+        tmpLog.debug('done with {0}'.format(str(retVal)))
+        return retVal, retMsg

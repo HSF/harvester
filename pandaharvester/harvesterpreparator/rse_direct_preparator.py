@@ -4,6 +4,12 @@ from pandaharvester.harvestermover import mover_utils
 
 # plugin for preparator with RSE + directIO
 class RseDirectPreparator(PluginBase):
+    """The workflow for RseDirectPreparator is as follows. First panda makes a rule to
+    transfer files to an RSE which is associated to the resource. Once files are transferred
+    to the RSE, job status is changed to activated from assigned. Then Harvester fetches
+    the job and constructs input file paths that point to pfns in the storage. This means
+    that the job directly read input files from the storage.
+    """
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
