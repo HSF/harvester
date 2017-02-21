@@ -19,10 +19,18 @@ class CommandSpec(SpecBase):
 
     # convert from Command JSON
     def convert_command_json(self, data):
+        # mandatory fields
         self.command_id = data['command_id']
         self.command = data['command']
         self.params = data['params']
-        self.params = data['params']
         self.ack_requested = data['ack_requested']
-        self.processed = data['processed']
+        # For the day we want to parse the creation_date
+        # from datetime import datetime
+        # c = datetime.strptime(b, "%Y-%m-%dT%H:%M:%S.%f")
+
+        # optional field
+        try:
+            self.processed = data['processed']
+        except KeyError:
+            self.processed = None
 

@@ -115,6 +115,8 @@ class DBProxy:
     def executemany(self, sql, varmap_list):
         thrName = None
         if harvester_config.db.verbose:
+            if self.verbLog is None:
+                self.verbLog = core_utils.make_logger(_logger)
             thrName = threading.current_thread()
             if thrName is not None:
                 thrName = thrName.ident
@@ -1722,6 +1724,8 @@ class DBProxy:
         # get logger
         tmpLog = core_utils.make_logger(_logger)
         tmpLog.debug('{0} commands'.format(len(command_specs)))
+        if not command_specs:
+            return True
         try:
             # sql to insert a command
             sql = "INSERT INTO {0} ({1}) ".format(commandTableName, CommandSpec.column_names())
@@ -1758,7 +1762,8 @@ class DBProxy:
                   AND processed=1
                   """.format(commandTableName)
             self.execute(sql)
-            command_ids = self.cur.fetchall()
+            command_ids = [row[0] for row in self.cur.fetchall()]
+            tmpLog.debug('command_ids {0}'.format(command_ids))
             return command_ids
         except:
             # dump error
@@ -1776,8 +1781,7 @@ class DBProxy:
             # sql to delete a specific command
             sql = """
                   DELETE FROM {0}
-                  WHERE command_id=:command_id
-                  """.format(commandTableName)
+                  WHERE command_id=:command_id""".format(commandTableName)
 
             for command_id in commands_ids:
                 var_map = {':command_id': command_id}

@@ -14,6 +14,8 @@ gname = @@panda_group@@
 # logger name
 loggername = harvester
 
+# harvester id - unique id as registered also in panda server
+harvester_id = test_fbarreir
 
 
 
@@ -82,6 +84,18 @@ queueList =
  FIXME_1
  FIXME_2
 
+
+##########################
+#
+# Command manager parameters
+#
+[commandmanager]
+
+# bulk size for panda server interactions
+commands_bulk_size = 20
+
+# sleep interval in sec
+sleepTime = 5
 
 ##########################
 #

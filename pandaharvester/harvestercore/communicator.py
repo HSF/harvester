@@ -198,7 +198,7 @@ class Communicator:
 
     # get commands
     def get_commands(self, n_commands):
-        harvester_id = harvester_config.pandacon.harvester_id
+        harvester_id = harvester_config.master.harvester_id
         _logger.debug('Start retrieving {0} commands'.format(n_commands))
         data = {}
         data['harvester_id'] = harvester_id
@@ -209,9 +209,12 @@ class Communicator:
         else:
             try:
                 tmp_dict = tmp_res.json()
+                _logger.debug('tmp_dict {0}'.format(tmp_dict))
+                _logger.debug('StatusCode {0}'.format(tmp_dict['StatusCode']))
                 if tmp_dict['StatusCode'] == 0:
+                    _logger.debug('Commands {0}'.format(tmp_dict['Commands']))
                     _logger.debug('Finished retrieving commands')
-                    return tmp_dict['commands']
+                    return tmp_dict['Commands']
                 return []
             except KeyError:
                 core_utils.dump_error_message(_logger, tmp_res)
@@ -219,11 +222,10 @@ class Communicator:
 
     # send ACKs
     def ack_commands(self, command_ids):
-        harvester_id = harvester_config.pandacon.harvester_id
+        harvester_id = harvester_config.master.harvester_id
         _logger.debug('Start acknowledging {0} commands (command_ids={1})'.format(len(command_ids), command_ids))
         data = {}
-        data['harvester_id'] = harvester_id
-        data['command_ids'] = command_ids
+        data['command_ids'] = json.dumps(command_ids)
         tmp_stat, tmp_res = self.post_ssl('ackCommands', data)
         if tmp_stat is False:
             core_utils.dump_error_message(_logger, tmp_res)
