@@ -6,3 +6,5 @@ to provide a uniform view for various resources.
 
 For a detailed description and installation instructions, please check out this project's wiki tab:
 https://github.com/PanDAWMS/panda-harvester/wiki
+  
+----------

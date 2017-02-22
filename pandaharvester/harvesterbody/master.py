@@ -122,6 +122,8 @@ class Master:
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
         while True:
+            if self.singleMode:
+                break
             self.stopEvent.wait(1)
             if self.stopEvent.is_set():
                 break

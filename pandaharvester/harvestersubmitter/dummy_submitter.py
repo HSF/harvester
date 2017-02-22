@@ -15,6 +15,16 @@ class DummySubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
+        """Submit workers to a scheduling system like batch systems and computing elements.
+        Takes a list of work specs as input argument.
+        A unique identifier is set to batchID of each work spec when submission is successful,
+        to distinguish them in the scheduling system.
+        Returns a list of tuple. The tuple is (submission status in bool, error dialog in string).
+        Nth tuple in the list corresponds to Nth worker in workspec_list.
+
+        :param workspec_list: a list of work specs.
+        :return: a list of tuples.
+        """
         tmpLog = core_utils.make_logger(baseLogger)
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
         retList = []

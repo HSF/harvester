@@ -255,7 +255,8 @@ class SharedFileMessenger(PluginBase):
                 inFiles = jobSpec.get_input_file_attributes()
                 for inLFN, inFile in inFiles.iteritems():
                     dstPath = os.path.join(workspec.get_access_point(), inLFN)
-                    os.symlink(inFile['path'], dstPath)
+                    if inFile['path'] != dstPath:
+                        os.symlink(inFile['path'], dstPath)
             except:
                 core_utils.dump_error_message(tmpLog)
                 retVal = False

@@ -13,6 +13,8 @@ class QueueConfig:
         self.mapType = WorkSpec.MT_OneToOne
         self.useJobLateBinding = False
         self.zipPerMB = None
+        self.siteName = ''
+        self.qrWorkerRatio = 0
 
 
 # mapper
@@ -33,7 +35,7 @@ class QueueConfigMapper:
                 if not os.path.exists(confFilePath):
                     confFilePath = None
             # look into /etc/panda
-            if confFilePath == None:
+            if confFilePath is None:
                 confFilePath = os.path.join('/etc/panda',
                                             harvester_config.qconf.configFile)
         # load config from json

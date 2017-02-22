@@ -41,11 +41,14 @@ class CredManager(AgentBase):
         mainLog = core_utils.make_logger(_logger)
         # check credential
         mainLog.debug('check credential')
-        isValid = self.exeCore.check_credential(harvester_config.pandacon.key_file)
-        # renew it if necessary
-        if not isValid:
+        isValid = self.exeCore.check_credential(harvester_config.credmanager.certFile)
+        if isValid:
+            mainLog.debug('valid')
+        elif not isValid:
+            # renew it if necessary
+            mainLog.debug('invalid')
             mainLog.debug('renew credential')
-            tmpStat, tmpOut = self.exeCore.renew_credential(harvester_config.pandacon.key_file)
+            tmpStat, tmpOut = self.exeCore.renew_credential(harvester_config.credmanager.certFile)
             if not tmpStat:
                 mainLog.error('failed : {0}'.format(tmpOut))
                 return

@@ -21,6 +21,8 @@ class RucioStager(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
+        if not hasattr(self, 'scopeForTmp'):
+            self.scopeForTmp = 'panda'
 
     # check status
     def check_status(self, jobspec):
@@ -74,8 +76,6 @@ class RucioStager(PluginBase):
         # make logger
         tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
         tmpLog.debug('start')
-        # default return
-        tmpRetVal = (True, '')
         # loop over all files
         files = dict()
         transferIDs = dict()
@@ -101,7 +101,7 @@ class RucioStager(PluginBase):
                 datasetName = fileAttrs[fileSpec.lfn]['dataset']
             else:
                 # use panda scope for zipped files
-                scope = 'panda'
+                scope = self.scopeForTmp
                 datasetName = 'dummy'
             srcPath = fileSpec.path
             dstPath = mover_utils.construct_file_path(self.srcBasePath, datasetName, scope, fileSpec.lfn)
@@ -142,7 +142,7 @@ class RucioStager(PluginBase):
             # make datasets if missing
             if fileType not in transferDatasets:
                 try:
-                    tmpScope = 'panda'
+                    tmpScope = self.scopeForTmp
                     tmpDS = 'panda.harvester_stage_out.{0}'.format(str(uuid.uuid4()))
                     rucioAPI.add_dataset(tmpScope, tmpDS,
                                          meta={'hidden': True},
@@ -167,7 +167,7 @@ class RucioStager(PluginBase):
             else:
                 # add files to existing dataset
                 try:
-                    tmpScope = 'panda'
+                    tmpScope = self.scopeForTmp
                     tmpDS = transferDatasets[fileType]
                     rucioAPI.add_files_to_dataset(tmpScope, tmpDS, fileList, self.srcRSE)
                     tmpLog.debug('added files to {0}'.format(tmpDS))
