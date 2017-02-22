@@ -21,7 +21,6 @@ class JobFetcher(AgentBase):
         self.nodeName = socket.gethostname()
         self.queueConfigMapper = queue_config_mapper
 
-
     # main loop
     def run(self):
         while True:

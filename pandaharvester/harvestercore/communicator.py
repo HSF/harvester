@@ -27,7 +27,7 @@ _logger = core_utils.setup_logger()
 
 # connection class
 class Communicator:
-    # constrictor
+    # constructor
     def __init__(self):
         pass
 
@@ -176,7 +176,7 @@ class Communicator:
 
     # update events
     def update_event_ranges(self, event_ranges, tmp_log):
-        tmp_log.debug('start updateEventRanges')
+        tmp_log.debug('start update_event_ranges')
         data = {}
         data['eventRanges'] = json.dumps(event_ranges)
         data['version'] = 1
@@ -196,6 +196,50 @@ class Communicator:
         tmp_log.debug('done updateEventRanges with {0}'.format(str(retMap)))
         return retMap
 
+    # get commands
+    def get_commands(self, n_commands):
+        harvester_id = harvester_config.master.harvester_id
+        _logger.debug('Start retrieving {0} commands'.format(n_commands))
+        data = {}
+        data['harvester_id'] = harvester_id
+        data['n_commands'] = n_commands
+        tmp_stat, tmp_res = self.post_ssl('getCommands', data)
+        if tmp_stat is False:
+            core_utils.dump_error_message(_logger, tmp_res)
+        else:
+            try:
+                tmp_dict = tmp_res.json()
+                _logger.debug('tmp_dict {0}'.format(tmp_dict))
+                _logger.debug('StatusCode {0}'.format(tmp_dict['StatusCode']))
+                if tmp_dict['StatusCode'] == 0:
+                    _logger.debug('Commands {0}'.format(tmp_dict['Commands']))
+                    _logger.debug('Finished retrieving commands')
+                    return tmp_dict['Commands']
+                return []
+            except KeyError:
+                core_utils.dump_error_message(_logger, tmp_res)
+        return []
+
+    # send ACKs
+    def ack_commands(self, command_ids):
+        harvester_id = harvester_config.master.harvester_id
+        _logger.debug('Start acknowledging {0} commands (command_ids={1})'.format(len(command_ids), command_ids))
+        data = {}
+        data['command_ids'] = json.dumps(command_ids)
+        tmp_stat, tmp_res = self.post_ssl('ackCommands', data)
+        if tmp_stat is False:
+            core_utils.dump_error_message(_logger, tmp_res)
+        else:
+            try:
+                tmp_dict = tmp_res.json()
+                if tmp_dict['StatusCode'] == 0:
+                    _logger.debug('Finished acknowledging commands')
+                    return True
+                return False
+            except KeyError:
+                core_utils.dump_error_message(_logger, tmp_res)
+        return False
+    
     # get proxy
     def get_proxy(self, voms_role):
         retVal = None

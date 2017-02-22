@@ -9,6 +9,7 @@ import inspect
 import datetime
 import threading
 
+from command_spec import CommandSpec
 from job_spec import JobSpec
 from work_spec import WorkSpec
 from file_spec import FileSpec
@@ -25,6 +26,7 @@ from pandaharvester.harvesterconfig import harvester_config
 _logger = core_utils.setup_logger()
 
 # table names
+commandTableName = 'command_table'
 jobTableName = 'job_table'
 workTableName = 'work_table'
 fileTableName = 'file_table'
@@ -113,6 +115,8 @@ class DBProxy:
     def executemany(self, sql, varmap_list):
         thrName = None
         if harvester_config.db.verbose:
+            if self.verbLog is None:
+                self.verbLog = core_utils.make_logger(_logger)
             thrName = threading.current_thread()
             if thrName is not None:
                 thrName = thrName.ident
@@ -205,6 +209,7 @@ class DBProxy:
 
     # make tables
     def make_tables(self, queue_config_mapper):
+        self.make_table(CommandSpec, commandTableName)
         self.make_table(JobSpec, jobTableName)
         self.make_table(WorkSpec, workTableName)
         self.make_table(FileSpec, fileTableName)
@@ -1713,3 +1718,96 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return None
+
+    # store commands
+    def store_commands(self, command_specs):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger)
+        tmpLog.debug('{0} commands'.format(len(command_specs)))
+        if not command_specs:
+            return True
+        try:
+            # sql to insert a command
+            sql = "INSERT INTO {0} ({1}) ".format(commandTableName, CommandSpec.column_names())
+            sql += CommandSpec.bind_values_expression()
+            # loop over all commands
+            var_maps = []
+            for command_spec in command_specs:
+                var_map = command_spec.values_list()
+                var_maps.append(var_map)
+            # insert
+            self.executemany(sql, var_maps)
+            # commit
+            self.commit()
+            # return
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
+
+    # get command ids that have been processed and need to be acknowledged to panda server
+    def get_commands_ack(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start')
+            # sql to get commands that have been processed and need acknowledgement
+            sql = """
+                  SELECT command_id FROM {0}
+                  WHERE ack_requested=1
+                  AND processed=1
+                  """.format(commandTableName)
+            self.execute(sql)
+            command_ids = [row[0] for row in self.cur.fetchall()]
+            tmpLog.debug('command_ids {0}'.format(command_ids))
+            return command_ids
+        except:
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return []
+
+    def clean_commands_by_id(self, commands_ids):
+        """
+        Deletes the commands specified in a list of IDs
+        """
+        # get logger
+        tmpLog = core_utils.make_logger(_logger)
+        try:
+            # sql to delete a specific command
+            sql = """
+                  DELETE FROM {0}
+                  WHERE command_id=:command_id""".format(commandTableName)
+
+            for command_id in commands_ids:
+                var_map = {':command_id': command_id}
+                self.execute(sql, var_map)
+            self.commit()
+            return True
+        except:
+            self.rollback()
+            core_utils.dump_error_message(tmpLog)
+            return False
+
+    def clean_processed_commands(self):
+        """
+        Deletes the commands that have been processed and do not need acknowledgement
+        """
+        tmpLog = core_utils.make_logger(_logger)
+        try:
+            # sql to delete all processed commands that do not need an ACK
+            sql = """
+                  DELETE FROM {0}
+                  WHERE (ack_requested=0 AND processed=1)
+                  """.format(commandTableName)
+            self.execute(sql)
+            self.commit()
+            return True
+        except:
+            self.rollback()
+            core_utils.dump_error_message(tmpLog)
+            return False

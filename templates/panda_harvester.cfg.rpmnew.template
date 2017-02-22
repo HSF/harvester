@@ -14,6 +14,8 @@ gname = @@panda_group@@
 # logger name
 loggername = harvester
 
+# harvester id - unique id as registered also in panda server
+harvester_id = test_fbarreir
 
 
 
@@ -77,11 +79,23 @@ pandaURLProxy = http://pandaserver.cern.ch:25080/server/panda
 # config file
 configFile = panda_queueconfig.json
 
-# queue list : one queue name folloing a whitespace per line
+# queue list : one queue name following a whitespace per line
 queueList =
  FIXME_1
  FIXME_2
 
+
+##########################
+#
+# Command manager parameters
+#
+[commandmanager]
+
+# bulk size for panda server interactions
+commands_bulk_size = 20
+
+# sleep interval in sec
+sleepTime = 5
 
 ##########################
 #
