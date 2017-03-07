@@ -9,7 +9,7 @@ _logger = core_utils.setup_logger()
 
 
 # class to define number of workers to submit
-class WorkerAssigner:
+class WorkerAdjuster:
     # constructor
     def __init__(self, queue_config_mapper):
         self.queueConfigMapper = queue_config_mapper

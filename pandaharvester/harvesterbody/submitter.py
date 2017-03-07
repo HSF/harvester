@@ -7,7 +7,7 @@ from pandaharvester.harvestercore.db_proxy import DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
-from pandaharvester.harvesterbody.worker_assigner import WorkerAssigner
+from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 
 # logger
 _logger = core_utils.setup_logger()
@@ -21,7 +21,7 @@ class Submitter(AgentBase):
         self.queueConfigMapper = queue_config_mapper
         self.dbProxy = DBProxy()
         self.workerMaker = WorkerMaker()
-        self.workerAssigner = WorkerAssigner(queue_config_mapper)
+        self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
 
 
@@ -36,7 +36,7 @@ class Submitter(AgentBase):
                                                                              harvester_config.submitter.lookupTime)
             mainLog.debug('got {0} queues for site {1}'.format(len(curWorkersPerQueue), siteName))
             # define number of new workers
-            nWorkersPerQueue = self.workerAssigner.define_num_workers(curWorkersPerQueue, siteName)
+            nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkersPerQueue, siteName)
             # loop over all queues
             for queueName, tmpVal in nWorkersPerQueue.iteritems():
                 tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName))
