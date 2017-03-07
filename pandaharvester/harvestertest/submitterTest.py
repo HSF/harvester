@@ -30,12 +30,32 @@ jobSpec.set_input_file_paths(inFiles)
 workSpec = WorkSpec()
 workSpec.accessPoint = os.getcwd()
 workSpec.mapType = WorkSpec.MT_OneToOne
-
-pluginFactory = PluginFactory()
+workSpec.hasJob = 1
 
 # get plugin for messenger
+pluginFactory = PluginFactory()
 messenger = pluginFactory.get_plugin(queueConfig.messenger)
 messenger.feed_jobs(workSpec, [jobSpec])
+
+if 'eventService' in jobSpec.jobParams:
+    workSpec.eventsRequest = WorkSpec.EV_useEvents
+
+if workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
+    workSpec.eventsRequest = WorkSpec.EV_requestEvents
+    eventsRequestParams = dict()
+    eventsRequestParams[jobSpec.PandaID] = {'pandaID': jobSpec.PandaID,
+                                            'taskID': jobSpec.taskID,
+                                            'jobsetID': jobSpec.jobParams['jobsetID'],
+                                            'nRanges': jobSpec.jobParams['coreCount'],
+                                            }
+    workSpec.eventsRequestParams = eventsRequestParams
+
+    tmpStat, events = com.get_event_ranges(workSpec.eventsRequestParams)
+    # failed
+    if tmpStat is False:
+        print('failed to get events with {0}'.format(events))
+        sys.exit(0)
+    tmpStat = messenger.feed_events(workSpec, events)
 
 # get submitter plugin
 submitterCore = pluginFactory.get_plugin(queueConfig.submitter)
