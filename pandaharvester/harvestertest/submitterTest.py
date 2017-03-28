@@ -13,9 +13,9 @@ queueConfig = queueConfigMapper.get_queue(queueName)
 
 # communicator
 com = CommunicatorPool()
-jobs = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel, 'computingElement', 1)
+jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel, 'computingElement', 1)
 if len(jobs) == 0:
-    print "No jobs at {0}. Please submit a task or job to PanDA beforehand".format(queueConfig.queueName)
+    print "Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr)
     sys.exit(0)
 
 jobSpec = JobSpec()

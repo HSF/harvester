@@ -13,6 +13,7 @@ import copy
 import json
 import inspect
 import requests
+import traceback
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
 try:
@@ -38,6 +39,7 @@ class Communicator:
     # POST with http
     def post(self, path, data):
         try:
+            tmpLog = None
             if self.verbose:
                 tmpLog = core_utils.make_logger(_logger)
                 tmpExec = inspect.stack()[1][3]
@@ -57,12 +59,14 @@ class Communicator:
                                                      res.text)
         except:
             errType, errValue = sys.exc_info()[:2]
-            errMsg = "failed to post with {0}:{1}".format(errType, errValue)
+            errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
+            errMsg += traceback.format_exc()
         return False, errMsg
 
     # POST with https
     def post_ssl(self, path, data):
         try:
+            tmpLog = None
             if self.verbose:
                 tmpLog = core_utils.make_logger(_logger)
                 tmpExec = inspect.stack()[1][3]
@@ -85,7 +89,8 @@ class Communicator:
                                                      res.text)
         except:
             errType, errValue = sys.exc_info()[:2]
-            errMsg = "failed to post with {0}:{1}".format(errType, errValue)
+            errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
+            errMsg += traceback.format_exc()
         return False, errMsg
 
     # check server
@@ -105,19 +110,25 @@ class Communicator:
         data['computingElement'] = computing_element
         data['nJobs'] = n_jobs
         tmpStat, tmpRes = self.post_ssl('getJob', data)
+        errStr = 'OK'
         if tmpStat is False:
-            core_utils.dump_error_message(tmpLog, tmpRes)
+            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
         else:
             try:
                 tmpDict = tmpRes.json()
                 tmpLog.debug('StatusCode={0}'.format(tmpDict['StatusCode']))
                 if tmpDict['StatusCode'] == 0:
                     tmpLog.debug('got {0} jobs'.format(len(tmpDict['jobs'])))
-                    return tmpDict['jobs']
-                return []
+                    return tmpDict['jobs'], errStr
+                else:
+                    if 'errorDialog' in tmpDict:
+                        errStr = tmpDict['errorDialog']
+                    else:
+                        errStr = "StatusCode={0}".format(tmpDict['StatusCode'])
+                return [], errStr
             except:
-                core_utils.dump_error_message(tmpLog, tmpRes)
-        return []
+                errStr = core_utils.dump_error_message(tmpLog, tmpRes)
+        return [], errStr
 
     # update jobs TOBEFIXED to use bulk method
     def update_jobs(self, jobspec_list):
