@@ -138,6 +138,12 @@ maxJobs = 100
 # number of jobs in bulk update
 nJobsInBulk = 10
 
+# max number of workers tp update in one cycle
+maxWorkers = 100
+
+# number of workers in bulk update
+nWorkersInBulk = 10
+
 # lock interval in sec
 lockInterval = 180
 

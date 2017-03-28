@@ -66,7 +66,7 @@ class Monitor(AgentBase):
                             tmpLog.error('unknown status={0}'.format(newStatus))
                             continue
                         # update worker
-                        workSpec.status = newStatus
+                        workSpec.set_status(newStatus)
                         workSpec.workAttributes = workAttributes
                         # request events
                         if eventsRequestParams != {}:

@@ -11,6 +11,7 @@ except:
 import sys
 import copy
 import json
+import inspect
 import requests
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
@@ -29,16 +30,26 @@ _logger = core_utils.setup_logger()
 class Communicator:
     # constructor
     def __init__(self):
-        pass
+        if hasattr(harvester_config.pandacon, 'verbose') and harvester_config.pandacon.verbose:
+            self.verbose = True
+        else:
+            self.verbose = False
 
     # POST with http
     def post(self, path, data):
         try:
+            if self.verbose:
+                tmpLog = core_utils.make_logger(_logger)
+                tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURL, path)
+            if self.verbose:
+                tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
             res = requests.post(url,
                                 data=data,
                                 headers={"Accept": "application/json"},
                                 timeout=harvester_config.pandacon.timeout)
+            if self.verbose:
+                tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
             if res.status_code == 200:
                 return True, res
             else:
@@ -52,7 +63,12 @@ class Communicator:
     # POST with https
     def post_ssl(self, path, data):
         try:
+            if self.verbose:
+                tmpLog = core_utils.make_logger(_logger)
+                tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
+            if self.verbose:
+                tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
             res = requests.post(url,
                                 data=data,
                                 headers={"Accept": "application/json"},
@@ -60,6 +76,8 @@ class Communicator:
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=(harvester_config.pandacon.cert_file,
                                       harvester_config.pandacon.key_file))
+            if self.verbose:
+                tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
             if res.status_code == 200:
                 return True, res
             else:
@@ -92,7 +110,9 @@ class Communicator:
         else:
             try:
                 tmpDict = tmpRes.json()
+                tmpLog.debug('StatusCode={0}'.format(tmpDict['StatusCode']))
                 if tmpDict['StatusCode'] == 0:
+                    tmpLog.debug('got {0} jobs'.format(len(tmpDict['jobs'])))
                     return tmpDict['jobs']
                 return []
             except:
@@ -262,3 +282,31 @@ class Communicator:
                 retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
         tmpLog.debug('done with {0}'.format(str(retVal)))
         return retVal, retMsg
+
+    # update workers
+    def update_workers(self, workspec_list):
+        tmpLog = core_utils.make_logger(_logger)
+        tmpLog.debug('start')
+        dataList = []
+        for workSpec in workspec_list:
+            dataList.append(workSpec.convert_to_propagate())
+        data = dict()
+        data['harvesterID'] = harvester_config.master.harvester_id
+        data['workers'] = json.dumps(dataList)
+        tmpLog.debug('update {0} workers'.format(len(dataList)))
+        tmpStat, tmpRes = self.post_ssl('updateWorkers', data)
+        retList = None
+        errStr = 'OK'
+        if tmpStat is False:
+            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                retCode, retList = tmpRes.json()
+                if not retCode:
+                    errStr = retList
+                    retList = None
+            except:
+                errStr = core_utils.dump_error_message(tmpLog)
+                tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
+        tmpLog.debug('done with {0}'.format(errStr))
+        return retList, errStr

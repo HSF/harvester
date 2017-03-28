@@ -49,6 +49,32 @@ class Propagator(AgentBase):
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))
+            mainLog.debug('getting workers to propagate')
+            workSpecs = self.dbProxy.get_workers_to_propagate(harvester_config.propagator.maxWorkers,
+                                                              harvester_config.propagator.updateInterval)
+            mainLog.debug('got {0} workers'.format(len(workSpecs)))
+            # update workers in central database
+            iWorkers = 0
+            nWorkers = harvester_config.propagator.nWorkersInBulk
+            while iWorkers < len(workSpecs):
+                workList = workSpecs[iWorkers:iWorkers + nJobs]
+                iWorkers += nWorkers
+                retList, tmpErrStr = self.communicator.update_workers(workList)
+                # logging
+                if retList is None:
+                    mainLog.error('failed to update workers with {0}'.format(tmpErrStr))
+                else:
+                    for tmpWorkSpec, tmpRet in zip(workList, retList):
+                        if tmpRet:
+                            mainLog.debug('updated workerID={0} status={1}'.format(tmpWorkSpec.workerID,
+                                                                                   tmpWorkSpec.status))
+                            # disable further update
+                            if tmpWorkSpec.is_final_status():
+                                tmpWorkSpec.disable_propagation()
+                            self.dbProxy.update_worker(tmpWorkSpec, {'workerID': tmpWorkSpec.workerID})
+                        else:
+                            mainLog.error('failed to update workerID={0} status={1}'.format(tmpWorkSpec.workerID,
+                                                                                            tmpWorkSpec.status))
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):

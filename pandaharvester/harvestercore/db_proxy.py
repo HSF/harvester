@@ -866,7 +866,7 @@ class DBProxy:
             # return
             return []
 
-    # get queues to submit workers
+    # get workers to monitor
     def get_workers_to_update(self, max_workers, check_interval, lock_interval, locked_by):
         try:
             # get logger
@@ -946,6 +946,70 @@ class DBProxy:
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(retVal)))
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # get workers to propagate
+    def get_workers_to_propagate(self, max_workers, check_interval):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start')
+            # sql to get worker IDs
+            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
+            sqlW += "ORDER BY lastUpdate LIMIT {0} ".format(max_workers)
+            sqlW += "FOR UPDATE "
+            # sql to lock worker
+            sqlL = "UPDATE {0} SET lastUpdate=:timeNow ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID "
+            # sql to get associated PandaIDs
+            sqlA = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
+            sqlA += "WHERE workerID=:workerID "
+            # sql to get workers
+            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
+            sqlG += "WHERE workerID=:workerID "
+            timeNow = datetime.datetime.utcnow()
+            # get workerIDs
+            varMap = dict()
+            varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            tmpWorkers = set()
+            for workerID, in resW:
+                tmpWorkers.add(workerID)
+            retVal = []
+            for workerID in tmpWorkers:
+                # get worker
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                self.execute(sqlG, varMap)
+                resG = self.cur.fetchone()
+                workSpec = WorkSpec()
+                workSpec.pack(resG)
+                retVal.append(workSpec)
+                # lock worker with N sec offset for time-based locking
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':timeNow'] = timeNow + datetime.timedelta(seconds=5)
+                self.execute(sqlL, varMap)
+                # get associated PandaIDs
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                self.execute(sqlA, varMap)
+                resA = self.cur.fetchall()
+                workSpec.pandaid_list = []
+                for pandaID, in resA:
+                    workSpec.pandaid_list.append(pandaID)
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
         except:
             # roll back

@@ -144,12 +144,11 @@ class Submitter(AgentBase):
                             continue
                         # succeeded
                         if queueConfig.useJobLateBinding and workSpec.hasJob == 1:
-                            workSpec.status = WorkSpec.ST_running
+                            workSpec.set_status(WorkSpec.ST_running)
                         else:
-                            workSpec.status = WorkSpec.ST_submitted
+                            workSpec.set_status(WorkSpec.ST_submitted)
                         workSpec.mapType = queueConfig.mapType
                         workSpec.submitTime = timeNow
-                        workSpec.stateChangeTime = timeNow
                         workSpec.modificationTime = timeNow
                         # prefetch events
                         if workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
