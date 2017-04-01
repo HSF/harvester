@@ -41,7 +41,7 @@ com = "openssl x509 -noout -subject -in"
 p = subprocess.Popen(com.split() + [certFile], stdout=subprocess.PIPE)
 out, err = p.communicate()
 
+out = re.sub('^subject=', '', out)
 out = out.strip()
 print 'DN: "{0}"'.format(out)
-out = re.sub('^subject=', '', out)
 print 'extracted: "{0}"'.format(clean_user_id(out))
