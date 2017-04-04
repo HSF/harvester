@@ -66,6 +66,9 @@ pandaURLSSL = https://pandaserver.cern.ch:25443/server/panda
 # base URL via proxy
 pandaURLProxy = http://pandaserver.cern.ch:25080/server/panda
 
+# verbose
+verbose = False
+
 
 
 
