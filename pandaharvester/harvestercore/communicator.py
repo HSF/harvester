@@ -12,6 +12,7 @@ import sys
 import copy
 import json
 import inspect
+import datetime
 import requests
 import traceback
 # TO BE REMOVED for python2.7
@@ -321,3 +322,29 @@ class Communicator:
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
         tmpLog.debug('done with {0}'.format(errStr))
         return retList, errStr
+
+    # send instance heartbeat
+    def is_alive(self, key_values):
+        tmpLog = core_utils.make_logger(_logger)
+        tmpLog.debug('start')
+        # convert datetime
+        for tmpKey, tmpVal in key_values.iteritems():
+            if isinstance(tmpVal, datetime.datetime):
+                tmpVal = 'datetime/' + tmpVal.strftime('%Y-%m-%d %H:%M:%S.%f')
+                key_values[tmpKey] = tmpVal
+        # send data
+        data = dict()
+        data['harvesterID'] = harvester_config.master.harvester_id
+        data['data'] = json.dumps(key_values)
+        tmpStat, tmpRes = self.post_ssl('harvesterIsAlive', data)
+        retCode = False
+        if tmpStat is False:
+            tmpStr = core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                retCode, tmpStr = tmpRes.json()
+            except:
+                tmpStr = core_utils.dump_error_message(tmpLog)
+                tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
+        tmpLog.debug('done with {0} : {1}'.format(retCode, tmpStr))
+        return retCode, tmpStr

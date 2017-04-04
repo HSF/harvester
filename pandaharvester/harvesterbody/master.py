@@ -28,6 +28,8 @@ class Master:
 
     # main loop
     def start(self):
+        # send first heartbeat
+        self.communicatorPool.is_alive({'startTime': datetime.datetime.utcnow()})
         # thread list
         thrList = []
         # Command manager
