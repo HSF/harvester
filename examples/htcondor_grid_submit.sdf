@@ -1,0 +1,21 @@
+executable = /sharedfs/common/htcondor_mpi_wrapper.sh
+arguments = /sharedfs/common/single_test.sh
+universe = grid
+log = /sharedfs/condor-wdir/grid.$(Cluster).$(Process).log
+output = /sharedfs/condor-wdir/grid.$(Cluster).$(Process).out
+error = /sharedfs/condor-wdir/grid.$(Cluster).$(Process).err
+transfer_executable = True
+x509userproxy = /tmp/userproxy-harvester-twgridpil.pem
+
+grid_resource = condor test_queue@arc-fdr2.grid.sinica.edu.tw arc-fdr2.grid.sinica.edu.tw
+remote_initialdir = {accessPoint}
++remote_jobuniverse = 11
++remote_requirements = True
++remote_ShouldTransferFiles = "YES"
++remote_WhenToTransferOutput = "ON_EXIT"
++remote_RequestCpus = {nCorePerNode}
++remote_MaxHosts = {nNode}
++remote_MinHosts = {nNode}
++remote_ParallelShutdownPolicy = "WAIT_FOR_ALL"
+
+queue 1
