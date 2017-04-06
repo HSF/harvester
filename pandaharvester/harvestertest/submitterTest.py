@@ -11,9 +11,14 @@ queueName = sys.argv[1]
 queueConfigMapper = QueueConfigMapper()
 queueConfig = queueConfigMapper.get_queue(queueName)
 
-# communicator
+workSpec = WorkSpec()
+workSpec.accessPoint = os.getcwd()
+workSpec.mapType = WorkSpec.MT_OneToOne
+
+# get job
 com = CommunicatorPool()
-jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel, 'computingElement', 1)
+jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel,
+                            'computingElement', 1)
 if len(jobs) == 0:
     print "Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr)
     sys.exit(0)
@@ -27,10 +32,10 @@ for inLFN, inFile in inFiles.iteritems():
     inFile['path'] = '{0}/{1}'.format(os.getcwd(), inLFN)
 jobSpec.set_input_file_paths(inFiles)
 
-workSpec = WorkSpec()
-workSpec.accessPoint = os.getcwd()
-workSpec.mapType = WorkSpec.MT_OneToOne
-workSpec.hasJob = 1
+# set job to worker if not job-level late binding
+if not queueConfig.useJobLateBinding:
+    workSpec.hasJob = 1
+    workSpec.set_jobspec_list([jobSpec])
 
 # get plugin for messenger
 pluginFactory = PluginFactory()

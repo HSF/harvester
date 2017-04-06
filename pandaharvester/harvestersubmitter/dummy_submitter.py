@@ -32,12 +32,12 @@ class DummySubmitter(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger)
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
         retList = []
-        retStrList = []
         for workSpec in workspec_list:
-            for jobSpec in workSpec.get_jobspec_list():
-                tmpLog.debug('PandaID={0} nCore={1} RAM={2}'.format(jobSpec.PandaID,
-                                                                    jobSpec.jobParams['coreCount'],
-                                                                    jobSpec.jobParams['minRamCount']))
+            if workSpec.get_jobspec_list() is not None:
+                for jobSpec in workSpec.get_jobspec_list():
+                    tmpLog.debug('PandaID={0} nCore={1} RAM={2}'.format(jobSpec.PandaID,
+                                                                        jobSpec.jobParams['coreCount'],
+                                                                        jobSpec.jobParams['minRamCount']))
             workSpec.batchID = uuid.uuid4().hex
             retList.append((True, ''))
         tmpLog.debug('done')
