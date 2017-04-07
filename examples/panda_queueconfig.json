@@ -6,29 +6,28 @@
 	       "maxWorkers":1,	
 	       "mapType":"OneToOne",
 	       "zipPerMB":1024,
-	       "preparator":{
+	"preparator":{
 			"name":"RseDirectPreparator",
 			"module":"pandaharvester.harvesterpreparator.rse_direct_preparator",
 			"basePath":"/global/homes/t/tmaeno/rucio"
 			},
-		"submitter":{
+	"submitter":{
 			"name":"SlurmSubmitter",
 			"module":"pandaharvester.harvestersubmitter.slurm_submitter",
 			"templateFile":"/global/homes/t/tmaeno/panda-harvester/examples/slurm_submit.sh",
 			"nCorePerNode": 24,
 			"nCore": 24
 			},
-		"workerMaker":{
+	"workerMaker":{
 			"name":"SimpleWorkerMaker",
-			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker",
-			"workDir":"${TMPDIR}/panda/${BATCHID}"
+			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker"
 			},
-		"messenger":{
+	"messenger":{
 			"name":"SharedFileMessenger",
 			"module":"pandaharvester.harvestermessenger.shared_file_messenger",
 			"accessPoint":"/global/homes/t/tmaeno/workdir/panda/${workerID}"
 			},
-	       "stager":{
+	"stager":{
 			"name":"RucioStager",
 			"module":"pandaharvester.harvesterstager.rucio_stager",
 			"srcRSE":"NERSC_DATADISK",
@@ -39,11 +38,11 @@
 			"srcBasePath":"/global/homes/t/tmaeno/rucio",
 			"zipDir":"${SRCDIR}"
 			},
-		"monitor":{
+	"monitor":{
 			"name":"SlurmMonitor",
 			"module":"pandaharvester.harvestermonitor.slurm_monitor"
 			}
-	       },
+},
 "CERN_PROD_1":{
 	       "prodSourceLabel":"managed",
 	       "nQueueLimitJob":3,
@@ -51,29 +50,28 @@
 	       "maxWorkers":5,	
 	       "mapType":"OneToOne",
 	       "useJobLateBinding":true,
-	       "preparator":{
+	"preparator":{
 			"name":"GoPreparator",
 			"module":"pandaharvester.harvesterpreparator.go_preparator",
 			"srcEndpoint":"nersc#dtn",
 			"dstEndpoint":"go#ep1"
 			},
-		"submitter":{
+	"submitter":{
 			"name":"SlurmSubmitter",
 			"module":"pandaharvester.harvestersubmitter.slurm_submitter",
 			"nCorePerNode": 24,
 			"nCore": 48
 		    },
-		"workerMaker":{
+	"workerMaker":{
 			"name":"SimpleWorkerMaker",
-			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker",
-			"workDir":"${TMPDIR}/panda/${PANDAID}"
+			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker"
 			},
-		"messenger":{
+	"messenger":{
 			"name":"SharedFileMessenger",
 			"module":"pandaharvester.harvestermessenger.shared_file_messenger",
 			"accessPoint":"/tmp/tmaeno/workdir/panda/${batchID}"
 			},
-	       "stager":{
+	"stager":{
 			"name":"FtsStager",
 			"module":"pandaharvester.harvesterstager.fts_stager",
 			"ftsServer":"https://fts3-pilot.cern.ch:8446",
@@ -87,9 +85,9 @@
 			"srcEndpointLog":null,
 			"zipDir":"${SRCDIR}"
 			},
-		"monitor":{
+	"monitor":{
 			"name":"DummyMonitor",
 			"module":"pandaharvester.harvestermonitor.dummy_monitor"
 			}
-	       }
+}
 }
