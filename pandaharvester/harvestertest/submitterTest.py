@@ -11,9 +11,7 @@ queueName = sys.argv[1]
 queueConfigMapper = QueueConfigMapper()
 queueConfig = queueConfigMapper.get_queue(queueName)
 
-workSpec = WorkSpec()
-workSpec.accessPoint = os.getcwd()
-workSpec.mapType = WorkSpec.MT_OneToOne
+pluginFactory = PluginFactory()
 
 # get job
 com = CommunicatorPool()
@@ -32,13 +30,17 @@ for inLFN, inFile in inFiles.iteritems():
     inFile['path'] = '{0}/{1}'.format(os.getcwd(), inLFN)
 jobSpec.set_input_file_paths(inFiles)
 
+maker = pluginFactory.get_plugin(queueConfig.workerMaker)
+workSpec = maker.make_worker([jobSpec], queueConfig)
+workSpec.accessPoint = os.getcwd()
+workSpec.mapType = queueConfig.mapType
+
 # set job to worker if not job-level late binding
 if not queueConfig.useJobLateBinding:
     workSpec.hasJob = 1
     workSpec.set_jobspec_list([jobSpec])
 
 # get plugin for messenger
-pluginFactory = PluginFactory()
 messenger = pluginFactory.get_plugin(queueConfig.messenger)
 messenger.feed_jobs(workSpec, [jobSpec])
 

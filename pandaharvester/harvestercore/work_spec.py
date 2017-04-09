@@ -61,7 +61,10 @@ class WorkSpec(SpecBase):
                            'eventFeedTime:timestamp',
                            'lockedBy:text',
                            'postProcessed:integer',
-                           'nodeID:text'
+                           'nodeID:text',
+                           'minRamCount:integer',
+                           'maxDiskCount:integer',
+                           'maxWalltime:integer'
                            )
 
     # constructor

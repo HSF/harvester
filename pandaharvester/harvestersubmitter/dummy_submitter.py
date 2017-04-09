@@ -34,6 +34,10 @@ class DummySubmitter(PluginBase):
         retList = []
         for workSpec in workspec_list:
             if workSpec.get_jobspec_list() is not None:
+                tmpLog.debug('aggregated nCore={0} minRamCount={1} maxDiskCount={2}'.format(workSpec.nCore,
+                                                                                            workSpec.minRamCount,
+                                                                                            workSpec.maxDiskCount))
+                tmpLog.debug('max maxWalltime={0}'.format(workSpec.maxWalltime))
                 for jobSpec in workSpec.get_jobspec_list():
                     tmpLog.debug('PandaID={0} nCore={1} RAM={2}'.format(jobSpec.PandaID,
                                                                         jobSpec.jobParams['coreCount'],
