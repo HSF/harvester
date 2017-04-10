@@ -13,56 +13,65 @@ queueConfig = queueConfigMapper.get_queue(queueName)
 
 pluginFactory = PluginFactory()
 
-# get job
 com = CommunicatorPool()
-jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel,
-                            'computingElement', 1)
-if len(jobs) == 0:
-    print "Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr)
-    sys.exit(0)
 
-jobSpec = JobSpec()
-jobSpec.convert_job_json(jobs[0])
+# get job
+jobSpecList = []
+if queueConfig.mapType != WorkSpec.MT_NoJob:
+    jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel,
+                                'computingElement', 1)
+    if len(jobs) == 0:
+        print "Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr)
+        sys.exit(0)
 
-# set input file paths
-inFiles = jobSpec.get_input_file_attributes()
-for inLFN, inFile in inFiles.iteritems():
-    inFile['path'] = '{0}/{1}'.format(os.getcwd(), inLFN)
-jobSpec.set_input_file_paths(inFiles)
+    jobSpec = JobSpec()
+    jobSpec.convert_job_json(jobs[0])
+
+    # set input file paths
+    inFiles = jobSpec.get_input_file_attributes()
+    for inLFN, inFile in inFiles.iteritems():
+        inFile['path'] = '{0}/{1}'.format(os.getcwd(), inLFN)
+    jobSpec.set_input_file_paths(inFiles)
+    jobSpecList.append(jobSpec)
 
 maker = pluginFactory.get_plugin(queueConfig.workerMaker)
-workSpec = maker.make_worker([jobSpec], queueConfig)
+workSpec = maker.make_worker(jobSpecList, queueConfig)
 workSpec.accessPoint = os.getcwd()
 workSpec.mapType = queueConfig.mapType
 
 # set job to worker if not job-level late binding
 if not queueConfig.useJobLateBinding:
     workSpec.hasJob = 1
-    workSpec.set_jobspec_list([jobSpec])
+    workSpec.set_jobspec_list(jobSpecList)
 
 # get plugin for messenger
-messenger = pluginFactory.get_plugin(queueConfig.messenger)
-messenger.feed_jobs(workSpec, [jobSpec])
+if queueConfig.mapType != WorkSpec.MT_NoJob:
+    messenger = pluginFactory.get_plugin(queueConfig.messenger)
+    messenger.feed_jobs(workSpec, jobSpecList)
 
-if 'eventService' in jobSpec.jobParams:
-    workSpec.eventsRequest = WorkSpec.EV_useEvents
+    jobSpec = jobSpecList[0]
+    if 'eventService' in jobSpec.jobParams:
+        workSpec.eventsRequest = WorkSpec.EV_useEvents
 
-if workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
-    workSpec.eventsRequest = WorkSpec.EV_requestEvents
-    eventsRequestParams = dict()
-    eventsRequestParams[jobSpec.PandaID] = {'pandaID': jobSpec.PandaID,
-                                            'taskID': jobSpec.taskID,
-                                            'jobsetID': jobSpec.jobParams['jobsetID'],
-                                            'nRanges': jobSpec.jobParams['coreCount'],
-                                            }
-    workSpec.eventsRequestParams = eventsRequestParams
+    if workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
+        workSpec.eventsRequest = WorkSpec.EV_requestEvents
+        eventsRequestParams = dict()
+        eventsRequestParams[jobSpec.PandaID] = {'pandaID': jobSpec.PandaID,
+                                                'taskID': jobSpec.taskID,
+                                                'jobsetID': jobSpec.jobParams['jobsetID'],
+                                                'nRanges': jobSpec.jobParams['coreCount'],
+                                                }
+        workSpec.eventsRequestParams = eventsRequestParams
 
-    tmpStat, events = com.get_event_ranges(workSpec.eventsRequestParams)
-    # failed
-    if tmpStat is False:
-        print('failed to get events with {0}'.format(events))
-        sys.exit(0)
-    tmpStat = messenger.feed_events(workSpec, events)
+        tmpStat, events = com.get_event_ranges(workSpec.eventsRequestParams)
+        # failed
+        if tmpStat is False:
+            print('failed to get events with {0}'.format(events))
+            sys.exit(0)
+        tmpStat = messenger.feed_events(workSpec, events)
+        if tmpStat is False:
+            print('failed to feed events with {0}'.format(events))
+            sys.exit(0)
 
 # get submitter plugin
 submitterCore = pluginFactory.get_plugin(queueConfig.submitter)
