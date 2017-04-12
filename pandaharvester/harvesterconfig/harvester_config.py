@@ -1,4 +1,5 @@
 import re
+import os
 import sys
 
 from liveconfigparser.LiveConfigParser import LiveConfigParser
@@ -26,6 +27,13 @@ for tmpSection in tmpConf.sections():
     sys.modules[__name__].__dict__[tmpSection] = tmpSelf
     # expand all values
     for tmpKey, tmpVal in tmpDict.iteritems():
+        # use env vars
+        if tmpVal.startswith('$'):
+            tmpMatch = re.search('\$\{*([^\}]+)\}*', tmpVal)
+            envName = tmpMatch.group(1)
+            if envName not in os.environ:
+                raise KeyError, '{0} in the cfg is an undefined environment variable.'.format(envName)
+            tmpVal = os.environ[envName]
         # convert string to bool/int
         if tmpVal == 'True':
             tmpVal = True
