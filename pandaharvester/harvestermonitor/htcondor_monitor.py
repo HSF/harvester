@@ -22,7 +22,7 @@ class HTCondorMonitor (PluginBase):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
             # first command
-            comStr = "condor_q -l {0}".format(workSpec.batchID)
+            comStr = 'condor_q -l {0}'.format(workSpec.batchID)
             # first check
             tmpLog.debug('check with {0}'.format(comStr))
             p = subprocess.Popen(comStr.split(),
@@ -49,19 +49,18 @@ class HTCondorMonitor (PluginBase):
                             newStatus = WorkSpec.ST_submitted
                         else:
                             newStatus = WorkSpec.ST_failed
-                        tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus,
-                                                                                  newStatus))
+                        tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
                         break
                     else:
                         # nothing in condor_q. Try condor_history
                         # second command
-                        comStr = "condor_history -l {0}".format(workSpec.batchID)
+                        comStr = 'condor_history -l {0}'.format(workSpec.batchID)
                         # second check
                         tmpLog.debug('check with {0}'.format(comStr))
                         p2 = subprocess.Popen(comStr.split(),
-                                              shell=False,
-                                              stdout=subprocess.PIPE,
-                                              stderr=subprocess.PIPE)
+                                                shell=False,
+                                                stdout=subprocess.PIPE,
+                                                stderr=subprocess.PIPE)
                         # second check return code
                         stdOut, stdErr = p2.communicate()
                         retCode = p2.returncode
@@ -80,8 +79,7 @@ class HTCondorMonitor (PluginBase):
                                         newStatus = WorkSpec.ST_cancelled
                                     else:
                                         newStatus = WorkSpec.ST_failed
-                                    tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus,
-                                                                                              newStatus))
+                                    tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
                                     break
                             retList.append((newStatus, errStr))
 

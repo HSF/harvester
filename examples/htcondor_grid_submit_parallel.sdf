@@ -1,9 +1,9 @@
 executable = /sharedfs/common/htcondor_mpi_wrapper.sh
 arguments = /sharedfs/common/single_test.sh
 universe = grid
-log = /sharedfs/condor-wdir/grid.$(Cluster).$(Process).log
-output = /sharedfs/condor-wdir/grid.$(Cluster).$(Process).out
-error = /sharedfs/condor-wdir/grid.$(Cluster).$(Process).err
+log = {logDir}/grid.$(Cluster).$(Process).log
+output = {logDir}/grid.$(Cluster).$(Process).out
+error = {logDir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = /tmp/userproxy-harvester-twgridpil.pem
 
@@ -13,9 +13,12 @@ remote_initialdir = {accessPoint}
 +remote_requirements = True
 +remote_ShouldTransferFiles = "YES"
 +remote_WhenToTransferOutput = "ON_EXIT"
-+remote_RequestCpus = {nCorePerNode}
 +remote_MaxHosts = {nNode}
 +remote_MinHosts = {nNode}
++remote_RequestCpus = {nCorePerNode}
++remote_RequestMemory = {requestRam}
++remote_RequestDisk = {requestDisk}
++remote_JobMaxVacateTime = {requestWalltime}
 +remote_ParallelShutdownPolicy = "WAIT_FOR_ALL"
 
 queue 1
