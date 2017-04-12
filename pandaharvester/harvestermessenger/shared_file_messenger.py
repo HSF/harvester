@@ -9,39 +9,40 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.event_spec import EventSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvesterconfig import harvester_config
 
 # logger
 _logger = core_utils.setup_logger()
 
 # json for worker attributes
-jsonAttrsFileName = 'worker_attributes.json'
+jsonAttrsFileName = harvester_config.payload_interaction.workerAttributesFile
 
 # json for job report
-jsonJobReport = 'jobReport.json'
+jsonJobReport = harvester_config.payload_interaction.jobReportFile
 
 # json for outputs
-jsonOutputsFileName = 'event_status.dump.json'
+jsonOutputsFileName = harvester_config.payload_interaction.eventStatusDumpJsonFile
 
 # xml for outputs
-xmlOutputsBaseFileName = '_event_status.dump'
+xmlOutputsBaseFileName = harvester_config.payload_interaction.eventStatusDumpXmlFile
 
 # json for job request
-jsonJobRequestFileName = 'worker_requestjob.json'
+jsonJobRequestFileName = harvester_config.payload_interaction.jobRequestFile
 
 # json for job spec
-jsonJobSpecFileName = 'HPCJobs.json'
+jsonJobSpecFileName = harvester_config.payload_interaction.jobSpecFile
 
 # json for event request
-jsonEventsRequestFileName = 'worker_requestevents.json'
+jsonEventsRequestFileName = harvester_config.payload_interaction.eventRequestFile
 
 # json to feed events
-jsonEventsFeedFileName = 'JobsEventRanges.json'
+jsonEventsFeedFileName = harvester_config.payload_interaction.eventRangesFile
 
 # json to update events
-jsonEventsUpdateFileName = 'worker_updateevents.json'
+jsonEventsUpdateFileName = harvester_config.payload_interaction.updateEventsFile
 
 # PFC for input files
-xmlPoolCatalogFileName = 'PoolFileCatalog_H.xml'
+xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
 
 # suffix to read json
 suffixReadJson = '.read'

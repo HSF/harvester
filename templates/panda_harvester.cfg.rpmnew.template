@@ -348,3 +348,44 @@ refreshInterval = 10
 
 # sleep interval in sec
 sleepTime = 60
+
+
+
+
+
+##########################
+#
+# Payload interaction parameters
+#
+
+[payload_interaction]
+
+# worker attributes
+workerAttributesFile = worker_attributes.json
+
+# job report
+jobReportFile = jobReport.json
+
+# event status dump file in json
+eventStatusDumpJsonFile = event_status.dump.json
+
+# event status dump file in xml
+eventStatusDumpXmlFile = _event_status.dump
+
+# job request
+jobRequestFile = worker_requestjob.json
+
+# job spec file
+jobSpecFile = HPCJobs.json
+
+# event request
+eventRequestFile = worker_requestevents.json
+
+# event ranges file
+eventRangesFile = JobsEventRanges.json
+
+# update events
+updateEventsFile = worker_updateevents.json
+
+# PFC for input files
+xmlPoolCatalogFile = PoolFileCatalog_H.xml
