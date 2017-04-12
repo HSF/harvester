@@ -1,0 +1,20 @@
+executable = /sharedfs/common/single_test.sh
+universe = grid
+log = {logDir}/grid.$(Cluster).$(Process).log
+output = {logDir}/grid.$(Cluster).$(Process).out
+error = {logDir}/grid.$(Cluster).$(Process).err
+transfer_executable = True
+x509userproxy = /tmp/userproxy-harvester-twgridpil.pem
+
+grid_resource = condor test_queue@arc-fdr2.grid.sinica.edu.tw arc-fdr2.grid.sinica.edu.tw
+remote_initialdir = {accessPoint}
++remote_jobuniverse = 5
++remote_requirements = True
++remote_ShouldTransferFiles = "YES"
++remote_WhenToTransferOutput = "ON_EXIT"
++remote_RequestCpus = {nCoreTotal}
++remote_RequestMemory = {requestRam}
++remote_RequestDisk = {requestDisk}
++remote_JobMaxVacateTime = {requestWalltime}
+
+queue 1

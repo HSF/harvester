@@ -1,0 +1,16 @@
+executable = htcondor_mpi_wrapper.sh
+arguments = ASGCHPCJob.sh
+universe = parallel
+initialdir = {accessPoint}
+machine_count = {nNode}
+request_cpus = {nCorePerNode}
+request_memory = {requestRam}
+request_disk = {requestDisk}
+job_max_vacate_time = {requestWalltime}
+log = {logDir}/parallel.$(Cluster).$(Process).log
+output = {logDir}/parallel.$(Cluster).$(Process).$(Node).out
+error = {logDir}/parallel.$(Cluster).$(Process).$(Node).err
++ParallelShutdownPolicy = "WAIT_FOR_ALL"
+should_transfer_files = NO
+when_to_transfer_output = ON_EXIT
+queue 1

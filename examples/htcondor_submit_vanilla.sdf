@@ -1,0 +1,13 @@
+executable = ASGCHPCJob.sh
+universe = vanilla
+initialdir = {accessPoint}
+request_cpus = {nCoreTotal}
+request_memory = {requestRam}
+request_disk = {requestDisk}
+job_max_vacate_time = {requestWalltime}
+log = {logDir}/vanilla.$(Cluster).$(Process).log
+output = {logDir}/vanilla.$(Cluster).$(Process).$(Node).out
+error = {logDir}/vanilla.$(Cluster).$(Process).$(Node).err
+should_transfer_files = NO
+when_to_transfer_output = ON_EXIT
+queue 1
