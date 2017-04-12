@@ -11,13 +11,14 @@ queueConfig = queueConfigMapper.get_queue(queueName)
 from pandaharvester.harvestercore.job_spec import JobSpec
 
 jobSpec = JobSpec()
-jobSpec.jobParams = {'inFiles': 'DAOD_STDM4.09596175._000008.pool.root.1',
+jobSpec.computingSite = sys.argv[1]
+jobSpec.jobParams = {'inFiles': 'EVNT.06820166._000001.pool.root.1',
                      'scopeIn': 'mc15_13TeV',
-                     'fsize': '658906675',
-                     'GUID': '7e3776f9bb0af341b03e59d3de895a13',
-                     'checksum': 'ad:3734bdd9',
-                     'ddmEndPointIn': 'BNL-OSG2_DATADISK',
-                     'realDatasetsIn': 'mc15_13TeV.363638.MGPy8EG_N30NLO_Wmunu_Ht500_700_BFilter.merge.DAOD_STDM4.e4944_s2726_r7772_r7676_p2842_tid09596175_00',
+                     'fsize': '196196765',
+                     'GUID': 'B7F387CD-1F97-1C47-88BD-D8785442C49D',
+                     'checksum': 'ad:326e445d',
+                     'ddmEndPointIn': 'MWT2_DATADISK',
+                     'realDatasetsIn': 'mc15_13TeV:mc15_13TeV.301042.PowhegPythia8EvtGen_AZNLOCTEQ6L1_DYtautau_250M400.evgen.EVNT.e3649_tid06820166_00',
                      }
 
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
