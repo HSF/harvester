@@ -38,7 +38,7 @@ class HTCondorMonitor (PluginBase):
             if retCode == 0:
                 # first parse
                 for tmpLine in stdOut.split('\n'):
-                    tmpMatch = re.search('JobStatus = ([^ ]+)', tmpLine)
+                    tmpMatch = re.search('^JobStatus = ([^ ]+)', tmpLine)
                     if tmpMatch is not None:
                         batchStatus = tmpMatch.group(1)
                         if batchStatus in ['2', '5', '6', '7', '3', '4']:
@@ -68,7 +68,7 @@ class HTCondorMonitor (PluginBase):
                         if retCode == 0:
                             # second parse
                             for tmpLine in stdOut.split('\n'):
-                                tmpMatch = re.search('JobStatus = ([^ ]+)', tmpLine)
+                                tmpMatch = re.search('^JobStatus = ([^ ]+)', tmpLine)
                                 if tmpMatch is not None:
                                     batchStatus = tmpMatch.group(1)
                                     if batchStatus in ['4']:
