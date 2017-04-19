@@ -297,6 +297,39 @@ class DBProxy:
             # return
             return None
 
+    # get jobs (fetch entire jobTable)
+    def get_jobs(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start')
+            # sql to get job
+            sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sql += "WHERE PandaID IS NOT NULL"
+            # get jobs
+            varMap = None
+            self.execute(sql, varMap)
+            resJobs = self.cur.fetchall()
+            if resJobs is None:
+                return None
+            print resJobs
+            jobSpecList=[]
+            # make jobs list
+            for resJ in resJobs:
+                jobSpec = JobSpec()
+                jobSpec.pack(resJ)
+                jobSpecList.append(jobSpec)
+            tmpLog.debug('done')
+            # return
+            return jobSpecList
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None
+
     # update job
     def update_job(self, jobspec, criteria=None):
         try:
