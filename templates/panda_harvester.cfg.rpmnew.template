@@ -5,10 +5,10 @@
 
 [master]
 
-# uid
+# user name of the daemon process
 uname = @@panda_user@@
 
-# gid
+# group name of the daemon process
 gname = @@panda_group@@
 
 # logger name
