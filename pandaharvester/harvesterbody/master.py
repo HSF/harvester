@@ -145,8 +145,8 @@ if __name__ == "__main__":
                         help='use single mode')
 
     options = parser.parse_args()
-    uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
-    gid = grp.getgrnam(harvester_config.master.gname).gr_gid
+    uid = pwd.getpwuid(harvester_config.master.uname).pw_uid
+    gid = grp.getgrgid(harvester_config.master.gname).gr_gid
     timeNow = datetime.datetime.utcnow()
     print "{0} Master: INFO    start".format(str(timeNow))
 
