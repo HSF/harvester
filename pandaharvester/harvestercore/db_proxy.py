@@ -312,7 +312,6 @@ class DBProxy:
             resJobs = self.cur.fetchall()
             if resJobs is None:
                 return None
-            print resJobs
             jobSpecList=[]
             # make jobs list
             for resJ in resJobs:
