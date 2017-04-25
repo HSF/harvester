@@ -156,7 +156,7 @@ class SharedFileMessenger(PluginBase):
             if os.path.exists(readJsonPath):
                 pass
             else:
-                tmpLog.debug('looking for event update file {0}'.format(jsonFilePath))
+                tmpLog.debug('looking for output file {0}'.format(jsonFilePath))
                 if not os.path.exists(jsonFilePath):
                     # not found
                     tmpLog.debug('not found')
@@ -176,9 +176,13 @@ class SharedFileMessenger(PluginBase):
                 return {}
             # collect files and events
             eventsList = dict()
-            for tmpPandaID, tmpEventMap in loadDict.iteritems():
+            for tmpPandaID, tmpEventMapList in loadDict.iteritems():
                 tmpPandaID = long(tmpPandaID)
-                for tmpEventRangeID, tmpEventInfo in tmpEventMap.iteritems():
+                for tmpEventInfo in tmpEventMapList:
+                    if 'eventRangeID' in tmpEventInfo:
+                        tmpEventRangeID = tmpEventInfo['eventRangeID']
+                    else:
+                        tmpEventRangeID = None
                     tmpFileDict = dict()
                     pfn = tmpEventInfo['path']
                     lfn = os.path.basename(pfn)
