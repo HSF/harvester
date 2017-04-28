@@ -1,0 +1,15 @@
+/var/log/panda/*log {
+    rotate 180	
+    daily
+    compress    
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+	/sbin/service panda_harvester stop > /dev/null 2>/dev/null || true
+	/sbin/service panda_harvester start > /dev/null 2>/dev/null || true
+	sleep 60
+	/usr/bin/panda_harvester-renice > /dev/null 2>/dev/null || true
+    endscript
+}
+
