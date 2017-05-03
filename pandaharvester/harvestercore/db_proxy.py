@@ -411,6 +411,19 @@ class DBProxy:
             # get logger
             tmpLog = core_utils.make_logger(_logger)
             tmpLog.debug('start')
+            # get existing queues
+            sqlE = "SELECT queueName FROM {0} ".format(pandaQueueTableName)
+            varMap = dict()
+            self.execute(sqlE, varMap)
+            resE = self.cur.fetchall()
+            for queueName, in resE:
+                # delete if not listed in cfg
+                if queueName not in panda_queue_list:
+                    sqlD = "DELETE FROM {0} ".format(pandaQueueTableName)
+                    sqlD += "WHERE queueName=:queueName "
+                    varMap = dict()
+                    varMap[':queueName'] = queueName
+                    self.execute(sqlD, varMap)
             # loop over queues
             for queueName in panda_queue_list:
                 queueConfig = queue_config_mapper.get_queue(queueName)

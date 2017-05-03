@@ -89,7 +89,7 @@ class Submitter(AgentBase):
                     continue
                 # make workers
                 okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queueConfig, nReady)
-                tmpLog.debug('made {0} workers while {1} failed'.format(len(okChunks), len(ngChunks)))
+                tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks), len(ngChunks)))
                 timeNow = datetime.datetime.utcnow()
                 # NG
                 for ngJobs in ngChunks:
@@ -106,7 +106,8 @@ class Submitter(AgentBase):
                 if len(okChunks) > 0:
                     for workSpec, okJobs in okChunks:
                         # has job
-                        if queueConfig.useJobLateBinding and workSpec.workerID is None:
+                        if (queueConfig.useJobLateBinding and workSpec.workerID is None) \
+                                or queueConfig.mapType == WorkSpec.MT_NoJob:
                             workSpec.hasJob = 0
                         else:
                             workSpec.hasJob = 1
@@ -136,6 +137,7 @@ class Submitter(AgentBase):
                     # setup access points
                     messenger.setup_access_points(workSpecList)
                     # submit
+                    tmpLog.debug('submitting {0} workers'.format(len(workSpecList)))
                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)
                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                         workSpec, jobList = okChunks[iWorker]
