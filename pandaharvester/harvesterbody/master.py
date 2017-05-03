@@ -70,6 +70,7 @@ class Master:
         nThr = harvester_config.propagator.nThreads
         for iThr in range(nThr):
             thr = Propagator(self.communicatorPool,
+                             self.queueConfigMapper,
                              single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()

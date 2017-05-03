@@ -1,0 +1,104 @@
+{
+"PULL_MODEL": {
+	       "prodSourceLabel":"managed",
+	       "nQueueLimitWorker":1,
+	       "maxWorkers":1,	
+	       "mapType":"NoJob",
+	"preparator":{
+			"name":"DummyPreparator",
+			"module":"pandaharvester.harvesterpreparator.dummy_preparator"
+			},
+	"submitter":{
+			"name":"DummySubmitter",
+			"module":"pandaharvester.harvestersubmitter.dummy_submitter",
+			"nCorePerNode": 24,
+			"nCore": 24
+			},
+	"workerMaker":{
+			"name":"SimpleWorkerMaker",
+			"module":"pandaharvester.harvesterworkermaker.simple_worker_maker"
+			},
+	"messenger":{
+			"name":"SharedFileMessenger",
+			"module":"pandaharvester.harvestermessenger.shared_file_messenger",
+			"accessPoint":"/global/homes/t/tmaeno/workdir/panda/${workerID}"
+			},
+	"stager":{
+			"name":"DummyStager",
+			"module":"pandaharvester.harvesterstager.dummy_stager"
+			},
+	"monitor":{
+			"name":"DummyMonitor",
+			"module":"pandaharvester.harvestermonitor.dummy_monitor"
+			}
+},
+"PUSH_MODEL": {
+	"prodSourceLabel": "managed",
+	"nQueueLimitJob": 3,
+	"nQueueLimitWorker": 5,
+	"maxWorkers": 5,
+	"mapType": "OneToOne",
+	"preparator": {
+		"name": "DummyPreparator",
+		"module": "pandaharvester.harvesterpreparator.dummy_preparator"
+	},
+	"submitter": {
+		"name": "DummySubmitter",
+		"module": "pandaharvester.harvestersubmitter.dummy_submitter",
+		"nCorePerNode": 24,
+		"nCore": 24
+	},
+	"workerMaker": {
+		"name": "SimpleWorkerMaker",
+		"module": "pandaharvester.harvesterworkermaker.simple_worker_maker"
+	},
+	"messenger": {
+		"name": "SharedFileMessenger",
+		"module": "pandaharvester.harvestermessenger.shared_file_messenger",
+		"accessPoint": "/global/homes/t/tmaeno/workdir/panda/${workerID}"
+	},
+	"stager": {
+		"name": "DummyStager",
+		"module": "pandaharvester.harvesterstager.dummy_stager"
+	},
+	"monitor": {
+		"name": "DummyMonitor",
+		"module": "pandaharvester.harvestermonitor.dummy_monitor"
+	}
+},
+	"PUSH_MODEL_WITH_TRUE_PILOT": {
+	"prodSourceLabel": "managed",
+	"nQueueLimitJob": 3,
+	"nQueueLimitWorker": 5,
+	"maxWorkers": 5,
+	"mapType": "OneToOne",
+	"noHeartbeat": "running,transferring,finished,failed",
+	"preparator": {
+		"name": "DummyPreparator",
+		"module": "pandaharvester.harvesterpreparator.dummy_preparator"
+	},
+	"submitter": {
+		"name": "DummySubmitter",
+		"module": "pandaharvester.harvestersubmitter.dummy_submitter",
+		"nCorePerNode": 24,
+		"nCore": 24
+	},
+	"workerMaker": {
+		"name": "SimpleWorkerMaker",
+		"module": "pandaharvester.harvesterworkermaker.simple_worker_maker"
+	},
+	"messenger": {
+		"name": "SharedFileMessenger",
+		"module": "pandaharvester.harvestermessenger.shared_file_messenger",
+		"accessPoint": "/global/homes/t/tmaeno/workdir/panda/${workerID}"
+	},
+	"stager": {
+		"name": "DummyStager",
+		"module": "pandaharvester.harvesterstager.dummy_stager"
+	},
+	"monitor": {
+		"name": "DummyMonitor",
+		"module": "pandaharvester.harvestermonitor.dummy_monitor"
+	}
+}
+}
