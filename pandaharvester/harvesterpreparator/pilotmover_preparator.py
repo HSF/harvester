@@ -10,14 +10,14 @@ from pilot.api import data
 baseLogger = core_utils.setup_logger()
 
 
-# plugin for preparator with RSE + rucio copytool from pilot
-class RsePreparator(PluginBase):
-    """The workflow for RsePreparator is as follows. First panda makes a rule to
-    transfer files to an RSE which is associated to the resource. Once files are transferred
-    to the RSE, job status is changed to activated from assigned. Then Harvester fetches
-    the job and constructs input file paths that point to pfns in the storage. This means
-    that the job directly read input files from the storage.
+# plugin for preparator based on Pilot2.0 Data API
+# Pilot 2.0 should be deployed as library
+class PilotmoverPreparator(PluginBase):
     """
+    Praparator bring files from remote ATLAS/Rucio storage to local facility. 
+    """
+    __basePath = os.getcwd()
+
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
@@ -44,14 +44,12 @@ class RsePreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['dataset'], inFile['scope'], inLFN)
-            dstpath = os.path.dirname(inFile['path'])
             # check if path exists if not create it.
-            if not os.access(dstpath, os.F_OK):
-                os.makedirs(dstpath)
+            if not os.access(self.__basePath, os.F_OK):
+                os.makedirs(self.__basePath)
             files.append({'scope': inFile['scope'],
                           'name': inLFN,
-                          'destination': dstpath})
+                          'destination': self.__basePath})
         tmpLog.debug('files[] {0}'.format(files))
         data_client = data.StageInClient(site=jobspec.computingSite)
         result = data_client.transfer(files)
@@ -70,13 +68,18 @@ class RsePreparator(PluginBase):
         else:
             return False, ErrMsg
 
+    #set local path for downloading
+    def setBasePath(self, BasePath):
+        self.__basePath = BasePath
+        return self.__basePath
+
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['dataset'], inFile['scope'], inLFN)
+            inFile['path'] = self.__basePath
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ''
