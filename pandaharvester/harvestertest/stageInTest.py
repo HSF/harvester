@@ -27,11 +27,13 @@ pluginFactory = PluginFactory()
 
 # get plugin
 preparatorCore = pluginFactory.get_plugin(queueConfig.preparator)
-print "Preparator are going to use plugin:"
 print "plugin={0}".format(preparatorCore.__class__.__name__)
 
-print "testing preparation"
-preparatorCore.setBasePath(os.getcwd())
+print "testing stagein:"
+print "BasePath from preparator configuration: %s " % preparatorCore.basePath
+preparatorCore.basePath = preparatorCore.basePath + "/testdata/"
+print "basePath redifuned for test data: %s " % preparatorCore.basePath
+
 tmpStat, tmpOut = preparatorCore.trigger_preparation(jobSpec)
 if tmpStat:
     print " OK"
