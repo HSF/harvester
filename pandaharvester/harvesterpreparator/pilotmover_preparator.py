@@ -19,6 +19,7 @@ class PilotmoverPreparator(PluginBase):
     Praparator bring files from remote ATLAS/Rucio storage to local facility. 
     """
 
+
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
@@ -45,12 +46,14 @@ class PilotmoverPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
+            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['dataset'], inFile['scope'], inLFN)
+            dstpath = os.path.dirname(inFile['path'])
             # check if path exists if not create it.
-            if not os.access(self.basePath, os.F_OK):
-                os.makedirs(self.basePath)
+            if not os.access(dstpath, os.F_OK):
+                os.makedirs(dstpath)
             files.append({'scope': inFile['scope'],
                           'name': inLFN,
-                          'destination': self.basePath})
+                          'destination': dstpath})
         tmpLog.debug('files[] {0}'.format(files))
         data_client = data.StageInClient(site=jobspec.computingSite)
         result = data_client.transfer(files)
@@ -69,18 +72,13 @@ class PilotmoverPreparator(PluginBase):
         else:
             return False, ErrMsg
 
-    #set local path for downloading
-    #def setBasePath(self, BasePath):
-    #    self.__basePath = BasePath
-    #    return self.__basePath
-
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
-            inFile['path'] = self.basePath + inLFN if self.basePath[-1:] == '/' else self.basePath + '/' + inLFN
+            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['dataset'], inFile['scope'], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ''
