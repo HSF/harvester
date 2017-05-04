@@ -10,14 +10,16 @@ from pilot.api import data
 baseLogger = core_utils.setup_logger()
 
 
-# plugin for preparator with RSE + rucio copytool from pilot
-class RsePreparator(PluginBase):
-    """The workflow for RsePreparator is as follows. First panda makes a rule to
-    transfer files to an RSE which is associated to the resource. Once files are transferred
-    to the RSE, job status is changed to activated from assigned. Then Harvester fetches
-    the job and constructs input file paths that point to pfns in the storage. This means
-    that the job directly read input files from the storage.
+# plugin for preparator based on Pilot2.0 Data API
+# Pilot 2.0 should be deployed as library
+# default self.basePath came from preparator section of configuration file
+
+class PilotmoverPreparator(PluginBase):
     """
+    Praparator bring files from remote ATLAS/Rucio storage to local facility. 
+    """
+
+
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
