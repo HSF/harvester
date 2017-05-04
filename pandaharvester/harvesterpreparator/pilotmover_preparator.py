@@ -80,7 +80,7 @@ class PilotmoverPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
-            inFile['path'] = self.basePath
+            inFile['path'] = self.basePath + inLFN if self.basePath[-1:] == '/' else self.basePath + '/' + inLFN
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ''
