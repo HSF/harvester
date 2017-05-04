@@ -12,11 +12,12 @@ baseLogger = core_utils.setup_logger()
 
 # plugin for preparator based on Pilot2.0 Data API
 # Pilot 2.0 should be deployed as library
+# default self.basePath came from preparator section of configuration file
+
 class PilotmoverPreparator(PluginBase):
     """
     Praparator bring files from remote ATLAS/Rucio storage to local facility. 
     """
-    __basePath = os.getcwd()
 
     # constructor
     def __init__(self, **kwarg):
@@ -45,11 +46,11 @@ class PilotmoverPreparator(PluginBase):
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
             # check if path exists if not create it.
-            if not os.access(self.__basePath, os.F_OK):
-                os.makedirs(self.__basePath)
+            if not os.access(self.basePath, os.F_OK):
+                os.makedirs(self.basePath)
             files.append({'scope': inFile['scope'],
                           'name': inLFN,
-                          'destination': self.__basePath})
+                          'destination': self.basePath})
         tmpLog.debug('files[] {0}'.format(files))
         data_client = data.StageInClient(site=jobspec.computingSite)
         result = data_client.transfer(files)
@@ -69,9 +70,9 @@ class PilotmoverPreparator(PluginBase):
             return False, ErrMsg
 
     #set local path for downloading
-    def setBasePath(self, BasePath):
-        self.__basePath = BasePath
-        return self.__basePath
+    #def setBasePath(self, BasePath):
+    #    self.__basePath = BasePath
+    #    return self.__basePath
 
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
@@ -79,7 +80,7 @@ class PilotmoverPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
-            inFile['path'] = self.__basePath
+            inFile['path'] = self.basePath
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ''
