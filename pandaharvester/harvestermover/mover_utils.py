@@ -2,7 +2,7 @@ import hashlib
 
 
 # construct file path
-def construct_file_path(base_path, dataset_name, scope, lfn):
+def construct_file_path(base_path, scope, lfn):
     hash = hashlib.md5()
     hash.update('%s:%s' % (scope, lfn))
     hash_hex = hash.hexdigest()

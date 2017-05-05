@@ -28,7 +28,7 @@ class RseDirectPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['dataset'], inFile['scope'], inLFN)
+            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ''
