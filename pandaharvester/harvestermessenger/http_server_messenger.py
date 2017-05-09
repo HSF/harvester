@@ -30,8 +30,6 @@ class HttpHandler(BaseHTTPRequestHandler):
         # logger
         if self.tmpLog is None:
             self.tmpLog = core_utils.make_logger(_logger)
-        # 400 by default
-        self.send_response(400)
         toSkip = False
         form = None
         methodName = None
@@ -50,10 +48,13 @@ class HttpHandler(BaseHTTPRequestHandler):
             # method is not set
             if 'methodName' not in form:
                 message = 'methodName is not given'
+                self.send_response(400)
             elif 'workerID' not in form:
                 message = 'workerID is not given'
+                self.send_response(400)
             elif 'data' not in form:
                 message = 'data is not given'
+                self.send_response(400)
             else:
                 toSkip = False
         # get worker
@@ -106,7 +107,7 @@ class HttpHandler(BaseHTTPRequestHandler):
                         if opType == 'w':
                             # check if file exists
                             if os.path.exists(filePath):
-                                message = 'previous operation is not yet done'
+                                message = 'previous request is not yet processed'
                                 self.send_response(503)
                             else:
                                 with open(filePath, 'w') as fileHandle:
@@ -118,10 +119,10 @@ class HttpHandler(BaseHTTPRequestHandler):
                             if os.path.exists(filePath):
                                 with open(filePath) as fileHandle:
                                     message = json.load(fileHandle)
-                                    self.send_header('Content-Type', 'application/json')
                                     self.send_response(200)
+                                    self.send_header('Content-Type', 'application/json')
                             else:
-                                message = 'previous operation is not yet done'
+                                message = 'previous request is not yet processed'
                                 self.send_response(503)
             except:
                 self.send_response(500)
