@@ -389,3 +389,23 @@ updateEventsFile = worker_updateevents.json
 
 # PFC for input files
 xmlPoolCatalogFile = PoolFileCatalog_H.xml
+
+
+
+
+
+##########################
+#
+# Front-end parameters
+#
+
+[frontend]
+
+# port number
+portNumber = 25080
+
+# number of threads
+nThreads = 10
+
+# verbose
+verbose = False

@@ -61,3 +61,7 @@ class QueueConfigMapper:
         if not self.has_queue(queue_name):
             return None
         return self.queueConfig[queue_name]
+
+    # all queue configs
+    def get_all_queues(self):
+        return self.queueConfig
