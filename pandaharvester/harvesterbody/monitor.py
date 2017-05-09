@@ -21,6 +21,11 @@ class Monitor(AgentBase):
     # main loop
     def run(self):
         lockedBy = 'monitor-{0}'.format(self.ident)
+        # init messengers
+        for queueConfig in self.queueConfigMapper.get_all_queues().values():
+            # just import for module initialization
+            self.pluginFactory.get_plugin(queueConfig.messenger)
+        # main
         while True:
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
             mainLog.debug('getting workers to monitor')
