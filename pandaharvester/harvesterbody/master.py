@@ -122,6 +122,15 @@ class Master:
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+        # Sweeper
+        from pandaharvester.harvesterbody.sweeper import Sweeper
+        nThr = harvester_config.sweeper.nThreads
+        for iThr in range(nThr):
+            thr = Sweeper(self.queueConfigMapper,
+                          single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
+            thr.start()
+            thrList.append(thr)
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
         while True:

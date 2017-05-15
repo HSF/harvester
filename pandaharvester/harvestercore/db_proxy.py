@@ -1920,3 +1920,105 @@ class DBProxy:
             self.rollback()
             core_utils.dump_error_message(tmpLog)
             return False
+
+    # get workers to kill
+    def get_workers_to_kill(self, max_workers, check_interval):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start')
+            # sql to get worker IDs
+            sqlW = "SELECT workerID,status FROM {0} ".format(workTableName)
+            sqlW += "WHERE killTime IS NOT NULL AND killTime<:checkTimeLimit "
+            sqlW += "ORDER BY killTime LIMIT {0} ".format(max_workers)
+            sqlW += "FOR UPDATE "
+            # sql to lock or release worker
+            sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID "
+            # sql to get workers
+            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
+            sqlG += "WHERE workerID=:workerID "
+            timeNow = datetime.datetime.utcnow()
+            # get workerIDs
+            varMap = dict()
+            varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            retVal = dict()
+            for workerID, workerStatus in resW:
+                # lock or release worker
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                if workerStatus in (WorkSpec.ST_cancelled, WorkSpec.ST_failed, WorkSpec.ST_finished):
+                    # release
+                    varMap[':setTime'] = None
+                else:
+                    # lock worker with N sec offset for time-based locking
+                    varMap[':setTime'] = timeNow + datetime.timedelta(seconds=5)
+                self.execute(sqlL, varMap)
+                # get worker
+                nRow = self.cur.rowcount
+                if nRow == 1 and varMap[':setTime'] is not None:
+                    varMap = dict()
+                    varMap[':workerID'] = workerID
+                    self.execute(sqlG, varMap)
+                    resG = self.cur.fetchone()
+                    workSpec = WorkSpec()
+                    workSpec.pack(resG)
+                    queueName = workSpec.computingSite
+                    if queueName not in retVal:
+                        retVal[queueName] = []
+                    retVal[queueName].append(workSpec)
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} workers'.format(len(retVal)))
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # send kill command to worker associated to a job
+    def kill_workers_with_job(self, panda_id):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start')
+            # sql to set killTime
+            sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
+            # sql to get associated workers
+            sqlA = "SELECT workerID FROM {0} ".format(jobWorkerTableName)
+            sqlA += "WHERE PandaID=:pandaID "
+            # set an older time to trigger sweeper
+            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # get workers
+            varMap = dict()
+            varMap[':pandaID'] = panda_id
+            self.execute(sqlA, varMap)
+            resA = self.cur.fetchall()
+            nRow = 0
+            for workerID, in resA:
+                # set killTime
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':setTime'] = setTime
+                varMap[':st1'] = WorkSpec.ST_finished
+                varMap[':st2'] = WorkSpec.ST_failed
+                varMap[':st3'] = WorkSpec.ST_cancelled
+                self.execute(sqlL, varMap)
+                nRow += self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('set killTime to {0} workers'.format(nRow))
+            return nRow
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None

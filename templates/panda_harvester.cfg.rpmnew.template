@@ -409,3 +409,26 @@ nThreads = 10
 
 # verbose
 verbose = False
+
+
+
+
+
+##########################
+#
+# Sweeper parameters
+#
+
+[sweeper]
+
+# number of threads
+nThreads = 3
+
+# max number of workers per queue to try in one cycle
+maxWorkers = 500
+
+# check interval in sec
+checkInterval = 180
+
+# sleep interval in sec
+sleepTime = 60

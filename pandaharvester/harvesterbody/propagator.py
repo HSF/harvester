@@ -1,3 +1,5 @@
+import datetime
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy import DBProxy
@@ -59,6 +61,16 @@ class Propagator(AgentBase):
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'
+                        else:
+                            # got kill command
+                            if tmpRet['command'] in ['tobekilled']:
+                                nWorkers = self.dbProxy.kill_workers_with_job(tmpJobSpec.PandaID)
+                                if nWorkers == 0:
+                                    # no remaining workers
+                                    tmpJobSpec.status = 'cancelled'
+                                    tmpJobSpec.subStatus = 'killed'
+                                    tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
+                                    tmpJobSpec.trigger_propagation()
                         self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.ident})
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
