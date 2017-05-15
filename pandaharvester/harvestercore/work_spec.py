@@ -64,7 +64,8 @@ class WorkSpec(SpecBase):
                            'nodeID:text',
                            'minRamCount:integer',
                            'maxDiskCount:integer',
-                           'maxWalltime:integer'
+                           'maxWalltime:integer',
+                           'killTime:timestamp'
                            )
 
     # constructor
