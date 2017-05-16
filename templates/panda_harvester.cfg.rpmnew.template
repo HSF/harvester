@@ -432,3 +432,12 @@ checkInterval = 180
 
 # sleep interval in sec
 sleepTime = 60
+
+# duration in hours to keep finished workers
+keepFinished = 24
+
+# duration in hours to keep failed workers
+keepFailed = 72
+
+# duration in hours to keep cancelled workers
+keepCancelled = 72
