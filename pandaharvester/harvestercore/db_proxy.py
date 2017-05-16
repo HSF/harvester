@@ -2022,3 +2022,124 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return None
+
+    # get workers for cleanup
+    def get_workers_for_cleanup(self, max_workers, status_timeout_map):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start')
+            # sql to get worker IDs
+            timeNow = datetime.datetime.utcnow()
+            varMap = dict()
+            varMap[':timeLimit'] = timeNow - datetime.timedelta(minutes=60)
+            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW += "WHERE lastUpdate IS NULL AND ("
+            for tmpStatus, tmpTimeout in status_timeout_map.iteritems():
+                tmpStatusKey = ':status_{0}'.format(tmpStatus)
+                tmpTimeoutKey = ':timeLimit_{0}'.format(tmpStatus)
+                sqlW += '(status={0} AND endTime<={1}) OR '.format(tmpStatusKey, tmpTimeoutKey)
+                varMap[tmpStatusKey] = tmpStatus
+                varMap[tmpTimeoutKey] = timeNow - datetime.timedelta(hours=tmpTimeout)
+            sqlW = sqlW[:-4]
+            sqlW += ') '
+            sqlW += 'AND modificationTime<:timeLimit '
+            sqlW += "ORDER BY modificationTime LIMIT {0} ".format(max_workers)
+            sqlW += "FOR UPDATE "
+            # sql to lock or release worker
+            sqlL = "UPDATE {0} SET modificationTime=:setTime ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID "
+            # sql to check associated jobs
+            sqlA = "SELECT COUNT(*) FROM {0} j, {1} r ".format(jobTableName, jobWorkerTableName)
+            sqlA += "WHERE j.PandaID=r.PandaID AND r.workerID=:workerID "
+            sqlA += "AND propagatorTime IS NOT NULL "
+            # sql to get workers
+            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
+            sqlG += "WHERE workerID=:workerID "
+            # get workerIDs
+            timeNow = datetime.datetime.utcnow()
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            retVal = dict()
+            iWorkers = 0
+            for workerID, in resW:
+                # lock worker with N sec offset for time-based locking
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':setTime'] = timeNow + datetime.timedelta(seconds=5)
+                self.execute(sqlL, varMap)
+                # check associated jobs
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                self.execute(sqlA, varMap)
+                nActJobs, = self.cur.fetchone()
+                if nActJobs == 0:
+                    # get worker
+                    varMap = dict()
+                    varMap[':workerID'] = workerID
+                    self.execute(sqlG, varMap)
+                    resG = self.cur.fetchone()
+                    workSpec = WorkSpec()
+                    workSpec.pack(resG)
+                    queueName = workSpec.computingSite
+                    if queueName not in retVal:
+                        retVal[queueName] = []
+                    retVal[queueName].append(workSpec)
+                    iWorkers += 1
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} workers'.format(iWorkers))
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # delete a worker
+    def delete_worker(self, worker_id):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id))
+            tmpLog.debug('start')
+            # sql to get jobs
+            sqlJ = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
+            sqlJ += "WHERE workerID=:workerID "
+            # sql to delete job
+            sqlDJ = "DELETE FROM {0} ".format(jobTableName)
+            sqlDJ += "WHERE PandaID=:PandaID "
+            # sql to delete relations
+            sqlDR = "DELETE FROM {0} ".format(jobWorkerTableName)
+            sqlDR += "WHERE PandaID=:PandaID "
+            # sql to delete worker
+            sqlDW = "DELETE FROM {0} ".format(workTableName)
+            sqlDW += "WHERE workerID=:workerID "
+            # get jobs
+            varMap = dict()
+            varMap[':workerID'] = worker_id
+            self.execute(sqlJ, varMap)
+            resJ = self.cur.fetchall()
+            for pandaID, in resJ:
+                varMap = dict()
+                varMap[':PandaID'] = pandaID
+                # delete job
+                self.execute(sqlDJ, varMap)
+                # delete relations
+                self.execute(sqlDR, varMap)
+            # delete worker
+            varMap = dict()
+            varMap[':workerID'] = worker_id
+            self.execute(sqlDW, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
