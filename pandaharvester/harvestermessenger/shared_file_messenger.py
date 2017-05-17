@@ -44,6 +44,9 @@ jsonEventsUpdateFileName = harvester_config.payload_interaction.updateEventsFile
 # PFC for input files
 xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
 
+# json to get PandaIDs
+pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
+
 # suffix to read json
 suffixReadJson = '.read'
 
@@ -437,3 +440,24 @@ class SharedFileMessenger(PluginBase):
         else:
             # FIXME
             pass
+
+    # tell PandaIDs for pull model
+    def get_panda_ids(self, workspec):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        # look for the json just under the access point
+        jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
+        tmpLog.debug('looking for PandaID file {0}'.format(jsonFilePath))
+        retVal = []
+        if not os.path.exists(jsonFilePath):
+            # not found
+            tmpLog.debug('not found')
+            return retVal
+        try:
+            with open(jsonFilePath) as jsonFile:
+                retVal = json.load(jsonFile)
+        except:
+            tmpLog.debug('failed to load json')
+            return retVal
+        tmpLog.debug('found')
+        return retVal

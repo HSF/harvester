@@ -1132,7 +1132,7 @@ class DBProxy:
             return {}
 
     # update jobs and workers
-    def update_jobs_workers(self, jobspec_list, workspec_list, locked_by):
+    def update_jobs_workers(self, jobspec_list, workspec_list, locked_by, panda_ids_list=None):
         try:
             timeNow = datetime.datetime.utcnow()
             # sql to check file
@@ -1159,6 +1159,11 @@ class DBProxy:
             sqlEU = "UPDATE {0} ".format(eventTableName)
             sqlEU += "SET eventStatus=:eventStatus,subStatus=:subStatus "
             sqlEU += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
+            # sql to check if relationship is already available
+            sqlCR = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND workerID=:workerID ".format(jobWorkerTableName)
+            # sql to insert job and worker relationship
+            sqlIR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
+            sqlIR += JobWorkerRelationSpec.bind_values_expression()
             # update job
             if jobspec_list is not None:
                 for jobSpec in jobspec_list:
@@ -1296,7 +1301,7 @@ class DBProxy:
                     nRow = self.cur.rowcount
                     tmpLog.debug('done with {0}'.format(nRow))
             # update worker
-            for workSpec in workspec_list:
+            for idxW, workSpec in enumerate(workspec_list):
                 tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
                 tmpLog.debug('update')
                 # sql to update worker
@@ -1313,6 +1318,23 @@ class DBProxy:
                 self.execute(sqlW, varMap)
                 nRow = self.cur.rowcount
                 tmpLog.debug('done with {0}'.format(nRow))
+                # insert relationship if necessary
+                if panda_ids_list is not None and len(panda_ids_list) > idxW:
+                    varMapsIR = []
+                    for pandaID in panda_ids_list[idxW]:
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        varMap[':workerID'] = workSpec.workerID
+                        self.execute(sqlCR, varMap)
+                        resCR = self.cur.fetchone()
+                        if resCR is None:
+                            jwRelation = JobWorkerRelationSpec()
+                            jwRelation.PandaID = pandaID
+                            jwRelation.workerID = workSpec.workerID
+                            varMap = jwRelation.values_list()
+                            varMapsIR.append(varMap)
+                    if len(varMapsIR) > 0:
+                        self.executemany(sqlIR, varMapsIR)
             # commit
             self.commit()
             # return

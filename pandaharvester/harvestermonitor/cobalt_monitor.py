@@ -10,9 +10,9 @@ baseLogger = core_utils.setup_logger()
 
 
 # qstat output
-#JobID  User     WallTime  Nodes  State   Location
-#===================================================
-#77734  fcurtis  06:00:00  64     queued  None
+# JobID  User     WallTime  Nodes  State   Location
+# ===================================================
+# 77734  fcurtis  06:00:00  64     queued  None
 
 # monitor for HTCONDOR batch system
 class CobaltMonitor (PluginBase):
