@@ -55,6 +55,7 @@ class Monitor(AgentBase):
                 for workSpecs in workSpecsList:
                     jobSpecs = None
                     filesToStageOut = dict()
+                    pandaIDsList = []
                     for workSpec in workSpecs:
                         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
                         tmpOut = tmpRetMap[workSpec.workerID]
@@ -64,6 +65,7 @@ class Monitor(AgentBase):
                         eventsToUpdate = tmpOut['eventsToUpdate']
                         filesToStageOut = tmpOut['filesToStageOut']
                         eventsRequestParams = tmpOut['eventsRequestParams']
+                        pandaIDs = tmpOut['pandaIDs']
                         tmpLog.debug('newStatus={0} diag={1}'.format(newStatus, diagMessage))
                         iWorker += 1
                         # check status
@@ -81,13 +83,15 @@ class Monitor(AgentBase):
                         if workSpec.hasJob == 1 and jobSpecs is None:
                             jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                             lockedBy)
+                        # pandaIDs for pull
+                        pandaIDsList.append(pandaIDs)
                     # update jobs and workers
                     if jobSpecs is not None:
                         tmpQueLog.debug('update {0} jobs with {1} workers'.format(len(jobSpecs), len(workSpecs)))
                         messenger.update_job_attributes_with_workers(queueConfig.mapType, jobSpecs, workSpecs,
                                                                      filesToStageOut, eventsToUpdate)
                     # update local database
-                    self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy)
+                    self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                     # send ACK to workers for events and files
                     if eventsToUpdate != [] or filesToStageOut != {}:
                         for workSpec in workSpecs:
@@ -107,8 +111,9 @@ class Monitor(AgentBase):
         for workSpec in all_workers:
             eventsRequestParams = {}
             eventsToUpdate = []
+            pandaIDs = []
             # job-level late binding
-            if workSpec.hasJob == 0:
+            if workSpec.hasJob == 0 and queue_config.mapType != WorkSpec.MT_NoJob:
                 # check if job is requested
                 jobRequested = messenger.job_requested(workSpec)
                 if jobRequested:
@@ -130,13 +135,17 @@ class Monitor(AgentBase):
                 # get work attributes and output files
                 workAttributes = messenger.get_work_attributes(workSpec)
                 filesToStageOut = messenger.get_files_to_stage_out(workSpec)
+                # get PandaIDs for pull model
+                if queue_config.mapType == WorkSpec.MT_NoJob:
+                    pandaIDs = messenger.get_panda_ids(workSpec)
             # add
             retMap[workSpec.workerID] = {'newStatus': workStatus,
                                          'workAttributes': workAttributes,
                                          'filesToStageOut': filesToStageOut,
                                          'eventsRequestParams': eventsRequestParams,
                                          'eventsToUpdate': eventsToUpdate,
-                                         'diagMessage': ''}
+                                         'diagMessage': '',
+                                         'pandaIDs': pandaIDs}
         # check workers
         tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
         if not tmpStat:

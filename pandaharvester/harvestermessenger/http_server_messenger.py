@@ -97,6 +97,10 @@ class HttpHandler(BaseHTTPRequestHandler):
                         filePath = os.path.join(workSpec.get_access_point(),
                                                 shared_file_messenger.jsonOutputsFileName)
                         opType = 'w'
+                    elif methodName == 'setPandaIDs':
+                        filePath = os.path.join(workSpec.get_access_point(),
+                                                shared_file_messenger.pandaIDsFile)
+                        opType = 'w'
                     else:
                         self.send_response(501)
                         message = 'method not implemented'
