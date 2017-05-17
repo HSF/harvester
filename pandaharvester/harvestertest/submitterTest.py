@@ -36,7 +36,7 @@ if queueConfig.mapType != WorkSpec.MT_NoJob:
 
 maker = pluginFactory.get_plugin(queueConfig.workerMaker)
 workSpec = maker.make_worker(jobSpecList, queueConfig)
-workSpec.accessPoint = os.getcwd()
+#workSpec.accessPoint = os.getcwd()
 workSpec.mapType = queueConfig.mapType
 
 # set job to worker if not job-level late binding
