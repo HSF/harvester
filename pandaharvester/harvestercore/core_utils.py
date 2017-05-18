@@ -16,10 +16,12 @@ from pandalogger.LogWrapper import LogWrapper
 
 
 # setup logger
-def setup_logger():
-    frm = inspect.stack()[1][0]
-    mod = inspect.getmodule(frm)
-    return PandaLogger().getLogger(mod.__name__.split('.')[-1])
+def setup_logger(name=None):
+    if name is None:
+        frm = inspect.stack()[1][0]
+        mod = inspect.getmodule(frm)
+        name = mod.__name__.split('.')[-1]
+    return PandaLogger().getLogger(name)
 
 
 # make logger

@@ -1,5 +1,5 @@
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger

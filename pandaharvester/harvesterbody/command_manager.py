@@ -1,7 +1,7 @@
 import socket
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.command_spec import CommandSpec
 

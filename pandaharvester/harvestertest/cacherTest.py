@@ -1,5 +1,5 @@
 from pandaharvester.harvesterbody.cacher import Cacher
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
 proxy = DBProxy()
 

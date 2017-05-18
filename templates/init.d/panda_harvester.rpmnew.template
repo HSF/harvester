@@ -17,23 +17,23 @@ ARGV="$@"
 #
 # setup python and virtual env
 # load module python
-# source /xyz/harvester/bin/activate
-
-# the path to application
-SITE_PACKAGES_PATH=`python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"`
-PROGNAME='python -u '${SITE_PACKAGES_PATH}'/pandaharvester/harvesterbody/master.py'
-
-# pid and lock files
-PIDFILE=${VIRTUAL_ENV}/var/log/panda/panda_jedi.pid
-
-# log files
-HSTDOUT=${VIRTUAL_ENV}/var/log/panda/panda_harvester_stdout.log
-HSTDERR=${VIRTUAL_ENV}/var/log/panda/panda_harvester_stderr.log
+VIRTUAL_ENV=/FIXME
+. ${VIRTUAL_ENV}/bin/activate
 
 # Source harvester env variables
 if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
+
+# the path to application
+PROGNAME='python -u '${SITE_PACKAGES_PATH}'/pandaharvester/harvesterbody/master.py'
+
+# pid and lock files
+PIDFILE=${VIRTUAL_ENV}/var/log/panda/panda_harvester.pid
+
+# log files
+HSTDOUT=${VIRTUAL_ENV}/var/log/panda/panda_harvester_stdout.log
+HSTDERR=${VIRTUAL_ENV}/var/log/panda/panda_harvester_stderr.log
 
 ERROR=0
 if [ "x$ARGV" = "x" ] ; then 

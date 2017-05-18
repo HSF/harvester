@@ -6,10 +6,10 @@
 [master]
 
 # user name of the daemon process
-uname = @@panda_user@@
+uname = FIXME
 
 # group name of the daemon process
-gname = @@panda_group@@
+gname = FIXME
 
 # logger name
 loggername = harvester
@@ -26,11 +26,14 @@ harvester_id = test_fbarreir
 
 [db]
 
-# filename
+# filename FIXME
 database_filename = /tmp/tmaeno/test.db
 
 # verbose
 verbose = False
+
+# number of connections
+nConnections = 10
 
 
 
@@ -411,6 +414,9 @@ nThreads = 10
 
 # verbose
 verbose = False
+
+# type
+type = simple
 
 
 
