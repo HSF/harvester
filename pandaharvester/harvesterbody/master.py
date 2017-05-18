@@ -22,7 +22,7 @@ class Master:
         self.communicatorPool = CommunicatorPool()
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
         self.queueConfigMapper = QueueConfigMapper()
-        from pandaharvester.harvestercore.db_proxy import DBProxy
+        from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
         dbProxy = DBProxy()
         dbProxy.make_tables(self.queueConfigMapper)
 

@@ -11,9 +11,6 @@ from pandaharvester.harvestercore.event_spec import EventSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 
-# logger
-_logger = core_utils.setup_logger()
-
 # json for worker attributes
 jsonAttrsFileName = harvester_config.payload_interaction.workerAttributesFile
 
@@ -49,6 +46,14 @@ pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
 
 # suffix to read json
 suffixReadJson = '.read'
+
+# logger
+_logger = core_utils.setup_logger()
+
+
+def set_logger(master_logger):
+    global _logger
+    _logger = master_logger
 
 
 # messenger with shared file system
@@ -436,7 +441,7 @@ class SharedFileMessenger(PluginBase):
                                                              'isZip': 0}
             jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
             with open(jsonFilePath, 'w') as jsonFile:
-                json.dump(fileDict, jsonFile)
+                json.dump([fileDict], jsonFile)
         else:
             # FIXME
             pass

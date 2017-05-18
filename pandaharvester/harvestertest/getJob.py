@@ -3,7 +3,7 @@ import sys
 
 workerID = int(sys.argv[1])
 
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
 proxy = DBProxy()
 workSpec = proxy.get_worker_with_id(workerID)

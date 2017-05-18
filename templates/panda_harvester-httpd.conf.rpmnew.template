@@ -1,0 +1,96 @@
+LoadModule authz_host_module modules/mod_authz_host.so
+LoadModule alias_module modules/mod_alias.so
+LoadModule rewrite_module modules/mod_rewrite.so
+LoadModule mime_magic_module modules/mod_mime_magic.so
+LoadModule mime_module modules/mod_mime.so
+LoadModule include_module modules/mod_include.so
+LoadModule log_config_module modules/mod_log_config.so
+LoadModule env_module modules/mod_env.so
+LoadModule deflate_module modules/mod_deflate.so
+LoadModule setenvif_module modules/mod_setenvif.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule ssl_module modules/mod_ssl.so
+LoadModule headers_module modules/mod_headers.so
+
+# WSGI
+LoadModule wsgi_module modules/mod_wsgi.so
+
+
+User  FIXME
+Group FIXME
+
+
+<IfModule prefork.c>
+StartServers         1
+MinSpareServers      1
+ServerLimit          2
+MaxSpareServers      2
+MaxClients           2
+MaxRequestsPerChild  2000
+</IfModule>
+
+ServerName harvester_apache
+
+DocumentRoot ${SITE_PACKAGES_PATH}/pandaharvester/harvestermessenger
+
+<Files ~ "\.(py|pyc|conf)$">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Directory />
+    Options FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+    Deny from 192.203.218.14
+</Directory>
+
+<IfModule mod_wsgi.c>
+   WSGIDaemonProcess pandahvst_daemon processes=2 threads=2 home=${VIRTUAL_ENV}
+   WSGIProcessGroup pandahvst_daemon
+   WSGIApplicationGroup %{GLOBAL}
+   WSGIScriptAliasMatch ^/apache_messenger$ ${SITE_PACKAGES_PATH}/pandaharvester/harvestermessenger/apache_messenger.py
+   WSGISocketPrefix ${VIRTUAL_ENV}/var/log/panda/wsgisocks/wsgi
+</IfModule>
+
+
+Listen 26080
+<VirtualHost *:26080>
+
+RewriteEngine on
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
+RewriteRule .* - [F]
+
+<Directory ${SITE_PACKAGES_PATH}/pandaharvester/harvestermessenger>
+
+   <Limit GET POST>
+       Order allow,deny
+       Allow from all
+   </Limit>
+
+   # allow .py
+   <Files ~ "\.py$">
+       Order allow,deny
+       Allow from all
+   </Files>
+
+   # enable CGI	for FastCGI/WSGI
+   Options FollowSymLinks +ExecCGI
+
+</Directory>
+
+</VirtualHost>
+
+LogLevel info
+
+LogFormat "%t %h \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%t %h \"%r\" %>s %b" common
+LogFormat "%{Referer}i -> %U" referer
+LogFormat "%{User-agent}i" agent
+CustomLog ${VIRTUAL_ENV}/var/log/panda/panda_harvester_access_log common
+ErrorLog ${VIRTUAL_ENV}/var/log/panda/panda_harvester_error_log
+
+PidFile ${VIRTUAL_ENV}/var/log/panda/panda_harvester_httpd.pid
+
+TypesConfig /etc/mime.types

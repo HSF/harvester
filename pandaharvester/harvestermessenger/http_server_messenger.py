@@ -6,13 +6,20 @@ from Queue import Queue
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SocketServer import ThreadingMixIn
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermessenger import shared_file_messenger
 
 # logger
 _logger = core_utils.setup_logger()
-shared_file_messenger._logger = _logger
+shared_file_messenger.set_logger(_logger)
+
+
+def set_logger(master_logger):
+    global _logger
+    _logger = master_logger
+    shared_file_messenger.set_logger(master_logger)
+
 
 # handler for http front-end
 class HttpHandler(BaseHTTPRequestHandler):
@@ -26,6 +33,14 @@ class HttpHandler(BaseHTTPRequestHandler):
         # suppress console logging
         pass
 
+    def get_form(self):
+        dataStr = self.rfile.read(int(self.headers['Content-Length']))
+        return json.loads(dataStr)
+
+    def do_postprocessing(self, message):
+        self.end_headers()
+        self.wfile.write(message)
+
     def do_POST(self):
         # logger
         if self.tmpLog is None:
@@ -37,8 +52,7 @@ class HttpHandler(BaseHTTPRequestHandler):
         message = ''
         # parse the form data posted
         try:
-            dataStr = self.rfile.read(int(self.headers['Content-Length']))
-            form = json.loads(dataStr)
+            form = self.get_form()
         except:
             message = 'corrupted json'
             toSkip = True
@@ -64,6 +78,7 @@ class HttpHandler(BaseHTTPRequestHandler):
                 workSpec = self.dbProxy.get_worker_with_id(workerID)
                 if workSpec is None:
                     message = 'workerID={0} not found in DB'.format(workerID)
+                    self.send_response(400)
                 else:
                     # chose file and operation for each action
                     methodName = form['methodName']
@@ -134,8 +149,7 @@ class HttpHandler(BaseHTTPRequestHandler):
         if harvester_config.frontend.verbose:
             self.tmpLog.debug('method={0} json={1} msg={2}'.format(methodName, dataStr, message))
         # set the response
-        self.end_headers()
-        self.wfile.write(message)
+        self.do_postprocessing(message)
         return
 
 
@@ -176,11 +190,14 @@ class FrontendLauncher(object):
         if cls.instance is None:
             with cls.lock:
                 if cls.instance is None:
-                    httpd = ThreadedHttpServer(('', harvester_config.frontend.portNumber), HttpHandler)
-                    thr = threading.Thread(target=httpd.serve_forever)
-                    thr.daemon = True
-                    thr.start()
-                    cls.instance = thr
+                    if harvester_config.frontend.type == 'simple':
+                        httpd = ThreadedHttpServer(('', harvester_config.frontend.portNumber), HttpHandler)
+                        thr = threading.Thread(target=httpd.serve_forever)
+                        thr.daemon = True
+                        thr.start()
+                        cls.instance = thr
+                    else:
+                        cls.instance = 1
         return cls.instance
 
 # start frontend

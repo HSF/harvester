@@ -6,7 +6,7 @@ import sys
 import logging
 import datetime
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
