@@ -1,7 +1,8 @@
 import uuid
-
+import os
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
+
 
 # setup base logger
 baseLogger = core_utils.setup_logger()
@@ -42,7 +43,14 @@ class DummySubmitter(PluginBase):
                     tmpLog.debug('PandaID={0} nCore={1} RAM={2}'.format(jobSpec.PandaID,
                                                                         jobSpec.jobParams['coreCount'],
                                                                         jobSpec.jobParams['minRamCount']))
+            for job in workSpec.jobspec_list:
+                print " ".join([job.jobParams['transformation'],job.jobParams['jobPars']])
+
             workSpec.batchID = uuid.uuid4().hex
+            f = open(os.path.join(workSpec.accessPoint,'status.txt'), 'w')
+            f.write('ready\n')
+            f.close()
+
             retList.append((True, ''))
         tmpLog.debug('done')
         return retList
