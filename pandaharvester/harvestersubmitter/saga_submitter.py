@@ -15,6 +15,8 @@ class SAGASubmitter (PluginBase):
     # constructor define job service with particular adaptor (can be extended to support remote execution)
     def __init__(self,**kwarg):
         PluginBase.__init__(self,**kwarg)
+        tmpLog = core_utils.make_logger(baseLogger)
+        tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
         self.job_service = saga.job.Service(self.adaptor)
 
     def __del__(self):
@@ -25,7 +27,7 @@ class SAGASubmitter (PluginBase):
         workers = []
         for j in self.job_service.jobs():
             worker = self.job_service.get_job(j)
-            workers.append((worker. worker.state))
+            workers.append((worker, worker.state))
         return workers
 
     def _get_executable(self, list_of_pandajobs):
@@ -100,7 +102,8 @@ class SAGASubmitter (PluginBase):
             workSpec.status = workSpec.ST_failed
             return -1
 
-    def status_translator(self, saga_status):
+    @staticmethod
+    def status_translator(saga_status):
         if saga_status == saga.job.PENDING:
             return ws.ST_submitted
         if saga_status == saga.job.RUNNING:
