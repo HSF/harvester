@@ -4,6 +4,7 @@ database connection
 """
 
 import re
+import sys
 import types
 import inspect
 import datetime
@@ -44,25 +45,41 @@ conLock = threading.Lock()
 class DBProxy:
     # constructor
     def __init__(self):
-        import sqlite3
-        self.con = sqlite3.connect(harvester_config.db.database_filename,
-                                   detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
-                                   check_same_thread=False)
-        self.con.row_factory = sqlite3.Row
-        self.cur = self.con.cursor()
+        if harvester_config.db.engine == 'mariadb':
+            import mysql.connector
+            self.con = mysql.connector.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
+                                               db=harvester_config.db.schema)
+            self.cur = self.con.cursor(named_tuple=True)
+        else:
+            import sqlite3
+            self.con = sqlite3.connect(harvester_config.db.database_filename,
+                                       detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+                                       check_same_thread=False)
+            # change the row factory to use Row
+            self.con.row_factory = sqlite3.Row
+            self.cur = self.con.cursor()
         self.lockDB = False
-        self.verbLog = None
+        # using application side lock if DB doesn't have a mechanism for exclusive access
+        if harvester_config.db.engine == 'mariadb':
+            self.usingAppLock = False
+        else:
+            self.usingAppLock = True
 
     # convert param dict to list
     def convert_params(self, sql, varmap):
-        # lock database
-        if re.search('^INSERT', sql, re.I) is not None or re.search('^UPDATE', sql, re.I) is not None \
+        # lock database if application side lock is used
+        if self.usingAppLock \
+                and re.search('^INSERT', sql, re.I) is not None or re.search('^UPDATE', sql, re.I) is not None \
                 or re.search(' FOR UPDATE', sql, re.I) is not None:
-            self.lockDB = True
-        # remove FOR UPDATE
-        sql = re.sub(' FOR UPDATE', ' ', sql, re.I)
+                self.lockDB = True
+        # remove FOR UPDATE for sqlite
+        if harvester_config.db.engine == 'sqlite':
+            sql = re.sub(' FOR UPDATE', ' ', sql, re.I)
         # no conversation unless dict
         if not isinstance(varmap, types.DictType):
+            # using the printf style syntax for mariaDB
+            if harvester_config.db.engine == 'mariadb':
+                sql = re.sub(':[^ $,)]+', '%s', sql)
             return sql, varmap
         paramList = []
         # extract placeholders
@@ -72,41 +89,45 @@ class DBProxy:
                 raise KeyError('{0} is missing in SQL parameters'.format(item))
             if item not in paramList:
                 paramList.append(varmap[item])
+        # using the printf style syntax for mariaDB
+        if harvester_config.db.engine == 'mariadb':
+            sql = re.sub(':[^ $,)]+', '%s', sql)
         return sql, paramList
 
     # wrapper for execute
     def execute(self, sql, varmap=None):
         thrName = None
+        verbLog = None
         if harvester_config.db.verbose:
-            if self.verbLog is None:
-                self.verbLog = core_utils.make_logger(_logger)
+            verbLog = core_utils.make_logger(_logger)
             thrName = threading.current_thread()
             if thrName is not None:
                 thrName = thrName.ident
         if varmap is None:
             varmap = dict()
-        # get lock
-        if not self.lockDB:
+        # get lock if application side lock is used
+        if self.usingAppLock and not self.lockDB:
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={0} locking'.format(thrName))
+                verbLog.debug('thr={0} locking'.format(thrName))
             conLock.acquire()
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={0} locked'.format(thrName))
+                verbLog.debug('thr={0} locked'.format(thrName))
+        # execute
         try:
             # verbose
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap),
-                                                                             inspect.stack()[1][3],
-                                                                             thrName))
+                verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap),
+                                                                        inspect.stack()[1][3],
+                                                                        thrName))
             # convert param dict
             newSQL, params = self.convert_params(sql, varmap)
             # execute
             retVal = self.cur.execute(newSQL, params)
         finally:
             # release lock
-            if not self.lockDB:
+            if self.usingAppLock and not self.lockDB:
                 if harvester_config.db.verbose:
-                    self.verbLog.debug('thr={0} release'.format(thrName))
+                    verbLog.debug('thr={0} release'.format(thrName))
                 conLock.release()
         # return
         return retVal
@@ -114,25 +135,25 @@ class DBProxy:
     # wrapper for executemany
     def executemany(self, sql, varmap_list):
         thrName = None
+        verbLog = None
         if harvester_config.db.verbose:
-            if self.verbLog is None:
-                self.verbLog = core_utils.make_logger(_logger)
+            verbLog = core_utils.make_logger(_logger)
             thrName = threading.current_thread()
             if thrName is not None:
                 thrName = thrName.ident
         # get lock
-        if not self.lockDB:
+        if self.usingAppLock and not self.lockDB:
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={0} locking'.format(thrName))
+                verbLog.debug('thr={0} locking'.format(thrName))
             conLock.acquire()
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={0} locked'.format(thrName))
+                verbLog.debug('thr={0} locked'.format(thrName))
         try:
             # verbose
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap_list),
-                                                                             inspect.stack()[1][3],
-                                                                             thrName))
+                verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap_list),
+                                                                        inspect.stack()[1][3],
+                                                                        thrName))
             # convert param dict
             paramList = []
             newSQL = sql
@@ -145,9 +166,9 @@ class DBProxy:
             retVal = self.cur.executemany(newSQL, paramList)
         finally:
             # release lock
-            if not self.lockDB:
+            if self.usingAppLock and not self.lockDB:
                 if harvester_config.db.verbose:
-                    self.verbLog.debug('thr={0} release'.format(thrName))
+                    verbLog.debug('thr={0} release'.format(thrName))
                 conLock.release()
         # return
         return retVal
@@ -157,7 +178,7 @@ class DBProxy:
         try:
             self.con.commit()
         finally:
-            if self.lockDB:
+            if self.usingAppLock and self.lockDB:
                 conLock.release()
                 self.lockDB = False
 
@@ -166,9 +187,25 @@ class DBProxy:
         try:
             self.con.rollback()
         finally:
-            if self.lockDB:
+            if self.usingAppLock and self.lockDB:
                 conLock.release()
                 self.lockDB = False
+
+    # type conversion
+    def type_conversion(self, attr_type):
+        if attr_type == 'timestamp':
+            # add NULL attribute to disable automatic update
+            attr_type += ' null'
+        # type conversion
+        if harvester_config.db.engine == 'mariadb':
+            if attr_type.startswith('text'):
+                attr_type = attr_type.replace('text', 'varchar(256)')
+            elif attr_type.startswith('blob'):
+                attr_type = attr_type.replace('blob', 'longtext')
+        elif harvester_config.db.engine == 'sqlite':
+            if attr_type.startswith('varchar'):
+                attr_type = re.sub('varchar\(\d+\)', 'text', attr_type)
+        return attr_type
 
     # make table
     def make_table(self, cls, table_name):
@@ -178,9 +215,13 @@ class DBProxy:
             tmpLog.debug('table={0}'.format(table_name))
             # check if table already exists
             varMap = dict()
-            varMap[':type'] = 'table'
             varMap[':name'] = table_name
-            sqlC = 'SELECT name FROM sqlite_master WHERE type=:type AND tbl_name=:name '
+            if harvester_config.db.engine == 'mariadb':
+                varMap[':schema'] = harvester_config.db.schema
+                sqlC = 'SELECT * FROM information_schema.tables WHERE table_schema=:schema AND table_name=:name '
+            else:
+                varMap[':type'] = 'table'
+                sqlC = 'SELECT name FROM sqlite_master WHERE type=:type AND tbl_name=:name '
             self.execute(sqlC, varMap)
             resC = self.cur.fetchone()
             # not exists
@@ -191,6 +232,7 @@ class DBProxy:
                 for attr in cls.attributesWithTypes:
                     # split to name and type
                     attrName, attrType = attr.split(':')
+                    attrType = self.type_conversion(attrType)
                     sqlM += '{0} {1},'.format(attrName, attrType)
                 sqlM = sqlM[:-1]
                 sqlM += ')'
@@ -206,22 +248,62 @@ class DBProxy:
             self.rollback()
             # dump error
             core_utils.dump_error_message(_logger)
+        return self.check_table(cls, table_name)
 
     # make tables
     def make_tables(self, queue_config_mapper):
-        self.make_table(CommandSpec, commandTableName)
-        self.make_table(JobSpec, jobTableName)
-        self.make_table(WorkSpec, workTableName)
-        self.make_table(FileSpec, fileTableName)
-        self.make_table(EventSpec, eventTableName)
-        self.make_table(CacheSpec, cacheTableName)
-        self.make_table(SeqNumberSpec, seqNumberTableName)
-        self.make_table(PandaQueueSpec, pandaQueueTableName)
-        self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
+        outStrs = []
+        outStrs += self.make_table(CommandSpec, commandTableName)
+        outStrs += self.make_table(JobSpec, jobTableName)
+        outStrs += self.make_table(WorkSpec, workTableName)
+        outStrs += self.make_table(FileSpec, fileTableName)
+        outStrs += self.make_table(EventSpec, eventTableName)
+        outStrs += self.make_table(CacheSpec, cacheTableName)
+        outStrs += self.make_table(SeqNumberSpec, seqNumberTableName)
+        outStrs += self.make_table(PandaQueueSpec, pandaQueueTableName)
+        outStrs += self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
+        # dump error messages
+        if len(outStrs) > 0:
+            errMsg = "ERROR : Definitions of some database tables are incorrect. "
+            errMsg += "Please add missing columns, or drop those tables "
+            errMsg += "so that harvester automatically re-creates those tables."
+            errMsg += "\n"
+            print errMsg
+            for outStr in outStrs:
+                print outStr
+            sys.exit(1)
         # fill PandaQueue table
         self.fill_panda_queue_table(harvester_config.qconf.queueList, queue_config_mapper)
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
+
+    # check table
+    def check_table(self, cls, table_name):
+        # get columns in DB
+        varMap = dict()
+        if harvester_config.db.engine == 'mariadb':
+            varMap[':name'] = table_name
+            sqlC = 'SELECT column_name,column_type FROM information_schema.columns WHERE table_name=:name '
+        else:
+            sqlC = 'PRAGMA table_info({0}) '.format(table_name)
+        self.execute(sqlC, varMap)
+        resC = self.cur.fetchall()
+        colMap = dict()
+        for tmpItem in resC:
+            if harvester_config.db.engine == 'mariadb':
+                columnName, columnType = tmpItem.column_name, tmpItem.column_type
+            else:
+                columnName, columnType = tmpItem[1], tmpItem[2]
+            colMap[columnName] = columnType
+        self.commit()
+        # check with class definition
+        outStrs = []
+        for attr in cls.attributesWithTypes:
+            attrName, attrType = attr.split(':')
+            if attrName not in colMap:
+                attrType = self.type_conversion(attrType)
+                outStrs.append('{0} {1} is missing in {2}'.format(attrName, attrType, table_name))
+        return outStrs
 
     # insert jobs
     def insert_jobs(self, jobspec_list):
@@ -429,7 +511,7 @@ class DBProxy:
                 queueConfig = queue_config_mapper.get_queue(queueName)
                 if queueConfig is not None:
                     # check if already exist
-                    sqlC = "SELECT 1 FROM {0} ".format(pandaQueueTableName)
+                    sqlC = "SELECT * FROM {0} ".format(pandaQueueTableName)
                     sqlC += "WHERE queueName=:queueName "
                     varMap = dict()
                     varMap[':queueName'] = queueName
@@ -479,7 +561,7 @@ class DBProxy:
             sqlQ += "ORDER BY jobFetchTime "
             sqlQ += "FOR UPDATE "
             # sql to count nQueue
-            sqlN = "SELECT count(*) FROM {0} ".format(jobTableName)
+            sqlN = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
             sqlN += "WHERE computingSite=:computingSite AND status=:status "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET jobFetchTime=:jobFetchTime ".format(pandaQueueTableName)
@@ -624,7 +706,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, msgPfx)
             tmpLog.debug('start subStatus={0} timeColumn={1}'.format(sub_status, time_column))
             # sql to count jobs beeing processed
-            sqlC = "SELECT COUNT(*) FROM {0} ".format(jobTableName)
+            sqlC = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
             sqlC += "WHERE ({0} IS NOT NULL AND subStatus=:subStatus) ".format(lock_column)
             sqlC += "OR subStatus=:newSubStatus "
             # count jobs
@@ -775,7 +857,7 @@ class DBProxy:
             sqlQ = "SELECT queueName FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName "
             # sql to count nQueue
-            sqlN = "SELECT status,count(*) FROM {0} ".format(workTableName)
+            sqlN = "SELECT status,COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlN += "WHERE computingSite=:computingSite GROUP BY status "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
@@ -1348,7 +1430,7 @@ class DBProxy:
             return False
 
     # get jobs with workerID
-    def get_jobs_with_worker_id(self, worker_id, locked_by):
+    def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id))
@@ -1362,6 +1444,9 @@ class DBProxy:
             # sql to lock job
             sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
             sqlL += "WHERE PandaID=:PandaID "
+            # sql to get files
+            sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+            sqlF += "WHERE PandaID=:PandaID AND zipFileID IS NULL "
             # get jobs
             jobChunkList = []
             timeNow = datetime.datetime.utcnow()
@@ -1386,6 +1471,17 @@ class DBProxy:
                     varMap[':lockedBy'] = locked_by
                     varMap[':timeNow'] = timeNow
                     self.execute(sqlL, varMap)
+                # get files
+                if with_file:
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    self.execute(sqlF, varMap)
+                    resFileList = self.cur.fetchall()
+                    for resFile in resFileList:
+                        fileSpec = FileSpec()
+                        fileSpec.pack(resFile)
+                        jobSpec.add_out_file(fileSpec)
+                # append
                 jobChunkList.append(jobSpec)
             # commit
             self.commit()
@@ -1612,7 +1708,7 @@ class DBProxy:
                         varMaps.append(varMap)
                     self.executemany(sqlEU, varMaps)
             # count files
-            sqlC = "SELECT COUNT(*),status FROM {0} ".format(fileTableName)
+            sqlC = "SELECT COUNT(*) cnt,status FROM {0} ".format(fileTableName)
             sqlC += "WHERE PandaID=:PandaID GROUP BY status "
             varMap = dict()
             varMap[':PandaID'] = jobspec.PandaID
@@ -2072,7 +2168,7 @@ class DBProxy:
             sqlL = "UPDATE {0} SET modificationTime=:setTime ".format(workTableName)
             sqlL += "WHERE workerID=:workerID "
             # sql to check associated jobs
-            sqlA = "SELECT COUNT(*) FROM {0} j, {1} r ".format(jobTableName, jobWorkerTableName)
+            sqlA = "SELECT COUNT(*) cnt FROM {0} j, {1} r ".format(jobTableName, jobWorkerTableName)
             sqlA += "WHERE j.PandaID=r.PandaID AND r.workerID=:workerID "
             sqlA += "AND propagatorTime IS NOT NULL "
             # sql to get workers

@@ -26,14 +26,26 @@ harvester_id = test_fbarreir
 
 [db]
 
-# filename FIXME
-database_filename = /tmp/tmaeno/test.db
+# filename
+database_filename = FIXME
 
 # verbose
 verbose = False
 
 # number of connections
 nConnections = 10
+
+# engine sqlite or mariadb
+engine = sqlite
+
+# user name
+user = harvester
+
+# password
+password = FIXME
+
+# schema
+schema = HARVESTER
 
 
 

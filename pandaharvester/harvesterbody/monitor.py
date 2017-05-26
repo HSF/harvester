@@ -159,7 +159,7 @@ class Monitor(AgentBase):
                         if not workSpec.is_post_processed():
                             # get associated jobIDs
                             jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                                            None)
+                                                                            None, True)
                             # post processing
                             messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
                             workSpec.post_processed()
