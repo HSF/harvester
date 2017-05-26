@@ -420,6 +420,10 @@ class SharedFileMessenger(PluginBase):
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         if map_type == WorkSpec.MT_OneToOne:
             jobSpec = jobspec_list[0]
+            # check if log is already there
+            for fileSpec in jobSpec.outFiles:
+                if fileSpec.fileType == 'log':
+                    return
             logFileInfo = jobSpec.get_logfile_info()
             # make log.tar.gz
             logFilePath = os.path.join(workspec.get_access_point(), logFileInfo['lfn'])
@@ -433,7 +437,7 @@ class SharedFileMessenger(PluginBase):
                         tmpFullPath = os.path.join(tmpRoot, tmpFile)
                         tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
                         tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
-            # make json
+            # make json to stage-out the log file
             fileDict = dict()
             fileDict[jobSpec.PandaID] = dict()
             fileDict[jobSpec.PandaID][logFileInfo['lfn']] = {'path': logFilePath,

@@ -43,7 +43,7 @@ class Cacher(AgentBase):
                     mainLog.error('failed to get info for key={0} subKey={1}'.format(mainKey, subKey))
                     newInfo = None
                 # update
-                self.dbProxy.refresh_cache(mainKey, subKey, newInfo)
+                tmpStat = self.dbProxy.refresh_cache(mainKey, subKey, newInfo)
                 if tmpStat:
                     mainLog.debug('refreshed key={0} subKey={1}'.format(mainKey, subKey))
             mainLog.debug('done')
