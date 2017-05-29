@@ -197,7 +197,10 @@ class SharedFileMessenger(PluginBase):
                     tmpFileDict['path'] = pfn
                     tmpFileDict['fsize'] = os.stat(pfn).st_size
                     tmpFileDict['type'] = tmpEventInfo['type']
-                    if 'isZip' in tmpEventInfo:
+                    if tmpEventInfo['type'] in ['log', 'output']:
+                        # disable zipping
+                        tmpFileDict['isZip'] = 0
+                    elif 'isZip' in tmpEventInfo:
                         tmpFileDict['isZip'] = tmpEventInfo['isZip']
                     # get checksum
                     if 'chksum' not in tmpEventInfo:
