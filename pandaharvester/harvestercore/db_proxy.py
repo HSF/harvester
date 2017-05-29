@@ -467,15 +467,18 @@ class DBProxy:
             sql += "WHERE workerID=:workerID "
             # update worker
             varMap = workspec.values_map(only_changed=True)
-            for tmpKey, tmpVal in criteria.iteritems():
-                mapKey = ':{0}_cr'.format(tmpKey)
-                sql += "AND {0}={1} ".format(tmpKey, mapKey)
-                varMap[mapKey] = tmpVal
-            varMap[':workerID'] = workspec.workerID
-            self.execute(sql, varMap)
-            nRow = self.cur.rowcount
-            # commit
-            self.commit()
+            if len(varMap) > 0:
+                for tmpKey, tmpVal in criteria.iteritems():
+                    mapKey = ':{0}_cr'.format(tmpKey)
+                    sql += "AND {0}={1} ".format(tmpKey, mapKey)
+                    varMap[mapKey] = tmpVal
+                varMap[':workerID'] = workspec.workerID
+                self.execute(sql, varMap)
+                nRow = self.cur.rowcount
+                # commit
+                self.commit()
+            else:
+                nRow = None
             tmpLog.debug('done with {0}'.format(nRow))
             # return
             return nRow
@@ -1217,6 +1220,8 @@ class DBProxy:
     def update_jobs_workers(self, jobspec_list, workspec_list, locked_by, panda_ids_list=None):
         try:
             timeNow = datetime.datetime.utcnow()
+            # sql to check job
+            sqlCJ = "SELECT status FROM {0} WHERE PandaID=:PandaID FOR UPDATE ".format(jobTableName)
             # sql to check file
             sqlFC = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND lfn=:lfn ".format(fileTableName)
             # sql to insert file
@@ -1250,6 +1255,15 @@ class DBProxy:
             if jobspec_list is not None:
                 for jobSpec in jobspec_list:
                     tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+                    # check job
+                    varMap = dict()
+                    varMap[':PandaID'] = jobSpec.PandaID
+                    self.execute(sqlCJ, varMap)
+                    resCJ = self.cur.fetchone()
+                    tmpJobStatus, = resCJ
+                    # don't update cancelled jobs
+                    if tmpJobStatus == ['cancelled']:
+                        continue
                     # insert files
                     nFiles = 0
                     fileIdMap = {}
@@ -2103,7 +2117,7 @@ class DBProxy:
     def kill_workers_with_job(self, panda_id):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id))
             tmpLog.debug('start')
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
