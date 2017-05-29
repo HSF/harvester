@@ -157,11 +157,13 @@ class Monitor(AgentBase):
                     # set running while there are events to update or files to stage out
                     if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
                         if not workSpec.is_post_processed():
-                            # get associated jobIDs
-                            jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                                            None, True)
-                            # post processing
-                            messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
+                            # post processing unless heartbeat is suppressed
+                            if not queue_config.is_no_heartbeat_status(newStatus):
+                                # get associated jobIDs
+                                jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
+                                                                                None, True)
+                                # post processing
+                                messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
                             workSpec.post_processed()
                             newStatus = WorkSpec.ST_running
                         elif len(retMap[workerID]['filesToStageOut']) > 0 or \

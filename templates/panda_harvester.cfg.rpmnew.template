@@ -32,10 +32,10 @@ database_filename = FIXME
 # verbose
 verbose = False
 
-# number of connections
+# number of database connections in each process
 nConnections = 10
 
-# engine sqlite or mariadb
+# database engine : sqlite or mariadb
 engine = sqlite
 
 # user name
@@ -418,7 +418,7 @@ pandaIDsFile = worker_pandaids.json
 
 [frontend]
 
-# port number
+# port number for simple http frontend. For apache frontend port number is set in httpd.conf
 portNumber = 25080
 
 # number of threads
@@ -427,7 +427,7 @@ nThreads = 10
 # verbose
 verbose = False
 
-# type
+# type : simple or apache
 type = simple
 
 

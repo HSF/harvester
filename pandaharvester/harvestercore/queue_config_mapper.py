@@ -19,6 +19,14 @@ class QueueConfig:
         self.qrWorkerRatio = 0
         self.noHeartbeat = ''
 
+    # get list of status without heartbeat
+    def get_no_heartbeat_status(self):
+        return self.noHeartbeat.split()
+
+    # check if status without heartbeat
+    def is_no_heartbeat_status(self, status):
+        return status in self.get_no_heartbeat_status()
+
 
 # mapper
 class QueueConfigMapper:
