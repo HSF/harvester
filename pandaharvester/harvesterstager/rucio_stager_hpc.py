@@ -77,10 +77,11 @@ class RucioStagerHPC(PluginBase):
                           'rucio', '-v', 'upload']
             executable += [ '--lifetime',('%d' %lifetime)]
             executable += [ '--rse',dstRSE]
+            executable += [ '--scope',scope]
             executable += [('%s:%s' %(scope,datasetName))]
             executable += [('%s' %fileSpec.path)]
 
-            print executable 
+            #print executable 
 
             tmpLog.debug('rucio upload command: {0} '.format(executable))
 
@@ -104,7 +105,7 @@ class RucioStagerHPC(PluginBase):
                     continue
 
             response = process.communicate()
-            print response
+            #print response
             if fileSpec.status == 'failed' : 
                 ErrMsg = ErrMsg + response[1].strip("\n")
                 tmpLog.debug(ErrMsg)
