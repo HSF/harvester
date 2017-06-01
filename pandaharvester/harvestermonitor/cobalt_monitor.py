@@ -88,11 +88,16 @@ class CobaltMonitor (PluginBase):
                 # look for jobReport.json file 
                 jsonFilePath = os.path.join(workSpec.get_access_point(), "jobReport.json")
                 if os.path.exists(jsonFilePath):
+                    tmpLog.debug('found jobReport.json file : {0}'.format(jsonFilePath))
                     try:
                         with open(jsonFilePath) as jsonFile:
                             loadDict = json.load(jsonFile)
-                        if 'exitCode' in loadDict:
-                            if loadDict['exitCode'] == 0:
+                        # tmpLog.debug('loaded jobReport dict : {0}'.format(str(loadDict)))
+                        tmpLog.debug('loaded jobReport dict')
+                        if 'exitCode' in loadDict :
+                            tmpLog.debug('loadDict[exitCode] = {0}'.format(str(loadDict['exitCode'])))
+                            if int(loadDict['exitCode']) == 0:
+
                                 newStatus = WorkSpec.ST_finished
                             else:
                                 newStatus = WorkSpec.ST_failed
@@ -109,11 +114,14 @@ class CobaltMonitor (PluginBase):
                     except:
                         # failed
                         errStr = 'failed to load existing jobReport.json'
+                        newStatus = WorkSpec.ST_failed
                         tmpLog.error(errStr)
                         retList.append((newStatus, errStr))
                         continue
                 else:
-                    errStr = 'qstat stdout: ' + stdOut + ' stat stderr: ' + stdErr + ' '
+                    tmpLog.debug('Did not find jobReport.json file : {0}'.format(jsonFilePath))
+                    errStr = 'qstat {0} return code non zero and jobReport.json file not found '.format(workSpec.batchID)
+                    newStatus =  WorkSpec.ST_failed
                     tmpLog.error(errStr)
                     retList.append((newStatus, errStr))
         return True, retList
