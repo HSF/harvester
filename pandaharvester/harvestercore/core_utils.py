@@ -117,7 +117,9 @@ def get_output_file_report(jobspec):
         if fileSpec.status != 'finished':
             continue
         # extract guid
-        if fileSpec.fileType == 'log':
+        if 'guid' in fileSpec.fileAttributes:
+            guid = fileSpec.fileAttributes['guid']
+        elif fileSpec.fileType == 'log':
             guid = jobspec.get_logfile_info()['guid']
         else:
             guid = str(uuid.uuid4())

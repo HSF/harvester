@@ -37,6 +37,7 @@ class DummyStager(PluginBase):
         """
         for fileSpec in jobspec.outFiles:
             # fileSpec.objstoreID = 123
+            # fileSpec.fileAttributes['guid']
             pass
         return True, ''
 

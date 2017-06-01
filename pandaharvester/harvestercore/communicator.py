@@ -95,7 +95,7 @@ class Communicator:
         return False, errMsg
 
     # check server
-    def is_alive(self):
+    def check_panda(self):
         tmpStat, tmpRes = self.post_ssl('isAlive', {})
         return tmpStat, tmpRes.status_code, tmpRes.text
 

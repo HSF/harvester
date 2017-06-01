@@ -156,18 +156,17 @@ class Monitor(AgentBase):
                 if workerID in retMap:
                     # set running while there are events to update or files to stage out
                     if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
-                        if not workSpec.is_post_processed():
-                            # post processing unless heartbeat is suppressed
+                        if len(retMap[workerID]['filesToStageOut']) > 0 or \
+                                        len(retMap[workerID]['eventsToUpdate']) > 0:
+                            newStatus = WorkSpec.ST_running
+                        elif not workSpec.is_post_processed():
                             if not queue_config.is_no_heartbeat_status(newStatus):
-                                # get associated jobIDs
+                                # post processing unless heartbeat is suppressed
                                 jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                                 None, True)
                                 # post processing
                                 messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
                             workSpec.post_processed()
-                            newStatus = WorkSpec.ST_running
-                        elif len(retMap[workerID]['filesToStageOut']) > 0 or \
-                                len(retMap[workerID]['eventsToUpdate']) > 0:
                             newStatus = WorkSpec.ST_running
                         # reset modification time to immediately trigger subsequent lookup
                         workSpec.trigger_next_lookup()
