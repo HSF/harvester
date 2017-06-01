@@ -10,7 +10,7 @@ class SimpleWorkerMaker(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
     # make a worker from a job with a disk access point
-    def make_worker(self, jobspec_list, queue_conifg):
+    def make_worker(self, jobspec_list, queue_config):
         workSpec = WorkSpec()
         if len(jobspec_list) > 0:
             workSpec.nCore = 0
@@ -31,10 +31,10 @@ class SimpleWorkerMaker(PluginBase):
                 except:
                     pass
                 try:
-                    if not jobSpec.jobParams['maxWalltime'] == "NULL": # Will be better to heve real Null or 0, then string
-                        workSpec.maxWalltime = max(int(queue_conifg.walltimeLimit), jobSpec.jobParams['maxWalltime'])
+                    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
+                        workSpec.maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams['maxWalltime'])
                     else:
-                        workSpec.maxWalltime = queue_conifg.walltimeLimit
+                        workSpec.maxWalltime = queue_config.walltimeLimit
                 except:
                     pass
         return workSpec
@@ -45,4 +45,4 @@ class SimpleWorkerMaker(PluginBase):
 
     # get number of workers per job
     def get_num_workers_per_job(self):
-        return 1
+        return 2
