@@ -6,6 +6,7 @@ import uuid
 import os.path
 import tarfile
 import fnmatch
+import types 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
@@ -261,10 +262,20 @@ class SharedFileMessenger(PluginBase):
             except:
                 tmpLog.debug('failed to load json')
                 return {}
+            # test validity of data format (ie it should be a Dictionary)
+            if type(loadDict) is types.DictType :
+                pass
+            else:
+                tmpLog.debug('loadDict data is not a dictionary')
+                return {}
             # collect files and events
             eventsList = dict()
             for tmpPandaID, tmpEventMapList in loadDict.iteritems():
                 tmpPandaID = long(tmpPandaID)
+                # test if tmpEventMapList is a list
+                if type(tmpEventMapList) is not types.ListType:
+                    tmpLog.debug('loadDict data is not a dictionary')
+                    return {}
                 for tmpEventInfo in tmpEventMapList:
                     if 'eventRangeID' in tmpEventInfo:
                         tmpEventRangeID = tmpEventInfo['eventRangeID']
