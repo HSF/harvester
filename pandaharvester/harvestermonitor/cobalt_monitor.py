@@ -27,10 +27,10 @@ class CobaltMonitor (PluginBase):
     def check_workers(self, workspec_list):
         retList = []
         for workSpec in workspec_list:
-            #print "pprint(dir(workSpec))"
-            #pprint(dir(workSpec))
-            #print "pprint(vars(workSpec))"
-            #pprint(vars(workSpec))
+            # print "pprint(dir(workSpec))"
+            # pprint(dir(workSpec))
+            # print "pprint(vars(workSpec))"
+            # pprint(vars(workSpec))
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
             # first command
@@ -55,7 +55,7 @@ class CobaltMonitor (PluginBase):
                 else:
                     tmpMatch = None
                     for tmpLine in stdOut.split('\n'):
-                        #DPBtmpLog.debug('tmpLine = {0}'.format(tmpLine))
+                        # DPBtmpLog.debug('tmpLine = {0}'.format(tmpLine))
                         tmpMatch = re.search('{0} '.format(workSpec.batchID), tmpLine)
                         if tmpMatch is not None:
                             errStr = tmpLine
@@ -81,22 +81,22 @@ class CobaltMonitor (PluginBase):
                         tmpLog.error(errStr)
                         raise Exception('could not parse qstat output: \n' + stdOut)
 
-                tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus,newStatus))
+                tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
                 retList.append((newStatus, errStr))
             else:
                 # non zero return code 
                 # look for jobReport.json file 
-                jsonFilePath = os.path.join(workSpec.accessPoint,"jobReport.json")
+                jsonFilePath = os.path.join(workSpec.get_access_point(), "jobReport.json")
                 if os.path.exists(jsonFilePath):
                     try:
-                        with open(readJsonPath) as jsonFile:
+                        with open(jsonFilePath) as jsonFile:
                             loadDict = json.load(jsonFile)
-                        if 'exitCode' in loadDict :
+                        if 'exitCode' in loadDict:
                             if loadDict['exitCode'] == 0:
                                 newStatus = WorkSpec.ST_finished
-                            else :
+                            else:
                                 newStatus = WorkSpec.ST_failed
-                            if 'errMsg' in loadDict :
+                            if 'errMsg' in loadDict:
                                 errStr = loadDict['errMsg']
                             tmpLog.error(errStr)
                             retList.append((newStatus, errStr))        

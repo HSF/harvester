@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import math
+import uuid
 import os.path
 import tarfile
 import fnmatch
@@ -105,6 +107,83 @@ class SharedFileMessenger(PluginBase):
                     jobSpec.add_event(eventSpec, None)
             jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status()
             tmpLog.debug('new jobStatus={0} subStatus={1}'.format(jobSpec.status, jobSpec.subStatus))
+        elif map_type == WorkSpec.MT_MultiWorkers:
+            jobSpec = jobspec_list[0]
+            # scan all workers
+            allDone = True
+            isRunning = False
+            oneFinished = False
+            oneFailed = False
+            nCore = 0
+            nCoreTime = 0
+            for workSpec in workspec_list:
+                # the the worker is running
+                if workSpec.status in [WorkSpec.ST_running]:
+                    isRunning = True
+                    # set start time
+                    jobSpec.set_start_time()
+                    nCore += workSpec.nCore
+                # the worker is done
+                if workSpec.status in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                    nCoreTime += workSpec.nCore * (workSpec.endTime - workSpec.startTime).total_seconds()
+                    if workSpec.status == WorkSpec.ST_finished:
+                        oneFinished = True
+                    elif workSpec.status == WorkSpec.ST_failed:
+                        oneFailed = True
+                else:
+                    # the worker is still active
+                    allDone = False
+            # set final values
+            if allDone:
+                # set end time
+                jobSpec.set_end_time()
+                # time-averaged core count
+                jobSpec.nCore = float(nCoreTime) / float((jobSpec.endTime - jobSpec.startTime).total_seconds())
+                jobSpec.nCore = int(math.ceil(jobSpec.nCore))
+            else:
+                # live core count
+                jobSpec.nCore = nCore
+            # combine worker attributes and set it to job
+            # FIXME
+            # jobSpec.set_attributes(workAttributes)
+            # add files
+            if jobSpec.PandaID in files_to_stage_out:
+                for lfn, fileAtters in files_to_stage_out[jobSpec.PandaID].iteritems():
+                    fileSpec = FileSpec()
+                    fileSpec.lfn = lfn
+                    fileSpec.PandaID = jobSpec.PandaID
+                    fileSpec.taskID = jobSpec.taskID
+                    fileSpec.path = fileAtters['path']
+                    fileSpec.fsize = fileAtters['fsize']
+                    fileSpec.fileType = fileAtters['type']
+                    fileSpec.fileAttributes = fileAtters
+                    if 'isZip' in fileAtters:
+                        fileSpec.isZip = fileAtters['isZip']
+                    if 'chksum' in fileAtters:
+                        fileSpec.chksum = fileAtters['chksum']
+                    if 'eventRangeID' in fileAtters:
+                        fileSpec.eventRangeID = fileAtters['eventRangeID']
+                    jobSpec.add_out_file(fileSpec)
+            # add events
+            if jobSpec.PandaID in events_to_update:
+                for data in events_to_update[jobSpec.PandaID]:
+                    eventSpec = EventSpec()
+                    eventSpec.from_data(data)
+                    jobSpec.add_event(eventSpec, None)
+            # set job status
+            workSpec = workspec_list[0]
+            if allDone:
+                if oneFinished:
+                    jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_finished)
+                elif oneFailed:
+                    jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_failed)
+                else:
+                    jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_cancelled)
+            else:
+                if isRunning or jobSpec.jobStatus == 'running':
+                    jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_running)
+                else:
+                    jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_submitted)
         elif map_type == WorkSpec.MT_MultiJobs:
             # TOBEFIXED
             pass
@@ -202,6 +281,11 @@ class SharedFileMessenger(PluginBase):
                         tmpFileDict['isZip'] = 0
                     elif 'isZip' in tmpEventInfo:
                         tmpFileDict['isZip'] = tmpEventInfo['isZip']
+                    # guid
+                    if 'guid' in tmpEventInfo:
+                        tmpFileDict['guid'] = tmpEventInfo['guid']
+                    else:
+                        tmpFileDict['guid'] = str(uuid.uuid4())
                     # get checksum
                     if 'chksum' not in tmpEventInfo:
                         tmpEventInfo['chksum'] = core_utils.calc_adler32(pfn)
@@ -442,13 +526,13 @@ class SharedFileMessenger(PluginBase):
                         tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
             # make json to stage-out the log file
             fileDict = dict()
-            fileDict[jobSpec.PandaID] = dict()
-            fileDict[jobSpec.PandaID][logFileInfo['lfn']] = {'path': logFilePath,
-                                                             'type': 'log',
-                                                             'isZip': 0}
+            fileDict[jobSpec.PandaID] = []
+            fileDict[jobSpec.PandaID].append({'path': logFilePath,
+                                              'type': 'log',
+                                              'isZip': 0})
             jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
             with open(jsonFilePath, 'w') as jsonFile:
-                json.dump([fileDict], jsonFile)
+                json.dump(fileDict, jsonFile)
         else:
             # FIXME
             pass
