@@ -52,7 +52,7 @@ class Stager(AgentBase):
                 if tmpStat is True:
                     # update job
                     newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
-                    tmpLog.debug('succeeded newSubStatus={0}'.format(newSubStatus))
+                    tmpLog.debug('succeeded new subStatus={0}'.format(newSubStatus))
                 else:
                     # failed
                     tmpLog.debug('failed with {0}'.format(tmpStr))
@@ -86,7 +86,7 @@ class Stager(AgentBase):
                     # update job
                     jobSpec.all_files_triggered_to_stage_out()
                     newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
-                    tmpLog.debug('triggered newSubStatus={0}'.format(newSubStatus))
+                    tmpLog.debug('triggered new subStatus={0}'.format(newSubStatus))
                 else:
                     # failed
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
@@ -120,7 +120,7 @@ class Stager(AgentBase):
                     # update job
                     jobSpec.all_files_zipped()
                     newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
-                    tmpLog.debug('zipped newSubStatus={0}'.format(newSubStatus))
+                    tmpLog.debug('zipped new subStatus={0}'.format(newSubStatus))
                 else:
                     # failed
                     tmpLog.debug('failed to zip with {0}'.format(tmpStr))

@@ -2,7 +2,7 @@ import uuid
 import os
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # setup base logger
 baseLogger = core_utils.setup_logger()
@@ -24,7 +24,6 @@ class DummySubmitter(PluginBase):
         A unique identifier is set to WorkSpec.batchID when submission is successful,
         so that they can be identified in the scheduling system.
 
-
         :param workspec_list: a list of work specs instances
         :return: A list of tuples. Each tuple is composed of submission status (True for success, False otherwise)
         and dialog message
@@ -44,13 +43,11 @@ class DummySubmitter(PluginBase):
                                                                         jobSpec.jobParams['coreCount'],
                                                                         jobSpec.jobParams['minRamCount']))
             for job in workSpec.jobspec_list:
-                print " ".join([job.jobParams['transformation'],job.jobParams['jobPars']])
-
+                tmpLog.debug(" ".join([job.jobParams['transformation'], job.jobParams['jobPars']]))
             workSpec.batchID = uuid.uuid4().hex
-            f = open(os.path.join(workSpec.accessPoint,'status.txt'), 'w')
-            f.write('ready\n')
+            f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
+            f.write(WorkSpec.ST_submitted)
             f.close()
-
             retList.append((True, ''))
         tmpLog.debug('done')
         return retList

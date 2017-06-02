@@ -43,7 +43,13 @@ class JobSpec(SpecBase):
                            'stagerLock:text',
                            'stagerTime:timestamp',
                            'zipPerMB:integer',
+                           'nWorkers:integer',
+                           'nWorkersLimit:integer',
                            )
+
+    # attributes initialized with 0
+    zeroAttrs = ('nWorkers',
+                 )
 
     # constructor
     def __init__(self):

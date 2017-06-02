@@ -796,6 +796,8 @@ class DBProxy:
             # sql to insert job and worker relationship
             sqlR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlR += JobWorkerRelationSpec.bind_values_expression()
+            # sql to get number of workers
+            sqlNW = "SELECT DISTINCT workerID FROM {0} WHERE PandaID=:pandaID ".format(jobWorkerTableName)
             # insert worker if new
             if workspec.isNew:
                 varMap = workspec.values_list()
@@ -807,12 +809,23 @@ class DBProxy:
             # collect values to update jobs or insert job/worker mapping
             varMapsR = []
             for jobSpec in jobspec_list:
+                # get number of workers for the job
+                varMap = dict()
+                varMap[':pandaID'] = jobSpec.PandaID
+                self.execute(sqlNW, varMap)
+                resNW = self.cur.fetchall()
+                workerIDs = set()
+                workerIDs.add(workspec.workerID)
+                for tmpWorkerID, in resNW:
+                    workerIDs.add(tmpWorkerID)
                 # update attributes
-                if workspec.hasJob == 1:
+                if jobSpec.subStatus in ['submitted', 'running']:
+                    jobSpec.nWorkers = len(workerIDs)
+                elif workspec.hasJob == 1:
                     jobSpec.subStatus = 'submitted'
+                    jobSpec.nWorkers = len(workerIDs)
                 else:
                     jobSpec.subStatus = 'queued'
-                jobSpec.lockedBy = None
                 # sql to update job
                 sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
                 sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
@@ -931,7 +944,8 @@ class DBProxy:
                 maxJobs = -(-(n_workers + n_ready) // n_workers_per_job)
             # sql to get jobs
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
-            sql += "WHERE subStatus IN (:subStatus1,:subStatus2) "
+            sql += "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
+            sql += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit)) "
             sql += "AND (submitterTime IS NULL "
             sql += "OR ((submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sql += "OR submitterTime<:checkTimeLimit)) "
@@ -944,8 +958,10 @@ class DBProxy:
             # get jobs
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
-            varMap[':subStatus1'] = 'prepared'
-            varMap[':subStatus2'] = 'queued'
+            varMap[':subStat1'] = 'prepared'
+            varMap[':subStat2'] = 'queued'
+            varMap[':subStat3'] = 'submitted'
+            varMap[':subStat4'] = 'running'
             varMap[':queueName'] = queue_name
             varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
             varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
@@ -971,7 +987,9 @@ class DBProxy:
                     jobChunk = []
                 # one job per multiple workers
                 elif n_workers_per_job is not None:
-                    for i in range(n_workers_per_job):
+                    if jobSpec.nWorkersLimit is None:
+                        jobSpec.nWorkersLimit = n_workers_per_job
+                    for i in range(jobSpec.nWorkersLimit - jobSpec.nWorkers):
                         jobChunkList.append(jobChunk)
                     jobChunk = []
                 # lock job
@@ -1408,6 +1426,13 @@ class DBProxy:
                     workSpec.modificationTime = timeNow
                 else:
                     workSpec.nextLookup = False
+                if workSpec.status == WorkSpec.ST_running and workSpec.startTime is None:
+                    workSpec.startTime = timeNow
+                elif workSpec.is_final_status():
+                    if workSpec.startTime is None:
+                        workSpec.startTime = timeNow
+                    if workSpec.endTime is None:
+                        workSpec.endTime = timeNow
                 varMap = workSpec.values_map(only_changed=True)
                 varMap[':workerID'] = workSpec.workerID
                 varMap[':cr_lockedBy'] = locked_by
@@ -2267,6 +2292,36 @@ class DBProxy:
             # commit
             self.commit()
             tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # release jobs
+    def release_jobs(self, panda_ids, locked_by):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start for {0} jobs'.format(len(panda_ids)))
+            # sql to release job
+            sql = "UPDATE {0} SET lockedBy=NULL ".format(jobTableName)
+            sql += "WHERE PandaID=:pandaID AND lockedBy=:lockedBy "
+            nJobs = 0
+            for pandaID in panda_ids:
+                varMap = dict()
+                varMap[':pandaID'] = pandaID
+                varMap[':lockedBy'] = locked_by
+                self.execute(sql, varMap)
+                if self.cur.rowcount > 0:
+                    nJobs += 1
+            # commit
+            self.commit()
+            tmpLog.debug('released {0} jobs'.format(nJobs))
+            # return
             return True
         except:
             # roll back

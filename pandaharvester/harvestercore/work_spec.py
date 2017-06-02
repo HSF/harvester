@@ -29,8 +29,8 @@ class WorkSpec(SpecBase):
     # type of mapping between job and worker
     MT_NoJob = 'NoJob'
     MT_OneToOne = 'OneToOne'
-    MT_MultiJobs = 'MultiJobs'
-    MT_MultiWorkers = 'MultiWorkers'
+    MT_MultiJobs = 'ManyToOne'
+    MT_MultiWorkers = 'OneToMany'
 
     # events
     EV_noEvents = 0
