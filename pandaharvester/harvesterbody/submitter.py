@@ -3,7 +3,7 @@ import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
@@ -89,7 +89,7 @@ class Submitter(AgentBase):
                     continue
                 # make workers
                 okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queueConfig, nReady)
-                tmpLog.debug('made {0} workers while {1} failed'.format(len(okChunks), len(ngChunks)))
+                tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks), len(ngChunks)))
                 timeNow = datetime.datetime.utcnow()
                 # NG
                 for ngJobs in ngChunks:
@@ -106,7 +106,8 @@ class Submitter(AgentBase):
                 if len(okChunks) > 0:
                     for workSpec, okJobs in okChunks:
                         # has job
-                        if queueConfig.useJobLateBinding and workSpec.workerID is None:
+                        if (queueConfig.useJobLateBinding and workSpec.workerID is None) \
+                                or queueConfig.mapType == WorkSpec.MT_NoJob:
                             workSpec.hasJob = 0
                         else:
                             workSpec.hasJob = 1
@@ -136,7 +137,9 @@ class Submitter(AgentBase):
                     # setup access points
                     messenger.setup_access_points(workSpecList)
                     # submit
+                    tmpLog.debug('submitting {0} workers'.format(len(workSpecList)))
                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)
+                    pandaIDs = set()
                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                         workSpec, jobList = okChunks[iWorker]
                         # failed
@@ -164,6 +167,7 @@ class Submitter(AgentBase):
                         # register worker
                         tmpStat = self.dbProxy.register_worker(workSpec, jobList, lockedBy)
                         for jobSpec in jobList:
+                            pandaIDs.add(jobSpec.PandaID)
                             if tmpStat:
                                 tmpLog.debug('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(
                                     workSpec.workerID,
@@ -177,6 +181,8 @@ class Submitter(AgentBase):
                         if tmpStat and workSpec.hasJob == 1:
                             tmpStat = messenger.feed_jobs(workSpec, jobList)
                             tmpLog.debug('sent jobs to workerID={0} with {1}'.format(workSpec.workerID, tmpStat))
+                    # release jobs
+                    self.dbProxy.release_jobs(pandaIDs, lockedBy)
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.submitter.sleepTime):

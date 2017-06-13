@@ -1,6 +1,10 @@
 import os.path
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore import core_utils
+
+# logger
+baseLogger = core_utils.setup_logger()
 
 
 # dummy monitor
@@ -23,10 +27,17 @@ class DummyMonitor(PluginBase):
         """
         retList = []
         for workSpec in workspec_list:
+            # make logger
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
             dummyFilePath = os.path.join(workSpec.get_access_point(), 'status.txt')
+            tmpLog.debug('look for {0}'.format(dummyFilePath))
             newStatus = WorkSpec.ST_finished
-            with open(dummyFilePath) as dummyFile:
-                newStatus = dummyFile.readline()
-                newStatus = newStatus.strip()
+            try:
+                with open(dummyFilePath) as dummyFile:
+                    newStatus = dummyFile.readline()
+                    newStatus = newStatus.strip()
+            except:
+                pass
+            tmpLog.debug('newStatus={0}'.format(newStatus))
             retList.append((newStatus, ''))
         return True, retList

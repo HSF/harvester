@@ -43,7 +43,13 @@ class JobSpec(SpecBase):
                            'stagerLock:text',
                            'stagerTime:timestamp',
                            'zipPerMB:integer',
+                           'nWorkers:integer',
+                           'nWorkersLimit:integer',
                            )
+
+    # attributes initialized with 0
+    zeroAttrs = ('nWorkers',
+                 )
 
     # constructor
     def __init__(self):
@@ -102,8 +108,10 @@ class JobSpec(SpecBase):
         self.jobAttributes = attrs
 
     # check if final status
-    def is_final_status(self):
-        return self.status in ['finished', 'failed', 'cancelled']
+    def is_final_status(self, job_status=None):
+        if job_status is None:
+            job_status = self.status
+        return job_status in ['finished', 'failed', 'cancelled']
 
     # get status
     def get_status(self):

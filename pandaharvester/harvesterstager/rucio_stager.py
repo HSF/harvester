@@ -104,7 +104,7 @@ class RucioStager(PluginBase):
                 scope = self.scopeForTmp
                 datasetName = 'dummy'
             srcPath = fileSpec.path
-            dstPath = mover_utils.construct_file_path(self.srcBasePath, datasetName, scope, fileSpec.lfn)
+            dstPath = mover_utils.construct_file_path(self.srcBasePath, scope, fileSpec.lfn)
             # remove
             if os.path.exists(dstPath):
                 os.remove(dstPath)

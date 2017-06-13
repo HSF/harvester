@@ -1,6 +1,8 @@
+import datetime
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
@@ -10,11 +12,11 @@ _logger = core_utils.setup_logger()
 # propagate important checkpoints to panda
 class Propagator(AgentBase):
     # constructor
-    def __init__(self, communicator, single_mode=False):
+    def __init__(self, communicator, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
         self.communicator = communicator
-
+        self.queueConfigMapper = queue_config_mapper
 
     # main loop
     def run(self):
@@ -29,11 +31,25 @@ class Propagator(AgentBase):
             # update jobs in central database
             iJobs = 0
             nJobs = harvester_config.propagator.nJobsInBulk
+            hbSuppressMap = dict()
             while iJobs < len(jobSpecs):
                 jobList = jobSpecs[iJobs:iJobs + nJobs]
                 iJobs += nJobs
-                retList = self.communicator.update_jobs(jobList)
-                okPandaIDs = []
+                # collect jobs to update or skip
+                jobListToUpdate = []
+                jobListToSkip = []
+                retList = []
+                for tmpJobSpec in jobList:
+                    if tmpJobSpec.computingSite not in hbSuppressMap:
+                        queueConfig = self.queueConfigMapper.get_queue(tmpJobSpec.computingSite)
+                        hbSuppressMap[tmpJobSpec.computingSite] = queueConfig.get_no_heartbeat_status()
+                    # heartbeat is suppressed
+                    if tmpJobSpec.status in hbSuppressMap[tmpJobSpec.computingSite]:
+                        jobListToSkip.append(tmpJobSpec)
+                        retList.append({'StatusCode': 0})
+                    else:
+                        jobListToUpdate.append(tmpJobSpec)
+                retList = self.communicator.update_jobs(jobListToUpdate)
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobList, retList):
                     if tmpRet['StatusCode'] == 0:
@@ -45,6 +61,16 @@ class Propagator(AgentBase):
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'
+                        else:
+                            # got kill command
+                            if tmpRet['command'] in ['tobekilled']:
+                                nWorkers = self.dbProxy.kill_workers_with_job(tmpJobSpec.PandaID)
+                                if nWorkers == 0:
+                                    # no remaining workers
+                                    tmpJobSpec.status = 'cancelled'
+                                    tmpJobSpec.subStatus = 'killed'
+                                    tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
+                                    tmpJobSpec.trigger_propagation()
                         self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.ident})
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,

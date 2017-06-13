@@ -27,7 +27,8 @@ setup(
     data_files=[
         # config and cron files
         ('etc/panda', ['templates/panda_harvester.cfg.rpmnew.template',
-                       'templates/logrotate.d/panda_harvester.template',
+                       'templates/logrotate.d/panda_harvester',
+                       'templates/panda_harvester-httpd.conf.rpmnew.template'
                        ]
          ),
         # sysconfig
@@ -35,8 +36,10 @@ setup(
                            ]
          ),
         # init script
-        ('etc/rc.d/init.d', ['templates/init.d/panda_harvester.exe.template',
+        ('etc/rc.d/init.d', ['templates/init.d/panda_harvester.rpmnew.template',
+                             'templates/init.d/panda_harvester-apachectl.rpmnew.template'
                              ]
          ),
         ],
+    scripts=['templates/panda_jedi-renice']
     )

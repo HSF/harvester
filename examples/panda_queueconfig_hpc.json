@@ -41,6 +41,10 @@
 	"monitor":{
 			"name":"SlurmMonitor",
 			"module":"pandaharvester.harvestermonitor.slurm_monitor"
+			},
+	"sweeper":{
+			"name":"DummySweeper",
+			"module":"pandaharvester.harvestersweeper.dummy_sweeper"
 			}
 },
 "CERN_PROD_1":{
@@ -88,6 +92,10 @@
 	"monitor":{
 			"name":"DummyMonitor",
 			"module":"pandaharvester.harvestermonitor.dummy_monitor"
+			},
+	"sweeper":{
+			"name":"DummySweeper",
+			"module":"pandaharvester.harvestersweeper.dummy_sweeper"
 			}
-}
+	}
 }

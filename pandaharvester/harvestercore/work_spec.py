@@ -29,8 +29,8 @@ class WorkSpec(SpecBase):
     # type of mapping between job and worker
     MT_NoJob = 'NoJob'
     MT_OneToOne = 'OneToOne'
-    MT_MultiJobs = 'MultiJobs'
-    MT_MultiWorkers = 'MultiWorkers'
+    MT_MultiJobs = 'ManyToOne'
+    MT_MultiWorkers = 'OneToMany'
 
     # events
     EV_noEvents = 0
@@ -64,7 +64,8 @@ class WorkSpec(SpecBase):
                            'nodeID:text',
                            'minRamCount:integer',
                            'maxDiskCount:integer',
-                           'maxWalltime:integer'
+                           'maxWalltime:integer',
+                           'killTime:timestamp'
                            )
 
     # constructor
@@ -102,16 +103,18 @@ class WorkSpec(SpecBase):
         return self.jobspec_list
 
     # convert worker status to job status
-    def convert_to_job_status(self):
-        if self.status in [self.ST_submitted, self.ST_ready]:
+    def convert_to_job_status(self, status=None):
+        if status is None:
+            status = self.status
+        if status in [self.ST_submitted, self.ST_ready]:
             jobStatus = 'starting'
-            jobSubStatus = self.status
-        elif self.status in [self.ST_finished, self.ST_failed, self.ST_cancelled]:
-            jobStatus = self.status
+            jobSubStatus = status
+        elif status in [self.ST_finished, self.ST_failed, self.ST_cancelled]:
+            jobStatus = status
             jobSubStatus = 'to_transfer'
         else:
             jobStatus = 'running'
-            jobSubStatus = self.status
+            jobSubStatus = status
         return jobStatus, jobSubStatus
 
     # check if post processed

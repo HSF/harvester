@@ -3,10 +3,12 @@ import json
 
 from pandaharvester.harvesterconfig import harvester_config
 from work_spec import WorkSpec
+from job_spec import JobSpec
 
 
 # class for queue config
 class QueueConfig:
+
     def __init__(self, queue_name):
         self.queueName = queue_name
         # default parameters
@@ -15,6 +17,15 @@ class QueueConfig:
         self.zipPerMB = None
         self.siteName = ''
         self.qrWorkerRatio = 0
+        self.noHeartbeat = ''
+
+    # get list of status without heartbeat
+    def get_no_heartbeat_status(self):
+        return self.noHeartbeat.split()
+
+    # check if status without heartbeat
+    def is_no_heartbeat_status(self, status):
+        return status in self.get_no_heartbeat_status()
 
 
 # mapper
@@ -58,3 +69,7 @@ class QueueConfigMapper:
         if not self.has_queue(queue_name):
             return None
         return self.queueConfig[queue_name]
+
+    # all queue configs
+    def get_all_queues(self):
+        return self.queueConfig

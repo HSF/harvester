@@ -1,14 +1,14 @@
 import sys
+import time
+import os
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.job_spec import JobSpec
 
 queueName = sys.argv[1]
-
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 queueConfigMapper = QueueConfigMapper()
 
 queueConfig = queueConfigMapper.get_queue(queueName)
-
-from pandaharvester.harvestercore.job_spec import JobSpec
 
 jobSpec = JobSpec()
 jobSpec.jobParams = {'inFiles': 'DAOD_STDM4.09596175._000008.pool.root.1',
@@ -19,6 +19,7 @@ jobSpec.jobParams = {'inFiles': 'DAOD_STDM4.09596175._000008.pool.root.1',
                      'ddmEndPointIn': 'BNL-OSG2_DATADISK',
                      'realDatasetsIn': 'mc15_13TeV.363638.MGPy8EG_N30NLO_Wmunu_Ht500_700_BFilter.merge.DAOD_STDM4.e4944_s2726_r7772_r7676_p2842_tid09596175_00',
                      }
+jobSpec.computingSite = queueName
 
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
@@ -28,7 +29,11 @@ pluginFactory = PluginFactory()
 preparatorCore = pluginFactory.get_plugin(queueConfig.preparator)
 print "plugin={0}".format(preparatorCore.__class__.__name__)
 
-print "testing preparation"
+print "testing stagein:"
+print "BasePath from preparator configuration: %s " % preparatorCore.basePath
+preparatorCore.basePath = preparatorCore.basePath + "/testdata/"
+print "basePath redifuned for test data: %s " % preparatorCore.basePath
+
 tmpStat, tmpOut = preparatorCore.trigger_preparation(jobSpec)
 if tmpStat:
     print " OK"

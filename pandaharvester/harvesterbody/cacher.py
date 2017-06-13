@@ -4,7 +4,7 @@ import requests
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
@@ -43,7 +43,7 @@ class Cacher(AgentBase):
                     mainLog.error('failed to get info for key={0} subKey={1}'.format(mainKey, subKey))
                     newInfo = None
                 # update
-                self.dbProxy.refresh_cache(mainKey, subKey, newInfo)
+                tmpStat = self.dbProxy.refresh_cache(mainKey, subKey, newInfo)
                 if tmpStat:
                     mainLog.debug('refreshed key={0} subKey={1}'.format(mainKey, subKey))
             mainLog.debug('done')

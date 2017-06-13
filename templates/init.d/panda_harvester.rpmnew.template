@@ -1,0 +1,81 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+#
+# description: Panda Harvester
+# processname: python
+# config: ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+# pidfile: $VIRTUAL_ENV}/var/log/panda/panda_harvester.pid
+
+# When multiple arguments are given, only the error from the _last_
+# one is reported.
+#
+ARGV="$@"
+#
+# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
+# --------------------                              --------------------
+#
+# setup python and virtual env
+# load module python
+VIRTUAL_ENV=/FIXME
+. ${VIRTUAL_ENV}/bin/activate
+
+# Source harvester env variables
+if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
+   . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+fi
+
+# the path to application
+PROGNAME='python -u '${SITE_PACKAGES_PATH}'/pandaharvester/harvesterbody/master.py'
+
+# pid and lock files
+PIDFILE=${VIRTUAL_ENV}/var/log/panda/panda_harvester.pid
+
+# log files
+HSTDOUT=${VIRTUAL_ENV}/var/log/panda/panda_harvester_stdout.log
+HSTDERR=${VIRTUAL_ENV}/var/log/panda/panda_harvester_stderr.log
+
+ERROR=0
+if [ "x$ARGV" = "x" ] ; then 
+    ARGV="-h"
+fi
+
+
+case $ARGV in
+start)
+    if [ -f $PIDFILE ]; then
+	echo ERROR: Harvester is already running with pidfile:$PIDFILE
+    else
+	echo start Harvester
+	for itry in `seq 1 100`
+	do
+	    echo trying $itry
+	    $PROGNAME --pid $PIDFILE >> $HSTDOUT 2>> $HSTDERR
+	    sleep 10
+	    ps -p `cat $PIDFILE` > /dev/null
+	    ERROR=$?
+	    echo $ERROR
+	    if [ $ERROR = 0 ]; then
+		echo succeeded
+		break
+	    else
+		echo failed
+		rm -f $PIDFILE
+	    fi
+	done
+    fi
+    ;;
+stop)
+    echo stop Harvester
+    kill -USR2 `cat $PIDFILE`
+    ERROR=$?
+    rm -f $PIDFILE
+    echo $ERROR
+    ;;
+*)
+    echo ERROR: unknown command $ARGV 
+    ERROR=1
+esac
+
+exit $ERROR
+

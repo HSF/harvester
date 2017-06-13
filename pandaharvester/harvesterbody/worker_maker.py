@@ -1,5 +1,5 @@
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.db_proxy import DBProxy
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger
@@ -60,11 +60,11 @@ class WorkerMaker:
     # get number of jobs per worker
     def get_num_jobs_per_worker(self, queue_config):
         # get plugin
-        maker = self.pluginFactory.get_plugin(queue_config.workMaker)
+        maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.get_num_jobs_per_worker()
 
     # get number of workers per job
     def get_num_workers_per_job(self, queue_config):
         # get plugin
-        maker = self.pluginFactory.get_plugin(queue_config.workMaker)
+        maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.get_num_workers_per_job()

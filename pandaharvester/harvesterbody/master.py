@@ -22,7 +22,7 @@ class Master:
         self.communicatorPool = CommunicatorPool()
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
         self.queueConfigMapper = QueueConfigMapper()
-        from pandaharvester.harvestercore.db_proxy import DBProxy
+        from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
         dbProxy = DBProxy()
         dbProxy.make_tables(self.queueConfigMapper)
 
@@ -70,6 +70,7 @@ class Master:
         nThr = harvester_config.propagator.nThreads
         for iThr in range(nThr):
             thr = Propagator(self.communicatorPool,
+                             self.queueConfigMapper,
                              single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
@@ -118,6 +119,15 @@ class Master:
             thr = EventFeeder(self.communicatorPool,
                               self.queueConfigMapper,
                               single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
+            thr.start()
+            thrList.append(thr)
+        # Sweeper
+        from pandaharvester.harvesterbody.sweeper import Sweeper
+        nThr = harvester_config.sweeper.nThreads
+        for iThr in range(nThr):
+            thr = Sweeper(self.queueConfigMapper,
+                          single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)

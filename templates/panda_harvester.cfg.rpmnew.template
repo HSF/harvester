@@ -5,11 +5,11 @@
 
 [master]
 
-# uid
-uname = @@panda_user@@
+# user name of the daemon process
+uname = FIXME
 
-# gid
-gname = @@panda_group@@
+# group name of the daemon process
+gname = FIXME
 
 # logger name
 loggername = harvester
@@ -27,10 +27,25 @@ harvester_id = test_fbarreir
 [db]
 
 # filename
-database_filename = /tmp/tmaeno/test.db
+database_filename = FIXME
 
 # verbose
 verbose = False
+
+# number of database connections in each process
+nConnections = 10
+
+# database engine : sqlite or mariadb
+engine = sqlite
+
+# user name
+user = harvester
+
+# password
+password = FIXME
+
+# schema
+schema = HARVESTER
 
 
 
@@ -389,3 +404,60 @@ updateEventsFile = worker_updateevents.json
 
 # PFC for input files
 xmlPoolCatalogFile = PoolFileCatalog_H.xml
+
+# get PandaIDs
+pandaIDsFile = worker_pandaids.json
+
+
+
+
+##########################
+#
+# Front-end parameters
+#
+
+[frontend]
+
+# port number for simple http frontend. For apache frontend port number is set in httpd.conf
+portNumber = 25080
+
+# number of threads
+nThreads = 10
+
+# verbose
+verbose = False
+
+# type : simple or apache
+type = simple
+
+
+
+
+
+##########################
+#
+# Sweeper parameters
+#
+
+[sweeper]
+
+# number of threads
+nThreads = 3
+
+# max number of workers per queue to try in one cycle
+maxWorkers = 500
+
+# check interval in sec
+checkInterval = 180
+
+# sleep interval in sec
+sleepTime = 60
+
+# duration in hours to keep finished workers
+keepFinished = 24
+
+# duration in hours to keep failed workers
+keepFailed = 72
+
+# duration in hours to keep cancelled workers
+keepCancelled = 72
