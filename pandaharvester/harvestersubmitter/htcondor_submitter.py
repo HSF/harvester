@@ -88,7 +88,7 @@ class HTCondorSubmitter(PluginBase):
                                             requestRam=workspec.minRamCount,
                                             requestDisk=(workspec.maxDiskCount * 1024),
                                             requestWalltime=workspec.maxWalltime,
-                                            accessPoint=self.accessPoint,
+                                            accessPoint=workspec.accessPoint,
                                             logDir=self.logDir,
                                             )
                       )
