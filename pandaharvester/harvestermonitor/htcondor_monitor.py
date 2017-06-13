@@ -38,9 +38,9 @@ class HTCondorMonitor (PluginBase):
             if retCode == 0:
                 # first parse
                 for tmpLine in stdOut.split('\n'):
-                    tmpMatch = re.search('^JobStatus = ([^ ]+)', tmpLine)
-                    if tmpMatch is not None:
-                        batchStatus = tmpMatch.group(1)
+                    tmpMatch_JobStatus = re.search('^JobStatus = ([^ ]+)', tmpLine)
+                    if tmpMatch_JobStatus is not None:
+                        batchStatus = tmpMatch_JobStatus.group(1)
                         if batchStatus in ['2', '5', '6', '7', '3', '4']:
                             # 2 running, 5 held, 6 transferring output, 7 suspended
                             newStatus = WorkSpec.ST_running
@@ -68,19 +68,31 @@ class HTCondorMonitor (PluginBase):
                         if retCode == 0:
                             # second parse
                             for tmpLine in stdOut.split('\n'):
-                                tmpMatch = re.search('^JobStatus = ([^ ]+)', tmpLine)
-                                if tmpMatch is not None:
-                                    batchStatus = tmpMatch.group(1)
+                                ## Check JobStatus
+                                tmpMatch_JobStatus = re.search('^JobStatus = ([^ ]+)', tmpLine)
+                                if tmpMatch_JobStatus is not None:
+                                    batchStatus = tmpMatch_JobStatus.group(1)
                                     if batchStatus in ['4']:
                                         # 4 completed
-                                        newStatus = WorkSpec.ST_finished
+                                        pass
                                     elif batchStatus in ['3']:
                                         # 3 removed
                                         newStatus = WorkSpec.ST_cancelled
                                     else:
                                         newStatus = WorkSpec.ST_failed
                                     tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
-                                    break
+                                ## Check ExitCode
+                                tmpMatch_ExitCode = re.search('^ExitCode = ([^ ]+)', tmpLine)
+                                if tmpMatch_ExitCode is not None:
+                                    payloadExitCode = tmpMatch_ExitCode.group(1)
+                                    if payloadExitCode in ['0']:
+                                        # Payload should return 0 after succeful run
+                                        newStatus = WorkSpec.ST_finished
+                                    else:
+                                        # Other return codes are considered failed
+                                        newStatus = WorkSpec.ST_failed
+                                        tmpLog.debug('Payload execution error: returned non-zero')
+                                    tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
                             retList.append((newStatus, errStr))
 
                 retList.append((newStatus, errStr))
