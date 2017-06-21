@@ -98,6 +98,7 @@
 		"messenger": {
 			"name": "SharedFileMessenger",
 			"module": "pandaharvester.harvestermessenger.shared_file_messenger",
+			"jobSpecFileFormat": "cgi",
 			"accessPoint": "/global/homes/t/tmaeno/workdir/panda/${workerID}"
 		},
 		"stager": {
