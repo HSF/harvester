@@ -90,7 +90,7 @@ class HttpHandler(BaseHTTPRequestHandler):
                         opType = 'w'
                     elif methodName == 'getJobs':
                         filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jsonJobSpecFileName)
+                                                shared_file_messenger.jobSpecFileName)
                         opType = 'r'
                     elif methodName == 'requestEventRanges':
                         filePath = os.path.join(workSpec.get_access_point(),

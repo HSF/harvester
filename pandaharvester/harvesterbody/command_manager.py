@@ -1,4 +1,5 @@
 import socket
+import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -18,6 +19,7 @@ class CommandManager(AgentBase):
         self.db_proxy = DBProxy()
         self.communicator = communicator
         self.nodeName = socket.gethostname()
+        self.lastHeartbeat = None
 
     # set single mode
     def set_single_mode(self, single_mode):
@@ -43,6 +45,12 @@ class CommandManager(AgentBase):
 
         while True:
             main_log.debug('polling commands loop')
+
+            # send heartbeat
+            if self.lastHeartbeat is None \
+                    or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                self.lastHeartbeat = datetime.datetime.utcnow()
+                self.communicator.is_alive({'startTime': datetime.datetime.utcnow()})
 
             continuous_loop = True # as long as there are commands, retrieve them
 
