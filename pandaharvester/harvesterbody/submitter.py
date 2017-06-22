@@ -136,6 +136,11 @@ class Submitter(AgentBase):
                         continue
                     # setup access points
                     messenger.setup_access_points(workSpecList)
+                    # feed jobs
+                    for workSpec in workSpecList:
+                        if workSpec.hasJob == 1:
+                            tmpStat = messenger.feed_jobs(workSpec, workSpec.get_jobspec_list())
+                            tmpLog.debug('sent jobs to workerID={0} with {1}'.format(workSpec.workerID, tmpStat))
                     # submit
                     tmpLog.debug('submitting {0} workers'.format(len(workSpecList)))
                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)
@@ -177,10 +182,6 @@ class Submitter(AgentBase):
                                 tmpLog.error('failed to register a worker for PandaID={0} with batchID={1}'.format(
                                     jobSpec.PandaID,
                                     workSpec.batchID))
-                        # feed jobs
-                        if tmpStat and workSpec.hasJob == 1:
-                            tmpStat = messenger.feed_jobs(workSpec, jobList)
-                            tmpLog.debug('sent jobs to workerID={0} with {1}'.format(workSpec.workerID, tmpStat))
                     # release jobs
                     self.dbProxy.release_jobs(pandaIDs, lockedBy)
             mainLog.debug('done')
