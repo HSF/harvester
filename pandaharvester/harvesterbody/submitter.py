@@ -112,6 +112,8 @@ class Submitter(AgentBase):
                         else:
                             workSpec.hasJob = 1
                             workSpec.set_jobspec_list(okJobs)
+                        # map type
+                        workSpec.mapType = queueConfig.mapType
                         # queue name
                         workSpec.computingSite = queueConfig.queueName
                         # set access point
@@ -155,7 +157,6 @@ class Submitter(AgentBase):
                             workSpec.set_status(WorkSpec.ST_running)
                         else:
                             workSpec.set_status(WorkSpec.ST_submitted)
-                        workSpec.mapType = queueConfig.mapType
                         workSpec.submitTime = timeNow
                         workSpec.modificationTime = timeNow
                         # prefetch events
