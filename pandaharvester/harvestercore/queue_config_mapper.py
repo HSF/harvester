@@ -18,10 +18,11 @@ class QueueConfig:
         self.siteName = ''
         self.qrWorkerRatio = 0
         self.noHeartbeat = ''
+        self.runMode = 'self'
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
-        return self.noHeartbeat.split()
+        return self.noHeartbeat.split(',')
 
     # check if status without heartbeat
     def is_no_heartbeat_status(self, status):
