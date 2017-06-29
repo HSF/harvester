@@ -1,6 +1,8 @@
 import tempfile
 import subprocess
 
+import re
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
@@ -65,7 +67,11 @@ class HTCondorSubmitter(PluginBase):
             tmpLog.debug('retCode={0}'.format(retCode))
             if retCode == 0:
                 # extract batchID
-                workSpec.batchID = stdOut.split()[-1]
+                for tmp_line_str in stdOut.split('\n'):
+                    job_id_match = re.search('^(\d+) job[(]s[)] submitted to cluster (\d+)\.$', tmp_line_str)
+                    if job_id_match:
+                        break
+                workSpec.batchID = job_id_match.group(2)
                 tmpLog.debug('batchID={0}'.format(workSpec.batchID))
                 tmpRetVal = (True, '')
             else:
