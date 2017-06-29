@@ -97,7 +97,10 @@ class Communicator:
     # check server
     def check_panda(self):
         tmpStat, tmpRes = self.post_ssl('isAlive', {})
-        return tmpStat, tmpRes.status_code, tmpRes.text
+        if tmpStat :
+            return tmpStat, tmpRes.status_code, tmpRes.text
+        else :
+            return tmpStat,tmpRes
 
     # get jobs
     def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs):
