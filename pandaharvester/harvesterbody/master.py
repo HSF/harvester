@@ -32,10 +32,8 @@ class Master:
         thrList = []
         # Command manager
         from pandaharvester.harvesterbody.command_manager import CommandManager
-        thr = CommandManager(self.communicatorPool, single_mode=True)
+        thr = CommandManager(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
-        thr.run()
-        thr.set_single_mode(self.singleMode)
         thr.start()
         thrList.append(thr)
         # Cacher

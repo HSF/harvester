@@ -29,9 +29,12 @@ def setup_logger(name=None):
 
 
 # make logger
-def make_logger(tmp_log, token=None):
+def make_logger(tmp_log, token=None, method_name=None):
     # get method name of caller
-    tmpStr = inspect.stack()[1][3]
+    if method_name is None:
+        tmpStr = inspect.stack()[1][3]
+    else:
+        tmpStr = method_name
     if token is not None:
         tmpStr += ' <{0}>'.format(token)
     else:

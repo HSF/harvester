@@ -35,13 +35,20 @@ class Submitter(AgentBase):
             curWorkersPerQueue, siteName = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime)
             mainLog.debug('got {0} queues for site {1}'.format(len(curWorkersPerQueue), siteName))
+            # get commands
+            if siteName is not None:
+                commandSpecs = self.dbProxy.get_commands_for_receiver('submitter',
+                                                                      'SET_N_WORKERS:{0}'.format(siteName))
+                mainLog.debug('got {0} commands'.format(len(commandSpecs)))
+                for commandSpec in commandSpecs:
+                    self.dbProxy.set_queue_limit(siteName, commandSpec.params)
             # define number of new workers
             nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkersPerQueue, siteName)
             # loop over all queues
             for queueName, tmpVal in nWorkersPerQueue.iteritems():
                 tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName))
                 tmpLog.debug('start')
-                nWorkers = tmpVal['nNewWorker'] + tmpVal['nReady']
+                nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                 nReady = tmpVal['nReady']
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
