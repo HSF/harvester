@@ -90,4 +90,4 @@ class WorkerAdjuster:
         except:
             # dump error
             core_utils.dump_error_message(tmpLog)
-            return dyn_num_workers
+            return None
