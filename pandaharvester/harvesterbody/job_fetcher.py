@@ -43,7 +43,12 @@ class JobFetcher(AgentBase):
                     nJobs = harvester_config.jobfetcher.maxJobs
                 # get jobs
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
-                jobs, errStr = self.communicator.get_jobs(queueName, self.nodeName,
+                siteName = queueName.split('/')[0]
+                if siteName == queueName:
+                    resourceType = None
+                else:
+                    resourceType = queueName.split('/')[-1]
+                jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
                                                           queueConfig.prodSourceLabel,
                                                           self.nodeName, nJobs)
                 tmpLog.debug('got {0} jobs with {1}'.format(len(jobs), errStr))

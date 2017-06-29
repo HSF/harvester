@@ -16,6 +16,9 @@ class QueueConfig:
         self.useJobLateBinding = False
         self.zipPerMB = None
         self.siteName = ''
+        self.maxWorkers = 0
+        self.nNewWorkers = 0
+        self.maxNewWorkersPerCycle = 0
         self.qrWorkerRatio = 0
         self.noHeartbeat = ''
         self.runMode = 'self'
