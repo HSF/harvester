@@ -9,10 +9,17 @@ class CommandSpec(SpecBase):
     # attributes
     attributesWithTypes = ('command_id:integer primary key',
                            'command:text',
+                           'receiver:text',
                            'params:blob',
                            'ack_requested:integer',
                            'processed:integer'
                            )
+    # mapping between command and receiver
+    receiver_map = {
+        'REPORT_WORKER_STATS': 'propagator',
+        'SET_N_WORKERS': 'submitter'
+    }
+
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
@@ -32,5 +39,4 @@ class CommandSpec(SpecBase):
         try:
             self.processed = data['processed']
         except KeyError:
-            self.processed = None
-
+            self.processed = 0

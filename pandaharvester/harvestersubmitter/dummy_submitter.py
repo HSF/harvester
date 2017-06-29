@@ -42,8 +42,8 @@ class DummySubmitter(PluginBase):
                     tmpLog.debug('PandaID={0} nCore={1} RAM={2}'.format(jobSpec.PandaID,
                                                                         jobSpec.jobParams['coreCount'],
                                                                         jobSpec.jobParams['minRamCount']))
-            for job in workSpec.jobspec_list:
-                tmpLog.debug(" ".join([job.jobParams['transformation'], job.jobParams['jobPars']]))
+                for job in workSpec.jobspec_list:
+                    tmpLog.debug(" ".join([job.jobParams['transformation'], job.jobParams['jobPars']]))
             workSpec.batchID = uuid.uuid4().hex
             f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
             f.write(WorkSpec.ST_submitted)

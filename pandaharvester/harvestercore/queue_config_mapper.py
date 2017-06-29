@@ -16,12 +16,16 @@ class QueueConfig:
         self.useJobLateBinding = False
         self.zipPerMB = None
         self.siteName = ''
+        self.maxWorkers = 0
+        self.nNewWorkers = 0
+        self.maxNewWorkersPerCycle = 0
         self.qrWorkerRatio = 0
         self.noHeartbeat = ''
+        self.runMode = 'self'
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
-        return self.noHeartbeat.split()
+        return self.noHeartbeat.split(',')
 
     # check if status without heartbeat
     def is_no_heartbeat_status(self, status):

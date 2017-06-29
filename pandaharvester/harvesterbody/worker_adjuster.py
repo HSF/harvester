@@ -32,7 +32,7 @@ class WorkerAdjuster:
             for queueName, tmpVal in static_num_workers.iteritems():
                 # set 0 to num of new workers when the queue is disabled
                 if queueName in queueStat and queueStat[queueName]['status'] in ['offline']:
-                    dyn_num_workers[queueName]['nNewWorker'] = 0
+                    dyn_num_workers[queueName]['nNewWorkers'] = 0
                     continue
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
@@ -42,6 +42,10 @@ class WorkerAdjuster:
                 nQueueLimit = queueConfig.nQueueLimitWorker
                 maxWorkers = queueConfig.maxWorkers
                 qrWorkerRatio = queueConfig.qrWorkerRatio
+                if queueConfig.runMode == 'slave':
+                    nNewWorkersDef = tmpVal['nNewWorkers']
+                else:
+                    nNewWorkersDef = None
                 # define num of new workers based on static site config
                 nNewWorkers = 0
                 if nQueueLimit > 0 and nQueue >= nQueueLimit:
@@ -61,12 +65,19 @@ class WorkerAdjuster:
                     if qrWorkerRatio > 0 and nRunning > 0:
                         maxQueuedWorkers = max(maxQueuedWorkers, qrWorkerRatio * nRunning / 100)
                     if maxQueuedWorkers == 0:
-                        # use default value
-                        maxQueuedWorkers = 1
+                        if nNewWorkersDef is not None:
+                            # slave mode
+                            maxQueuedWorkers = nNewWorkersDef + nQueue
+                        else:
+                            # use default value
+                            maxQueuedWorkers = 1
                     # new workers
-                    nNewWorkers = min(max(maxQueuedWorkers - nQueue, 0),
-                                      max(maxWorkers - nQueue - nReady - nRunning, 0))
-                dyn_num_workers[queueName]['nNewWorker'] = nNewWorkers
+                    nNewWorkers = max(maxQueuedWorkers - nQueue, 0)
+                    if maxWorkers > 0:
+                        nNewWorkers = min(nNewWorkers, max(maxWorkers - nQueue - nReady - nRunning, 0))
+                if queueConfig.maxNewWorkersPerCycle > 0:
+                    nNewWorkers = min(nNewWorkers, queueConfig.maxNewWorkersPerCycle)
+                dyn_num_workers[queueName]['nNewWorkers'] = nNewWorkers
             # correction for global shares
             # TO BE IMPLEMENTED
             # correction based on commands from PanDA
@@ -79,4 +90,4 @@ class WorkerAdjuster:
         except:
             # dump error
             core_utils.dump_error_message(tmpLog)
-            return dyn_num_workers
+            return None

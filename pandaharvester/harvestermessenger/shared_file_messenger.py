@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import urllib
 import uuid
 import os.path
 import tarfile
@@ -27,7 +28,7 @@ xmlOutputsBaseFileName = harvester_config.payload_interaction.eventStatusDumpXml
 jsonJobRequestFileName = harvester_config.payload_interaction.jobRequestFile
 
 # json for job spec
-jsonJobSpecFileName = harvester_config.payload_interaction.jobSpecFile
+jobSpecFileName = harvester_config.payload_interaction.jobSpecFile
 
 # json for event request
 jsonEventsRequestFileName = harvester_config.payload_interaction.eventRequestFile
@@ -60,6 +61,7 @@ def set_logger(master_logger):
 class SharedFileMessenger(PluginBase):
     # constructor
     def __init__(self, **kwarg):
+        self.jobSpecFileFormat = 'json'
         PluginBase.__init__(self, **kwarg)
 
     # get attributes of a worker which should be propagated to job(s).
@@ -217,13 +219,16 @@ class SharedFileMessenger(PluginBase):
         pfc = core_utils.make_pool_file_catalog(jobspec_list)
         if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
             jobSpec = jobspec_list[0]
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobSpecFileName)
+            jobSpecFilePath = os.path.join(workspec.get_access_point(), jobSpecFileName)
             xmlFilePath = os.path.join(workspec.get_access_point(), xmlPoolCatalogFileName)
-            tmpLog.debug('feeding jobs to {0}'.format(jsonFilePath))
+            tmpLog.debug('feeding jobs to {0}'.format(jobSpecFilePath))
             try:
-                # put job spec json
-                with open(jsonFilePath, 'w') as jsonFile:
-                    json.dump({jobSpec.PandaID: jobSpec.jobParams}, jsonFile)
+                # put job spec file
+                with open(jobSpecFilePath, 'w') as jobSpecFile:
+                    if self.jobSpecFileFormat == 'cgi':
+                        jobSpecFile.write(urllib.urlencode(jobSpec.jobParams))
+                    else:
+                        json.dump({jobSpec.PandaID: jobSpec.jobParams}, jobSpecFile)
                 # put PFC.xml
                 with open(xmlFilePath, 'w') as pfcFile:
                     pfcFile.write(pfc)
@@ -245,8 +250,8 @@ class SharedFileMessenger(PluginBase):
             pass
         # remove request file
         try:
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
-            os.remove(jsonFilePath)
+            reqFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
+            os.remove(reqFilePath)
         except:
             pass
         tmpLog.debug('done')

@@ -14,7 +14,8 @@ class PandaQueueSpec(SpecBase):
                            'maxWorkers:integer',
                            'jobFetchTime:timestamp',
                            'submitTime:timestamp',
-                           'siteName:text'
+                           'siteName:text',
+                           'nNewWorkers:integer'
                            )
 
     # constructor

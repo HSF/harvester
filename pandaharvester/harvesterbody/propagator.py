@@ -101,6 +101,24 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update workerID={0} status={1}'.format(tmpWorkSpec.workerID,
                                                                                             tmpWorkSpec.status))
+            mainLog.debug('getting commands')
+            commandSpecs = self.dbProxy.get_commands_for_receiver('propagator')
+            mainLog.debug('got {0} commands'.format(len(commandSpecs)))
+            for commandSpec in commandSpecs:
+                if commandSpec.command.startswith('REPORT_WORKER_STATS'):
+                    # get worker stats
+                    siteName = commandSpec.command.split(':')[-1]
+                    workerStats = self.dbProxy.get_worker_stats(siteName)
+                    if len(workerStats) == 0:
+                        mainLog.error('failed to get worker stats for {0}'.format(siteName))
+                    else:
+                        # report worker stats
+                        tmpRet, tmpStr = self.communicator.update_worker_stats(siteName, workerStats)
+                        if tmpRet:
+                            mainLog.debug('updated worker stats for {0}'.format(siteName))
+                        else:
+                            mainLog.error('failed to update worker stats for {0} err={1}'.format(siteName,
+                                                                                                 tmpStr))
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):
