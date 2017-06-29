@@ -9,6 +9,15 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 baseLogger = core_utils.setup_logger()
 
 
+## Run shell function
+def _runShell(cmd):
+    cmd = str(cmd)
+    p = subprocess.Popen(cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdOut, stdErr = p.communicate()
+    retCode = p.returncode
+    return (retCode, stdOut, stdErr)
+
+
 # monitor for HTCONDOR batch system
 class HTCondorMonitor (PluginBase):
     # constructor
@@ -19,86 +28,94 @@ class HTCondorMonitor (PluginBase):
     def check_workers(self, workspec_list):
         retList = []
         for workSpec in workspec_list:
-            # make logger
+            ## Make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
-            # first command
-            comStr = 'condor_q -l {0}'.format(workSpec.batchID)
-            # first check
-            tmpLog.debug('check with {0}'.format(comStr))
-            p = subprocess.Popen(comStr.split(),
-                                 shell=False,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+            ## Initialize newStatus
             newStatus = workSpec.status
-            # first check return code
-            stdOut, stdErr = p.communicate()
-            retCode = p.returncode
-            tmpLog.debug('retCode={0}'.format(retCode))
-            errStr = ''
-            if retCode == 0:
-                # first parse
-                for tmpLine in stdOut.split('\n'):
-                    tmpMatch_JobStatus = re.search('^JobStatus = ([^ ]+)', tmpLine)
-                    if tmpMatch_JobStatus is not None:
-                        batchStatus = tmpMatch_JobStatus.group(1)
-                        if batchStatus in ['2', '5', '6', '7', '3', '4']:
-                            # 2 running, 5 held, 6 transferring output, 7 suspended
-                            newStatus = WorkSpec.ST_running
-                        elif batchStatus in ['1']:
-                            # 1 idle
-                            newStatus = WorkSpec.ST_submitted
-                        else:
-                            newStatus = WorkSpec.ST_failed
-                        tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
-                        break
-                    else:
-                        # nothing in condor_q. Try condor_history
-                        # second command
-                        comStr = 'condor_history -l {0}'.format(workSpec.batchID)
-                        # second check
-                        tmpLog.debug('check with {0}'.format(comStr))
-                        p2 = subprocess.Popen(comStr.split(),
-                                                shell=False,
-                                                stdout=subprocess.PIPE,
-                                                stderr=subprocess.PIPE)
-                        # second check return code
-                        stdOut, stdErr = p2.communicate()
-                        retCode = p2.returncode
-                        tmpLog.debug('retCode={0}'.format(retCode))
-                        if retCode == 0:
-                            # second parse
-                            for tmpLine in stdOut.split('\n'):
-                                ## Check JobStatus
-                                tmpMatch_JobStatus = re.search('^JobStatus = ([^ ]+)', tmpLine)
-                                if tmpMatch_JobStatus is not None:
-                                    batchStatus = tmpMatch_JobStatus.group(1)
-                                    if batchStatus in ['4']:
-                                        # 4 completed
-                                        pass
-                                    elif batchStatus in ['3']:
-                                        # 3 removed
-                                        newStatus = WorkSpec.ST_cancelled
-                                    else:
-                                        newStatus = WorkSpec.ST_failed
-                                    tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
-                                ## Check ExitCode
-                                tmpMatch_ExitCode = re.search('^ExitCode = ([^ ]+)', tmpLine)
-                                if tmpMatch_ExitCode is not None:
-                                    payloadExitCode = tmpMatch_ExitCode.group(1)
-                                    if payloadExitCode in ['0']:
-                                        # Payload should return 0 after succeful run
-                                        newStatus = WorkSpec.ST_finished
-                                    else:
-                                        # Other return codes are considered failed
-                                        newStatus = WorkSpec.ST_failed
-                                        tmpLog.debug('Payload execution error: returned non-zero')
-                                    tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
-                            retList.append((newStatus, errStr))
 
-                retList.append((newStatus, errStr))
+            ## Query commands
+            comStr_list = [
+                'condor_q -l {0}'.format(workSpec.batchID),
+                'condor_history -l {0}'.format(workSpec.batchID),
+                ]
+
+            got_job_ads = False
+            job_ads_str = None
+
+            for comStr in comStr_list:
+                tmpLog.debug('check with {0}'.format(comStr))
+                (retCode, stdOut, stdErr) = _runShell(comStr)
+                if retCode == 0:
+                    if stdOut:
+                        ## Job found
+                        got_job_ads = True
+                        job_ads_str = str(stdOut)
+                        break
+                else:
+                    ## Command failed
+                    errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+                    tmpLog.error(errStr)
+                    retList.append((newStatus, errStr))
+                    return True, retList
+
+            ## Parse job ads
+            errStr = ''
+            if got_job_ads:
+                ## Make job ads dictionary
+                job_ads_dict = dict()
+                for tmp_line_str in job_ads_str.split('\n'):
+                    tmp_match = re.search('^(\w+) = (.+)$', tmp_line_str)
+                    if not tmp_match:
+                        continue
+                    _key = tmp_match.group(1)
+                    _value = tmp_match.group(2)
+                    job_ads_dict[_key] = _value
+
+                ## Check JobStatus
+                try:
+                    batchStatus = job_ads_dict['JobStatus']
+                except KeyError:
+                    errStr = 'cannot get JobStatus of job batchID={0}'.format(workSpec.batchID)
+                    tmpLog.error(errStr)
+                    newStatus = WorkSpec.ST_failed
+                else:
+                    if batchStatus in ['2', '6']:
+                        # 2 running, 6 transferring output
+                        newStatus = WorkSpec.ST_running
+                    elif batchStatus in ['1', '5', '7']:
+                        # 1 idle, 5 held, 7 suspended
+                        newStatus = WorkSpec.ST_submitted
+                    elif batchStatus in ['3']:
+                        # 3 removed
+                        newStatus = WorkSpec.ST_cancelled
+                    elif batchStatus in ['4']:
+                        # 4 completed
+                        try:
+                            payloadExitCode = job_ads_dict['ExitCode']
+                        except KeyError:
+                            errStr = 'cannot get ExitCode of job batchID={0}'.format(workSpec.batchID)
+                            tmpLog.error(errStr)
+                            newStatus = WorkSpec.ST_failed
+                        else:
+                            if payloadExitCode in ['0']:
+                                # Payload should return 0 after successful run
+                                newStatus = WorkSpec.ST_finished
+                            else:
+                                # Other return codes are considered failed
+                                newStatus = WorkSpec.ST_failed
+                                tmpLog.debug('Payload execution error: returned non-zero')
+                            tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
+                    else:
+                        errStr = 'cannot get JobStatus of job batchID={0}'.format(workSpec.batchID)
+                        tmpLog.error(errStr)
+                        newStatus = WorkSpec.ST_failed
+
+                tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
+
             else:
-                # failed
-                errStr = stdOut + ' ' + stdErr
-                tmpLog.error(errStr)
-                retList.append((newStatus, errStr))
+                tmpLog.info('condor job batchID={0} not found'.format(workSpec.batchID))
+
+            ## Append to return list
+            retList.append((newStatus, errStr))
+
         return True, retList
