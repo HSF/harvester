@@ -35,9 +35,10 @@ class Propagator(AgentBase):
             while iJobs < len(jobSpecs):
                 jobList = jobSpecs[iJobs:iJobs + nJobs]
                 iJobs += nJobs
-                # collect jobs to update or skip
-                jobListToUpdate = []
+                # collect jobs to update or check
                 jobListToSkip = []
+                jobListToUpdate = []
+                jobListToCheck = []
                 retList = []
                 for tmpJobSpec in jobList:
                     if tmpJobSpec.computingSite not in hbSuppressMap:
@@ -45,16 +46,25 @@ class Propagator(AgentBase):
                         hbSuppressMap[tmpJobSpec.computingSite] = queueConfig.get_no_heartbeat_status()
                     # heartbeat is suppressed
                     if tmpJobSpec.status in hbSuppressMap[tmpJobSpec.computingSite]:
-                        jobListToSkip.append(tmpJobSpec)
-                        retList.append({'StatusCode': 0})
+                        # check running job to detect lost heartbeat
+                        if tmpJobSpec.status == 'running':
+                            jobListToCheck.append(tmpJobSpec)
+                        else:
+                            jobListToSkip.append(tmpJobSpec)
+                            retList.append({'StatusCode': 0})
                     else:
                         jobListToUpdate.append(tmpJobSpec)
-                retList = self.communicator.update_jobs(jobListToUpdate)
+                retList += self.communicator.check_jobs(jobListToCheck)
+                retList += self.communicator.update_jobs(jobListToUpdate)
                 # logging
-                for tmpJobSpec, tmpRet in zip(jobList, retList):
+                for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
                     if tmpRet['StatusCode'] == 0:
-                        mainLog.debug('updated PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
-                                                                              tmpJobSpec.status))
+                        if tmpJobSpec in jobListToUpdate:
+                            mainLog.debug('updated PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
+                                                                                  tmpJobSpec.status))
+                        else:
+                            mainLog.debug('skip updating PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
+                                                                                        tmpJobSpec.status))
                         # release job
                         tmpJobSpec.propagatorLock = None
                         if tmpJobSpec.is_final_status() and tmpJobSpec.status == tmpJobSpec.get_status():

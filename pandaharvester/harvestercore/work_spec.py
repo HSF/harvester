@@ -75,11 +75,13 @@ class WorkSpec(SpecBase):
         object.__setattr__(self, 'nextLookup', False)
         object.__setattr__(self, 'jobspec_list', None)
         object.__setattr__(self, 'pandaid_list', None)
+        object.__setattr__(self, 'new_status', False)
 
     # set status
     def set_status(self, value):
         if self.status != value:
             self.trigger_propagation()
+            self.new_status = True
         self.status = value
 
     # get access point
