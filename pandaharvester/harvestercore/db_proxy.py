@@ -239,7 +239,21 @@ class DBProxy:
                 self.commit()
                 tmpLog.debug('made {0}'.format(table_name))
             else:
-                tmpLog.debug('reuse {0}'.format(table_name))
+                # check table
+                missingAttrs = self.check_table(cls, table_name, True)
+                for attr in cls.attributesWithTypes:
+                    if attr not in missingAttrs:
+                        continue
+                    # add column
+                    sqlA = 'ALTER TABLE {0} ADD COLUMN '.format(table_name)
+                    # split to name and type
+                    attrName, attrType = attr.split(':')
+                    attrType = self.type_conversion(attrType)
+                    sqlA += '{0} {1},'.format(attrName, attrType)
+                    self.execute(sqlA)
+                    # commit
+                    self.commit()
+                    tmpLog.debug('added {0} to {1}'.format(attr, table_name))
         except:
             # roll back
             self.rollback()
@@ -275,7 +289,7 @@ class DBProxy:
         self.add_seq_number('SEQ_workerID', 1)
 
     # check table
-    def check_table(self, cls, table_name):
+    def check_table(self, cls, table_name, get_missing=False):
         # get columns in DB
         varMap = dict()
         if harvester_config.db.engine == 'mariadb':
@@ -298,8 +312,11 @@ class DBProxy:
         for attr in cls.attributesWithTypes:
             attrName, attrType = attr.split(':')
             if attrName not in colMap:
-                attrType = self.type_conversion(attrType)
-                outStrs.append('{0} {1} is missing in {2}'.format(attrName, attrType, table_name))
+                if get_missing:
+                    outStrs.append(attrName)
+                else:
+                    attrType = self.type_conversion(attrType)
+                    outStrs.append('{0} {1} is missing in {2}'.format(attrName, attrType, table_name))
         return outStrs
 
     # insert jobs

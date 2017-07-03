@@ -202,6 +202,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                     eventSpec.from_data(data)
                     jobSpec.add_event(eventSpec, None)
         jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status()
+        if workSpec.new_status:
+            jobSpec.trigger_propagation()
     elif map_type == WorkSpec.MT_MultiWorkers:
         jobSpec = jobspec_list[0]
         # scan all workers
@@ -212,6 +214,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         nCore = 0
         nCoreTime = 0
         for workSpec in workspec_list:
+            if workSpec.new_status:
+                jobSpec.trigger_propagation()
             # the the worker is running
             if workSpec.status in [WorkSpec.ST_running]:
                 isRunning = True
