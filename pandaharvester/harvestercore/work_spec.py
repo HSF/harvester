@@ -83,6 +83,10 @@ class WorkSpec(SpecBase):
             self.trigger_propagation()
             self.new_status = True
         self.status = value
+        if self.status == self.ST_running:
+            self.set_start_time()
+        elif self.is_final_status():
+            self.set_end_time()
 
     # get access point
     def get_access_point(self):
@@ -167,3 +171,13 @@ class WorkSpec(SpecBase):
         if self.pandaid_list is not None:
             data['pandaid_list'] = self.pandaid_list
         return data
+
+    # set start time
+    def set_start_time(self, force=False):
+        if self.startTime is None or force is True:
+            self.startTime = datetime.datetime.utcnow()
+
+    # set end time
+    def set_end_time(self, force=False):
+        if self.endTime is None or force is True:
+            self.endTime = datetime.datetime.utcnow()
