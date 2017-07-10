@@ -123,6 +123,7 @@ class SharedFileMessenger(PluginBase):
                 tmpLog.debug('not found')
                 return {}
             try:
+                tmpLog.debug('found')
                 # rename to prevent from being overwritten
                 os.rename(jsonFilePath, readJsonPath)
             except:
