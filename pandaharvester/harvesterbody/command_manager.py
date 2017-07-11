@@ -49,32 +49,30 @@ class CommandManager(AgentBase):
         main_log = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
         bulk_size = harvester_config.commandmanager.commands_bulk_size
 
-        # report initial worker stats for the WORKER_STATS command
+        # send command list to be received
         siteNames = set()
+        commandList = []
         for queueName in harvester_config.qconf.queueList:
             queueConfig = self.queueConfigMapper.get_queue(queueName)
-            if queueConfig.runMode != 'slave':
+            if queueConfig is None or queueConfig.runMode != 'slave':
                 continue
-            # get siteName
-            if queueConfig.siteName not in ['', None]:
-                siteName = queueConfig.siteName
-            else:
-                siteName = queueConfig.queueName
-            if siteName in siteNames:
-                continue
-            siteNames.add(siteName)
-            # get worker stats
-            workerStats = self.db_proxy.get_worker_stats(siteName)
-            if len(workerStats) == 0:
-                main_log.error('failed to get worker stats for {0}'.format(siteName))
-            else:
-                # report worker stats
-                tmpRet, tmpStr = self.communicator.update_worker_stats(siteName, workerStats)
-                if tmpRet:
-                    main_log.debug('updated worker stats for {0}'.format(siteName))
-                else:
-                    main_log.error('failed to update worker stats for {0} err={1}'.format(siteName,
-                                                                                          tmpStr))
+            # one command for all queues in one site
+            if queueConfig.siteName not in siteNames:
+                commandItem = {'command': CommandSpec.COM_reportWorkerStats,
+                               'computingSite': queueConfig.siteName,
+                               'resourceType': queueConfig.resourceType
+                               }
+                commandList.append(commandItem)
+            siteNames.add(queueConfig.siteName)
+            # one command for each queue
+            commandItem = {'command': CommandSpec.COM_setNWorkers,
+                           'computingSite': queueConfig.siteName,
+                           'resourceType': queueConfig.resourceType
+                           }
+            commandList.append(commandItem)
+        if len(commandList) > 0:
+            self.communicator.is_alive({'startTime': datetime.datetime.utcnow(),
+                                        'commands': commandList})
 
         # main loop
         while True:

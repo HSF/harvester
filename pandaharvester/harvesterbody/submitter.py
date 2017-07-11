@@ -3,6 +3,7 @@ import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
@@ -32,18 +33,23 @@ class Submitter(AgentBase):
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
             mainLog.debug('getting queues to submit workers')
             # get queues associated to a site to submit workers
-            curWorkersPerQueue, siteName = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
+            curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime)
-            mainLog.debug('got {0} queues for site {1}'.format(len(curWorkersPerQueue), siteName))
+            mainLog.debug('got {0} queues for site {1}'.format(len(curWorkers), siteName))
             # get commands
             if siteName is not None:
-                commandSpecs = self.dbProxy.get_commands_for_receiver('submitter',
-                                                                      'SET_N_WORKERS:{0}'.format(siteName))
+                comStr = '{0}:{1}'.format(CommandSpec.COM_setNWorkers, siteName)
+                commandSpecs = self.dbProxy.get_commands_for_receiver('submitter', comStr)
                 mainLog.debug('got {0} commands'.format(len(commandSpecs)))
                 for commandSpec in commandSpecs:
-                    self.dbProxy.set_queue_limit(siteName, commandSpec.params)
+                    newLimits = self.dbProxy.set_queue_limit(siteName, commandSpec.params)
+                    for tmpResource, tmpNewVal in newLimits.iteritems():
+                        if tmpResource in resMap:
+                            tmpQueueName = resMap[tmpResource]
+                            if tmpQueueName in curWorkers:
+                                curWorkers[tmpQueueName]['nNewWorkers'] = tmpNewVal
             # define number of new workers
-            nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkersPerQueue, siteName)
+            nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkers, siteName)
             if nWorkersPerQueue is None:
                 mainLog.error('WorkerAdjuster failed to define the number of workers')
             else:
@@ -99,7 +105,10 @@ class Submitter(AgentBase):
                         continue
                     # make workers
                     okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queueConfig, nReady)
-                    tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks), len(ngChunks)))
+                    if len(ngChunks) == 0:
+                        tmpLog.debug('successfully made {0} workers'.format(len(okChunks)))
+                    else:
+                        tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks), len(ngChunks)))
                     timeNow = datetime.datetime.utcnow()
                     # NG
                     for ngJobs in ngChunks:
