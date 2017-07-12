@@ -79,7 +79,7 @@ class Stager(AgentBase):
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
-                # trigger preparation
+                # trigger stage-out
                 tmpStat, tmpStr = stagerCore.trigger_stage_out(jobSpec)
                 # succeeded
                 if tmpStat is True:
