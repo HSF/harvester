@@ -1269,7 +1269,11 @@ class DBProxy:
             # sql to check job
             sqlCJ = "SELECT status FROM {0} WHERE PandaID=:PandaID FOR UPDATE ".format(jobTableName)
             # sql to check file
-            sqlFC = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND lfn=:lfn ".format(fileTableName)
+            sqlFC = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+            sqlFC += "WHERE PandaID=:PandaID AND lfn=:lfn "
+            # sql to check file with eventRangeID
+            sqlFE = "SELECT 1 FROM {0} ".format(fileTableName)
+            sqlFE += "WHERE PandaID=:PandaID AND lfn=:lfn AND eventRangeID=:eventRangeID ".format(fileTableName)
             # sql to insert file
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlFI += FileSpec.bind_values_expression()
@@ -1322,17 +1326,45 @@ class DBProxy:
                         resFC = self.cur.fetchone()
                         # insert file
                         if resFC is None:
-                            if jobSpec.zipPerMB is None or fileSpec.isZip == 0:
+                            if jobSpec.zipPerMB is None or fileSpec.isZip in [0, 1]:
                                 fileSpec.status = 'defined'
                                 jobSpec.hasOutFile = JobSpec.HO_hasOutput
                             else:
                                 fileSpec.status = 'pending'
                             varMap = fileSpec.values_list()
                             self.execute(sqlFI, varMap)
+                            fileSpec.fileID = self.cur.lastrowid
                             nFiles += 1
                             # mapping between event range ID and file ID
                             if fileSpec.eventRangeID is not None:
-                                fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
+                                fileIdMap[fileSpec.eventRangeID] = fileSpec.fileID
+                            # associate to itself
+                            if fileSpec.isZip == 1:
+                                varMap = dict()
+                                varMap[':status'] = fileSpec.status
+                                varMap[':fileID'] = fileSpec.fileID
+                                varMap[':zipFileID'] = fileSpec.fileID
+                                self.execute(sqlFU, varMap)
+                        elif fileSpec.isZip == 1:
+                            # check file with eventRangeID
+                            varMap = dict()
+                            varMap[':PandaID'] = fileSpec.PandaID
+                            varMap[':lfn'] = fileSpec.lfn
+                            varMap[':eventRangeID'] = fileSpec.eventRangeID
+                            self.execute(sqlFE, varMap)
+                            resFE = self.cur.fetchone()
+                            if resFE is None:
+                                # associate to existing zip
+                                zipFileSpec = FileSpec()
+                                zipFileSpec.pack(resFC)
+                                fileSpec.status = 'zipped'
+                                fileSpec.zipFileID = zipFileSpec.fileID
+                                varMap = fileSpec.values_list()
+                                self.execute(sqlFI, varMap)
+                                nFiles += 1
+                                # mapping between event range ID and file ID
+                                if fileSpec.eventRangeID is not None:
+                                    fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
                     if nFiles > 0:
                         tmpLog.debug('inserted {0} files'.format(nFiles))
                     # check pending files
@@ -1751,10 +1783,10 @@ class DBProxy:
                     self.execute(sqlF, varMap)
                 # update event status
                 if update_event_status:
-                    eventRangeIDs = []
+                    eventRangeIDs = set()
                     if fileSpec.eventRangeID is not None:
-                        eventRangeIDs.append(fileSpec.eventRangeID)
-                    elif fileSpec.isZip == 1:
+                        eventRangeIDs.add(fileSpec.eventRangeID)
+                    if fileSpec.isZip == 1:
                         # get files associated with zip file
                         varMap = dict()
                         varMap[':PandaID'] = fileSpec.PandaID
@@ -1762,7 +1794,7 @@ class DBProxy:
                         self.execute(sqlAE, varMap)
                         resAE = self.cur.fetchall()
                         for eventRangeID, in resAE:
-                            eventRangeIDs.append(eventRangeID)
+                            eventRangeIDs.add(eventRangeID)
                     varMaps = []
                     for eventRangeID in eventRangeIDs:
                         varMap = dict()

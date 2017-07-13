@@ -178,28 +178,29 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # add files
         for files_to_stage_out in files_to_stage_out_list:
             if jobSpec.PandaID in files_to_stage_out:
-                for lfn, fileAtters in files_to_stage_out[jobSpec.PandaID].iteritems():
-                    fileSpec = FileSpec()
-                    fileSpec.lfn = lfn
-                    fileSpec.PandaID = jobSpec.PandaID
-                    fileSpec.taskID = jobSpec.taskID
-                    fileSpec.path = fileAtters['path']
-                    fileSpec.fsize = fileAtters['fsize']
-                    fileSpec.fileType = fileAtters['type']
-                    fileSpec.fileAttributes = fileAtters
-                    if 'isZip' in fileAtters:
-                        fileSpec.isZip = fileAtters['isZip']
-                    if 'chksum' in fileAtters:
-                        fileSpec.chksum = fileAtters['chksum']
-                    if 'eventRangeID' in fileAtters:
-                        fileSpec.eventRangeID = fileAtters['eventRangeID']
-                    jobSpec.add_out_file(fileSpec)
+                for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].iteritems():
+                    for fileAtters in fileAttersList:
+                        fileSpec = FileSpec()
+                        fileSpec.lfn = lfn
+                        fileSpec.PandaID = jobSpec.PandaID
+                        fileSpec.taskID = jobSpec.taskID
+                        fileSpec.path = fileAtters['path']
+                        fileSpec.fsize = fileAtters['fsize']
+                        fileSpec.fileType = fileAtters['type']
+                        fileSpec.fileAttributes = fileAtters
+                        if 'isZip' in fileAtters:
+                            fileSpec.isZip = fileAtters['isZip']
+                        if 'chksum' in fileAtters:
+                            fileSpec.chksum = fileAtters['chksum']
+                        if 'eventRangeID' in fileAtters:
+                            fileSpec.eventRangeID = fileAtters['eventRangeID']
+                        jobSpec.add_out_file(fileSpec)
         # add events
         for events_to_update in events_to_update_list:
             if jobSpec.PandaID in events_to_update:
                 for data in events_to_update[jobSpec.PandaID]:
                     eventSpec = EventSpec()
-                    eventSpec.from_data(data)
+                    eventSpec.from_data(data, jobSpec.PandaID)
                     jobSpec.add_event(eventSpec, None)
         jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status()
         if workSpec.new_status:
@@ -252,28 +253,29 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # add files
         for files_to_stage_out in files_to_stage_out_list:
             if jobSpec.PandaID in files_to_stage_out:
-                for lfn, fileAtters in files_to_stage_out[jobSpec.PandaID].iteritems():
-                    fileSpec = FileSpec()
-                    fileSpec.lfn = lfn
-                    fileSpec.PandaID = jobSpec.PandaID
-                    fileSpec.taskID = jobSpec.taskID
-                    fileSpec.path = fileAtters['path']
-                    fileSpec.fsize = fileAtters['fsize']
-                    fileSpec.fileType = fileAtters['type']
-                    fileSpec.fileAttributes = fileAtters
-                    if 'isZip' in fileAtters:
-                        fileSpec.isZip = fileAtters['isZip']
-                    if 'chksum' in fileAtters:
-                        fileSpec.chksum = fileAtters['chksum']
-                    if 'eventRangeID' in fileAtters:
-                        fileSpec.eventRangeID = fileAtters['eventRangeID']
-                    jobSpec.add_out_file(fileSpec)
+                for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].iteritems():
+                    for fileAtters in fileAttersList:
+                        fileSpec = FileSpec()
+                        fileSpec.lfn = lfn
+                        fileSpec.PandaID = jobSpec.PandaID
+                        fileSpec.taskID = jobSpec.taskID
+                        fileSpec.path = fileAtters['path']
+                        fileSpec.fsize = fileAtters['fsize']
+                        fileSpec.fileType = fileAtters['type']
+                        fileSpec.fileAttributes = fileAtters
+                        if 'isZip' in fileAtters:
+                            fileSpec.isZip = fileAtters['isZip']
+                        if 'chksum' in fileAtters:
+                            fileSpec.chksum = fileAtters['chksum']
+                        if 'eventRangeID' in fileAtters:
+                            fileSpec.eventRangeID = fileAtters['eventRangeID']
+                        jobSpec.add_out_file(fileSpec)
         # add events
         for events_to_update in events_to_update_list:
             if jobSpec.PandaID in events_to_update:
                 for data in events_to_update[jobSpec.PandaID]:
                     eventSpec = EventSpec()
-                    eventSpec.from_data(data)
+                    eventSpec.from_data(data, jobSpec.PandaID)
                     jobSpec.add_event(eventSpec, None)
         # set job status
         workSpec = workspec_list[0]

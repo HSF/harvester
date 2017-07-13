@@ -68,16 +68,16 @@ class JobSpec(SpecBase):
         self.outFiles.clear()
 
     # add event
-    def add_event(self, eventspec, zip_filespec):
+    def add_event(self, event_spec, zip_filespec):
         if zip_filespec is None:
             zipFileID = None
         else:
             zipFileID = zip_filespec.fileID
-        if not zipFileID in self.zipEventMap:
+        if zipFileID not in self.zipEventMap:
             self.zipEventMap[zipFileID] = {'events': set(),
                                            'zip': zip_filespec}
-        self.zipEventMap[zipFileID]['events'].add(eventspec)
-        self.events.add(eventspec)
+        self.zipEventMap[zipFileID]['events'].add(event_spec)
+        self.events.add(event_spec)
 
     # convert from Job JSON
     def convert_job_json(self, data):

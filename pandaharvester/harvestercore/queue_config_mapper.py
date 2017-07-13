@@ -23,6 +23,7 @@ class QueueConfig:
         self.noHeartbeat = ''
         self.runMode = 'self'
         self.resourceType = PandaQueueSpec.RT_catchall
+        self.getJobCriteria = None
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -67,6 +68,16 @@ class QueueConfigMapper:
             queueConfig.siteName = queueConfig.queueName.split('/')[0]
             if queueConfig.siteName != queueConfig.queueName:
                 queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
+            # additional criteria for getJob
+            if queueConfig.getJobCriteria is not None:
+                tmpCriteria = dict()
+                for tmpItem in queueConfig.getJobCriteria.split(','):
+                    tmpKey, tmpVal = tmpItem.split('=')
+                    tmpCriteria[tmpKey] = tmpVal
+                if len(tmpCriteria) == 0:
+                    queueConfig.getJobCriteria = None
+                else:
+                    queueConfig.getJobCriteria = tmpCriteria
             self.queueConfig[queueName] = queueConfig
 
     # check if valid queue

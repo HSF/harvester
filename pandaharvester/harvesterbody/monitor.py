@@ -135,15 +135,15 @@ class Monitor(AgentBase):
             else:
                 workStatus = None
                 workersToCheck.append(workSpec)
+                # get work attributes and output files
+                workAttributes = messenger.get_work_attributes(workSpec)
+                filesToStageOut = messenger.get_files_to_stage_out(workSpec)
                 # get events to update
                 if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
                     eventsToUpdate = messenger.events_to_update(workSpec)
                 # request events
                 if workSpec.eventsRequest == WorkSpec.EV_useEvents:
                     eventsRequestParams = messenger.events_requested(workSpec)
-                # get work attributes and output files
-                workAttributes = messenger.get_work_attributes(workSpec)
-                filesToStageOut = messenger.get_files_to_stage_out(workSpec)
                 # get PandaIDs for pull model
                 if queue_config.mapType == WorkSpec.MT_NoJob:
                     pandaIDs = messenger.get_panda_ids(workSpec)
