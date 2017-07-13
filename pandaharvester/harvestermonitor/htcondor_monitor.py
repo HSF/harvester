@@ -45,11 +45,21 @@ class HTCondorMonitor (PluginBase):
             for comStr in comStr_list:
                 tmpLog.debug('check with {0}'.format(comStr))
                 (retCode, stdOut, stdErr) = _runShell(comStr)
-                if retCode == 0:
-                    if stdOut:
-                        ## Job found
+                if retCode == 0 and stdOut:
+                    ## Make job ads dictionary
+                    job_ads_str = str(stdOut)
+                    job_ads_dict = dict()
+                    for tmp_line_str in job_ads_str.split('\n'):
+                        tmp_match = re.search('^(\w+) = (.+)$', tmp_line_str)
+                        if not tmp_match:
+                            continue
+                        _key = tmp_match.group(1)
+                        _value = tmp_match.group(2)
+                        job_ads_dict[_key] = _value
+
+                    if 'ClusterId' in job_ads_dict:
+                        ## Make sure job found via ClusterId
                         got_job_ads = True
-                        job_ads_str = str(stdOut)
                         break
                 else:
                     ## Command failed
@@ -61,16 +71,6 @@ class HTCondorMonitor (PluginBase):
             ## Parse job ads
             errStr = ''
             if got_job_ads:
-                ## Make job ads dictionary
-                job_ads_dict = dict()
-                for tmp_line_str in job_ads_str.split('\n'):
-                    tmp_match = re.search('^(\w+) = (.+)$', tmp_line_str)
-                    if not tmp_match:
-                        continue
-                    _key = tmp_match.group(1)
-                    _value = tmp_match.group(2)
-                    job_ads_dict[_key] = _value
-
                 ## Check JobStatus
                 try:
                     batchStatus = job_ads_dict['JobStatus']
@@ -110,7 +110,7 @@ class HTCondorMonitor (PluginBase):
                         tmpLog.error(errStr)
                         newStatus = WorkSpec.ST_failed
 
-                tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
+                    tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
 
             else:
                 tmpLog.info('condor job batchID={0} not found'.format(workSpec.batchID))
