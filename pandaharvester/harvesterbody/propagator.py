@@ -52,7 +52,7 @@ class Propagator(AgentBase):
                             jobListToCheck.append(tmpJobSpec)
                         else:
                             jobListToSkip.append(tmpJobSpec)
-                            retList.append({'StatusCode': 0})
+                            retList.append({'StatusCode': 0, 'command': None})
                     else:
                         jobListToUpdate.append(tmpJobSpec)
                 retList += self.communicator.check_jobs(jobListToCheck)
