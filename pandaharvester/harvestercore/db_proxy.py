@@ -1667,7 +1667,7 @@ class DBProxy:
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
             sql += "WHERE (subStatus=:subStatus OR hasOutFile=:hasOutFile) "
             if bad_has_out_file_flag is not None:
-                sql += "AND hasOutFile<>:badHasOutFile "
+                sql += "AND (hasOutFile IS NULL OR hasOutFile<>:badHasOutFile) "
             sql += "AND (stagerTime IS NULL "
             sql += "OR (stagerTime<:lockTimeLimit AND stagerLock IS NOT NULL) "
             sql += "OR stagerTime<:updateTimeLimit) "
