@@ -15,8 +15,12 @@ class PandaQueueSpec(SpecBase):
                            'jobFetchTime:timestamp',
                            'submitTime:timestamp',
                            'siteName:text',
+                           'resourceType:text',
                            'nNewWorkers:integer'
                            )
+
+    # catchall resource type
+    RT_catchall = 'ANY'
 
     # constructor
     def __init__(self):

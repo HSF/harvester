@@ -14,10 +14,13 @@ class CommandSpec(SpecBase):
                            'ack_requested:integer',
                            'processed:integer'
                            )
+    # commands
+    COM_reportWorkerStats = 'REPORT_WORKER_STATS'
+    COM_setNWorkers = 'SET_N_WORKERS'
     # mapping between command and receiver
     receiver_map = {
-        'REPORT_WORKER_STATS': 'propagator',
-        'SET_N_WORKERS': 'submitter'
+        COM_reportWorkerStats: 'propagator',
+        COM_setNWorkers: 'submitter'
     }
 
     # constructor

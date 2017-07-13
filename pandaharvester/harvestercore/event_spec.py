@@ -32,21 +32,21 @@ class EventSpec(SpecBase):
             val = getattr(self, attr)
             # don't propagate finished until subStatus is finished
             if attr == 'eventStatus':
-                if val == 'finished' and self.subStatus not in ['finished', 'done']:
+                if val == 'finished' and not self.is_final_status():
                     val = 'running'
             if val is not None:
                 data[attr] = val
         return data
 
     # convert from data
-    def from_data(self, data):
+    def from_data(self, data, panda_id):
         for attr, val in data.iteritems():
             # skip non attributes
             if attr not in self.attributes:
                 continue
             setattr(self, attr, val)
-        if self.eventRangeID is not None:
-            try:
-                self.PandaID = long(self.eventRangeID.split('-')[1])
-            except:
-                pass
+        self.PandaID = long(panda_id)
+
+    # final status
+    def is_final_status(self):
+        return self.subStatus in ['finished', 'done', 'failed']

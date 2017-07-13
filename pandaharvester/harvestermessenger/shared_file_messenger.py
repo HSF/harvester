@@ -123,75 +123,106 @@ class SharedFileMessenger(PluginBase):
                 tmpLog.debug('not found')
                 return {}
             try:
+                tmpLog.debug('found')
                 # rename to prevent from being overwritten
                 os.rename(jsonFilePath, readJsonPath)
             except:
                 tmpLog.error('failed to rename json')
                 return {}
         # load json
+        toSkip = False
+        loadDict = None
         try:
             with open(readJsonPath) as jsonFile:
                 loadDict = json.load(jsonFile)
         except:
-            tmpLog.debug('failed to load json')
-            return {}
+            tmpLog.error('failed to load json')
+            toSkip = True
         # test validity of data format (ie it should be a Dictionary)
-        if not isinstance(loadDict, types.DictType):
-            tmpLog.debug('loadDict data is not a dictionary')
-            return {}
+        if not toSkip:
+            if not isinstance(loadDict, types.DictType):
+                tmpLog.error('loaded data is not a dictionary')
+                toSkip = True
         # collect files and events
-        eventsList = dict()
-        for tmpPandaID, tmpEventMapList in loadDict.iteritems():
-            tmpPandaID = long(tmpPandaID)
-            # test if tmpEventMapList is a list
-            if not isinstance(tmpEventMapList, types.ListType):
-                tmpLog.debug('loadDict data is not a list')
-                return {}
-            for tmpEventInfo in tmpEventMapList:
-                if 'eventRangeID' in tmpEventInfo:
-                    tmpEventRangeID = tmpEventInfo['eventRangeID']
-                else:
-                    tmpEventRangeID = None
-                tmpFileDict = dict()
-                pfn = tmpEventInfo['path']
-                lfn = os.path.basename(pfn)
-                tmpFileDict['path'] = pfn
-                tmpFileDict['fsize'] = os.stat(pfn).st_size
-                tmpFileDict['type'] = tmpEventInfo['type']
-                if tmpEventInfo['type'] in ['log', 'output']:
-                    # disable zipping
-                    tmpFileDict['isZip'] = 0
-                elif 'isZip' in tmpEventInfo:
-                    tmpFileDict['isZip'] = tmpEventInfo['isZip']
-                # guid
-                if 'guid' in tmpEventInfo:
-                    tmpFileDict['guid'] = tmpEventInfo['guid']
-                else:
-                    tmpFileDict['guid'] = str(uuid.uuid4())
-                # get checksum
-                if 'chksum' not in tmpEventInfo:
-                    tmpEventInfo['chksum'] = core_utils.calc_adler32(pfn)
-                tmpFileDict['chksum'] = tmpEventInfo['chksum']
-                if tmpPandaID not in fileDict:
-                    fileDict[tmpPandaID] = dict()
-                fileDict[tmpPandaID][lfn] = tmpFileDict
-                # skip if unrelated to events
-                if tmpFileDict['type'] not in ['es_output']:
-                    continue
-                tmpFileDict['eventRangeID'] = tmpEventRangeID
-                if tmpPandaID not in eventsList:
-                    eventsList[tmpPandaID] = list()
-                eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
-                                               'eventStatus': tmpEventInfo['eventStatus']})
-        # dump events
-        if eventsList != []:
-            curName = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
-            newName = curName + '.new'
-            f = open(newName, 'w')
-            json.dump(eventsList, f)
-            f.close()
-            os.rename(newName, curName)
+        if not toSkip:
+            eventsList = dict()
+            sizeMap = dict()
+            chksumMap = dict()
+            for tmpPandaID, tmpEventMapList in loadDict.iteritems():
+                tmpPandaID = long(tmpPandaID)
+                # test if tmpEventMapList is a list
+                if not isinstance(tmpEventMapList, types.ListType):
+                    tmpLog.error('loaded data item is not a list')
+                    toSkip = True
+                    fileDict = dict()
+                    break
+                for tmpEventInfo in tmpEventMapList:
+                    try:
+                        if 'eventRangeID' in tmpEventInfo:
+                            tmpEventRangeID = tmpEventInfo['eventRangeID']
+                        else:
+                            tmpEventRangeID = None
+                        tmpFileDict = dict()
+                        pfn = tmpEventInfo['path']
+                        lfn = os.path.basename(pfn)
+                        tmpFileDict['path'] = pfn
+                        if pfn not in sizeMap:
+                            if 'fsize' in tmpEventInfo:
+                                sizeMap[pfn] = tmpEventInfo['fsize']
+                            else:
+                                sizeMap[pfn] = os.stat(pfn).st_size
+                        tmpFileDict['fsize'] = sizeMap[pfn]
+                        tmpFileDict['type'] = tmpEventInfo['type']
+                        if tmpEventInfo['type'] in ['log', 'output']:
+                            # disable zipping
+                            tmpFileDict['isZip'] = 0
+                        elif tmpEventInfo['type'] == 'zip_output':
+                            # already zipped
+                            tmpFileDict['isZip'] = 1
+                        elif 'isZip' in tmpEventInfo:
+                            tmpFileDict['isZip'] = tmpEventInfo['isZip']
+                        # guid
+                        if 'guid' in tmpEventInfo:
+                            tmpFileDict['guid'] = tmpEventInfo['guid']
+                        else:
+                            tmpFileDict['guid'] = str(uuid.uuid4())
+                        # get checksum
+                        if pfn not in chksumMap:
+                            if 'chksum' in tmpEventInfo:
+                                chksumMap[pfn] = tmpEventInfo['chksum']
+                            else:
+                                chksumMap[pfn] = core_utils.calc_adler32(pfn)
+                        tmpFileDict['chksum'] = chksumMap[pfn]
+                        if tmpPandaID not in fileDict:
+                            fileDict[tmpPandaID] = dict()
+                        if lfn not in fileDict[tmpPandaID]:
+                            fileDict[tmpPandaID][lfn] = []
+                        fileDict[tmpPandaID][lfn].append(tmpFileDict)
+                        # skip if unrelated to events
+                        if tmpFileDict['type'] not in ['es_output', 'zip_output']:
+                            continue
+                        tmpFileDict['eventRangeID'] = tmpEventRangeID
+                        if tmpPandaID not in eventsList:
+                            eventsList[tmpPandaID] = list()
+                        eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
+                                                       'eventStatus': tmpEventInfo['eventStatus']})
+                    except:
+                        core_utils.dump_error_message(tmpLog)
+            # dump events
+            if not toSkip:
+                if len(eventsList) > 0:
+                    curName = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
+                    newName = curName + '.new'
+                    f = open(newName, 'w')
+                    json.dump(eventsList, f)
+                    f.close()
+                    os.rename(newName, curName)
         tmpLog.debug('got {0}'.format(str(fileDict)))
+        if len(fileDict) == 0:
+            try:
+                os.remove(readJsonPath)
+            except:
+                pass
         return fileDict
 
     # check if job is requested.
@@ -341,9 +372,14 @@ class SharedFileMessenger(PluginBase):
                     newDict[tmpPandaID] = tmpDict
                 retDict = newDict
         except:
-            tmpLog.debug('failed to load json')
-            return {}
+            tmpLog.error('failed to load json')
+            retDict = dict()
         tmpLog.debug('got {0}'.format(str(retDict)))
+        if len(retDict) == 0:
+            try:
+                os.remove(readJsonPath)
+            except:
+                pass
         return retDict
 
     # acknowledge events and files
