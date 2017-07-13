@@ -103,7 +103,8 @@ class Communicator:
             return tmpStat,tmpRes
 
     # get jobs
-    def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs):
+    def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs,
+                 additional_criteria):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name))
         tmpLog.debug('try to get {0} jobs'.format(n_jobs))
@@ -113,6 +114,9 @@ class Communicator:
         data['prodSourceLabel'] = prod_source_label
         data['computingElement'] = computing_element
         data['nJobs'] = n_jobs
+        if additional_criteria is not None:
+            for tmpKey, tmpVal in additional_criteria:
+                data[tmpKey] = tmpVal
         tmpStat, tmpRes = self.post_ssl('getJob', data)
         errStr = 'OK'
         if tmpStat is False:
@@ -146,7 +150,7 @@ class Communicator:
                 tmpRet = self.update_event_ranges(eventRanges, tmpLog)
                 if tmpRet['StatusCode'] == 0:
                     for eventSpec, retVal in zip(eventSpecs, tmpRet['Returns']):
-                        if retVal in [True, False]:
+                        if retVal in [True, False] and eventSpec.is_final_status():
                             eventSpec.subStatus = 'done'
             # update job
             if jobSpec.jobAttributes is None:
