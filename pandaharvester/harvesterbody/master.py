@@ -36,19 +36,19 @@ class Master:
         thr.set_stop_event(self.stopEvent)
         thr.start()
         thrList.append(thr)
+        # Credential Manager
+        from pandaharvester.harvesterbody.cred_manager import CredManager
+        thr = CredManager(single_mode=self.singleMode)
+        thr.set_stop_event(self.stopEvent)
+        thr.execute()
+        thr.start()
+        thrList.append(thr)
         # Cacher
         from pandaharvester.harvesterbody.cacher import Cacher
         thr = Cacher(single_mode=True)
         thr.set_stop_event(self.stopEvent)
         thr.run()
         thr.set_single_mode(self.singleMode)
-        thr.start()
-        thrList.append(thr)
-        # Credential Manager
-        from pandaharvester.harvesterbody.cred_manager import CredManager
-        thr = CredManager(single_mode=self.singleMode)
-        thr.set_stop_event(self.stopEvent)
-        thr.execute()
         thr.start()
         thrList.append(thr)
         # Job Fetcher
