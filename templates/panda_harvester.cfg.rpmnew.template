@@ -267,20 +267,35 @@ sleepTime = 60
 #
 # Credential Manager parameters
 #
+# Note : One credential data following a whitespace per line to support multiple credentials. Empty lines are not
+         allowed, so that a dummy string like 'dummy' needs to be added if some parameters like voms are unnecessary.
 
 [credmanager]
 
 # module name
-moduleName = pandaharvester.harvestercredmanager.no_voms_cred_manager
+moduleName =
+ pandaharvester.harvestercredmanager.no_voms_cred_manager
+ pandaharvester.harvestercredmanager.no_voms_cred_manager
 
 # class name
-className = NoVomsCredManager
+className =
+ NoVomsCredManager
+ NoVomsCredManager
 
-# cert file
-certFile = FIXME
+# original certificate file to generate new short-lived certificate
+certFile =
+ FIXME
+ FIXME
+
+# the name of short-lived certificate
+outCertFile =
+ FIXME_proxy_production
+ FIXME_proxy_pilot
 
 # voms
-voms = atlas:/atlas/Role=production
+voms =
+ atlas:/atlas/Role=pilot
+ atlas:/atlas/Role=production
 
 # sleep interval in sec
 sleepTime = 1800
@@ -358,6 +373,8 @@ sleepTime = 60
 data =
  ddmendpoints_objectstores.json||http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1&type[]=OS_LOGS&type[]=OS_ES
  panda_queues.json||http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas
+ proxy_pilot||file:FIXME_proxy_pilot
+ proxy_production||file:FIXME_proxy_production
 # refresh interval in minint
 refreshInterval = 10
 

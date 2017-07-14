@@ -1,3 +1,5 @@
+import types
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -14,13 +16,38 @@ class CredManager(AgentBase):
     def __init__(self, single_mode=False):
         AgentBase.__init__(self, single_mode)
         self.pluginFactory = PluginFactory()
+        # get module and class names
+        moduleNames = self.get_list(harvester_config.credmanager.moduleName)
+        classNames = self.get_list(harvester_config.credmanager.className)
+        # file names of original certificates
+        inCertFiles = self.get_list(harvester_config.credmanager.certFile)
+        # file names of certificates to be generated
+        if hasattr(harvester_config.credmanager, 'outCertFile'):
+            outCertFiles = self.get_list(harvester_config.credmanager.outCertFile)
+        else:
+            # use the file name of the certificate for panda connection as output name
+            outCertFiles = self.get_list(harvester_config.pandacon.cert_file)
+        # VOMS
+        vomses = self.get_list(harvester_config.credmanager.voms)
         # get plugin
-        pluginPar = {}
-        pluginPar['module'] = harvester_config.credmanager.moduleName
-        pluginPar['name'] = harvester_config.credmanager.className
-        pluginPar['config'] = harvester_config.credmanager
-        self.exeCore = self.pluginFactory.get_plugin(pluginPar)
+        self.exeCores = []
+        for moduleName, className, inCertFile, outCertFile, voms in \
+                zip(moduleNames, classNames, inCertFiles, outCertFiles, vomses):
+            pluginPar = {}
+            pluginPar['module'] = moduleName
+            pluginPar['name'] = className
+            pluginPar['inCertFile'] = inCertFile
+            pluginPar['outCertFile'] = outCertFile
+            pluginPar['voms'] = voms
+            exeCore = self.pluginFactory.get_plugin(pluginPar)
+            self.exeCores.append(exeCore)
 
+    # get list
+    def get_list(self, data):
+        if isinstance(data, types.ListType):
+            return data
+        else:
+            return [data]
 
     # main loop
     def run(self):
@@ -34,22 +61,25 @@ class CredManager(AgentBase):
 
     # main
     def execute(self):
-        # do nothing
-        if self.exeCore is None:
-            return
-            # make logger
-        mainLog = core_utils.make_logger(_logger)
-        # check credential
-        mainLog.debug('check credential')
-        isValid = self.exeCore.check_credential(harvester_config.credmanager.certFile)
-        if isValid:
-            mainLog.debug('valid')
-        elif not isValid:
-            # renew it if necessary
-            mainLog.debug('invalid')
-            mainLog.debug('renew credential')
-            tmpStat, tmpOut = self.exeCore.renew_credential(harvester_config.credmanager.certFile)
-            if not tmpStat:
-                mainLog.error('failed : {0}'.format(tmpOut))
-                return
-        mainLog.debug('done')
+        # loop over all plugins
+        for exeCore in self.exeCores:
+            # do nothing
+            if exeCore is None:
+                continue
+                # make logger
+            mainLog = core_utils.make_logger(_logger, "{0} {1}".format(exeCore.__class__.__name__,
+                                                                       exeCore.outCertFile))
+            # check credential
+            mainLog.debug('check credential')
+            isValid = exeCore.check_credential()
+            if isValid:
+                mainLog.debug('valid')
+            elif not isValid:
+                # renew it if necessary
+                mainLog.debug('invalid')
+                mainLog.debug('renew credential')
+                tmpStat, tmpOut = exeCore.renew_credential()
+                if not tmpStat:
+                    mainLog.error('failed : {0}'.format(tmpOut))
+                    continue
+            mainLog.debug('done')
