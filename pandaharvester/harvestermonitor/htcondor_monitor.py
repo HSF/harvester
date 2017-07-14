@@ -47,10 +47,26 @@ class HTCondorMonitor (PluginBase):
                 (retCode, stdOut, stdErr) = _runShell(comStr)
                 if retCode == 0:
                     if stdOut:
-                        ## Job found
-                        got_job_ads = True
+                        ## Make job ads dictionary
                         job_ads_str = str(stdOut)
-                        break
+                        job_ads_dict = dict()
+                        for tmp_line_str in job_ads_str.split('\n'):
+                            tmp_match = re.search('^(\w+) = (.+)$', tmp_line_str)
+                            if not tmp_match:
+                                continue
+                            _key = tmp_match.group(1)
+                            _value = tmp_match.group(2)
+                            job_ads_dict[_key] = _value
+
+                        if 'ClusterId' in job_ads_dict:
+                            ## Make sure job found via ClusterId
+                            got_job_ads = True
+                            break
+
+                    ## Job not found
+                    tmpLog.debug('job not found with {0}'.format(comStr))
+                    continue
+
                 else:
                     ## Command failed
                     errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
@@ -61,16 +77,6 @@ class HTCondorMonitor (PluginBase):
             ## Parse job ads
             errStr = ''
             if got_job_ads:
-                ## Make job ads dictionary
-                job_ads_dict = dict()
-                for tmp_line_str in job_ads_str.split('\n'):
-                    tmp_match = re.search('^(\w+) = (.+)$', tmp_line_str)
-                    if not tmp_match:
-                        continue
-                    _key = tmp_match.group(1)
-                    _value = tmp_match.group(2)
-                    job_ads_dict[_key] = _value
-
                 ## Check JobStatus
                 try:
                     batchStatus = job_ads_dict['JobStatus']
@@ -110,7 +116,7 @@ class HTCondorMonitor (PluginBase):
                         tmpLog.error(errStr)
                         newStatus = WorkSpec.ST_failed
 
-                tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
+                    tmpLog.info('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
 
             else:
                 tmpLog.info('condor job batchID={0} not found'.format(workSpec.batchID))
