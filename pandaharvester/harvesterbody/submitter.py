@@ -49,9 +49,14 @@ class Submitter(AgentBase):
                             if tmpQueueName in curWorkers:
                                 curWorkers[tmpQueueName]['nNewWorkers'] = tmpNewVal
             # define number of new workers
-            nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkers, siteName)
+            if len(curWorkers) == 0:
+                nWorkersPerQueue = dict()
+            else:
+                nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkers, siteName)
             if nWorkersPerQueue is None:
                 mainLog.error('WorkerAdjuster failed to define the number of workers')
+            elif len(nWorkersPerQueue) == 0:
+                pass
             else:
                 # loop over all queues
                 for queueName, tmpVal in nWorkersPerQueue.iteritems():
@@ -62,6 +67,10 @@ class Submitter(AgentBase):
                     # check queue
                     if not self.queueConfigMapper.has_queue(queueName):
                         tmpLog.error('config not found')
+                        continue
+                    # no new workers
+                    if nWorkers == 0:
+                        tmpLog.debug('skipped since no new worker is needed based on current stats')
                         continue
                     # get queue
                     queueConfig = self.queueConfigMapper.get_queue(queueName)

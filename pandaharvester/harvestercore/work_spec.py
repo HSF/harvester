@@ -69,7 +69,8 @@ class WorkSpec(SpecBase):
                            'minRamCount:integer',
                            'maxDiskCount:integer',
                            'maxWalltime:integer',
-                           'killTime:timestamp'
+                           'killTime:timestamp',
+                           'computingElement:text'
                            )
 
     # constructor
