@@ -1,8 +1,8 @@
 {
 	"PULL_MODEL": {
 		"prodSourceLabel": "managed",
-		"nQueueLimitWorker": 1,
-		"maxWorkers": 1,
+		"nQueueLimitWorker": 0,
+		"runMode": "slave",
 		"mapType": "NoJob",
 		"preparator": {
 			"name": "DummyPreparator",
@@ -12,7 +12,14 @@
 			"name": "DummySubmitter",
 			"module": "pandaharvester.harvestersubmitter.dummy_submitter",
 			"nCorePerNode": 24,
-			"nCore": 24
+			"nCore": 24,
+			"computingElements": ["ce1", "ce2"]
+		},
+		"throttler": {
+			"name": "SimpleThrottler",
+			"module": "pandaharvester.harvesterthrottler.simple_throttler",
+			"rulesForMissed": [{"level": "pq", "timeWindow": 10, "maxMissed": 10},
+				               {"level": "ce", "timeWindow": 10, "maxMissed": 5}]
 		},
 		"workerMaker": {
 			"name": "SimpleWorkerMaker",

@@ -19,7 +19,6 @@ class QueueConfig:
         self.maxWorkers = 0
         self.nNewWorkers = 0
         self.maxNewWorkersPerCycle = 0
-        self.qrWorkerRatio = 0
         self.noHeartbeat = ''
         self.runMode = 'self'
         self.resourceType = PandaQueueSpec.RT_catchall

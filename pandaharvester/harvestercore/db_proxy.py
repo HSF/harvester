@@ -2544,3 +2544,44 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # get the number of missed worker
+    def get_num_missed_workers(self, queue_name, criteria):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, "queue={0}".format(queue_name))
+            tmpLog.debug('start')
+            # get worker stats
+            sqlW = "SELECT COUNT(*) cnt "
+            sqlW += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
+            sqlW += "WHERE wt.computingSite=pq.queueName AND wt.status=:status "
+            # get worker stats
+            varMap = dict()
+            for attr, val in criteria.iteritems():
+                if attr == 'timeLimit':
+                    sqlW += "AND wt.submitTime>:timeLimit "
+                    varMap[':timeLimit'] = val
+                elif attr in ['siteName']:
+                    sqlW += "AND pq.{0}=:{0} ".format(attr)
+                    varMap[':{0}'.format(attr)] = val
+                elif attr in ['computingSite', 'computingElement']:
+                    sqlW += "AND wt.{0}=:{0} ".format(attr)
+                    varMap[':{0}'.format(attr)] = val
+            varMap[':status'] = 'missed'
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchone()
+            if resW is None:
+                nMissed = 0
+            else:
+                nMissed, = resW
+            # commit
+            self.commit()
+            tmpLog.debug('got nMissed={0} for {1}'.format(nMissed, str(criteria)))
+            return nMissed
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return 0
