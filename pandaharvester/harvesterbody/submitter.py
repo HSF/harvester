@@ -168,18 +168,24 @@ class Submitter(AgentBase):
                         pandaIDs = set()
                         for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                             workSpec, jobList = okChunks[iWorker]
-                            # failed
-                            if tmpRet is None:
-                                continue
-                            # succeeded
-                            if queueConfig.useJobLateBinding and workSpec.hasJob == 1:
+                            # set status
+                            if not tmpRet:
+                                # failed submission
+                                tmpLog.error('failed to submit a workerID={0} with {1}'.format(
+                                    workSpec.workerID,
+                                    tmpStr))
+                                workSpec.set_status(WorkSpec.ST_missed)
+                                jobList = []
+                            elif queueConfig.useJobLateBinding and workSpec.hasJob == 1:
+                                # directly go to running after feeding jobs for late biding
                                 workSpec.set_status(WorkSpec.ST_running)
                             else:
+                                # normal successful submission
                                 workSpec.set_status(WorkSpec.ST_submitted)
                             workSpec.submitTime = timeNow
                             workSpec.modificationTime = timeNow
                             # prefetch events
-                            if workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
+                            if tmpRet and workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
                                 workSpec.eventsRequest = WorkSpec.EV_requestEvents
                                 eventsRequestParams = dict()
                                 for jobSpec in jobList:
@@ -194,7 +200,7 @@ class Submitter(AgentBase):
                             for jobSpec in jobList:
                                 pandaIDs.add(jobSpec.PandaID)
                                 if tmpStat:
-                                    tmpLog.debug('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(
+                                    tmpLog.info('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(
                                         workSpec.workerID,
                                         jobSpec.PandaID,
                                         workSpec.batchID))
