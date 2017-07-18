@@ -1744,6 +1744,9 @@ class DBProxy:
                                 assFileSpec = FileSpec()
                                 assFileSpec.pack(resAF)
                                 fileSpec.add_associated_file(assFileSpec)
+                    # get associated workers
+                    tmpWorkers = self.get_workers_with_job_id(jobSpec.PandaID, use_commit=False)
+                    jobSpec.add_workspec_list(tmpWorkers)
             # commit
             self.commit()
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
@@ -2585,3 +2588,42 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return 0
+
+    # get a worker
+    def get_workers_with_job_id(self, panda_id, use_commit=True):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'pandaID={0}'.format(panda_id))
+            tmpLog.debug('start')
+            # sql to get workerIDs
+            sqlW = "SELECT workerID FROM {0} WHERE PandaID=:PandaID ".format(jobWorkerTableName)
+            # sql to get a worker
+            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
+            sqlG += "WHERE workerID=:workerID "
+            # get workerIDs
+            varMap = dict()
+            varMap[':PandaID'] = panda_id
+            self.execute(sqlW, varMap)
+            retList = []
+            for worker_id, in self.cur.fetchall():
+                # get a worker
+                varMap = dict()
+                varMap[':workerID'] = worker_id
+                self.execute(sqlG, varMap)
+                res = self.cur.fetchone()
+                workSpec = WorkSpec()
+                workSpec.pack(res)
+                retList.append(workSpec)
+            # commit
+            if use_commit:
+                self.commit()
+            tmpLog.debug('got {0} workers'.format(len(retList)))
+            return retList
+        except:
+            # roll back
+            if use_commit:
+                self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return []
