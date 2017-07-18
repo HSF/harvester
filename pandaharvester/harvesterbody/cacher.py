@@ -80,7 +80,7 @@ class Cacher(AgentBase):
                     tmp_log.error(errMsg)
             except:
                 core_utils.dump_error_message(tmp_log)
-        elif info_url.startswith('panda_key:'):
+        elif info_url.startswith('panda_cache:'):
             try:
                 publicKey, privateKey = info_url.split(':')[-1].split('&')
                 retVal, outStr = self.communicator.get_key_pair(publicKey, privateKey)

@@ -58,6 +58,7 @@ class JobSpec(SpecBase):
         object.__setattr__(self, 'zipEventMap', {})
         object.__setattr__(self, 'outFiles', set())
         object.__setattr__(self, 'zipFileMap', {})
+        object.__setattr__(self, 'workspec_list', set())
 
     # add output file
     def add_out_file(self, filespec):
@@ -230,3 +231,11 @@ class JobSpec(SpecBase):
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
             self.endTime = datetime.datetime.utcnow()
+
+    # add work spec list
+    def add_workspec_list(self, workspec_list):
+        self.workspec_list = workspec_list
+
+    # get work spec list
+    def get_workspec_list(self):
+        return self.workspec_list
