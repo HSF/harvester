@@ -2012,7 +2012,7 @@ class DBProxy:
             return False
 
     # get a cached info
-    def get_cache(self, main_key, sub_key):
+    def get_cache(self, main_key, sub_key=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key))

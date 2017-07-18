@@ -45,7 +45,7 @@ class Master:
         thrList.append(thr)
         # Cacher
         from pandaharvester.harvesterbody.cacher import Cacher
-        thr = Cacher(single_mode=True)
+        thr = Cacher(self.communicatorPool, single_mode=True)
         thr.set_stop_event(self.stopEvent)
         thr.run()
         thr.set_single_mode(self.singleMode)

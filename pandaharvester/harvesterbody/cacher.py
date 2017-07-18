@@ -14,10 +14,10 @@ _logger = core_utils.setup_logger()
 # cache information
 class Cacher(AgentBase):
     # constructor
-    def __init__(self, single_mode=False):
+    def __init__(self, communicator, single_mode=False):
         AgentBase.__init__(self, single_mode)
         self.dbProxy = DBProxy()
-
+        self.communicator = communicator
 
     # main loop
     def run(self):
@@ -78,6 +78,14 @@ class Cacher(AgentBase):
                 else:
                     errMsg = 'failed with StatusCode={0} {1}'.format(res.status_code, res.text)
                     tmp_log.error(errMsg)
+            except:
+                core_utils.dump_error_message(tmp_log)
+        elif info_url.startswith('panda_key:'):
+            try:
+                publicKey, privateKey = info_url.split(':')[-1].split('&')
+                retVal, outStr = self.communicator.get_key_pair(publicKey, privateKey)
+                if retVal is None:
+                    tmp_log.error(outStr)
             except:
                 core_utils.dump_error_message(tmp_log)
         else:
