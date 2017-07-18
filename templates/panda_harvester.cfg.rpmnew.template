@@ -267,8 +267,9 @@ sleepTime = 60
 #
 # Credential Manager parameters
 #
-# Note : One credential data following a whitespace per line to support multiple credentials. Empty lines are not
-         allowed, so that a dummy string like 'dummy' needs to be added if some parameters like voms are unnecessary.
+# Notes : This is an example to manage two credentials, one with production role and the other with pilot role.
+          One credential data following a whitespace per line. Empty lines are not allowed, so that a dummy string
+          like 'dummy' needs to be added if some parameters like voms are unnecessary.
 
 [credmanager]
 
@@ -284,13 +285,13 @@ className =
 
 # original certificate file to generate new short-lived certificate
 certFile =
- FIXME
- FIXME
+ /path_to/FIXME_original_cert_for_proxy_with_production_role
+ /path_to/FIXME_original_cert_for_proxy_with_pilot_role
 
 # the name of short-lived certificate
 outCertFile =
- FIXME_proxy_production
- FIXME_proxy_pilot
+ /path_to/FIXME_proxy_production
+ /path_to/FIXME_proxy_pilot
 
 # voms
 voms =
@@ -369,12 +370,18 @@ sleepTime = 60
 
 [cacher]
 
-# one data following a white space per line
+# one data (main_key_name|sub_key_name|URL) following a white space per line
+#
+# Notes: This example is for five data. ddm_endpoints and panda_queues json files are retrieved using http.
+#        It also caches proxy files which are renewed by Credential Manager. Access key for BNL object store
+#        is retrieved from panda.
 data =
  ddmendpoints_objectstores.json||http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1&type[]=OS_LOGS&type[]=OS_ES
  panda_queues.json||http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas
- proxy_pilot||file:FIXME_proxy_pilot
- proxy_production||file:FIXME_proxy_production
+ proxy_pilot||file:/path_to/FIXME_proxy_pilot
+ proxy_production||file:/path_to/FIXME_proxy_production
+ BNL_key||panda_key:BNL_ObjectStoreKey.pub&BNL_ObjectStoreKey
+
 # refresh interval in minint
 refreshInterval = 10
 
