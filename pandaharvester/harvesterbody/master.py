@@ -10,14 +10,20 @@ import threading
 
 from pandaharvester.harvesterconfig import harvester_config
 
+# for singleton
+master_instance = False
+master_lock = threading.Lock()
+
 
 # the master class which runs the main process
-class Master:
+class Master(object):
+
     # constructor
-    def __init__(self, single_mode=False, stop_event=None):
+    def __init__(self, single_mode=False, stop_event=None, daemon_mode=True):
         # initialize database and config
         self.singleMode = single_mode
         self.stopEvent = stop_event
+        self.daemonMode = daemon_mode
         from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
         self.communicatorPool = CommunicatorPool()
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -130,38 +136,50 @@ class Master:
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
         while True:
-            if self.singleMode:
+            if self.singleMode or not self.daemonMode:
                 break
             self.stopEvent.wait(1)
             if self.stopEvent.is_set():
                 break
         ##################
         # join
-        for thr in thrList:
-            thr.join()
+        if self.daemonMode:
+            for thr in thrList:
+                thr.join()
+
+
+# dummy context
+class DummyContext(object):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *x):
+        pass
 
 
 # main
-if __name__ == "__main__":
+def main(daemon_mode=True):
     # parse option
     parser = argparse.ArgumentParser()
     parser.add_argument('--pid', action='store', dest='pid', default=None,
                         help='pid filename')
     parser.add_argument('--single', action='store_true', dest='singleMode', default=False,
                         help='use single mode')
-
     options = parser.parse_args()
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
-    timeNow = datetime.datetime.utcnow()
-    print "{0} Master: INFO    start".format(str(timeNow))
-
-    # make daemon context
-    dc = daemon.DaemonContext(stdout=sys.stdout,
-                              stderr=sys.stderr,
-                              uid=uid,
-                              gid=gid,
-                              pidfile=daemon.pidfile.PIDLockFile(options.pid))
+    if daemon_mode:
+        timeNow = datetime.datetime.utcnow()
+        print "{0} Master: INFO    start".format(str(timeNow))
+    if daemon_mode:
+        # make daemon context
+        dc = daemon.DaemonContext(stdout=sys.stdout,
+                                  stderr=sys.stderr,
+                                  uid=uid,
+                                  gid=gid,
+                                  pidfile=daemon.pidfile.PIDLockFile(options.pid))
+    else:
+        dc = DummyContext()
     with dc:
         # stop event
         stopEvent = threading.Event()
@@ -174,14 +192,27 @@ if __name__ == "__main__":
             stopEvent.set()
 
         # set handler
-        signal.signal(signal.SIGINT, catch_sigkill)
-        signal.signal(signal.SIGHUP, catch_sigkill)
-        signal.signal(signal.SIGTERM, catch_sigterm)
-        signal.signal(signal.SIGUSR2, catch_sigterm)
-
+        if daemon_mode:
+            signal.signal(signal.SIGINT, catch_sigkill)
+            signal.signal(signal.SIGHUP, catch_sigkill)
+            signal.signal(signal.SIGTERM, catch_sigterm)
+            signal.signal(signal.SIGUSR2, catch_sigterm)
         # start master
-        master = Master(single_mode=options.singleMode, stop_event=stopEvent)
-        master.start()
+        master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)
+        if master is not None:
+            master.start()
+    if daemon_mode:
+        timeNow = datetime.datetime.utcnow()
+        print "{0} Master: INFO    terminated".format(str(timeNow))
 
-    timeNow = datetime.datetime.utcnow()
-    print "{0} Master: INFO    terminated".format(str(timeNow))
+
+if __name__ == "__main__":
+    main()
+else:
+    # started by WSGI
+    with master_lock:
+        if not master_instance:
+            main(daemon_mode=False)
+            master_instance = True
+    # import application entry for WSGI
+    from pandaharvester.harvestermessenger.apache_messenger import application

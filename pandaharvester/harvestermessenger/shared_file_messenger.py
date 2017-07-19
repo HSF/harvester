@@ -422,40 +422,45 @@ class SharedFileMessenger(PluginBase):
     def post_processing(self, workspec, jobspec_list, map_type):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
-        if map_type in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
-            jobSpec = jobspec_list[0]
-            # check if log is already there
-            for fileSpec in jobSpec.outFiles:
-                if fileSpec.fileType == 'log':
-                    return
-            logFileInfo = jobSpec.get_logfile_info()
-            # make log.tar.gz
-            logFilePath = os.path.join(workspec.get_access_point(), logFileInfo['lfn'])
-            if map_type == WorkSpec.MT_MultiWorkers:
-                # append suffix
-                logFilePath += '.{0}'.format(workspec.workerID)
-            tmpLog.debug('making {0}'.format(logFilePath))
-            with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                accessPoint = workspec.get_access_point()
-                for tmpRoot, tmpDirs, tmpFiles in os.walk(accessPoint):
-                    for tmpFile in tmpFiles:
-                        if not self.filter_log_tgz(tmpFile):
-                            continue
-                        tmpFullPath = os.path.join(tmpRoot, tmpFile)
-                        tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
-                        tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
-            # make json to stage-out the log file
-            fileDict = dict()
-            fileDict[jobSpec.PandaID] = []
-            fileDict[jobSpec.PandaID].append({'path': logFilePath,
-                                              'type': 'log',
-                                              'isZip': 0})
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
-            with open(jsonFilePath, 'w') as jsonFile:
-                json.dump(fileDict, jsonFile)
-        else:
-            # FIXME
-            pass
+        try:
+            if map_type in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
+                jobSpec = jobspec_list[0]
+                # check if log is already there
+                for fileSpec in jobSpec.outFiles:
+                    if fileSpec.fileType == 'log':
+                        return
+                logFileInfo = jobSpec.get_logfile_info()
+                # make log.tar.gz
+                logFilePath = os.path.join(workspec.get_access_point(), logFileInfo['lfn'])
+                if map_type == WorkSpec.MT_MultiWorkers:
+                    # append suffix
+                    logFilePath += '.{0}'.format(workspec.workerID)
+                tmpLog.debug('making {0}'.format(logFilePath))
+                with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
+                    accessPoint = workspec.get_access_point()
+                    for tmpRoot, tmpDirs, tmpFiles in os.walk(accessPoint):
+                        for tmpFile in tmpFiles:
+                            if not self.filter_log_tgz(tmpFile):
+                                continue
+                            tmpFullPath = os.path.join(tmpRoot, tmpFile)
+                            tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
+                            tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+                # make json to stage-out the log file
+                fileDict = dict()
+                fileDict[jobSpec.PandaID] = []
+                fileDict[jobSpec.PandaID].append({'path': logFilePath,
+                                                  'type': 'log',
+                                                  'isZip': 0})
+                jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
+                with open(jsonFilePath, 'w') as jsonFile:
+                    json.dump(fileDict, jsonFile)
+            else:
+                # FIXME
+                pass
+            return True
+        except:
+            core_utils.dump_error_message(tmpLog)
+            return False
 
     # tell PandaIDs for pull model
     def get_panda_ids(self, workspec):

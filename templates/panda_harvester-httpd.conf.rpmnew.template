@@ -31,7 +31,7 @@ MaxRequestsPerChild  2000
 
 ServerName harvester_apache
 
-DocumentRoot ${SITE_PACKAGES_PATH}/pandaharvester/harvestermessenger
+DocumentRoot ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody
 
 <Files ~ "\.(py|pyc|conf)$">
     Order allow,deny
@@ -50,7 +50,8 @@ DocumentRoot ${SITE_PACKAGES_PATH}/pandaharvester/harvestermessenger
    WSGIDaemonProcess pandahvst_daemon processes=2 threads=2 home=${VIRTUAL_ENV}
    WSGIProcessGroup pandahvst_daemon
    WSGIApplicationGroup %{GLOBAL}
-   WSGIScriptAliasMatch ^/apache_messenger$ ${SITE_PACKAGES_PATH}/pandaharvester/harvestermessenger/apache_messenger.py
+   WSGIScriptAliasMatch ^/entry$ ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
+   WSGIImportScript ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py process-group=pandahvst_daemon application-group=%{GLOBAL}
    WSGISocketPrefix ${VIRTUAL_ENV}/var/log/panda/wsgisocks/wsgi
 </IfModule>
 
@@ -62,7 +63,7 @@ RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
 
-<Directory ${SITE_PACKAGES_PATH}/pandaharvester/harvestermessenger>
+<Directory ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody>
 
    <Limit GET POST>
        Order allow,deny
