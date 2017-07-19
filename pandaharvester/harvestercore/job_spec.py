@@ -58,6 +58,7 @@ class JobSpec(SpecBase):
         object.__setattr__(self, 'zipEventMap', {})
         object.__setattr__(self, 'outFiles', set())
         object.__setattr__(self, 'zipFileMap', {})
+        object.__setattr__(self, 'workspec_list', set())
 
     # add output file
     def add_out_file(self, filespec):
@@ -68,16 +69,16 @@ class JobSpec(SpecBase):
         self.outFiles.clear()
 
     # add event
-    def add_event(self, eventspec, zip_filespec):
+    def add_event(self, event_spec, zip_filespec):
         if zip_filespec is None:
             zipFileID = None
         else:
             zipFileID = zip_filespec.fileID
-        if not zipFileID in self.zipEventMap:
+        if zipFileID not in self.zipEventMap:
             self.zipEventMap[zipFileID] = {'events': set(),
                                            'zip': zip_filespec}
-        self.zipEventMap[zipFileID]['events'].add(eventspec)
-        self.events.add(eventspec)
+        self.zipEventMap[zipFileID]['events'].add(event_spec)
+        self.events.add(event_spec)
 
     # convert from Job JSON
     def convert_job_json(self, data):
@@ -230,3 +231,11 @@ class JobSpec(SpecBase):
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
             self.endTime = datetime.datetime.utcnow()
+
+    # add work spec list
+    def add_workspec_list(self, workspec_list):
+        self.workspec_list = workspec_list
+
+    # get work spec list
+    def get_workspec_list(self):
+        return self.workspec_list

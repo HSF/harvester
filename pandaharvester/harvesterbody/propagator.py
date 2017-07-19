@@ -3,6 +3,7 @@ import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
@@ -51,7 +52,7 @@ class Propagator(AgentBase):
                             jobListToCheck.append(tmpJobSpec)
                         else:
                             jobListToSkip.append(tmpJobSpec)
-                            retList.append({'StatusCode': 0})
+                            retList.append({'StatusCode': 0, 'command': None})
                     else:
                         jobListToUpdate.append(tmpJobSpec)
                 retList += self.communicator.check_jobs(jobListToCheck)
@@ -115,7 +116,7 @@ class Propagator(AgentBase):
             commandSpecs = self.dbProxy.get_commands_for_receiver('propagator')
             mainLog.debug('got {0} commands'.format(len(commandSpecs)))
             for commandSpec in commandSpecs:
-                if commandSpec.command.startswith('REPORT_WORKER_STATS'):
+                if commandSpec.command.startswith(CommandSpec.COM_reportWorkerStats):
                     # get worker stats
                     siteName = commandSpec.command.split(':')[-1]
                     workerStats = self.dbProxy.get_worker_stats(siteName)

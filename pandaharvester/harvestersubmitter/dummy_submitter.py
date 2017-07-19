@@ -22,7 +22,9 @@ class DummySubmitter(PluginBase):
         Nth tuple in the returned list corresponds to submission status and dialog message for Nth worker
         in the given WorkSpec list.
         A unique identifier is set to WorkSpec.batchID when submission is successful,
-        so that they can be identified in the scheduling system.
+        so that they can be identified in the scheduling system. It would be useful to set other attributes
+        like queueName (batch queue name), computingElement (CE's host name), and nodeID (identifier of the node
+        where the worker is running).
 
         :param workspec_list: a list of work specs instances
         :return: A list of tuples. Each tuple is composed of submission status (True for success, False otherwise)
@@ -44,7 +46,9 @@ class DummySubmitter(PluginBase):
                                                                         jobSpec.jobParams['minRamCount']))
                 for job in workSpec.jobspec_list:
                     tmpLog.debug(" ".join([job.jobParams['transformation'], job.jobParams['jobPars']]))
-            workSpec.batchID = uuid.uuid4().hex
+            workSpec.batchID = 'batch_ID_{0}'.format(uuid.uuid4().hex)
+            workSpec.queueName = 'batch_queue_name'
+            workSpec.computingElement = 'CE_name'
             f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
             f.write(WorkSpec.ST_submitted)
             f.close()

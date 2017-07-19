@@ -3,6 +3,7 @@ import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
@@ -32,20 +33,30 @@ class Submitter(AgentBase):
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
             mainLog.debug('getting queues to submit workers')
             # get queues associated to a site to submit workers
-            curWorkersPerQueue, siteName = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
+            curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime)
-            mainLog.debug('got {0} queues for site {1}'.format(len(curWorkersPerQueue), siteName))
+            mainLog.debug('got {0} queues for site {1}'.format(len(curWorkers), siteName))
             # get commands
             if siteName is not None:
-                commandSpecs = self.dbProxy.get_commands_for_receiver('submitter',
-                                                                      'SET_N_WORKERS:{0}'.format(siteName))
+                comStr = '{0}:{1}'.format(CommandSpec.COM_setNWorkers, siteName)
+                commandSpecs = self.dbProxy.get_commands_for_receiver('submitter', comStr)
                 mainLog.debug('got {0} commands'.format(len(commandSpecs)))
                 for commandSpec in commandSpecs:
-                    self.dbProxy.set_queue_limit(siteName, commandSpec.params)
+                    newLimits = self.dbProxy.set_queue_limit(siteName, commandSpec.params)
+                    for tmpResource, tmpNewVal in newLimits.iteritems():
+                        if tmpResource in resMap:
+                            tmpQueueName = resMap[tmpResource]
+                            if tmpQueueName in curWorkers:
+                                curWorkers[tmpQueueName]['nNewWorkers'] = tmpNewVal
             # define number of new workers
-            nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkersPerQueue, siteName)
+            if len(curWorkers) == 0:
+                nWorkersPerQueue = dict()
+            else:
+                nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkers, siteName)
             if nWorkersPerQueue is None:
                 mainLog.error('WorkerAdjuster failed to define the number of workers')
+            elif len(nWorkersPerQueue) == 0:
+                pass
             else:
                 # loop over all queues
                 for queueName, tmpVal in nWorkersPerQueue.iteritems():
@@ -56,6 +67,10 @@ class Submitter(AgentBase):
                     # check queue
                     if not self.queueConfigMapper.has_queue(queueName):
                         tmpLog.error('config not found')
+                        continue
+                    # no new workers
+                    if nWorkers == 0:
+                        tmpLog.debug('skipped since no new worker is needed based on current stats')
                         continue
                     # get queue
                     queueConfig = self.queueConfigMapper.get_queue(queueName)
@@ -99,7 +114,10 @@ class Submitter(AgentBase):
                         continue
                     # make workers
                     okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queueConfig, nReady)
-                    tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks), len(ngChunks)))
+                    if len(ngChunks) == 0:
+                        tmpLog.debug('successfully made {0} workers'.format(len(okChunks)))
+                    else:
+                        tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks), len(ngChunks)))
                     timeNow = datetime.datetime.utcnow()
                     # NG
                     for ngJobs in ngChunks:
@@ -159,18 +177,24 @@ class Submitter(AgentBase):
                         pandaIDs = set()
                         for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                             workSpec, jobList = okChunks[iWorker]
-                            # failed
-                            if tmpRet is None:
-                                continue
-                            # succeeded
-                            if queueConfig.useJobLateBinding and workSpec.hasJob == 1:
+                            # set status
+                            if not tmpRet:
+                                # failed submission
+                                tmpLog.error('failed to submit a workerID={0} with {1}'.format(
+                                    workSpec.workerID,
+                                    tmpStr))
+                                workSpec.set_status(WorkSpec.ST_missed)
+                                jobList = []
+                            elif queueConfig.useJobLateBinding and workSpec.hasJob == 1:
+                                # directly go to running after feeding jobs for late biding
                                 workSpec.set_status(WorkSpec.ST_running)
                             else:
+                                # normal successful submission
                                 workSpec.set_status(WorkSpec.ST_submitted)
                             workSpec.submitTime = timeNow
                             workSpec.modificationTime = timeNow
                             # prefetch events
-                            if workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
+                            if tmpRet and workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
                                 workSpec.eventsRequest = WorkSpec.EV_requestEvents
                                 eventsRequestParams = dict()
                                 for jobSpec in jobList:
@@ -185,7 +209,7 @@ class Submitter(AgentBase):
                             for jobSpec in jobList:
                                 pandaIDs.add(jobSpec.PandaID)
                                 if tmpStat:
-                                    tmpLog.debug('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(
+                                    tmpLog.info('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(
                                         workSpec.workerID,
                                         jobSpec.PandaID,
                                         workSpec.batchID))

@@ -15,10 +15,10 @@ class ProxyCacheCredManager(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
     # check proxy
-    def check_credential(self, proxy_file):
+    def check_credential(self):
         # make logger
         mainLog = core_utils.make_logger(_logger)
-        comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(proxy_file)
+        comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
         mainLog.debug(comStr)
         try:
             p = subprocess.Popen(comStr.split(),
@@ -28,23 +28,22 @@ class ProxyCacheCredManager(PluginBase):
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
         except:
-            stdOut = ''
-            stdErr = core_utils.dump_error_message(mainLog)
-            retCode = 1
+            core_utils.dump_error_message(mainLog)
+            return False
         mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
         return retCode == 0
 
     # renew proxy
-    def renew_credential(self, proxy_file):
+    def renew_credential(self):
         # make logger
         mainLog = core_utils.make_logger(_logger)
         # make communication channel to PanDA
         com = CommunicatorPool()
-        proxy, msg = com.get_proxy(self.config.voms)
+        proxy, msg = com.get_proxy(self.voms)
         if proxy is not None:
-            pFile = open(proxy_file, 'w')
+            pFile = open(self.outCertFile, 'w')
             pFile.write(proxy)
             pFile.close()
         else:
-            mainLog.error('failed to renew credential with {0}'.format(msg))
+            mainLog.error('failed to renew credential with a server message : {0}'.format(msg))
         return proxy is not None, msg

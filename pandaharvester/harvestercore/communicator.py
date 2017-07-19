@@ -99,11 +99,12 @@ class Communicator:
         tmpStat, tmpRes = self.post_ssl('isAlive', {})
         if tmpStat :
             return tmpStat, tmpRes.status_code, tmpRes.text
-        else :
-            return tmpStat,tmpRes
+        else:
+            return tmpStat, tmpRes
 
     # get jobs
-    def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs):
+    def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs,
+                 additional_criteria):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name))
         tmpLog.debug('try to get {0} jobs'.format(n_jobs))
@@ -113,6 +114,9 @@ class Communicator:
         data['prodSourceLabel'] = prod_source_label
         data['computingElement'] = computing_element
         data['nJobs'] = n_jobs
+        if additional_criteria is not None:
+            for tmpKey, tmpVal in additional_criteria:
+                data[tmpKey] = tmpVal
         tmpStat, tmpRes = self.post_ssl('getJob', data)
         errStr = 'OK'
         if tmpStat is False:
@@ -146,7 +150,7 @@ class Communicator:
                 tmpRet = self.update_event_ranges(eventRanges, tmpLog)
                 if tmpRet['StatusCode'] == 0:
                     for eventSpec, retVal in zip(eventSpecs, tmpRet['Returns']):
-                        if retVal in [True, False]:
+                        if retVal in [True, False] and eventSpec.is_final_status():
                             eventSpec.subStatus = 'done'
             # update job
             if jobSpec.jobAttributes is None:
@@ -415,3 +419,29 @@ class Communicator:
                 retList.append(retMap)
                 tmpLog.debug('got {0} for PandaID={1}'.format(str(retMap), pandaID))
         return retList
+
+    # get key pair
+    def get_key_pair(self, public_key_name, private_key_name):
+        tmpLog = core_utils.make_logger(_logger)
+        tmpLog.debug('start for {0}:{1}'.format(public_key_name, private_key_name))
+        data = dict()
+        data['publicKeyName'] = public_key_name
+        data['privateKeyName'] = private_key_name
+        tmpStat, tmpRes = self.post_ssl('getKeyPair', data)
+        retMap = None
+        errStr = None
+        if tmpStat is False:
+            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                retMap = tmpRes.json()
+                if retMap['StatusCode'] != 0:
+                    errStr = 'failed to get key with StatusCode={0} : {1}'.format(retMap['StatusCode'],
+                                                                                  retMap['errorDialog'])
+                    tmpLog.error(errStr)
+                    retMap = None
+                else:
+                    tmpLog.debug('got {0} with'.format(str(retMap), errStr))
+            except:
+                errStr = core_utils.dump_error_message(tmpLog)
+        return retMap, errStr
