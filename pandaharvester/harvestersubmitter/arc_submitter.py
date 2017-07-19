@@ -1,5 +1,7 @@
+import json
 import re
 from threading import Thread
+import traceback
 import arc
 
 from pandaharvester.harvestercore import core_utils
@@ -8,6 +10,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestersubmitter.arc_parser import ARCParser
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermisc import arc_utils
 
 # logger
 baselogger = core_utils.setup_logger()
@@ -70,20 +73,6 @@ class ARCSubmitter(PluginBase):
         self.userconfig.ProxyPath(self.cert)
 
 
-    def _setup_logging(self, workerid):
-        '''Set up the log for each job and ARC client logging'''
-
-        tmplog = core_utils.make_logger(baselogger, 'workerID={0}'.format(workerid))
-
-        # Get the log file from the baseLogger
-        loghandler = baselogger.handlers[0] # Assumes one handler
-        logfile = arc.LogFile(loghandler.baseFilename)
-        logfile.setFormat(arc.LongFormat)
-        arc.Logger_getRootLogger().addDestination(logfile)
-        arc.Logger_getRootLogger().setThreshold(arc.VERBOSE) # TODO configurable
-        # the LogFile object must be kept alive as long as we use it
-        return tmplog, logfile
-
     def _run_submit(self, thr):
         '''Run a thread to do the submission'''
 
@@ -101,7 +90,7 @@ class ARCSubmitter(PluginBase):
             raise Exception("submission failed")
 
         thr.log.info("job id {0}".format(thr.job.JobID))
-        return thr.job.JobID
+        return thr.job
 
 
     def _arc_submit(self, xrsl, arcces, log):
@@ -186,7 +175,7 @@ class ARCSubmitter(PluginBase):
 
         for workspec in workspec_list:
 
-            tmplog, _ = self._setup_logging(workspec.workerID)
+            tmplog, _ = arc_utils.setup_logging(baselogger, workspec.workerID)
 
             # Assume for aCT that jobs are always pre-fetched (no late-binding)
             for jobspec in workspec.get_jobspec_list():
@@ -227,14 +216,25 @@ class ARCSubmitter(PluginBase):
                 arcxrsl.parse()
                 xrsl = arcxrsl.getXrsl()
                 tmplog.debug("ARC xrsl: {0}".format(xrsl))
+                
+                # Set the files to be downloaded at the end of the job
+                downloadfiles = 'gmlog/errors'
+                if 'logFile' in jobspec.jobParams:
+                    downloadfiles += ';%s' %jobspec.jobParams['logFile'].replace('.tgz', '')
+                if not pandaqueues[jobspec.computingSite]['truepilot']:
+                    downloadfiles += ';jobSmallFiles.tgz'
 
                 try:
                     tmplog.debug("Submission targets: {0}".format(arcces))
-                    batchid = self._arc_submit(xrsl, arcces, tmplog)
-                    tmplog.info("ARC CE job id {0}".format(batchid))
-                    workspec.batchID = batchid
+                    arcjob = self._arc_submit(xrsl, arcces, tmplog)
+                    tmplog.info("ARC CE job id {0}".format(arcjob.JobID))
+                    arc_utils.arcjob2workspec(arcjob, workspec)
+                    workspec.workAttributes['arcdownloadfiles'] = downloadfiles
+                    workspec.batchID = arcjob.JobID
+                    tmplog.debug(workspec.workAttributes)
                     result = (True, '')
                 except Exception as exc:
+                    tmplog.error(traceback.format_exc())
                     result = (False, "Failed to submit ARC job: {0}".format(str(exc)))
 
                 retlist.append(result)
