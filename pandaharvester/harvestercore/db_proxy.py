@@ -19,6 +19,7 @@ from cache_spec import CacheSpec
 from seq_number_spec import SeqNumberSpec
 from panda_queue_spec import PandaQueueSpec
 from job_worker_relation_spec import JobWorkerRelationSpec
+from process_lock_spec import ProcessLockSpec
 
 import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -36,6 +37,7 @@ eventTableName = 'event_table'
 seqNumberTableName = 'seq_table'
 pandaQueueTableName = 'pq_table'
 jobWorkerTableName = 'jw_table'
+processLockTableName = 'lock_table'
 
 # connection lock
 conLock = threading.Lock()
@@ -275,6 +277,7 @@ class DBProxy:
         outStrs += self.make_table(SeqNumberSpec, seqNumberTableName)
         outStrs += self.make_table(PandaQueueSpec, pandaQueueTableName)
         outStrs += self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
+        outStrs += self.make_table(ProcessLockSpec, processLockTableName)
         # dump error messages
         if len(outStrs) > 0:
             errMsg = "ERROR : Definitions of some database tables are incorrect. "
@@ -289,6 +292,8 @@ class DBProxy:
         self.fill_panda_queue_table(harvester_config.qconf.queueList, queue_config_mapper)
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
+        # delete process locks
+        self.clean_process_locks()
 
     # check table
     def check_table(self, cls, table_name, get_missing=False):
@@ -2627,3 +2632,80 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return []
+
+    # delete old process locks
+    def clean_process_locks(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger)
+            tmpLog.debug('start')
+            # delete locks
+            sqlW = "DELETE FROM {0} ".format(processLockTableName)
+            # get worker stats
+            self.execute(sqlW)
+            resW = self.cur.fetchone()
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # get a process lock
+    def get_process_lock(self, process_name, locked_by, lock_interval):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, "proc={0} by={1}".format(process_name, locked_by))
+            tmpLog.debug('start')
+            # check lock
+            sqlC = "SELECT lockTime FROM {0} ".format(processLockTableName)
+            sqlC += "WHERE processName=:processName "
+            sqlC += "FOR UPDATE "
+            varMap = dict()
+            varMap[':processName'] = process_name
+            self.execute(sqlC, varMap)
+            resC = self.cur.fetchone()
+            retVal = False
+            timeNow = datetime.datetime.utcnow()
+            if resC is None:
+                # insert lock if missing
+                sqlI = "INSERT INTO {0} ({1}) ".format(processLockTableName, ProcessLockSpec.column_names())
+                sqlI += ProcessLockSpec.bind_values_expression()
+                processLockSpec = ProcessLockSpec()
+                processLockSpec.processName = process_name
+                processLockSpec.lockedBy = locked_by
+                processLockSpec.lockTime = timeNow
+                varMap = processLockSpec.values_list()
+                self.execute(sqlI, varMap)
+                retVal = True
+            else:
+                oldLockTime, = resC
+                timeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
+                if oldLockTime <= timeLimit:
+                    # update lock if old
+                    sqlU = "UPDATE {0} SET lockedBy=:lockedBy,lockTime=:timeNow ".format(processLockTableName)
+                    sqlU += "WHERE processName=:processName AND lockTime<=:timeLimit "
+                    varMap = dict()
+                    varMap[':processName'] = process_name
+                    varMap[':lockedBy'] = locked_by
+                    varMap[':timeLimit'] = timeLimit
+                    varMap[':timeNow'] = timeNow
+                    self.execute(sqlU, varMap)
+                    if self.cur.rowcount > 0:
+                        retVal = True
+            # commit
+            self.commit()
+            tmpLog.debug('done with {0}'.format(retVal))
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False

@@ -48,74 +48,82 @@ class CommandManager(AgentBase):
         """
         main_log = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
         bulk_size = harvester_config.commandmanager.commands_bulk_size
-
-        # send command list to be received
-        siteNames = set()
-        commandList = []
-        for queueName in harvester_config.qconf.queueList:
-            queueConfig = self.queueConfigMapper.get_queue(queueName)
-            if queueConfig is None or queueConfig.runMode != 'slave':
-                continue
-            # one command for all queues in one site
-            if queueConfig.siteName not in siteNames:
-                commandItem = {'command': CommandSpec.COM_reportWorkerStats,
+        locked = self.db_proxy.get_process_lock('commandmanager', self.get_pid(),
+                                                harvester_config.commandmanager.sleepTime)
+        if locked:
+            # send command list to be received
+            siteNames = set()
+            commandList = []
+            for queueName in harvester_config.qconf.queueList:
+                queueConfig = self.queueConfigMapper.get_queue(queueName)
+                if queueConfig is None or queueConfig.runMode != 'slave':
+                    continue
+                # one command for all queues in one site
+                if queueConfig.siteName not in siteNames:
+                    commandItem = {'command': CommandSpec.COM_reportWorkerStats,
+                                   'computingSite': queueConfig.siteName,
+                                   'resourceType': queueConfig.resourceType
+                                   }
+                    commandList.append(commandItem)
+                siteNames.add(queueConfig.siteName)
+                # one command for each queue
+                commandItem = {'command': CommandSpec.COM_setNWorkers,
                                'computingSite': queueConfig.siteName,
                                'resourceType': queueConfig.resourceType
                                }
                 commandList.append(commandItem)
-            siteNames.add(queueConfig.siteName)
-            # one command for each queue
-            commandItem = {'command': CommandSpec.COM_setNWorkers,
-                           'computingSite': queueConfig.siteName,
-                           'resourceType': queueConfig.resourceType
-                           }
-            commandList.append(commandItem)
-        if len(commandList) > 0:
-            self.communicator.is_alive({'startTime': datetime.datetime.utcnow(),
-                                        'commands': commandList})
+            if len(commandList) > 0:
+                main_log.debug('sending command list to receive')
+                self.communicator.is_alive({'startTime': datetime.datetime.utcnow(),
+                                            'commands': commandList})
 
         # main loop
         while True:
-            main_log.debug('polling commands loop')
+            # get lock
+            locked = self.db_proxy.get_process_lock('commandmanager', self.get_pid(),
+                                                    harvester_config.commandmanager.sleepTime)
+            if locked or self.singleMode:
 
-            # send heartbeat
-            if self.lastHeartbeat is None \
-                    or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
-                self.lastHeartbeat = datetime.datetime.utcnow()
-                self.communicator.is_alive({'startTime': datetime.datetime.utcnow()})
+                main_log.debug('polling commands loop')
 
-            continuous_loop = True  # as long as there are commands, retrieve them
+                # send heartbeat
+                if self.lastHeartbeat is None \
+                        or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                    self.lastHeartbeat = datetime.datetime.utcnow()
+                    self.communicator.is_alive({'startTime': datetime.datetime.utcnow()})
 
-            while continuous_loop:
+                continuous_loop = True  # as long as there are commands, retrieve them
 
-                # get commands from panda server for this harvester instance
-                commands = self.communicator.get_commands(bulk_size)
-                main_log.debug('got {0} commands (bulk size: {1})'.format(len(commands), bulk_size))
-                command_specs = self.convert_to_command_specs(commands)
+                while continuous_loop:
 
-                # cache commands in internal DB
-                self.db_proxy.store_commands(command_specs)
-                main_log.debug('cached {0} commands in internal DB'.format(len(command_specs)))
+                    # get commands from panda server for this harvester instance
+                    commands = self.communicator.get_commands(bulk_size)
+                    main_log.debug('got {0} commands (bulk size: {1})'.format(len(commands), bulk_size))
+                    command_specs = self.convert_to_command_specs(commands)
 
-                # retrieve processed commands from harvester cache
-                command_ids_ack = self.db_proxy.get_commands_ack()
+                    # cache commands in internal DB
+                    self.db_proxy.store_commands(command_specs)
+                    main_log.debug('cached {0} commands in internal DB'.format(len(command_specs)))
 
-                for shard in core_utils.create_shards(command_ids_ack, bulk_size):
-                    # post acknowledgements to panda server
-                    self.communicator.ack_commands(shard)
-                    main_log.debug('acknowledged {0} commands to panda server'.format(len(shard)))
+                    # retrieve processed commands from harvester cache
+                    command_ids_ack = self.db_proxy.get_commands_ack()
 
-                    # clean acknowledged commands
-                    self.db_proxy.clean_commands_by_id(shard)
+                    for shard in core_utils.create_shards(command_ids_ack, bulk_size):
+                        # post acknowledgements to panda server
+                        self.communicator.ack_commands(shard)
+                        main_log.debug('acknowledged {0} commands to panda server'.format(len(shard)))
 
-                # clean commands that have been processed and do not need acknowledgement
-                self.db_proxy.clean_processed_commands()
+                        # clean acknowledged commands
+                        self.db_proxy.clean_commands_by_id(shard)
 
-                # if we didn't collect the full bulk, give panda server a break
-                if len(commands) < bulk_size:
-                    continuous_loop = False
+                    # clean commands that have been processed and do not need acknowledgement
+                    self.db_proxy.clean_processed_commands()
+
+                    # if we didn't collect the full bulk, give panda server a break
+                    if len(commands) < bulk_size:
+                        continuous_loop = False
 
             # check if being terminated
-            if self.terminated(harvester_config.commandmanager.sleepTime):
+            if self.terminated(harvester_config.commandmanager.sleepTime, randomize=False):
                 main_log.debug('terminated')
                 return
