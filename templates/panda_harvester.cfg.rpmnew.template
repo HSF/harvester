@@ -47,6 +47,11 @@ password = FIXME
 # schema
 schema = HARVESTER
 
+# host name for MariaDB
+host = localhost
+
+# port number for MariaDB
+port = 	3306
 
 
 

@@ -49,8 +49,16 @@ class DBProxy:
     def __init__(self):
         if harvester_config.db.engine == 'mariadb':
             import mysql.connector
+            if hasattr(harvester_config.db, 'host'):
+                host = harvester_config.db.host
+            else:
+                host = '127.0.0.1'
+            if hasattr(harvester_config.db, 'port'):
+                port = harvester_config.db.port
+            else:
+                port = 3306
             self.con = mysql.connector.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
-                                               db=harvester_config.db.schema)
+                                               db=harvester_config.db.schema, host=host, port=port)
             self.cur = self.con.cursor(named_tuple=True)
         else:
             import sqlite3
