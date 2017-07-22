@@ -209,6 +209,8 @@ class DBProxy:
                 attr_type = attr_type.replace('text', 'varchar(256)')
             elif attr_type.startswith('blob'):
                 attr_type = attr_type.replace('blob', 'longtext')
+            elif attr_type.startswith('integer'):
+                attr_type = attr_type.replace('integer', 'bigint')
         elif harvester_config.db.engine == 'sqlite':
             if attr_type.startswith('varchar'):
                 attr_type = re.sub('varchar\(\d+\)', 'text', attr_type)
