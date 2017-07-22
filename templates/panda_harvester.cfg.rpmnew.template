@@ -273,8 +273,8 @@ sleepTime = 60
 # Credential Manager parameters
 #
 # Notes : This is an example to manage two credentials, one with production role and the other with pilot role.
-          One credential data following a whitespace per line. Empty lines are not allowed, so that a dummy string
-          like 'dummy' needs to be added if some parameters like voms are unnecessary.
+#         One credential data following a whitespace per line. Empty lines are not allowed, so that a dummy string
+#         like 'dummy' needs to be added if some parameters like voms are unnecessary.
 
 [credmanager]
 
