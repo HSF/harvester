@@ -36,17 +36,17 @@ class Master(object):
     def start(self):
         # thread list
         thrList = []
-        # Command manager
-        from pandaharvester.harvesterbody.command_manager import CommandManager
-        thr = CommandManager(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
-        thr.set_stop_event(self.stopEvent)
-        thr.start()
-        thrList.append(thr)
         # Credential Manager
         from pandaharvester.harvesterbody.cred_manager import CredManager
         thr = CredManager(single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
         thr.execute()
+        thr.start()
+        thrList.append(thr)
+        # Command manager
+        from pandaharvester.harvesterbody.command_manager import CommandManager
+        thr = CommandManager(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
+        thr.set_stop_event(self.stopEvent)
         thr.start()
         thrList.append(thr)
         # Cacher

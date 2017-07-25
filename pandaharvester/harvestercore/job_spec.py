@@ -239,3 +239,25 @@ class JobSpec(SpecBase):
     # get work spec list
     def get_workspec_list(self):
         return self.workspec_list
+
+    # get job attributes to be reported to Panda
+    def get_job_attributes_for_panda(self):
+        data = dict()
+        if self.jobAttributes is None:
+            return data
+        # extract only panda attributes
+        # FIXME use set literal for python >=2.7
+        panda_attributes = ['token', 'transExitCode', 'pilotErrorCode', 'pilotErrorDiag', 'timestamp',
+                            'node', 'workdir', 'cpuConsumptionTime', 'cpuConsumptionUnit', 'remainingSpace',
+                            'schedulerID', 'pilotID', 'siteName', 'messageLevel', 'pilotLog',
+                            'cpuConversionFactor', 'exeErrorCode', 'exeErrorDiag', 'pilotTiming',
+                            'computingElement', 'startTime', 'endTime', 'nEvents', 'nInputFiles',
+                            'batchID', 'attemptNr', 'jobMetrics',
+                            'stdout', 'coreCount', 'maxRSS', 'maxVMEM', 'maxSWAP', 'maxPSS',
+                            'avgRSS', 'avgVMEM', 'avgSWAP', 'avgPSS', 'totRCHAR', 'totWCHAR', 'totRBYTES',
+                            'totWBYTES', 'rateRCHAR', 'rateWCHAR', 'rateRBYTES', 'rateWBYTES']
+        panda_attributes = set(panda_attributes)
+        for aName, aValue in self.jobAttributes:
+            if aName in panda_attributes:
+                data[aName] = aValue
+        return data

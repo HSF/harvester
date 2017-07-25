@@ -153,10 +153,7 @@ class Communicator:
                         if retVal in [True, False] and eventSpec.is_final_status():
                             eventSpec.subStatus = 'done'
             # update job
-            if jobSpec.jobAttributes is None:
-                data = {}
-            else:
-                data = copy.copy(jobSpec.jobAttributes)
+            data = jobSpec.get_job_attributes_for_panda()
             data['jobId'] = jobSpec.PandaID
             data['state'] = jobSpec.get_status()
             data['attemptNr'] = jobSpec.attemptNr
