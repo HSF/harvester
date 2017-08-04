@@ -220,12 +220,12 @@ class Communicator:
         tmpStat, tmpRes = self.post_ssl('updateEventRanges', data)
         retMap = None
         if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmp_log, tmpRes)
+            core_utils.dump_error_message(tmp_log, tmpRes)
         else:
             try:
                 retMap = tmpRes.json()
             except:
-                errStr = core_utils.dump_error_message(tmp_log)
+                core_utils.dump_error_message(tmp_log)
         if retMap is None:
             retMap = {}
             retMap['StatusCode'] = 999
@@ -294,9 +294,13 @@ class Communicator:
                     retVal = tmpDict['userProxy']
                 else:
                     retMsg = tmpDict['errorDialog']
+                    core_utils.dump_error_message(tmpLog, retMsg)
+                    tmpStat = False
             except:
                 retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
-        tmpLog.debug('done with {0}'.format(str(retVal)))
+                tmpStat = False
+        if tmpStat:
+            tmpLog.debug('done with {0}'.format(str(retVal)))
         return retVal, retMsg
 
     # update workers
@@ -319,12 +323,15 @@ class Communicator:
             try:
                 retCode, retList = tmpRes.json()
                 if not retCode:
-                    errStr = retList
+                    errStr = core_utils.dump_error_message(tmpLog, retList)
                     retList = None
+                    tmpStat = False
             except:
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
-        tmpLog.debug('done with {0}'.format(errStr))
+                tmpStat = False
+        if tmpStat:
+            tmpLog.debug('done with {0}'.format(errStr))
         return retList, errStr
 
     # send instance heartbeat
@@ -350,7 +357,9 @@ class Communicator:
             except:
                 tmpStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
-        tmpLog.debug('done with {0} : {1}'.format(retCode, tmpStr))
+                tmpStat = False
+        if tmpStat:
+            tmpLog.debug('done with {0} : {1}'.format(retCode, tmpStr))
         return retCode, tmpStr
 
     # update worker stats
@@ -371,12 +380,13 @@ class Communicator:
                 retCode, retMsg = tmpRes.json()
                 if not retCode:
                     tmpStat = False
-                    errStr = retMsg
+                    errStr = core_utils.dump_error_message(tmpLog, retMsg)
             except:
                 tmpStat = False
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
-        tmpLog.debug('done with {0}:{1}'.format(tmpStat, errStr))
+        if tmpStat:
+            tmpLog.debug('done with {0}:{1}'.format(tmpStat, errStr))
         return tmpStat, errStr
 
     # check jobs
