@@ -8,7 +8,7 @@ from spec_base import SpecBase
 
 class FileSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('fileID:integer primary key',
+    attributesWithTypes = ('fileID:integer primary key autoincrement',
                            'PandaID:integer',
                            'taskID:integer',
                            'lfn:text',
