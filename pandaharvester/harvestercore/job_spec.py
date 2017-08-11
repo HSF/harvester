@@ -257,7 +257,7 @@ class JobSpec(SpecBase):
                             'avgRSS', 'avgVMEM', 'avgSWAP', 'avgPSS', 'totRCHAR', 'totWCHAR', 'totRBYTES',
                             'totWBYTES', 'rateRCHAR', 'rateWCHAR', 'rateRBYTES', 'rateWBYTES']
         panda_attributes = set(panda_attributes)
-        for aName, aValue in self.jobAttributes:
+        for aName, aValue in self.jobAttributes.iteritems():
             if aName in panda_attributes:
                 data[aName] = aValue
         return data
