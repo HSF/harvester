@@ -767,7 +767,7 @@ class DBProxy:
                 if interval_with_lock is not None:
                     sql += "OR ({0}<:lockTimeLimit AND {1} IS NOT NULL) ".format(time_column, lock_column)
                 if interval_without_lock is not None:
-                    sql += "OR {0}<:updateTimeLimit ".format(time_column)
+                    sql += "OR ({0}<:updateTimeLimit AND {1} IS NULL) ".format(time_column, lock_column)
                 sql += ') '
                 sql += "ORDER BY {0} ".format(time_column)
             sql += "LIMIT {0} ".format(max_jobs)
