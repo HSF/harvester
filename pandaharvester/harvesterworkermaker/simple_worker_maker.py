@@ -41,8 +41,14 @@ class SimpleWorkerMaker(PluginBase):
 
     # get number of jobs per worker
     def get_num_jobs_per_worker(self):
-        return 1
+        try:
+            return self.nJobsPerWorker
+        except:
+            return 1
 
     # get number of workers per job
     def get_num_workers_per_job(self):
-        return 2
+        try:
+            return self.nWorkersPerJob
+        except:
+            return 1
