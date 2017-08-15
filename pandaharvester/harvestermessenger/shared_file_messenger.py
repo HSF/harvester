@@ -64,15 +64,24 @@ class SharedFileMessenger(PluginBase):
         self.jobSpecFileFormat = 'json'
         PluginBase.__init__(self, **kwarg)
 
+    # get access point
+    def get_access_point(self, workspec, panda_id):
+        if workspec.mapType == WorkSpec.MT_MultiJobs:
+            accessPoint = os.path.join(workspec.get_access_point(), str(panda_id))
+        else:
+            accessPoint = workspec.get_access_point()
+        return accessPoint
+
     # get attributes of a worker which should be propagated to job(s).
     #  * the worker needs to put a json under the access point
     def get_work_attributes(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
-        retDict = {}
-        if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
+        allRetDict = dict()
+        for pandaID in workspec.pandaid_list:
             # look for the json just under the access point
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonAttrsFileName)
+            accessPoint = self.get_access_point(workspec, pandaID)
+            jsonFilePath = os.path.join(accessPoint, jsonAttrsFileName)
             tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
             retDict = dict()
             if not os.path.exists(jsonFilePath):
@@ -97,11 +106,8 @@ class SharedFileMessenger(PluginBase):
                         retDict['metadata'] = tmpDict
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
-        elif workspec.mapType == WorkSpec.MT_MultiJobs:
-            # look for json files under accesspoint/${PandaID}
-            # TOBEFIXED
-            pass
-        return retDict
+            allRetDict[pandaID] = retDict
+        return allRetDict
 
     # get files to stage-out.
     #  * the worker needs to put a json under the access point
@@ -110,119 +116,124 @@ class SharedFileMessenger(PluginBase):
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         fileDict = dict()
         # look for the json just under the access point
-        jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
-        readJsonPath = jsonFilePath + suffixReadJson
-        # first look for json.read which is not yet acknowledged
-        tmpLog.debug('looking for output file {0}'.format(readJsonPath))
-        if os.path.exists(readJsonPath):
-            pass
-        else:
-            tmpLog.debug('looking for output file {0}'.format(jsonFilePath))
-            if not os.path.exists(jsonFilePath):
-                # not found
-                tmpLog.debug('not found')
-                return {}
-            try:
-                tmpLog.debug('found')
-                # rename to prevent from being overwritten
-                os.rename(jsonFilePath, readJsonPath)
-            except:
-                tmpLog.error('failed to rename json')
-                return {}
-        # load json
-        toSkip = False
-        loadDict = None
-        try:
-            with open(readJsonPath) as jsonFile:
-                loadDict = json.load(jsonFile)
-        except:
-            tmpLog.error('failed to load json')
-            toSkip = True
-        # test validity of data format (ie it should be a Dictionary)
-        if not toSkip:
-            if not isinstance(loadDict, types.DictType):
-                tmpLog.error('loaded data is not a dictionary')
-                toSkip = True
-        # collect files and events
-        if not toSkip:
-            eventsList = dict()
-            sizeMap = dict()
-            chksumMap = dict()
-            for tmpPandaID, tmpEventMapList in loadDict.iteritems():
-                tmpPandaID = long(tmpPandaID)
-                # test if tmpEventMapList is a list
-                if not isinstance(tmpEventMapList, types.ListType):
-                    tmpLog.error('loaded data item is not a list')
-                    toSkip = True
-                    fileDict = dict()
-                    break
-                for tmpEventInfo in tmpEventMapList:
-                    try:
-                        if 'eventRangeID' in tmpEventInfo:
-                            tmpEventRangeID = tmpEventInfo['eventRangeID']
-                        else:
-                            tmpEventRangeID = None
-                        tmpFileDict = dict()
-                        pfn = tmpEventInfo['path']
-                        lfn = os.path.basename(pfn)
-                        tmpFileDict['path'] = pfn
-                        if pfn not in sizeMap:
-                            if 'fsize' in tmpEventInfo:
-                                sizeMap[pfn] = tmpEventInfo['fsize']
-                            else:
-                                sizeMap[pfn] = os.stat(pfn).st_size
-                        tmpFileDict['fsize'] = sizeMap[pfn]
-                        tmpFileDict['type'] = tmpEventInfo['type']
-                        if tmpEventInfo['type'] in ['log', 'output']:
-                            # disable zipping
-                            tmpFileDict['isZip'] = 0
-                        elif tmpEventInfo['type'] == 'zip_output':
-                            # already zipped
-                            tmpFileDict['isZip'] = 1
-                        elif 'isZip' in tmpEventInfo:
-                            tmpFileDict['isZip'] = tmpEventInfo['isZip']
-                        # guid
-                        if 'guid' in tmpEventInfo:
-                            tmpFileDict['guid'] = tmpEventInfo['guid']
-                        else:
-                            tmpFileDict['guid'] = str(uuid.uuid4())
-                        # get checksum
-                        if pfn not in chksumMap:
-                            if 'chksum' in tmpEventInfo:
-                                chksumMap[pfn] = tmpEventInfo['chksum']
-                            else:
-                                chksumMap[pfn] = core_utils.calc_adler32(pfn)
-                        tmpFileDict['chksum'] = chksumMap[pfn]
-                        if tmpPandaID not in fileDict:
-                            fileDict[tmpPandaID] = dict()
-                        if lfn not in fileDict[tmpPandaID]:
-                            fileDict[tmpPandaID][lfn] = []
-                        fileDict[tmpPandaID][lfn].append(tmpFileDict)
-                        # skip if unrelated to events
-                        if tmpFileDict['type'] not in ['es_output', 'zip_output']:
-                            continue
-                        tmpFileDict['eventRangeID'] = tmpEventRangeID
-                        if tmpPandaID not in eventsList:
-                            eventsList[tmpPandaID] = list()
-                        eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
-                                                       'eventStatus': tmpEventInfo['eventStatus']})
-                    except:
-                        core_utils.dump_error_message(tmpLog)
-            # dump events
-            if not toSkip:
-                if len(eventsList) > 0:
-                    curName = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
-                    newName = curName + '.new'
-                    f = open(newName, 'w')
-                    json.dump(eventsList, f)
-                    f.close()
-                    os.rename(newName, curName)
-        tmpLog.debug('got {0}'.format(str(fileDict)))
-        if len(fileDict) == 0:
-            try:
-                os.remove(readJsonPath)
-            except:
+        for pandaID in workspec.pandaid_list:
+            # look for the json just under the access point
+            accessPoint = self.get_access_point(workspec, pandaID)
+            jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
+            readJsonPath = jsonFilePath + suffixReadJson
+            # first look for json.read which is not yet acknowledged
+            tmpLog.debug('looking for output file {0}'.format(readJsonPath))
+            if os.path.exists(readJsonPath):
                 pass
+            else:
+                tmpLog.debug('looking for output file {0}'.format(jsonFilePath))
+                if not os.path.exists(jsonFilePath):
+                    # not found
+                    tmpLog.debug('not found')
+                    continue
+                try:
+                    tmpLog.debug('found')
+                    # rename to prevent from being overwritten
+                    os.rename(jsonFilePath, readJsonPath)
+                except:
+                    tmpLog.error('failed to rename json')
+                    continue
+            # load json
+            toSkip = False
+            loadDict = None
+            try:
+                with open(readJsonPath) as jsonFile:
+                    loadDict = json.load(jsonFile)
+            except:
+                tmpLog.error('failed to load json')
+                toSkip = True
+            # test validity of data format (ie it should be a Dictionary)
+            if not toSkip:
+                if not isinstance(loadDict, types.DictType):
+                    tmpLog.error('loaded data is not a dictionary')
+                    toSkip = True
+            # collect files and events
+            nData = 0
+            if not toSkip:
+                sizeMap = dict()
+                chksumMap = dict()
+                eventsList = dict()
+                for tmpPandaID, tmpEventMapList in loadDict.iteritems():
+                    tmpPandaID = long(tmpPandaID)
+                    # test if tmpEventMapList is a list
+                    if not isinstance(tmpEventMapList, types.ListType):
+                        tmpLog.error('loaded data item is not a list')
+                        toSkip = True
+                        break
+                    for tmpEventInfo in tmpEventMapList:
+                        try:
+                            nData += 1
+                            if 'eventRangeID' in tmpEventInfo:
+                                tmpEventRangeID = tmpEventInfo['eventRangeID']
+                            else:
+                                tmpEventRangeID = None
+                            tmpFileDict = dict()
+                            pfn = tmpEventInfo['path']
+                            lfn = os.path.basename(pfn)
+                            tmpFileDict['path'] = pfn
+                            if pfn not in sizeMap:
+                                if 'fsize' in tmpEventInfo:
+                                    sizeMap[pfn] = tmpEventInfo['fsize']
+                                else:
+                                    sizeMap[pfn] = os.stat(pfn).st_size
+                            tmpFileDict['fsize'] = sizeMap[pfn]
+                            tmpFileDict['type'] = tmpEventInfo['type']
+                            if tmpEventInfo['type'] in ['log', 'output']:
+                                # disable zipping
+                                tmpFileDict['isZip'] = 0
+                            elif tmpEventInfo['type'] == 'zip_output':
+                                # already zipped
+                                tmpFileDict['isZip'] = 1
+                            elif 'isZip' in tmpEventInfo:
+                                tmpFileDict['isZip'] = tmpEventInfo['isZip']
+                            # guid
+                            if 'guid' in tmpEventInfo:
+                                tmpFileDict['guid'] = tmpEventInfo['guid']
+                            else:
+                                tmpFileDict['guid'] = str(uuid.uuid4())
+                            # get checksum
+                            if pfn not in chksumMap:
+                                if 'chksum' in tmpEventInfo:
+                                    chksumMap[pfn] = tmpEventInfo['chksum']
+                                else:
+                                    chksumMap[pfn] = core_utils.calc_adler32(pfn)
+                            tmpFileDict['chksum'] = chksumMap[pfn]
+                            if tmpPandaID not in fileDict:
+                                fileDict[tmpPandaID] = dict()
+                            if lfn not in fileDict[tmpPandaID]:
+                                fileDict[tmpPandaID][lfn] = []
+                            fileDict[tmpPandaID][lfn].append(tmpFileDict)
+                            # skip if unrelated to events
+                            if tmpFileDict['type'] not in ['es_output', 'zip_output']:
+                                continue
+                            tmpFileDict['eventRangeID'] = tmpEventRangeID
+                            if tmpPandaID not in eventsList:
+                                eventsList[tmpPandaID] = list()
+                            eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
+                                                           'eventStatus': tmpEventInfo['eventStatus']})
+                        except:
+                            core_utils.dump_error_message(tmpLog)
+                # dump events
+                if not toSkip:
+                    if len(eventsList) > 0:
+                        curName = os.path.join(accessPoint, jsonEventsUpdateFileName)
+                        newName = curName + '.new'
+                        f = open(newName, 'w')
+                        json.dump(eventsList, f)
+                        f.close()
+                        os.rename(newName, curName)
+            # remove empty file
+            if toSkip or nData == 0:
+                try:
+                    os.remove(readJsonPath)
+                except:
+                    pass
+            tmpLog.debug('got {0} files for PandaID={1}'.format(nData, pandaID))
         return fileDict
 
     # check if job is requested.
@@ -248,10 +259,11 @@ class SharedFileMessenger(PluginBase):
         retVal = True
         # get PFC
         pfc = core_utils.make_pool_file_catalog(jobspec_list)
-        if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
-            jobSpec = jobspec_list[0]
-            jobSpecFilePath = os.path.join(workspec.get_access_point(), jobSpecFileName)
-            xmlFilePath = os.path.join(workspec.get_access_point(), xmlPoolCatalogFileName)
+        pandaIDs = []
+        for jobSpec in jobspec_list:
+            accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
+            jobSpecFilePath = os.path.join(accessPoint, jobSpecFileName)
+            xmlFilePath = os.path.join(accessPoint, xmlPoolCatalogFileName)
             tmpLog.debug('feeding jobs to {0}'.format(jobSpecFilePath))
             try:
                 # put job spec file
@@ -266,19 +278,21 @@ class SharedFileMessenger(PluginBase):
                 # make symlink
                 inFiles = jobSpec.get_input_file_attributes()
                 for inLFN, inFile in inFiles.iteritems():
-                    dstPath = os.path.join(workspec.get_access_point(), inLFN)
+                    dstPath = os.path.join(accessPoint, inLFN)
                     if inFile['path'] != dstPath:
                         # test if symlink exists if so remove it
-                        if os.path.exists(dstPath) :
+                        if os.path.exists(dstPath):
                             os.unlink(dstPath)
                             tmpLog.debug("removing existing symlink %s" % dstPath)
                         os.symlink(inFile['path'], dstPath)
+                pandaIDs.append(jobSpec.PandaID)
             except:
                 core_utils.dump_error_message(tmpLog)
                 retVal = False
-        elif workspec.mapType == WorkSpec.MT_MultiJobs:
-            # TOBEFIXED
-            pass
+        # put PandaIDs file
+        jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
+        with open(jsonFilePath, 'w') as jsonPandaIDsFile:
+            json.dump(pandaIDs, jsonPandaIDsFile)
         # remove request file
         try:
             reqFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
@@ -343,43 +357,49 @@ class SharedFileMessenger(PluginBase):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         # look for the json just under the access point
-        jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
-        readJsonPath = jsonFilePath + suffixReadJson
-        # first look for json.read which is not yet acknowledged
-        tmpLog.debug('looking for event update file {0}'.format(readJsonPath))
-        if os.path.exists(readJsonPath):
-            pass
-        else:
-            tmpLog.debug('looking for event update file {0}'.format(jsonFilePath))
-            if not os.path.exists(jsonFilePath):
-                # not found
-                tmpLog.debug('not found')
-                return {}
-            try:
-                # rename to prevent from being overwritten
-                os.rename(jsonFilePath, readJsonPath)
-            except:
-                tmpLog.error('failed to rename json')
-                return {}
-        # load json
-        try:
-            with open(readJsonPath) as jsonFile:
-                retDict = json.load(jsonFile)
-                newDict = dict()
-                # change the key from str to int
-                for tmpPandaID, tmpDict in retDict.iteritems():
-                    tmpPandaID = long(tmpPandaID)
-                    newDict[tmpPandaID] = tmpDict
-                retDict = newDict
-        except:
-            tmpLog.error('failed to load json')
-            retDict = dict()
-        tmpLog.debug('got {0}'.format(str(retDict)))
-        if len(retDict) == 0:
-            try:
-                os.remove(readJsonPath)
-            except:
+        retDict = dict()
+        for pandaID in workspec.pandaid_list:
+            # look for the json just under the access point
+            accessPoint = self.get_access_point(workspec, pandaID)
+
+            jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
+            readJsonPath = jsonFilePath + suffixReadJson
+            # first look for json.read which is not yet acknowledged
+            tmpLog.debug('looking for event update file {0}'.format(readJsonPath))
+            if os.path.exists(readJsonPath):
                 pass
+            else:
+                tmpLog.debug('looking for event update file {0}'.format(jsonFilePath))
+                if not os.path.exists(jsonFilePath):
+                    # not found
+                    tmpLog.debug('not found')
+                    continue
+                try:
+                    # rename to prevent from being overwritten
+                    os.rename(jsonFilePath, readJsonPath)
+                except:
+                    tmpLog.error('failed to rename json')
+                    continue
+            # load json
+            nData = 0
+            try:
+                with open(readJsonPath) as jsonFile:
+                    tmpOrigDict = json.load(jsonFile)
+                    newDict = dict()
+                    # change the key from str to int
+                    for tmpPandaID, tmpDict in tmpOrigDict.iteritems():
+                        tmpPandaID = long(tmpPandaID)
+                        retDict[tmpPandaID] = tmpDict
+                        nData += 1
+            except:
+                tmpLog.error('failed to load json')
+            # delete empty file
+            if nData == 0:
+                try:
+                    os.remove(readJsonPath)
+                except:
+                    pass
+            tmpLog.debug('got {0} events for PandaID={1}'.format(nData, pandaID))
         return retDict
 
     # acknowledge events and files
@@ -388,18 +408,20 @@ class SharedFileMessenger(PluginBase):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         # remove request file
-        try:
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsUpdateFileName)
-            jsonFilePath += suffixReadJson
-            os.remove(jsonFilePath)
-        except:
-            pass
-        try:
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
-            jsonFilePath += suffixReadJson
-            os.remove(jsonFilePath)
-        except:
-            pass
+        for pandaID in workspec.pandaid_list:
+            accessPoint = self.get_access_point(workspec, pandaID)
+            try:
+                jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
+                jsonFilePath += suffixReadJson
+                os.remove(jsonFilePath)
+            except:
+                pass
+            try:
+                jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
+                jsonFilePath += suffixReadJson
+                os.remove(jsonFilePath)
+            except:
+                pass
         tmpLog.debug('done')
         return
 
@@ -410,6 +432,11 @@ class SharedFileMessenger(PluginBase):
             # make the dir if missing
             if not os.path.exists(accessPoint):
                 os.makedirs(accessPoint)
+                for jobSpec in workSpec.get_jobspec_list():
+                    subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
+                    if accessPoint != subAccessPoint:
+                        if not os.path.exists(subAccessPoint):
+                            os.mkdir(subAccessPoint)
 
     # filter for log.tar.gz
     def filter_log_tgz(self, name):
@@ -423,21 +450,20 @@ class SharedFileMessenger(PluginBase):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
         try:
-            if map_type in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
-                jobSpec = jobspec_list[0]
+            for jobSpec in jobspec_list:
                 # check if log is already there
                 for fileSpec in jobSpec.outFiles:
                     if fileSpec.fileType == 'log':
-                        return
+                        continue
                 logFileInfo = jobSpec.get_logfile_info()
                 # make log.tar.gz
-                logFilePath = os.path.join(workspec.get_access_point(), logFileInfo['lfn'])
+                accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
+                logFilePath = os.path.join(accessPoint, logFileInfo['lfn'])
                 if map_type == WorkSpec.MT_MultiWorkers:
                     # append suffix
                     logFilePath += '.{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
                 with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                    accessPoint = workspec.get_access_point()
                     for tmpRoot, tmpDirs, tmpFiles in os.walk(accessPoint):
                         for tmpFile in tmpFiles:
                             if not self.filter_log_tgz(tmpFile):
@@ -451,18 +477,15 @@ class SharedFileMessenger(PluginBase):
                 fileDict[jobSpec.PandaID].append({'path': logFilePath,
                                                   'type': 'log',
                                                   'isZip': 0})
-                jsonFilePath = os.path.join(workspec.get_access_point(), jsonOutputsFileName)
+                jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 with open(jsonFilePath, 'w') as jsonFile:
                     json.dump(fileDict, jsonFile)
-            else:
-                # FIXME
-                pass
             return True
         except:
             core_utils.dump_error_message(tmpLog)
             return False
 
-    # tell PandaIDs for pull model
+    # get PandaIDs for pull model
     def get_panda_ids(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))

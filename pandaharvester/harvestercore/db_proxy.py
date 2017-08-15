@@ -742,7 +742,7 @@ class DBProxy:
                 msgPfx = 'thr={0}'.format(locked_by)
             tmpLog = core_utils.make_logger(_logger, msgPfx)
             tmpLog.debug('start subStatus={0} timeColumn={1}'.format(sub_status, time_column))
-            # sql to count jobs beeing processed
+            # sql to count jobs being processed
             sqlC = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
             sqlC += "WHERE ({0} IS NOT NULL AND subStatus=:subStatus) ".format(lock_column)
             sqlC += "OR subStatus=:newSubStatus "
@@ -756,7 +756,7 @@ class DBProxy:
                 if nProcessing >= max_jobs:
                     # commit
                     self.commit()
-                    tmpLog.debug('enough jobs {0} are beeing processed'.format(len(nProcessing)))
+                    tmpLog.debug('enough jobs {0} are being processed'.format(len(nProcessing)))
                     return []
                 max_jobs -= nProcessing
             # sql to get jobs
@@ -978,6 +978,7 @@ class DBProxy:
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
                                    use_job_late_binding, check_interval, lock_interval, locked_by):
+        toCommit = False
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_name))
@@ -987,73 +988,104 @@ class DBProxy:
                 maxJobs = (n_workers + n_ready) * n_jobs_per_worker
             else:
                 maxJobs = -(-(n_workers + n_ready) // n_workers_per_job)
-            # sql to get jobs
-            sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
-            sql += "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
-            sql += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit)) "
-            sql += "AND (submitterTime IS NULL "
-            sql += "OR ((submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
-            sql += "OR submitterTime<:checkTimeLimit)) "
-            sql += "AND computingSite=:queueName "
-            sql += "ORDER BY currentPriority DESC,taskID,PandaID LIMIT {0} ".format(maxJobs)
-            sql += "FOR UPDATE "
+            # core part of sql
+            sqlCore = "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
+            sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit)) "
+            sqlCore += "AND (submitterTime IS NULL "
+            sqlCore += "OR ((submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sqlCore += "OR submitterTime<:checkTimeLimit)) "
+            sqlCore += "AND computingSite=:queueName "
             # sql to lock job
             sqlL = "UPDATE {0} SET submitterTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
             sqlL += "WHERE PandaID=:PandaID "
-            # get jobs
             timeNow = datetime.datetime.utcnow()
-            varMap = dict()
-            varMap[':subStat1'] = 'prepared'
-            varMap[':subStat2'] = 'queued'
-            varMap[':subStat3'] = 'submitted'
-            varMap[':subStat4'] = 'running'
-            varMap[':queueName'] = queue_name
-            varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
-            varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
-            self.execute(sql, varMap)
-            resList = self.cur.fetchall()
             jobChunkList = []
-            jobChunk = []
-            for res in resList:
-                # make job
-                jobSpec = JobSpec()
-                jobSpec.pack(res)
-                # new chunk
-                if len(jobChunk) > 0 and jobChunk[0].taskID != jobSpec.taskID:
-                    jobChunkList.append(jobChunk)
-                    jobChunk = []
-                # only prepared for new worker
-                if len(jobChunkList) >= n_ready and jobSpec.subStatus == 'queued':
-                    continue
-                jobChunk.append(jobSpec)
-                # enough jobs in chunk
-                if n_jobs_per_worker is not None and len(jobChunk) >= n_jobs_per_worker:
-                    jobChunkList.append(jobChunk)
-                    jobChunk = []
-                # one job per multiple workers
-                elif n_workers_per_job is not None:
-                    if jobSpec.nWorkersLimit is None:
-                        jobSpec.nWorkersLimit = n_workers_per_job
-                    for i in range(jobSpec.nWorkersLimit - jobSpec.nWorkers):
-                        jobChunkList.append(jobChunk)
-                    jobChunk = []
-                # lock job
+            # count jobs for nJobsPerWorker>1
+            nAvailableJobs = None
+            if n_jobs_per_worker is not None and n_jobs_per_worker > 1:
+                toCommit = True
+                # sql to count jobs
+                sqlC = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
+                sqlC += sqlCore
+                # count jobs
                 varMap = dict()
-                varMap[':PandaID'] = jobSpec.PandaID
-                varMap[':timeNow'] = timeNow
-                varMap[':lockedBy'] = locked_by
-                self.execute(sqlL, varMap)
-                jobSpec.lockedBy = locked_by
-                # enough job chunks
-                if len(jobChunkList) >= n_workers:
-                    break
+                varMap[':subStat1'] = 'prepared'
+                varMap[':subStat2'] = 'queued'
+                varMap[':subStat3'] = 'submitted'
+                varMap[':subStat4'] = 'running'
+                varMap[':queueName'] = queue_name
+                varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
+                varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
+                self.execute(sqlC, varMap)
+                nAvailableJobs, = self.cur.fetchone()
+                maxJobs = int(min(maxJobs, nAvailableJobs) / n_jobs_per_worker) * n_jobs_per_worker
+            if maxJobs == 0:
+                tmpStr = 'skip due to maxJobs=0 : '
+                tmpStr += 'n_workers={0} n_ready={1} '.format(n_workers, n_ready)
+                tmpStr += 'n_jobs_per_worker={0} n_workers_per_job={1} '.format(n_jobs_per_worker, n_workers_per_job)
+                tmpStr += 'n_ava_jobs={0}'.format(nAvailableJobs)
+                tmpLog.debug(tmpStr)
+            else:
+                toCommit = True
+                # sql to get jobs
+                sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+                sql += sqlCore
+                sql += "ORDER BY currentPriority DESC,taskID,PandaID LIMIT {0} ".format(maxJobs)
+                sql += "FOR UPDATE "
+                # get jobs
+                varMap = dict()
+                varMap[':subStat1'] = 'prepared'
+                varMap[':subStat2'] = 'queued'
+                varMap[':subStat3'] = 'submitted'
+                varMap[':subStat4'] = 'running'
+                varMap[':queueName'] = queue_name
+                varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
+                varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
+                self.execute(sql, varMap)
+                resList = self.cur.fetchall()
+                jobChunk = []
+                for res in resList:
+                    # make job
+                    jobSpec = JobSpec()
+                    jobSpec.pack(res)
+                    # new chunk
+                    if len(jobChunk) > 0 and jobChunk[0].taskID != jobSpec.taskID:
+                        jobChunkList.append(jobChunk)
+                        jobChunk = []
+                    # only prepared for new worker
+                    if len(jobChunkList) >= n_ready and jobSpec.subStatus == 'queued':
+                        continue
+                    jobChunk.append(jobSpec)
+                    # enough jobs in chunk
+                    if n_jobs_per_worker is not None and len(jobChunk) >= n_jobs_per_worker:
+                        jobChunkList.append(jobChunk)
+                        jobChunk = []
+                    # one job per multiple workers
+                    elif n_workers_per_job is not None:
+                        if jobSpec.nWorkersLimit is None:
+                            jobSpec.nWorkersLimit = n_workers_per_job
+                        for i in range(jobSpec.nWorkersLimit - jobSpec.nWorkers):
+                            jobChunkList.append(jobChunk)
+                        jobChunk = []
+                    # lock job
+                    varMap = dict()
+                    varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':timeNow'] = timeNow
+                    varMap[':lockedBy'] = locked_by
+                    self.execute(sqlL, varMap)
+                    jobSpec.lockedBy = locked_by
+                    # enough job chunks
+                    if len(jobChunkList) >= n_workers:
+                        break
             # commit
-            self.commit()
+            if toCommit:
+                self.commit()
             tmpLog.debug('got {0} job chunks'.format(len(jobChunkList)))
             return jobChunkList
         except:
             # roll back
-            self.rollback()
+            if toCommit:
+                self.rollback()
             # dump error
             core_utils.dump_error_message(_logger)
             # return
@@ -1081,6 +1113,9 @@ class DBProxy:
             # sql to get associated workers
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "
+            # sql to get associated PandaIDs
+            sqlP = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
+            sqlP += "WHERE workerID=:workerID "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
@@ -1124,6 +1159,14 @@ class DBProxy:
                     if queueName is None:
                         queueName = workSpec.computingSite
                     workersList.append(workSpec)
+                    # get associated PandaIDs
+                    varMap = dict()
+                    varMap[':workerID'] = tmpWorkID
+                    self.execute(sqlP, varMap)
+                    resP = self.cur.fetchall()
+                    workSpec.pandaid_list = []
+                    for tmpPandaID, in resP:
+                        workSpec.pandaid_list.append(tmpPandaID)
                     # lock worker
                     varMap = dict()
                     varMap[':workerID'] = tmpWorkID
@@ -1687,7 +1730,8 @@ class DBProxy:
                 sql += "AND (hasOutFile IS NULL OR hasOutFile<>:badHasOutFile) "
             sql += "AND (stagerTime IS NULL "
             sql += "OR (stagerTime<:lockTimeLimit AND stagerLock IS NOT NULL) "
-            sql += "OR stagerTime<:updateTimeLimit) "
+            sql += "OR (stagerTime<:updateTimeLimit AND stagerLock IS NULL) "
+            sql += ") "
             sql += "ORDER BY stagerTime "
             sql += "LIMIT {0} ".format(max_jobs)
             sql += "FOR UPDATE "
@@ -1696,7 +1740,8 @@ class DBProxy:
             sqlL += "WHERE PandaID=:PandaID "
             sqlL += "AND (stagerTime IS NULL "
             sqlL += "OR (stagerTime<:lockTimeLimit AND stagerLock IS NOT NULL) "
-            sqlL += "OR stagerTime<:updateTimeLimit) "
+            sqlL += "OR (stagerTime<:updateTimeLimit AND stagerLock IS NULL) "
+            sqlL += ") "
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID AND status=:status "

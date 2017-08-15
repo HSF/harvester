@@ -98,7 +98,9 @@ class JobSpec(SpecBase):
     def set_attributes(self, attrs):
         if attrs is None:
             return
-        attrs = copy.copy(attrs)
+        if self.PandaID not in attrs:
+            return
+        attrs = copy.copy(attrs[self.PandaID])
         # set metadata and outputs to dedicated attributes
         if 'metadata' in attrs:
             self.metaData = attrs['metadata']
@@ -261,3 +263,9 @@ class JobSpec(SpecBase):
             if aName in panda_attributes:
                 data[aName] = aValue
         return data
+
+    # get job status from attributes
+    def get_job_status_from_attributes(self):
+        if self.jobAttributes is None or 'jobStatus' not in self.jobAttributes:
+            return None
+        return self.jobAttributes['jobStatus']
