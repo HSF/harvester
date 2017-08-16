@@ -2817,13 +2817,16 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get files
             sqlF = "SELECT status, COUNT(*) cnt FROM {0} ".format(fileTableName)
-            sqlF += "WHERE lfn=:lfn AND fileType=:type AND endpoint=:endpoint "
+            sqlF += "WHERE lfn=:lfn AND fileType=:type "
+            if endpoint is not None:
+                sqlF += "AND endpoint=:endpoint "
             sqlF += "GROUP BY status "
             # get files
             varMap = dict()
             varMap[':lfn'] = lfn
             varMap[':type'] = file_type
-            varMap[':endpoint'] = endpoint
+            if endpoint is not None:
+                varMap[':endpoint'] = endpoint
             self.execute(sqlF, varMap)
             retMap = dict()
             for status, cnt in self.cur.fetchall():

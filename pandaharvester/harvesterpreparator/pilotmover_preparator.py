@@ -43,7 +43,7 @@ class PilotmoverPreparator(PluginBase):
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
         # get input files
         files = []
-        inFiles = jobspec.get_input_file_attributes(skip_preparing=True)
+        inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
