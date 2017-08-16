@@ -175,9 +175,9 @@ class JobSpec(SpecBase):
         return data, eventSpecs
 
     # get input file attributes
-    def get_input_file_attributes(self, skip_preparing=False):
+    def get_input_file_attributes(self, skip_ready=False):
         lfnToSkip = set()
-        if skip_preparing:
+        if skip_ready:
             for fileSpec in self.inFiles:
                 if fileSpec.status == 'preparing':
                     lfnToSkip.add(fileSpec.lfn)

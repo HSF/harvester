@@ -120,18 +120,40 @@ class Preparator(AgentBase):
                 if queueConfig.ddmEndpointIn not in fileStatMap:
                     fileStatMap[queueConfig.ddmEndpointIn] = dict()
                 newFileStatusData = []
+                toWait = False
                 for fileSpec in jobSpec.inFiles:
                     if fileSpec.status == 'preparing':
+                        updateStatus = False
                         if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
                             fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
                                 = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn)
-                            # change file status if the file is not taken care of by another
-                            if 'to_prepare' not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] and \
-                                    'ready' not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
-                                fileSpec.status = 'to_prepare'
-                                newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
+                        if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                            # the file is ready
+                            fileSpec.status = 'ready'
+                            updateStatus = True
+                        elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                            # the file is being prepared by another
+                            toWait = True
+                        else:
+                            # change file status if the file is not prepared by another
+                            fileSpec.status = 'to_prepare'
+                            updateStatus = True
+                        # set new status
+                        if updateStatus:
+                            newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
+                            if fileSpec.status not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] = 0
+                            fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] += 1
                 if len(newFileStatusData) > 0:
                     self.dbProxy.change_file_status(jobSpec.PandaID, newFileStatusData, lockedBy)
+                # wait since files are being prepared by another
+                if toWait:
+                    # update job
+                    jobSpec.lockedBy = None
+                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                      'subStatus': oldSubStatus})
+                    tmpLog.debug('wait since files are being prepared by another job')
+                    continue
                 # trigger preparation
                 tmpStat, tmpStr = preparatorCore.trigger_preparation(jobSpec)
                 # succeeded
