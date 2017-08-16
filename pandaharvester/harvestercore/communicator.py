@@ -65,7 +65,7 @@ class Communicator:
         return False, errMsg
 
     # POST with https
-    def post_ssl(self, path, data):
+    def post_ssl(self, path, data, cert=None):
         try:
             tmpLog = None
             if self.verbose:
@@ -74,13 +74,15 @@ class Communicator:
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
+            if cert is None:
+                cert = (harvester_config.pandacon.cert_file,
+                        harvester_config.pandacon.key_file)
             res = requests.post(url,
                                 data=data,
                                 headers={"Accept": "application/json"},
                                 timeout=harvester_config.pandacon.timeout,
                                 verify=harvester_config.pandacon.ca_cert,
-                                cert=(harvester_config.pandacon.cert_file,
-                                      harvester_config.pandacon.key_file))
+                                cert=cert)
             if self.verbose:
                 tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
             if res.status_code == 200:
@@ -277,14 +279,14 @@ class Communicator:
         return False
     
     # get proxy
-    def get_proxy(self, voms_role):
+    def get_proxy(self, voms_role, cert=None):
         retVal = None
         retMsg = ''
         # get logger
         tmpLog = core_utils.make_logger(_logger)
         tmpLog.debug('start')
         data = {'role': voms_role}
-        tmpStat, tmpRes = self.post_ssl('getProxy', data)
+        tmpStat, tmpRes = self.post_ssl('getProxy', data, cert)
         if tmpStat is False:
             core_utils.dump_error_message(tmpLog, tmpRes)
         else:
