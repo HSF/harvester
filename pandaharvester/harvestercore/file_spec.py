@@ -22,7 +22,8 @@ class FileSpec(SpecBase):
                            'fileAttributes:blob',
                            'isZip:integer',
                            'zipFileID:integer',
-                           'objstoreID:integer'
+                           'objstoreID:integer',
+                           'endpoint:text'
                            )
 
     # constructor

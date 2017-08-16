@@ -56,9 +56,21 @@ class JobSpec(SpecBase):
         SpecBase.__init__(self)
         object.__setattr__(self, 'events', set())
         object.__setattr__(self, 'zipEventMap', {})
+        object.__setattr__(self, 'inFiles', set())
         object.__setattr__(self, 'outFiles', set())
         object.__setattr__(self, 'zipFileMap', {})
         object.__setattr__(self, 'workspec_list', set())
+
+    # add file
+    def add_file(self, filespec):
+        if filespec.fileType == 'input':
+            self.add_in_file(filespec)
+        else:
+            self.add_out_file(filespec)
+
+    # add input file
+    def add_in_file(self, filespec):
+        self.inFiles.add(filespec)
 
     # add output file
     def add_out_file(self, filespec):
@@ -163,7 +175,12 @@ class JobSpec(SpecBase):
         return data, eventSpecs
 
     # get input file attributes
-    def get_input_file_attributes(self):
+    def get_input_file_attributes(self, skip_preparing=False):
+        lfnToSkip = set()
+        if skip_preparing:
+            for fileSpec in self.inFiles:
+                if fileSpec.status == 'preparing':
+                    lfnToSkip.add(fileSpec.lfn)
         inFiles = {}
         lfns = self.jobParams['inFiles'].split(',')
         guids = self.jobParams['GUID'].split(',')
@@ -178,6 +195,8 @@ class JobSpec(SpecBase):
                 fsize = long(fsize)
             except:
                 fsize = None
+            if lfn in lfnToSkip:
+                continue
             inFiles[lfn] = {'fsize': fsize,
                             'guid': guid,
                             'checksum': chksum,
@@ -188,6 +207,8 @@ class JobSpec(SpecBase):
         if 'inFilePaths' in self.jobParams:
             paths = self.jobParams['inFilePaths'].split(',')
             for lfn, path in zip(lfns, paths):
+                if lfn in lfnToSkip:
+                    continue
                 inFiles[lfn]['path'] = path
         return inFiles
 
@@ -200,6 +221,11 @@ class JobSpec(SpecBase):
         self.jobParams['inFilePaths'] = ','.join(paths)
         # trigger updating
         self.force_update('jobParams')
+        # update file specs
+        for fileSpec in self.inFiles:
+            if fileSpec.lfn in in_files:
+                fileSpec.path = in_files[fileSpec.lfn]['path']
+            fileSpec.status = 'ready'
 
     # get output file attributes
     def get_output_file_attributes(self):

@@ -75,12 +75,13 @@ class Preparator(AgentBase):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus})
+                                                      'subStatus': oldSubStatus},
+                                            update_in_file=True)
                     tmpLog.debug('succeeded')
                 else:
                     # update job
                     jobSpec.status = 'failed'
-                    jobSpec.subStatus = 'failedtoprepare'
+                    jobSpec.subStatus = 'failed_to_prepare'
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
@@ -99,6 +100,7 @@ class Preparator(AgentBase):
                                                                 'preparing')
             mainLog.debug('got {0} jobs to prepare'.format(len(jobsToTrigger)))
             # loop over all jobs
+            fileStatMap = dict()
             for jobSpec in jobsToTrigger:
                 tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
                 tmpLog.debug('try to trigger preparation')
@@ -114,6 +116,22 @@ class Preparator(AgentBase):
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
+                # check file status
+                if queueConfig.ddmEndpointIn not in fileStatMap:
+                    fileStatMap[queueConfig.ddmEndpointIn] = dict()
+                newFileStatusData = []
+                for fileSpec in jobSpec.inFiles:
+                    if fileSpec.status == 'preparing':
+                        if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
+                            fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
+                                = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn)
+                            # change file status if the file is not taken care of by another
+                            if 'to_prepare' not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] and \
+                                    'ready' not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                                fileSpec.status = 'to_prepare'
+                                newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
+                if len(newFileStatusData) > 0:
+                    self.dbProxy.change_file_status(jobSpec.PandaID, newFileStatusData, lockedBy)
                 # trigger preparation
                 tmpStat, tmpStr = preparatorCore.trigger_preparation(jobSpec)
                 # succeeded
@@ -128,7 +146,7 @@ class Preparator(AgentBase):
                 else:
                     # update job
                     jobSpec.status = 'failed'
-                    jobSpec.subStatus = 'failedtoprepare'
+                    jobSpec.subStatus = 'failed_to_prepare'
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()

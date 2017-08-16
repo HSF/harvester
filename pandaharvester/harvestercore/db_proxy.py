@@ -345,15 +345,23 @@ class DBProxy:
         tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
         try:
             # sql to insert a job
-            sql = "INSERT INTO {0} ({1}) ".format(jobTableName, JobSpec.column_names())
-            sql += JobSpec.bind_values_expression()
+            sqlJ = "INSERT INTO {0} ({1}) ".format(jobTableName, JobSpec.column_names())
+            sqlJ += JobSpec.bind_values_expression()
+            # sql to insert a file
+            sqlF = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
+            sqlF += FileSpec.bind_values_expression()
             # loop over all jobs
-            varMaps = []
+            varMapsJ = []
+            varMapsF = []
             for jobSpec in jobspec_list:
                 varMap = jobSpec.values_list()
-                varMaps.append(varMap)
+                varMapsJ.append(varMap)
+                for fileSpec in jobSpec.inFiles:
+                    varMap = fileSpec.values_list()
+                    varMapsF.append(varMap)
             # insert
-            self.executemany(sql, varMaps)
+            self.executemany(sqlJ, varMapsJ)
+            self.executemany(sqlF, varMapsF)
             # commit
             self.commit()
             # return
@@ -367,7 +375,7 @@ class DBProxy:
             return False
 
     # get job
-    def get_job(self, panda_id, with_file_status=None):
+    def get_job(self, panda_id):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id))
@@ -380,27 +388,25 @@ class DBProxy:
             varMap[':pandaID'] = panda_id
             self.execute(sql, varMap)
             resJ = self.cur.fetchone()
-            # commit
-            self.commit()
             if resJ is None:
-                return None
-            # make job
-            jobSpec = JobSpec()
-            jobSpec.pack(resJ)
-            # get files
-            if with_file_status is not None:
-                # sql to get files
+                jobSpec = None
+            else:
+                # make job
+                jobSpec = JobSpec()
+                jobSpec.pack(resJ)
+                # get files
                 sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-                sqlF += "WHERE PandaID=:PandaID AND status=:status "
+                sqlF += "WHERE PandaID=:PandaID "
                 varMap = dict()
                 varMap[':PandaID'] = panda_id
-                varMap[':status'] = with_file_status
                 self.execute(sqlF, varMap)
                 resFileList = self.cur.fetchall()
                 for resFile in resFileList:
                     fileSpec = FileSpec()
                     fileSpec.pack(resFile)
-                    jobSpec.add_out_file(fileSpec)
+                    jobSpec.add_file(fileSpec)
+            # commit
+            self.commit()
             tmpLog.debug('done')
             # return
             return jobSpec
@@ -412,7 +418,7 @@ class DBProxy:
             # return
             return None
 
-    # get jobs (fetch entire jobTable)
+    # get all jobs (fetch entire jobTable)
     def get_jobs(self):
         try:
             # get logger
@@ -445,7 +451,7 @@ class DBProxy:
             return None
 
     # update job
-    def update_job(self, jobspec, criteria=None):
+    def update_job(self, jobspec, criteria=None, update_in_file=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0} subStatus={1}'.format(jobspec.PandaID,
@@ -474,6 +480,26 @@ class DBProxy:
                         sqlE += "WHERE eventRangeID=:eventRangeID "
                         varMap[':eventRangeID'] = eventSpec.eventRangeID
                         self.execute(sqlE, varMap)
+                # update input file
+                if update_in_file:
+                    for fileSpec in jobspec.inFiles:
+                        varMap = fileSpec.values_map(only_changed=True)
+                        if varMap != {}:
+                            sqlF = "UPDATE {0} SET {1} ".format(fileTableName,
+                                                                fileSpec.bind_update_changes_expression())
+                            sqlF += "WHERE fileID=:fileID "
+                            varMap[':fileID'] = fileSpec.fileID
+                            self.execute(sqlF, varMap)
+                else:
+                    # set file status to done if jobs are done
+                    if jobspec.is_final_status():
+                        varMap = dict()
+                        varMap[':PandaID'] = jobspec.PandaID
+                        varMap[':type'] = 'input'
+                        varMap[':status'] = 'done'
+                        sqlF = "UPDATE {0} SET status=:status ".format(fileTableName)
+                        sqlF += "WHERE PandaID=:PandaID AND fileType=:type "
+                        self.execute(sqlF, varMap)
             # commit
             self.commit()
             tmpLog.debug('done with {0}'.format(nRow))
@@ -775,6 +801,9 @@ class DBProxy:
             # sql to lock job
             sqlL = "UPDATE {0} SET {1}=:timeNow,{2}=:lockedBy ".format(jobTableName, time_column, lock_column)
             sqlL += "WHERE PandaID=:PandaID "
+            # sql to get file
+            sqlGF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+            sqlGF += "WHERE PandaID=:PandaID AND fileType=:type "
             # get jobs
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
@@ -803,6 +832,17 @@ class DBProxy:
                 else:
                     nRow = 1
                 if nRow > 0:
+                    # get files
+                    varMap = dict()
+                    varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':type'] = 'input'
+                    self.execute(sqlGF, varMap)
+                    resGF = self.cur.fetchall()
+                    for resFile in resGF:
+                        fileSpec = FileSpec()
+                        fileSpec.pack(resFile)
+                        jobSpec.add_in_file(fileSpec)
+                    # append
                     jobSpecList.append(jobSpec)
             # commit
             self.commit()
@@ -1339,7 +1379,7 @@ class DBProxy:
             sqlFI += FileSpec.bind_values_expression()
             # sql to get pending files
             sqlFP = "SELECT fileID,fsize,lfn FROM {0} ".format(fileTableName)
-            sqlFP += "WHERE PandaID=:PandaID AND status=:status "
+            sqlFP += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
             # sql to update pending files
             sqlFU = "UPDATE {0} ".format(fileTableName)
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
@@ -1347,8 +1387,8 @@ class DBProxy:
             # sql to check event
             sqlEC = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(eventTableName)
             # sql to check associated file
-            sqlEF = "SELECT status FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(
-                fileTableName)
+            sqlEF = "SELECT status FROM {0} ".format(fileTableName)
+            sqlEF += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
             # sql to insert event
             sqlEI = "INSERT INTO {0} ({1}) ".format(eventTableName, EventSpec.column_names())
             sqlEI += EventSpec.bind_values_expression()
@@ -1433,6 +1473,7 @@ class DBProxy:
                         varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
                         varMap[':status'] = 'pending'
+                        varMap[':type'] = 'input'
                         self.execute(sqlFP, varMap)
                         resFP = self.cur.fetchall()
                         tmpLog.debug('got {0} pending files'.format(len(resFP)))
@@ -1639,7 +1680,7 @@ class DBProxy:
                     for resFile in resFileList:
                         fileSpec = FileSpec()
                         fileSpec.pack(resFile)
-                        jobSpec.add_out_file(fileSpec)
+                        jobSpec.add_file(fileSpec)
                 # append
                 jobChunkList.append(jobSpec)
             # commit
@@ -1744,10 +1785,10 @@ class DBProxy:
             sqlL += ") "
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlF += "WHERE PandaID=:PandaID AND status=:status "
+            sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
             # sql to get associated files
             sqlAF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
+            sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID AND fileType<>:type "
             # get jobs
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=interval_with_lock)
@@ -1781,6 +1822,7 @@ class DBProxy:
                     # get files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':type'] = 'input'
                     if has_out_file_flag == JobSpec.HO_hasOutput:
                         varMap[':status'] = 'defined'
                     elif has_out_file_flag == JobSpec.HO_hasZipOutput:
@@ -1800,6 +1842,7 @@ class DBProxy:
                             varMap = dict()
                             varMap[':PandaID'] = fileSpec.PandaID
                             varMap[':zipFileID'] = fileSpec.fileID
+                            varMap[':type'] = 'input'
                             self.execute(sqlAF, varMap)
                             resAFs = self.cur.fetchall()
                             for resAF in resAFs:
@@ -2722,7 +2765,6 @@ class DBProxy:
             # check lock
             sqlC = "SELECT lockTime FROM {0} ".format(processLockTableName)
             sqlC += "WHERE processName=:processName "
-            sqlC += "FOR UPDATE "
             varMap = dict()
             varMap[':processName'] = process_name
             self.execute(sqlC, varMap)
@@ -2759,6 +2801,80 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done with {0}'.format(retVal))
             return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # get file status
+    def get_file_status(self, lfn, file_type, endpoint):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint))
+            tmpLog.debug('start')
+            # sql to get files
+            sqlF = "SELECT status, COUNT(*) cnt FROM {0} ".format(fileTableName)
+            sqlF += "WHERE lfn=:lfn AND fileType=:type AND endpoint=:endpoint "
+            sqlF += "GROUP BY status "
+            # get files
+            varMap = dict()
+            varMap[':lfn'] = lfn
+            varMap[':type'] = file_type
+            varMap[':endpoint'] = endpoint
+            self.execute(sqlF, varMap)
+            retMap = dict()
+            for status, cnt in self.cur.fetchall():
+                retMap[status] = cnt
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # change file status
+    def change_file_status(self, panda_id, data, locked_by):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id))
+            tmpLog.debug('start lockedBy={0}'.format(locked_by))
+            # sql to check lock of job
+            sqlJ = "SELECT lockedBy FROM {0} ".format(jobTableName)
+            sqlJ += "WHERE PandaID=:PandaID FOR UPDATE "
+            # sql to update files
+            sqlF = "UPDATE {0} ".format(fileTableName)
+            sqlF += "SET status=:status WHERE fileID=:fileID "
+            # check lock
+            varMap = dict()
+            varMap[':PandaID'] = panda_id
+            self.execute(sqlJ, varMap)
+            resJ = self.cur.fetchone()
+            if resJ is None:
+                tmpLog.debug('skip since job not found')
+            else:
+                lockedBy, = resJ
+                if lockedBy != locked_by:
+                    tmpLog.debug('skip since lockedBy is inconsistent in DB {0}'.format(lockedBy))
+                else:
+                    # update files
+                    for tmpFileID, tmpLFN, newStatus in data:
+                        varMap = dict()
+                        varMap[':fileID'] = tmpFileID
+                        varMap[':status'] = newStatus
+                        self.execute(sqlF, varMap)
+                        tmpLog.debug('set new status {0} to {1}'.format(newStatus, tmpLFN))
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
         except:
             # roll back
             self.rollback()

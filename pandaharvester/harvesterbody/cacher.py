@@ -76,7 +76,7 @@ class Cacher(AgentBase):
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('http:'):
             try:
-                res = requests.get(info_url)
+                res = requests.get(info_url, timeout=60)
                 if res.status_code == 200:
                     try:
                         retVal = res.json()

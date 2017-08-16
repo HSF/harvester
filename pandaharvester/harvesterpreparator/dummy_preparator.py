@@ -22,7 +22,7 @@ class DummyPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         """Trigger stage-in procedure synchronously or asynchronously for the job.
-        Input file attributes are available through jobspec.get_input_file_attributes()
+        Input file attributes are available through jobspec.get_input_file_attributes(skip_preparing=True)
         which gives a dictionary. The key of the dictionary is LFN of the input file
         and the value is a dictionary of file attributes. The attribute names are
         fsize, guid, checksum, scope, dataset, and endpoint.
