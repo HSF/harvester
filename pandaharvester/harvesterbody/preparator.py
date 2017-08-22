@@ -74,6 +74,7 @@ class Preparator(AgentBase):
                     jobSpec.subStatus = 'prepared'
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
+                    jobSpec.set_all_input_ready()
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus},
                                             update_in_file=True)
