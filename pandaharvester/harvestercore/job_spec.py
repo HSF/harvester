@@ -210,11 +210,16 @@ class JobSpec(SpecBase):
                 if lfn in lfnToSkip:
                     continue
                 inFiles[lfn]['path'] = path
+        # delete empty file
+        if '' in inFiles:
+            del inFiles['']
+        if 'NULL' in inFiles:
+            del inFiles['NULL']
         return inFiles
 
     # set input file paths
     def set_input_file_paths(self, in_files):
-        lfns = self.jobParams['inFiles'].split(',')
+        lfns = self.get_input_file_attributes().keys()
         paths = []
         for lfn in lfns:
             paths.append(in_files[lfn]['path'])
@@ -225,6 +230,11 @@ class JobSpec(SpecBase):
         for fileSpec in self.inFiles:
             if fileSpec.lfn in in_files:
                 fileSpec.path = in_files[fileSpec.lfn]['path']
+
+    # set ready to all input files
+    def set_all_input_ready(self):
+        # update file specs
+        for fileSpec in self.inFiles:
             fileSpec.status = 'ready'
 
     # get output file attributes
