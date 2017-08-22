@@ -2885,3 +2885,81 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return False
+
+    # get group for a file
+    def get_group_for_file(self, lfn, file_type, endpoint):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint))
+            tmpLog.debug('start')
+            # sql to get group with the latest update
+            sqlF = "SELECT * FROM ("
+            sqlF += "SELECT groupID,groupStatus,groupUpdateTime FROM {0} ".format(fileTableName)
+            sqlF += "WHERE lfn=:lfn AND fileType=:type "
+            sqlF += "AND groupID IS NOT NULL AND groupStatus<>:ngStatus "
+            if endpoint is not None:
+                sqlF += "AND endpoint=:endpoint "
+            sqlF += "ORDER BY groupUpdateTime DESC "
+            sqlF += ") AS TMP LIMIT 1 "
+            # get group
+            varMap = dict()
+            varMap[':lfn'] = lfn
+            varMap[':type'] = file_type
+            varMap[':ngStatus'] = 'failed'
+            if endpoint is not None:
+                varMap[':endpoint'] = endpoint
+            self.execute(sqlF, varMap)
+            resF = self.cur.fetchone()
+            if resF is None:
+                retVal = None
+            else:
+                groupID, groupStatus, groupUpdateTime = resF
+                retVal = {'groupID': groupID, 'groupStatus': groupStatus, 'groupUpdateTime': groupUpdateTime}
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retVal)))
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None
+
+    # get file names and group status with a group ID
+    def get_files_with_group_id(self, group_id, file_type, endpoint):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'groupID={0} endpoint={1}'.format(group_id, endpoint))
+            tmpLog.debug('start')
+            # sql to get files
+            sqlF = "SELECT lfn,groupStatus,groupUpdateTime FROM {0} ".format(fileTableName)
+            sqlF += "WHERE groupID=:groupID AND fileType=:type "
+            if endpoint is not None:
+                sqlF += "AND endpoint=:endpoint "
+            # get files
+            varMap = dict()
+            varMap[':groupID'] = group_id
+            varMap[':type'] = file_type
+            if endpoint is not None:
+                varMap[':endpoint'] = endpoint
+            self.execute(sqlF, varMap)
+            retMap = {'lfns': set(), 'groupStatus': None, 'groupUpdateTime': None}
+            for lfn, groupStatus, groupUpdateTime in self.cur.fetchall():
+                retMap['lfns'].add(lfn)
+                # use only the latest info
+                if retMap['groupUpdateTime'] is None or groupUpdateTime > retMap['groupUpdateTime']:
+                    retMap['groupStatus'] = groupStatus
+                    retMap['groupUpdateTime'] = groupUpdateTime
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}

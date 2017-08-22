@@ -131,6 +131,13 @@ class Preparator(AgentBase):
                         if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                             # the file is ready
                             fileSpec.status = 'ready'
+                            # set group info if any
+                            groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, 'input',
+                                                                        queueConfig.ddmEndpointIn)
+                            if groupInfo is not None:
+                                fileSpec.groupID = groupInfo['groupID']
+                                fileSpec.groupStatus = groupInfo['groupStatus']
+                                fileSpec.groupUpdateTime = groupInfo['groupUpdateTime']
                             updateStatus = True
                         elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                             # the file is being prepared by another
@@ -164,7 +171,8 @@ class Preparator(AgentBase):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus})
+                                                      'subStatus': oldSubStatus},
+                                            update_in_file=True)
                     tmpLog.debug('triggered')
                 else:
                     # update job
