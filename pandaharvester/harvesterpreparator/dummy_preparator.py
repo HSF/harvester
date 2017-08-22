@@ -34,7 +34,7 @@ class DummyPreparator(PluginBase):
         # one transfer ID for all input files
         transferID = str(uuid.uuid4())
         # set transfer ID which are used for later lookup
-        jobspec.set_group_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
+        jobspec.set_groups_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
         return True, ''
 
     # check status
