@@ -179,7 +179,7 @@ class JobSpec(SpecBase):
         lfnToSkip = set()
         if skip_ready:
             for fileSpec in self.inFiles:
-                if fileSpec.status == 'preparing':
+                if fileSpec.status == 'ready':
                     lfnToSkip.add(fileSpec.lfn)
         inFiles = {}
         lfns = self.jobParams['inFiles'].split(',')
@@ -305,3 +305,36 @@ class JobSpec(SpecBase):
         if self.jobAttributes is None or 'jobStatus' not in self.jobAttributes:
             return None
         return self.jobAttributes['jobStatus']
+
+    # set group to files
+    def set_group_to_files(self, id_map):
+        timeNow = datetime.datetime.utcnow()
+        # reverse mapping
+        revMap = dict()
+        for gID, items in id_map.iteritems():
+            for lfn in items['lfns']:
+                revMap[lfn] = gID
+        # update file specs
+        for fileSpec in self.inFiles.union(self.outFiles):
+            if fileSpec.lfn in revMap:
+                fileSpec.groupID = revMap[fileSpec.lfn]
+                fileSpec.groupStatus = id_map[fileSpec.groupID]['groupStatus']
+                fileSpec.groupUpdateTime = timeNow
+
+    # update group status in files
+    def update_group_status_in_files(self, group_id, group_status):
+        timeNow = datetime.datetime.utcnow()
+        # update file specs
+        for fileSpec in self.inFiles.union(self.outFiles):
+            if fileSpec.groupID == group_id:
+                fileSpec.groupStatus = group_status
+                fileSpec.groupUpdateTime = timeNow
+
+    # get groups of input files
+    def get_groups_of_input_files(self, skip_ready=False):
+        groups = set()
+        for fileSpec in self.inFiles:
+            if skip_ready and fileSpec.status == 'ready':
+                continue
+            groups.add(fileSpec.groupID)
+        return groups

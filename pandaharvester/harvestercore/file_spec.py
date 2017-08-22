@@ -23,7 +23,10 @@ class FileSpec(SpecBase):
                            'isZip:integer',
                            'zipFileID:integer',
                            'objstoreID:integer',
-                           'endpoint:text'
+                           'endpoint:text',
+                           'groupID:text',
+                           'groupStatus:text',
+                           'groupUpdateTime:timestamp'
                            )
 
     # constructor
