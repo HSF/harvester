@@ -307,7 +307,7 @@ class JobSpec(SpecBase):
         return self.jobAttributes['jobStatus']
 
     # set group to files
-    def set_group_to_files(self, id_map):
+    def set_groups_to_files(self, id_map):
         timeNow = datetime.datetime.utcnow()
         # reverse mapping
         revMap = dict()
