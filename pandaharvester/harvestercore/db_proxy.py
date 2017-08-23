@@ -757,9 +757,10 @@ class DBProxy:
             # return
             return []
 
-    # get jobs in substatus
-    def get_jobs_in_sub_status(self, sub_status, max_jobs, time_column=None, lock_column=None, interval_with_lock=None,
-                               interval_without_lock=None, locked_by=None, new_sub_status=None):
+    # get jobs in sub status
+    def get_jobs_in_sub_status(self, sub_status, max_jobs, time_column=None, lock_column=None,
+                               interval_without_lock=None, interval_with_lock=None,
+                               locked_by=None, new_sub_status=None):
         try:
             # get logger
             if locked_by is None:
