@@ -177,7 +177,12 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 jobSpec.set_end_time()
             # core count
             if workSpec.nCore is not None:
-                jobSpec.nCore = workSpec.nCore
+                try:
+                    jobSpec.nCore = int(workSpec.nCore / len(jobspec_list))
+                    if jobSpec.nCore == 0:
+                        jobSpec.nCore = 1
+                except:
+                    pass
             # add files
             for files_to_stage_out in files_to_stage_out_list:
                 if jobSpec.PandaID in files_to_stage_out:
