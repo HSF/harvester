@@ -84,7 +84,8 @@ class Monitor(AgentBase):
                         # get associated jobs for the worker chunk
                         if workSpec.hasJob == 1 and jobSpecs is None:
                             jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                                            lockedBy)
+                                                                            lockedBy,
+                                                                            only_running=True)
                         # pandaIDs for push
                         pandaIDsList.append(pandaIDs)
                         if len(eventsToUpdate) > 0:
@@ -172,7 +173,8 @@ class Monitor(AgentBase):
                             if not queue_config.is_no_heartbeat_status(newStatus):
                                 # post processing unless heartbeat is suppressed
                                 jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                                                None, True)
+                                                                                None, True,
+                                                                                only_running=True)
                                 # post processing
                                 messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
                             workSpec.post_processed()
