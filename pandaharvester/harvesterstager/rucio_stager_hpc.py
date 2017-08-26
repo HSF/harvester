@@ -78,6 +78,7 @@ class RucioStagerHPC(PluginBase):
             executable += [ '--lifetime',('%d' %lifetime)]
             executable += [ '--rse',dstRSE]
             executable += [ '--scope',scope]
+            executable += [ '--guid',fileSpec.fileAttributes['guid']]
             executable += [('%s:%s' %(scope,datasetName))]
             executable += [('%s' %fileSpec.path)]
 
@@ -107,8 +108,8 @@ class RucioStagerHPC(PluginBase):
             response = process.communicate()
             #print response
             if fileSpec.status == 'failed' : 
-                ErrMsg = ErrMsg + response[1].strip("\n")
-                tmpLog.debug(ErrMsg)
+                ErrMsg = ErrMsg + 'rucio stdout: ' + response[0] + '\nrucio stderr: ' + response[1]
+                tmpLog.error( ErrMsg)
 
             # force update
             fileSpec.force_update('status')
