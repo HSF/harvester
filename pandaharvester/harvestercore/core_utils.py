@@ -133,13 +133,18 @@ def get_output_file_report(jobspec):
             guid = jobspec.get_logfile_info()['guid']
         else:
             guid = str(uuid.uuid4())
+        # checksum
+        if fileSpec.chksum is not None and ':' in fileSpec.chksum:
+            chksum = fileSpec.chksum.split(':')[-1]
+        else:
+            chksum = fileSpec.chksum
         xml += """"<File ID="{guid}">
         <logical>
         <lfn name="{lfn}"/>
         </logical>
         <metadata att_name="fsize" att_value = "{fsize}"/>
         <metadata att_name="adler32" att_value="{chksum}"/>
-        </File> """.format(guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=fileSpec.chksum)
+        </File> """.format(guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=chksum)
     # tailor
     xml += """
     </POOLFILECATALOG>
