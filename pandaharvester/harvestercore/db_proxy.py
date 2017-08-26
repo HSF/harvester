@@ -1631,7 +1631,7 @@ class DBProxy:
             return False
 
     # get jobs with workerID
-    def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False):
+    def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False, only_running=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id))
@@ -1664,6 +1664,8 @@ class DBProxy:
                 # make job
                 jobSpec = JobSpec()
                 jobSpec.pack(resJ)
+                if only_running and jobSpec.subStatus not in ['running', 'submitted', 'queued']:
+                    continue
                 jobSpec.lockedBy = locked_by
                 # lock job
                 if locked_by is not None:

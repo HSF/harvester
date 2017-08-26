@@ -176,7 +176,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             elif workSpec.is_final_status():
                 jobSpec.set_end_time()
             # core count
-            if workSpec.nCore is not None:
+            if workSpec.nCore is not None and jobSpec.nCore is None:
                 try:
                     jobSpec.nCore = int(workSpec.nCore / len(jobspec_list))
                     if jobSpec.nCore == 0:
