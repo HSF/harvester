@@ -581,6 +581,17 @@ class DBProxy:
                     self.execute(sqlC, varMap)
                     resC = self.cur.fetchone()
                     if resC is not None:
+                        # update limits just in case
+                        sqlU = "UPDATE {0} ".format(pandaQueueTableName)
+                        sqlU += "SET nQueueLimitJob=:nQueueLimitJob,nQueueLimitWorker=:nQueueLimitWorker,"
+                        sqlU += "maxWorkers=:maxWorkers "
+                        sqlU += "WHERE queueName=:queueName "
+                        varMap = dict()
+                        varMap[':queueName'] = queueName
+                        varMap[':nQueueLimitJob'] = queueConfig.nQueueLimitJob
+                        varMap[':nQueueLimitWorker'] = queueConfig.nQueueLimitWorker
+                        varMap[':maxWorkers'] = queueConfig.maxWorkers
+                        self.execute(sqlU, varMap)
                         continue
                     # insert queue
                     varMap = dict()
@@ -1018,7 +1029,8 @@ class DBProxy:
 
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
-                                   use_job_late_binding, check_interval, lock_interval, locked_by):
+                                   use_job_late_binding, check_interval, lock_interval, locked_by,
+                                   allow_job_mixture=False):
         toCommit = False
         try:
             # get logger
@@ -1030,6 +1042,7 @@ class DBProxy:
             else:
                 maxJobs = -(-(n_workers + n_ready) // n_workers_per_job)
             # core part of sql
+            # submitted and running are for multi-workers
             sqlCore = "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
             sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit)) "
             sqlCore += "AND (submitterTime IS NULL "
@@ -1060,11 +1073,12 @@ class DBProxy:
                 self.execute(sqlC, varMap)
                 nAvailableJobs, = self.cur.fetchone()
                 maxJobs = int(min(maxJobs, nAvailableJobs) / n_jobs_per_worker) * n_jobs_per_worker
+            tmpStr = 'n_workers={0} n_ready={1} '.format(n_workers, n_ready)
+            tmpStr += 'n_jobs_per_worker={0} n_workers_per_job={1} '.format(n_jobs_per_worker, n_workers_per_job)
+            tmpStr += 'n_ava_jobs={0}'.format(nAvailableJobs)
+            tmpLog.debug(tmpStr)
             if maxJobs == 0:
-                tmpStr = 'skip due to maxJobs=0 : '
-                tmpStr += 'n_workers={0} n_ready={1} '.format(n_workers, n_ready)
-                tmpStr += 'n_jobs_per_worker={0} n_workers_per_job={1} '.format(n_jobs_per_worker, n_workers_per_job)
-                tmpStr += 'n_ava_jobs={0}'.format(nAvailableJobs)
+                tmpStr = 'skip due to maxJobs=0'
                 tmpLog.debug(tmpStr)
             else:
                 toCommit = True
@@ -1084,13 +1098,16 @@ class DBProxy:
                 varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
                 self.execute(sql, varMap)
                 resList = self.cur.fetchall()
+                tmpStr = 'fetched {0} jobs'.format(len(resList))
+                tmpLog.debug(tmpStr)
                 jobChunk = []
                 for res in resList:
                     # make job
                     jobSpec = JobSpec()
                     jobSpec.pack(res)
                     # new chunk
-                    if len(jobChunk) > 0 and jobChunk[0].taskID != jobSpec.taskID:
+                    if len(jobChunk) > 0 and jobChunk[0].taskID != jobSpec.taskID and not allow_job_mixture:
+                        tmpLog.debug('new chunk with {0} jobs due to taskID change'.format(len(jobChunk)))
                         jobChunkList.append(jobChunk)
                         jobChunk = []
                     # only prepared for new worker
@@ -1099,6 +1116,7 @@ class DBProxy:
                     jobChunk.append(jobSpec)
                     # enough jobs in chunk
                     if n_jobs_per_worker is not None and len(jobChunk) >= n_jobs_per_worker:
+                        tmpLog.debug('new chunk with {0} jobs due to n_jobs_per_worker'.format(len(jobChunk)))
                         jobChunkList.append(jobChunk)
                         jobChunk = []
                     # one job per multiple workers
@@ -1106,18 +1124,22 @@ class DBProxy:
                         if jobSpec.nWorkersLimit is None:
                             jobSpec.nWorkersLimit = n_workers_per_job
                         for i in range(jobSpec.nWorkersLimit - jobSpec.nWorkers):
+                            tmpLog.debug('new chunk with {0} jobs due to n_workers_per_job'.format(len(jobChunk)))
                             jobChunkList.append(jobChunk)
                         jobChunk = []
-                    # lock job
-                    varMap = dict()
-                    varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':timeNow'] = timeNow
-                    varMap[':lockedBy'] = locked_by
-                    self.execute(sqlL, varMap)
-                    jobSpec.lockedBy = locked_by
                     # enough job chunks
                     if len(jobChunkList) >= n_workers:
                         break
+                # lock jobs
+                for jobChunk in jobChunkList:
+                    for jobSpec in jobChunk:
+                        # lock job
+                        varMap = dict()
+                        varMap[':PandaID'] = jobSpec.PandaID
+                        varMap[':timeNow'] = timeNow
+                        varMap[':lockedBy'] = locked_by
+                        self.execute(sqlL, varMap)
+                        jobSpec.lockedBy = locked_by
             # commit
             if toCommit:
                 self.commit()
@@ -1792,6 +1814,8 @@ class DBProxy:
             # sql to get associated files
             sqlAF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID AND fileType<>:type "
+            # sql to increment attempt number
+            sqlFU = "UPDATE {0} SET attemptNr=attemptNr+1 WHERE fileID=:fileID ".format(fileTableName)
             # get jobs
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=interval_with_lock)
@@ -1837,7 +1861,12 @@ class DBProxy:
                     for resFile in resFileList:
                         fileSpec = FileSpec()
                         fileSpec.pack(resFile)
+                        fileSpec.attemptNr += 1
                         jobSpec.add_out_file(fileSpec)
+                        # increment attempt number
+                        varMap = dict()
+                        varMap[':fileID'] = fileSpec.fileID
+                        self.execute(sqlFU, varMap)
                     jobSpecList.append(jobSpec)
                     # get associated files
                     if has_out_file_flag == JobSpec.HO_hasZipOutput:
