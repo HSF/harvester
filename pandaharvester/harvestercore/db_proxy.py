@@ -1760,7 +1760,7 @@ class DBProxy:
             return None
 
     # get jobs to trigger or check output transfer or zip output
-    def get_jobs_for_stage_out(self, max_jobs, interval_with_lock, interval_without_lock, locked_by,
+    def get_jobs_for_stage_out(self, max_jobs, interval_without_lock, interval_with_lock, locked_by,
                                sub_status, has_out_file_flag, bad_has_out_file_flag=None):
         try:
             # get logger
