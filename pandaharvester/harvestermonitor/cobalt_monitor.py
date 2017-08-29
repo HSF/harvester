@@ -78,6 +78,8 @@ class CobaltMonitor (PluginBase):
                        newStatus = WorkSpec.ST_running
                     elif 'killing' in state:
                        newStatus = WorkSpec.ST_failed
+                    elif 'exiting' in state:
+                       newStatus = WorkSpec.ST_running
                     else:
                        raise Exception('failed to parse job state "%s" qstat stdout: %s\n stderr: %s' % (state,stdOut,stdErr))
                 
