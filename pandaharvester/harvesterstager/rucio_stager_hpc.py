@@ -75,6 +75,7 @@ class RucioStagerHPC(PluginBase):
 
             executable = ['/usr/bin/env',
                           'rucio', '-v', 'upload']
+            executable += [ '--no-register' ]
             executable += [ '--lifetime',('%d' %lifetime)]
             executable += [ '--rse',dstRSE]
             executable += [ '--scope',scope]
@@ -85,30 +86,38 @@ class RucioStagerHPC(PluginBase):
             #print executable 
 
             tmpLog.debug('rucio upload command: {0} '.format(executable))
-
+            
             process = subprocess.Popen(executable,
-                                       bufsize=-1,
                                        stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE)
+                                       stderr=subprocess.STDOUT)
 
-            while True:
-                time.sleep(0.1)
-                exit_code = process.poll()
-                if exit_code is not None:
-                    if exit_code == 0:
-                        fileSpec.status = 'finished'
-                    else:
-                        fileSpec.status = 'failed'
-                        ErrMsg = ErrMsg + (" %s " %fileSpec.lfn)
-                        allChecked = False                        
-                    break
-                else:
-                    continue
+            stdout,stderr = process.communicate()
+            
+            if process.returncode == 0:
+               fileSpec.status = 'finished'
+            else:
+               # check what failed
+               file_exists = False
+               rucio_error = False
+               for line in stdout.split('\n'):
+                  if 'File name in specified scope already exists' in line:
+                     file_exists = True
+                     break
+                  elif 'exceeded simultaneous SESSIONS_PER_USER limit' in line:
+                     rucio_error = True
+               if file_exists:
+                  fileSpec.status = 'finished'
+               elif rucio_error:
+                  fileSpec.status = 'failed'
+                  ErrMsg += '%s failed with rucio error "exceeded simultaneous SESSIONS_PER_USER limit"' % fileSpec.lfn
+               else:
+                  fileSpec.status = 'failed'
+                  ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn,stdout)
+                  allChecked = False
 
-            response = process.communicate()
-            #print response
-            if fileSpec.status == 'failed' : 
-                ErrMsg = ErrMsg + 'rucio stdout: ' + response[0] + '\nrucio stderr: ' + response[1]
+
+            if fileSpec.status == 'failed': 
+                ErrMsg = ErrMsg + 'rucio output: ' + stdout
                 tmpLog.error( ErrMsg)
 
             # force update
