@@ -24,6 +24,7 @@ class QueueConfig:
         self.resourceType = PandaQueueSpec.RT_catchall
         self.getJobCriteria = None
         self.ddmEndpointIn = None
+        self.allowJobMixture = False
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):

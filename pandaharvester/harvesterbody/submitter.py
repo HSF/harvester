@@ -96,7 +96,8 @@ class Submitter(AgentBase):
                                                                             queueConfig.useJobLateBinding,
                                                                             harvester_config.submitter.checkInterval,
                                                                             harvester_config.submitter.lockInterval,
-                                                                            lockedBy)
+                                                                            lockedBy,
+                                                                            queueConfig.allowJobMixture)
                     elif queueConfig.mapType == WorkSpec.MT_MultiWorkers:
                         # multiple workers for one job
                         nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig)

@@ -149,12 +149,14 @@ class JobSpec(SpecBase):
         for fileSpec in self.outFiles:
             if fileSpec.status not in ['finished', 'failed']:
                 fileSpec.status = 'transferring'
+                fileSpec.attemptNr = 0
 
     # all files are zipped
     def all_files_zipped(self):
         for fileSpec in self.outFiles:
             if fileSpec.status not in ['finished', 'failed']:
                 fileSpec.status = 'defined'
+                fileSpec.attemptNr = 0
 
     # convert to event data
     def to_event_data(self):

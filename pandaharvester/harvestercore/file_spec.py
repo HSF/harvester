@@ -26,8 +26,13 @@ class FileSpec(SpecBase):
                            'endpoint:text',
                            'groupID:text',
                            'groupStatus:text',
-                           'groupUpdateTime:timestamp'
+                           'groupUpdateTime:timestamp',
+                           'attemptNr:integer'
                            )
+
+    # attributes initialized with 0
+    zeroAttrs = ('attemptNr',
+                 )
 
     # constructor
     def __init__(self):
