@@ -62,13 +62,16 @@ class Monitor(AgentBase):
                         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
                         tmpOut = tmpRetMap[workSpec.workerID]
                         newStatus = tmpOut['newStatus']
+                        monStatus = tmpOut['monStatus']
                         diagMessage = tmpOut['diagMessage']
                         workAttributes = tmpOut['workAttributes']
                         eventsToUpdate = tmpOut['eventsToUpdate']
                         filesToStageOut = tmpOut['filesToStageOut']
                         eventsRequestParams = tmpOut['eventsRequestParams']
                         pandaIDs = tmpOut['pandaIDs']
-                        tmpLog.debug('newStatus={0} diag={1}'.format(newStatus, diagMessage))
+                        tmpLog.debug('newStatus={0} monitoredStatus={1} diag={2}'.format(newStatus,
+                                                                                         monStatus,
+                                                                                         diagMessage))
                         iWorker += 1
                         # check status
                         if newStatus not in WorkSpec.ST_LIST:
@@ -122,6 +125,8 @@ class Monitor(AgentBase):
             eventsRequestParams = {}
             eventsToUpdate = []
             pandaIDs = []
+            workAttributes = None
+            filesToStageOut = None
             # job-level late binding
             if workSpec.hasJob == 0 and queue_config.mapType != WorkSpec.MT_NoJob:
                 # check if job is requested
@@ -131,25 +136,12 @@ class Monitor(AgentBase):
                     workStatus = WorkSpec.ST_ready
                 else:
                     workStatus = workSpec.status
-                workAttributes = None
-                filesToStageOut = None
             else:
                 workStatus = None
                 workersToCheck.append(workSpec)
-                # get work attributes and output files
-                workAttributes = messenger.get_work_attributes(workSpec)
-                filesToStageOut = messenger.get_files_to_stage_out(workSpec)
-                # get events to update
-                if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
-                    eventsToUpdate = messenger.events_to_update(workSpec)
-                # request events
-                if workSpec.eventsRequest == WorkSpec.EV_useEvents:
-                    eventsRequestParams = messenger.events_requested(workSpec)
-                # get PandaIDs for pull model
-                if queue_config.mapType == WorkSpec.MT_NoJob:
-                    pandaIDs = messenger.get_panda_ids(workSpec)
             # add
             retMap[workSpec.workerID] = {'newStatus': workStatus,
+                                         'monStatus': workStatus,
                                          'workAttributes': workAttributes,
                                          'filesToStageOut': filesToStageOut,
                                          'eventsRequestParams': eventsRequestParams,
@@ -164,6 +156,25 @@ class Monitor(AgentBase):
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
                 if workerID in retMap:
+                    # get work attributes and output files
+                    workAttributes = messenger.get_work_attributes(workSpec)
+                    retMap[workerID]['workAttributes'] = workAttributes
+                    filesToStageOut = messenger.get_files_to_stage_out(workSpec)
+                    retMap[workerID]['filesToStageOut'] = filesToStageOut
+                    # get events to update
+                    if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
+                        eventsToUpdate = messenger.events_to_update(workSpec)
+                        retMap[workerID]['eventsToUpdate'] = eventsToUpdate
+                    # request events
+                    if workSpec.eventsRequest == WorkSpec.EV_useEvents:
+                        eventsRequestParams = messenger.events_requested(workSpec)
+                        retMap[workerID]['eventsRequestParams'] = eventsRequestParams
+                    # get PandaIDs for pull model
+                    if queue_config.mapType == WorkSpec.MT_NoJob:
+                        pandaIDs = messenger.get_panda_ids(workSpec)
+                    retMap[workerID]['pandaIDs'] = pandaIDs
+                    # keep original new status
+                    retMap[workerID]['monStatus'] = newStatus
                     # set running while there are events to update or files to stage out
                     if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
                         if len(retMap[workerID]['filesToStageOut']) > 0 or \
