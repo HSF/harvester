@@ -94,7 +94,7 @@ class SharedFileMessenger(PluginBase):
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             # look for job report
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
+            jsonFilePath = os.path.join(accessPoint, jsonJobReport)
             tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
             if not os.path.exists(jsonFilePath):
                 # not found

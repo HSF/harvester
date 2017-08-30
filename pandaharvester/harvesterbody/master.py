@@ -2,6 +2,7 @@ import os
 import pwd
 import grp
 import sys
+import socket
 import signal
 import daemon.pidfile
 import argparse
@@ -164,12 +165,17 @@ def main(daemon_mode=True):
                         help='pid filename')
     parser.add_argument('--single', action='store_true', dest='singleMode', default=False,
                         help='use single mode')
+    parser.add_argument('--hostname_file', action='store', dest='hostNameFile', default=None,
+                        help='to record the hostname where harvester is launched')
     options = parser.parse_args()
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
     if daemon_mode:
         timeNow = datetime.datetime.utcnow()
         print "{0} Master: INFO    start".format(str(timeNow))
+    if options.hostNameFile is not None:
+        with open(options.hostNameFile, 'w') as f:
+            f.write(socket.getfqdn())
     if daemon_mode:
         # make daemon context
         dc = daemon.DaemonContext(stdout=sys.stdout,
