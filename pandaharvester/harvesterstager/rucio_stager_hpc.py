@@ -45,7 +45,8 @@ class RucioStagerHPC(PluginBase):
         zip_datasetName = 'harvester_stage_out.{0}'.format(str(uuid.uuid4()))
         fileAttrs = jobspec.get_output_file_attributes()
         for fileSpec in jobspec.outFiles:
-           # skip already done                                                                                                                                               
+            # skip already done
+            tmpLog.debug(' file: %s status: %s' % (fileSpec.lfn,fileSpec.status))                                                                                                                                             
             if fileSpec.status in ['finished', 'failed']:
                 continue
             # set destination RSE
@@ -98,35 +99,33 @@ class RucioStagerHPC(PluginBase):
             else:
                # check what failed
                file_exists = False
-               rucio_error = False
+               rucio_sessions_limit_error = False
                for line in stdout.split('\n'):
                   if 'File name in specified scope already exists' in line:
                      file_exists = True
                      break
                   elif 'exceeded simultaneous SESSIONS_PER_USER limit' in line:
-                     rucio_error = True
+                     rucio_sessions_limit_error = True
                if file_exists:
+                  tmpLog.debug('file exists, marking transfer as finished')
                   fileSpec.status = 'finished'
-               elif rucio_error:
-                  fileSpec.status = 'failed'
-                  ErrMsg += '%s failed with rucio error "exceeded simultaneous SESSIONS_PER_USER limit"' % fileSpec.lfn
+               elif rucio_sessions_limit_error:
+                  # do nothing
+                  tmpLog.warning('rucio returned error, will retry: stdout: %s' % stdout)
+                  # do not change fileSpec.status and Harvester will retry if this function returns False
+                  allChecked = False
+                  continue
                else:
                   fileSpec.status = 'failed'
+                  tmpLog.error('rucio upload failed with stdout: %s' % stdout)
                   ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn,stdout)
                   allChecked = False
-
-
-            if fileSpec.status == 'failed': 
-                ErrMsg = ErrMsg + 'rucio output: ' + stdout
-                tmpLog.error( ErrMsg)
 
             # force update
             fileSpec.force_update('status')
 
-            tmpLog.debug('Result of rucio upload command: {0}'.format(fileSpec.status))
-
-            #        errMsg = core_utils.dump_error_message(tmpLog)
-
+            tmpLog.debug('file: %s status: %s' % (fileSpec.lfn,fileSpec.status))                                      
+            
         # return
         tmpLog.debug('done')
         if allChecked:
