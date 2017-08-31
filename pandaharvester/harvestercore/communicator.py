@@ -160,6 +160,10 @@ class Communicator:
             data['state'] = jobSpec.get_status()
             data['attemptNr'] = jobSpec.attemptNr
             data['jobSubStatus'] = jobSpec.subStatus
+            # change cancelled to failed to be accepted by panda server
+            if data['state'] == 'cancelled':
+                data['jobSubStatus'] = data['state']
+                data['state'] = 'failed'
             if jobSpec.startTime is not None:
                 data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
             if jobSpec.endTime is not None:
