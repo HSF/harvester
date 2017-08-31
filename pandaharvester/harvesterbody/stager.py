@@ -27,7 +27,7 @@ class Stager(AgentBase):
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToCheck,
-                                                              harvester_config.stager.triggerInterval,
+                                                              harvester_config.stager.checkInterval,
                                                               harvester_config.stager.lockInterval,
                                                               lockedBy, 'transferring',
                                                               JobSpec.HO_hasTransfer)

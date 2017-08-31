@@ -39,7 +39,7 @@ class ProxyCacheCredManager(PluginBase):
         mainLog = core_utils.make_logger(_logger)
         # make communication channel to PanDA
         com = CommunicatorPool()
-        proxy, msg = com.get_proxy(self.voms)
+        proxy, msg = com.get_proxy(self.voms, (self.inCertFile, self.inCertFile))
         if proxy is not None:
             pFile = open(self.outCertFile, 'w')
             pFile.write(proxy)

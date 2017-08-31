@@ -66,7 +66,7 @@ class GoPreparator(PluginBase):
             tmpLog.debug('skip since already queued with {0}'.format(str(transferTasks[label])))
             return True, ''
         # get input file attributes
-        inFiles = jobspec.get_input_file_attributes()
+        inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         tmpLog.debug('transfer {0} input files'.format(len(inFiles)))
         # make transfer data
         try:

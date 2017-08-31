@@ -56,9 +56,21 @@ class JobSpec(SpecBase):
         SpecBase.__init__(self)
         object.__setattr__(self, 'events', set())
         object.__setattr__(self, 'zipEventMap', {})
+        object.__setattr__(self, 'inFiles', set())
         object.__setattr__(self, 'outFiles', set())
         object.__setattr__(self, 'zipFileMap', {})
         object.__setattr__(self, 'workspec_list', set())
+
+    # add file
+    def add_file(self, filespec):
+        if filespec.fileType == 'input':
+            self.add_in_file(filespec)
+        else:
+            self.add_out_file(filespec)
+
+    # add input file
+    def add_in_file(self, filespec):
+        self.inFiles.add(filespec)
 
     # add output file
     def add_out_file(self, filespec):
@@ -98,7 +110,9 @@ class JobSpec(SpecBase):
     def set_attributes(self, attrs):
         if attrs is None:
             return
-        attrs = copy.copy(attrs)
+        if self.PandaID not in attrs:
+            return
+        attrs = copy.copy(attrs[self.PandaID])
         # set metadata and outputs to dedicated attributes
         if 'metadata' in attrs:
             self.metaData = attrs['metadata']
@@ -135,12 +149,14 @@ class JobSpec(SpecBase):
         for fileSpec in self.outFiles:
             if fileSpec.status not in ['finished', 'failed']:
                 fileSpec.status = 'transferring'
+                fileSpec.attemptNr = 0
 
     # all files are zipped
     def all_files_zipped(self):
         for fileSpec in self.outFiles:
             if fileSpec.status not in ['finished', 'failed']:
                 fileSpec.status = 'defined'
+                fileSpec.attemptNr = 0
 
     # convert to event data
     def to_event_data(self):
@@ -161,7 +177,12 @@ class JobSpec(SpecBase):
         return data, eventSpecs
 
     # get input file attributes
-    def get_input_file_attributes(self):
+    def get_input_file_attributes(self, skip_ready=False):
+        lfnToSkip = set()
+        if skip_ready:
+            for fileSpec in self.inFiles:
+                if fileSpec.status == 'ready':
+                    lfnToSkip.add(fileSpec.lfn)
         inFiles = {}
         lfns = self.jobParams['inFiles'].split(',')
         guids = self.jobParams['GUID'].split(',')
@@ -176,6 +197,8 @@ class JobSpec(SpecBase):
                 fsize = long(fsize)
             except:
                 fsize = None
+            if lfn in lfnToSkip:
+                continue
             inFiles[lfn] = {'fsize': fsize,
                             'guid': guid,
                             'checksum': chksum,
@@ -186,18 +209,35 @@ class JobSpec(SpecBase):
         if 'inFilePaths' in self.jobParams:
             paths = self.jobParams['inFilePaths'].split(',')
             for lfn, path in zip(lfns, paths):
+                if lfn in lfnToSkip:
+                    continue
                 inFiles[lfn]['path'] = path
+        # delete empty file
+        if '' in inFiles:
+            del inFiles['']
+        if 'NULL' in inFiles:
+            del inFiles['NULL']
         return inFiles
 
     # set input file paths
     def set_input_file_paths(self, in_files):
-        lfns = self.jobParams['inFiles'].split(',')
+        lfns = self.get_input_file_attributes().keys()
         paths = []
         for lfn in lfns:
             paths.append(in_files[lfn]['path'])
         self.jobParams['inFilePaths'] = ','.join(paths)
         # trigger updating
         self.force_update('jobParams')
+        # update file specs
+        for fileSpec in self.inFiles:
+            if fileSpec.lfn in in_files:
+                fileSpec.path = in_files[fileSpec.lfn]['path']
+
+    # set ready to all input files
+    def set_all_input_ready(self):
+        # update file specs
+        for fileSpec in self.inFiles:
+            fileSpec.status = 'ready'
 
     # get output file attributes
     def get_output_file_attributes(self):
@@ -239,3 +279,64 @@ class JobSpec(SpecBase):
     # get work spec list
     def get_workspec_list(self):
         return self.workspec_list
+
+    # get job attributes to be reported to Panda
+    def get_job_attributes_for_panda(self):
+        data = dict()
+        if self.jobAttributes is None:
+            return data
+        # extract only panda attributes
+        # FIXME use set literal for python >=2.7
+        panda_attributes = ['token', 'transExitCode', 'pilotErrorCode', 'pilotErrorDiag', 'timestamp',
+                            'node', 'workdir', 'cpuConsumptionTime', 'cpuConsumptionUnit', 'remainingSpace',
+                            'schedulerID', 'pilotID', 'siteName', 'messageLevel', 'pilotLog',
+                            'cpuConversionFactor', 'exeErrorCode', 'exeErrorDiag', 'pilotTiming',
+                            'computingElement', 'startTime', 'endTime', 'nEvents', 'nInputFiles',
+                            'batchID', 'attemptNr', 'jobMetrics',
+                            'stdout', 'coreCount', 'maxRSS', 'maxVMEM', 'maxSWAP', 'maxPSS',
+                            'avgRSS', 'avgVMEM', 'avgSWAP', 'avgPSS', 'totRCHAR', 'totWCHAR', 'totRBYTES',
+                            'totWBYTES', 'rateRCHAR', 'rateWCHAR', 'rateRBYTES', 'rateWBYTES']
+        panda_attributes = set(panda_attributes)
+        for aName, aValue in self.jobAttributes.iteritems():
+            if aName in panda_attributes:
+                data[aName] = aValue
+        return data
+
+    # get job status from attributes
+    def get_job_status_from_attributes(self):
+        if self.jobAttributes is None or 'jobStatus' not in self.jobAttributes:
+            return None
+        return self.jobAttributes['jobStatus']
+
+    # set group to files
+    def set_groups_to_files(self, id_map):
+        timeNow = datetime.datetime.utcnow()
+        # reverse mapping
+        revMap = dict()
+        for gID, items in id_map.iteritems():
+            for lfn in items['lfns']:
+                revMap[lfn] = gID
+        # update file specs
+        for fileSpec in self.inFiles.union(self.outFiles):
+            if fileSpec.lfn in revMap:
+                fileSpec.groupID = revMap[fileSpec.lfn]
+                fileSpec.groupStatus = id_map[fileSpec.groupID]['groupStatus']
+                fileSpec.groupUpdateTime = timeNow
+
+    # update group status in files
+    def update_group_status_in_files(self, group_id, group_status):
+        timeNow = datetime.datetime.utcnow()
+        # update file specs
+        for fileSpec in self.inFiles.union(self.outFiles):
+            if fileSpec.groupID == group_id:
+                fileSpec.groupStatus = group_status
+                fileSpec.groupUpdateTime = timeNow
+
+    # get groups of input files
+    def get_groups_of_input_files(self, skip_ready=False):
+        groups = set()
+        for fileSpec in self.inFiles:
+            if skip_ready and fileSpec.status == 'ready':
+                continue
+            groups.add(fileSpec.groupID)
+        return groups

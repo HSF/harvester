@@ -59,8 +59,11 @@ def dump_error_message(tmp_log, err_str=None):
 
 
 # sleep for random duration and return True if no more sleep is needed
-def sleep(interval, stop_event):
-    randInterval = random.randint(int(interval * 0.8), int(interval * 1.2))
+def sleep(interval, stop_event, randomize=True):
+    if randomize:
+        randInterval = random.randint(int(interval * 0.8), int(interval * 1.2))
+    else:
+        randInterval = interval
     if stop_event is None:
         time.sleep(randInterval)
     else:
@@ -130,13 +133,18 @@ def get_output_file_report(jobspec):
             guid = jobspec.get_logfile_info()['guid']
         else:
             guid = str(uuid.uuid4())
+        # checksum
+        if fileSpec.chksum is not None and ':' in fileSpec.chksum:
+            chksum = fileSpec.chksum.split(':')[-1]
+        else:
+            chksum = fileSpec.chksum
         xml += """"<File ID="{guid}">
         <logical>
         <lfn name="{lfn}"/>
         </logical>
         <metadata att_name="fsize" att_value = "{fsize}"/>
         <metadata att_name="adler32" att_value="{chksum}"/>
-        </File> """.format(guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=fileSpec.chksum)
+        </File> """.format(guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=chksum)
     # tailor
     xml += """
     </POOLFILECATALOG>
@@ -163,48 +171,54 @@ def create_shards(input_list, size):
 # update job attributes with workers
 def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, files_to_stage_out_list,
                                        events_to_update_list):
-    if map_type == WorkSpec.MT_OneToOne:
-        jobSpec = jobspec_list[0]
+    if map_type in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiJobs]:
         workSpec = workspec_list[0]
-        jobSpec.set_attributes(workSpec.workAttributes)
-        # set start and end times
-        if workSpec.status in [WorkSpec.ST_running]:
-            jobSpec.set_start_time()
-        elif workSpec.is_final_status():
-            jobSpec.set_end_time()
-        # core count
-        if workSpec.nCore is not None:
-            jobSpec.nCore = workSpec.nCore
-        # add files
-        for files_to_stage_out in files_to_stage_out_list:
-            if jobSpec.PandaID in files_to_stage_out:
-                for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].iteritems():
-                    for fileAtters in fileAttersList:
-                        fileSpec = FileSpec()
-                        fileSpec.lfn = lfn
-                        fileSpec.PandaID = jobSpec.PandaID
-                        fileSpec.taskID = jobSpec.taskID
-                        fileSpec.path = fileAtters['path']
-                        fileSpec.fsize = fileAtters['fsize']
-                        fileSpec.fileType = fileAtters['type']
-                        fileSpec.fileAttributes = fileAtters
-                        if 'isZip' in fileAtters:
-                            fileSpec.isZip = fileAtters['isZip']
-                        if 'chksum' in fileAtters:
-                            fileSpec.chksum = fileAtters['chksum']
-                        if 'eventRangeID' in fileAtters:
-                            fileSpec.eventRangeID = fileAtters['eventRangeID']
-                        jobSpec.add_out_file(fileSpec)
-        # add events
-        for events_to_update in events_to_update_list:
-            if jobSpec.PandaID in events_to_update:
-                for data in events_to_update[jobSpec.PandaID]:
-                    eventSpec = EventSpec()
-                    eventSpec.from_data(data, jobSpec.PandaID)
-                    jobSpec.add_event(eventSpec, None)
-        jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status()
-        if workSpec.new_status:
-            jobSpec.trigger_propagation()
+        for jobSpec in jobspec_list:
+            jobSpec.set_attributes(workSpec.workAttributes)
+            # set start and end times
+            if workSpec.status in [WorkSpec.ST_running]:
+                jobSpec.set_start_time()
+            elif workSpec.is_final_status():
+                jobSpec.set_end_time()
+            # core count
+            if workSpec.nCore is not None and jobSpec.nCore is None:
+                try:
+                    jobSpec.nCore = int(workSpec.nCore / len(jobspec_list))
+                    if jobSpec.nCore == 0:
+                        jobSpec.nCore = 1
+                except:
+                    pass
+            # add files
+            for files_to_stage_out in files_to_stage_out_list:
+                if jobSpec.PandaID in files_to_stage_out:
+                    for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].iteritems():
+                        for fileAtters in fileAttersList:
+                            fileSpec = FileSpec()
+                            fileSpec.lfn = lfn
+                            fileSpec.PandaID = jobSpec.PandaID
+                            fileSpec.taskID = jobSpec.taskID
+                            fileSpec.path = fileAtters['path']
+                            fileSpec.fsize = fileAtters['fsize']
+                            fileSpec.fileType = fileAtters['type']
+                            fileSpec.fileAttributes = fileAtters
+                            if 'isZip' in fileAtters:
+                                fileSpec.isZip = fileAtters['isZip']
+                            if 'chksum' in fileAtters:
+                                fileSpec.chksum = fileAtters['chksum']
+                            if 'eventRangeID' in fileAtters:
+                                fileSpec.eventRangeID = fileAtters['eventRangeID']
+                            jobSpec.add_out_file(fileSpec)
+            # add events
+            for events_to_update in events_to_update_list:
+                if jobSpec.PandaID in events_to_update:
+                    for data in events_to_update[jobSpec.PandaID]:
+                        eventSpec = EventSpec()
+                        eventSpec.from_data(data, jobSpec.PandaID)
+                        jobSpec.add_event(eventSpec, None)
+            statusInJobAttr = jobSpec.get_job_status_from_attributes()
+            jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(statusInJobAttr)
+            if workSpec.new_status:
+                jobSpec.trigger_propagation()
     elif map_type == WorkSpec.MT_MultiWorkers:
         jobSpec = jobspec_list[0]
         # scan all workers
@@ -291,7 +305,4 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_running)
             else:
                 jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_submitted)
-    elif map_type == WorkSpec.MT_MultiJobs:
-        # TOBEFIXED
-        pass
     return True

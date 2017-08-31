@@ -38,4 +38,4 @@ newJob = proxy.get_job(1)
 
 
 a = CommunicatorPool()
-a.get_jobs('siteName', 'nodeName', 'prodSourceLabel', 'computingElement', 1)
+a.get_jobs('siteName', 'nodeName', 'prodSourceLabel', 'computingElement', 1, {})

@@ -22,7 +22,18 @@ class Cacher(AgentBase):
     # main loop
     def run(self):
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+            # execute
+            self.execute()
+            # check if being terminated
+            if self.terminated(harvester_config.cacher.sleepTime, randomize=False):
+                return
+
+    # main
+    def execute(self):
+        mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+        # get lock
+        locked = self.dbProxy.get_process_lock('cacher', self.get_pid(), harvester_config.cacher.sleepTime)
+        if locked:
             mainLog.debug('getting information')
             timeLimit = datetime.datetime.utcnow() - \
                         datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
@@ -47,10 +58,6 @@ class Cacher(AgentBase):
                 if tmpStat:
                     mainLog.debug('refreshed key={0} subKey={1}'.format(mainKey, subKey))
             mainLog.debug('done')
-            # check if being terminated
-            if self.terminated(harvester_config.cacher.sleepTime):
-                mainLog.debug('terminated')
-                return
 
 
     # get new data
@@ -69,7 +76,7 @@ class Cacher(AgentBase):
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('http:'):
             try:
-                res = requests.get(info_url)
+                res = requests.get(info_url, timeout=60)
                 if res.status_code == 200:
                     try:
                         retVal = res.json()

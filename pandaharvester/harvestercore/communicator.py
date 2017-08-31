@@ -65,7 +65,7 @@ class Communicator:
         return False, errMsg
 
     # POST with https
-    def post_ssl(self, path, data):
+    def post_ssl(self, path, data, cert=None):
         try:
             tmpLog = None
             if self.verbose:
@@ -74,13 +74,15 @@ class Communicator:
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
+            if cert is None:
+                cert = (harvester_config.pandacon.cert_file,
+                        harvester_config.pandacon.key_file)
             res = requests.post(url,
                                 data=data,
                                 headers={"Accept": "application/json"},
                                 timeout=harvester_config.pandacon.timeout,
                                 verify=harvester_config.pandacon.ca_cert,
-                                cert=(harvester_config.pandacon.cert_file,
-                                      harvester_config.pandacon.key_file))
+                                cert=cert)
             if self.verbose:
                 tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
             if res.status_code == 200:
@@ -153,14 +155,15 @@ class Communicator:
                         if retVal in [True, False] and eventSpec.is_final_status():
                             eventSpec.subStatus = 'done'
             # update job
-            if jobSpec.jobAttributes is None:
-                data = {}
-            else:
-                data = copy.copy(jobSpec.jobAttributes)
+            data = jobSpec.get_job_attributes_for_panda()
             data['jobId'] = jobSpec.PandaID
             data['state'] = jobSpec.get_status()
             data['attemptNr'] = jobSpec.attemptNr
             data['jobSubStatus'] = jobSpec.subStatus
+            # change cancelled to failed to be accepted by panda server
+            if data['state'] == 'cancelled':
+                data['jobSubStatus'] = data['state']
+                data['state'] = 'failed'
             if jobSpec.startTime is not None:
                 data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
             if jobSpec.endTime is not None:
@@ -223,12 +226,12 @@ class Communicator:
         tmpStat, tmpRes = self.post_ssl('updateEventRanges', data)
         retMap = None
         if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmp_log, tmpRes)
+            core_utils.dump_error_message(tmp_log, tmpRes)
         else:
             try:
                 retMap = tmpRes.json()
             except:
-                errStr = core_utils.dump_error_message(tmp_log)
+                core_utils.dump_error_message(tmp_log)
         if retMap is None:
             retMap = {}
             retMap['StatusCode'] = 999
@@ -280,14 +283,14 @@ class Communicator:
         return False
     
     # get proxy
-    def get_proxy(self, voms_role):
+    def get_proxy(self, voms_role, cert=None):
         retVal = None
         retMsg = ''
         # get logger
         tmpLog = core_utils.make_logger(_logger)
         tmpLog.debug('start')
         data = {'role': voms_role}
-        tmpStat, tmpRes = self.post_ssl('getProxy', data)
+        tmpStat, tmpRes = self.post_ssl('getProxy', data, cert)
         if tmpStat is False:
             core_utils.dump_error_message(tmpLog, tmpRes)
         else:
@@ -297,9 +300,13 @@ class Communicator:
                     retVal = tmpDict['userProxy']
                 else:
                     retMsg = tmpDict['errorDialog']
+                    core_utils.dump_error_message(tmpLog, retMsg)
+                    tmpStat = False
             except:
                 retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
-        tmpLog.debug('done with {0}'.format(str(retVal)))
+                tmpStat = False
+        if tmpStat:
+            tmpLog.debug('done with {0}'.format(str(retVal)))
         return retVal, retMsg
 
     # update workers
@@ -322,12 +329,15 @@ class Communicator:
             try:
                 retCode, retList = tmpRes.json()
                 if not retCode:
-                    errStr = retList
+                    errStr = core_utils.dump_error_message(tmpLog, retList)
                     retList = None
+                    tmpStat = False
             except:
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
-        tmpLog.debug('done with {0}'.format(errStr))
+                tmpStat = False
+        if tmpStat:
+            tmpLog.debug('done with {0}'.format(errStr))
         return retList, errStr
 
     # send instance heartbeat
@@ -353,7 +363,9 @@ class Communicator:
             except:
                 tmpStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
-        tmpLog.debug('done with {0} : {1}'.format(retCode, tmpStr))
+                tmpStat = False
+        if tmpStat:
+            tmpLog.debug('done with {0} : {1}'.format(retCode, tmpStr))
         return retCode, tmpStr
 
     # update worker stats
@@ -374,12 +386,13 @@ class Communicator:
                 retCode, retMsg = tmpRes.json()
                 if not retCode:
                     tmpStat = False
-                    errStr = retMsg
+                    errStr = core_utils.dump_error_message(tmpLog, retMsg)
             except:
                 tmpStat = False
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
-        tmpLog.debug('done with {0}:{1}'.format(tmpStat, errStr))
+        if tmpStat:
+            tmpLog.debug('done with {0}:{1}'.format(tmpStat, errStr))
         return tmpStat, errStr
 
     # check jobs

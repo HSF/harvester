@@ -3,6 +3,7 @@ import types
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
@@ -16,6 +17,7 @@ class CredManager(AgentBase):
     def __init__(self, single_mode=False):
         AgentBase.__init__(self, single_mode)
         self.pluginFactory = PluginFactory()
+        self.dbProxy = DBProxy()
         # get module and class names
         moduleNames = self.get_list(harvester_config.credmanager.moduleName)
         classNames = self.get_list(harvester_config.credmanager.className)
@@ -55,12 +57,17 @@ class CredManager(AgentBase):
             # execute
             self.execute()
             # check if being terminated
-            if self.terminated(harvester_config.credmanager.sleepTime):
+            if self.terminated(harvester_config.credmanager.sleepTime, randomize=False):
                 return
 
 
     # main
     def execute(self):
+        # get lock
+        locked = self.dbProxy.get_process_lock('credmanager', self.get_pid(),
+                                               harvester_config.credmanager.sleepTime)
+        if not locked:
+            return
         # loop over all plugins
         for exeCore in self.exeCores:
             # do nothing

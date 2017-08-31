@@ -74,7 +74,7 @@ class Propagator(AgentBase):
                             tmpJobSpec.subStatus = 'done'
                         else:
                             # got kill command
-                            if tmpRet['command'] in ['tobekilled']:
+                            if 'command' in tmpRet and tmpRet['command'] in ['tobekilled']:
                                 nWorkers = self.dbProxy.kill_workers_with_job(tmpJobSpec.PandaID)
                                 if nWorkers == 0:
                                     # no remaining workers

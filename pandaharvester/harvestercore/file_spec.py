@@ -8,7 +8,7 @@ from spec_base import SpecBase
 
 class FileSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('fileID:integer primary key',
+    attributesWithTypes = ('fileID:integer primary key autoincrement',
                            'PandaID:integer',
                            'taskID:integer',
                            'lfn:text',
@@ -22,8 +22,17 @@ class FileSpec(SpecBase):
                            'fileAttributes:blob',
                            'isZip:integer',
                            'zipFileID:integer',
-                           'objstoreID:integer'
+                           'objstoreID:integer',
+                           'endpoint:text',
+                           'groupID:text',
+                           'groupStatus:text',
+                           'groupUpdateTime:timestamp',
+                           'attemptNr:integer'
                            )
+
+    # attributes initialized with 0
+    zeroAttrs = ('attemptNr',
+                 )
 
     # constructor
     def __init__(self):

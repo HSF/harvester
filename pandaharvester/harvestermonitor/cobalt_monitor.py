@@ -41,87 +41,84 @@ class CobaltMonitor (PluginBase):
                                  shell=False,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
-            newStatus = workSpec.status
+            oldStatus = workSpec.status
+            newStatus = None
             # first check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
             tmpLog.debug('retCode= {0}'.format(retCode))
             tmpLog.debug('stdOut = {0}'.format(stdOut))
+            tmpLog.debug('stdErr = {0}'.format(stdErr))
             errStr = ''
             if retCode == 0:
-                # parse
-                if len(stdOut.split('\n')) == 2:
-                    newStatus = WorkSpec.ST_finished 
-                else:
-                    tmpMatch = None
-                    for tmpLine in stdOut.split('\n'):
-                        # DPBtmpLog.debug('tmpLine = {0}'.format(tmpLine))
-                        tmpMatch = re.search('{0} '.format(workSpec.batchID), tmpLine)
-                        if tmpMatch is not None:
-                            errStr = tmpLine
-                            batchStatus = tmpLine.split()[4]
-                            tmpLog.debug('batchStatus = {0}'.format(batchStatus))
-                            if batchStatus == 'running':
-                                newStatus = WorkSpec.ST_running
-                            elif batchStatus == 'queued':
-                                newStatus = WorkSpec.ST_submitted
-                            elif batchStatus == 'user_hold':
-                                newStatus = WorkSpec.ST_submitted
-                            elif batchStatus == 'starting':
-                                newStatus = WorkSpec.ST_running
-                            else:
-                                # failed
-                                errStr = stdOut + ' ' + stdErr
-                                tmpLog.error(errStr)
-                                raise Exception('failed to parse job state: ' + batchStatus + ' from qstat output: \n' + stdOut)
-                            break
-                    if tmpMatch is None:
-                        # failed
-                        errStr = stdOut + ' ' + stdErr
-                        tmpLog.error(errStr)
-                        raise Exception('could not parse qstat output: \n' + stdOut)
+                # batch job is still running and has a state, output looks like this:
+                # JobID   User    WallTime  Nodes  State   Location
+                # ===================================================
+                # 124559  hdshin  06:00:00  64     queued  None
+                
+                lines = stdOut.split('\n')
+                parts = lines[2].split()
+                batchid = parts[0]
+                user = parts[1]
+                walltime = parts[2]
+                nodes = parts[3]
+                state = parts[4]
 
-                tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
+                if int(batchid) != int(workSpec.batchID):
+                    errStr += 'qstat returned status for wrong batch id %s != %s' % (batchid,workSpec.batchID)
+                    newStatus = WorkSpec.ST_failed
+                else:
+                    if 'running' in state:
+                       newStatus = WorkSpec.ST_running
+                    elif 'queued' in state:
+                       newStatus = WorkSpec.ST_submitted
+                    elif 'user_hold' in state:
+                       newStatus = WorkSpec.ST_submitted
+                    elif 'starting' in state:
+                       newStatus = WorkSpec.ST_running
+                    elif 'killing' in state:
+                       newStatus = WorkSpec.ST_failed
+                    elif 'exiting' in state:
+                       newStatus = WorkSpec.ST_running
+                    else:
+                       raise Exception('failed to parse job state "%s" qstat stdout: %s\n stderr: %s' % (state,stdOut,stdErr))
+                
                 retList.append((newStatus, errStr))
-            else:
-                # non zero return code 
-                # look for jobReport.json file 
-                jsonFilePath = os.path.join(workSpec.get_access_point(), "jobReport.json")
-                if os.path.exists(jsonFilePath):
-                    tmpLog.debug('found jobReport.json file : {0}'.format(jsonFilePath))
-                    try:
-                        with open(jsonFilePath) as jsonFile:
-                            loadDict = json.load(jsonFile)
-                        # tmpLog.debug('loaded jobReport dict : {0}'.format(str(loadDict)))
-                        tmpLog.debug('loaded jobReport dict')
-                        if 'exitCode' in loadDict :
-                            tmpLog.debug('loadDict[exitCode] = {0}'.format(str(loadDict['exitCode'])))
-                            if int(loadDict['exitCode']) == 0:
+            elif retCode == 1 and len(stdOut.strip()) == 0 and len(stdErr.strip()) == 0:
+                # exit code 1 and stdOut/stdErr has no content means job exited
+                # need to look at cobalt log to determine exit status
 
-                                newStatus = WorkSpec.ST_finished
-                            else:
-                                newStatus = WorkSpec.ST_failed
-                            if 'errMsg' in loadDict:
-                                errStr = loadDict['errMsg']
-                            tmpLog.error(errStr)
-                            retList.append((newStatus, errStr))        
-                        else:
-                            # no exit code found
-                            errStr = 'Failed to find exitCode value in jobReport.json'
-                            newStatus = WorkSpec.ST_failed
-                            tmpLog.error(errStr)
-                            retList.append((newStatus, errStr))
-                    except:
-                        # failed
-                        errStr = 'failed to load existing jobReport.json'
+                cobalt_logfile = os.path.join(workSpec.get_access_point(),'cobalt.log')
+                if os.path.exists(cobalt_logfile):
+                    return_code = None
+                    for line in open(cobalt_logfile):
+                        # looking for line like this:
+                        # Thu Aug 24 19:01:20 2017 +0000 (UTC) Info: task completed normally with an exit code of 0; initiating job cleanup and removal
+                        if 'task completed normally' in line:
+                            start_index = line.find('exit code of ') + len('exit code of ')
+                            end_index = line.find(';',start_index)
+                            return_code = int(line[start_index:end_index])
+                            break
+                        elif 'maximum execution time exceeded' in line:
+                            errStr += ' batch job exceeded wall clock time '
+                            
+                    if return_code == 0:
+                        newStatus = WorkSpec.ST_finished
+                        retList.append((newStatus,errStr))
+                    elif return_code is None:
+                        errStr += ' exit code not found in cobalt log file %s ' % cobalt_logfile
                         newStatus = WorkSpec.ST_failed
-                        tmpLog.error(errStr)
-                        retList.append((newStatus, errStr))
-                        continue
+                        retList.append((newStatus,errStr))
+                    else:
+                        errStr += ' non-zero exit code %s from batch job id %s ' % (return_code,workSpec.batchID)
+                        newStatus = WorkSpec.ST_failed
+                        retList.append((newStatus,errStr))
                 else:
-                    tmpLog.debug('Did not find jobReport.json file : {0}'.format(jsonFilePath))
-                    errStr = 'qstat {0} return code non zero and jobReport.json file not found '.format(workSpec.batchID)
-                    newStatus =  WorkSpec.ST_failed
-                    tmpLog.error(errStr)
-                    retList.append((newStatus, errStr))
+                    errStr += ' cobalt log file %s does not exist ' % cobalt_logfile
+                    newStatus = WorkSpec.ST_failed
+                    retList.append((newStatus,errStr))
+                
+            tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(oldStatus, newStatus))
+            tmpLog.debug('errStr: %s' % errStr)
+
         return True, retList

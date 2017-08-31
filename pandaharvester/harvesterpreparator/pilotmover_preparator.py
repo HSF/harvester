@@ -43,7 +43,7 @@ class PilotmoverPreparator(PluginBase):
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
         # get input files
         files = []
-        inFiles = jobspec.get_input_file_attributes()
+        inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
@@ -56,15 +56,17 @@ class PilotmoverPreparator(PluginBase):
                           'destination': dstpath})
         tmpLog.debug('files[] {0}'.format(files))
         data_client = data.StageInClient(site=jobspec.computingSite)
-        result = data_client.transfer(files)
-        tmpLog.debug('pilot.api data.StageInClient.transfer(files) result: {0}'.format(result))
-        # loop over each file check result all must be true for entire result to be true
         allChecked = True
         ErrMsg = 'These files failed to download : '
-        for answer in result:
-            if answer['errno'] != 0:
-                allChecked = False
-                ErrMsg = ErrMsg + (" %s " % answer['name'])
+        if len(files) > 0:
+            result = data_client.transfer(files)
+            tmpLog.debug('pilot.api data.StageInClient.transfer(files) result: {0}'.format(result))
+        
+            # loop over each file check result all must be true for entire result to be true
+            for answer in result:
+                if answer['errno'] != 0:
+                    allChecked = False
+                    ErrMsg = ErrMsg + (" %s " % answer['name'])
         # return
         tmpLog.debug('stop')
         if allChecked:

@@ -4,6 +4,7 @@ import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
@@ -52,6 +53,7 @@ class JobFetcher(AgentBase):
                 # convert to JobSpec
                 if len(jobs) > 0:
                     jobSpecs = []
+                    fileStatMap = dict()
                     for job in jobs:
                         timeNow = datetime.datetime.utcnow()
                         jobSpec = JobSpec()
@@ -63,6 +65,28 @@ class JobFetcher(AgentBase):
                         jobSpec.stateChangeTime = timeNow
                         if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                             jobSpec.zipPerMB = queueConfig.zipPerMB
+                        for tmpLFN in jobSpec.get_input_file_attributes().keys():
+                            # check file status
+                            if tmpLFN not in fileStatMap:
+                                fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, 'input',
+                                                                                   queueConfig.ddmEndpointIn)
+                            # make file spec
+                            fileSpec = FileSpec()
+                            fileSpec.PandaID = jobSpec.PandaID
+                            fileSpec.taskID = jobSpec.taskID
+                            fileSpec.lfn = tmpLFN
+                            fileSpec.endpoint = queueConfig.ddmEndpointIn
+                            # set preparing to skip stage-in if the file is (being) taken care of by another job
+                            if 'ready' in fileStatMap[tmpLFN] or 'preparing' in fileStatMap[tmpLFN] \
+                                    or 'to_prepare' in fileStatMap[tmpLFN]:
+                                fileSpec.status = 'preparing'
+                            else:
+                                fileSpec.status = 'to_prepare'
+                            if fileSpec.status not in fileStatMap[tmpLFN]:
+                                fileStatMap[tmpLFN][fileSpec.status] = 0
+                            fileStatMap[tmpLFN][fileSpec.status] += 1
+                            fileSpec.fileType = 'input'
+                            jobSpec.add_in_file(fileSpec)
                         jobSpec.trigger_propagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB

@@ -75,7 +75,7 @@ class WorkerAdjuster:
                 nNewWorkers = 0
                 if nQueueLimit > 0 and nQueue >= nQueueLimit:
                     # enough queued workers
-                    retMsg = 'No nNewWorkers since nQueue({0)>=nQueueLimit({1})'.format(nQueue, nQueueLimit)
+                    retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimit({1})'.format(nQueue, nQueueLimit)
                     tmpLog.debug(retMsg)
                     pass
                 elif maxWorkers > 0 and (nQueue + nReady + nRunning) >= maxWorkers:
