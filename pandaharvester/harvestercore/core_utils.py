@@ -188,6 +188,10 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                         jobSpec.nCore = 1
                 except:
                     pass
+            # batch ID
+            if not jobSpec.has_attribute('batchID'):
+                if workSpec.batchID is not None:
+                    jobSpec.set_one_attribute('batchID', workSpec.batchID)
             # add files
             for files_to_stage_out in files_to_stage_out_list:
                 if jobSpec.PandaID in files_to_stage_out:
