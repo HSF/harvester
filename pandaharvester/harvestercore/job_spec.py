@@ -122,6 +122,18 @@ class JobSpec(SpecBase):
             del attrs['xml']
         self.jobAttributes = attrs
 
+    # set one attribute
+    def set_one_attribute(self, attr, value):
+        if self.jobAttributes is None:
+            self.jobAttributes = dict()
+        self.jobAttributes[attr] = value
+
+    # check if an attribute is there
+    def has_attribute(self, attr):
+        if self.jobAttributes is None:
+            return False
+        return attr in self.jobAttributes
+
     # check if final status
     def is_final_status(self, job_status=None):
         if job_status is None:
