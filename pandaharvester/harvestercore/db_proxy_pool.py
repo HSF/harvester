@@ -1,3 +1,4 @@
+import os
 import Queue
 import threading
 from pandaharvester.harvesterconfig import harvester_config
@@ -40,8 +41,14 @@ class DBProxyPool(object):
         object.__setattr__(self, 'pool', None)
         # connection pool
         self.pool = Queue.Queue(harvester_config.db.nConnections)
+        currentThr = threading.current_thread()
+        if currentThr is None:
+            thrID = None
+        else:
+            thrID = currentThr.ident
+        thrName = '{0}-{1}'.format(os.getpid(), thrID)
         for i in range(harvester_config.db.nConnections):
-            con = DBProxy()
+            con = DBProxy(thr_name='{0}-{1}'.format(thrName, i))
             self.pool.put(con)
 
     # override __new__ to have a singleton

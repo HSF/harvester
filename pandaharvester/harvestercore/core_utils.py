@@ -310,3 +310,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             else:
                 jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_submitted)
     return True
+
+
+# rollover for log files
+def do_log_rollover():
+    PandaLogger.doRollOver()
