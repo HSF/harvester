@@ -46,7 +46,7 @@ conLock = threading.Lock()
 # connection class
 class DBProxy:
     # constructor
-    def __init__(self):
+    def __init__(self, thr_name=None):
         if harvester_config.db.engine == 'mariadb':
             import mysql.connector
             if hasattr(harvester_config.db, 'host'):
@@ -74,13 +74,14 @@ class DBProxy:
             self.usingAppLock = False
         else:
             self.usingAppLock = True
-        self.thrName = None
+        self.thrName = thr_name
         self.verbLog = None
         if harvester_config.db.verbose:
             self.verbLog = core_utils.make_logger(_logger, method_name='execute')
-            self.thrName = threading.current_thread()
-            if self.thrName is not None:
-                self.thrName = self.thrName.ident
+            if self.thrName is None:
+                currentThr = threading.current_thread()
+                if currentThr is not None:
+                    self.thrName = currentThr.ident
 
     # convert param dict to list
     def convert_params(self, sql, varmap):

@@ -180,12 +180,20 @@ def main(daemon_mode=True):
                         help='use single mode')
     parser.add_argument('--hostname_file', action='store', dest='hostNameFile', default=None,
                         help='to record the hostname where harvester is launched')
+    parser.add_argument('--rotate_log', action='store_true', dest='rotateLog', default=False,
+                        help='rollover log files before launching harvester')
     options = parser.parse_args()
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
+    # hostname
     if options.hostNameFile is not None:
         with open(options.hostNameFile, 'w') as f:
             f.write(socket.getfqdn())
+    # rollover log files
+    if options.rotateLog:
+        core_utils.do_log_rollover()
+        if hasattr(_logger.handlers[0], 'doRollover'):
+            _logger.handlers[0].doRollover()
     if daemon_mode:
         # redirect messages to stdout
         stdoutHandler = logging.StreamHandler(sys.stdout)
