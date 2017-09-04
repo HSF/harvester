@@ -86,8 +86,10 @@ class DBProxy:
     def convert_params(self, sql, varmap):
         # lock database if application side lock is used
         if self.usingAppLock \
-                and re.search('^INSERT', sql, re.I) is not None or re.search('^UPDATE', sql, re.I) is not None \
-                or re.search(' FOR UPDATE', sql, re.I) is not None:
+                and re.search('^INSERT', sql, re.I) is not None \
+                or re.search('^UPDATE', sql, re.I) is not None \
+                or re.search(' FOR UPDATE', sql, re.I) is not None \
+                or re.search('^DELETE', sql, re.I) is not None:
                 self.lockDB = True
         # remove FOR UPDATE for sqlite
         if harvester_config.db.engine == 'sqlite':
@@ -794,7 +796,7 @@ class DBProxy:
                 if nProcessing >= max_jobs:
                     # commit
                     self.commit()
-                    tmpLog.debug('enough jobs {0} are being processed'.format(len(nProcessing)))
+                    tmpLog.debug('enough jobs {0} are being processed'.format(nProcessing))
                     return []
                 max_jobs -= nProcessing
             # sql to get jobs
