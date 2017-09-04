@@ -4,12 +4,16 @@ import grp
 import sys
 import socket
 import signal
+import logging
 import daemon.pidfile
 import argparse
-import datetime
 import threading
 
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+
+# logger
+_logger = core_utils.setup_logger('master')
 
 # for singleton
 master_instance = False
@@ -157,6 +161,15 @@ class DummyContext(object):
         pass
 
 
+# wrapper for stderr
+class StdErrWrapper(object):
+    def write(self, message):
+        _logger.error(message)
+
+    def fileno(self):
+        return _logger.handlers[0].stream.fileno()
+
+
 # main
 def main(daemon_mode=True):
     # parse option
@@ -170,22 +183,35 @@ def main(daemon_mode=True):
     options = parser.parse_args()
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
-    if daemon_mode:
-        timeNow = datetime.datetime.utcnow()
-        print "{0} Master: INFO    start".format(str(timeNow))
     if options.hostNameFile is not None:
         with open(options.hostNameFile, 'w') as f:
             f.write(socket.getfqdn())
     if daemon_mode:
+        # redirect messages to stdout
+        stdoutHandler = logging.StreamHandler(sys.stdout)
+        stdoutHandler.setFormatter(_logger.handlers[0].formatter)
+        _logger.addHandler(stdoutHandler)
+        # collect streams not to be closed by daemon
+        files_preserve = []
+        for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
+            if loggerName.startswith('panda'):
+                for handler in loggerObj.handlers:
+                    if hasattr(handler, 'stream'):
+                        files_preserve.append(handler.stream)
+        sys.stderr = StdErrWrapper()
         # make daemon context
         dc = daemon.DaemonContext(stdout=sys.stdout,
                                   stderr=sys.stderr,
                                   uid=uid,
                                   gid=gid,
+                                  files_preserve=files_preserve,
                                   pidfile=daemon.pidfile.PIDLockFile(options.pid))
     else:
         dc = DummyContext()
     with dc:
+        if daemon_mode:
+            _logger.info("start")
+
         # stop event
         stopEvent = threading.Event()
 
@@ -206,9 +232,8 @@ def main(daemon_mode=True):
         master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)
         if master is not None:
             master.start()
-    if daemon_mode:
-        timeNow = datetime.datetime.utcnow()
-        print "{0} Master: INFO    terminated".format(str(timeNow))
+        if daemon_mode:
+            _logger.info('terminated')
 
 
 if __name__ == "__main__":
