@@ -1,4 +1,5 @@
 import core_utils
+from db_interface import DBInterface
 
 # logger
 _logger = core_utils.setup_logger()
@@ -40,4 +41,6 @@ class PluginFactory:
         # instantiate
         cls = self.classMap[pluginKey]
         impl = cls(**args)
+        # add database interface
+        impl.dbInterface = DBInterface()
         return impl
