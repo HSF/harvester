@@ -59,7 +59,7 @@ class DBProxy:
                 port = 3306
             self.con = mysql.connector.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
                                                db=harvester_config.db.schema, host=host, port=port)
-            self.cur = self.con.cursor(named_tuple=True)
+            self.cur = self.con.cursor(named_tuple=True, buffered=True)
         else:
             import sqlite3
             self.con = sqlite3.connect(harvester_config.db.database_filename,
@@ -585,15 +585,17 @@ class DBProxy:
                     resC = self.cur.fetchone()
                     if resC is not None:
                         # update limits just in case
-                        sqlU = "UPDATE {0} ".format(pandaQueueTableName)
-                        sqlU += "SET nQueueLimitJob=:nQueueLimitJob,nQueueLimitWorker=:nQueueLimitWorker,"
-                        sqlU += "maxWorkers=:maxWorkers "
-                        sqlU += "WHERE queueName=:queueName "
                         varMap = dict()
+                        sqlU = "UPDATE {0} SET ".format(pandaQueueTableName)
+                        for qAttr in ['nQueueLimitJob', 'nQueueLimitWorker', 'maxWorkers']:
+                            if hasattr(queueConfig, qAttr):
+                                sqlU += '{0}=:{0},'.format(qAttr)
+                                varMap[':{0}'.format(qAttr)] = getattr(queueConfig, qAttr)
+                        if len(varMap) == 0:
+                            continue
+                        sqlU = sqlU[:-1]
+                        sqlU += " WHERE queueName=:queueName "
                         varMap[':queueName'] = queueName
-                        varMap[':nQueueLimitJob'] = queueConfig.nQueueLimitJob
-                        varMap[':nQueueLimitWorker'] = queueConfig.nQueueLimitWorker
-                        varMap[':maxWorkers'] = queueConfig.maxWorkers
                         self.execute(sqlU, varMap)
                         continue
                     # insert queue
