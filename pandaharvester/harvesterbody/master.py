@@ -8,6 +8,7 @@ import logging
 import daemon.pidfile
 import argparse
 import threading
+import cProfile
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -182,6 +183,8 @@ def main(daemon_mode=True):
                         help='to record the hostname where harvester is launched')
     parser.add_argument('--rotate_log', action='store_true', dest='rotateLog', default=False,
                         help='rollover log files before launching harvester')
+    parser.add_argument('--profile_output', action='store', dest='profileOutput', default=None,
+                        help='filename to save the results of profiler')
     options = parser.parse_args()
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
@@ -239,7 +242,10 @@ def main(daemon_mode=True):
         # start master
         master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)
         if master is not None:
-            master.start()
+            if options.profileOutput is not None:
+                cProfile.runctx('master.start()', globals(), locals(), options.profileOutput)
+            else:
+                master.start()
         if daemon_mode:
             _logger.info('terminated')
 
