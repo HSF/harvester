@@ -5,7 +5,7 @@ from communicator import Communicator
 import core_utils
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('communicator_pool')
 
 
 # method wrapper
@@ -17,7 +17,7 @@ class CommunicatorMethod:
 
     # method emulation
     def __call__(self, *args, **kwargs):
-        tmpLog = core_utils.make_logger(_logger, 'method={0}'.format(self.methodName))
+        tmpLog = core_utils.make_logger(_logger, 'method={0}'.format(self.methodName), method_name='call')
         try:
             # get connection
             con = self.pool.get()

@@ -11,7 +11,7 @@ from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('submitter')
 
 
 # class to submit workers
@@ -30,7 +30,7 @@ class Submitter(AgentBase):
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.ident)
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
             # get queues associated to a site to submit workers
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
@@ -60,7 +60,7 @@ class Submitter(AgentBase):
             else:
                 # loop over all queues
                 for queueName, tmpVal in nWorkersPerQueue.iteritems():
-                    tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName))
+                    tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName), method_name='run')
                     tmpLog.debug('start')
                     nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                     nReady = tmpVal['nReady']

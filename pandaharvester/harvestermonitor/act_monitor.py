@@ -9,7 +9,7 @@ from act.common.aCTConfig import aCTConfigARC
 from act.atlas.aCTDBPanda import aCTDBPanda
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('act_monitor')
 
 
 # monitor for aCT plugin
@@ -19,7 +19,7 @@ class ACTMonitor(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         # Set up aCT DB connection
-        self.log = core_utils.make_logger(baseLogger, 'aCT submitter')
+        self.log = core_utils.make_logger(baseLogger, 'aCT submitter', method_name='__init__')
         self.conf = aCTConfigARC()
         self.actDB = aCTDBPanda(self.log, self.conf.get(["db", "file"]))
 
@@ -29,7 +29,8 @@ class ACTMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                            method_name='check_workers')
             try:
                 tmpLog.debug('Querying aCT for id {0}'.format(workSpec.batchID))
                 columns = ['actpandastatus', 'pandastatus']

@@ -7,7 +7,7 @@ from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('propagator')
 
 
 # propagate important checkpoints to panda
@@ -22,7 +22,7 @@ class Propagator(AgentBase):
     # main loop
     def run(self):
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
             mainLog.debug('getting jobs to propagate')
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,

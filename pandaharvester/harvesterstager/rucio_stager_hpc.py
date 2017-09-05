@@ -15,7 +15,7 @@ from rucio.client import Client as RucioClient
 from rucio.common.exception import RuleNotFound
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('rucio_stager_hpc')
 
 
 # plugin for stage-out with Rucio on an HPC site that must copy output elsewhere
@@ -29,14 +29,16 @@ class RucioStagerHPC(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='check_status')
         tmpLog.debug('start')
         return (True,'')
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_stage_out')
         tmpLog.debug('start')
         # loop over all files
         lifetime = 7*24*60*60
@@ -137,7 +139,8 @@ class RucioStagerHPC(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='zip_output')
         tmpLog.debug('start')
         try:
             for fileSpec in jobspec.outFiles:

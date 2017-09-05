@@ -9,7 +9,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('cobalt_monitor')
 
 
 # qstat output
@@ -32,7 +32,8 @@ class CobaltMonitor (PluginBase):
             #print "pprint(vars(workSpec))"
             #pprint(vars(workSpec))
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                            method_name='check_workers')
             # first command
             comStr = "qstat {0}".format(workSpec.batchID)
             # first check

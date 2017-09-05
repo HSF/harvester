@@ -6,7 +6,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('slurm_monitor')
 
 
 # monitor for SLURM batch system
@@ -20,7 +20,8 @@ class SlurmMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                            method_name='check_workers')
             # command
             comStr = "sacct --jobs={0}".format(workSpec.batchID)
             # check

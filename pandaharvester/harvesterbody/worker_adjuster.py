@@ -5,7 +5,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('worker_adjuster')
 
 
 # class to define number of workers to submit
@@ -19,7 +19,7 @@ class WorkerAdjuster:
 
     # define number of workers to submit based on various information
     def define_num_workers(self, static_num_workers, site_name):
-        tmpLog = core_utils.make_logger(_logger, 'site={0}'.format(site_name))
+        tmpLog = core_utils.make_logger(_logger, 'site={0}'.format(site_name), method_name='define_num_workers')
         tmpLog.debug('start')
         dyn_num_workers = copy.copy(static_num_workers)
         try:

@@ -7,7 +7,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('cred_manager')
 
 
 # credential manager
@@ -75,7 +75,8 @@ class CredManager(AgentBase):
                 continue
                 # make logger
             mainLog = core_utils.make_logger(_logger, "{0} {1}".format(exeCore.__class__.__name__,
-                                                                       exeCore.outCertFile))
+                                                                       exeCore.outCertFile),
+                                             method_name='execute')
             # check credential
             mainLog.debug('check credential')
             isValid = exeCore.check_credential()

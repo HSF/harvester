@@ -25,7 +25,7 @@ import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('communicator')
 
 
 # connection class
@@ -42,7 +42,7 @@ class Communicator:
         try:
             tmpLog = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger)
+                tmpLog = core_utils.make_logger(_logger, method_name='post')
                 tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURL, path)
             if self.verbose:
@@ -69,7 +69,7 @@ class Communicator:
         try:
             tmpLog = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger)
+                tmpLog = core_utils.make_logger(_logger, method_name='post_ssl')
                 tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
             if self.verbose:
@@ -108,7 +108,7 @@ class Communicator:
     def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs,
                  additional_criteria):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name))
+        tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='get_jobs')
         tmpLog.debug('try to get {0} jobs'.format(n_jobs))
         data = {}
         data['siteName'] = site_name
@@ -144,7 +144,8 @@ class Communicator:
     def update_jobs(self, jobspec_list):
         retList = []
         for jobSpec in jobspec_list:
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                            method_name='update_jobs')
             tmpLog.debug('start')
             # update events
             eventRanges, eventSpecs = jobSpec.to_event_data()
@@ -200,7 +201,8 @@ class Communicator:
         retVal = dict()
         for pandaID, data in data_map.iteritems():
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']))
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']),
+                                            method_name='get_event_ranges')
             tmpLog.debug('start')
             tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
             if tmpStat is False:
@@ -287,7 +289,7 @@ class Communicator:
         retVal = None
         retMsg = ''
         # get logger
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='get_proxy')
         tmpLog.debug('start')
         data = {'role': voms_role}
         tmpStat, tmpRes = self.post_ssl('getProxy', data, cert)
@@ -311,7 +313,7 @@ class Communicator:
 
     # update workers
     def update_workers(self, workspec_list):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='update_workers')
         tmpLog.debug('start')
         dataList = []
         for workSpec in workspec_list:
@@ -342,7 +344,7 @@ class Communicator:
 
     # send instance heartbeat
     def is_alive(self, key_values):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='is_alive')
         tmpLog.debug('start')
         # convert datetime
         for tmpKey, tmpVal in key_values.iteritems():
@@ -370,7 +372,7 @@ class Communicator:
 
     # update worker stats
     def update_worker_stats(self, site_name, stats):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='update_worker_stats')
         tmpLog.debug('start')
         data = dict()
         data['harvesterID'] = harvester_config.master.harvester_id
@@ -397,7 +399,7 @@ class Communicator:
 
     # check jobs
     def check_jobs(self, jobspec_list):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='check_jobs')
         tmpLog.debug('start')
         retList = []
         nLookup = 100
@@ -435,7 +437,7 @@ class Communicator:
 
     # get key pair
     def get_key_pair(self, public_key_name, private_key_name):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='get_key_pair')
         tmpLog.debug('start for {0}:{1}'.format(public_key_name, private_key_name))
         data = dict()
         data['publicKeyName'] = public_key_name

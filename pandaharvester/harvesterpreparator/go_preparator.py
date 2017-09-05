@@ -6,7 +6,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('go_preparator')
 
 
 # preparator with Globus Online
@@ -18,7 +18,8 @@ class GoPreparator(PluginBase):
     # check status
     def check_status(self, jobspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='check_status')
         # get label
         label = self.make_label(jobspec)
         tmpLog.debug('label={0}'.format(label))
@@ -51,7 +52,8 @@ class GoPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_preparation')
         # get label
         label = self.make_label(jobspec)
         tmpLog.debug('label={0}'.format(label))
@@ -101,7 +103,7 @@ class GoPreparator(PluginBase):
     # get transfer tasks
     def get_transfer_tasks(self, label=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_tasks')
         try:
             # execute
             tc = TransferClient()

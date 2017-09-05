@@ -7,7 +7,7 @@ from pandaharvester.harvestermover import mover_utils
 from pilot.api import data
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('pilotmover_preparator')
 
 
 # plugin for preparator based on Pilot2.0 Data API
@@ -31,7 +31,8 @@ class PilotmoverPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_preparation')
         tmpLog.debug('start')        
        
         # check that jobspec.computingSite is defined

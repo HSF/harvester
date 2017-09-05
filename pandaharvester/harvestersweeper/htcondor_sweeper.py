@@ -12,7 +12,7 @@ import subprocess
 #=== Definitions ==============================================
 
 ## Logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('htcondor_submitter')
 
 #==============================================================
 
@@ -46,7 +46,8 @@ class HTCondorSweeper(PluginBase):
         """
 
         ## Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='kill_worker')
 
         ## Kill command
         comStr = 'condor_rm {0}'.format(workspec.batchID)
@@ -73,7 +74,8 @@ class HTCondorSweeper(PluginBase):
         """
 
         ## Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='sweep_worker')
 
         ## Clean up worker directory
         shutil.rmtree(workspec.accessPoint)

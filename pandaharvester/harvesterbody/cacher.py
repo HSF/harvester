@@ -8,7 +8,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('cacher')
 
 
 # cache information
@@ -30,7 +30,7 @@ class Cacher(AgentBase):
 
     # main
     def execute(self):
-        mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+        mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='execute')
         # get lock
         locked = self.dbProxy.get_process_lock('cacher', self.get_pid(), harvester_config.cacher.sleepTime)
         if locked:
