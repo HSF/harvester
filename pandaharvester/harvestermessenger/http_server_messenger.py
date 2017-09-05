@@ -11,7 +11,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermessenger import shared_file_messenger
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('http_server_messenger')
 shared_file_messenger.set_logger(_logger)
 
 

@@ -8,7 +8,7 @@ from pandaharvester.harvestercore.command_spec import CommandSpec
 
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('command_manager')
 
 
 # class to retrieve commands from panda server
@@ -46,7 +46,7 @@ class CommandManager(AgentBase):
         """
         main
         """
-        main_log = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+        main_log = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
         bulk_size = harvester_config.commandmanager.commands_bulk_size
         locked = self.db_proxy.get_process_lock('commandmanager', self.get_pid(),
                                                 harvester_config.commandmanager.sleepTime)

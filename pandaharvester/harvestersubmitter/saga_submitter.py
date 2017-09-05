@@ -6,7 +6,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec as ws
 
 # setup base logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('saga_submitter')
 
 # SAGA submitter
 class SAGASubmitter (PluginBase):
@@ -15,7 +15,7 @@ class SAGASubmitter (PluginBase):
     # constructor define job service with particular adaptor (can be extended to support remote execution)
     def __init__(self,**kwarg):
         PluginBase.__init__(self,**kwarg)
-        tmpLog = core_utils.make_logger(baseLogger)
+        tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
         self.job_service = saga.job.Service(self.adaptor)
 
@@ -45,7 +45,7 @@ class SAGASubmitter (PluginBase):
 
     def _state_change_cb(self, src_obj, fire_on, value):
 
-        tmpLog = core_utils.make_logger(baseLogger)
+        tmpLog = core_utils.make_logger(baseLogger, method_name='_state_change_cb')
 
         self._workSpec.status = self.status_translator(value)
         tmpLog.debug('Worker with BatchID={0} change state to: {1}'.format(self._workSpec.batchID, self._workSpec.status))
@@ -59,7 +59,7 @@ class SAGASubmitter (PluginBase):
 
     def _execute(self, workSpec):
 
-        tmpLog = core_utils.make_logger(baseLogger)
+        tmpLog = core_utils.make_logger(baseLogger, method_name='_execute')
 
         try:
             jd = saga.job.Description()
@@ -116,8 +116,8 @@ class SAGASubmitter (PluginBase):
             return ws.ST_cancelled
 
     # submit workers
-    def submit_workers(self,workSpecs):
-        tmpLog = core_utils.make_logger(baseLogger)
+    def submit_workers(self, workSpecs):
+        tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workSpecs)))
         retList = []
 

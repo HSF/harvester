@@ -16,7 +16,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('fts_stager')
 
 
 # plugin for stager with FTS
@@ -28,7 +28,8 @@ class FtsStager(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='check_status')
         tmpLog.debug('start')
         # loop over all files
         allChecked = True
@@ -84,7 +85,8 @@ class FtsStager(PluginBase):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_stage_out')
         tmpLog.debug('start')
         # default return
         tmpRetVal = (True, '')
@@ -174,7 +176,8 @@ class FtsStager(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='zip_output')
         tmpLog.debug('start')
         try:
             for fileSpec in jobspec.outFiles:

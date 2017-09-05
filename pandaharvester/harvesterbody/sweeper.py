@@ -7,7 +7,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('sweeper')
 
 
 # class for cleanup
@@ -24,7 +24,7 @@ class Sweeper(AgentBase):
     def run(self):
         lockedBy = 'sweeper-{0}'.format(self.ident)
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get workers to kill')
             # get workers to kill
             workersToKill = self.dbProxy.get_workers_to_kill(harvester_config.sweeper.maxWorkers,
@@ -39,7 +39,8 @@ class Sweeper(AgentBase):
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
                 for workSpec in workSpecs:
-                    tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
+                    tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                    method_name='run')
                     tmpLog.debug('start killing')
                     tmpStat, tmpOut = sweeperCore.kill_worker(workSpec)
                     tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
@@ -60,7 +61,8 @@ class Sweeper(AgentBase):
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
                 for workSpec in workSpecs:
-                    tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
+                    tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                    method_name='run')
                     tmpLog.debug('start cleanup')
                     tmpStat, tmpOut = sweeperCore.sweep_worker(workSpec)
                     tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))

@@ -2,7 +2,7 @@ import core_utils
 from db_interface import DBInterface
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('plugin_factory')
 
 
 # plugin factory
@@ -21,7 +21,7 @@ class PluginFactory:
             return None
         # get class
         if pluginKey not in self.classMap:
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_plugin')
             # import module
             tmpLog.debug("importing {0}".format(moduleName))
             mod = __import__(moduleName)

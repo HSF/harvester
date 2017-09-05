@@ -5,14 +5,15 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestersubmitter.saga_submitter import SAGASubmitter
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('saga_monitor')
+
 
 # monitor through SAGA
 class SAGAMonitor(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        tmpLog = core_utils.make_logger(baseLogger)
+        tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
         self.job_service = saga.job.Service(self.adaptor)
 
@@ -29,7 +30,8 @@ class SAGAMonitor(PluginBase):
         for workSpec in workspec_list:
             # make logger
             errStr = ''
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                            method_name='check_workers')
             if workSpec.batchID:
                 saga_submittion_id = '[{0}]-[{1}]'.format(self.adaptor, workSpec.batchID)
                 try:

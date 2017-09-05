@@ -25,7 +25,7 @@ import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('db_proxy')
 
 # table names
 commandTableName = 'command_table'
@@ -225,7 +225,7 @@ class DBProxy:
     def make_table(self, cls, table_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='make_table')
             tmpLog.debug('table={0}'.format(table_name))
             # check if table already exists
             varMap = dict()
@@ -344,7 +344,7 @@ class DBProxy:
     # insert jobs
     def insert_jobs(self, jobspec_list):
         # get logger
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='insert_jobs')
         tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
         try:
             # sql to insert a job
@@ -381,7 +381,7 @@ class DBProxy:
     def get_job(self, panda_id):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id))
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id), method_name='get_job')
             tmpLog.debug('start')
             # sql to get job
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
@@ -425,7 +425,7 @@ class DBProxy:
     def get_jobs(self):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_jobs')
             tmpLog.debug('start')
             # sql to get job
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
@@ -458,7 +458,8 @@ class DBProxy:
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0} subStatus={1}'.format(jobspec.PandaID,
-                                                                                        jobspec.subStatus))
+                                                                                        jobspec.subStatus),
+                                            method_name='update_job')
             tmpLog.debug('start')
             if criteria is None:
                 criteria = {}
@@ -520,7 +521,8 @@ class DBProxy:
     def update_worker(self, workspec, criteria=None):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                            method_name='update_worker')
             tmpLog.debug('start')
             if criteria is None:
                 criteria = {}
@@ -557,7 +559,7 @@ class DBProxy:
     def fill_panda_queue_table(self, panda_queue_list, queue_config_mapper):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='fill_panda_queue_table')
             tmpLog.debug('start')
             # get existing queues
             sqlE = "SELECT queueName FROM {0} ".format(pandaQueueTableName)
@@ -631,7 +633,7 @@ class DBProxy:
     def get_num_jobs_to_fetch(self, n_queues, interval):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_num_jobs_to_fetch')
             tmpLog.debug('start')
             retMap = {}
             # sql to get queues
@@ -685,7 +687,8 @@ class DBProxy:
     def get_jobs_to_propagate(self, max_jobs, lock_interval, update_interval, locked_by):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'thr={0}'.format(locked_by))
+            tmpLog = core_utils.make_logger(_logger, 'thr={0}'.format(locked_by),
+                                            method_name='get_jobs_to_propagate')
             tmpLog.debug('start')
             # sql to get jobs
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
@@ -783,7 +786,7 @@ class DBProxy:
                 msgPfx = None
             else:
                 msgPfx = 'thr={0}'.format(locked_by)
-            tmpLog = core_utils.make_logger(_logger, msgPfx)
+            tmpLog = core_utils.make_logger(_logger, msgPfx, method_name='get_jobs_in_sub_status')
             tmpLog.debug('start subStatus={0} timeColumn={1}'.format(sub_status, time_column))
             # sql to count jobs being processed
             sqlC = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
@@ -876,7 +879,8 @@ class DBProxy:
     # register a worker
     def register_worker(self, workspec, jobspec_list, locked_by):
         try:
-            tmpLog = core_utils.make_logger(_logger, 'batchID={0}'.format(workspec.batchID))
+            tmpLog = core_utils.make_logger(_logger, 'batchID={0}'.format(workspec.batchID),
+                                            method_name='register_worker')
             tmpLog.debug('start')
             # sql to insert a worker
             sqlI = "INSERT INTO {0} ({1}) ".format(workTableName, WorkSpec.column_names())
@@ -959,7 +963,7 @@ class DBProxy:
     def get_queues_to_submit(self, n_queues, interval):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_queues_to_submit')
             tmpLog.debug('start')
             retMap = dict()
             siteName = None
@@ -1039,7 +1043,8 @@ class DBProxy:
         toCommit = False
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_name))
+            tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_name),
+                                            method_name='get_job_chunks_for_workers')
             tmpLog.debug('start')
             # define maxJobs
             if n_jobs_per_worker is not None:
@@ -1163,7 +1168,7 @@ class DBProxy:
     def get_workers_to_update(self, max_workers, check_interval, lock_interval, locked_by):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_update')
             tmpLog.debug('start')
             # sql to get workers
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
@@ -1263,7 +1268,7 @@ class DBProxy:
     def get_workers_to_propagate(self, max_workers, check_interval):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_propagate')
             tmpLog.debug('start')
             # sql to get worker IDs
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
@@ -1327,7 +1332,7 @@ class DBProxy:
     def get_workers_to_feed_events(self, max_workers, lock_interval):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_feed_events')
             tmpLog.debug('start')
             # sql to get workers
             sqlW = "SELECT workerID, status FROM {0} ".format(workTableName)
@@ -1432,7 +1437,8 @@ class DBProxy:
             # update job
             if jobspec_list is not None:
                 for jobSpec in jobspec_list:
-                    tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+                    tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                    method_name='update_jobs_workers')
                     # check job
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
@@ -1605,7 +1611,8 @@ class DBProxy:
                     tmpLog.debug('done with {0}'.format(nRow))
             # update worker
             for idxW, workSpec in enumerate(workspec_list):
-                tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
+                tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                method_name='update_jobs_workers')
                 tmpLog.debug('update')
                 # sql to update worker
                 sqlW = "UPDATE {0} SET {1} ".format(workTableName, workSpec.bind_update_changes_expression())
@@ -1661,7 +1668,8 @@ class DBProxy:
     def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False, only_running=False):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id))
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
+                                            method_name='get_jobs_with_worker_id')
             tmpLog.debug('start')
             # sql to get PandaIDs
             sqlP = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
@@ -1729,7 +1737,8 @@ class DBProxy:
     def get_ready_workers(self, queue_name, n_ready):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_name))
+            tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_name),
+                                            method_name='get_ready_workers')
             tmpLog.debug('start')
             # sql to get workers
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
@@ -1762,7 +1771,8 @@ class DBProxy:
     def get_worker_with_id(self, worker_id):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id))
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
+                                            method_name='get_worker_with_id')
             tmpLog.debug('start')
             # sql to get a worker
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
@@ -1792,7 +1802,7 @@ class DBProxy:
         try:
             # get logger
             msgPfx = 'thr={0}'.format(locked_by)
-            tmpLog = core_utils.make_logger(_logger, msgPfx)
+            tmpLog = core_utils.make_logger(_logger, msgPfx, method_name='get_jobs_for_stage_out')
             tmpLog.debug('start')
             # sql to get jobs
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
@@ -1906,7 +1916,8 @@ class DBProxy:
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0} subStatus={1}'.format(jobspec.PandaID,
-                                                                                        jobspec.subStatus))
+                                                                                        jobspec.subStatus),
+                                            method_name='update_job_for_stage_out')
             tmpLog.debug('start')
             # sql to update event
             sqlEU = "UPDATE {0} ".format(eventTableName)
@@ -2057,7 +2068,8 @@ class DBProxy:
     def get_next_seq_number(self, number_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'name={0}'.format(number_name))
+            tmpLog = core_utils.make_logger(_logger, 'name={0}'.format(number_name),
+                                            method_name='get_next_seq_number')
             # increment
             sqlU = "UPDATE {0} SET curVal=curVal+1 WHERE numberName=:numberName ".format(seqNumberTableName)
             varMap = dict()
@@ -2085,7 +2097,8 @@ class DBProxy:
     def get_cache_last_update_time(self, main_key, sub_key):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key))
+            tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key),
+                                            method_name='get_cache_last_update_time')
             # get
             varMap = dict()
             varMap[":mainKey"] = main_key
@@ -2113,7 +2126,8 @@ class DBProxy:
     def refresh_cache(self, main_key, sub_key, new_info):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key))
+            tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key),
+                                            method_name='refresh_cache')
             # make spec
             cacheSpec = CacheSpec()
             cacheSpec.lastUpdate = datetime.datetime.utcnow()
@@ -2160,7 +2174,8 @@ class DBProxy:
     def get_cache(self, main_key, sub_key=None):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key))
+            tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key),
+                                            method_name='get_cache')
             tmpLog.debug('start')
             # sql to get job
             sql = "SELECT {0} FROM {1} ".format(CacheSpec.column_names(), cacheTableName)
@@ -2193,7 +2208,7 @@ class DBProxy:
     # store commands
     def store_commands(self, command_specs):
         # get logger
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='store_commands')
         tmpLog.debug('{0} commands'.format(len(command_specs)))
         if not command_specs:
             return True
@@ -2224,7 +2239,7 @@ class DBProxy:
     def get_commands_for_receiver(self, receiver, command_pattern=None):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_commands_for_receiver')
             tmpLog.debug('start')
             # sql to get commands
             varMap = dict()
@@ -2268,7 +2283,7 @@ class DBProxy:
     def get_commands_ack(self):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_commands_ack')
             tmpLog.debug('start')
             # sql to get commands that have been processed and need acknowledgement
             sql = """
@@ -2291,7 +2306,7 @@ class DBProxy:
         Deletes the commands specified in a list of IDs
         """
         # get logger
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='clean_commands_by_id')
         try:
             # sql to delete a specific command
             sql = """
@@ -2312,7 +2327,7 @@ class DBProxy:
         """
         Deletes the commands that have been processed and do not need acknowledgement
         """
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='clean_processed_commands')
         try:
             # sql to delete all processed commands that do not need an ACK
             sql = """
@@ -2331,7 +2346,7 @@ class DBProxy:
     def get_workers_to_kill(self, max_workers, check_interval):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_kill')
             tmpLog.debug('start')
             # sql to get worker IDs
             sqlW = "SELECT workerID,status FROM {0} ".format(workTableName)
@@ -2391,7 +2406,7 @@ class DBProxy:
     def get_worker_stats(self, site_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats')
             tmpLog.debug('start')
             # sql to get nQueueLimit
             sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
@@ -2445,7 +2460,8 @@ class DBProxy:
     def kill_workers_with_job(self, panda_id):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id))
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id),
+                                            method_name='kill_workers_with_job')
             tmpLog.debug('start')
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
@@ -2487,7 +2503,7 @@ class DBProxy:
     def get_workers_for_cleanup(self, max_workers, status_timeout_map):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='get_workers_for_cleanup')
             tmpLog.debug('start')
             # sql to get worker IDs
             timeNow = datetime.datetime.utcnow()
@@ -2562,7 +2578,8 @@ class DBProxy:
     def delete_worker(self, worker_id):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id))
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
+                                            method_name='delete_worker')
             tmpLog.debug('start')
             # sql to get jobs
             sqlJ = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
@@ -2608,7 +2625,7 @@ class DBProxy:
     def release_jobs(self, panda_ids, locked_by):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='release_jobs')
             tmpLog.debug('start for {0} jobs'.format(len(panda_ids)))
             # sql to release job
             sql = "UPDATE {0} SET lockedBy=NULL ".format(jobTableName)
@@ -2638,7 +2655,7 @@ class DBProxy:
     def set_queue_limit(self, site_name, params):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name))
+            tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='set_queue_limit')
             tmpLog.debug('start')
             # sql to set nQueueLimit
             sqlQ = "UPDATE {0} ".format(pandaQueueTableName)
@@ -2694,7 +2711,8 @@ class DBProxy:
     def get_num_missed_workers(self, queue_name, criteria):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, "queue={0}".format(queue_name))
+            tmpLog = core_utils.make_logger(_logger, "queue={0}".format(queue_name),
+                                            method_name='get_num_missed_workers')
             tmpLog.debug('start')
             # get worker stats
             sqlW = "SELECT COUNT(*) cnt "
@@ -2735,7 +2753,8 @@ class DBProxy:
     def get_workers_with_job_id(self, panda_id, use_commit=True):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'pandaID={0}'.format(panda_id))
+            tmpLog = core_utils.make_logger(_logger, 'pandaID={0}'.format(panda_id),
+                                            method_name='get_workers_with_job_id')
             tmpLog.debug('start')
             # sql to get workerIDs
             sqlW = "SELECT workerID FROM {0} WHERE PandaID=:PandaID ".format(jobWorkerTableName)
@@ -2774,7 +2793,7 @@ class DBProxy:
     def clean_process_locks(self):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger)
+            tmpLog = core_utils.make_logger(_logger, method_name='clean_process_locks')
             tmpLog.debug('start')
             # delete locks
             sqlW = "DELETE FROM {0} ".format(processLockTableName)
@@ -2797,7 +2816,8 @@ class DBProxy:
     def get_process_lock(self, process_name, locked_by, lock_interval):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, "proc={0} by={1}".format(process_name, locked_by))
+            tmpLog = core_utils.make_logger(_logger, "proc={0} by={1}".format(process_name, locked_by),
+                                            method_name='get_process_lock')
             tmpLog.debug('start')
             # check lock
             sqlC = "SELECT lockTime FROM {0} ".format(processLockTableName)
@@ -2850,7 +2870,8 @@ class DBProxy:
     def get_file_status(self, lfn, file_type, endpoint):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint))
+            tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint),
+                                            method_name='get_file_status')
             tmpLog.debug('start')
             # sql to get files
             sqlF = "SELECT status, COUNT(*) cnt FROM {0} ".format(fileTableName)
@@ -2884,7 +2905,7 @@ class DBProxy:
     def change_file_status(self, panda_id, data, locked_by):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id))
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id), method_name='change_file_status')
             tmpLog.debug('start lockedBy={0}'.format(locked_by))
             # sql to check lock of job
             sqlJ = "SELECT lockedBy FROM {0} ".format(jobTableName)
@@ -2927,7 +2948,8 @@ class DBProxy:
     def get_group_for_file(self, lfn, file_type, endpoint):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint))
+            tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint),
+                                            method_name='get_group_for_file')
             tmpLog.debug('start')
             # sql to get group with the latest update
             sqlF = "SELECT * FROM ("
@@ -2968,7 +2990,8 @@ class DBProxy:
     def get_files_with_group_id(self, group_id, file_type, endpoint):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'groupID={0} endpoint={1}'.format(group_id, endpoint))
+            tmpLog = core_utils.make_logger(_logger, 'groupID={0} endpoint={1}'.format(group_id, endpoint),
+                                            method_name='get_files_with_group_id')
             tmpLog.debug('start')
             # sql to get files
             sqlF = "SELECT lfn,groupStatus,groupUpdateTime FROM {0} ".format(fileTableName)

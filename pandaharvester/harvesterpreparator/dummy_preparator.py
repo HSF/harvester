@@ -4,7 +4,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('dummy_preparator')
 
 
 # dummy plugin for preparator
@@ -29,7 +29,8 @@ class DummyPreparator(PluginBase):
         :rtype: (bool, string)
         """
         # make log
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_preparation')
         tmpLog.debug('start')
         # Here is an example to access cached data
         c_data = self.dbInterface.get_cache('panda_queues.json')

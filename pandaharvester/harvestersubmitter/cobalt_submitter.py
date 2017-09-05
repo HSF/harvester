@@ -7,7 +7,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('cobalt_submitter')
 
 
 # submitter for Cobalt batch system
@@ -26,7 +26,8 @@ class CobaltSubmitter(PluginBase):
         retStrList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                            method_name='submit_workers')
             # set nCore
             workSpec.nCore = self.nCore
             # make batch script
