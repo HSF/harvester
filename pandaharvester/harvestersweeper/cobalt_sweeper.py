@@ -11,7 +11,7 @@ import shutil,os,subprocess
 #=== Definitions ==============================================
 
 ## Logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('cobalt_sweeper')
 
 #==============================================================
 
@@ -45,7 +45,8 @@ class CobaltSweeper(PluginBase):
         """
 
         ## Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='kill_worker')
 
         ## Kill command
         comStr = 'qdel {0}'.format(workspec.batchID)
@@ -72,7 +73,8 @@ class CobaltSweeper(PluginBase):
         """
 
         ## Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='sweep_worker')
 
         ## Clean up worker directory
         if os.path.exists(workspec.accessPoint):
