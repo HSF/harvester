@@ -243,7 +243,9 @@ class Communicator:
     # get commands
     def get_commands(self, n_commands):
         harvester_id = harvester_config.master.harvester_id
-        _logger.debug('Start retrieving {0} commands'.format(n_commands))
+        tmpLog = core_utils.make_logger(_logger, 'harvesterID={0}'.format(harvester_id),
+                                        method_name='get_commands')
+        tmpLog.debug('Start retrieving {0} commands'.format(n_commands))
         data = {}
         data['harvester_id'] = harvester_id
         data['n_commands'] = n_commands
@@ -253,31 +255,30 @@ class Communicator:
         else:
             try:
                 tmp_dict = tmp_res.json()
-                _logger.debug('tmp_dict {0}'.format(tmp_dict))
-                _logger.debug('StatusCode {0}'.format(tmp_dict['StatusCode']))
                 if tmp_dict['StatusCode'] == 0:
-                    _logger.debug('Commands {0}'.format(tmp_dict['Commands']))
-                    _logger.debug('Finished retrieving commands')
+                    tmpLog.debug('Commands {0}'.format(tmp_dict['Commands']))
                     return tmp_dict['Commands']
                 return []
             except KeyError:
-                core_utils.dump_error_message(_logger, tmp_res)
+                core_utils.dump_error_message(tmpLog, tmp_res)
         return []
 
     # send ACKs
     def ack_commands(self, command_ids):
         harvester_id = harvester_config.master.harvester_id
-        _logger.debug('Start acknowledging {0} commands (command_ids={1})'.format(len(command_ids), command_ids))
+        tmpLog = core_utils.make_logger(_logger, 'harvesterID={0}'.format(harvester_id),
+                                        method_name='ack_commands')
+        tmpLog.debug('Start acknowledging {0} commands (command_ids={1})'.format(len(command_ids), command_ids))
         data = {}
         data['command_ids'] = json.dumps(command_ids)
         tmp_stat, tmp_res = self.post_ssl('ackCommands', data)
         if tmp_stat is False:
-            core_utils.dump_error_message(_logger, tmp_res)
+            core_utils.dump_error_message(tmpLog, tmp_res)
         else:
             try:
                 tmp_dict = tmp_res.json()
                 if tmp_dict['StatusCode'] == 0:
-                    _logger.debug('Finished acknowledging commands')
+                    tmpLog.debug('Finished acknowledging commands')
                     return True
                 return False
             except KeyError:
