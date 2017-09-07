@@ -15,6 +15,7 @@ except:
     pass
 
 from pandaharvester import commit_timestamp
+from pandaharvester import panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 
@@ -193,16 +194,17 @@ def main(daemon_mode=True):
                         help='to record the hostname where harvester is launched')
     parser.add_argument('--rotate_log', action='store_true', dest='rotateLog', default=False,
                         help='rollover log files before launching harvester')
-    parser.add_argument('--last_commit', action='store_true', dest='lastCommit', default=False,
-                        help='show the last commit timestamp and exit')
+    parser.add_argument('--version', action='store_true', dest='showVersion', default=False,
+                        help='show version information and exit')
     parser.add_argument('--profile_output', action='store', dest='profileOutput', default=None,
                         help='filename to save the results of profiler')
     parser.add_argument('--profile_mode', action='store', dest='profileMode', default='s',
                         help='profile mode. s (statistic), d (deterministic), or t (thread-aware)')
     options = parser.parse_args()
-    # commit timestamp
-    if options.lastCommit:
-        print "last commit : {0}".format(commit_timestamp.timestamp)
+    # show version information
+    if options.showVersion:
+        print "Version : {0}".format(panda_pkg_info.release_version)
+        print "Last commit : {0}".format(commit_timestamp.timestamp)
         return
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
@@ -240,7 +242,8 @@ def main(daemon_mode=True):
         dc = DummyContext()
     with dc:
         if daemon_mode:
-            _logger.info("start : commit_timestamp = {0}".format(commit_timestamp.timestamp))
+            _logger.info("start : version = {0} last_commit = {1}".format(panda_pkg_info.release_version,
+                                                                          commit_timestamp.timestamp))
 
         # stop event
         stopEvent = threading.Event()
