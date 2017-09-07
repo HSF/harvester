@@ -36,7 +36,7 @@ class Monitor(AgentBase):
             mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
             # loop over all workers
             for queueName, workSpecsList in workSpecsPerQueue.iteritems():
-                tmpQueLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName),
+                tmpQueLog = core_utils.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
                                                    method_name='run')
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
@@ -52,6 +52,7 @@ class Monitor(AgentBase):
                 tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
                 tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog)
                 # loop over all worker chunks
+                tmpQueLog.debug('update jobs and workers')
                 iWorker = 0
                 for workSpecs in workSpecsList:
                     jobSpecs = None
@@ -152,10 +153,12 @@ class Monitor(AgentBase):
                                          'diagMessage': '',
                                          'pandaIDs': pandaIDs}
         # check workers
+        tmp_log.debug('checking workers with plugin')
         tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
         if not tmpStat:
             tmp_log.error('failed to check workers with {0}'.format(tmpOut))
         else:
+            tmp_log.debug('checked')
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
                 if workerID in retMap:

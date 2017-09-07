@@ -694,7 +694,7 @@ class DBProxy:
             sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
             sql += "WHERE propagatorTime IS NOT NULL "
             sql += "AND ((propagatorTime<:lockTimeLimit AND propagatorLock IS NOT NULL) "
-            sql += "OR propagatorTime<:updateTimeLimit) "
+            sql += "OR (propagatorTime<:updateTimeLimit AND propagatorLock IS NULL)) "
             sql += "ORDER BY propagatorTime LIMIT {0} ".format(max_jobs)
             sql += "FOR UPDATE "
             # sql to lock job
@@ -1174,7 +1174,7 @@ class DBProxy:
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE status IN (:st_submitted,:st_running) "
             sqlW += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
-            sqlW += "OR modificationTime<:checkTimeLimit) "
+            sqlW += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
             sqlW += "ORDER BY modificationTime LIMIT {0} ".format(max_workers)
             sqlW += "FOR UPDATE "
             # sql to lock worker

@@ -242,8 +242,8 @@ def main(daemon_mode=True):
         dc = DummyContext()
     with dc:
         if daemon_mode:
-            _logger.info("start : version = {0} last_commit = {1}".format(panda_pkg_info.release_version,
-                                                                          commit_timestamp.timestamp))
+            _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
+                                                                           commit_timestamp.timestamp))
 
         # stop event
         stopEvent = threading.Event()
