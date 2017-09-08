@@ -5,7 +5,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # setup base logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('dummy_submitter')
 
 
 # dummy submitter
@@ -31,7 +31,7 @@ class DummySubmitter(PluginBase):
         and dialog message
         :rtype: [(bool, string),]
         """
-        tmpLog = core_utils.make_logger(baseLogger)
+        tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
         retList = []
         for workSpec in workspec_list:

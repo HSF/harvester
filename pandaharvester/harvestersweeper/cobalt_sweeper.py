@@ -4,15 +4,14 @@
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
-import shutil
-import subprocess
+import shutil,os,subprocess
 
 #==============================================================
 
 #=== Definitions ==============================================
 
 ## Logger
-baseLogger = core_utils.setup_logger('htcondor_submitter')
+baseLogger = core_utils.setup_logger('cobalt_sweeper')
 
 #==============================================================
 
@@ -30,7 +29,7 @@ def _runShell(cmd):
 #=== Classes ==================================================
 
 # dummy plugin for sweeper
-class HTCondorSweeper(PluginBase):
+class CobaltSweeper(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
@@ -50,7 +49,7 @@ class HTCondorSweeper(PluginBase):
                                         method_name='kill_worker')
 
         ## Kill command
-        comStr = 'condor_rm {0}'.format(workspec.batchID)
+        comStr = 'qdel {0}'.format(workspec.batchID)
         (retCode, stdOut, stdErr) = _runShell(comStr)
         if retCode != 0:
             ## Command failed
@@ -78,9 +77,11 @@ class HTCondorSweeper(PluginBase):
                                         method_name='sweep_worker')
 
         ## Clean up worker directory
-        shutil.rmtree(workspec.accessPoint)
-        tmpLog.info('Succeeded to clean up workerID={0} and removed {1}'.format(workspec.workerID, workspec.accessPoint))
-
+        if os.path.exists(workspec.accessPoint):
+            shutil.rmtree(workspec.accessPoint)
+            tmpLog.info(' removed {1}'.format(workspec.workerID, workspec.accessPoint))
+        else:
+            tmpLog.info('access point already removed.')
         ## Return
         return True, ''
 

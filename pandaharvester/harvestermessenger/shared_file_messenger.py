@@ -49,7 +49,7 @@ pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
 suffixReadJson = '.read'
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('shared_file_messenger')
 
 
 def set_logger(master_logger):
@@ -76,7 +76,8 @@ class SharedFileMessenger(PluginBase):
     #  * the worker needs to put a json under the access point
     def get_work_attributes(self, workspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='get_work_attributes')
         allRetDict = dict()
         for pandaID in workspec.pandaid_list:
             # look for the json just under the access point
@@ -113,7 +114,8 @@ class SharedFileMessenger(PluginBase):
     #  * the worker needs to put a json under the access point
     def get_files_to_stage_out(self, workspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='get_files_to_stage_out')
         fileDict = dict()
         # look for the json just under the access point
         for pandaID in workspec.pandaid_list:
@@ -240,7 +242,8 @@ class SharedFileMessenger(PluginBase):
     # * the worker needs to put a json under the access point
     def job_requested(self, workspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='job_requested')
         # look for the json just under the access point
         jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
         tmpLog.debug('looking for job request file {0}'.format(jsonFilePath))
@@ -255,7 +258,8 @@ class SharedFileMessenger(PluginBase):
     # * worker_jobspec.json is put under the access point
     def feed_jobs(self, workspec, jobspec_list):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='feed_jobs')
         retVal = True
         # get PFC
         pfc = core_utils.make_pool_file_catalog(jobspec_list)
@@ -306,7 +310,8 @@ class SharedFileMessenger(PluginBase):
     # * the worker needs to put a json under the access point
     def events_requested(self, workspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='events_requested')
         # look for the json just under the access point
         jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsRequestFileName)
         tmpLog.debug('looking for event request file {0}'.format(jsonFilePath))
@@ -327,7 +332,8 @@ class SharedFileMessenger(PluginBase):
     # * worker_events.json is put under the access point
     def feed_events(self, workspec, events_dict):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='feed_events')
         retVal = True
         if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
             # put the json just under the access point
@@ -355,7 +361,8 @@ class SharedFileMessenger(PluginBase):
     # * the worker needs to put a json under the access point
     def events_to_update(self, workspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='events_to_update')
         # look for the json just under the access point
         retDict = dict()
         for pandaID in workspec.pandaid_list:
@@ -406,7 +413,8 @@ class SharedFileMessenger(PluginBase):
     # * delete json.read files
     def acknowledge_events_files(self, workspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='acknowledge_events_files')
         # remove request file
         for pandaID in workspec.pandaid_list:
             accessPoint = self.get_access_point(workspec, pandaID)
@@ -448,7 +456,8 @@ class SharedFileMessenger(PluginBase):
     # post-processing (archiving log files and collecting job metrics)
     def post_processing(self, workspec, jobspec_list, map_type):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='post_processing')
         try:
             for jobSpec in jobspec_list:
                 # check if log is already there
@@ -488,7 +497,8 @@ class SharedFileMessenger(PluginBase):
     # get PandaIDs for pull model
     def get_panda_ids(self, workspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID))
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='get_panda_ids')
         # look for the json just under the access point
         jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
         tmpLog.debug('looking for PandaID file {0}'.format(jsonFilePath))

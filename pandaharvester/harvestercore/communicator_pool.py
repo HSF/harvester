@@ -1,11 +1,10 @@
 import Queue
-import datetime
 from pandaharvester.harvesterconfig import harvester_config
 from communicator import Communicator
 import core_utils
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('communicator_pool')
 
 
 # method wrapper
@@ -17,20 +16,18 @@ class CommunicatorMethod:
 
     # method emulation
     def __call__(self, *args, **kwargs):
-        tmpLog = core_utils.make_logger(_logger, 'method={0}'.format(self.methodName))
+        tmpLog = core_utils.make_logger(_logger, 'method={0}'.format(self.methodName), method_name='call')
+        sw = core_utils.get_stopwatch()
         try:
             # get connection
             con = self.pool.get()
             tmpLog.debug('got lock. qsize={0}'.format(self.pool.qsize()))
-            startTime = datetime.datetime.utcnow()
             # get function
             func = getattr(con, self.methodName)
             # exec
             return apply(func, args, kwargs)
         finally:
-            diff = datetime.datetime.utcnow() - startTime
-            tmpLog.debug('release lock : took {0}.{0} sec'.format(diff.seconds,
-                                                                  diff.microseconds/1000))
+            tmpLog.debug('release lock' + sw.get_elapsed_time())
             self.pool.put(con)
 
 

@@ -1,6 +1,10 @@
 import uuid
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore import core_utils
+
+# logger
+_logger = core_utils.setup_logger('dummy_preparator')
 
 
 # dummy plugin for preparator
@@ -24,7 +28,13 @@ class DummyPreparator(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        #
+        # make log
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_preparation')
+        tmpLog.debug('start')
+        # Here is an example to access cached data
+        c_data = self.dbInterface.get_cache('panda_queues.json')
+        tmpLog.debug(len(c_data.data))
         # Here is an example with file grouping :
         # get input files while skipping files already in ready state
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
@@ -35,6 +45,7 @@ class DummyPreparator(PluginBase):
         transferID = str(uuid.uuid4())
         # set transfer ID which are used for later lookup
         jobspec.set_groups_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
+        tmpLog.debug('done')
         return True, ''
 
     # check status

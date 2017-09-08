@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+DATE=`date -u`
+NAME=`git config --global user.name`
+FILE=pandaharvester/commit_timestamp.py
+echo timestamp = \"$DATE \(by $NAME\)\" > $FILE
+git add $FILE
+exit 0

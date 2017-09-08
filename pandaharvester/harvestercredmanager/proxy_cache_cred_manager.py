@@ -5,7 +5,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('proxy_cache_cred_manager')
 
 
 # credential manager with proxy cache
@@ -17,7 +17,7 @@ class ProxyCacheCredManager(PluginBase):
     # check proxy
     def check_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger)
+        mainLog = core_utils.make_logger(_logger, method_name='check_credential')
         comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
         mainLog.debug(comStr)
         try:
@@ -36,7 +36,7 @@ class ProxyCacheCredManager(PluginBase):
     # renew proxy
     def renew_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger)
+        mainLog = core_utils.make_logger(_logger, method_name='renew_credential')
         # make communication channel to PanDA
         com = CommunicatorPool()
         proxy, msg = com.get_proxy(self.voms, (self.inCertFile, self.inCertFile))

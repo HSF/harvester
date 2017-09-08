@@ -8,7 +8,14 @@ import logging
 import daemon.pidfile
 import argparse
 import threading
+import cProfile
+try:
+    import pprofile
+except:
+    pass
 
+from pandaharvester import commit_timestamp
+from pandaharvester import panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 
@@ -170,8 +177,13 @@ class StdErrWrapper(object):
         return _logger.handlers[0].stream.fileno()
 
 
+# profiler
+prof = None
+
+
 # main
 def main(daemon_mode=True):
+    global prof
     # parse option
     parser = argparse.ArgumentParser()
     parser.add_argument('--pid', action='store', dest='pid', default=None,
@@ -182,7 +194,19 @@ def main(daemon_mode=True):
                         help='to record the hostname where harvester is launched')
     parser.add_argument('--rotate_log', action='store_true', dest='rotateLog', default=False,
                         help='rollover log files before launching harvester')
+    parser.add_argument('--version', action='store_true', dest='showVersion', default=False,
+                        help='show version information and exit')
+    parser.add_argument('--profile_output', action='store', dest='profileOutput', default=None,
+                        help='filename to save the results of profiler')
+    parser.add_argument('--profile_mode', action='store', dest='profileMode', default='s',
+                        help='profile mode. s (statistic), d (deterministic), or t (thread-aware)')
     options = parser.parse_args()
+    # show version information
+    if options.showVersion:
+        print "Version : {0}".format(panda_pkg_info.release_version)
+        print "Last commit : {0}".format(commit_timestamp.timestamp)
+        return
+    # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
     # hostname
@@ -218,13 +242,43 @@ def main(daemon_mode=True):
         dc = DummyContext()
     with dc:
         if daemon_mode:
-            _logger.info("start")
+            _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
+                                                                           commit_timestamp.timestamp))
 
         # stop event
         stopEvent = threading.Event()
 
+        # profiler
+        prof = None
+        if options.profileOutput is not None:
+            # run with profiler
+            if options.profileMode == 'd':
+                # deterministic
+                prof = pprofile.Profile()
+            elif options.profileMode == 't':
+                # thread-aware
+                prof = pprofile.ThreadProfile()
+            else:
+                # statistic
+                prof = cProfile.Profile()
+
+        # post process for profiler
+        def disable_profiler():
+            global prof
+            if prof is not None:
+                # disable profiler
+                prof.disable()
+                # dump results
+                prof.dump_stats(options.profileOutput)
+                prof = None
+
         # signal handlers
         def catch_sigkill(sig, frame):
+            disable_profiler()
+            try:
+                os.remove(options.pid)
+            except:
+                pass
             os.killpg(os.getpgrp(), signal.SIGKILL)
 
         def catch_sigterm(sig, frame):
@@ -234,12 +288,20 @@ def main(daemon_mode=True):
         if daemon_mode:
             signal.signal(signal.SIGINT, catch_sigkill)
             signal.signal(signal.SIGHUP, catch_sigkill)
-            signal.signal(signal.SIGTERM, catch_sigterm)
+            signal.signal(signal.SIGTERM, catch_sigkill)
             signal.signal(signal.SIGUSR2, catch_sigterm)
         # start master
         master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)
-        if master is not None:
+        if master is None:
+            prof = None
+        else:
+            # enable profiler
+            if prof is not None:
+                prof.enable()
+            # run master
             master.start()
+            # disable profiler
+            disable_profiler()
         if daemon_mode:
             _logger.info('terminated')
 

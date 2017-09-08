@@ -6,7 +6,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('htcondor_monitor')
 
 
 ## Run shell function
@@ -29,7 +29,8 @@ class HTCondorMonitor (PluginBase):
         retList = []
         for workSpec in workspec_list:
             ## Make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                            method_name='check_workers')
             ## Initialize newStatus
             newStatus = workSpec.status
 

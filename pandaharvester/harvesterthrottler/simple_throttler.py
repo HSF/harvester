@@ -5,7 +5,8 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('simple_throttler')
+
 
 # simple throttler
 class SimpleThrottler(PluginBase):
@@ -18,7 +19,8 @@ class SimpleThrottler(PluginBase):
 
     # check if to be throttled
     def to_be_throttled(self, queue_config):
-        tmpLog = core_utils.make_logger(baseLogger, 'computingSite={0}'.format(queue_config.queueName))
+        tmpLog = core_utils.make_logger(baseLogger, 'computingSite={0}'.format(queue_config.queueName),
+                                        method_name='to_be_throttled')
         tmpLog.debug('start')
         # set default return vale
         if self.logicType == 'OR':

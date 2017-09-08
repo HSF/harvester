@@ -25,7 +25,7 @@ import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('communicator')
 
 
 # connection class
@@ -42,7 +42,7 @@ class Communicator:
         try:
             tmpLog = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger)
+                tmpLog = core_utils.make_logger(_logger, method_name='post')
                 tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURL, path)
             if self.verbose:
@@ -69,7 +69,7 @@ class Communicator:
         try:
             tmpLog = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger)
+                tmpLog = core_utils.make_logger(_logger, method_name='post_ssl')
                 tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
             if self.verbose:
@@ -108,7 +108,7 @@ class Communicator:
     def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs,
                  additional_criteria):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name))
+        tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='get_jobs')
         tmpLog.debug('try to get {0} jobs'.format(n_jobs))
         data = {}
         data['siteName'] = site_name
@@ -144,7 +144,8 @@ class Communicator:
     def update_jobs(self, jobspec_list):
         retList = []
         for jobSpec in jobspec_list:
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                            method_name='update_jobs')
             tmpLog.debug('start')
             # update events
             eventRanges, eventSpecs = jobSpec.to_event_data()
@@ -200,7 +201,8 @@ class Communicator:
         retVal = dict()
         for pandaID, data in data_map.iteritems():
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']))
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']),
+                                            method_name='get_event_ranges')
             tmpLog.debug('start')
             tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
             if tmpStat is False:
@@ -241,7 +243,9 @@ class Communicator:
     # get commands
     def get_commands(self, n_commands):
         harvester_id = harvester_config.master.harvester_id
-        _logger.debug('Start retrieving {0} commands'.format(n_commands))
+        tmpLog = core_utils.make_logger(_logger, 'harvesterID={0}'.format(harvester_id),
+                                        method_name='get_commands')
+        tmpLog.debug('Start retrieving {0} commands'.format(n_commands))
         data = {}
         data['harvester_id'] = harvester_id
         data['n_commands'] = n_commands
@@ -251,31 +255,30 @@ class Communicator:
         else:
             try:
                 tmp_dict = tmp_res.json()
-                _logger.debug('tmp_dict {0}'.format(tmp_dict))
-                _logger.debug('StatusCode {0}'.format(tmp_dict['StatusCode']))
                 if tmp_dict['StatusCode'] == 0:
-                    _logger.debug('Commands {0}'.format(tmp_dict['Commands']))
-                    _logger.debug('Finished retrieving commands')
+                    tmpLog.debug('Commands {0}'.format(tmp_dict['Commands']))
                     return tmp_dict['Commands']
                 return []
             except KeyError:
-                core_utils.dump_error_message(_logger, tmp_res)
+                core_utils.dump_error_message(tmpLog, tmp_res)
         return []
 
     # send ACKs
     def ack_commands(self, command_ids):
         harvester_id = harvester_config.master.harvester_id
-        _logger.debug('Start acknowledging {0} commands (command_ids={1})'.format(len(command_ids), command_ids))
+        tmpLog = core_utils.make_logger(_logger, 'harvesterID={0}'.format(harvester_id),
+                                        method_name='ack_commands')
+        tmpLog.debug('Start acknowledging {0} commands (command_ids={1})'.format(len(command_ids), command_ids))
         data = {}
         data['command_ids'] = json.dumps(command_ids)
         tmp_stat, tmp_res = self.post_ssl('ackCommands', data)
         if tmp_stat is False:
-            core_utils.dump_error_message(_logger, tmp_res)
+            core_utils.dump_error_message(tmpLog, tmp_res)
         else:
             try:
                 tmp_dict = tmp_res.json()
                 if tmp_dict['StatusCode'] == 0:
-                    _logger.debug('Finished acknowledging commands')
+                    tmpLog.debug('Finished acknowledging commands')
                     return True
                 return False
             except KeyError:
@@ -287,7 +290,7 @@ class Communicator:
         retVal = None
         retMsg = ''
         # get logger
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='get_proxy')
         tmpLog.debug('start')
         data = {'role': voms_role}
         tmpStat, tmpRes = self.post_ssl('getProxy', data, cert)
@@ -311,7 +314,7 @@ class Communicator:
 
     # update workers
     def update_workers(self, workspec_list):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='update_workers')
         tmpLog.debug('start')
         dataList = []
         for workSpec in workspec_list:
@@ -342,7 +345,7 @@ class Communicator:
 
     # send instance heartbeat
     def is_alive(self, key_values):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='is_alive')
         tmpLog.debug('start')
         # convert datetime
         for tmpKey, tmpVal in key_values.iteritems():
@@ -370,7 +373,7 @@ class Communicator:
 
     # update worker stats
     def update_worker_stats(self, site_name, stats):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='update_worker_stats')
         tmpLog.debug('start')
         data = dict()
         data['harvesterID'] = harvester_config.master.harvester_id
@@ -397,7 +400,7 @@ class Communicator:
 
     # check jobs
     def check_jobs(self, jobspec_list):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='check_jobs')
         tmpLog.debug('start')
         retList = []
         nLookup = 100
@@ -435,7 +438,7 @@ class Communicator:
 
     # get key pair
     def get_key_pair(self, public_key_name, private_key_name):
-        tmpLog = core_utils.make_logger(_logger)
+        tmpLog = core_utils.make_logger(_logger, method_name='get_key_pair')
         tmpLog.debug('start for {0}:{1}'.format(public_key_name, private_key_name))
         data = dict()
         data['publicKeyName'] = public_key_name
