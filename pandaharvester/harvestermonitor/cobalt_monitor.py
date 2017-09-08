@@ -92,6 +92,7 @@ class CobaltMonitor (PluginBase):
                 cobalt_logfile = os.path.join(workSpec.get_access_point(),'cobalt.log')
                 if os.path.exists(cobalt_logfile):
                     return_code = None
+                    job_cancelled = False
                     for line in open(cobalt_logfile):
                         # looking for line like this:
                         # Thu Aug 24 19:01:20 2017 +0000 (UTC) Info: task completed normally with an exit code of 0; initiating job cleanup and removal
@@ -102,14 +103,22 @@ class CobaltMonitor (PluginBase):
                             break
                         elif 'maximum execution time exceeded' in line:
                             errStr += ' batch job exceeded wall clock time '
+                        elif 'user delete requested' in line:
+                            errStr += ' job was cancelled '
+                            job_cancelled = True
+                            
                             
                     if return_code == 0:
                         newStatus = WorkSpec.ST_finished
                         retList.append((newStatus,errStr))
                     elif return_code is None:
-                        errStr += ' exit code not found in cobalt log file %s ' % cobalt_logfile
-                        newStatus = WorkSpec.ST_failed
-                        retList.append((newStatus,errStr))
+                        if job_cancelled:
+                            newStatus = WorkSpec.ST_cancelled
+                            retList.append((newStatus,errStr))
+                        else:
+                            errStr += ' exit code not found in cobalt log file %s ' % cobalt_logfile
+                            newStatus = WorkSpec.ST_failed
+                            retList.append((newStatus,errStr))
                     else:
                         errStr += ' non-zero exit code %s from batch job id %s ' % (return_code,workSpec.batchID)
                         newStatus = WorkSpec.ST_failed
