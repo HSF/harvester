@@ -27,6 +27,7 @@ class Monitor(AgentBase):
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
         while True:
+            sw = core_utils.get_stopwatch()
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting workers to monitor')
             workSpecsPerQueue = self.dbProxy.get_workers_to_update(harvester_config.monitor.maxWorkers,
@@ -114,7 +115,7 @@ class Monitor(AgentBase):
                         for workSpec in workSpecs:
                             messenger.acknowledge_events_files(workSpec)
                 tmpQueLog.debug('done')
-            mainLog.debug('done')
+            mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.monitor.sleepTime):
                 mainLog.debug('terminated')

@@ -173,7 +173,7 @@ maxWorkers = 100
 nWorkersInBulk = 10
 
 # lock interval in sec
-lockInterval = 180
+lockInterval = 600
 
 # update interval in sec
 updateInterval = 1800
@@ -201,7 +201,7 @@ maxJobsToCheck = 100
 maxJobsToTrigger = 100
 
 # lock interval in sec
-lockInterval = 180
+lockInterval = 600
 
 # check interval in sec
 checkInterval = 180
@@ -232,7 +232,7 @@ nQueues = 3
 lookupTime = 60
 
 # lock interval in sec
-lockInterval = 180
+lockInterval = 600
 
 # check interval in sec
 checkInterval = 60
@@ -257,7 +257,7 @@ nThreads = 3
 maxWorkers = 500
 
 # lock interval in sec
-lockInterval = 180
+lockInterval = 600
 
 # check interval in sec
 checkInterval = 120
@@ -330,7 +330,7 @@ maxJobsToTrigger = 100
 maxJobsToZip = 100
 
 # lock interval in sec
-lockInterval = 180
+lockInterval = 600
 
 # check interval in sec
 checkInterval = 180
@@ -359,7 +359,7 @@ nThreads = 3
 maxWorkers = 500
 
 # lock interval in sec
-lockInterval = 180
+lockInterval = 600
 
 # sleep interval in sec
 sleepTime = 60

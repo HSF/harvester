@@ -25,6 +25,7 @@ class Preparator(AgentBase):
     def run(self):
         lockedBy = 'preparator-{0}'.format(self.ident)
         while True:
+            sw = core_utils.get_stopwatch()
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
@@ -187,7 +188,7 @@ class Preparator(AgentBase):
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
-            mainLog.debug('done')
+            mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.preparator.sleepTime):
                 mainLog.debug('terminated')

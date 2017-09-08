@@ -23,6 +23,7 @@ class Stager(AgentBase):
     def run(self):
         lockedBy = 'stager-{0}'.format(self.ident)
         while True:
+            sw = core_utils.get_stopwatch()
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
@@ -127,7 +128,7 @@ class Stager(AgentBase):
                 else:
                     # failed
                     tmpLog.debug('failed to zip with {0}'.format(tmpStr))
-            mainLog.debug('done')
+            mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.stager.sleepTime):
                 mainLog.debug('terminated')
