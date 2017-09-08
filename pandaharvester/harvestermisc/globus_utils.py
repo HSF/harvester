@@ -24,20 +24,19 @@ def handle_globus_exception(tmp_log):
     # extract errtype and check if it a GlobusError Class
     errtype, errvalue = sys.exc_info()[:2]
     err_str = "{0} {1} ".format(methodName, errtype.__name__)
-    if isinstance(errvalue,GlobusAPIError):
+    if isinstance(errvalue, GlobusAPIError):
         # Error response from the REST service, check the code and message for
         # details.
-        err_str += "Error Code: {0} Error Message: {1} "
-                   .format(errvalue.code, errvalue.message)        
-    else if isinstance(errvalue, NetworkError):
+        err_str += "Error Code: {0} Error Message: {1} ".format(errvalue.code, errvalue.message)
+    elif isinstance(errvalue, NetworkError):
         err_str += "Network Failure. Possibly a firewall or connectivity issue "
-    else if isinstance(errvalue,  GlobusConnectionError):
+    elif isinstance(errvalue, GlobusConnectionError):
         err_str += "A connection error occured while making a REST request. "
-    else if isinstance(errvalue,  GlobusTimeoutError):
+    elif isinstance(errvalue, GlobusTimeoutError):
         err_str += "A REST request timeout. "
-    else if isinstance(errvalue,  GlobusError):
+    elif isinstance(errvalue, GlobusError):
         err_str += "Totally unexpected GlobusError! "
-    else :  # some other error
+    else:  # some other error
         err_str = "{0} ".format(errvalue)
     err_str += traceback.format_exc()
     tmp_log.error(err_str)

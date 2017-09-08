@@ -90,7 +90,7 @@ class Monitor(AgentBase):
                         # get associated jobs for the worker chunk
                         if workSpec.hasJob == 1 and jobSpecs is None:
                             jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                                            lockedBy,
+                                                                            None,
                                                                             only_running=True)
                         # pandaIDs for push
                         pandaIDsList.append(pandaIDs)
