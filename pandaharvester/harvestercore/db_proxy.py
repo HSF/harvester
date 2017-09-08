@@ -1447,168 +1447,174 @@ class DBProxy:
                     tmpJobStatus, = resCJ
                     # don't update cancelled jobs
                     if tmpJobStatus == ['cancelled']:
-                        continue
-                    # insert files
-                    nFiles = 0
-                    fileIdMap = {}
-                    for fileSpec in jobSpec.outFiles:
-                        # check file
-                        varMap = dict()
-                        varMap[':PandaID'] = fileSpec.PandaID
-                        varMap[':lfn'] = fileSpec.lfn
-                        self.execute(sqlFC, varMap)
-                        resFC = self.cur.fetchone()
-                        # insert file
-                        if resFC is None:
-                            if jobSpec.zipPerMB is None or fileSpec.isZip in [0, 1]:
-                                fileSpec.status = 'defined'
-                                jobSpec.hasOutFile = JobSpec.HO_hasOutput
-                            else:
-                                fileSpec.status = 'pending'
-                            varMap = fileSpec.values_list()
-                            self.execute(sqlFI, varMap)
-                            fileSpec.fileID = self.cur.lastrowid
-                            nFiles += 1
-                            # mapping between event range ID and file ID
-                            if fileSpec.eventRangeID is not None:
-                                fileIdMap[fileSpec.eventRangeID] = fileSpec.fileID
-                            # associate to itself
-                            if fileSpec.isZip == 1:
-                                varMap = dict()
-                                varMap[':status'] = fileSpec.status
-                                varMap[':fileID'] = fileSpec.fileID
-                                varMap[':zipFileID'] = fileSpec.fileID
-                                self.execute(sqlFU, varMap)
-                        elif fileSpec.isZip == 1:
-                            # check file with eventRangeID
+                        pass
+                    else:
+                        # insert files
+                        nFiles = 0
+                        fileIdMap = {}
+                        for fileSpec in jobSpec.outFiles:
+                            # check file
                             varMap = dict()
                             varMap[':PandaID'] = fileSpec.PandaID
                             varMap[':lfn'] = fileSpec.lfn
-                            varMap[':eventRangeID'] = fileSpec.eventRangeID
-                            self.execute(sqlFE, varMap)
-                            resFE = self.cur.fetchone()
-                            if resFE is None:
-                                # associate to existing zip
-                                zipFileSpec = FileSpec()
-                                zipFileSpec.pack(resFC)
-                                fileSpec.status = 'zipped'
-                                fileSpec.zipFileID = zipFileSpec.fileID
+                            self.execute(sqlFC, varMap)
+                            resFC = self.cur.fetchone()
+                            # insert file
+                            if resFC is None:
+                                if jobSpec.zipPerMB is None or fileSpec.isZip in [0, 1]:
+                                    fileSpec.status = 'defined'
+                                    jobSpec.hasOutFile = JobSpec.HO_hasOutput
+                                else:
+                                    fileSpec.status = 'pending'
                                 varMap = fileSpec.values_list()
                                 self.execute(sqlFI, varMap)
+                                fileSpec.fileID = self.cur.lastrowid
                                 nFiles += 1
                                 # mapping between event range ID and file ID
                                 if fileSpec.eventRangeID is not None:
-                                    fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
-                    if nFiles > 0:
-                        tmpLog.debug('inserted {0} files'.format(nFiles))
-                    # check pending files
-                    if jobSpec.zipPerMB is not None and \
-                            not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'to_transfer'):
-                        varMap = dict()
-                        varMap[':PandaID'] = jobSpec.PandaID
-                        varMap[':status'] = 'pending'
-                        varMap[':type'] = 'input'
-                        self.execute(sqlFP, varMap)
-                        resFP = self.cur.fetchall()
-                        tmpLog.debug('got {0} pending files'.format(len(resFP)))
-                        # make subsets
-                        subTotalSize = 0
-                        subFileIDs = []
-                        zippedFileIDs = []
-                        for tmpFileID, tmpFsize, tmpLFN in resFP:
-                            if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
-                                    and subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024:
-                                zippedFileIDs.append(subFileIDs)
-                                subFileIDs = []
-                                subTotalSize = 0
-                            subTotalSize += tmpFsize
-                            subFileIDs.append((tmpFileID, tmpLFN))
-                        if (jobSpec.subStatus == 'to_transfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
-                                and len(subFileIDs) > 0:
-                            zippedFileIDs.append(subFileIDs)
-                        # make zip files
-                        for subFileIDs in zippedFileIDs:
-                            # insert zip file
-                            fileSpec = FileSpec()
-                            fileSpec.status = 'zipping'
-                            fileSpec.lfn = 'panda.' + subFileIDs[0][-1] + '.zip'
-                            fileSpec.fileType = 'zip_output'
-                            fileSpec.PandaID = jobSpec.PandaID
-                            fileSpec.taskID = jobSpec.taskID
-                            fileSpec.isZip = 1
-                            varMap = fileSpec.values_list()
-                            self.execute(sqlFI, varMap)
-                            # update pending files
-                            varMaps = []
-                            for tmpFileID, tmpLFN in subFileIDs:
+                                    fileIdMap[fileSpec.eventRangeID] = fileSpec.fileID
+                                # associate to itself
+                                if fileSpec.isZip == 1:
+                                    varMap = dict()
+                                    varMap[':status'] = fileSpec.status
+                                    varMap[':fileID'] = fileSpec.fileID
+                                    varMap[':zipFileID'] = fileSpec.fileID
+                                    self.execute(sqlFU, varMap)
+                            elif fileSpec.isZip == 1:
+                                # check file with eventRangeID
                                 varMap = dict()
-                                varMap[':status'] = 'zipped'
-                                varMap[':fileID'] = tmpFileID
-                                varMap[':zipFileID'] = self.cur.lastrowid
-                                varMaps.append(varMap)
-                            self.executemany(sqlFU, varMaps)
-                        # set zip output flag
-                        if len(zippedFileIDs) > 0:
-                            jobSpec.hasOutFile = JobSpec.HO_hasZipOutput
-                    # insert or update events
-                    varMapsEI = []
-                    varMapsEU = []
-                    for eventSpec in jobSpec.events:
-                        # set subStatus
-                        if eventSpec.eventStatus == 'finished':
-                            # check associated file
+                                varMap[':PandaID'] = fileSpec.PandaID
+                                varMap[':lfn'] = fileSpec.lfn
+                                varMap[':eventRangeID'] = fileSpec.eventRangeID
+                                self.execute(sqlFE, varMap)
+                                resFE = self.cur.fetchone()
+                                if resFE is None:
+                                    # associate to existing zip
+                                    zipFileSpec = FileSpec()
+                                    zipFileSpec.pack(resFC)
+                                    fileSpec.status = 'zipped'
+                                    fileSpec.zipFileID = zipFileSpec.fileID
+                                    varMap = fileSpec.values_list()
+                                    self.execute(sqlFI, varMap)
+                                    nFiles += 1
+                                    # mapping between event range ID and file ID
+                                    if fileSpec.eventRangeID is not None:
+                                        fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
+                        if nFiles > 0:
+                            tmpLog.debug('inserted {0} files'.format(nFiles))
+                        # check pending files
+                        if jobSpec.zipPerMB is not None and \
+                                (nFiles > 0 or jobSpec.subStatus == 'to_transfer') and \
+                                not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'to_transfer'):
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
-                            varMap[':eventRangeID'] = eventSpec.eventRangeID
-                            self.execute(sqlEF, varMap)
-                            resEF = self.cur.fetchone()
-                            if resEF is None or resEF[0] == 'finished':
-                                eventSpec.subStatus = 'finished'
-                            elif resEF[0] == 'failed':
-                                eventSpec.eventStatus = 'failed'
-                                eventSpec.subStatus = 'failed'
+                            varMap[':status'] = 'pending'
+                            varMap[':type'] = 'input'
+                            self.execute(sqlFP, varMap)
+                            resFP = self.cur.fetchall()
+                            tmpLog.debug('got {0} pending files'.format(len(resFP)))
+                            # make subsets
+                            subTotalSize = 0
+                            subFileIDs = []
+                            zippedFileIDs = []
+                            for tmpFileID, tmpFsize, tmpLFN in resFP:
+                                if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
+                                        and subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024:
+                                    zippedFileIDs.append(subFileIDs)
+                                    subFileIDs = []
+                                    subTotalSize = 0
+                                subTotalSize += tmpFsize
+                                subFileIDs.append((tmpFileID, tmpLFN))
+                            if (jobSpec.subStatus == 'to_transfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
+                                    and len(subFileIDs) > 0:
+                                zippedFileIDs.append(subFileIDs)
+                            # make zip files
+                            for subFileIDs in zippedFileIDs:
+                                # insert zip file
+                                fileSpec = FileSpec()
+                                fileSpec.status = 'zipping'
+                                fileSpec.lfn = 'panda.' + subFileIDs[0][-1] + '.zip'
+                                fileSpec.fileType = 'zip_output'
+                                fileSpec.PandaID = jobSpec.PandaID
+                                fileSpec.taskID = jobSpec.taskID
+                                fileSpec.isZip = 1
+                                varMap = fileSpec.values_list()
+                                self.execute(sqlFI, varMap)
+                                # update pending files
+                                varMaps = []
+                                for tmpFileID, tmpLFN in subFileIDs:
+                                    varMap = dict()
+                                    varMap[':status'] = 'zipped'
+                                    varMap[':fileID'] = tmpFileID
+                                    varMap[':zipFileID'] = self.cur.lastrowid
+                                    varMaps.append(varMap)
+                                self.executemany(sqlFU, varMaps)
+                            # set zip output flag
+                            if len(zippedFileIDs) > 0:
+                                jobSpec.hasOutFile = JobSpec.HO_hasZipOutput
+                        # insert or update events
+                        varMapsEI = []
+                        varMapsEU = []
+                        for eventSpec in jobSpec.events:
+                            # set subStatus
+                            if eventSpec.eventStatus == 'finished':
+                                # check associated file
+                                varMap = dict()
+                                varMap[':PandaID'] = jobSpec.PandaID
+                                varMap[':eventRangeID'] = eventSpec.eventRangeID
+                                self.execute(sqlEF, varMap)
+                                resEF = self.cur.fetchone()
+                                if resEF is None or resEF[0] == 'finished':
+                                    eventSpec.subStatus = 'finished'
+                                elif resEF[0] == 'failed':
+                                    eventSpec.eventStatus = 'failed'
+                                    eventSpec.subStatus = 'failed'
+                                else:
+                                    eventSpec.subStatus = 'transferring'
                             else:
-                                eventSpec.subStatus = 'transferring'
-                        else:
-                            eventSpec.subStatus = eventSpec.eventStatus
-                        # set fileID
-                        if eventSpec.eventRangeID in fileIdMap:
-                            eventSpec.fileID = fileIdMap[eventSpec.eventRangeID]
-                        # check event
-                        varMap = dict()
-                        varMap[':PandaID'] = jobSpec.PandaID
-                        varMap[':eventRangeID'] = eventSpec.eventRangeID
-                        self.execute(sqlEC, varMap)
-                        resEC = self.cur.fetchone()
-                        # insert or update event
-                        if resEC is None:
-                            varMap = eventSpec.values_list()
-                            varMapsEI.append(varMap)
-                        else:
+                                eventSpec.subStatus = eventSpec.eventStatus
+                            # set fileID
+                            if eventSpec.eventRangeID in fileIdMap:
+                                eventSpec.fileID = fileIdMap[eventSpec.eventRangeID]
+                            # check event
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
                             varMap[':eventRangeID'] = eventSpec.eventRangeID
-                            varMap[':eventStatus'] = eventSpec.eventStatus
-                            varMap[':subStatus'] = eventSpec.subStatus
-                            varMapsEU.append(varMap)
-                    if len(varMapsEI) > 0:
-                        self.executemany(sqlEI, varMapsEI)
-                        tmpLog.debug('inserted {0} event'.format(len(varMapsEI)))
-                    if len(varMapsEU) > 0:
-                        self.executemany(sqlEU, varMapsEU)
-                        tmpLog.debug('updated {0} event'.format(len(varMapsEU)))
-                    tmpLog.debug('update job')
-                    # sql to update job
-                    sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
-                    sqlJ += "WHERE PandaID=:PandaID AND lockedBy=:cr_lockedBy "
-                    jobSpec.lockedBy = None
-                    jobSpec.modificationTime = timeNow
-                    varMap = jobSpec.values_map(only_changed=True)
-                    varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':cr_lockedBy'] = locked_by
-                    self.execute(sqlJ, varMap)
-                    nRow = self.cur.rowcount
-                    tmpLog.debug('done with {0}'.format(nRow))
+                            self.execute(sqlEC, varMap)
+                            resEC = self.cur.fetchone()
+                            # insert or update event
+                            if resEC is None:
+                                varMap = eventSpec.values_list()
+                                varMapsEI.append(varMap)
+                            else:
+                                varMap = dict()
+                                varMap[':PandaID'] = jobSpec.PandaID
+                                varMap[':eventRangeID'] = eventSpec.eventRangeID
+                                varMap[':eventStatus'] = eventSpec.eventStatus
+                                varMap[':subStatus'] = eventSpec.subStatus
+                                varMapsEU.append(varMap)
+                        if len(varMapsEI) > 0:
+                            self.executemany(sqlEI, varMapsEI)
+                            tmpLog.debug('inserted {0} event'.format(len(varMapsEI)))
+                        if len(varMapsEU) > 0:
+                            self.executemany(sqlEU, varMapsEU)
+                            tmpLog.debug('updated {0} event'.format(len(varMapsEU)))
+                        # update job
+                        varMap = jobSpec.values_map(only_changed=True)
+                        if len(varMap) > 0:
+                            tmpLog.debug('update job')
+                            # sql to update job
+                            sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
+                            sqlJ += "WHERE PandaID=:PandaID "
+                            jobSpec.lockedBy = None
+                            jobSpec.modificationTime = timeNow
+                            varMap = jobSpec.values_map(only_changed=True)
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            self.execute(sqlJ, varMap)
+                            nRow = self.cur.rowcount
+                            tmpLog.debug('done with {0}'.format(nRow))
+                    # commit
+                    self.commit()
             # update worker
             for idxW, workSpec in enumerate(workspec_list):
                 tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
@@ -1652,8 +1658,8 @@ class DBProxy:
                             varMapsIR.append(varMap)
                     if len(varMapsIR) > 0:
                         self.executemany(sqlIR, varMapsIR)
-            # commit
-            self.commit()
+                # commit
+                self.commit()
             # return
             return True
         except:

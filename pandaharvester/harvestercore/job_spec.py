@@ -120,7 +120,13 @@ class JobSpec(SpecBase):
         if 'xml' in attrs:
             self.outputFilesToReport = attrs['xml']
             del attrs['xml']
-        self.jobAttributes = attrs
+        if self.jobAttributes is None:
+            self.jobAttributes = attrs
+        else:
+            for key, val in attrs:
+                if key not in self.jobAttributes or self.jobAttributes[key] != val:
+                    self.jobAttributes[key] = val
+                    self.force_update('jobAttributes')
 
     # set one attribute
     def set_one_attribute(self, attr, value):
