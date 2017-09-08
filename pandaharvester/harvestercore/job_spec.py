@@ -123,7 +123,7 @@ class JobSpec(SpecBase):
         if self.jobAttributes is None:
             self.jobAttributes = attrs
         else:
-            for key, val in attrs:
+            for key, val in attrs.iteritems():
                 if key not in self.jobAttributes or self.jobAttributes[key] != val:
                     self.jobAttributes[key] = val
                     self.force_update('jobAttributes')
