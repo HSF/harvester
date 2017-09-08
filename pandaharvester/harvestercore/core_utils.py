@@ -10,6 +10,7 @@ import uuid
 import math
 import random
 import inspect
+import datetime
 import traceback
 
 from work_spec import WorkSpec
@@ -315,3 +316,21 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
 # rollover for log files
 def do_log_rollover():
     PandaLogger.doRollOver()
+
+
+# stopwatch class
+class StopWatch(object):
+    # constructor
+    def __init__(self):
+        self.startTime = datetime.datetime.utcnow()
+
+    # get elapsed time
+    def get_elapsed_time(self):
+        diff = datetime.datetime.utcnow() - self.startTime
+        return " : took {0}.{0} sec".format(diff.seconds + diff.days * 24 * 3600,
+                                            diff.microseconds/1000)
+
+
+# get stopwatch
+def get_stopwatch():
+    return StopWatch()
