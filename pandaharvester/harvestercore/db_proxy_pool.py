@@ -23,7 +23,8 @@ class DBProxyMethod:
         try:
             # get connection
             con = self.pool.get()
-            tmpLog.debug('got lock. qsize={0}'.format(self.pool.qsize()))
+            tmpLog.debug('got lock. qsize={0} {1}'.format(self.pool.qsize(), sw.get_elapsed_time()))
+            sw.reset()
             # get function
             func = getattr(con, self.methodName)
             # exec

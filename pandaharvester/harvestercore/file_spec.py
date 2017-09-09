@@ -9,10 +9,10 @@ from spec_base import SpecBase
 class FileSpec(SpecBase):
     # attributes
     attributesWithTypes = ('fileID:integer primary key autoincrement',
-                           'PandaID:integer',
+                           'PandaID:integer / index',
                            'taskID:integer',
                            'lfn:text',
-                           'status:text',
+                           'status:text / index',
                            'fsize:integer',
                            'chksum:text',
                            'path:text',
@@ -26,7 +26,7 @@ class FileSpec(SpecBase):
                            'endpoint:text',
                            'groupID:text',
                            'groupStatus:text',
-                           'groupUpdateTime:timestamp',
+                           'groupUpdateTime:timestamp / index',
                            'attemptNr:integer'
                            )
 

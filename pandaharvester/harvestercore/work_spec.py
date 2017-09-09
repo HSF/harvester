@@ -42,11 +42,11 @@ class WorkSpec(SpecBase):
     EV_requestEvents = 2
 
     # attributes
-    attributesWithTypes = ('workerID:integer',
+    attributesWithTypes = ('workerID:integer primary key',
                            'batchID:text',
                            'mapType:text',
                            'queueName:text',
-                           'status:text',
+                           'status:text / index',
                            'hasJob:integer',
                            'workParams:blob',
                            'workAttributes:blob',
@@ -54,22 +54,22 @@ class WorkSpec(SpecBase):
                            'eventsRequest:integer',
                            'computingSite:text',
                            'creationTime:timestamp',
-                           'submitTime:timestamp',
+                           'submitTime:timestamp / index',
                            'startTime:timestamp',
                            'endTime:timestamp',
                            'nCore:integer',
                            'walltime:timestamp',
                            'accessPoint:text',
-                           'modificationTime:timestamp',
-                           'lastUpdate:timestamp',
-                           'eventFeedTime:timestamp',
+                           'modificationTime:timestamp / index',
+                           'lastUpdate:timestamp / index',
+                           'eventFeedTime:timestamp / index',
                            'lockedBy:text',
                            'postProcessed:integer',
                            'nodeID:text',
                            'minRamCount:integer',
                            'maxDiskCount:integer',
                            'maxWalltime:integer',
-                           'killTime:timestamp',
+                           'killTime:timestamp / index',
                            'computingElement:text'
                            )
 

@@ -203,6 +203,9 @@ class DBProxy:
 
     # type conversion
     def type_conversion(self, attr_type):
+        # remove decorator
+        attr_type = attr_type.split('/')[0]
+        attr_type = attr_type.strip()
         if attr_type == 'timestamp':
             # add NULL attribute to disable automatic update
             attr_type += ' null'
@@ -221,6 +224,16 @@ class DBProxy:
             attr_type = attr_type.replace('auto_increment', 'autoincrement')
         return attr_type
 
+    # check if index is needed
+    def need_index(self, attr):
+        # look for separator
+        if '/' not in attr:
+            return False
+        decorators = attr.split('/')[-1].split()
+        if 'index' in decorators:
+            return True
+        return False
+
     # make table
     def make_table(self, cls, table_name):
         try:
@@ -238,6 +251,7 @@ class DBProxy:
                 sqlC = 'SELECT name FROM sqlite_master WHERE type=:type AND tbl_name=:name '
             self.execute(sqlC, varMap)
             resC = self.cur.fetchone()
+            indexes = []
             # not exists
             if resC is None:
                 #  sql to make table
@@ -247,6 +261,9 @@ class DBProxy:
                     # split to name and type
                     attrName, attrType = attr.split(':')
                     attrType = self.type_conversion(attrType)
+                    # check if index is needed
+                    if self.need_index(attr):
+                        indexes.append(attrName)
                     sqlM += '{0} {1},'.format(attrName, attrType)
                 sqlM = sqlM[:-1]
                 sqlM += ')'
@@ -266,6 +283,9 @@ class DBProxy:
                         # ony missing
                         if attrName not in missingAttrs:
                             continue
+                        # check if index is needed
+                        if self.need_index(attr):
+                            indexes.append(attrName)
                         # add column
                         sqlA = 'ALTER TABLE {0} ADD COLUMN '.format(table_name)
                         sqlA += '{0} {1}'.format(attrName, attrType)
@@ -273,6 +293,14 @@ class DBProxy:
                         # commit
                         self.commit()
                         tmpLog.debug('added {0} to {1}'.format(attr, table_name))
+            # make indexes
+            for index in indexes:
+                indexName = 'idx_{0}_{1}'.format(index, table_name)
+                sqlI = "CREATE INDEX {0} ON {1}({2})".format(indexName, table_name, index)
+                self.execute(sqlI)
+                # commit
+                self.commit()
+                tmpLog.debug('added {0}'.format(indexName))
         except:
             # roll back
             self.rollback()

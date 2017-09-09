@@ -18,14 +18,14 @@ class JobSpec(SpecBase):
 
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
-                           'taskID:integer',
+                           'taskID:integer / index',
                            'attemptNr:integer',
                            'status:text',
-                           'subStatus:text',
-                           'currentPriority:integer',
-                           'computingSite:text',
+                           'subStatus:text / index',
+                           'currentPriority:integer / index',
+                           'computingSite:text / index',
                            'creationTime:timestamp',
-                           'modificationTime:timestamp',
+                           'modificationTime:timestamp / index',
                            'stateChangeTime:timestamp',
                            'startTime:timestamp',
                            'endTime:timestamp',
@@ -37,11 +37,11 @@ class JobSpec(SpecBase):
                            'outputFilesToReport:blob',
                            'lockedBy:text',
                            'propagatorLock:text',
-                           'propagatorTime:timestamp',
-                           'preparatorTime:timestamp',
+                           'propagatorTime:timestamp / index',
+                           'preparatorTime:timestamp / index',
                            'submitterTime:timestamp',
                            'stagerLock:text',
-                           'stagerTime:timestamp',
+                           'stagerTime:timestamp / index',
                            'zipPerMB:integer',
                            'nWorkers:integer',
                            'nWorkersLimit:integer',
@@ -323,6 +323,8 @@ class JobSpec(SpecBase):
     # get job status from attributes
     def get_job_status_from_attributes(self):
         if self.jobAttributes is None or 'jobStatus' not in self.jobAttributes:
+            return None
+        if self.jobAttributes['jobStatus'] not in ['finished', 'failed']:
             return None
         return self.jobAttributes['jobStatus']
 
