@@ -8,8 +8,8 @@ from spec_base import SpecBase
 
 class EventSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('eventRangeID:text',
-                           'PandaID:integer',
+    attributesWithTypes = ('eventRangeID:text / index',
+                           'PandaID:integer / index',
                            'eventStatus:text',
                            'coreCount:integer',
                            'cpuConsumptionTime:integer',
