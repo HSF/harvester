@@ -96,7 +96,7 @@ class SharedFileMessenger(PluginBase):
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             # look for job report
             jsonFilePath = os.path.join(accessPoint, jsonJobReport)
-            tmpLog.debug('looking for attributes file {0}'.format(jsonFilePath))
+            tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
             if not os.path.exists(jsonFilePath):
                 # not found
                 tmpLog.debug('not found')
@@ -105,6 +105,7 @@ class SharedFileMessenger(PluginBase):
                     with open(jsonFilePath) as jsonFile:
                         tmpDict = json.load(jsonFile)
                         retDict['metadata'] = tmpDict
+                    tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             allRetDict[pandaID] = retDict
@@ -473,13 +474,14 @@ class SharedFileMessenger(PluginBase):
                     logFilePath += '.{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
                 with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                    for tmpRoot, tmpDirs, tmpFiles in os.walk(accessPoint):
-                        for tmpFile in tmpFiles:
-                            if not self.filter_log_tgz(tmpFile):
-                                continue
-                            tmpFullPath = os.path.join(tmpRoot, tmpFile)
-                            tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
-                            tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+                    for tmpFile in os.listdir(accessPoint):
+                        if not self.filter_log_tgz(tmpFile):
+                            continue
+                        tmpFullPath = os.path.join(accessPoint, tmpFile)
+                        if not os.path.isfile(tmpFullPath):
+                            continue
+                        tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
+                        tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
                 # make json to stage-out the log file
                 fileDict = dict()
                 fileDict[jobSpec.PandaID] = []

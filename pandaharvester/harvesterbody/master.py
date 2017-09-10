@@ -200,6 +200,8 @@ def main(daemon_mode=True):
                         help='filename to save the results of profiler')
     parser.add_argument('--profile_mode', action='store', dest='profileMode', default='s',
                         help='profile mode. s (statistic), d (deterministic), or t (thread-aware)')
+    parser.add_argument('--memory_logging', action='store_true', dest='memLogging', default=False,
+                        help='add information of memory usage in each logging message')
     options = parser.parse_args()
     # show version information
     if options.showVersion:
@@ -209,6 +211,9 @@ def main(daemon_mode=True):
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
+    # memory logging
+    if options.memLogging:
+        core_utils.enable_memory_profiling()
     # hostname
     if options.hostNameFile is not None:
         with open(options.hostNameFile, 'w') as f:
