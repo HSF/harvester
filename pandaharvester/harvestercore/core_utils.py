@@ -20,6 +20,15 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 
 
+with_memory_profile = False
+
+
+# enable memory profiling
+def enable_memory_profiling():
+    global  with_memory_profile
+    with_memory_profile = True
+
+
 # setup logger
 def setup_logger(name=None):
     if name is None:
@@ -40,7 +49,7 @@ def make_logger(tmp_log, token=None, method_name=None):
         tmpStr += ' <{0}>'.format(token)
     else:
         tmpStr += ' :'.format(token)
-    newLog = LogWrapper(tmp_log, tmpStr)
+    newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile)
     return newLog
 
 
