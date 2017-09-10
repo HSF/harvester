@@ -103,7 +103,8 @@ class GoPreparator(PluginBase):
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
         queueConfigMapper = QueueConfigMapper()
         queueConfig = queueConfigMapper.get_queue(jobSpec.computingSite)
-        self.Globus_dstPath = queueConfig.preparator['Globus_dstPath']
+        self.Globus_dstPath = self.basePath
+        #self.Globus_dstPath = queueConfig.preparator['Globus_dstPath']
         self.dstEndpoint = queueConfig.preparator['dstEndpoint']
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
