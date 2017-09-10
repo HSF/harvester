@@ -8,7 +8,7 @@ from globus_sdk import RefreshTokenAuthorizer
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc import globus_utils
-
+from pandaharvester.harvestermover import mover_utils
 
 # logger
 _logger = core_utils.setup_logger()
@@ -19,6 +19,7 @@ class GoPreparator(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
+        tmpLog = core_utils.make_logger(_logger, method_name='GoPreparator __init__ ')
         # create Globus Transfer Client
         try:
             self.tc = None
