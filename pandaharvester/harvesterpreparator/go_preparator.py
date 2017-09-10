@@ -9,6 +9,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc import globus_utils
 
+
 # logger
 _logger = core_utils.setup_logger()
 
@@ -97,6 +98,12 @@ class GoPreparator(PluginBase):
         # get input files
         files = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
+        # set the Globus destination Endpoint id and path will get them from Agis eventually  
+        from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+        queueConfigMapper = QueueConfigMapper()
+        queueConfig = queueConfigMapper.get_queue(jobSpec.computingSite)
+        self.Globus_dstPath = queueConfig.preparator['Globus_dstPath']
+        self.dstEndpoint = queueConfig.preparator['dstEndpoint']
         # set path to each file
         for inLFN, inFile in inFiles.iteritems():
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
