@@ -243,7 +243,7 @@ class GoPreparator(PluginBase):
         check if endpoint is activated 
         """
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='check_endpoint_activation'))
+        tmpLog = core_utils.make_logger(_logger, method_name='check_endpoint_activation')
         # test we have a Globus Transfer Client
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
