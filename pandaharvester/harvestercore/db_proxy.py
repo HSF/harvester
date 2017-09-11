@@ -3057,3 +3057,45 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # lock job again
+    def lock_job_again(self, panda_id, time_column, lock_column, locked_by):
+        try:
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id), method_name='lock_job_again')
+            tmpLog.debug('start column={0} id={1}'.format(lock_column, locked_by))
+            # check lock
+            sqlC = "SELECT {0},{1} FROM {2} ".format(lock_column, time_column, jobTableName)
+            sqlC += "WHERE PandaID=:pandaID "
+            sqlC += "FOR UPDATE "
+            varMap = dict()
+            varMap[':pandaID'] = panda_id
+            self.execute(sqlC, varMap)
+            resC = self.cur.fetchone()
+            if resC is None:
+                retVal = False
+                tmpLog.debug('not found')
+            else:
+                oldLockedBy, oldLockedTime = resC
+                if oldLockedBy != locked_by:
+                    tmpLog.debug('locked by another {0} at {1}'.format(oldLockedBy, oldLockedTime))
+                    retVal = False
+                else:
+                    # update locked time
+                    sqlU = "UPDATE {0} SET {1}=:timeNow WHERE pandaID=:pandaID ".format(jobTableName, time_column)
+                    varMap = dict()
+                    varMap[':pandaID'] = panda_id
+                    varMap[':timeNow'] = datetime.datetime.utcnow()
+                    self.execute(sqlU, varMap)
+                    retVal = True
+            # commit
+            self.commit()
+            tmpLog.debug('done with {0}'.format(retVal))
+            # return
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
