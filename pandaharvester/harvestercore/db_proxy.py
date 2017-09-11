@@ -2194,6 +2194,12 @@ class DBProxy:
             self.execute(sqlU, varMap)
             # commit
             self.commit()
+            # put into global dict
+            cacheKey = 'cache|{0}|{1}'.format(main_key, sub_key)
+            globalDict = core_utils.get_global_dict()
+            globalDict.acquire()
+            globalDict[cacheKey] = cacheSpec.data
+            globalDict.release()
             tmpLog.debug('refreshed')
             return True
         except:
@@ -2206,34 +2212,56 @@ class DBProxy:
 
     # get a cached info
     def get_cache(self, main_key, sub_key=None):
+        useDB = False
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'mainKey={0} subKey={1}'.format(main_key, sub_key),
                                             method_name='get_cache')
             tmpLog.debug('start')
-            # sql to get job
-            sql = "SELECT {0} FROM {1} ".format(CacheSpec.column_names(), cacheTableName)
-            sql += "WHERE mainKey=:mainKey "
-            varMap = dict()
-            varMap[":mainKey"] = main_key
-            if sub_key is not None:
-                sql += "AND subKey=:subKey "
-                varMap[":subKey"] = sub_key
-            self.execute(sql, varMap)
-            resJ = self.cur.fetchone()
-            # commit
-            self.commit()
-            if resJ is None:
-                return None
-            # make spec
-            cacheSpec = CacheSpec()
-            cacheSpec.pack(resJ)
+            # get from global dict
+            cacheKey = 'cache|{0}|{1}'.format(main_key, sub_key)
+            globalDict = core_utils.get_global_dict()
+            # lock dict
+            globalDict.acquire()
+            # found
+            if cacheKey in globalDict:
+                # release dict
+                globalDict.release()
+                # make spec
+                cacheSpec = CacheSpec()
+                cacheSpec.data = globalDict[cacheKey]
+            else:
+                # read from database
+                useDB = True
+                sql = "SELECT {0} FROM {1} ".format(CacheSpec.column_names(), cacheTableName)
+                sql += "WHERE mainKey=:mainKey "
+                varMap = dict()
+                varMap[":mainKey"] = main_key
+                if sub_key is not None:
+                    sql += "AND subKey=:subKey "
+                    varMap[":subKey"] = sub_key
+                self.execute(sql, varMap)
+                resJ = self.cur.fetchone()
+                # commit
+                self.commit()
+                if resJ is None:
+                    # release dict
+                    globalDict.release()
+                    return None
+                # make spec
+                cacheSpec = CacheSpec()
+                cacheSpec.pack(resJ)
+                # put into global dict
+                globalDict[cacheKey] = cacheSpec.data
+                # release dict
+                globalDict.release()
             tmpLog.debug('done')
             # return
             return cacheSpec
         except:
-            # roll back
-            self.rollback()
+            if useDB:
+                # roll back
+                self.rollback()
             # dump error
             core_utils.dump_error_message(_logger)
             # return

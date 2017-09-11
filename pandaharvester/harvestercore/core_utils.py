@@ -11,6 +11,7 @@ import math
 import random
 import inspect
 import datetime
+import threading
 import traceback
 
 from work_spec import WorkSpec
@@ -25,7 +26,7 @@ with_memory_profile = False
 
 # enable memory profiling
 def enable_memory_profiling():
-    global  with_memory_profile
+    global with_memory_profile
     with_memory_profile = True
 
 
@@ -347,3 +348,39 @@ class StopWatch(object):
 # get stopwatch
 def get_stopwatch():
     return StopWatch()
+
+
+# map with lock
+class MapWithLock:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.dataMap = dict()
+
+    def __getitem__(self, item):
+        ret = self.dataMap.__getitem__(item)
+        return ret
+
+    def __setitem__(self, item, value):
+        self.dataMap.__setitem__(item, value)
+
+    def __contains__(self, item):
+        ret = self.dataMap.__contains__(item)
+        return ret
+
+    def acquire(self):
+        self.lock.acquire()
+
+    def release(self):
+        self.lock.release()
+
+    def iteritems(self):
+        return self.dataMap.iteritems()
+
+
+# global dict for all threads
+global_dict = MapWithLock()
+
+
+# get global dict
+def get_global_dict():
+    return global_dict
