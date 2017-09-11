@@ -49,6 +49,11 @@ class Stager(AgentBase):
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
+                    continue
                 tmpStat, tmpStr = stagerCore.check_status(jobSpec)
                 # succeeded
                 if tmpStat is True:
@@ -81,6 +86,11 @@ class Stager(AgentBase):
                 if stagerCore is None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
                     continue
                 # trigger stage-out
                 tmpStat, tmpStr = stagerCore.trigger_stage_out(jobSpec)
@@ -116,6 +126,11 @@ class Stager(AgentBase):
                 if stagerCore is None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
                     continue
                 # trigger preparation
                 tmpStat, tmpStr = stagerCore.zip_output(jobSpec)

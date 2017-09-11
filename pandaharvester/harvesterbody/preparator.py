@@ -53,6 +53,11 @@ class Preparator(AgentBase):
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
+                    continue
                 tmpStat, tmpStr = preparatorCore.check_status(jobSpec)
                 # still running
                 if tmpStat is None:
@@ -119,6 +124,11 @@ class Preparator(AgentBase):
                 if preparatorCore is None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
                     continue
                 # check file status
                 if queueConfig.ddmEndpointIn not in fileStatMap:
