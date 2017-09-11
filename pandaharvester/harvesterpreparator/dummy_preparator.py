@@ -61,10 +61,10 @@ class DummyPreparator(PluginBase):
         """
         #
         # Here is an example with file grouping :
-        # get group IDs of input files except ones already in ready state
-        transferIDs = jobspec.get_groups_of_input_files(skip_ready=True)
+        # get groups of input files except ones already in ready state
+        transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
         # update transfer status
-        for transferID in transferIDs:
+        for transferID, transferInfo in transferGroups.iteritems():
             jobspec.update_group_status_in_files(transferID, 'done')
         return True, ''
 

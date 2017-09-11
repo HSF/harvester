@@ -354,9 +354,10 @@ class JobSpec(SpecBase):
 
     # get groups of input files
     def get_groups_of_input_files(self, skip_ready=False):
-        groups = set()
+        groups = dict()
         for fileSpec in self.inFiles:
             if skip_ready and fileSpec.status == 'ready':
                 continue
-            groups.add(fileSpec.groupID)
+            groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
+                                        'groupStatus': fileSpec.groupStatus}
         return groups
