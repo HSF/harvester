@@ -38,9 +38,9 @@ class PluginFactory:
             if tmpKey in ['module', 'name']:
                 continue
             args[tmpKey] = tmpVal
+        # add database interface
+        args['dbInterface'] = DBInterface()
         # instantiate
         cls = self.classMap[pluginKey]
         impl = cls(**args)
-        # add database interface
-        impl.dbInterface = DBInterface()
         return impl
