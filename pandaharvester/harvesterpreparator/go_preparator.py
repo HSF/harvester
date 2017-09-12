@@ -1,4 +1,5 @@
 import sys
+import os
 from globus_sdk import TransferClient
 from globus_sdk import TransferData
 from globus_sdk import NativeAppAuthClient
@@ -8,9 +9,16 @@ from globus_sdk import RefreshTokenAuthorizer
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc import globus_utils
+from pandaharvester.harvestermover import mover_utils
 
 # logger
 _logger = core_utils.setup_logger()
+
+def dump(obj):
+   for attr in dir(obj):
+       if hasattr( obj, attr ):
+           print( "obj.%s = %s" % (attr, getattr(obj, attr)))
+
 
 
 # preparator with Globus Online
@@ -19,6 +27,7 @@ class GoPreparator(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # create Globus Transfer Client
+        tmpLog = core_utils.make_logger(_logger, method_name='GoPreparator __init__ ')
         try:
             self.tc = None
             tmpStat, statusStr = self.create_globus_transfer_client()
@@ -33,6 +42,11 @@ class GoPreparator(PluginBase):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
                                         method_name='check_status')
+        # get groups of input files except ones already in ready state
+        transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
+        print type(transferGroups)," ",transferGroups
+        # update transfer status
+
         # get label
         label = self.make_label(jobspec)
         tmpLog.debug('label={0}'.format(label))
@@ -50,6 +64,8 @@ class GoPreparator(PluginBase):
             return False, errStr
         # succeeded
         if transferTasks[label]['status'] == 'SUCCEEDED':
+            transferID = transferTasks[label]['task_id'] 
+            jobspec.update_group_status_in_files(transferID, 'done')
             tmpLog.debug('transfer task succeeded')
             return True, ''
         # failed
@@ -67,8 +83,7 @@ class GoPreparator(PluginBase):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
                                         method_name='trigger_preparation')
-        tmpLog.debug('start')        
-       
+        tmpLog.debug('start')               
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
             # not found
@@ -77,6 +92,15 @@ class GoPreparator(PluginBase):
         else:
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
         # test we have a Globus Transfer Client
+        if not self.tc :
+            try:
+                self.tc = None
+                tmpStat, statusStr = self.create_globus_transfer_client()
+                if not tmpStat:
+                    errStr = 'failed to create Globus Transfer Client'
+                    tmpLog.error(errStr)
+            except:
+                core_utils.dump_error_message(tmpLog)
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
             tmpLog.error(errStr)
@@ -94,16 +118,26 @@ class GoPreparator(PluginBase):
         if label in transferTasks:
             tmpLog.debug('skip since already queued with {0}'.format(str(transferTasks[label])))
             return True, ''
+        # set the Globus destination Endpoint id and path will get them from Agis eventually  
+        from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+        queueConfigMapper = QueueConfigMapper()
+        queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
+        self.Globus_srcPath = queueConfig.preparator['Globus_srcPath']
+        self.srcEndpoint = queueConfig.preparator['srcEndpoint']
+        self.Globus_dstPath = self.basePath
+        #self.Globus_dstPath = queueConfig.preparator['Globus_dstPath']
+        self.dstEndpoint = queueConfig.preparator['dstEndpoint']
         # get input files
         files = []
+        lfns = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
-        # set path to each file
         for inLFN, inFile in inFiles.iteritems():
+            # set path to each file
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
             dstpath = inFile['path']
             # check if path exists if not create it.
-            if not os.access(dstpath, os.F_OK):
-                os.makedirs(dstpath)
+            if not os.access(self.basePath, os.F_OK):
+                os.makedirs(self.basePath)
             # create the file paths for the Globus source and destination endpoints 
             Globus_srcpath = mover_utils.construct_file_path(self.Globus_srcPath, inFile['scope'], inLFN)
             Globus_dstpath = mover_utils.construct_file_path(self.Globus_dstPath, inFile['scope'], inLFN)
@@ -111,6 +145,7 @@ class GoPreparator(PluginBase):
                           'name': inLFN,
                           'Globus_dstPath': Globus_dstpath,
                           'Globus_srcPath': Globus_srcpath})
+            lfns.append(inLFN)
         tmpLog.debug('files[] {0}'.format(files))
         try:
             # Test endpoints for activation
@@ -138,11 +173,15 @@ class GoPreparator(PluginBase):
                 for myfile in files:
                     tdata.add_item(myfile['Globus_srcPath'],myfile['Globus_dstPath'])
                 # submit
-                transfer_result = tc.submit_transfer(tdata)
+                transfer_result = self.tc.submit_transfer(tdata)
                 # check status code and message
                 tmpLog.debug(str(transfer_result))
                 if transfer_result['code'] == "Accepted":
                     # succeeded
+                    # set transfer ID which are used for later lookup
+                    transferID = transfer_result['task_id']
+                    jobspec.set_groups_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
+                    tmpLog.debug('done')
                     return True,''
                 else:
                     return False,transfer_result['message']
@@ -153,26 +192,75 @@ class GoPreparator(PluginBase):
             return False, {}
 
     # get transfer tasks
-    def get_transfer_tasks(self,label=None):
+    def get_transfer_task_by_id(self,transferID=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_tasks')
+        tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_task_by_id')
         # test we have a Globus Transfer Client
+        if not self.tc :
+            try:
+                self.tc = None
+                tmpStat, statusStr = self.create_globus_transfer_client()
+                if not tmpStat:
+                    errStr = 'failed to create Globus Transfer Client'
+                    tmpLog.error(errStr)
+            except:
+                core_utils.dump_error_message(tmpLog)
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
             tmpLog.error(errStr)
             return False, errStr
         try:
             # execute
-            if label == None:
-                gRes = tc.task_list(filter='status:ACTIVE,INACTIVE,FAILED,SUCCEEDED',
-                                    num_results=1000)
+            if transferID == None:                
+                # error need to have task ID
+                errStr = 'failed to provide transfer task ID '
+                tmpLog.error(errStr)
+                return False, errStr
             else:
-                gRes = tc.task_list(filter='status:ACTIVE,INACTIVE,FAILED,SUCCEEDED/label:{0}'.format(label))
+                 gRes = self.tc.get_task(transferID)
+            # parse output
+            tasks = {}
+            print "type(self.tc.get_task(transferID)): ",type(gRes)
+            label = gRes['label']
+            tasks[label] = gRes
+            # return
+            tmpLog.debug('got {0} tasks'.format(len(tasks)))
+            return True, tasks
+        except:
+            globus_utils.handle_globus_exception(tmpLog)
+            return False, {}
+
+    # get transfer tasks
+    def get_transfer_tasks(self,label=None):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_tasks')
+        # test we have a Globus Transfer Client
+        if not self.tc :
+            try:
+                self.tc = None
+                tmpStat, statusStr = self.create_globus_transfer_client()
+                if not tmpStat:
+                    errStr = 'failed to create Globus Transfer Client'
+                    tmpLog.error(errStr)
+            except:
+                core_utils.dump_error_message(tmpLog)
+        if not self.tc :
+            errStr = 'failed to get Globus Transfer Client'
+            tmpLog.error(errStr)
+            return False, errStr
+        try:
+            # execute
+            if label == None:                
+                params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED"}
+                gRes = self.tc.task_list(num_results=1000,**params)
+            else:
+                params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED/label:{0}".format(label)}
+                gRes = self.tc.task_list(**params)
             # parse output
             tasks = {}
             for res in gRes:
-                label = res.data['label']
-                tasks[label] = res.data
+                reslabel = res.data['label']
+                tasks[reslabel] = res.data
             # return
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
@@ -236,7 +324,7 @@ class GoPreparator(PluginBase):
         check if endpoint is activated 
         """
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='check_endpoint_activation'))
+        tmpLog = core_utils.make_logger(_logger, method_name='check_endpoint_activation')
         # test we have a Globus Transfer Client
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
@@ -246,6 +334,7 @@ class GoPreparator(PluginBase):
             endpoint = self.tc.get_endpoint(endpoint_id)
             r = self.tc.endpoint_autoactivate(endpoint_id, if_expires_in=3600)
 
+            #print "Endpoint - {0} - activation status code {1}".format(endpoint["display_name"],str(r["code"]))
             tmpLog.info("Endpoint - %s - activation status code %s"%(endpoint["display_name"],str(r["code"])))
             if r['code'] == 'AutoActivationFailed':
                 errStr = 'Endpoint({0}) Not Active! Error! Source message: {1}'.format(endpoint_id, r['message'])
