@@ -4,6 +4,7 @@ import shutil
 import os.path
 import zipfile
 import uuid
+from future.utils import iteritems
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -126,7 +127,7 @@ class RucioStager(PluginBase):
             files[fileSpec.fileType].append(tmpFile)
         # loop over all file types to be registered to rucio
         rucioAPI = RucioClient()
-        for fileType, fileList in files.iteritems():
+        for fileType, fileList in iteritems(files):
             # set destination RSE
             if fileType in ['es_output', 'zip_output']:
                 dstRSE = self.dstRSE_ES

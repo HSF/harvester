@@ -9,6 +9,6 @@ cacher = Cacher(communicator, single_mode=True)
 cacher.run()
 
 dataKey = 'ddmendpoints_objectstores.json'
-print "getting {0}".format(dataKey)
+print ("getting {0}".format(dataKey))
 c_data = proxy.get_cache(dataKey)
-print c_data.data
+print (c_data.data)

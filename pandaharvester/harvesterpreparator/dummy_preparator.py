@@ -1,4 +1,5 @@
 import uuid
+from future.utils import iteritems
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
@@ -64,7 +65,7 @@ class DummyPreparator(PluginBase):
         # get groups of input files except ones already in ready state
         transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
         # update transfer status
-        for transferID, transferInfo in transferGroups.iteritems():
+        for transferID, transferInfo in iteritems(transferGroups):
             jobspec.update_group_status_in_files(transferID, 'done')
         return True, ''
 
@@ -82,7 +83,7 @@ class DummyPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = 'dummypath/{0}'.format(inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

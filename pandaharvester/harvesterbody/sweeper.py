@@ -1,5 +1,4 @@
-import datetime
-
+from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -31,7 +30,7 @@ class Sweeper(AgentBase):
                                                              harvester_config.sweeper.checkInterval)
             mainLog.debug('got {0} queues to kill workers'.format(len(workersToKill)))
             # loop over all workers
-            for queueName, workSpecs in workersToKill.iteritems():
+            for queueName, workSpecs in iteritems(workersToKill):
                 # get sweeper
                 if not self.queueConfigMapper.has_queue(queueName):
                     mainLog.error('queue config for {0} not found'.format(queueName))
@@ -53,7 +52,7 @@ class Sweeper(AgentBase):
             workersForCleanup = self.dbProxy.get_workers_for_cleanup(harvester_config.sweeper.maxWorkers,
                                                                      statusTimeoutMap)
             mainLog.debug('got {0} queues for workers cleanup'.format(len(workersForCleanup)))
-            for queueName, workSpecs in workersForCleanup.iteritems():
+            for queueName, workSpecs in iteritems(workersForCleanup):
                 # get sweeper
                 if not self.queueConfigMapper.has_queue(queueName):
                     mainLog.error('queue config for {0} not found'.format(queueName))

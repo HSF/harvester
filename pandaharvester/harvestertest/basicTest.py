@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import datetime
+from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.job_spec import JobSpec
@@ -12,7 +13,7 @@ try:
 except:
     pass
 
-for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
+for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
     if loggerName.startswith('panda.log'):
         if len(loggerObj.handlers) == 0:
             continue

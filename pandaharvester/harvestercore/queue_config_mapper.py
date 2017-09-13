@@ -1,9 +1,10 @@
 import os
 import json
+from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
-from work_spec import WorkSpec
-from panda_queue_spec import PandaQueueSpec
+from .work_spec import WorkSpec
+from .panda_queue_spec import PandaQueueSpec
 
 
 # class for queue config
@@ -61,9 +62,9 @@ class QueueConfigMapper:
         queueConfigJson = json.load(f)
         f.close()
         # set attributes
-        for queueName, queueDict in queueConfigJson.iteritems():
+        for queueName, queueDict in iteritems(queueConfigJson):
             queueConfig = QueueConfig(queueName)
-            for key, val in queueDict.iteritems():
+            for key, val in iteritems(queueDict):
                 setattr(queueConfig, key, val)
             # queueName = siteName/resourceType
             queueConfig.siteName = queueConfig.queueName.split('/')[0]

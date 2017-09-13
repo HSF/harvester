@@ -29,4 +29,3 @@ tmpStat, tmpVal = a.getEventRanges(node)
 
 mess = shared_file_messenger.SharedFileMessenger()
 mess.feed_events(workSpec, tmpVal)
-

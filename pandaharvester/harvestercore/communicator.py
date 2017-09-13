@@ -9,19 +9,19 @@ try:
 except:
     pass
 import sys
-import copy
 import json
 import inspect
 import datetime
 import requests
 import traceback
+from future.utils import iteritems
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
 try:
     requests.packages.urllib3.disable_warnings()
 except:
     pass
-import core_utils
+from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
@@ -199,7 +199,7 @@ class Communicator:
     def get_event_ranges(self, data_map):
         retStat = False
         retVal = dict()
-        for pandaID, data in data_map.iteritems():
+        for pandaID, data in iteritems(data_map):
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']),
                                             method_name='get_event_ranges')
@@ -348,7 +348,7 @@ class Communicator:
         tmpLog = core_utils.make_logger(_logger, method_name='is_alive')
         tmpLog.debug('start')
         # convert datetime
-        for tmpKey, tmpVal in key_values.iteritems():
+        for tmpKey, tmpVal in iteritems(key_values):
             if isinstance(tmpVal, datetime.datetime):
                 tmpVal = 'datetime/' + tmpVal.strftime('%Y-%m-%d %H:%M:%S.%f')
                 key_values[tmpKey] = tmpVal

@@ -1,3 +1,5 @@
+from future.utils import iteritems
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -29,7 +31,7 @@ class EventFeeder(AgentBase):
                                                                         harvester_config.eventfeeder.lockInterval)
             mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
             # loop over all workers
-            for queueName, workSpecList in workSpecsPerQueue.iteritems():
+            for queueName, workSpecList in iteritems(workSpecsPerQueue):
                 tmpQueLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName), method_name='run')
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):

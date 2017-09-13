@@ -13,10 +13,11 @@ import inspect
 import datetime
 import threading
 import traceback
+from future.utils import iteritems
 
-from work_spec import WorkSpec
-from file_spec import FileSpec
-from event_spec import EventSpec
+from .work_spec import WorkSpec
+from .file_spec import FileSpec
+from .event_spec import EventSpec
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 
@@ -94,7 +95,7 @@ def make_pool_file_catalog(jobspec_list):
     doneLFNs = set()
     for jobSpec in jobspec_list:
         inFiles = jobSpec.get_input_file_attributes()
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             if inLFN in doneLFNs:
                 continue
             doneLFNs.add(inLFN)
@@ -113,7 +114,7 @@ def make_pool_file_catalog(jobspec_list):
 def calc_adler32(file_name):
     val = 1
     blockSize = 32 * 1024 * 1024
-    with open(file_name) as fp:
+    with open(file_name, 'rb') as fp:
         while True:
             data = fp.read(blockSize)
             if not data:
@@ -206,7 +207,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             # add files
             for files_to_stage_out in files_to_stage_out_list:
                 if jobSpec.PandaID in files_to_stage_out:
-                    for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].iteritems():
+                    for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
                         for fileAtters in fileAttersList:
                             fileSpec = FileSpec()
                             fileSpec.lfn = lfn
@@ -282,7 +283,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # add files
         for files_to_stage_out in files_to_stage_out_list:
             if jobSpec.PandaID in files_to_stage_out:
-                for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].iteritems():
+                for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
                     for fileAtters in fileAttersList:
                         fileSpec = FileSpec()
                         fileSpec.lfn = lfn
@@ -374,7 +375,7 @@ class MapWithLock:
         self.lock.release()
 
     def iteritems(self):
-        return self.dataMap.iteritems()
+        return iteritems(self.dataMap)
 
 
 # global dict for all threads

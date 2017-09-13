@@ -1,5 +1,7 @@
-import core_utils
-from db_interface import DBInterface
+from future.utils import iteritems
+
+from . import core_utils
+from .db_interface import DBInterface
 
 # logger
 _logger = core_utils.setup_logger('plugin_factory')
@@ -34,7 +36,7 @@ class PluginFactory:
             self.classMap[pluginKey] = cls
         # make args
         args = {}
-        for tmpKey, tmpVal in plugin_conf.iteritems():
+        for tmpKey, tmpVal in iteritems(plugin_conf):
             if tmpKey in ['module', 'name']:
                 continue
             args[tmpKey] = tmpVal

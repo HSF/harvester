@@ -5,7 +5,7 @@ Work spec class
 
 import re
 import datetime
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 # work spec

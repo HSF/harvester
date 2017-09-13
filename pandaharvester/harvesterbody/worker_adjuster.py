@@ -1,4 +1,5 @@
 import copy
+from future.utils import iteritems
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -30,7 +31,7 @@ class WorkerAdjuster:
             else:
                 queueStat = queueStat.data
             # define num of new workers
-            for queueName, tmpVal in static_num_workers.iteritems():
+            for queueName, tmpVal in iteritems(static_num_workers):
                 # set 0 to num of new workers when the queue is disabled
                 if queueName in queueStat and queueStat[queueName]['status'] in ['offline']:
                     dyn_num_workers[queueName]['nNewWorkers'] = 0

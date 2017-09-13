@@ -1,3 +1,5 @@
+from future.utils import iteritems
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -36,7 +38,7 @@ class Monitor(AgentBase):
                                                                    lockedBy)
             mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
             # loop over all workers
-            for queueName, workSpecsList in workSpecsPerQueue.iteritems():
+            for queueName, workSpecsList in iteritems(workSpecsPerQueue):
                 tmpQueLog = core_utils.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
                                                    method_name='run')
                 # check queue

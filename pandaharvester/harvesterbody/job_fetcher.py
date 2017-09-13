@@ -1,5 +1,6 @@
 import socket
 import datetime
+from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -32,7 +33,7 @@ class JobFetcher(AgentBase):
                                                                harvester_config.jobfetcher.lookupTime)
             mainLog.debug('got {0} queues'.format(len(nJobsPerQueue)))
             # loop over all queues
-            for queueName, nJobs in nJobsPerQueue.iteritems():
+            for queueName, nJobs in iteritems(nJobsPerQueue):
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     continue

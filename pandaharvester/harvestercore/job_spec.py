@@ -5,8 +5,10 @@ Job spec class
 
 import copy
 import datetime
+from past.builtins import long
+from future.utils import iteritems
 
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 class JobSpec(SpecBase):
@@ -123,7 +125,7 @@ class JobSpec(SpecBase):
         if self.jobAttributes is None:
             self.jobAttributes = attrs
         else:
-            for key, val in attrs.iteritems():
+            for key, val in iteritems(attrs):
                 if key not in self.jobAttributes or self.jobAttributes[key] != val:
                     self.jobAttributes[key] = val
                     self.force_update('jobAttributes')
@@ -180,7 +182,7 @@ class JobSpec(SpecBase):
     def to_event_data(self):
         data = []
         eventSpecs = []
-        for zipFileID, eventsData in self.zipEventMap.iteritems():
+        for zipFileID, eventsData in iteritems(self.zipEventMap):
             eventRanges = []
             for eventSpec in eventsData['events']:
                 eventRanges.append(eventSpec.to_data())
@@ -315,7 +317,7 @@ class JobSpec(SpecBase):
                             'avgRSS', 'avgVMEM', 'avgSWAP', 'avgPSS', 'totRCHAR', 'totWCHAR', 'totRBYTES',
                             'totWBYTES', 'rateRCHAR', 'rateWCHAR', 'rateRBYTES', 'rateWBYTES']
         panda_attributes = set(panda_attributes)
-        for aName, aValue in self.jobAttributes.iteritems():
+        for aName, aValue in iteritems(self.jobAttributes):
             if aName in panda_attributes:
                 data[aName] = aValue
         return data
@@ -333,7 +335,7 @@ class JobSpec(SpecBase):
         timeNow = datetime.datetime.utcnow()
         # reverse mapping
         revMap = dict()
-        for gID, items in id_map.iteritems():
+        for gID, items in iteritems(id_map):
             for lfn in items['lfns']:
                 revMap[lfn] = gID
         # update file specs

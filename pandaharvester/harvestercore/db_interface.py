@@ -2,7 +2,7 @@
 interface to give limited database access to plugins
 """
 
-from db_proxy_pool import DBProxyPool
+from .db_proxy_pool import DBProxyPool
 
 
 class DBInterface:
