@@ -813,24 +813,30 @@ class DBProxy:
             if locked_by is None:
                 msgPfx = None
             else:
-                msgPfx = 'thr={0}'.format(locked_by)
+                msgPfx = 'id={0}'.format(locked_by)
             tmpLog = core_utils.make_logger(_logger, msgPfx, method_name='get_jobs_in_sub_status')
             tmpLog.debug('start subStatus={0} timeColumn={1}'.format(sub_status, time_column))
+            timeNow = datetime.datetime.utcnow()
             # sql to count jobs being processed
             sqlC = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
-            sqlC += "WHERE ({0} IS NOT NULL AND subStatus=:subStatus) ".format(lock_column)
-            sqlC += "OR subStatus=:newSubStatus "
+            sqlC += "WHERE ({0} IS NOT NULL AND subStatus=:subStatus ".format(lock_column)
+            if time_column is not None and interval_with_lock is not None:
+                sqlC += "AND ({0} IS NOT NULL AND {0}>:lockTimeLimit) ".format(time_column)
+            sqlC += ") OR subStatus=:newSubStatus "
             # count jobs
             if max_jobs > 0 and new_sub_status is not None:
                 varMap = dict()
                 varMap[':subStatus'] = sub_status
                 varMap[':newSubStatus'] = new_sub_status
+                if time_column is not None and interval_with_lock is not None:
+                    varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=interval_with_lock)
                 self.execute(sqlC, varMap)
                 nProcessing, = self.cur.fetchone()
                 if nProcessing >= max_jobs:
                     # commit
                     self.commit()
-                    tmpLog.debug('enough jobs {0} are being processed'.format(nProcessing))
+                    tmpLog.debug('enough jobs {0} are being processed in {1} state'.format(nProcessing,
+                                                                                           new_sub_status))
                     return []
                 max_jobs -= nProcessing
             # sql to get jobs
@@ -853,7 +859,6 @@ class DBProxy:
             sqlGF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlGF += "WHERE PandaID=:PandaID AND fileType=:type "
             # get jobs
-            timeNow = datetime.datetime.utcnow()
             varMap = dict()
             varMap[':subStatus'] = sub_status
             if interval_with_lock is not None:

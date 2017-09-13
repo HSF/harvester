@@ -52,4 +52,4 @@ class NoVomsCredManager(PluginBase):
             stdOut = ''
             stdErr = core_utils.dump_error_message(mainLog)
             retCode = -1
-        return retCode == 0, stdOut + ' ' + stdErr
+        return retCode == 0, "{0} {1}".format(stdOut, stdErr)
