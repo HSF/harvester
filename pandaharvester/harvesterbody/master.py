@@ -9,6 +9,7 @@ import daemon.pidfile
 import argparse
 import threading
 import cProfile
+from future.utils import iteritems
 try:
     import pprofile
 except:
@@ -205,8 +206,8 @@ def main(daemon_mode=True):
     options = parser.parse_args()
     # show version information
     if options.showVersion:
-        print "Version : {0}".format(panda_pkg_info.release_version)
-        print "Last commit : {0}".format(commit_timestamp.timestamp)
+        print ("Version : {0}".format(panda_pkg_info.release_version))
+        print ("Last commit : {0}".format(commit_timestamp.timestamp))
         return
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
@@ -230,7 +231,7 @@ def main(daemon_mode=True):
         _logger.addHandler(stdoutHandler)
         # collect streams not to be closed by daemon
         files_preserve = []
-        for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
+        for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
             if loggerName.startswith('panda'):
                 for handler in loggerObj.handlers:
                     if hasattr(handler, 'stream'):

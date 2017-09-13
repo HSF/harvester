@@ -3,7 +3,10 @@ Event spec class
 
 """
 
-from spec_base import SpecBase
+from past.builtins import long
+from future.utils import iteritems
+
+from .spec_base import SpecBase
 
 
 class EventSpec(SpecBase):
@@ -40,7 +43,7 @@ class EventSpec(SpecBase):
 
     # convert from data
     def from_data(self, data, panda_id):
-        for attr, val in data.iteritems():
+        for attr, val in iteritems(data):
             # skip non attributes
             if attr not in self.attributes:
                 continue

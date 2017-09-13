@@ -1,5 +1,6 @@
 import sys
 import os
+from future.utils import iteritems
 from globus_sdk import TransferClient
 from globus_sdk import TransferData
 from globus_sdk import NativeAppAuthClient
@@ -131,7 +132,7 @@ class GoPreparator(PluginBase):
         files = []
         lfns = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             # set path to each file
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
             dstpath = inFile['path']
@@ -277,7 +278,7 @@ class GoPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

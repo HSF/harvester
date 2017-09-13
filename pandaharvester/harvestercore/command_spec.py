@@ -2,7 +2,7 @@
 Command spec class: a panda poller will retrieve commands from panda server and store cache them internally
 """
 
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 class CommandSpec(SpecBase):

@@ -1,7 +1,8 @@
-import Queue
+import queue
+
 from pandaharvester.harvesterconfig import harvester_config
-from communicator import Communicator
-import core_utils
+from .communicator import Communicator
+from . import core_utils
 
 # logger
 _logger = core_utils.setup_logger('communicator_pool')
@@ -26,7 +27,7 @@ class CommunicatorMethod:
             # get function
             func = getattr(con, self.methodName)
             # exec
-            return apply(func, args, kwargs)
+            return func(*args, **kwargs)
         finally:
             tmpLog.debug('release lock' + sw.get_elapsed_time())
             self.pool.put(con)
@@ -39,7 +40,7 @@ class CommunicatorPool(object):
         # install members
         object.__setattr__(self, 'pool', None)
         # connection pool
-        self.pool = Queue.Queue(harvester_config.pandacon.nConnections)
+        self.pool = queue.Queue(harvester_config.pandacon.nConnections)
         for i in range(harvester_config.pandacon.nConnections):
             con = Communicator()
             self.pool.put(con)

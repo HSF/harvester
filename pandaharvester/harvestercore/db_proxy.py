@@ -5,23 +5,23 @@ database connection
 
 import re
 import sys
-import types
 import inspect
 import datetime
 import threading
+from future.utils import iteritems
 
-from command_spec import CommandSpec
-from job_spec import JobSpec
-from work_spec import WorkSpec
-from file_spec import FileSpec
-from event_spec import EventSpec
-from cache_spec import CacheSpec
-from seq_number_spec import SeqNumberSpec
-from panda_queue_spec import PandaQueueSpec
-from job_worker_relation_spec import JobWorkerRelationSpec
-from process_lock_spec import ProcessLockSpec
+from .command_spec import CommandSpec
+from .job_spec import JobSpec
+from .work_spec import WorkSpec
+from .file_spec import FileSpec
+from .event_spec import EventSpec
+from .cache_spec import CacheSpec
+from .seq_number_spec import SeqNumberSpec
+from .panda_queue_spec import PandaQueueSpec
+from .job_worker_relation_spec import JobWorkerRelationSpec
+from .process_lock_spec import ProcessLockSpec
 
-import core_utils
+from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
@@ -96,7 +96,7 @@ class DBProxy:
         if harvester_config.db.engine == 'sqlite':
             sql = re.sub(' FOR UPDATE', ' ', sql, re.I)
         # no conversation unless dict
-        if not isinstance(varmap, types.DictType):
+        if not isinstance(varmap, dict):
             # using the printf style syntax for mariaDB
             if harvester_config.db.engine == 'mariadb':
                 sql = re.sub(':[^ $,)]+', '%s', sql)
@@ -327,9 +327,9 @@ class DBProxy:
             errMsg += "Please add missing columns, or drop those tables "
             errMsg += "so that harvester automatically re-creates those tables."
             errMsg += "\n"
-            print errMsg
+            print (errMsg)
             for outStr in outStrs:
-                print outStr
+                print (outStr)
             sys.exit(1)
         # fill PandaQueue table
         self.fill_panda_queue_table(harvester_config.qconf.queueList, queue_config_mapper)
@@ -496,7 +496,7 @@ class DBProxy:
             sql += "WHERE PandaID=:PandaID "
             # update job
             varMap = jobspec.values_map(only_changed=True)
-            for tmpKey, tmpVal in criteria.iteritems():
+            for tmpKey, tmpVal in iteritems(criteria):
                 mapKey = ':{0}_cr'.format(tmpKey)
                 sql += "AND {0}={1} ".format(tmpKey, mapKey)
                 varMap[mapKey] = tmpVal
@@ -560,7 +560,7 @@ class DBProxy:
             # update worker
             varMap = workspec.values_map(only_changed=True)
             if len(varMap) > 0:
-                for tmpKey, tmpVal in criteria.iteritems():
+                for tmpKey, tmpVal in iteritems(criteria):
                     mapKey = ':{0}_cr'.format(tmpKey)
                     sql += "AND {0}={1} ".format(tmpKey, mapKey)
                     varMap[mapKey] = tmpVal
@@ -689,7 +689,7 @@ class DBProxy:
                 self.execute(sqlN, varMap)
                 nQueue, = self.cur.fetchone()
                 # more jobs need to be queued
-                if nQueue < nQueueLimit:
+                if nQueueLimit is not None and nQueue < nQueueLimit:
                     retMap[queueName] = nQueueLimit - nQueue
                 # update timestamp
                 varMap = dict()
@@ -1390,7 +1390,7 @@ class DBProxy:
             for tmpWorkerID, tmpWorkStatus in resW:
                 tmpWorkers[tmpWorkerID] = tmpWorkStatus
             retVal = {}
-            for workerID, workStatus in tmpWorkers.iteritems():
+            for workerID, workStatus in iteritems(tmpWorkers):
                 # lock worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
@@ -2573,7 +2573,7 @@ class DBProxy:
             varMap[':timeLimit'] = timeNow - datetime.timedelta(minutes=60)
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE lastUpdate IS NULL AND ("
-            for tmpStatus, tmpTimeout in status_timeout_map.iteritems():
+            for tmpStatus, tmpTimeout in iteritems(status_timeout_map):
                 tmpStatusKey = ':status_{0}'.format(tmpStatus)
                 tmpTimeoutKey = ':timeLimit_{0}'.format(tmpStatus)
                 sqlW += '(status={0} AND endTime<={1}) OR '.format(tmpStatusKey, tmpTimeoutKey)
@@ -2730,7 +2730,7 @@ class DBProxy:
             # set all queues
             nUp = 0
             retMap = dict()
-            for resourceType, value in params.iteritems():
+            for resourceType, value in iteritems(params):
                 queueName = site_name
                 # get num of submitted workers
                 varMap = dict()
@@ -2782,7 +2782,7 @@ class DBProxy:
             sqlW += "WHERE wt.computingSite=pq.queueName AND wt.status=:status "
             # get worker stats
             varMap = dict()
-            for attr, val in criteria.iteritems():
+            for attr, val in iteritems(criteria):
                 if attr == 'timeLimit':
                     sqlW += "AND wt.submitTime>:timeLimit "
                     varMap[':timeLimit'] = val

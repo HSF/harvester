@@ -39,31 +39,31 @@ pluginFactory = PluginFactory()
 
 # get stage-out plugin
 stagerCore = pluginFactory.get_plugin(queueConfig.stager)
-print "plugin={0}".format(stagerCore.__class__.__name__)
+print ("plugin={0}".format(stagerCore.__class__.__name__))
 
-print "testing zip"
+print ("testing zip")
 tmpStat, tmpOut = stagerCore.zip_output(jobSpec)
 if tmpStat:
-    print " OK"
+    print (" OK")
 else:
-    print " NG {0}".format(tmpOut)
+    print (" NG {0}".format(tmpOut))
 
 print
 
-print "testing ES stage-out"
+print ("testing ES stage-out")
 tmpStat, tmpOut = stagerCore.trigger_stage_out(jobSpec)
 if tmpStat:
     transferID = fileSpec.fileAttributes['transferID']
-    print " OK transferID={0}".format(transferID)
+    print (" OK transferID={0}".format(transferID))
 else:
-    print " NG {0}".format(tmpOut)
+    print (" NG {0}".format(tmpOut))
     sys.exit(1)
 
 print
 
-print "checking status for transferID={0}".format(transferID)
+print ("checking status for transferID={0}".format(transferID))
 tmpStat, tmpOut = stagerCore.check_status(jobSpec)
 if tmpStat:
-    print " OK"
+    print (" OK")
 else:
-    print " NG {0}".format(tmpOut)
+    print (" NG {0}".format(tmpOut))

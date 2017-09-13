@@ -46,7 +46,7 @@ class CredManager(AgentBase):
 
     # get list
     def get_list(self, data):
-        if isinstance(data, types.ListType):
+        if isinstance(data, list):
             return data
         else:
             return [data]

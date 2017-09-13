@@ -1,4 +1,5 @@
 import datetime
+from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -43,7 +44,7 @@ class Submitter(AgentBase):
                 mainLog.debug('got {0} commands'.format(len(commandSpecs)))
                 for commandSpec in commandSpecs:
                     newLimits = self.dbProxy.set_queue_limit(siteName, commandSpec.params)
-                    for tmpResource, tmpNewVal in newLimits.iteritems():
+                    for tmpResource, tmpNewVal in iteritems(newLimits):
                         if tmpResource in resMap:
                             tmpQueueName = resMap[tmpResource]
                             if tmpQueueName in curWorkers:
@@ -59,7 +60,7 @@ class Submitter(AgentBase):
                 pass
             else:
                 # loop over all queues
-                for queueName, tmpVal in nWorkersPerQueue.iteritems():
+                for queueName, tmpVal in iteritems(nWorkersPerQueue):
                     tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName), method_name='run')
                     tmpLog.debug('start')
                     nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
@@ -171,7 +172,12 @@ class Submitter(AgentBase):
                         for workSpec in workSpecList:
                             if workSpec.hasJob == 1:
                                 tmpStat = messenger.feed_jobs(workSpec, workSpec.get_jobspec_list())
-                                tmpLog.debug('sent jobs to workerID={0} with {1}'.format(workSpec.workerID, tmpStat))
+                                if tmpStat is False:
+                                    tmpLog.error(
+                                        'failed to send jobs to workerID={0}'.format(workSpec.workerID))
+                                else:
+                                    tmpLog.debug(
+                                        'sent jobs to workerID={0} with {1}'.format(workSpec.workerID, tmpStat))
                         # submit
                         tmpLog.debug('submitting {0} workers'.format(len(workSpecList)))
                         workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)

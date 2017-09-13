@@ -1,5 +1,6 @@
 import os.path
 import os
+from future.utils import iteritems
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -46,7 +47,7 @@ class PilotmoverPreparator(PluginBase):
         files = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
             dstpath = os.path.dirname(inFile['path'])
             # check if path exists if not create it.
@@ -80,7 +81,7 @@ class PilotmoverPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

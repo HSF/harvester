@@ -26,6 +26,7 @@ setup(
     packages=find_packages(),
     install_requires=['requests',
                       'python-daemon',
+                      'future',
                       ],
     data_files=[
         # config and cron files

@@ -3,7 +3,7 @@ File spec class
 
 """
 
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 class FileSpec(SpecBase):

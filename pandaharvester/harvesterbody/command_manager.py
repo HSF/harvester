@@ -1,5 +1,6 @@
 import socket
 import datetime
+from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -34,7 +35,7 @@ class CommandManager(AgentBase):
         for command in commands:
             command_spec = CommandSpec()
             command_spec.convert_command_json(command)
-            for comStr, receiver in CommandSpec.receiver_map.iteritems():
+            for comStr, receiver in iteritems(CommandSpec.receiver_map):
                 if command_spec.command.startswith(comStr):
                     command_spec.receiver = receiver
                     break

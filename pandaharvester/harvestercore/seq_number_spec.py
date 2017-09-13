@@ -3,7 +3,7 @@ sequential number class
 
 """
 
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 class SeqNumberSpec(SpecBase):

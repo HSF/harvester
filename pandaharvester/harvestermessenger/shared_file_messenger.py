@@ -7,6 +7,8 @@ import os.path
 import tarfile
 import fnmatch
 import types
+from future.utils import iteritems
+from past.builtins import long
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -152,7 +154,7 @@ class SharedFileMessenger(PluginBase):
                 toSkip = True
             # test validity of data format (ie it should be a Dictionary)
             if not toSkip:
-                if not isinstance(loadDict, types.DictType):
+                if not isinstance(loadDict, dict):
                     tmpLog.error('loaded data is not a dictionary')
                     toSkip = True
             # collect files and events
@@ -161,10 +163,10 @@ class SharedFileMessenger(PluginBase):
                 sizeMap = dict()
                 chksumMap = dict()
                 eventsList = dict()
-                for tmpPandaID, tmpEventMapList in loadDict.iteritems():
+                for tmpPandaID, tmpEventMapList in iteritems(loadDict):
                     tmpPandaID = long(tmpPandaID)
                     # test if tmpEventMapList is a list
-                    if not isinstance(tmpEventMapList, types.ListType):
+                    if not isinstance(tmpEventMapList, list):
                         tmpLog.error('loaded data item is not a list')
                         toSkip = True
                         break
@@ -282,7 +284,7 @@ class SharedFileMessenger(PluginBase):
                     pfcFile.write(pfc)
                 # make symlink
                 inFiles = jobSpec.get_input_file_attributes()
-                for inLFN, inFile in inFiles.iteritems():
+                for inLFN, inFile in iteritems(inFiles):
                     dstPath = os.path.join(accessPoint, inLFN)
                     if inFile['path'] != dstPath:
                         # test if symlink exists if so remove it
@@ -395,7 +397,7 @@ class SharedFileMessenger(PluginBase):
                     tmpOrigDict = json.load(jsonFile)
                     newDict = dict()
                     # change the key from str to int
-                    for tmpPandaID, tmpDict in tmpOrigDict.iteritems():
+                    for tmpPandaID, tmpDict in iteritems(tmpOrigDict):
                         tmpPandaID = long(tmpPandaID)
                         retDict[tmpPandaID] = tmpDict
                         nData += 1

@@ -3,7 +3,8 @@ import sys
 import os.path
 import zipfile
 import hashlib
-import requests
+from future.utils import iteritems
+
 from globus_sdk import TransferClient
 from globus_sdk import TransferData
 from globus_sdk import NativeAppAuthClient
@@ -276,7 +277,7 @@ class GlobusStager(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

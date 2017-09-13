@@ -3,7 +3,7 @@ Relationship between job and worker
 
 """
 
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 # relationship spec

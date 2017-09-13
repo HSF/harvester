@@ -1,9 +1,9 @@
 import os
-import Queue
+import queue
 import threading
 from pandaharvester.harvesterconfig import harvester_config
-from db_proxy import DBProxy
-import core_utils
+from .db_proxy import DBProxy
+from . import core_utils
 
 # logger
 _logger = core_utils.setup_logger('db_proxy_pool')
@@ -28,7 +28,7 @@ class DBProxyMethod:
             # get function
             func = getattr(con, self.methodName)
             # exec
-            return apply(func, args, kwargs)
+            return func(*args, **kwargs)
         finally:
             tmpLog.debug('release lock' + sw.get_elapsed_time())
             self.pool.put(con)
@@ -48,7 +48,7 @@ class DBProxyPool(object):
         # install members
         object.__setattr__(self, 'pool', None)
         # connection pool
-        self.pool = Queue.Queue(harvester_config.db.nConnections)
+        self.pool = queue.Queue(harvester_config.db.nConnections)
         currentThr = threading.current_thread()
         if currentThr is None:
             thrID = None
