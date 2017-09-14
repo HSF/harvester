@@ -109,7 +109,10 @@ class Monitor(AgentBase):
                         for jobSpec in jobSpecs:
                             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
                                                             method_name='run')
-                            tmpLog.debug('new status={0} subStatus={1}'.format(jobSpec.status, jobSpec.subStatus))
+                            tmpLog.debug('new status={0} subStatus={1} status_in_metadata={2}'.format(
+                                jobSpec.status,
+                                jobSpec.subStatus,
+                                jobSpec.get_job_status_from_attributes()))
                     # update local database
                     self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                     # send ACK to workers for events and files
