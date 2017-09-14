@@ -33,12 +33,14 @@ class ARCMonitor(PluginBase):
         for workspec in workspec_list:
 
             # make logger
-            tmplog, _ = arc_utils.setup_logging(baselogger, workspec.workerID)
-
+            arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+            tmplog = arclog.log
+            tmplog.info("checking worker id {0}".format(workspec.workerID))
             job = arc_utils.workspec2arcjob(workspec)
 
             job_supervisor = arc.JobSupervisor(self.userconfig, [job])
             job_supervisor.Update()
+
             jobsupdated = job_supervisor.GetAllJobs()
             jobsnotupdated = job_supervisor.GetIDsNotProcessed()
 
@@ -83,30 +85,38 @@ class ARCMonitor(PluginBase):
                 # harvester, also to cover FINISHING
 
                 arc_utils.arcjob2workspec(updatedjob, workspec)
-                tmplog.debug('batchStatus {0} -> workerStatus {1}'.format(arcstatus.GetGeneralState(), newstatus))
+                # Have to force update to change info in DB
+                workspec.force_update('workAttributes')
+                tmplog.debug("batchStatus {0} -> workerStatus {1}".format(arcstatus.GetGeneralState(), newstatus))
                 retList.append((newstatus, ''))
 
         return True, retList
 
-def test():
+def test(jobid):
     '''Test checking status'''
     from pandaharvester.harvestercore.work_spec import WorkSpec
     wspec = WorkSpec()
-    wspec.batchID = 'gsiftp://pikolit.ijs.si:2811/jobs/z02NDmJckoqn4J8tmqCBXHLnABFKDmABFKDmGYJKDmABFKDmkvdTTm'
-    workAttributes = {'arcjob': {}}
-    workAttributes['arcjob']['JobID'] = wspec.batchID
-    workAttributes['arcjob']['JobStatusURL'] = 'ldap://pikolit.ijs.si:2135/mds-vo-name=local,o=grid??sub?(nordugrid-job-globalid={0})'.format(wspec.batchID)
-    workAttributes['arcjob']['JobStatusInterfaceName'] = 'org.nordugrid.ldapng'
+    wspec.batchID = jobid #"gsiftp://pikolit.ijs.si:2811/jobs/HtgKDmtCe7qn4J8tmqCBXHLnABFKDmABFKDmBcGKDmABFKDm4NCTCn"
+    workAttributes = {"arcjob": {}}
+    workAttributes["arcjob"]["JobID"] = wspec.batchID
+    workAttributes["arcjob"]["JobStatusURL"] = "ldap://{0}:2135/mds-vo-name=local,o=grid??sub?(nordugrid-job-globalid={1})".format(urlparse.urlparse(jobid).netloc, jobid)
+    workAttributes["arcjob"]["JobStatusInterfaceName"] = "org.nordugrid.ldapng"
     jobmanagementurl = arc.URL(wspec.batchID)
-    jobmanagementurl.ChangePath('/jobs')
-    workAttributes['arcjob']['JobManagementURL'] = jobmanagementurl.str()
-    workAttributes['arcjob']['JobManagementInterfaceName'] = 'org.nordugrid.gridftpjob'
+    jobmanagementurl.ChangePath("/jobs")
+    workAttributes["arcjob"]["JobManagementURL"] = jobmanagementurl.str()
+    workAttributes["arcjob"]["JobManagementInterfaceName"] = "org.nordugrid.gridftpjob"
     
-    wspec.workAttributes = json.dumps(workAttributes)
+    wspec.workAttributes = workAttributes
     print wspec.workAttributes
 
     monitor = ARCMonitor()
     print monitor.check_workers([wspec])
 
-if __name__ == '__main__':
-    test()
+if __name__ == "__main__":
+    import time, sys, urlparse
+    if len(sys.argv) != 2:
+        print "Please give ARC job id"
+        sys.exit(1)
+    while True:
+        test(sys.argv[1])
+        time.sleep(2)

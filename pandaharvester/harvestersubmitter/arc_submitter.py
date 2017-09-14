@@ -18,30 +18,31 @@ baselogger = core_utils.setup_logger()
 class SubmitThr(Thread):
     '''Class to submit jobs in separate thread'''
 
-    def __init__(self, queuelist, jobdescs, userconfig, log):
+    def __init__(self, queuelist, jobdescs, userconfig):
         Thread.__init__(self)
         self.queuelist = queuelist
         self.jobdescs = jobdescs
         self.userconfig = userconfig
-        self.log = log
         self.job = None
 
     def run(self):
         '''Do brokering and submit'''
 
+        arclog = arc_utils.ARCLogger(baselogger, 0)
+        tmplog = arclog.log
         # Do brokering among the available queues
         jobdesc = self.jobdescs[0]
         broker = arc.Broker(self.userconfig, jobdesc, "Random")
         targetsorter = arc.ExecutionTargetSorter(broker)
         for target in self.queuelist:
-            self.log.debug("considering target {0}:{1}".format(target.ComputingService.Name,
-                                                               target.ComputingShare.Name))
+            tmplog.debug("considering target {0}:{1}".format(target.ComputingService.Name,
+                                                             target.ComputingShare.Name))
 
             # Adding an entity performs matchmaking and brokering
             targetsorter.addEntity(target)
 
         if len(targetsorter.getMatchingTargets()) == 0:
-            self.log.error("no clusters satisfied job description requirements")
+            tmplog.error("no clusters satisfied job description requirements")
             return
 
         targetsorter.reset() # required to reset iterator, otherwise we get a seg fault
@@ -50,7 +51,7 @@ class SubmitThr(Thread):
         job = arc.Job()
         submitter = arc.Submitter(self.userconfig)
         if submitter.Submit(selectedtarget, jobdesc, job) != arc.SubmissionStatus.NONE:
-            self.log.error("Submission failed")
+            tmplog.error("Submission failed")
             return
 
         self.job = job
@@ -85,11 +86,10 @@ class ARCSubmitter(PluginBase):
         thr.join(thr.userconfig.Timeout() + 60.0)
         if thr.isAlive():
             # abort due to timeout and try again
-            raise Exception("submission timeout")
+            raise Exception("Submission timeout")
         if thr.job is None:
-            raise Exception("submission failed")
+            raise Exception("Submission failed")
 
-        thr.log.info("job id {0}".format(thr.job.JobID))
         return thr.job
 
 
@@ -154,7 +154,7 @@ class ARCSubmitter(PluginBase):
             raise Exception("Failed to prepare job description")
 
         # Run the submission in a separate thread
-        thr = SubmitThr(queuelist, jobdescs, self.userconfig, log)
+        thr = SubmitThr(queuelist, jobdescs, self.userconfig)
         return self._run_submit(thr)
 
 
@@ -175,7 +175,8 @@ class ARCSubmitter(PluginBase):
 
         for workspec in workspec_list:
 
-            tmplog, _ = arc_utils.setup_logging(baselogger, workspec.workerID)
+            arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+            tmplog = arclog.log
 
             # Assume for aCT that jobs are always pre-fetched (no late-binding)
             for jobspec in workspec.get_jobspec_list():

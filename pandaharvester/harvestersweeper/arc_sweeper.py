@@ -33,7 +33,8 @@ class ARCSweeper(PluginBase):
         """
         
         # make logger
-        tmplog, _ = arc_utils.setup_logging(baselogger, workspec.workerID)
+        arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+        tmplog = arclog.log
 
         job = arc_utils.workspec2arcjob(workspec)
         if not job.JobID:
@@ -75,7 +76,8 @@ class ARCSweeper(PluginBase):
         """
         
          # make logger
-        tmplog, _ = arc_utils.setup_logging(baselogger, workspec.workerID)
+        arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+        tmplog = arclog.log
 
         job = arc_utils.workspec2arcjob(workspec)
         if not job.JobID:
@@ -95,3 +97,33 @@ class ARCSweeper(PluginBase):
 
         tmplog.info("Job cleaned successfully")
         return True, ''
+
+
+
+def test(jobid):
+    '''Kill a job'''
+    from pandaharvester.harvestercore.work_spec import WorkSpec
+    import json
+    wspec = WorkSpec()
+    wspec.batchID = jobid
+    workAttributes = {"arcjob": {}}
+    workAttributes["arcjob"]["JobID"] = wspec.batchID
+    workAttributes["arcjob"]["JobStatusURL"] = "ldap://{0}:2135/mds-vo-name=local,o=grid??sub?(nordugrid-job-globalid={1})".format(urlparse.urlparse(jobid).netloc, wspec.batchID)
+    workAttributes["arcjob"]["JobStatusInterfaceName"] = "org.nordugrid.ldapng"
+    jobmanagementurl = arc.URL(wspec.batchID)
+    jobmanagementurl.ChangePath("/jobs")
+    workAttributes["arcjob"]["JobManagementURL"] = jobmanagementurl.str()
+    workAttributes["arcjob"]["JobManagementInterfaceName"] = "org.nordugrid.gridftpjob"
+    
+    wspec.workAttributes = workAttributes
+    print wspec.workAttributes
+
+    sweeper = ARCSweeper()
+    print sweeper.kill_worker(wspec)
+
+if __name__ == "__main__":
+    import time, sys, urlparse
+    if len(sys.argv) != 2:
+        print "Please give ARC job id"
+        sys.exit(1)
+    test(sys.argv[1])

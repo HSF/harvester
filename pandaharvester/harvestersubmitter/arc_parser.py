@@ -38,7 +38,7 @@ class ARCParser:
         self.traces = []
         if len(self.pandajob) > 50000:
             self.longjob = True
-        self.artes = ""
+        self.artes = None
         self.cvmfs = siteinfo['is_cvmfs']
 
         # ES merge jobs need unique guids because pilot uses them as dict keys
@@ -164,6 +164,7 @@ class ARCParser:
 
     def setRTE(self):
 
+        self.artes = ''
         if self.truepilot:
             self.xrsl['rtes'] = "(runtimeenvironment = ENV/PROXY)(runtimeenvironment = APPS/HEP/ATLAS-SITE-LCG)"
             return
@@ -261,11 +262,11 @@ class ARCParser:
 
         x = ""
         if self.truepilot:
-            x += '(ARCpilot "http://voatlas404.cern.ch;cache=check/data/data/ARCpilot-true")'
+            x += '(ARCpilot "http://aipanda404.cern.ch;cache=check/data/releases/ARCpilot-true")'
         elif self.eventranges:
-            x += '(ARCpilot "http://voatlas404.cern.ch;cache=check/data/data/ARCpilot-es")'
+            x += '(ARCpilot "http://aipanda404.cern.ch;cache=check/data/releases/ARCpilot-es")'
         else:
-            x += '(ARCpilot "http://voatlas404.cern.ch;cache=check/data/data/ARCpilot")'
+            x += '(ARCpilot "http://aipanda404.cern.ch;cache=check/data/releases/ARCpilot")'
 
         if self.jobdesc['prodSourceLabel'] == 'rc_test':
             x += '(pilotcode.tar.gz "http://pandaserver.cern.ch:25080;cache=check/cache/pilot/pilotcode-rc.tar.gz")'
@@ -273,9 +274,7 @@ class ARCParser:
             x += '(pilotcode.tar.gz "http://pandaserver.cern.ch:25080;cache=check/cache/pilot/pilotcode-PICARD.tar.gz")'
 
         if self.eventranges:
-            x += '(ARCpilot-test.tar.gz "http://voatlas404.cern.ch;cache=check/data/data/ARCpilot-es.tar.gz")'
-        else:
-            x += '(ARCpilot-test.tar.gz "http://voatlas404.cern.ch;cache=check/data/data/ARCpilot.tar.gz")'
+            x += '(ARCpilot-test.tar.gz "http://aipanda404.cern.ch;cache=check/data/releases/ARCpilot-es.tar.gz")'
 
         if self.longjob:
             try:
