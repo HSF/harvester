@@ -4,7 +4,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('no_voms_cred_manager')
 
 
 # credential manager with no-voms proxy
@@ -16,7 +16,7 @@ class NoVomsCredManager(PluginBase):
     # check proxy
     def check_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger)
+        mainLog = core_utils.make_logger(_logger, method_name='check_credential')
         comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
         mainLog.debug(comStr)
         try:
@@ -35,7 +35,7 @@ class NoVomsCredManager(PluginBase):
     # renew proxy
     def renew_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger)
+        mainLog = core_utils.make_logger(_logger, method_name='renew_credential')
         comStr = "voms-proxy-init -rfc -voms {0} -out {1} -valid 96:00 -cert={2}".format(self.voms,
                                                                                          self.outCertFile,
                                                                                          self.inCertFile)
@@ -52,4 +52,4 @@ class NoVomsCredManager(PluginBase):
             stdOut = ''
             stdErr = core_utils.dump_error_message(mainLog)
             retCode = -1
-        return retCode == 0, stdOut + ' ' + stdErr
+        return retCode == 0, "{0} {1}".format(stdOut, stdErr)

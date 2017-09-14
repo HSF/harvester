@@ -1,9 +1,10 @@
 import sys
 import logging
+from future.utils import iteritems
 
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
-for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
+for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
     if loggerName.startswith('panda.log'):
         if len(loggerObj.handlers) == 0:
             continue
@@ -15,4 +16,4 @@ for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
 
 a = CommunicatorPool()
 return_object = a.check_panda()
-print return_object
+print (return_object)

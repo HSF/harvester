@@ -1,5 +1,6 @@
 import socket
 import datetime
+from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -9,7 +10,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('job_fetcher')
 
 
 # class to fetch jobs
@@ -25,18 +26,19 @@ class JobFetcher(AgentBase):
     # main loop
     def run(self):
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
             mainLog.debug('getting number of jobs to be fetched')
             # get number of jobs to be fetched
             nJobsPerQueue = self.dbProxy.get_num_jobs_to_fetch(harvester_config.jobfetcher.nQueues,
                                                                harvester_config.jobfetcher.lookupTime)
             mainLog.debug('got {0} queues'.format(len(nJobsPerQueue)))
             # loop over all queues
-            for queueName, nJobs in nJobsPerQueue.iteritems():
+            for queueName, nJobs in iteritems(nJobsPerQueue):
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     continue
-                tmpLog = core_utils.make_logger(_logger, 'queueName={0}'.format(queueName))
+                tmpLog = core_utils.make_logger(_logger, 'queueName={0}'.format(queueName),
+                                                method_name='run')
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 # upper limit

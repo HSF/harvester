@@ -4,6 +4,7 @@ import shutil
 import os.path
 import zipfile
 import uuid
+from future.utils import iteritems
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -13,7 +14,7 @@ from rucio.client import Client as RucioClient
 from rucio.common.exception import RuleNotFound
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('rucio_stager')
 
 
 # plugin for stage-out with Rucio
@@ -27,7 +28,8 @@ class RucioStager(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='check_status')
         tmpLog.debug('start')
         # loop over all files
         allChecked = True
@@ -74,7 +76,8 @@ class RucioStager(PluginBase):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_stage_out')
         tmpLog.debug('start')
         # loop over all files
         files = dict()
@@ -124,7 +127,7 @@ class RucioStager(PluginBase):
             files[fileSpec.fileType].append(tmpFile)
         # loop over all file types to be registered to rucio
         rucioAPI = RucioClient()
-        for fileType, fileList in files.iteritems():
+        for fileType, fileList in iteritems(files):
             # set destination RSE
             if fileType in ['es_output', 'zip_output']:
                 dstRSE = self.dstRSE_ES
@@ -202,7 +205,8 @@ class RucioStager(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='zip_output')
         tmpLog.debug('start')
         try:
             for fileSpec in jobspec.outFiles:

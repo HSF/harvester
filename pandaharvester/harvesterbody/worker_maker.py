@@ -3,7 +3,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('worker_maker')
 
 
 # class to make worker
@@ -15,7 +15,8 @@ class WorkerMaker:
 
     # make workers
     def make_workers(self, jobchunk_list, queue_config, n_ready):
-        tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName))
+        tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
+                                        method_name='make_workers')
         tmpLog.debug('start')
         try:
             # get plugin

@@ -64,19 +64,17 @@ access_point = sys.argv[1]
 
 # Now loop over all of the json files "
 for description, jsonFileName in file_list:
-    print("{0} : {1}".format(description,jsonFileName))
+    print ("{0} : {1}".format(description,jsonFileName))
     jsonFilePath = os.path.join(access_point, jsonFileName)
     print ('looking for attributes file {0}'.format(jsonFilePath))
     if not os.path.exists(jsonFilePath):
         # not found
-        print 'not found'
+        print ('not found')
     else:
         try:
             with open(jsonFilePath) as data_file:    
                 data = json.load(data_file)
             pprint(data)
         except:
-            print('failed to load {0}'.format(jsonFilePath))
+            print ('failed to load {0}'.format(jsonFilePath))
             continue
-
-

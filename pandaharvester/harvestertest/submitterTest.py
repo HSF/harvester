@@ -1,5 +1,6 @@
 import os
 import sys
+from future.utils import iteritems
 
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -21,7 +22,7 @@ if queueConfig.mapType != WorkSpec.MT_NoJob:
     jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel,
                                 'computingElement', 1)
     if len(jobs) == 0:
-        print "Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr)
+        print ("Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr))
         sys.exit(0)
 
     jobSpec = JobSpec()
@@ -29,14 +30,13 @@ if queueConfig.mapType != WorkSpec.MT_NoJob:
 
     # set input file paths
     inFiles = jobSpec.get_input_file_attributes()
-    for inLFN, inFile in inFiles.iteritems():
+    for inLFN, inFile in iteritems(inFiles):
         inFile['path'] = '{0}/{1}'.format(os.getcwd(), inLFN)
     jobSpec.set_input_file_paths(inFiles)
     jobSpecList.append(jobSpec)
 
 maker = pluginFactory.get_plugin(queueConfig.workerMaker)
 workSpec = maker.make_worker(jobSpecList, queueConfig)
-#workSpec.accessPoint = os.getcwd()
 
 workSpec.accessPoint = queueConfig.messenger['accessPoint']
 messenger = pluginFactory.get_plugin(queueConfig.messenger)
@@ -71,34 +71,34 @@ if queueConfig.mapType != WorkSpec.MT_NoJob:
         tmpStat, events = com.get_event_ranges(workSpec.eventsRequestParams)
         # failed
         if tmpStat is False:
-            print('failed to get events with {0}'.format(events))
+            print ('failed to get events with {0}'.format(events))
             sys.exit(0)
         tmpStat = messenger.feed_events(workSpec, events)
         if tmpStat is False:
-            print('failed to feed events with {0}'.format(events))
+            print ('failed to feed events with {0}'.format(events))
             sys.exit(0)
 
 # get submitter plugin
 submitterCore = pluginFactory.get_plugin(queueConfig.submitter)
-print "testing submission with plugin={0}".format(submitterCore.__class__.__name__)
+print ("testing submission with plugin={0}".format(submitterCore.__class__.__name__))
 tmpRetList = submitterCore.submit_workers([workSpec])
 tmpStat, tmpOut = tmpRetList[0]
 if tmpStat:
-    print " OK batchID={0}".format(workSpec.batchID)
+    print (" OK batchID={0}".format(workSpec.batchID))
 else:
-    print " NG {0}".format(tmpOut)
+    print (" NG {0}".format(tmpOut))
     sys.exit(1)
 
 print
 
 # get monitoring plug-in
 monCore = pluginFactory.get_plugin(queueConfig.monitor)
-print "testing monitoring for batchID={0} with plugin={1}".format(workSpec.batchID,
-                                                                  monCore.__class__.__name__)
+print ("testing monitoring for batchID={0} with plugin={1}".format(workSpec.batchID,
+                                                                   monCore.__class__.__name__))
 tmpStat, tmpOut = monCore.check_workers([workSpec])
 tmpOut = tmpOut[0]
 if tmpStat:
-    print " OK workerStatus={0}".format(tmpOut[0])
+    print (" OK workerStatus={0}".format(tmpOut[0]))
 else:
-    print " NG {0}".format(tmpOut[1])
+    print (" NG {0}".format(tmpOut[1]))
     sys.exit(1)

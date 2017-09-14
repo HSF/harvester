@@ -1,19 +1,29 @@
-import sys
 import os
+import sys
+import os.path
+import zipfile
+import hashlib
 from future.utils import iteritems
+
 from globus_sdk import TransferClient
 from globus_sdk import TransferData
 from globus_sdk import NativeAppAuthClient
 from globus_sdk import RefreshTokenAuthorizer
 
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
+# TO BE REMOVED for python2.7
+import requests.packages.urllib3
+try:
+    requests.packages.urllib3.disable_warnings()
+except:
+    pass
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc import globus_utils
 from pandaharvester.harvestermover import mover_utils
 
 # logger
-_logger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('go_stager')
 
 def dump(obj):
    for attr in dir(obj):
@@ -22,13 +32,13 @@ def dump(obj):
 
 
 
-# preparator with Globus Online
-class GoPreparator(PluginBase):
+# plugin for stager with FTS
+class GlobusStager(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # create Globus Transfer Client
-        tmpLog = core_utils.make_logger(_logger, method_name='GoPreparator __init__ ')
+        tmpLog = core_utils.make_logger(_logger, method_name='GlobusStager __init__ ')
         try:
             self.tc = None
             tmpStat, statusStr = self.create_globus_transfer_client()
@@ -40,51 +50,62 @@ class GoPreparator(PluginBase):
 
     # check status
     def check_status(self, jobspec):
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+        # make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                         method_name='check_status')
-        # get groups of input files except ones already in ready state
-        transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
-        #print type(transferGroups)," ",transferGroups
-        # update transfer status
-
-        # get label
-        label = self.make_label(jobspec)
-        tmpLog.debug('label={0}'.format(label))
-        # get transfer task
-        tmpStat, transferTasks = self.get_transfer_tasks(label)
-        # return a temporary error when failed to get task
-        if not tmpStat:
-            errStr = 'failed to get transfer task'
-            tmpLog.error(errStr)
-            return None, errStr
-        # return a fatal error when task is missing # FIXME retry instead?
-        if label not in transferTasks:
-            errStr = 'transfer task is missing'
-            tmpLog.error(errStr)
-            return False, errStr
-        # succeeded
-        if transferTasks[label]['status'] == 'SUCCEEDED':
-            transferID = transferTasks[label]['task_id'] 
-            jobspec.update_group_status_in_files(transferID, 'done')
-            tmpLog.debug('transfer task succeeded')
+        tmpLog.debug('start')
+        # loop over all files
+        allChecked = True
+        oneErrMsg = None
+        transferStatus = {}
+        for fileSpec in jobspec.outFiles:
+            # get transfer ID
+            transferID = fileSpec.fileAttributes['transferID']
+            if transferID not in transferStatus:
+                # get status
+                errMsg = None
+                try:
+                    # get transfer task by transfer ID
+                    tmpStat, transferTask = self.get_transfer_task_id(transferID)
+                    if tmpStat:
+                        # succeeded have task associated with transferID
+                        transferStatus[transferID] = transferTask[transferID]['status']
+                        tmpLog.debug('got {0} for {1}'.format(transferStatus[transferID],
+                                                              transferID))
+                    else:
+                        errMsg = 'failed to get transfer task transferID: {}'.format(transferID)
+                except:
+                    if errMsg is None:
+                        errtype, errvalue = sys.exc_info()[:2]
+                        errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+                # failed
+                if errMsg is not None:
+                    allChecked = False
+                    tmpLog.error('failed to get status for {0} with {1}'.format(transferID,
+                                                                                errMsg))
+                    # set dummy not to lookup again
+                    transferStatus[transferID] = None
+                    # keep one message
+                    if oneErrMsg is None:
+                        oneErrMsg = errMsg
+            # final status
+            if transferStatus[transferID] == 'SUCCEEDED':
+                fileSpec.status = 'finished'
+            elif transferStatus[transferID] in ['FAILED', 'INACTIVE']:
+                fileSpec.status = 'failed'
+        if allChecked:
             return True, ''
-        # failed
-        if transferTasks[label]['status'] == 'FAILED':
-            errStr = 'transfer task failed'
-            tmpLog.error(errStr)
-            return False, errStr
-        # another status
-        tmpStr = 'transfer task is in {0}'.format(transferTasks[label]['status'])
-        tmpLog.debug(tmpStr)
-        return None, ''
+        else:
+            return False, oneErrMsg
 
-    # trigger preparation
-    def trigger_preparation(self, jobspec):
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='trigger_preparation')
-        tmpLog.debug('start')               
+    # trigger stage out
+    def trigger_stage_out(self, jobspec):
+        # make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_stage_out')
+        tmpLog.debug('start')
+        # default return
+        tmpRetVal = (True, '')
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
             # not found
@@ -123,48 +144,58 @@ class GoPreparator(PluginBase):
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
         queueConfigMapper = QueueConfigMapper()
         queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
-        self.Globus_srcPath = queueConfig.preparator['Globus_srcPath']
-        self.srcEndpoint = queueConfig.preparator['srcEndpoint']
-        self.Globus_dstPath = self.basePath
-        #self.Globus_dstPath = queueConfig.preparator['Globus_dstPath']
-        self.dstEndpoint = queueConfig.preparator['dstEndpoint']
-        # get input files
+        #self.Globus_srcPath = queueConfig.stager['Globus_srcPath']
+        self.srcEndpoint = queueConfig.stager['srcEndpoint']
+        self.Globus_srcPath = self.basePath
+        self.Globus_dstPath = queueConfig.stager['Globus_dstPath']
+        self.dstEndpoint = queueConfig.stager['dstEndpoint']
+        # loop over all files
         files = []
-        lfns = []
-        inFiles = jobspec.get_input_file_attributes(skip_ready=True)
-        for inLFN, inFile in iteritems(inFiles):
-            # set path to each file
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
-            dstpath = inFile['path']
-            # check if path exists if not create it.
-            if not os.access(self.basePath, os.F_OK):
-                os.makedirs(self.basePath)
-            # create the file paths for the Globus source and destination endpoints 
-            Globus_srcpath = mover_utils.construct_file_path(self.Globus_srcPath, inFile['scope'], inLFN)
-            Globus_dstpath = mover_utils.construct_file_path(self.Globus_dstPath, inFile['scope'], inLFN)
-            files.append({'scope': inFile['scope'],
-                          'name': inLFN,
-                          'Globus_dstPath': Globus_dstpath,
-                          'Globus_srcPath': Globus_srcpath})
-            lfns.append(inLFN)
-        tmpLog.debug('files[] {0}'.format(files))
-        try:
-            # Test endpoints for activation
-            tmpStatsrc, srcStr = self.check_endpoint_activation(self.srcEndpoint)
-            tmpStatdst, dstStr = self.check_endpoint_activation(self.dstEndpoint)
-            if tmpStatsrc and tmpStatdst:
-                errStr = 'source Endpoint and destination Endpoint activated'
-                tmpLog.debug(errStr)
-            else:
-                errStr = ''
-                if not tmpStatsrc :
-                    errStr += ' source Endpoint not activated '
-                if not tmpStatdst :
-                    errStr += ' destination Endpoint not activated '
-                tmpLog.error(errStr)
-                return False,errStr
-            # both endpoints activated now prepare to transfer data
-            if len(files) > 0:
+        lfns = set()
+        fileAttrs = jobspec.get_output_file_attributes()
+        for fileSpec in jobspec.outFiles:
+            scope = fileAttrs[fileSpec.lfn]['scope']
+            hash = hashlib.md5()
+            hash.update('%s:%s' % (scope, fileSpec.lfn))
+            hash_hex = hash.hexdigest()
+            correctedscope = "/".join(scope.split('.'))
+            srcURL = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=self.Globus_srcpath,
+                                                                       scope=correctedscope,
+                                                                       hash1=hash_hex[0:2],
+                                                                       hash2=hash_hex[2:4],
+                                                                       lfn=fileSpec.lfn)                                                                        
+            dstURL = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=self.Globus_dstpath,
+                                                                       scope=correctedscope,
+                                                                       hash1=hash_hex[0:2],
+                                                                       hash2=hash_hex[2:4],
+                                                                       lfn=fileSpec.lfn)
+            tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
+            files.append({
+                "sources": [srcURL],
+                "destinations": [dstURL],
+            })
+            lfns.add(fileSpec.lfn)
+        # submit
+        if files != []:
+            # get status
+            errMsg = None
+            try:
+                # Test endpoints for activation
+                tmpStatsrc, srcStr = self.check_endpoint_activation(self.srcEndpoint)
+                tmpStatdst, dstStr = self.check_endpoint_activation(self.dstEndpoint)
+                if tmpStatsrc and tmpStatdst:
+                    errStr = 'source Endpoint and destination Endpoint activated'
+                    tmpLog.debug(errStr)
+                else:
+                    errMsg = ''
+                    if not tmpStatsrc :
+                        errMsg += ' source Endpoint not activated '
+                    if not tmpStatdst :
+                        errMsg += ' destination Endpoint not activated '
+                    tmpLog.error(errMsg)
+                    tmpRetVal = (False,errMsg)
+                    return tmpRetVal
+                # both endpoints activated now prepare to transfer data
                 tdata = TransferData(self.tc,
                                      self.srcEndpoint,
                                      self.dstEndpoint,
@@ -172,7 +203,7 @@ class GoPreparator(PluginBase):
                                      sync_level="checksum")
                 # loop over all input files and add 
                 for myfile in files:
-                    tdata.add_item(myfile['Globus_srcPath'],myfile['Globus_dstPath'])
+                    tdata.add_item(myfile['sources'],myfile['destinations'])
                 # submit
                 transfer_result = self.tc.submit_transfer(tdata)
                 # check status code and message
@@ -181,16 +212,78 @@ class GoPreparator(PluginBase):
                     # succeeded
                     # set transfer ID which are used for later lookup
                     transferID = transfer_result['task_id']
-                    jobspec.set_groups_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
-                    tmpLog.debug('done')
-                    return True,''
+                    tmpLog.debug('successfully submitted id={0}'.format(transferID))
+                    # set
+                    for fileSpec in jobspec.outFiles:
+                        if fileSpec.fileAttributes == None:
+                            fileSpec.fileAttributes = {}
+                        fileSpec.fileAttributes['transferID'] = transferID
+                 else:
+                    tmpRetVal = (False, transfer_result['message'])
+             except:
+                globus_utils.handle_globus_exception(tmpLog)
+                if errMsg is None:
+                    errtype, errvalue = sys.exc_info()[:2]
+                    errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+            # failed
+            if errMsg is not None:
+                tmpLog.error('failed to submit transfer to Globus with {1}'.format(errMsg))
+                tmpRetVal = (False, errMsg)
+        # return
+        tmpLog.debug('done')
+        return tmpRetVal
+
+    # zip output files
+    def zip_output(self, jobspec):
+        # make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='zip_output')
+        tmpLog.debug('start')
+        try:
+            for fileSpec in jobspec.outFiles:
+                if self.zipDir == "${SRCDIR}":
+                    # the same directory as src
+                    zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
                 else:
-                    return False,transfer_result['message']
-            # if no files to transfer return True
-            return True, 'No files to transfer'
+                    zipDir = self.zipDir
+                zipPath = os.path.join(zipDir, fileSpec.lfn)
+                # remove zip file just in case
+                try:
+                    os.remove(zipPath)
+                except:
+                    pass
+                # make zip file
+                with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
+                    for assFileSpec in fileSpec.associatedFiles:
+                        zf.write(assFileSpec.path)
+                # set path
+                fileSpec.path = zipPath
+                # get size
+                statInfo = os.stat(zipPath)
+                fileSpec.fsize = statInfo.st_size
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errMsg = core_utils.dump_error_message(tmpLog)
+            return False, 'failed to zip with {0}'.format(errMsg)
+        tmpLog.debug('done')
+        return True, ''
+
+    # make label for transfer task
+    def make_label(self, jobspec):
+        return "OUT-{computingSite}-{PandaID}".format(computingSite=jobspec.computingSite,
+                                                     PandaID=jobspec.PandaID)
+
+    # resolve input file paths
+    def resolve_input_paths(self, jobspec):
+        # get input files
+        inFiles = jobspec.get_input_file_attributes()
+        # set path to each file
+        for inLFN, inFile in iteritems(inFiles):
+            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
+        # set
+        jobspec.set_input_file_paths(inFiles)
+        return True, ''
+
+    # Globus specific commands
 
     # get transfer tasks
     def get_transfer_task_by_id(self,transferID=None):
@@ -221,8 +314,7 @@ class GoPreparator(PluginBase):
                  gRes = self.tc.get_task(transferID)
             # parse output
             tasks = {}
-            label = gRes['label']
-            tasks[label] = gRes
+            tasks[transferID] = gRes
             # return
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
@@ -268,24 +360,8 @@ class GoPreparator(PluginBase):
             globus_utils.handle_globus_exception(tmpLog)
             return False, {}
 
-    # make label for transfer task
-    def make_label(self, jobspec):
-        return "IN-{computingSite}-{PandaID}".format(computingSite=jobspec.computingSite,
-                                                     PandaID=jobspec.PandaID)
-
-    # resolve input file paths
-    def resolve_input_paths(self, jobspec):
-        # get input files
-        inFiles = jobspec.get_input_file_attributes()
-        # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
-        # set
-        jobspec.set_input_file_paths(inFiles)
-        return True, ''
 
 
-    # Globus specific commands
     def create_globus_transfer_client(self):
         """
         create Globus Transfer Client and put results in self.tc

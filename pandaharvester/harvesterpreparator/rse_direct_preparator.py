@@ -1,3 +1,5 @@
+from future.utils import iteritems
+
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 
@@ -27,7 +29,7 @@ class RseDirectPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

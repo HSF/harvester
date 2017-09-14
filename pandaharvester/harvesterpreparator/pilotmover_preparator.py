@@ -1,5 +1,6 @@
 import os.path
 import os
+from future.utils import iteritems
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -7,7 +8,7 @@ from pandaharvester.harvestermover import mover_utils
 from pilot.api import data
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('pilotmover_preparator')
 
 
 # plugin for preparator based on Pilot2.0 Data API
@@ -31,7 +32,8 @@ class PilotmoverPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID))
+        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_preparation')
         tmpLog.debug('start')        
        
         # check that jobspec.computingSite is defined
@@ -45,7 +47,7 @@ class PilotmoverPreparator(PluginBase):
         files = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
             dstpath = os.path.dirname(inFile['path'])
             # check if path exists if not create it.
@@ -79,7 +81,7 @@ class PilotmoverPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in inFiles.iteritems():
+        for inLFN, inFile in iteritems(inFiles):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

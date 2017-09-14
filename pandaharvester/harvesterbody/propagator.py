@@ -7,7 +7,7 @@ from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('propagator')
 
 
 # propagate important checkpoints to panda
@@ -22,7 +22,8 @@ class Propagator(AgentBase):
     # main loop
     def run(self):
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+            sw = core_utils.get_stopwatch()
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
             mainLog.debug('getting jobs to propagate')
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,
@@ -130,7 +131,7 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update worker stats for {0} err={1}'.format(siteName,
                                                                                                  tmpStr))
-            mainLog.debug('done')
+            mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):
                 mainLog.debug('terminated')

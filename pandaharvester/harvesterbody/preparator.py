@@ -7,7 +7,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('preparator')
 
 
 # class to prepare jobs
@@ -25,7 +25,8 @@ class Preparator(AgentBase):
     def run(self):
         lockedBy = 'preparator-{0}'.format(self.ident)
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
+            sw = core_utils.get_stopwatch()
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.get_jobs_in_sub_status('preparing',
@@ -37,7 +38,8 @@ class Preparator(AgentBase):
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                method_name='run')
                 tmpLog.debug('start checking')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -50,6 +52,11 @@ class Preparator(AgentBase):
                 if preparatorCore is None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
                     continue
                 tmpStat, tmpStr = preparatorCore.check_status(jobSpec)
                 # still running
@@ -103,7 +110,8 @@ class Preparator(AgentBase):
             # loop over all jobs
             fileStatMap = dict()
             for jobSpec in jobsToTrigger:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                method_name='run')
                 tmpLog.debug('try to trigger preparation')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -116,6 +124,11 @@ class Preparator(AgentBase):
                 if preparatorCore is None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
                     continue
                 # check file status
                 if queueConfig.ddmEndpointIn not in fileStatMap:
@@ -185,7 +198,7 @@ class Preparator(AgentBase):
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
-            mainLog.debug('done')
+            mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.preparator.sleepTime):
                 mainLog.debug('terminated')

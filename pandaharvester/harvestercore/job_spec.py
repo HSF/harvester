@@ -5,8 +5,10 @@ Job spec class
 
 import copy
 import datetime
+from past.builtins import long
+from future.utils import iteritems
 
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 class JobSpec(SpecBase):
@@ -18,14 +20,14 @@ class JobSpec(SpecBase):
 
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
-                           'taskID:integer',
+                           'taskID:integer / index',
                            'attemptNr:integer',
                            'status:text',
-                           'subStatus:text',
-                           'currentPriority:integer',
-                           'computingSite:text',
+                           'subStatus:text / index',
+                           'currentPriority:integer / index',
+                           'computingSite:text / index',
                            'creationTime:timestamp',
-                           'modificationTime:timestamp',
+                           'modificationTime:timestamp / index',
                            'stateChangeTime:timestamp',
                            'startTime:timestamp',
                            'endTime:timestamp',
@@ -37,11 +39,11 @@ class JobSpec(SpecBase):
                            'outputFilesToReport:blob',
                            'lockedBy:text',
                            'propagatorLock:text',
-                           'propagatorTime:timestamp',
-                           'preparatorTime:timestamp',
+                           'propagatorTime:timestamp / index',
+                           'preparatorTime:timestamp / index',
                            'submitterTime:timestamp',
                            'stagerLock:text',
-                           'stagerTime:timestamp',
+                           'stagerTime:timestamp / index',
                            'zipPerMB:integer',
                            'nWorkers:integer',
                            'nWorkersLimit:integer',
@@ -120,7 +122,25 @@ class JobSpec(SpecBase):
         if 'xml' in attrs:
             self.outputFilesToReport = attrs['xml']
             del attrs['xml']
-        self.jobAttributes = attrs
+        if self.jobAttributes is None:
+            self.jobAttributes = attrs
+        else:
+            for key, val in iteritems(attrs):
+                if key not in self.jobAttributes or self.jobAttributes[key] != val:
+                    self.jobAttributes[key] = val
+                    self.force_update('jobAttributes')
+
+    # set one attribute
+    def set_one_attribute(self, attr, value):
+        if self.jobAttributes is None:
+            self.jobAttributes = dict()
+        self.jobAttributes[attr] = value
+
+    # check if an attribute is there
+    def has_attribute(self, attr):
+        if self.jobAttributes is None:
+            return False
+        return attr in self.jobAttributes
 
     # check if final status
     def is_final_status(self, job_status=None):
@@ -162,7 +182,7 @@ class JobSpec(SpecBase):
     def to_event_data(self):
         data = []
         eventSpecs = []
-        for zipFileID, eventsData in self.zipEventMap.iteritems():
+        for zipFileID, eventsData in iteritems(self.zipEventMap):
             eventRanges = []
             for eventSpec in eventsData['events']:
                 eventRanges.append(eventSpec.to_data())
@@ -297,7 +317,7 @@ class JobSpec(SpecBase):
                             'avgRSS', 'avgVMEM', 'avgSWAP', 'avgPSS', 'totRCHAR', 'totWCHAR', 'totRBYTES',
                             'totWBYTES', 'rateRCHAR', 'rateWCHAR', 'rateRBYTES', 'rateWBYTES']
         panda_attributes = set(panda_attributes)
-        for aName, aValue in self.jobAttributes.iteritems():
+        for aName, aValue in iteritems(self.jobAttributes):
             if aName in panda_attributes:
                 data[aName] = aValue
         return data
@@ -306,6 +326,8 @@ class JobSpec(SpecBase):
     def get_job_status_from_attributes(self):
         if self.jobAttributes is None or 'jobStatus' not in self.jobAttributes:
             return None
+        if self.jobAttributes['jobStatus'] not in ['finished', 'failed']:
+            return None
         return self.jobAttributes['jobStatus']
 
     # set group to files
@@ -313,7 +335,7 @@ class JobSpec(SpecBase):
         timeNow = datetime.datetime.utcnow()
         # reverse mapping
         revMap = dict()
-        for gID, items in id_map.iteritems():
+        for gID, items in iteritems(id_map):
             for lfn in items['lfns']:
                 revMap[lfn] = gID
         # update file specs
@@ -334,9 +356,10 @@ class JobSpec(SpecBase):
 
     # get groups of input files
     def get_groups_of_input_files(self, skip_ready=False):
-        groups = set()
+        groups = dict()
         for fileSpec in self.inFiles:
             if skip_ready and fileSpec.status == 'ready':
                 continue
-            groups.add(fileSpec.groupID)
+            groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
+                                        'groupStatus': fileSpec.groupStatus}
         return groups

@@ -2,8 +2,7 @@
 Cache class
 
 """
-
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 class CacheSpec(SpecBase):

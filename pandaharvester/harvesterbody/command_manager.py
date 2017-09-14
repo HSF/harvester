@@ -1,5 +1,6 @@
 import socket
 import datetime
+from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -8,7 +9,7 @@ from pandaharvester.harvestercore.command_spec import CommandSpec
 
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('command_manager')
 
 
 # class to retrieve commands from panda server
@@ -34,7 +35,7 @@ class CommandManager(AgentBase):
         for command in commands:
             command_spec = CommandSpec()
             command_spec.convert_command_json(command)
-            for comStr, receiver in CommandSpec.receiver_map.iteritems():
+            for comStr, receiver in iteritems(CommandSpec.receiver_map):
                 if command_spec.command.startswith(comStr):
                     command_spec.receiver = receiver
                     break
@@ -46,7 +47,7 @@ class CommandManager(AgentBase):
         """
         main
         """
-        main_log = core_utils.make_logger(_logger, 'id={0}'.format(self.ident))
+        main_log = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
         bulk_size = harvester_config.commandmanager.commands_bulk_size
         locked = self.db_proxy.get_process_lock('commandmanager', self.get_pid(),
                                                 harvester_config.commandmanager.sleepTime)

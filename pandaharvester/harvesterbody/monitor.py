@@ -1,3 +1,5 @@
+from future.utils import iteritems
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -6,7 +8,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('monitor')
 
 
 # propagate important checkpoints to panda
@@ -27,7 +29,8 @@ class Monitor(AgentBase):
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
+            sw = core_utils.get_stopwatch()
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting workers to monitor')
             workSpecsPerQueue = self.dbProxy.get_workers_to_update(harvester_config.monitor.maxWorkers,
                                                                    harvester_config.monitor.checkInterval,
@@ -35,8 +38,9 @@ class Monitor(AgentBase):
                                                                    lockedBy)
             mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
             # loop over all workers
-            for queueName, workSpecsList in workSpecsPerQueue.iteritems():
-                tmpQueLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName))
+            for queueName, workSpecsList in iteritems(workSpecsPerQueue):
+                tmpQueLog = core_utils.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
+                                                   method_name='run')
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     tmpQueLog.error('config not found')
@@ -51,6 +55,7 @@ class Monitor(AgentBase):
                 tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
                 tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog)
                 # loop over all worker chunks
+                tmpQueLog.debug('update jobs and workers')
                 iWorker = 0
                 for workSpecs in workSpecsList:
                     jobSpecs = None
@@ -59,7 +64,8 @@ class Monitor(AgentBase):
                     eventsToUpdateList = []
                     filesToStageOutList = []
                     for workSpec in workSpecs:
-                        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID))
+                        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                        method_name='run')
                         tmpOut = tmpRetMap[workSpec.workerID]
                         newStatus = tmpOut['newStatus']
                         monStatus = tmpOut['monStatus']
@@ -87,7 +93,7 @@ class Monitor(AgentBase):
                         # get associated jobs for the worker chunk
                         if workSpec.hasJob == 1 and jobSpecs is None:
                             jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                                            lockedBy,
+                                                                            None,
                                                                             only_running=True)
                         # pandaIDs for push
                         pandaIDsList.append(pandaIDs)
@@ -101,8 +107,12 @@ class Monitor(AgentBase):
                         core_utils.update_job_attributes_with_workers(queueConfig.mapType, jobSpecs, workSpecs,
                                                                       filesToStageOutList, eventsToUpdateList)
                         for jobSpec in jobSpecs:
-                            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
-                            tmpLog.debug('new status={0} subStatus={1}'.format(jobSpec.status, jobSpec.subStatus))
+                            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                            method_name='run')
+                            tmpLog.debug('new status={0} subStatus={1} status_in_metadata={2}'.format(
+                                jobSpec.status,
+                                jobSpec.subStatus,
+                                jobSpec.get_job_status_from_attributes()))
                     # update local database
                     self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                     # send ACK to workers for events and files
@@ -110,7 +120,7 @@ class Monitor(AgentBase):
                         for workSpec in workSpecs:
                             messenger.acknowledge_events_files(workSpec)
                 tmpQueLog.debug('done')
-            mainLog.debug('done')
+            mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.monitor.sleepTime):
                 mainLog.debug('terminated')
@@ -149,10 +159,12 @@ class Monitor(AgentBase):
                                          'diagMessage': '',
                                          'pandaIDs': pandaIDs}
         # check workers
+        tmp_log.debug('checking workers with plugin')
         tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
         if not tmpStat:
             tmp_log.error('failed to check workers with {0}'.format(tmpOut))
         else:
+            tmp_log.debug('checked')
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
                 if workerID in retMap:

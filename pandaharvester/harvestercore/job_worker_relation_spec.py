@@ -3,14 +3,14 @@ Relationship between job and worker
 
 """
 
-from spec_base import SpecBase
+from .spec_base import SpecBase
 
 
 # relationship spec
 class JobWorkerRelationSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('PandaID:integer',
-                           'workerID:integer',
+    attributesWithTypes = ('PandaID:integer / index',
+                           'workerID:integer / index',
                            'relationType:text',
                            )
 

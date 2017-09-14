@@ -6,7 +6,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('stager')
 
 
 # class for stage-out
@@ -23,7 +23,8 @@ class Stager(AgentBase):
     def run(self):
         lockedBy = 'stager-{0}'.format(self.ident)
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy))
+            sw = core_utils.get_stopwatch()
+            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToCheck,
@@ -34,7 +35,8 @@ class Stager(AgentBase):
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                method_name='run')
                 tmpLog.debug('start checking')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -46,6 +48,11 @@ class Stager(AgentBase):
                 if stagerCore is None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
                     continue
                 tmpStat, tmpStr = stagerCore.check_status(jobSpec)
                 # succeeded
@@ -66,7 +73,8 @@ class Stager(AgentBase):
             mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
             # loop over all jobs
             for jobSpec in jobsToTrigger:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                method_name='run')
                 tmpLog.debug('try to trigger stage-out')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -78,6 +86,11 @@ class Stager(AgentBase):
                 if stagerCore is None:
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                    continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
                     continue
                 # trigger stage-out
                 tmpStat, tmpStr = stagerCore.trigger_stage_out(jobSpec)
@@ -100,7 +113,8 @@ class Stager(AgentBase):
             mainLog.debug('got {0} jobs to zip'.format(len(jobsToZip)))
             # loop over all jobs
             for jobSpec in jobsToZip:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID))
+                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                method_name='run')
                 tmpLog.debug('try to zip output')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -113,6 +127,11 @@ class Stager(AgentBase):
                     # not found
                     tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                     continue
+                # lock job again
+                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                if not lockedAgain:
+                    tmpLog.debug('skip since locked by another thread')
+                    continue
                 # trigger preparation
                 tmpStat, tmpStr = stagerCore.zip_output(jobSpec)
                 # succeeded
@@ -124,7 +143,7 @@ class Stager(AgentBase):
                 else:
                     # failed
                     tmpLog.debug('failed to zip with {0}'.format(tmpStr))
-            mainLog.debug('done')
+            mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.stager.sleepTime):
                 mainLog.debug('terminated')

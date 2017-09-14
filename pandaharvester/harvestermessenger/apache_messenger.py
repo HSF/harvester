@@ -3,7 +3,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermessenger import http_server_messenger
 
 # logger
-_logger = core_utils.setup_logger()
+_logger = core_utils.setup_logger('apache_messenger')
 http_server_messenger.set_logger(_logger)
 
 

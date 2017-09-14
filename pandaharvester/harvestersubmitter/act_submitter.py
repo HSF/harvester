@@ -9,7 +9,7 @@ from act.common.aCTProxy import aCTProxy
 from act.atlas.aCTDBPanda import aCTDBPanda
 
 # logger
-baseLogger = core_utils.setup_logger()
+baseLogger = core_utils.setup_logger('act_submitter')
 
 # submitter for aCT
 class ACTSubmitter(PluginBase):
@@ -18,7 +18,7 @@ class ACTSubmitter(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         # Set up aCT DB connection
-        self.log = core_utils.make_logger(baseLogger, 'aCT submitter')
+        self.log = core_utils.make_logger(baseLogger, 'aCT submitter', method_name='__init__')
         self.conf = aCTConfigARC()
         self.actDB = aCTDBPanda(self.log, self.conf.get(["db", "file"]))
 
@@ -48,7 +48,8 @@ class ACTSubmitter(PluginBase):
         retList = []
         for workSpec in workspec_list:
 
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID))
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                            method_name='submit_workers')
 
             # Assume for aCT that jobs are always pre-fetched (no late-binding)
             for jobSpec in workSpec.get_jobspec_list():
