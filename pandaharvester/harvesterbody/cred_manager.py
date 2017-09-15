@@ -1,5 +1,3 @@
-import types
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory

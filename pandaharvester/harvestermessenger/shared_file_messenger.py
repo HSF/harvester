@@ -6,7 +6,6 @@ import uuid
 import os.path
 import tarfile
 import fnmatch
-import types
 from future.utils import iteritems
 from past.builtins import long
 from pandaharvester.harvestercore import core_utils
@@ -106,7 +105,7 @@ class SharedFileMessenger(PluginBase):
                 try:
                     with open(jsonFilePath) as jsonFile:
                         tmpDict = json.load(jsonFile)
-                        retDict['metadata'] = tmpDict
+                        retDict['metaData'] = tmpDict
                     tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
