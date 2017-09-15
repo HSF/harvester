@@ -127,6 +127,8 @@ def calc_adler32(file_name):
 
 # get output file report
 def get_output_file_report(jobspec):
+    if jobspec.outputFilesToReport is not None:
+        return jobspec.outputFilesToReport
     # header
     xml = """<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
     <!-- ATLAS file meta-data catalog -->
