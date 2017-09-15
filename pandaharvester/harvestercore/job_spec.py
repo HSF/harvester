@@ -116,9 +116,9 @@ class JobSpec(SpecBase):
             return
         attrs = copy.copy(attrs[self.PandaID])
         # set metadata and outputs to dedicated attributes
-        if 'metadata' in attrs:
-            self.metaData = attrs['metadata']
-            del attrs['metadata']
+        if 'metaData' in attrs:
+            self.metaData = attrs['metaData']
+            del attrs['metaData']
         if 'xml' in attrs:
             self.outputFilesToReport = attrs['xml']
             del attrs['xml']

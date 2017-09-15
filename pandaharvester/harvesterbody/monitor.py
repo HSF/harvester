@@ -200,8 +200,9 @@ class Monitor(AgentBase):
                                                                                 only_running=True)
                                 # post processing
                                 messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
+                                retMap[workerID]['workAttributes'] = workSpec.workAttributes
                             workSpec.post_processed()
-                            newStatus = WorkSpec.ST_running
+                            #newStatus = WorkSpec.ST_running
                         # reset modification time to immediately trigger subsequent lookup
                         workSpec.trigger_next_lookup()
                     retMap[workerID]['newStatus'] = newStatus

@@ -2051,7 +2051,7 @@ class DBProxy:
                             fileSpec.pack(resFile)
                             jobspec.add_out_file(fileSpec)
                         # make file report
-                        jobspec.outputFilesToReport = core_utils.get_output_file_report(jobspec)
+                        #jobspec.outputFilesToReport = core_utils.get_output_file_report(jobspec)
             # sql to update job
             sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobspec.bind_update_changes_expression())
             sqlJ += "WHERE PandaID=:PandaID "
