@@ -218,14 +218,17 @@ class GlobusStager(PluginBase):
                         fileSpec.fileAttributes['transferID'] = transferID
             else:
                 tmpRetVal = (False, transfer_result['message'])
-        except:
-            globus_utils.handle_globus_exception(tmpLog)
-            if errMsg is None:
-                errtype, errvalue = sys.exc_info()[:2]
-                errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+        except Exception as e:
+            if 'This user has too many pending jobs' in str(e):
+               tmpLog.warning('Globus report user has too many concurrent transfers. Will try again later')
+            else:
+               globus_utils.handle_globus_exception(tmpLog)
+               if errMsg is None:
+                   errtype, errvalue = sys.exc_info()[:2]
+                   errMsg = "{0} {1}".format(errtype.__name__, errvalue)
         # failed
         if errMsg is not None:
-            tmpLog.error('failed to submit transfer to Globus with {1}'.format(errMsg))
+            tmpLog.error('failed to submit transfer to Globus with {0}'.format(errMsg))
             tmpRetVal = (False, errMsg)
         # return
         tmpLog.debug('done')

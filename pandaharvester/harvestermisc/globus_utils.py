@@ -6,6 +6,7 @@ import sys
 import inspect
 import traceback
 from globus_sdk import GlobusAPIError
+from globus_sdk import TransferAPIError
 from globus_sdk import NetworkError
 from globus_sdk import GlobusError
 from globus_sdk import GlobusConnectionError
@@ -28,6 +29,12 @@ def handle_globus_exception(tmp_log):
         # Error response from the REST service, check the code and message for
         # details.
         err_str += "Error Code: {0} Error Message: {1} ".format(errvalue.code, errvalue.message)
+    elif isinstance(errvalue, TransferAPIError):
+        err_args = list(errvalue._get_args())
+        err_str += " http_status: {0} code: {1} message: {2} requestID: {3} ".format(err_args[0],
+                                                                                     err_args[1],
+                                                                                     err_args[2],
+                                                                                     err_args[3])
     elif isinstance(errvalue, NetworkError):
         err_str += "Network Failure. Possibly a firewall or connectivity issue "
     elif isinstance(errvalue, GlobusConnectionError):
@@ -38,6 +45,6 @@ def handle_globus_exception(tmp_log):
         err_str += "Totally unexpected GlobusError! "
     else:  # some other error
         err_str = "{0} ".format(errvalue)
-    err_str += traceback.format_exc()
+    #err_str += traceback.format_exc()
     tmp_log.error(err_str)
     return err_str
