@@ -218,7 +218,7 @@ class GlobusStager(PluginBase):
                         fileSpec.fileAttributes['transferID'] = transferID
             else:
                 tmpRetVal = (False, transfer_result['message'])
-        except Exception,e:
+        except Exception as e:
             if 'This user has too many pending jobs' in str(e):
                tmpLog.warning('Globus report user has too many concurrent transfers. Will try again later')
             else:
