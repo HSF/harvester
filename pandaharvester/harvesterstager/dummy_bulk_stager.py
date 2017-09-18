@@ -11,7 +11,8 @@ dummy_transfer_id = 'dummy_id_for_out'
 baseLogger = core_utils.setup_logger('dummy_bulk_stager')
 
 
-# dummy plugin for stager with bulk transfers
+# dummy plugin for stager with bulk transfers. For JobSpec and DBInterface methods, see
+# https://github.com/PanDAWMS/panda-harvester/wiki/Utilities#file-grouping-for-file-transfers
 class DummyBulkStager(PluginBase):
     # constructor
     def __init__(self, **kwarg):
@@ -25,7 +26,7 @@ class DummyBulkStager(PluginBase):
         tmpLog.debug('start')
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
-        # lock if the dummy transfer ID is used
+        # lock if the dummy transfer ID is used to avoid submitting duplicated transfer requests
         if dummy_transfer_id in groups:
             # lock for 120 sec
             locked = self.dbInterface.get_object_lock(dummy_transfer_id, lock_interval=120)
@@ -45,7 +46,7 @@ class DummyBulkStager(PluginBase):
                 fileSpecs = self.dbInterface.get_files_with_group_id(dummy_transfer_id)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
                 if len(fileSpecs) >= 10 or \
-                    groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                        groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
                     # submit transfer and get a real transfer ID
                     # ...
                     transferID = str(uuid.uuid4())
@@ -60,7 +61,7 @@ class DummyBulkStager(PluginBase):
                 self.dbInterface.release_object_lock(dummy_transfer_id)
                 # return None to retry later
                 return None, ''
-        # check transfer with real IDs
+        # check transfer with real transfer IDs
         # ...
         # then set file status if successful
         for fileSpec in jobspec.outFiles:
