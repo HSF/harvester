@@ -363,3 +363,11 @@ class JobSpec(SpecBase):
             groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
                                         'groupStatus': fileSpec.groupStatus}
         return groups
+
+    # get groups of output files
+    def get_groups_of_output_files(self):
+        groups = dict()
+        for fileSpec in self.outFiles:
+            groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
+                                        'groupStatus': fileSpec.groupStatus}
+        return groups

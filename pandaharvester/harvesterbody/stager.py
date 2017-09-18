@@ -62,7 +62,7 @@ class Stager(AgentBase):
                     tmpLog.debug('succeeded new subStatus={0}'.format(newSubStatus))
                 else:
                     # failed
-                    tmpLog.debug('failed with {0}'.format(tmpStr))
+                    tmpLog.debug('try later since check was not done with {0}'.format(tmpStr))
             # get jobs to trigger stage-out
             jobsToTrigger = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToTrigger,
                                                                 harvester_config.stager.triggerInterval,
