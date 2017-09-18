@@ -35,14 +35,14 @@ class DummyBulkStager(PluginBase):
                 msgStr = 'escape since locked by another thread'
                 tmpLog.debug(msgStr)
                 return None, msgStr
-            # refresh group information since that could have been updated by another thread
+            # refresh group information since that could have been updated by another thread before getting the lock
             self.dbInterface.refresh_file_group_info(jobspec)
             # get transfer groups again with refreshed info
             groups = jobspec.get_groups_of_output_files()
-            # the dummy transfer ID is still used
+            # the dummy transfer ID is still there
             if dummy_transfer_id in groups:
                 groupUpdateTime = groups[dummy_transfer_id]['groupUpdateTime']
-                # get files with the dummy transfer ID across many jobs
+                # get files with the dummy transfer ID across jobs
                 fileSpecs = self.dbInterface.get_files_with_group_id(dummy_transfer_id)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
                 if len(fileSpecs) >= 10 or \
