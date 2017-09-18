@@ -24,8 +24,8 @@ class FileSpec(SpecBase):
                            'zipFileID:integer',
                            'objstoreID:integer',
                            'endpoint:text',
-                           'groupID:text',
-                           'groupStatus:text',
+                           'groupID:text / index',
+                           'groupStatus:text / index',
                            'groupUpdateTime:timestamp / index',
                            'attemptNr:integer'
                            )
