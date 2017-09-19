@@ -116,9 +116,9 @@ class JobSpec(SpecBase):
             return
         attrs = copy.copy(attrs[self.PandaID])
         # set metadata and outputs to dedicated attributes
-        if 'metadata' in attrs:
-            self.metaData = attrs['metadata']
-            del attrs['metadata']
+        if 'metaData' in attrs:
+            self.metaData = attrs['metaData']
+            del attrs['metaData']
         if 'xml' in attrs:
             self.outputFilesToReport = attrs['xml']
             del attrs['xml']
@@ -360,6 +360,14 @@ class JobSpec(SpecBase):
         for fileSpec in self.inFiles:
             if skip_ready and fileSpec.status == 'ready':
                 continue
+            groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
+                                        'groupStatus': fileSpec.groupStatus}
+        return groups
+
+    # get groups of output files
+    def get_groups_of_output_files(self):
+        groups = dict()
+        for fileSpec in self.outFiles:
             groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
                                         'groupStatus': fileSpec.groupStatus}
         return groups

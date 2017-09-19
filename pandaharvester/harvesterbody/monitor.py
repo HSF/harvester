@@ -168,9 +168,7 @@ class Monitor(AgentBase):
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
                 if workerID in retMap:
-                    # get work attributes and output files
-                    workAttributes = messenger.get_work_attributes(workSpec)
-                    retMap[workerID]['workAttributes'] = workAttributes
+                    # get output files
                     filesToStageOut = messenger.get_files_to_stage_out(workSpec)
                     retMap[workerID]['filesToStageOut'] = filesToStageOut
                     # get events to update
@@ -204,6 +202,9 @@ class Monitor(AgentBase):
                             newStatus = WorkSpec.ST_running
                         # reset modification time to immediately trigger subsequent lookup
                         workSpec.trigger_next_lookup()
+                    # get work attributes so that they can be updated in post_processing if any
+                    workAttributes = messenger.get_work_attributes(workSpec)
+                    retMap[workerID]['workAttributes'] = workAttributes
                     retMap[workerID]['newStatus'] = newStatus
                     retMap[workerID]['diagMessage'] = diagMessage
         return retMap

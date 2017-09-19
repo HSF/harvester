@@ -2886,6 +2886,12 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, "proc={0} by={1}".format(process_name, locked_by),
                                             method_name='get_process_lock')
             tmpLog.debug('start')
+            # delete old lock
+            sqlD = "DELETE FROM {0} ".format(processLockTableName)
+            sqlD += "WHERE lockTime<:timeLimit "
+            varMap = dict()
+            varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            self.execute(sqlD, varMap)
             # check lock
             sqlC = "SELECT lockTime FROM {0} ".format(processLockTableName)
             sqlC += "WHERE processName=:processName "
@@ -2925,6 +2931,32 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done with {0}'.format(retVal))
             return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # release a process lock
+    def release_process_lock(self, process_name, locked_by):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, "proc={0} by={1}".format(process_name, locked_by),
+                                            method_name='release_process_lock')
+            tmpLog.debug('start')
+            # delete old lock
+            sqlC = "DELETE FROM {0} ".format(processLockTableName)
+            sqlC += "WHERE processName=:processName AND lockedBy=:lockedBy "
+            varMap = dict()
+            varMap[':processName'] = process_name
+            varMap[':lockedBy'] = locked_by
+            self.execute(sqlC, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
         except:
             # roll back
             self.rollback()
@@ -3053,43 +3085,64 @@ class DBProxy:
             # return
             return None
 
-    # get file names and group status with a group ID
-    def get_files_with_group_id(self, group_id, file_type, endpoint):
+    # get files with a group ID
+    def get_files_with_group_id(self, group_id):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'groupID={0} endpoint={1}'.format(group_id, endpoint),
+            tmpLog = core_utils.make_logger(_logger, 'groupID={0}'.format(group_id),
                                             method_name='get_files_with_group_id')
             tmpLog.debug('start')
             # sql to get files
-            sqlF = "SELECT lfn,groupStatus,groupUpdateTime FROM {0} ".format(fileTableName)
-            sqlF += "WHERE groupID=:groupID AND fileType=:type "
-            if endpoint is not None:
-                sqlF += "AND endpoint=:endpoint "
+            sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+            sqlF += "WHERE groupID=:groupID "
             # get files
             varMap = dict()
             varMap[':groupID'] = group_id
-            varMap[':type'] = file_type
-            if endpoint is not None:
-                varMap[':endpoint'] = endpoint
+            retList = []
             self.execute(sqlF, varMap)
-            retMap = {'lfns': set(), 'groupStatus': None, 'groupUpdateTime': None}
-            for lfn, groupStatus, groupUpdateTime in self.cur.fetchall():
-                retMap['lfns'].add(lfn)
-                # use only the latest info
-                if retMap['groupUpdateTime'] is None or groupUpdateTime > retMap['groupUpdateTime']:
-                    retMap['groupStatus'] = groupStatus
-                    retMap['groupUpdateTime'] = groupUpdateTime
+            for resFile in self.cur.fetchall():
+                fileSpec = FileSpec()
+                fileSpec.pack(resFile)
+                retList.append(fileSpec)
             # commit
             self.commit()
-            tmpLog.debug('got {0}'.format(str(retMap)))
-            return retMap
+            tmpLog.debug('got {0} files'.format(len(retList)))
+            return retList
         except:
             # roll back
             self.rollback()
             # dump error
             core_utils.dump_error_message(_logger)
             # return
-            return {}
+            return []
+
+    # update group status
+    def update_file_group_status(self, group_id, status_string):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'groupID={0}'.format(group_id),
+                                            method_name='update_file_group_status')
+            tmpLog.debug('start')
+            # sql to get files
+            sqlF = "UPDATE {0} set groupStatus=:groupStatus".format(fileTableName)
+            sqlF += "WHERE groupID=:groupID "
+            # get files
+            varMap = dict()
+            varMap[':groupID'] = group_id
+            varMap[':groupStatus'] = status_string
+            self.execute(sqlF, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('updated {0} files'.format(nRow))
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
 
     # lock job again
     def lock_job_again(self, panda_id, time_column, lock_column, locked_by):
@@ -3125,6 +3178,69 @@ class DBProxy:
             tmpLog.debug('done with {0}'.format(retVal))
             # return
             return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # set file group
+    def set_file_group(self, file_specs, group_id, status_string):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'groupID={0}'.format(group_id),
+                                            method_name='set_file_group')
+            tmpLog.debug('start')
+            timeNow = datetime.datetime.utcnow()
+            # sql to update files
+            sqlF = "UPDATE {0} ".format(fileTableName)
+            sqlF += "SET groupID=:groupID,groupStatus=:groupStatus,groupUpdateTime=:groupUpdateTime "
+            sqlF += "WHERE fileID=:fileID "
+            # update files
+            for fileSpec in file_specs:
+                varMap = dict()
+                varMap[':groupID'] = group_id
+                varMap[':groupStatus'] = status_string
+                varMap[':groupUpdateTime'] = timeNow
+                varMap[':fileID'] = fileSpec.fileID
+                self.execute(sqlF, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # refresh file group info
+    def refresh_file_group_info(self, job_spec):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'pandaID={0}'.format(job_spec.PandaID),
+                                            method_name='refresh_file_group_info')
+            tmpLog.debug('start')
+            # sql to get info
+            sqlF = "SELECT groupID,groupStatus,groupUpdateTime FROM {0} ".format(fileTableName)
+            sqlF += "WHERE fileID=:fileID "
+            # get info
+            for fileSpec in job_spec.inFiles.union(job_spec.outFiles):
+                varMap = dict()
+                varMap[':fileID'] = fileSpec.fileID
+                self.execute(sqlF, varMap)
+                groupID, groupStatus, groupUpdateTime = self.cur.fetchone()
+                fileSpec.groupID = groupID
+                fileSpec.groupStatus = groupStatus
+                fileSpec.groupUpdateTime = groupUpdateTime
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
         except:
             # roll back
             self.rollback()
