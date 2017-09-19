@@ -34,7 +34,7 @@ class ARCMessenger(PluginBase):
         self.cert = harvester_config.credmanager.certFile
         cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
         self.userconfig = arc.UserConfig(cred_type)
-        self.userconfig.ProxyPath(self.cert)
+        self.userconfig.ProxyPath(str(self.cert))
 
     def _list_url_recursive(self, url, log, fname='', filelist=[]):
         '''List ARC job directory recursively to find all files'''

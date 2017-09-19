@@ -24,7 +24,7 @@ class ARCMonitor(PluginBase):
         self.cert = harvester_config.credmanager.certFile
         cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
         self.userconfig = arc.UserConfig(cred_type)
-        self.userconfig.ProxyPath(self.cert)
+        self.userconfig.ProxyPath(str(self.cert))
 
 
     # check workers

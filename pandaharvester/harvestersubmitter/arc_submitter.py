@@ -71,7 +71,7 @@ class ARCSubmitter(PluginBase):
         self.cert = harvester_config.credmanager.certFile
         cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
         self.userconfig = arc.UserConfig(cred_type)
-        self.userconfig.ProxyPath(self.cert)
+        self.userconfig.ProxyPath(str(self.cert))
 
 
     def _run_submit(self, thr):
@@ -231,7 +231,7 @@ class ARCSubmitter(PluginBase):
                     tmplog.info("ARC CE job id {0}".format(arcjob.JobID))
                     arc_utils.arcjob2workspec(arcjob, workspec)
                     workspec.workAttributes['arcdownloadfiles'] = downloadfiles
-                    workspec.batchID = arcjob.JobID
+                    workspec.batchID = arcjob.JobID[:79] # panda DB limit
                     tmplog.debug(workspec.workAttributes)
                     result = (True, '')
                 except Exception as exc:

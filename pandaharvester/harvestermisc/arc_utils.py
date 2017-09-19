@@ -1,5 +1,6 @@
 import inspect
 import json
+import pickle
 import re
 import arc
 
@@ -95,7 +96,7 @@ class ARCLogger:
         # Get the log file from the baseLogger
         loghandler = baselogger.handlers[0] # Assumes one handler
         # LogFile must exist for the lifetime of this object
-        self.logfile = arc.LogFile(loghandler.baseFilename)
+        self.logfile = arc.LogFile(str(loghandler.baseFilename))
         self.logfile.setFormat(arc.LongFormat)
         arc.Logger_getRootLogger().setThreadContext()
         arc.Logger_getRootLogger().addDestination(self.logfile)
