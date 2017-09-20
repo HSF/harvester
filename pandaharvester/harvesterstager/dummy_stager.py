@@ -12,12 +12,11 @@ class DummyStager(PluginBase):
         """Check status of stage-out procedure. If that is done synchronously in trigger_stage_out
         this method should always return True.
         Output files are available through jobspec.outFiles which gives a list of FileSpecs.
-        FileSpec.status needs to be set to 'finished' if stage-out was successful for a file,
-        or to 'failed' if it failed.
+        FileSpec.attemptNr shows how many times the transfer was checked for the file.
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False otherwise, None if on-going) and error dialog
+        :return: A tuple of return code (True for success, False for failure, or None if on-going) and error dialog
         :rtype: (bool, string)
         """
         for fileSpec in jobspec.outFiles:
@@ -29,10 +28,11 @@ class DummyStager(PluginBase):
         """Trigger stage-out procedure for the job.
         Output files are available through jobspec.outFiles which gives a list of FileSpecs.
         FileSpec.status should be checked to skip finished or failed files.
+        FileSpec.attemptNr shows how many times transfer was tried for the file.
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
+        :return: A tuple of return code (True: success, False: fatal error, None: temporary error) and error dialog
         :rtype: (bool, string)
         """
         for fileSpec in jobspec.outFiles:

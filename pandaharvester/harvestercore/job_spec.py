@@ -199,10 +199,11 @@ class JobSpec(SpecBase):
     # get input file attributes
     def get_input_file_attributes(self, skip_ready=False):
         lfnToSkip = set()
-        if skip_ready:
-            for fileSpec in self.inFiles:
-                if fileSpec.status == 'ready':
-                    lfnToSkip.add(fileSpec.lfn)
+        attemptNrMap = dict()
+        for fileSpec in self.inFiles:
+            if skip_ready and fileSpec.status == 'ready':
+                lfnToSkip.add(fileSpec.lfn)
+            attemptNrMap[fileSpec.lfn] = fileSpec.attemptNr
         inFiles = {}
         lfns = self.jobParams['inFiles'].split(',')
         guids = self.jobParams['GUID'].split(',')
@@ -219,12 +220,17 @@ class JobSpec(SpecBase):
                 fsize = None
             if lfn in lfnToSkip:
                 continue
+            if lfn in attemptNrMap:
+                attemptNr = attemptNrMap[lfn]
+            else:
+                attemptNr = 0
             inFiles[lfn] = {'fsize': fsize,
                             'guid': guid,
                             'checksum': chksum,
                             'scope': scope,
                             'dataset': dataset,
-                            'endpoint': endpoint}
+                            'endpoint': endpoint,
+                            'attemptNr': attemptNr}
         # add path
         if 'inFilePaths' in self.jobParams:
             paths = self.jobParams['inFilePaths'].split(',')

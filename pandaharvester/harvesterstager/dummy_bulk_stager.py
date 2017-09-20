@@ -60,7 +60,7 @@ class DummyBulkStager(PluginBase):
                 # release the lock
                 self.dbInterface.release_object_lock(dummy_transfer_id)
                 # return None to retry later
-                return None, ''
+                return None, msgStr
         # check transfer with real transfer IDs
         # ...
         # then set file status if successful

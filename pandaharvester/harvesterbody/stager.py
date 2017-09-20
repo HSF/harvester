@@ -55,14 +55,24 @@ class Stager(AgentBase):
                     tmpLog.debug('skip since locked by another thread')
                     continue
                 tmpStat, tmpStr = stagerCore.check_status(jobSpec)
-                # succeeded
+                # check result
                 if tmpStat is True:
-                    # update job
+                    # succeeded
                     newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
                     tmpLog.debug('succeeded new subStatus={0}'.format(newSubStatus))
+                elif tmpStat is False:
+                    # fatal error
+                    tmpLog.debug('fatal error when checking status with {0}'.format(tmpStr))
+                    # update job
+                    for fileSpec in jobSpec.outFiles:
+                        if fileSpec.status != 'finished':
+                            fileSpec.status = 'failed'
+                    jobSpec.trigger_propagation()
+                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                    tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
                 else:
-                    # failed
-                    tmpLog.debug('try later since check was not done with {0}'.format(tmpStr))
+                    # on-going
+                    tmpLog.debug('try to check later since {0}'.format(tmpStr))
             # get jobs to trigger stage-out
             jobsToTrigger = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToTrigger,
                                                                 harvester_config.stager.triggerInterval,
@@ -94,15 +104,25 @@ class Stager(AgentBase):
                     continue
                 # trigger stage-out
                 tmpStat, tmpStr = stagerCore.trigger_stage_out(jobSpec)
-                # succeeded
+                # check result
                 if tmpStat is True:
-                    # update job
+                    # succeeded
                     jobSpec.all_files_triggered_to_stage_out()
                     newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
                     tmpLog.debug('triggered new subStatus={0}'.format(newSubStatus))
+                elif tmpStat is False:
+                    # fatal error
+                    tmpLog.debug('fatal error to trigger with {0}'.format(tmpStr))
+                    # update job
+                    for fileSpec in jobSpec.outFiles:
+                        if fileSpec.status != 'finished':
+                            fileSpec.status = 'failed'
+                    jobSpec.trigger_propagation()
+                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                    tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
                 else:
-                    # failed
-                    tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
+                    # temporary error
+                    tmpLog.debug('try to trigger later since {0}'.format(tmpStr))
             # get jobs to zip output
             jobsToZip = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToZip,
                                                             harvester_config.stager.triggerInterval,

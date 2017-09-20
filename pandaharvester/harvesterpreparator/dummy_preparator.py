@@ -20,13 +20,14 @@ class DummyPreparator(PluginBase):
         Input file attributes are available through jobspec.get_input_file_attributes(skip_ready=True)
         which gives a dictionary. The key of the dictionary is LFN of the input file
         and the value is a dictionary of file attributes. The attribute names are
-        fsize, guid, checksum, scope, dataset, and endpoint. Grouping information such as transferID can be set
-        to input files using jobspec.set_group_to_files(id_map) where id_map is
+        fsize, guid, checksum, scope, dataset, attemptNr, and endpoint. attemptNr shows how many times
+        the file was tried so far. Grouping information such as transferID can be set to input files using
+        jobspec.set_group_to_files(id_map) where id_map is
         {groupID:'lfns':[lfn1, ...], 'status':status}, and groupID and status are arbitrary strings.
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
+        :return: A tuple of return code (True: success, False: fatal error, None: temporary error) and error dialog
         :rtype: (bool, string)
         """
         # make log
@@ -39,6 +40,7 @@ class DummyPreparator(PluginBase):
         # Here is an example with file grouping :
         # get input files while skipping files already in ready state
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
+        tmpLog.debug('inputs={0}'.format(str(inFiles)))
         lfns = []
         for inLFN in inFiles.keys():
             lfns.append(inLFN)
@@ -57,7 +59,7 @@ class DummyPreparator(PluginBase):
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
+        :return: A tuple of return code (True for success, False for failure, or None if on-going) and error dialog
         :rtype: (bool, string)
         """
         #
