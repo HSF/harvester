@@ -65,7 +65,7 @@ class Preparator(AgentBase):
                     jobSpec.lockedBy = None
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
-                    tmpLog.debug('still running')
+                    tmpLog.debug('try to check later since still preparing with {0}'.format(tmpStr))
                     continue
                 # succeeded
                 if tmpStat is True:
@@ -177,9 +177,9 @@ class Preparator(AgentBase):
                     continue
                 # trigger preparation
                 tmpStat, tmpStr = preparatorCore.trigger_preparation(jobSpec)
-                # succeeded
+                # check result
                 if tmpStat is True:
-                    # update job
+                    # succeeded
                     jobSpec.subStatus = 'preparing'
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
@@ -187,8 +187,8 @@ class Preparator(AgentBase):
                                                       'subStatus': oldSubStatus},
                                             update_in_file=True)
                     tmpLog.debug('triggered')
-                else:
-                    # update job
+                elif tmpStat is False:
+                    # fatal error
                     jobSpec.status = 'failed'
                     jobSpec.subStatus = 'failed_to_prepare'
                     jobSpec.lockedBy = None
@@ -198,6 +198,12 @@ class Preparator(AgentBase):
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
+                else:
+                    # temporary error
+                    jobSpec.lockedBy = None
+                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                      'subStatus': oldSubStatus})
+                    tmpLog.debug('try to prepare later since {0}'.format(tmpStr))
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.preparator.sleepTime):
