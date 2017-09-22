@@ -64,7 +64,7 @@ class DummyBulkStager(PluginBase):
         # check transfer with real transfer IDs
         # ...
         # then set file status if successful
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             fileSpec.status = 'finished'
         tmpLog.debug('all finished')
         return True, ''
@@ -73,7 +73,7 @@ class DummyBulkStager(PluginBase):
     def trigger_stage_out(self, jobspec):
         # set the dummy transfer ID which will be replaced with a real ID in check_status()
         lfns = []
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             lfns.append(fileSpec.lfn)
         jobspec.set_groups_to_files({dummy_transfer_id: {'lfns': lfns,
                                                          'groupStatus': 'pending'}
@@ -93,6 +93,6 @@ class DummyBulkStager(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=False):
             fileSpec.path = '/path/to/zip'
         return True, ''

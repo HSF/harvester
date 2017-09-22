@@ -19,15 +19,15 @@ class DummyStager(PluginBase):
         :return: A tuple of return code (True for success, False for failure, or None if on-going) and error dialog
         :rtype: (bool, string)
         """
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             fileSpec.status = 'finished'
         return True, ''
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         """Trigger stage-out procedure for the job.
-        Output files are available through jobspec.outFiles which gives a list of FileSpecs.
-        FileSpec.status should be checked to skip finished or failed files.
+        Output files are available through jobspec.get_outfile_specs(skip_done=False) which gives
+        a list of FileSpecs not yet done.
         FileSpec.attemptNr shows how many times transfer was tried for the file.
 
         :param jobspec: job specifications
@@ -35,7 +35,7 @@ class DummyStager(PluginBase):
         :return: A tuple of return code (True: success, False: fatal error, None: temporary error) and error dialog
         :rtype: (bool, string)
         """
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             # fileSpec.objstoreID = 123
             # fileSpec.fileAttributes['guid']
             pass
@@ -53,6 +53,6 @@ class DummyStager(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=False):
             fileSpec.path = '/path/to/zip'
         return True, ''
