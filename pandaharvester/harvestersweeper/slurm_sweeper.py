@@ -1,37 +1,16 @@
-
-#=== Imports ==================================================
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore import core_utils
-
 import os
-import subprocess
 import shutil
+import subprocess
 
-#==============================================================
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
-#=== Definitions ==============================================
+# logger
+baseLogger = core_utils.setup_logger('slurm_sweeper')
 
-## Logger
-baseLogger = core_utils.setup_logger('cobalt_sweeper')
 
-#==============================================================
-
-#=== Functions ================================================
-
-def _runShell(cmd):
-    cmd = str(cmd)
-    p = subprocess.Popen(cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdOut, stdErr = p.communicate()
-    retCode = p.returncode
-    return (retCode, stdOut, stdErr)
-
-#==============================================================
-
-#=== Classes ==================================================
-
-# dummy plugin for sweeper
-class CobaltSweeper(PluginBase):
+# plugin for sweeper with SLURM
+class SlurmSweeper(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
@@ -45,23 +24,23 @@ class CobaltSweeper(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-
-        ## Make logger
+        # make logger
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='kill_worker')
-
-        ## Kill command
-        comStr = 'qdel {0}'.format(workspec.batchID)
-        (retCode, stdOut, stdErr) = _runShell(comStr)
+        # kill command
+        comStr = 'scancel {0}'.format(workspec.batchID)
+        # execute
+        p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdOut, stdErr = p.communicate()
+        retCode = p.returncode
         if retCode != 0:
-            ## Command failed
+            # failed
             errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
             tmpLog.error(errStr)
             return False, errStr
         else:
             tmpLog.info('Succeeded to kill workerID={0} batchID={1}'.format(workspec.workerID, workspec.workerID))
-
-        ## Return
+        # return
         return True, ''
 
     # cleanup for a worker
@@ -73,18 +52,14 @@ class CobaltSweeper(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-
-        ## Make logger
+        # make logger
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='sweep_worker')
-
-        ## Clean up worker directory
+        # clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)
-            tmpLog.info(' removed {1}'.format(workspec.workerID, workspec.accessPoint))
+            tmpLog.info('removed {0}'.format(workspec.accessPoint))
         else:
             tmpLog.info('access point already removed.')
-        ## Return
+        # return
         return True, ''
-
-#==============================================================
