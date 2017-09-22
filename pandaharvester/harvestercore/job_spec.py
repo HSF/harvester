@@ -377,3 +377,14 @@ class JobSpec(SpecBase):
             groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
                                         'groupStatus': fileSpec.groupStatus}
         return groups
+
+    # get output file specs
+    def get_output_file_specs(self, skip_done=False):
+        if not skip_done:
+            return self.outFiles
+        else:
+            retList = []
+            for fileSpec in self.outFiles:
+                if fileSpec.status not in ['finished', 'failed']:
+                    retList.append(fileSpec)
+            return retList
