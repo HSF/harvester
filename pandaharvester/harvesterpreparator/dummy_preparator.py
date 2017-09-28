@@ -16,7 +16,9 @@ class DummyPreparator(PluginBase):
 
     # trigger preparation
     def trigger_preparation(self, jobspec):
-        """Trigger stage-in procedure synchronously or asynchronously for the job.
+        """Trigger the stage-in procedure synchronously or asynchronously for the job.
+        If the return code of this method is True, the job goes to the next step. If it is False,
+        preparator immediately gives up the job. If it is None, the job is retried later.
         Input file attributes are available through jobspec.get_input_file_attributes(skip_ready=True)
         which gives a dictionary. The key of the dictionary is LFN of the input file
         and the value is a dictionary of file attributes. The attribute names are
@@ -27,7 +29,8 @@ class DummyPreparator(PluginBase):
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True: success, False: fatal error, None: temporary error) and error dialog
+        :return: A tuple of return code (True: success, False: fatal error, None: temporary error)
+                 and error dialog
         :rtype: (bool, string)
         """
         # make log
@@ -53,13 +56,17 @@ class DummyPreparator(PluginBase):
 
     # check status
     def check_status(self, jobspec):
-        """Check status of stage-in procedure. If that is done synchronously in trigger_preparation
+        """Check status of the stage-in procedure.
+        If the return code of this method is True, the job goes to the next step. If it is False,
+        preparator immediately gives up the job. If it is None, the job is retried later.
+        If preparation is done synchronously in trigger_preparation
         this method should always return True. Status of file group can be updated using
-        jobspec.update_group_status_in_files(group_id, group_status)
+        jobspec.update_group_status_in_files(group_id, group_status) if necessary.
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False for failure, or None if on-going) and error dialog
+        :return: A tuple of return code (True: transfer success, False: fatal transfer failure,
+                 None: on-going or temporary failure) and error dialog
         :rtype: (bool, string)
         """
         #

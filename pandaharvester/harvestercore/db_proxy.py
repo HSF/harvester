@@ -532,6 +532,14 @@ class DBProxy:
                         sqlF = "UPDATE {0} SET status=:status ".format(fileTableName)
                         sqlF += "WHERE PandaID=:PandaID AND fileType=:type "
                         self.execute(sqlF, varMap)
+                # set to_delete flag
+                if jobspec.subStatus == 'done':
+                    sqlD = "UPDATE {0} SET todelete=:to_delete ".format(fileTableName)
+                    sqlD += "WHERE PandaID=:PandaID "
+                    varMap = dict()
+                    varMap[':PandaID'] = jobspec.PandaID
+                    varMap[':to_delete'] = 1
+                    self.execute(sqlD, varMap)
             # commit
             self.commit()
             tmpLog.debug('done with {0}'.format(nRow))
@@ -2599,6 +2607,18 @@ class DBProxy:
             # sql to get workers
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "
+            # sql to get PandaIDs
+            sqlP = "SELECT j.PandaID FROM {0} j, {1} r ".format(jobTableName, jobWorkerTableName)
+            sqlP += "WHERE j.PandaID=r.PandaID AND r.workerID=:workerID "
+            # sql to get jobs
+            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sqlJ += "WHERE PandaID=:PandaID "
+            # sql to get files
+            sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+            sqlF += "WHERE PandaID=:PandaID "
+            # sql to check if the file is ready to delete
+            sqlD = "SELECT 1 FROM {0} ".format(fileTableName)
+            sqlD += "WHERE lfn=:lfn AND todelete=:to_delete "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
             self.execute(sqlW, varMap)
@@ -2616,6 +2636,7 @@ class DBProxy:
                 varMap[':workerID'] = workerID
                 self.execute(sqlA, varMap)
                 nActJobs, = self.cur.fetchone()
+                # cleanup when there is no active job
                 if nActJobs == 0:
                     # get worker
                     varMap = dict()
@@ -2628,6 +2649,42 @@ class DBProxy:
                     if queueName not in retVal:
                         retVal[queueName] = []
                     retVal[queueName].append(workSpec)
+                    # get jobs
+                    jobSpecs = []
+                    checkedLFNs = set()
+                    varMap = dict()
+                    varMap[':workerID'] = workerID
+                    self.execute(sqlP, varMap)
+                    resP = self.cur.fetchall()
+                    for pandaID, in resP:
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        self.execute(sqlJ, varMap)
+                        resJ = self.cur.fetchone()
+                        jobSpec = JobSpec()
+                        jobSpec.pack(resJ)
+                        jobSpecs.append(jobSpec)
+                        # get files to be deleted
+                        varMap = dict()
+                        varMap[':PandaID'] = jobSpec.PandaID
+                        self.execute(sqlF, varMap)
+                        resFs = self.cur.fetchall()
+                        for resF in resFs:
+                            fileSpec = FileSpec()
+                            fileSpec.pack(resF)
+                            # skip if already checked
+                            if fileSpec.lfn in checkedLFNs:
+                                continue
+                            # check if it is ready to delete
+                            checkedLFNs.add(fileSpec.lfn)
+                            varMap = dict()
+                            varMap[':lfn'] = fileSpec.lfn
+                            varMap[':to_delete'] = 0
+                            self.execute(sqlD, varMap)
+                            resD = self.cur.fetchone()
+                            if resD is None:
+                                jobSpec.add_file(fileSpec)
+                    workSpec.set_jobspec_list(jobSpecs)
                     iWorkers += 1
             # commit
             self.commit()

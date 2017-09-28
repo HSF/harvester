@@ -21,6 +21,9 @@ class DummySweeper(PluginBase):
     # cleanup for a worker
     def sweep_worker(self, workspec):
         """Perform cleanup procedures for a worker, such as deletion of work directory.
+        The list of JobSpecs associated to the worker is available in workspec.get_jobspec_list().
+        The list of input and output FileSpecs, which are not used by any active jobs and thus can
+        safely be deleted, is available in JobSpec.get_files_to_delete().
 
         :param workspec: worker specification
         :type workspec: WorkSpec
