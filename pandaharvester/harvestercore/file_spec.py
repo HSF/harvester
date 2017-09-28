@@ -11,7 +11,7 @@ class FileSpec(SpecBase):
     attributesWithTypes = ('fileID:integer primary key autoincrement',
                            'PandaID:integer / index',
                            'taskID:integer',
-                           'lfn:text',
+                           'lfn:text / index',
                            'status:text / index',
                            'fsize:integer',
                            'chksum:text',
@@ -27,11 +27,13 @@ class FileSpec(SpecBase):
                            'groupID:text / index',
                            'groupStatus:text / index',
                            'groupUpdateTime:timestamp / index',
-                           'attemptNr:integer'
+                           'attemptNr:integer',
+                           'todelete:integer / index'
                            )
 
     # attributes initialized with 0
     zeroAttrs = ('attemptNr',
+                 'todelete'
                  )
 
     # constructor

@@ -82,6 +82,14 @@ class JobSpec(SpecBase):
     def reset_out_file(self):
         self.outFiles.clear()
 
+    # get files to delete
+    def get_files_to_delete(self):
+        files = []
+        for fileSpec in self.inFiles.union(self.outFiles):
+            if fileSpec.todelete == 1:
+                files.append(fileSpec)
+        return files
+
     # add event
     def add_event(self, event_spec, zip_filespec):
         if zip_filespec is None:
