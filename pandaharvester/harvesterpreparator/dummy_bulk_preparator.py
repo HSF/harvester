@@ -68,7 +68,7 @@ class DummyBulkPreparator(PluginBase):
                 fileSpecs = self.dbInterface.get_files_with_group_id(self.dummy_transfer_id)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min.
                 # those thresholds may be config params.
-                if len(fileSpecs) >= 2 or \
+                if len(fileSpecs) >= 10 or \
                         groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
                     # submit transfer and get a real transfer ID
                     # ...
