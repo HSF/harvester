@@ -91,7 +91,7 @@ class GlobusBulkStager(PluginBase):
         tmpLog.debug('start')
         self.id = GlobusBulkStager.next_id
         GlobusBulkStager.next_id += 1
-        self.have_lock = False
+        self.have_db_lock = False
         with uLock:
             global uID
             self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base, uID)
@@ -152,9 +152,10 @@ class GlobusBulkStager(PluginBase):
         # lock if the dummy transfer ID is used to avoid submitting duplicated transfer requests
         if self.dummy_transfer_id in groups:
             # lock for 120 sec
-            tmpLog.debug('attempt to set DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-            self.have_lock = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
-            if not self.have_lock:
+            if not self.have_db_lock :
+                tmpLog.debug('attempt to set DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                self.have_db_lock = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
+            if not self.have_db_lock:
                 # escape since locked by another thread
                 msgStr = 'escape since locked by another thread'
                 tmpLog.debug(msgStr)
@@ -201,8 +202,8 @@ class GlobusBulkStager(PluginBase):
                                 errMsg += ' destination Endpoint not activated '
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
-                            if not self.have_lock:
+                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
                             tmpRetVal = (None,errMsg)
@@ -219,8 +220,8 @@ class GlobusBulkStager(PluginBase):
                             errMsg = "{0} {1}".format(errtype.__name__, errvalue)
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
-                            if not self.have_lock:
+                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
                             tmpRetVal = (None, errMsg)
@@ -249,8 +250,8 @@ class GlobusBulkStager(PluginBase):
                             errMsg = "source file {} does not exist".format(srcURL)
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
-                            if not self.have_lock:
+                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
                             tmpRetVal = (False,errMsg)
@@ -272,8 +273,8 @@ class GlobusBulkStager(PluginBase):
                         else:
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
-                            if not self.have_lock:
+                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_db_lock:
                                 errMsg = 'Could not release DB lock for {}'.format(self.dummy_transfer_id)
                                 tmpLog.error(errMsg)
                             tmpRetVal = (None, transfer_result['message'])
@@ -283,8 +284,8 @@ class GlobusBulkStager(PluginBase):
                             tmpLog.warning('Globus report user has too many concurrent transfers. Will try again later')
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
-                            if not self.have_lock:
+                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_db_lock:
                                 errMsg = ' Could not release DB lock for {}'.format(self.dummy_transfer_id)
                                 tmpLog.error(errMsg)
                             tmpRetVal = (None, 'Globus reports too many concurrent transfers')
@@ -296,8 +297,8 @@ class GlobusBulkStager(PluginBase):
                                 errMsg = "{0} {1}".format(errtype.__name__, errvalue)
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
-                            if not self.have_lock:
+                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
                             return None, errMsg
@@ -306,8 +307,8 @@ class GlobusBulkStager(PluginBase):
                     tmpLog.debug(msgStr)
                 # release the lock
                 tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                self.have_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id) 
-                if not self.have_lock:
+                self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id) 
+                if not self.have_db_lock:
                     msgStr += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                     tmpLog.error(msgStr)
                 # return None to retry later
