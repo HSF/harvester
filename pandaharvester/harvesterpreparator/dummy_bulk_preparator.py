@@ -82,6 +82,8 @@ class DummyBulkPreparator(PluginBase):
                 self.dbInterface.release_object_lock(self.dummy_transfer_id)
                 # return None to retry later
                 return None, msgStr
+            # release the lock
+            self.dbInterface.release_object_lock(self.dummy_transfer_id)
         # check transfer with real transfer IDs
         # ...
         # then update transfer status if successful
