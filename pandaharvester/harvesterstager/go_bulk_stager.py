@@ -152,8 +152,9 @@ class GlobusBulkStager(PluginBase):
         # lock if the dummy transfer ID is used to avoid submitting duplicated transfer requests
         if self.dummy_transfer_id in groups:
             # lock for 120 sec
-            tmpLog.debug('attempt to set DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-            self.have_db_lock = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
+            if not self.have_db_lock :
+                tmpLog.debug('attempt to set DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                self.have_db_lock = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
             if not self.have_db_lock:
                 # escape since locked by another thread
                 msgStr = 'escape since locked by another thread'
