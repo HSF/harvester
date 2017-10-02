@@ -47,16 +47,57 @@ def dump(obj):
 # Globus plugin for stager with bulk transfers. For JobSpec and DBInterface methods, see
 # https://github.com/PanDAWMS/panda-harvester/wiki/Utilities#file-grouping-for-file-transfers
 class GlobusBulkStager(PluginBase):
+    next_id = 0
+    def create_globus_transfer_client(self):
+        """
+        create Globus Transfer Client and put results in self.tc
+        """
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name='create_globus_transfer_client')
+        tmpLog.info('Creating instance of GlobusTransferClient')
+        # need to get client_id and refresh_token from PanDA server via harvester cache mechanism
+        tmpLog.debug('about to call dbInterface.get_cache(globus_secret)')
+        c_data = self.dbInterface.get_cache('globus_secret')
+        if (not c_data == None) and  c_data.data['StatusCode'] == 0 :
+            tmpLog.debug('Got the globus_secrets from PanDA')
+            self.client_id = c_data.data['publicKey']  # client_id
+            self.refresh_token = c_data.data['privateKey'] # refresh_token
+        else :
+            self.client_id = None
+            self.refresh_token = None
+            self.tc = None
+            errStr = 'failed to get Globus Client ID and Refresh Token'
+            tmpLog.error(errStr)
+            return False, errStr
+        # start the Native App authentication process 
+        # use the refresh token to get authorizer
+        # create the Globus Transfer Client
+        self.tc = None
+        try:
+            client = NativeAppAuthClient(client_id=self.client_id)
+            authorizer = RefreshTokenAuthorizer(refresh_token=self.refresh_token,auth_client=client)
+            tc = TransferClient(authorizer=authorizer)
+            self.tc = tc
+            tmpLog.debug('Created transfer client - self.id = {0}'.format(self.id))
+            return True,''
+        except:
+            globus_utils.handle_globus_exception(tmpLog)
+            return False, {}
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
+        # make logger
+        tmpLog = core_utils.make_logger(_logger, method_name='GlobusBulkStager __init__ ')
+        tmpLog.debug('start')
+        self.id = GlobusBulkStager.next_id
+        GlobusBulkStager.next_id += 1
+        self.have_lock = False
         with uLock:
             global uID
             self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base, uID)
             uID += 1
             uID %= harvester_config.stager.nThreads
         # create Globus Transfer Client
-        tmpLog = core_utils.make_logger(_logger, method_name='GlobusBulkStager __init__ ')
         try:
             self.tc = None
             tmpStat, statusStr = self.create_globus_transfer_client()
@@ -65,6 +106,8 @@ class GlobusBulkStager(PluginBase):
                 tmpLog.error(errStr)
         except:
             core_utils.dump_error_message(tmpLog)
+        tmpLog.debug('finish')
+
 
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
@@ -75,7 +118,7 @@ class GlobusBulkStager(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
                                         method_name='check_status')
         tmpLog.debug('start')
         # default return
@@ -105,11 +148,13 @@ class GlobusBulkStager(PluginBase):
         transferID = None
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
+        tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
         # lock if the dummy transfer ID is used to avoid submitting duplicated transfer requests
         if self.dummy_transfer_id in groups:
             # lock for 120 sec
-            locked = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
-            if not locked:
+            tmpLog.debug('attempt to set DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+            self.have_lock = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
+            if not self.have_lock:
                 # escape since locked by another thread
                 msgStr = 'escape since locked by another thread'
                 tmpLog.debug(msgStr)
@@ -124,8 +169,11 @@ class GlobusBulkStager(PluginBase):
                 # get files with the dummy transfer ID across jobs
                 fileSpecs = self.dbInterface.get_files_with_group_id(self.dummy_transfer_id)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
+                msgStr = 'self.dummy_transfer_id = {0}  number of files = {1}'.format(self.dummy_transfer_id,len(fileSpecs))
+                tmpLog.debug(msgStr)
                 if len(fileSpecs) >= 10 or \
                         groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                    tmpLog.debug('prepare to transfer files')
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually  
                     from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -151,6 +199,11 @@ class GlobusBulkStager(PluginBase):
                                 errMsg += ' source Endpoint not activated '
                             if not tmpStatdst :
                                 errMsg += ' destination Endpoint not activated '
+                            # release process lock
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_lock:
+                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
                             tmpRetVal = (None,errMsg)
                             return tmpRetVal
@@ -164,6 +217,12 @@ class GlobusBulkStager(PluginBase):
                         if errMsg is None:
                             errtype, errvalue = sys.exc_info()[:2]
                             errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+                            # release process lock
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_lock:
+                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                            tmpLog.error(errMsg)
                             tmpRetVal = (None, errMsg)
                             return tmpRetVal
                     # loop over all files
@@ -188,6 +247,11 @@ class GlobusBulkStager(PluginBase):
                             lfns.append(fileSpec.lfn)
                         else:
                             errMsg = "source file {} does not exist".format(srcURL)
+                            # release process lock
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_lock:
+                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
                             tmpRetVal = (False,errMsg)
                             return tmpRetVal
@@ -206,11 +270,23 @@ class GlobusBulkStager(PluginBase):
                             msgStr = 'submitted transfer with ID={0}'.format(transferID)
                             tmpLog.debug(msgStr)
                         else:
+                            # release process lock
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_lock:
+                                errMsg = 'Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                                tmpLog.error(errMsg)
                             tmpRetVal = (None, transfer_result['message'])
                             return tmpRetVal
                     except Exception as e:
                         if 'This user has too many pending jobs' in str(e):
                             tmpLog.warning('Globus report user has too many concurrent transfers. Will try again later')
+                            # release process lock
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_lock:
+                                errMsg = ' Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                                tmpLog.error(errMsg)
                             tmpRetVal = (None, 'Globus reports too many concurrent transfers')
                             return tmpRetVal
                         else:
@@ -218,12 +294,22 @@ class GlobusBulkStager(PluginBase):
                             if errMsg is None:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+                            # release process lock
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                            self.have_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            if not self.have_lock:
+                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                            tmpLog.error(errMsg)
                             return None, errMsg
                 else:
                     msgStr = 'wait until enough files are pooled'
                     tmpLog.debug(msgStr)
                 # release the lock
-                self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                self.have_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id) 
+                if not self.have_lock:
+                    msgStr += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                    tmpLog.error(msgStr)
                 # return None to retry later
                 return None, msgStr
         # check transfer with real transfer IDs
@@ -261,6 +347,10 @@ class GlobusBulkStager(PluginBase):
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
+        # make logger
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='trigger_stage_out')
+        tmpLog.debug('start')
         # default return
         tmpRetVal = (True, '')
         # check that jobspec.computingSite is defined
@@ -288,10 +378,9 @@ class GlobusBulkStager(PluginBase):
         lfns = []
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             lfns.append(fileSpec.lfn)
-        jobspec.set_groups_to_files({self.dummy_transfer_id: {'lfns': lfns,
-                                                         'groupStatus': 'pending'}
-                                     }
-                                    )
+        jobspec.set_groups_to_files({self.dummy_transfer_id: {'lfns': lfns,'groupStatus': 'pending'}})
+        msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending'.format(self.dummy_transfer_id,lfns)
+        tmpLog.debug(msgStr)
         return True, ''
 
     # zip output files
@@ -417,41 +506,6 @@ class GlobusBulkStager(PluginBase):
             # return
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
-        except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
-
-
-
-    def create_globus_transfer_client(self):
-        """
-        create Globus Transfer Client and put results in self.tc
-        """
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='create_globus_transfer_client')
-        tmpLog.info('Creating instance of GlobusTransferClient')
-        # need to get client_id and refresh_token from PanDA server via harvester cache mechanism
-        c_data = self.dbInterface.get_cache('globus_secret')
-        if (not c_data == None) and  c_data.data['StatusCode'] == 0 :
-            self.client_id = c_data.data['publicKey']  # client_id
-            self.refresh_token = c_data.data['privateKey'] # refresh_token
-        else :
-            self.client_id = None
-            self.refresh_token = None
-            self.tc = None
-            errStr = 'failed to get Globus Client ID and Refresh Token'
-            tmpLog.error(errStr)
-            return False, errStr
-        # start the Native App authentication process 
-        # use the refresh token to get authorizer
-        # create the Globus Transfer Client
-        self.tc = None
-        try:
-            client = NativeAppAuthClient(client_id=self.client_id)
-            authorizer = RefreshTokenAuthorizer(refresh_token=self.refresh_token,auth_client=client)
-            tc = TransferClient(authorizer=authorizer)
-            self.tc = tc
-            return True,''
         except:
             globus_utils.handle_globus_exception(tmpLog)
             return False, {}
