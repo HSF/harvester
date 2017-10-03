@@ -3290,7 +3290,10 @@ class DBProxy:
                 varMap = dict()
                 varMap[':fileID'] = fileSpec.fileID
                 self.execute(sqlF, varMap)
-                groupID, groupStatus, groupUpdateTime = self.cur.fetchone()
+                resF = self.cur.fetchone()
+                if resF is None:
+                    continue
+                groupID, groupStatus, groupUpdateTime = resF
                 fileSpec.groupID = groupID
                 fileSpec.groupStatus = groupStatus
                 fileSpec.groupUpdateTime = groupUpdateTime
