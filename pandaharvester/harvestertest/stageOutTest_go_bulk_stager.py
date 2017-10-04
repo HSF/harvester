@@ -12,7 +12,7 @@ from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.core_utils import core_utils  
+from pandaharvester.harvestercore import core_utils  
 
 fileTableName = 'file_table'
 queueName = 'ALCF_Theta'
