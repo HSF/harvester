@@ -67,7 +67,7 @@ class JobFetcher(AgentBase):
                         jobSpec.stateChangeTime = timeNow
                         if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                             jobSpec.zipPerMB = queueConfig.zipPerMB
-                        for tmpLFN in jobSpec.get_input_file_attributes().keys():
+                        for tmpLFN, fileAttrs in iteritems(jobSpec.get_input_file_attributes()):
                             # check file status
                             if tmpLFN not in fileStatMap:
                                 fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, 'input',
@@ -78,6 +78,7 @@ class JobFetcher(AgentBase):
                             fileSpec.taskID = jobSpec.taskID
                             fileSpec.lfn = tmpLFN
                             fileSpec.endpoint = queueConfig.ddmEndpointIn
+                            fileSpec.scope = fileAttrs['scope']
                             # set preparing to skip stage-in if the file is (being) taken care of by another job
                             if 'ready' in fileStatMap[tmpLFN] or 'preparing' in fileStatMap[tmpLFN] \
                                     or 'to_prepare' in fileStatMap[tmpLFN]:
