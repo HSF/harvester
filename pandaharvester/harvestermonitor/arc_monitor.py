@@ -36,7 +36,7 @@ class ARCMonitor(PluginBase):
             arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
             tmplog = arclog.log
             tmplog.info("checking worker id {0}".format(workspec.workerID))
-            job = arc_utils.workspec2arcjob(workspec)
+            (job, modtime) = arc_utils.workspec2arcjob(workspec)
 
             job_supervisor = arc.JobSupervisor(self.userconfig, [job])
             job_supervisor.Update()
@@ -47,19 +47,14 @@ class ARCMonitor(PluginBase):
             for updatedjob in jobsupdated:
                 if updatedjob.JobID in jobsnotupdated:
                     tmplog.error("Failed to find information on {0}".format(updatedjob.JobID))
-                    retList.append((workspec.status, ''))
+                    # If missing for too long (2 days), mark as lost
+                    if arc.Time() - modtime > arc.Period(172800):
+                        tmplog.error("Job {0} missing for more than 2 days, marking as lost".format(updatedjob.JobID))
+                        retList.append((workspec.ST_failed, ''))
+                    else:
+                        retList.append((workspec.status, ''))
                     continue
                 
-                # compare strings here to get around limitations of JobState API
-                if job.State.GetGeneralState() == updatedjob.State.GetGeneralState():
-                    tmplog.debug("Job {0} still in state {1}".format(job.JobID, job.State.GetGeneralState()))
-                    retList.append((workspec.status, ''))
-                    continue
-
-                tmplog.info("Job {0}: {1} -> {2} ({3})".format(job.JobID, job.State.GetGeneralState(),
-                                                               updatedjob.State.GetGeneralState(), 
-                                                               updatedjob.State.GetSpecificState()))
-
                 # Convert arc state to WorkSpec state
                 arcstatus = updatedjob.State
                 newstatus = WorkSpec.ST_submitted
@@ -83,6 +78,16 @@ class ARCMonitor(PluginBase):
                     newstatus = WorkSpec.ST_failed
                 # Not covered: arc.JobState.HOLD. Maybe need a post-run state in
                 # harvester, also to cover FINISHING
+
+                # compare strings here to get around limitations of JobState API
+                if job.State.GetGeneralState() == updatedjob.State.GetGeneralState():
+                    tmplog.debug("Job {0} still in state {1}".format(job.JobID, job.State.GetGeneralState()))
+                    retList.append((newstatus, ''))
+                    continue
+
+                tmplog.info("Job {0}: {1} -> {2} ({3})".format(job.JobID, job.State.GetGeneralState(),
+                                                               updatedjob.State.GetGeneralState(), 
+                                                               updatedjob.State.GetSpecificState()))
 
                 arc_utils.arcjob2workspec(updatedjob, workspec)
                 # Have to force update to change info in DB

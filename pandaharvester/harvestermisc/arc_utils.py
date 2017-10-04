@@ -118,7 +118,7 @@ def workspec2arcjob(workspec):
         wsattrs = workspec.workAttributes['arcjob']
     except:
         # Job was not submitted yet
-        return job
+        return (job, arc.Time())
 
     for attr in dir(job):
         if attr not in wsattrs or attr == 'CreationTime':
@@ -138,7 +138,7 @@ def workspec2arcjob(workspec):
             setattr(job, attr, ssm)
         else:
             setattr(job, attr, attrtype(str(wsattrs[attr])))
-    return job
+    return (job, arc.Time(str(wsattrs['ModificationTime'])))
 
 def arcjob2workspec(arcjob, workspec):
     '''Fill WorkSpec workAttributes with ARC job attributes'''
@@ -169,6 +169,8 @@ def arcjob2workspec(arcjob, workspec):
                 jobattrs[attr] = getattr(arcjob, attr).str(arc.UTCTime)
         # Other attributes of complex types are not stored
 
+    # Set update time
+    jobattrs['ModificationTime'] = arc.Time().str(arc.UTCTime)
     if workspec.workAttributes:
         workspec.workAttributes['arcjob'] = jobattrs
     else:

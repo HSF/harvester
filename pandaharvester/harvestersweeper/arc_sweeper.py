@@ -36,7 +36,7 @@ class ARCSweeper(PluginBase):
         arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
         tmplog = arclog.log
 
-        job = arc_utils.workspec2arcjob(workspec)
+        (job, modtime) = arc_utils.workspec2arcjob(workspec)
         if not job.JobID:
             # Job not submitted
             tmplog.info("Job was not submitted so cannot be cancelled")
@@ -59,8 +59,9 @@ class ARCSweeper(PluginBase):
                 tmplog.warning("Job is not yet in info system so cannot be cancelled")
                 return False, "Job is not yet in info system so could not be cancelled"
 
+            # Log a warning and return True so that job can be cleaned
             tmplog.warning("Job could not be cancelled")
-            return False, "Job could not be cancelled"
+            return True, ''
 
         tmplog.info("Job cancelled successfully")
         return True, ''
@@ -79,7 +80,7 @@ class ARCSweeper(PluginBase):
         arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
         tmplog = arclog.log
 
-        job = arc_utils.workspec2arcjob(workspec)
+        (job, modtime) = arc_utils.workspec2arcjob(workspec)
         if not job.JobID:
             # Job not submitted
             tmplog.info("Job was not submitted so cannot be cleaned")
@@ -92,8 +93,9 @@ class ARCSweeper(PluginBase):
         notcleaned = job_supervisor.GetIDsNotProcessed()
 
         if job.JobID in notcleaned:
+            # Log a warning and return True so that job can be finished
             tmplog.warning("Job could not be cleaned")
-            return False, "Job could not be cleaned"
+            return True, ''
 
         tmplog.info("Job cleaned successfully")
         return True, ''

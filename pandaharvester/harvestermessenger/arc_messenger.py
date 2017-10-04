@@ -178,9 +178,6 @@ class ARCMessenger(PluginBase):
         arcid = job['JobID']
         tmplog.info('Job id {0}'.format(arcid))
 
-        # Assume one-to-one mapping of workers to jobs
-        pandaid = long(jobspec_list[0].PandaID)
-        workspec.workAttributes[pandaid] = {}
         if 'arcdownloadfiles' not in workspec.workAttributes:
             tmplog.error('No files to download')
             return
@@ -191,6 +188,14 @@ class ARCMessenger(PluginBase):
                                                                         arcid, tmplog)
         if arcid not in fetched:
             tmplog.warning("Could not get outputs of {0}".format(arcid))
+
+        # Assume one-to-one mapping of workers to jobs. If jobspec_list is empty
+        # it means the job was cancelled by panda or otherwise forgotten
+        if not jobspec_list:
+            return
+
+        pandaid = long(jobspec_list[0].PandaID)
+        workspec.workAttributes[pandaid] = {}
 
         workspec.workAttributes[pandaid] = self._extractAndFixPilotPickle(job, pandaid, (arcid in fetched), tmplog)
         
