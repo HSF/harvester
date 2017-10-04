@@ -124,8 +124,8 @@ for job_id in range(begin_job_id,end_job_id+1):
       print "file to transfer - {}".format(assFileSpec.path) 
       #print "dump(jobSpec)"
       #dump(jobSpec)
-   # strip off last in outFile_str
-   outFiles_str.rstrip(',')
+   # add log file
+   outFiles_str += 'log'
    jobSpec.jobParams['outFiles'] = outFiles_str
    jobSpec_list.append(jobSpec)
  
