@@ -2,6 +2,7 @@ import sys
 import os
 import os.path
 import hashlib
+import datetime
 import uuid
 import random
 import string
@@ -10,6 +11,7 @@ from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
 def dump(obj):
    for attr in dir(obj):
@@ -41,9 +43,10 @@ queueConfig.stager['module'] = 'pandaharvester.harvesterstager.go_bulk_stager'
 queueConfig.stager['name'] = 'GlobusBulkStager'
 print "Modified queueConfig.stager = ",queueConfig.stager
 
-exit
+
 scope = 'panda'
 
+proxy = DBProxy()
 pluginFactory = PluginFactory()
 
 # get stage-out plugin
@@ -73,6 +76,7 @@ for job_id in range(begin_job_id,end_job_id+1):
                         }
    jobSpec.computingSite = queueName
    jobSpec.PandaID = job_id
+   jobSpec.modificationTime = datetime.datetime.now()
    # create up 5 files for output
    for index in range(random.randint(1, 5)):
       fileSpec = FileSpec()
@@ -105,8 +109,11 @@ for job_id in range(begin_job_id,end_job_id+1):
       #
       print "file to transfer - {}".format(assFileSpec.path) 
       #print "dump(jobSpec)"
-      #dump(jobSpec)
+      dump(jobSpec)
    jobSpec_list.append(jobSpec)
+
+# now load into DB jobSpec_list
+proxy.insert_jobs(jobSpec_list)
 
 # Now loop over the jobSpec's
 
@@ -130,6 +137,14 @@ for jobSpec in jobSpec_list:
       print " NG {0}".format(tmpOut)
       sys.exit(1)
    print
+   # get the files with the group_id and print out
+   print "dummy_transfer_id = {}".format(stagerCore.get_dummy_transfer_id())
+   files = proxy.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
+   print "files - {}".format(files)
+   files = stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
+   print "files - {}".format(files)
+
+
    print "checking status for transfer and perhaps ultimately triggering the transfer"
    tmpStat, tmpOut = stagerCore.check_status(jobSpec)
    if tmpStat:
