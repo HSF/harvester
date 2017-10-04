@@ -12,15 +12,54 @@ from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.core_utils import core_utils  
+
+fileTableName = 'file_table'
+queueName = 'ALCF_Theta'
+begin_job_id = 1111
+end_job_id = 1113
+
+# logger
+_logger = core_utils.setup_logger('stageOutTest_go_bulk_stager')
+
 
 def dump(obj):
    for attr in dir(obj):
        if hasattr( obj, attr ):
            print( "obj.%s = %s" % (attr, getattr(obj, attr)))
 
-ueueName = 'ALCF_Theta'
-begin_job_id = 1111
-end_job_id = 1113
+# define a variation on db_proxy.insert_jobs to insert files into the files table
+def insert_files(jobspec_list,dbproxy_obj):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name='insert_files')
+        tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
+        try:
+            # sql to insert a file
+            sqlF = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
+            sqlF += FileSpec.bind_values_expression()
+            # loop over all jobs
+            varMapsF = []
+            for jobSpec in jobspec_list:
+                for fileSpec in jobSpec.outFiles:
+                    varMap = fileSpec.values_list()
+                    varMapsF.append(varMap)
+            # insert
+            dbproxy_obj.executemany(sqlF, varMapsF)
+            # commit
+            dbproxy_obj.commit()
+            # return
+            return True
+        except:
+            # roll back
+            dbproxy_obj.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
+
+
+
+
 
 if len(sys.argv) > 1:
    queueName = sys.argv[1]
@@ -112,8 +151,12 @@ for job_id in range(begin_job_id,end_job_id+1):
       dump(jobSpec)
    jobSpec_list.append(jobSpec)
 
-# now load into DB jobSpec_list
-proxy.insert_jobs(jobSpec_list)
+# now load into DB FileSpec's from jobSpec_list
+tmpStat = insert_files(jobSpec_list,proxy)
+if tmpStat:
+   print "OK Loaded files into DB"
+else:
+   print "NG Could not loaded files into DB"
 
 # Now loop over the jobSpec's
 
