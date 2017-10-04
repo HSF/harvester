@@ -109,6 +109,10 @@ class GlobusBulkStager(PluginBase):
         tmpLog.debug('finish')
 
 
+    # get dummy_transfer_id
+    def get_dummy_transfer_id(self):
+        return self.dummy_transfer_id
+
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
         # loop over all output files
