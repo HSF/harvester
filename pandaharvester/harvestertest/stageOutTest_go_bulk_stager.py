@@ -89,11 +89,14 @@ for job_id in range(begin_job_id,end_job_id+1):
    jobSpec.PandaID = job_id
    jobSpec.modificationTime = datetime.datetime.now()
    # create up 5 files for output
+   ifirst = True
+   outFiles_str = ''
    for index in range(random.randint(1, 5)):
       fileSpec = FileSpec()
       fileSpec.fileType = 'es_output'
       fileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex + '.gz'
       fileSpec.fileAttributes = {}
+      outFiles_str += fileSpec.lfn + ', ' 
       assFileSpec = FileSpec()
       assFileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex
       assFileSpec.fileType = 'es_output'
@@ -121,7 +124,11 @@ for job_id in range(begin_job_id,end_job_id+1):
       print "file to transfer - {}".format(assFileSpec.path) 
       #print "dump(jobSpec)"
       #dump(jobSpec)
+   # strip off last in outFile_str
+   outFiles_str.rstrip(',')
+   jobSpec.jobParams['outFiles'] = outFiles_str
    jobSpec_list.append(jobSpec)
+ 
 
 # now load into DB FileSpec's from jobSpec_list
 tmpStat = proxy.insert_files(jobSpec_list)
