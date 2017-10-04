@@ -148,7 +148,7 @@ for job_id in range(begin_job_id,end_job_id+1):
       #
       print "file to transfer - {}".format(assFileSpec.path) 
       #print "dump(jobSpec)"
-      dump(jobSpec)
+      #dump(jobSpec)
    jobSpec_list.append(jobSpec)
 
 # now load into DB FileSpec's from jobSpec_list
