@@ -7,6 +7,7 @@ import uuid
 import random
 import string
 import time
+import threading
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -18,6 +19,9 @@ fileTableName = 'file_table'
 queueName = 'ALCF_Theta'
 begin_job_id = 1111
 end_job_id = 1113
+
+# connection lock
+conLock = threading.Lock()
 
 # logger
 _logger = core_utils.setup_logger('stageOutTest_go_bulk_stager')
