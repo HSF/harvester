@@ -3,17 +3,20 @@ utilities
 
 """
 
+import os
 import sys
 import time
 import zlib
 import uuid
 import math
+import fcntl
 import random
 import inspect
 import datetime
 import threading
 import traceback
 from future.utils import iteritems
+from contextlib import contextmanager
 
 from .work_spec import WorkSpec
 from .file_spec import FileSpec
@@ -387,3 +390,41 @@ global_dict = MapWithLock()
 # get global dict
 def get_global_dict():
     return global_dict
+
+
+# get file lock
+@contextmanager
+def get_file_lock(file_name, lock_interval):
+    if os.path.exists(file_name):
+        opt = 'r+'
+    else:
+        opt = 'w+'
+    with open(file_name, opt) as f:
+        locked = False
+        try:
+            # lock file
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+            # read timestamp
+            timeNow = datetime.datetime.utcnow()
+            toSkip = False
+            try:
+                s = f.read()
+                pTime = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S.%f")
+                if timeNow - pTime < datetime.timedelta(seconds=lock_interval):
+                    toSkip = True
+            except:
+                pass
+            # skip if still in locked interval
+            if toSkip:
+                raise IOError("skipped since still in locked interval")
+            # write timestamp
+            f.seek(0)
+            f.write(timeNow.strftime("%Y-%m-%d %H:%M:%S.%f"))
+            f.truncate()
+            # execute with block
+            yield
+        finally:
+            # unlock
+            if locked:
+                fcntl.flock(f, fcntl.LOCK_UN)
