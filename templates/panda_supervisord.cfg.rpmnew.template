@@ -1,0 +1,35 @@
+[supervisord]
+
+# main log file
+logfile=/var/log/panda/panda-supervisord.log
+
+# lock file
+pidfile=/var/run/panda-supervisord.pid
+
+
+
+[program:panda-harvester]
+
+# command to launch harvester
+command=/etc/rc.d/init.d/panda_harvester start
+
+# home dir not to be on NFS
+directory=/
+
+# start at supervisord start
+autostart=true
+
+# restart if exited after running
+autorestart=true
+
+# signal used to kill process
+stopsignal=USR2
+
+# send stop signal to the UNIX process group
+stopasgroup=true
+
+# SIGKILL the UNIX process group
+killasgroup=true
+
+# redirect proc stderr to stdout
+redirect_stderr=true

@@ -27,6 +27,8 @@ fi
 
 # the path to application
 PROGNAME='python -u '${SITE_PACKAGES_PATH}'/pandaharvester/harvesterbody/master.py'
+# --foreground is required to run under supervisord
+# PROGNAME='python -u '${SITE_PACKAGES_PATH}'/pandaharvester/harvesterbody/master.py --foreground'
 
 # pid and lock files
 PIDFILE=${VIRTUAL_ENV}/var/log/panda/panda_harvester.pid
@@ -47,11 +49,11 @@ start)
 	echo ERROR: Harvester is already running with pidfile:$PIDFILE
     else
 	echo start Harvester
-	for itry in `seq 1 100`
+	for itry in `seq 1 1`
 	do
 	    echo trying $itry
 	    $PROGNAME --pid $PIDFILE >> $HSTDOUT 2>> $HSTDERR
-	    sleep 10
+	    sleep 5
 	    ps -p `cat $PIDFILE` > /dev/null
 	    ERROR=$?
 	    echo $ERROR
