@@ -32,38 +32,6 @@ def dump(obj):
        if hasattr( obj, attr ):
            print( "obj.%s = %s" % (attr, getattr(obj, attr)))
 
-# define a variation on db_proxy.insert_jobs to insert files into the files table
-def insert_files(jobspec_list,dbproxy_obj):
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='insert_files')
-        tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
-        try:
-            # sql to insert a file
-            sqlF = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
-            sqlF += FileSpec.bind_values_expression()
-            # loop over all jobs
-            varMapsF = []
-            for jobSpec in jobspec_list:
-                for fileSpec in jobSpec.outFiles:
-                    varMap = fileSpec.values_list()
-                    varMapsF.append(varMap)
-            # insert
-            dbproxy_obj.executemany(sqlF, varMapsF)
-            # commit
-            dbproxy_obj.commit()
-            # return
-            return True
-        except:
-            # roll back
-            dbproxy_obj.rollback()
-            # dump error
-            core_utils.dump_error_message(tmpLog)
-            # return
-            return False
-
-
-
-
 
 if len(sys.argv) > 1:
    queueName = sys.argv[1]
@@ -156,7 +124,7 @@ for job_id in range(begin_job_id,end_job_id+1):
    jobSpec_list.append(jobSpec)
 
 # now load into DB FileSpec's from jobSpec_list
-tmpStat = insert_files(jobSpec_list,proxy)
+tmpStat = proxy.insert_files(jobSpec_list)
 if tmpStat:
    print "OK Loaded files into DB"
 else:
