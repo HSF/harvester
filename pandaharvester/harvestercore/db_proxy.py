@@ -3283,14 +3283,14 @@ class DBProxy:
             # sql to update files
             sqlF = "UPDATE {0} ".format(fileTableName)
             sqlF += "SET groupID=:groupID,groupStatus=:groupStatus,groupUpdateTime=:groupUpdateTime "
-            sqlF += "WHERE fileID=:fileID "
+            sqlF += "WHERE lfn=:lfn "
             # update files
             for fileSpec in file_specs:
                 varMap = dict()
                 varMap[':groupID'] = group_id
                 varMap[':groupStatus'] = status_string
                 varMap[':groupUpdateTime'] = timeNow
-                varMap[':fileID'] = fileSpec.fileID
+                varMap[':lfn'] = fileSpec.lfn
                 self.execute(sqlF, varMap)
             # commit
             self.commit()
@@ -3313,11 +3313,11 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get info
             sqlF = "SELECT groupID,groupStatus,groupUpdateTime FROM {0} ".format(fileTableName)
-            sqlF += "WHERE fileID=:fileID "
+            sqlF += "WHERE lfn=:lfn "
             # get info
             for fileSpec in job_spec.inFiles.union(job_spec.outFiles):
                 varMap = dict()
-                varMap[':fileID'] = fileSpec.fileID
+                varMap[':lfn'] = fileSpec.lfn
                 self.execute(sqlF, varMap)
                 resF = self.cur.fetchone()
                 if resF is None:
