@@ -552,6 +552,35 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return None
+    
+    # insert output files into database
+    def insert_files(self,jobspec_list):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name='insert_files')
+        tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
+        try:
+            # sql to insert a file
+            sqlF = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
+            sqlF += FileSpec.bind_values_expression()
+            # loop over all jobs
+            varMapsF = []
+            for jobSpec in jobspec_list:
+                for fileSpec in jobSpec.outFiles:
+                    varMap = fileSpec.values_list()
+                    varMapsF.append(varMap)
+            # insert
+            self.executemany(sqlF, varMapsF)
+            # commit
+            self.commit()
+            # return
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
 
     # update worker
     def update_worker(self, workspec, criteria=None):
