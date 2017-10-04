@@ -210,6 +210,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 if workSpec.batchID is not None:
                     jobSpec.set_one_attribute('batchID', workSpec.batchID)
             # add files
+            outFileAttrs = jobSpec.get_output_file_attributes()
             for files_to_stage_out in files_to_stage_out_list:
                 if jobSpec.PandaID in files_to_stage_out:
                     for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
@@ -228,6 +229,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                                 fileSpec.chksum = fileAtters['chksum']
                             if 'eventRangeID' in fileAtters:
                                 fileSpec.eventRangeID = fileAtters['eventRangeID']
+                            if lfn in outFileAttrs:
+                                fileSpec.scope = outFileAttrs[lfn]['scope']
                             jobSpec.add_out_file(fileSpec)
             # add events
             for events_to_update in events_to_update_list:
@@ -286,6 +289,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # FIXME
         # jobSpec.set_attributes(workAttributes)
         # add files
+        outFileAttrs = jobSpec.get_output_file_attributes()
         for files_to_stage_out in files_to_stage_out_list:
             if jobSpec.PandaID in files_to_stage_out:
                 for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
@@ -304,6 +308,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                             fileSpec.chksum = fileAtters['chksum']
                         if 'eventRangeID' in fileAtters:
                             fileSpec.eventRangeID = fileAtters['eventRangeID']
+                        if lfn in outFileAttrs:
+                            fileSpec.scope = outFileAttrs[lfn]['scope']
                         jobSpec.add_out_file(fileSpec)
         # add events
         for events_to_update in events_to_update_list:

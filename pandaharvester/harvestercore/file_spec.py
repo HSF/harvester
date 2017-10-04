@@ -28,7 +28,8 @@ class FileSpec(SpecBase):
                            'groupStatus:text / index',
                            'groupUpdateTime:timestamp / index',
                            'attemptNr:integer',
-                           'todelete:integer / index'
+                           'todelete:integer / index',
+                           'scope:text'
                            )
 
     # attributes initialized with 0
