@@ -233,6 +233,13 @@ class GlobusBulkStager(PluginBase):
                     # loop over all files
                     for fileSpec in fileSpecs:
                         attrs = jobspec.get_output_file_attributes()
+                        msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
+                        tmpLog.debug(msgStr)
+                        for key, value in attrs.iteritems():
+                            msgStr = "output file attributes - {0} {1}".format(key,value)
+                            tmpLog.debug(msgStr)
+                        msgStr = "fileSpec.lfn - {}".format(fileSpec.lfn)
+                        tmpLog.debug(msgStr)
                         scope = attrs[fileSpec.lfn]['scope']
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
