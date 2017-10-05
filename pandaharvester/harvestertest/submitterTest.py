@@ -20,7 +20,7 @@ com = CommunicatorPool()
 jobSpecList = []
 if queueConfig.mapType != WorkSpec.MT_NoJob:
     jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel,
-                                'computingElement', 1)
+                                'computingElement', 1, None)
     if len(jobs) == 0:
         print ("Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr))
         sys.exit(0)
