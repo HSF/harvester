@@ -552,6 +552,35 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return None
+    
+    # insert output files into database
+    def insert_files(self,jobspec_list):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name='insert_files')
+        tmpLog.debug('{0} jobs'.format(len(jobspec_list)))
+        try:
+            # sql to insert a file
+            sqlF = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
+            sqlF += FileSpec.bind_values_expression()
+            # loop over all jobs
+            varMapsF = []
+            for jobSpec in jobspec_list:
+                for fileSpec in jobSpec.outFiles:
+                    varMap = fileSpec.values_list()
+                    varMapsF.append(varMap)
+            # insert
+            self.executemany(sqlF, varMapsF)
+            # commit
+            self.commit()
+            # return
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
 
     # update worker
     def update_worker(self, workspec, criteria=None):
@@ -3254,14 +3283,14 @@ class DBProxy:
             # sql to update files
             sqlF = "UPDATE {0} ".format(fileTableName)
             sqlF += "SET groupID=:groupID,groupStatus=:groupStatus,groupUpdateTime=:groupUpdateTime "
-            sqlF += "WHERE fileID=:fileID "
+            sqlF += "WHERE lfn=:lfn "
             # update files
             for fileSpec in file_specs:
                 varMap = dict()
                 varMap[':groupID'] = group_id
                 varMap[':groupStatus'] = status_string
                 varMap[':groupUpdateTime'] = timeNow
-                varMap[':fileID'] = fileSpec.fileID
+                varMap[':lfn'] = fileSpec.lfn
                 self.execute(sqlF, varMap)
             # commit
             self.commit()
@@ -3284,11 +3313,11 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get info
             sqlF = "SELECT groupID,groupStatus,groupUpdateTime FROM {0} ".format(fileTableName)
-            sqlF += "WHERE fileID=:fileID "
+            sqlF += "WHERE lfn=:lfn "
             # get info
             for fileSpec in job_spec.inFiles.union(job_spec.outFiles):
                 varMap = dict()
-                varMap[':fileID'] = fileSpec.fileID
+                varMap[':lfn'] = fileSpec.lfn
                 self.execute(sqlF, varMap)
                 resF = self.cur.fetchone()
                 if resF is None:

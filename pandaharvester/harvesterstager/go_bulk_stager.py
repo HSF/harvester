@@ -109,6 +109,10 @@ class GlobusBulkStager(PluginBase):
         tmpLog.debug('finish')
 
 
+    # get dummy_transfer_id
+    def get_dummy_transfer_id(self):
+        return self.dummy_transfer_id
+
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
         # loop over all output files
@@ -229,6 +233,13 @@ class GlobusBulkStager(PluginBase):
                     # loop over all files
                     for fileSpec in fileSpecs:
                         attrs = jobspec.get_output_file_attributes()
+                        msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
+                        tmpLog.debug(msgStr)
+                        for key, value in attrs.iteritems():
+                            msgStr = "output file attributes - {0} {1}".format(key,value)
+                            tmpLog.debug(msgStr)
+                        msgStr = "fileSpec.lfn - {}".format(fileSpec.lfn)
+                        tmpLog.debug(msgStr)
                         scope = attrs[fileSpec.lfn]['scope']
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
@@ -382,6 +393,9 @@ class GlobusBulkStager(PluginBase):
         jobspec.set_groups_to_files({self.dummy_transfer_id: {'lfns': lfns,'groupStatus': 'pending'}})
         msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending'.format(self.dummy_transfer_id,lfns)
         tmpLog.debug(msgStr)
+        tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),self.dummy_transfer_id,pending)')
+        tmpStat = self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),self.dummy_transfer_id,'pending')
+        tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),self.dummy_transfer_id,pending)')
         return True, ''
 
     # zip output files
