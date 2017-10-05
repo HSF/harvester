@@ -79,24 +79,29 @@ else:
 jobSpec_list = []
 for job_id in range(begin_job_id,end_job_id+1):
    jobSpec = JobSpec()
-   jobSpec.jobParams = {'scopeOut': 'panda',
+   jobSpec.jobParams = {
                         'scopeLog': 'panda',
                         'logFile': 'log',
-                        'realDatasets': 'panda.sgotest.' + uuid.uuid4().hex , 
-                        'ddmEndPointOut': 'BNL-OSG2_DATADISK'
                         }
    jobSpec.computingSite = queueName
    jobSpec.PandaID = job_id
    jobSpec.modificationTime = datetime.datetime.now()
-   # create up 5 files for output
-   ifirst = True
+   realDataset = 'panda.sgotest.' + uuid.uuid4().hex
+   ddmEndPointOut = 'BNL-OSG2_DATADISK'
+   outFiles_scope_str = ''
    outFiles_str = ''
+   realDatasets_str = ''
+   ddmEndPointOut_str = ''
+   # create up 5 files for output
    for index in range(random.randint(1, 5)):
       fileSpec = FileSpec()
       fileSpec.fileType = 'es_output'
       fileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex + '.gz'
       fileSpec.fileAttributes = {}
-      outFiles_str += fileSpec.lfn + ', ' 
+      outFiles_scope_str += 'panda,' 
+      outFiles_str += fileSpec.lfn + ','
+      realDatasets_str += realDataset + ","
+      ddmEndPointOut_str += ddmEndPointOut + ","
       assFileSpec = FileSpec()
       assFileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex
       assFileSpec.fileType = 'es_output'
@@ -124,18 +129,34 @@ for job_id in range(begin_job_id,end_job_id+1):
       print "file to transfer - {}".format(assFileSpec.path) 
       #print "dump(jobSpec)"
       #dump(jobSpec)
-   # add log file
+   # add log file info
    outFiles_str += 'log'
+   realDatasets_str += 'log.'+ uuid.uuid4().hex
+   ddmEndPointOut_str += 'MWT2-UC_DATADISK'
+   # remove final ","
+   outFiles_scope_str = outFiles_scope_str[:-1]
+   jobSpec.jobParams['scopeOut'] = outFiles_scope_str
    jobSpec.jobParams['outFiles'] = outFiles_str
+   jobSpec.jobParams['realDatasets'] = realDatasets_str
+   jobSpec.jobParams['ddmEndPointOut'] = ddmEndPointOut_str
+   print "jobSpec.jobParams ={}".format(jobSpec.jobParams) 
+   print "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(jobSpec.get_output_file_attributes()),type(jobSpec.get_output_file_attributes()))
+   for key, value in jobSpec.get_output_file_attributes().iteritems():
+      print "output file attributes - pre DB {0} {1}".format(key,value)
    jobSpec_list.append(jobSpec)
  
 
-# now load into DB FileSpec's from jobSpec_list
+# now load into DB JobSpec's and output FileSpec's from jobSpec_list
+tmpStat = proxy.insert_jobs(jobSpec_list)
+if tmpStat:
+   print "OK Loaded jobs into DB"
+else:
+   print "NG Could not load jobs into DB"
 tmpStat = proxy.insert_files(jobSpec_list)
 if tmpStat:
    print "OK Loaded files into DB"
 else:
-   print "NG Could not loaded files into DB"
+   print "NG Could not load files into DB"
 
 # Now loop over the jobSpec's
 
@@ -162,9 +183,7 @@ for jobSpec in jobSpec_list:
    # get the files with the group_id and print out
    print "dummy_transfer_id = {}".format(stagerCore.get_dummy_transfer_id())
    files = proxy.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
-   print "files - {}".format(files)
    files = stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
-   print "files - {}".format(files)
 
 
    print "checking status for transfer and perhaps ultimately triggering the transfer"
