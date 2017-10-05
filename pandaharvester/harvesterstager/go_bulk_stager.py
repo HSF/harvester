@@ -206,7 +206,7 @@ class GlobusBulkStager(PluginBase):
                                 errMsg += ' destination Endpoint not activated '
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
                             if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
@@ -224,7 +224,7 @@ class GlobusBulkStager(PluginBase):
                             errMsg = "{0} {1}".format(errtype.__name__, errvalue)
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
                             if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
@@ -238,9 +238,9 @@ class GlobusBulkStager(PluginBase):
                         for key, value in attrs.iteritems():
                             msgStr = "output file attributes - {0} {1}".format(key,value)
                             tmpLog.debug(msgStr)
-                        msgStr = "fileSpec.lfn - {}".format(fileSpec.lfn)
+                        msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                         tmpLog.debug(msgStr)
-                        scope = attrs[fileSpec.lfn]['scope']
+                        scope = fileSpec.scope
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
                         hash_hex = hash.hexdigest()
@@ -256,12 +256,11 @@ class GlobusBulkStager(PluginBase):
                         if os.access(srcURL, os.R_OK):
                             tmpLog.debug("tdata.add_item({},{})".format(srcURL,dstURL))
                             tdata.add_item(srcURL,dstURL)
-                            lfns.append(fileSpec.lfn)
                         else:
                             errMsg = "source file {} does not exist".format(srcURL)
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
                             if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
@@ -284,7 +283,7 @@ class GlobusBulkStager(PluginBase):
                         else:
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
                             if not self.have_db_lock:
                                 errMsg = 'Could not release DB lock for {}'.format(self.dummy_transfer_id)
                                 tmpLog.error(errMsg)
@@ -295,7 +294,7 @@ class GlobusBulkStager(PluginBase):
                             tmpLog.warning('Globus report user has too many concurrent transfers. Will try again later')
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
                             if not self.have_db_lock:
                                 errMsg = ' Could not release DB lock for {}'.format(self.dummy_transfer_id)
                                 tmpLog.error(errMsg)
@@ -308,7 +307,7 @@ class GlobusBulkStager(PluginBase):
                                 errMsg = "{0} {1}".format(errtype.__name__, errvalue)
                             # release process lock
                             tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_process_lock(self.dummy_transfer_id)
+                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
                             if not self.have_db_lock:
                                 errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
                             tmpLog.error(errMsg)
@@ -412,9 +411,14 @@ class GlobusBulkStager(PluginBase):
                 else:
                     zipDir = self.zipDir
                 zipPath = os.path.join(zipDir, fileSpec.lfn)
+                msgStr = 'self.zipDir - {0} zipDir - {1} fileSpec.lfn - {2} zipPath - {3}'\
+                    .format(self.zipDir,zipDir,fileSpec.lfn,zipPath)
+                tmpLog.debug(msgStr)
                 # remove zip file just in case
                 try:
                     os.remove(zipPath)
+                    msgStr = 'removed file {}'.format(zipPath)
+                    tmpLog.debug(msgStr)
                 except:
                     pass
                 # make zip file
@@ -426,6 +430,9 @@ class GlobusBulkStager(PluginBase):
                 # get size
                 statInfo = os.stat(zipPath)
                 fileSpec.fsize = statInfo.st_size
+                msgStr = 'fileSpec.path - {0}, fileSpec.fsize - {1}'\
+                    .format(fileSpec.path,fileSpec.fsize)
+                tmpLog.debug(msgStr)
         except:
             errMsg = core_utils.dump_error_message(tmpLog)
             return False, 'failed to zip with {0}'.format(errMsg)
