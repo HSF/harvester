@@ -69,6 +69,12 @@ class Master(object):
         thr.execute()
         thr.start()
         thrList.append(thr)
+        # Watcher
+        from pandaharvester.harvesterbody.watcher import Watcher
+        thr = Watcher(single_mode=self.singleMode)
+        thr.set_stop_event(self.stopEvent)
+        thr.start()
+        thrList.append(thr)
         # Job Fetcher
         from pandaharvester.harvesterbody.job_fetcher import JobFetcher
         nThr = harvester_config.jobfetcher.nThreads
@@ -203,6 +209,8 @@ def main(daemon_mode=True):
                         help='profile mode. s (statistic), d (deterministic), or t (thread-aware)')
     parser.add_argument('--memory_logging', action='store_true', dest='memLogging', default=False,
                         help='add information of memory usage in each logging message')
+    parser.add_argument('--foreground', action='store_true', dest='foreground', default=False,
+                        help='run in the foreground not to be daemonized')
     options = parser.parse_args()
     # show version information
     if options.showVersion:
@@ -224,7 +232,7 @@ def main(daemon_mode=True):
         core_utils.do_log_rollover()
         if hasattr(_logger.handlers[0], 'doRollover'):
             _logger.handlers[0].doRollover()
-    if daemon_mode:
+    if daemon_mode and not options.foreground:
         # redirect messages to stdout
         stdoutHandler = logging.StreamHandler(sys.stdout)
         stdoutHandler.setFormatter(_logger.handlers[0].formatter)
@@ -247,9 +255,8 @@ def main(daemon_mode=True):
     else:
         dc = DummyContext()
     with dc:
-        if daemon_mode:
-            _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
-                                                                           commit_timestamp.timestamp))
+        _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
+                                                                       commit_timestamp.timestamp))
 
         # stop event
         stopEvent = threading.Event()

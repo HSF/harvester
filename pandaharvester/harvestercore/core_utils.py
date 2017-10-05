@@ -3,17 +3,20 @@ utilities
 
 """
 
+import os
 import sys
 import time
 import zlib
 import uuid
 import math
+import fcntl
 import random
 import inspect
 import datetime
 import threading
 import traceback
 from future.utils import iteritems
+from contextlib import contextmanager
 
 from .work_spec import WorkSpec
 from .file_spec import FileSpec
@@ -207,6 +210,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 if workSpec.batchID is not None:
                     jobSpec.set_one_attribute('batchID', workSpec.batchID)
             # add files
+            outFileAttrs = jobSpec.get_output_file_attributes()
             for files_to_stage_out in files_to_stage_out_list:
                 if jobSpec.PandaID in files_to_stage_out:
                     for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
@@ -225,6 +229,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                                 fileSpec.chksum = fileAtters['chksum']
                             if 'eventRangeID' in fileAtters:
                                 fileSpec.eventRangeID = fileAtters['eventRangeID']
+                            if lfn in outFileAttrs:
+                                fileSpec.scope = outFileAttrs[lfn]['scope']
                             jobSpec.add_out_file(fileSpec)
             # add events
             for events_to_update in events_to_update_list:
@@ -283,6 +289,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # FIXME
         # jobSpec.set_attributes(workAttributes)
         # add files
+        outFileAttrs = jobSpec.get_output_file_attributes()
         for files_to_stage_out in files_to_stage_out_list:
             if jobSpec.PandaID in files_to_stage_out:
                 for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
@@ -301,6 +308,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                             fileSpec.chksum = fileAtters['chksum']
                         if 'eventRangeID' in fileAtters:
                             fileSpec.eventRangeID = fileAtters['eventRangeID']
+                        if lfn in outFileAttrs:
+                            fileSpec.scope = outFileAttrs[lfn]['scope']
                         jobSpec.add_out_file(fileSpec)
         # add events
         for events_to_update in events_to_update_list:
@@ -387,3 +396,41 @@ global_dict = MapWithLock()
 # get global dict
 def get_global_dict():
     return global_dict
+
+
+# get file lock
+@contextmanager
+def get_file_lock(file_name, lock_interval):
+    if os.path.exists(file_name):
+        opt = 'r+'
+    else:
+        opt = 'w+'
+    with open(file_name, opt) as f:
+        locked = False
+        try:
+            # lock file
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+            # read timestamp
+            timeNow = datetime.datetime.utcnow()
+            toSkip = False
+            try:
+                s = f.read()
+                pTime = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S.%f")
+                if timeNow - pTime < datetime.timedelta(seconds=lock_interval):
+                    toSkip = True
+            except:
+                pass
+            # skip if still in locked interval
+            if toSkip:
+                raise IOError("skipped since still in locked interval")
+            # write timestamp
+            f.seek(0)
+            f.write(timeNow.strftime("%Y-%m-%d %H:%M:%S.%f"))
+            f.truncate()
+            # execute with block
+            yield
+        finally:
+            # unlock
+            if locked:
+                fcntl.flock(f, fcntl.LOCK_UN)
