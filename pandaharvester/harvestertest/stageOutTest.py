@@ -3,21 +3,34 @@ import os
 import uuid
 import random
 import string
+import atexit
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+
+
+file_prefix = 'panda.sgotest.'
+
+
+def exit_func():
+    for f in os.listdir('.'):
+        if f.startswith(file_prefix):
+            os.remove(f)
+
+
+atexit.register(exit_func)
 
 queueName = sys.argv[1]
 queueConfigMapper = QueueConfigMapper()
 queueConfig = queueConfigMapper.get_queue(queueName)
 
 fileSpec = FileSpec()
-fileSpec.fileType = 'es_output'
-fileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex + '.gz'
-fileSpec.fileAttributes = {}
+fileSpec.fileType = 'output'
+fileSpec.lfn = file_prefix + uuid.uuid4().hex + '.gz'
+fileSpec.fileAttributes = {'guid': str(uuid.uuid4())}
 assFileSpec = FileSpec()
-assFileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex
+assFileSpec.lfn = file_prefix + uuid.uuid4().hex
 assFileSpec.fileType = 'es_output'
 assFileSpec.fsize = random.randint(10, 100)
 assFileSpec.path = os.getcwd() + '/' + assFileSpec.lfn
@@ -48,18 +61,20 @@ if tmpStat:
 else:
     print (" NG {0}".format(tmpOut))
 
-print
+print ()
 
-print ("testing ES stage-out")
+print ("testing stage-out")
+transferID = None
 tmpStat, tmpOut = stagerCore.trigger_stage_out(jobSpec)
 if tmpStat:
-    transferID = fileSpec.fileAttributes['transferID']
+    if fileSpec.fileAttributes is None and 'transferID' in fileSpec.fileAttributes:
+        transferID = fileSpec.fileAttributes['transferID']
     print (" OK transferID={0}".format(transferID))
 else:
     print (" NG {0}".format(tmpOut))
     sys.exit(1)
 
-print
+print ()
 
 print ("checking status for transferID={0}".format(transferID))
 tmpStat, tmpOut = stagerCore.check_status(jobSpec)
