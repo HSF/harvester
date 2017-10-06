@@ -13,7 +13,7 @@ queueConfigMapper = QueueConfigMapper()
 queueConfig = queueConfigMapper.get_queue(queueName)
 
 fileSpec = FileSpec()
-fileSpec.fileType = 'es_output'
+fileSpec.fileType = 'output'
 fileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex + '.gz'
 fileSpec.fileAttributes = {}
 assFileSpec = FileSpec()
@@ -48,18 +48,20 @@ if tmpStat:
 else:
     print (" NG {0}".format(tmpOut))
 
-print
+print ()
 
-print ("testing ES stage-out")
+print ("testing stage-out")
+transferID = None
 tmpStat, tmpOut = stagerCore.trigger_stage_out(jobSpec)
 if tmpStat:
-    transferID = fileSpec.fileAttributes['transferID']
+    if fileSpec.fileAttributes is None and 'transferID' in fileSpec.fileAttributes:
+        transferID = fileSpec.fileAttributes['transferID']
     print (" OK transferID={0}".format(transferID))
 else:
     print (" NG {0}".format(tmpOut))
     sys.exit(1)
 
-print
+print ()
 
 print ("checking status for transferID={0}".format(transferID))
 tmpStat, tmpOut = stagerCore.check_status(jobSpec)
