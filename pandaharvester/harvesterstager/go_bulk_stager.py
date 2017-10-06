@@ -329,7 +329,7 @@ class GlobusBulkStager(PluginBase):
         for transferID in groups:
             if transferID != self.dummy_transfer_id :
                 # get transfer task
-                tmpStat, transferTasks = self.get_transfer_tasks_by_id(transferID)
+                tmpStat, transferTasks = self.get_transfer_task_by_id(transferID)
                 # return a temporary error when failed to get task
                 if not tmpStat:
                     errStr = 'failed to get transfer task'

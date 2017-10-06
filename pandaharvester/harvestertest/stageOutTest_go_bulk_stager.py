@@ -236,11 +236,11 @@ for jobSpec in jobSpec_list:
 
 # sleep for 10 minutes 1 second
       
-#print "Sleep for 601 seconds"
-#time.sleep(601)
-msgStr = "Sleep for 181 seconds"
+msgStr = "Sleep for 601 seconds"
+#msgStr = "Sleep for 181 seconds"
 tmpLog.debug(msgStr)
-time.sleep(181)
+#time.sleep(181)
+time.sleep(601)
 msgStr = "now check the jobs"
 tmpLog.debug(msgStr)
 
