@@ -62,7 +62,7 @@ class GoPreparator(PluginBase):
         if label not in transferTasks:
             errStr = 'transfer task is missing'
             tmpLog.error(errStr)
-            return False, errStr
+            return None, errStr
         # succeeded
         if transferTasks[label]['status'] == 'SUCCEEDED':
             transferID = transferTasks[label]['task_id'] 
@@ -189,7 +189,13 @@ class GoPreparator(PluginBase):
             # if no files to transfer return True
             return True, 'No files to transfer'
         except:
-            globus_utils.handle_globus_exception(tmpLog)
+            errmsg = globus_utils.handle_globus_exception(tmpLog)
+            
+            if 'TooManyPendingJobs' in errmsg:
+               # return None so transfer will be retried later
+               tmpLog.info('to many transfers, will try again later')
+               return None,{}
+
             return False, {}
 
     # get transfer tasks
