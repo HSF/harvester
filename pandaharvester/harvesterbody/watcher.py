@@ -105,7 +105,8 @@ class Watcher(AgentBase):
                                 server.login(harvester_config.watcher.mailUser,
                                              harvester_config.watcher.mailPassword)
                             server.ehlo()
-                            server.starttls()
+                            if hasattr(harvester_config.watcher, 'useSSL') and harvester_config.watcher.useSSL:
+                                server.starttls()
                             server.sendmail(harvester_config.watcher.mailFrom,
                                             harvester_config.watcher.mailTo.split(','),
                                             message.as_string())
