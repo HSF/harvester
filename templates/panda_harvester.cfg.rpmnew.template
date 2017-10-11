@@ -525,18 +525,18 @@ actions =
 passphraseEnv = HARVESTER_WATCHER_PASSPHRASE
 
 # hostname of SMTP server. note that parameters with the prefix of "mail" are required on
-mailServer = smtp.example.com
+mailServer = localhost
 
 # port of SMTP server
 mailPort = 25
 
 # use SSL for SMTP
-mailUseSSL = True
+mailUseSSL = False
 
-# login user of SMTP server if any. leave empty if SMTP doesn't need to logon
+# login user of SMTP server if any. leave it empty if SMTP doesn't need to logon
 mailUser =
 
-# login password of SMTP server if any. leave empty if SMTP doesn't need to logon
+# login password of SMTP server if any. leave it empty if SMTP doesn't need to logon
 mailPassword =
 
 # email sender
