@@ -27,6 +27,7 @@ setup(
     install_requires=['requests',
                       'python-daemon',
                       'future',
+                      'pycrypto'
                       ],
     data_files=[
         # config and cron files

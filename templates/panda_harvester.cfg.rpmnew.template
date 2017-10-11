@@ -521,6 +521,9 @@ sleepTime = 60
 # a comma-concatenated list of actions (email: to send alarms, kill: to be killed). or empty if no action
 actions =
 
+# name of env variable to keep pass-phrase
+passphraseEnv = HARVESTER_WATCHER_PASSPHRASE
+
 # hostname of SMTP server. note that parameters with the prefix of "mail" are required on
 mailServer = smtp.example.com
 
