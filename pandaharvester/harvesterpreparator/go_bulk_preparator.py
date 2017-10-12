@@ -370,9 +370,9 @@ class GlobusBulkPreparator(PluginBase):
         jobspec.set_groups_to_files({self.dummy_transfer_id: {'lfns': lfns,'groupStatus': 'pending'}})
         msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending'.format(self.dummy_transfer_id,lfns)
         tmpLog.debug(msgStr)
-        tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_inpput_file_specs(skip_ready=True,self.dummy_transfer_id),self.dummy_transfer_id,pending)')
-        tmpStat = self.dbInterface.set_file_group(jobspec.get_input_file_specs(skip_ready=True,self.dummy_transfer_id),self.dummy_transfer_id,'pending')
-        tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_input_file_specs(skip_ready=True,self.dummy_transfer_id),self.dummy_transfer_id,pending)')
+        tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id,skip_ready=True),self.dummy_transfer_id,pending)')
+        tmpStat = self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id, skip_ready=True),self.dummy_transfer_id,'pending')
+        tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id,skip_ready=True),self.dummy_transfer_id,pending)')
         return True, ''
 
 

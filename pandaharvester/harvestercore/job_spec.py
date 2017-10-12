@@ -398,12 +398,11 @@ class JobSpec(SpecBase):
             return retList
 
     # get input file specs for a given group id
-    def get_input_file_specs(self, skip_ready=False,groupID):
+    def get_input_file_specs(self, group_id, skip_ready=False):
         retList = []
         for fileSpec in self.inFiles:
-            if fileSpec.groupID == groupID :
-                if not skip_ready :
-                    retList.append(fileSpec)
-                elif skip_ready and fileSpec.status not in ['ready','failed']:
-                    retList.append(fileSpec)
+            if fileSpec.groupID == group_id:
+                if skip_ready and fileSpec.status in ['ready', 'failed']:
+                    continue
+                retList.append(fileSpec)
         return retList
