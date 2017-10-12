@@ -396,3 +396,14 @@ class JobSpec(SpecBase):
                 if fileSpec.status not in ['finished', 'failed']:
                     retList.append(fileSpec)
             return retList
+
+    # get input file specs for a given group id
+    def get_input_file_specs(self, skip_ready=False,groupID):
+        retList = []
+        for fileSpec in self.inFiles:
+            if fileSpec.groupID == groupID :
+                if not skip_ready :
+                    retList.append(fileSpec)
+                elif skip_ready and fileSpec.status not in ['ready','failed']:
+                    retList.append(fileSpec)
+        return retList
