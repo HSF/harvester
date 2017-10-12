@@ -81,8 +81,8 @@ class GlobusBulkStager(PluginBase):
             tmpLog.debug('Created transfer client - self.id = {0}'.format(self.id))
             return True,''
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
@@ -218,18 +218,15 @@ class GlobusBulkStager(PluginBase):
                                              self.dstEndpoint,
                                              sync_level="checksum")
                     except:
-                        globus_utils.handle_globus_exception(tmpLog)
-                        if errMsg is None:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            errMsg = "{0} {1}".format(errtype.__name__, errvalue)
-                            # release process lock
-                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
-                            if not self.have_db_lock:
-                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
-                            tmpLog.error(errMsg)
-                            tmpRetVal = (None, errMsg)
-                            return tmpRetVal
+                        errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+                        # release process lock
+                        tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                        self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                        if not self.have_db_lock:
+                            errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                        tmpLog.error(errMsg)
+                        tmpRetVal = (errStat, errMsg)
+                        return tmpRetVal
                     # loop over all files
                     for fileSpec in fileSpecs:
                         attrs = jobspec.get_output_file_attributes()
@@ -290,28 +287,14 @@ class GlobusBulkStager(PluginBase):
                             tmpRetVal = (None, transfer_result['message'])
                             return tmpRetVal
                     except Exception as e:
-                        if 'This user has too many pending jobs' in str(e):
-                            tmpLog.warning('Globus report user has too many concurrent transfers. Will try again later')
-                            # release process lock
-                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
-                            if not self.have_db_lock:
-                                errMsg = ' Could not release DB lock for {}'.format(self.dummy_transfer_id)
-                                tmpLog.error(errMsg)
-                            tmpRetVal = (None, 'Globus reports too many concurrent transfers')
-                            return tmpRetVal
-                        else:
-                            globus_utils.handle_globus_exception(tmpLog)
-                            if errMsg is None:
-                                errtype, errvalue = sys.exc_info()[:2]
-                                errMsg = "{0} {1}".format(errtype.__name__, errvalue)
-                            # release process lock
-                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
-                            if not self.have_db_lock:
-                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
-                            tmpLog.error(errMsg)
-                            return None, errMsg
+                        errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+                        # release process lock
+                        tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                        self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                        if not self.have_db_lock:
+                            errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                        tmpLog.error(errMsg)
+                        return errStat, errMsg
                 else:
                     msgStr = 'wait until enough files are pooled'
                     tmpLog.debug(msgStr)
@@ -491,8 +474,8 @@ class GlobusBulkStager(PluginBase):
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat , errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
 
     # get transfer tasks
     def get_transfer_tasks(self,label=None):
@@ -529,8 +512,8 @@ class GlobusBulkStager(PluginBase):
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
 
     def check_endpoint_activation (self,endpoint_id):
         """
@@ -565,5 +548,5 @@ class GlobusBulkStager(PluginBase):
                 tmpLog.debug(errStr)
                 return True,errStr
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
