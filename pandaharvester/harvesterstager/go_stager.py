@@ -169,11 +169,9 @@ class GlobusStager(PluginBase):
                                  label=label,
                                  sync_level="checksum")
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            if errMsg is None:
-                errtype, errvalue = sys.exc_info()[:2]
-                errMsg = "{0} {1}".format(errtype.__name__, errvalue)
-            tmpRetVal = (False, errMsg)
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            tmpRetVal = (errStat, errMsg)
+            return tmpRetVal
         # loop over all files
         fileAttrs = jobspec.get_output_file_attributes()
         lfns = []
@@ -219,17 +217,11 @@ class GlobusStager(PluginBase):
             else:
                 tmpRetVal = (False, transfer_result['message'])
         except Exception as e:
-            if 'This user has too many pending jobs' in str(e):
-               tmpLog.warning('Globus report user has too many concurrent transfers. Will try again later')
-            else:
-               globus_utils.handle_globus_exception(tmpLog)
-               if errMsg is None:
-                   errtype, errvalue = sys.exc_info()[:2]
-                   errMsg = "{0} {1}".format(errtype.__name__, errvalue)
-        # failed
-        if errMsg is not None:
-            tmpLog.error('failed to submit transfer to Globus with {0}'.format(errMsg))
-            tmpRetVal = (False, errMsg)
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            if errMsg is None:
+                errtype, errvalue = sys.exc_info()[:2]
+                errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+            tmpRetVal = (errStat,errMsg)
         # return
         tmpLog.debug('done')
         return tmpRetVal
@@ -320,8 +312,8 @@ class GlobusStager(PluginBase):
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat,{}
 
     # get transfer tasks
     def get_transfer_tasks(self,label=None):
@@ -358,8 +350,8 @@ class GlobusStager(PluginBase):
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat,{}
 
 
 
@@ -393,8 +385,8 @@ class GlobusStager(PluginBase):
             self.tc = tc
             return True,''
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
 
     def check_endpoint_activation (self,endpoint_id):
         """
@@ -429,5 +421,5 @@ class GlobusStager(PluginBase):
                 tmpLog.debug(errStr)
                 return True,errStr
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
