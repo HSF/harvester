@@ -189,6 +189,7 @@ class GoPreparator(PluginBase):
             # if no files to transfer return True
             return True, 'No files to transfer'
         except:
+<<<<<<< HEAD
             errmsg = globus_utils.handle_globus_exception(tmpLog)
             
             if 'TooManyPendingJobs' in errmsg:
@@ -197,6 +198,10 @@ class GoPreparator(PluginBase):
                return None,{}
 
             return False, {}
+=======
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
+>>>>>>> upstream/master
 
     # get transfer tasks
     def get_transfer_task_by_id(self,transferID=None):
@@ -233,8 +238,8 @@ class GoPreparator(PluginBase):
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
 
     # get transfer tasks
     def get_transfer_tasks(self,label=None):
@@ -271,8 +276,8 @@ class GoPreparator(PluginBase):
             tmpLog.debug('got {0} tasks'.format(len(tasks)))
             return True, tasks
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
 
     # make label for transfer task
     def make_label(self, jobspec):
@@ -322,8 +327,8 @@ class GoPreparator(PluginBase):
             self.tc = tc
             return True,''
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}
 
     def check_endpoint_activation (self,endpoint_id):
         """
@@ -358,5 +363,5 @@ class GoPreparator(PluginBase):
                 tmpLog.debug(errStr)
                 return True,errStr
         except:
-            globus_utils.handle_globus_exception(tmpLog)
-            return False, {}
+            errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+            return errStat, {}

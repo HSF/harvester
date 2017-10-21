@@ -14,10 +14,10 @@ from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandalogger import logger_config
 
 logDir = logger_config.daemon['logdir']
-lockFileName = os.path.join(logDir, 'log_watcher.lock')
+lockFileName = os.path.join(logDir, 'watcher.lock')
 
 # logger
-_logger = core_utils.setup_logger('log_watcher')
+_logger = core_utils.setup_logger('watcher')
 
 
 # watching the system
@@ -89,27 +89,44 @@ class Watcher(AgentBase):
                     if doAction:
                         # email
                         if 'email' in harvester_config.watcher.actions.split(','):
-                            # message
-                            msgBody = 'harvester {0} '.format(harvester_config.master.harvester_id)
-                            msgBody += 'is having a problem on {0}'.format(socket.getfqdn())
-                            message = MIMEText(msgBody)
-                            message['Subject'] = "Harvester Alarm"
-                            message['From'] = harvester_config.watcher.mailFrom
-                            message['To'] = harvester_config.watcher.mailTo
-                            # send email
-                            mainLog.debug('sending email to {0}'.format(harvester_config.watcher.mailTo))
-                            server = smtplib.SMTP(harvester_config.watcher.mailServer,
-                                                  harvester_config.watcher.mailPort)
+                            # get pass phrase
+                            toSkip = False
+                            mailUser = None
+                            mailPass = None
                             if harvester_config.watcher.mailUser != '' and \
                                     harvester_config.watcher.mailPassword != '':
-                                server.login(harvester_config.watcher.mailUser,
-                                             harvester_config.watcher.mailPassword)
-                            server.ehlo()
-                            server.starttls()
-                            server.sendmail(harvester_config.watcher.mailFrom,
-                                            harvester_config.watcher.mailTo.split(','),
-                                            message.as_string())
-                            server.quit()
+                                envName = harvester_config.watcher.passphraseEnv
+                                if envName not in os.environ:
+                                    tmpMsg = '{0} is undefined in etc/sysconfig/panda_harvester'.format(envName)
+                                    mainLog.error(tmpMsg)
+                                    toSkip = True
+                                else:
+                                    key = os.environ[envName]
+                                    mailUser = core_utils.decrypt_string(key, harvester_config.watcher.mailUser)
+                                    mailPass = core_utils.decrypt_string(key, harvester_config.watcher.mailPassword)
+                            if not toSkip:
+                                # message
+                                msgBody = 'harvester {0} '.format(harvester_config.master.harvester_id)
+                                msgBody += 'is having a problem on {0} '.format(socket.getfqdn())
+                                msgBody += 'at {0} (UTC)'.format(datetime.datetime.utcnow())
+                                message = MIMEText(msgBody)
+                                message['Subject'] = "Harvester Alarm"
+                                message['From'] = harvester_config.watcher.mailFrom
+                                message['To'] = harvester_config.watcher.mailTo
+                                # send email
+                                mainLog.debug('sending email to {0}'.format(harvester_config.watcher.mailTo))
+                                server = smtplib.SMTP(harvester_config.watcher.mailServer,
+                                                      harvester_config.watcher.mailPort)
+                                if hasattr(harvester_config.watcher, 'mailUseSSL') and \
+                                        harvester_config.watcher.mailUseSSL is True:
+                                    server.starttls()
+                                if mailUser is not None and mailPass is not None:
+                                    server.login(mailUser, mailPass)
+                                server.ehlo()
+                                server.sendmail(harvester_config.watcher.mailFrom,
+                                                harvester_config.watcher.mailTo.split(','),
+                                                message.as_string())
+                                server.quit()
                         # kill
                         if 'kill' in harvester_config.watcher.actions.split(','):
                             # send USR2 fist

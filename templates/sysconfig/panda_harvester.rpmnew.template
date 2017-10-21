@@ -11,3 +11,6 @@ export PYTHONPATH=${SITE_PACKAGES_PATH}/pandacommon:${SITE_PACKAGES_PATH}
 
 # option for frontend
 OPTIONS="-f "${VIRTUAL_ENV}"/etc/panda/panda_harvester-httpd.conf"
+
+# passphrase for watcher
+export HARVESTER_WATCHER_PASSPHRASE=FIXME_FIXME_FIXME
