@@ -70,7 +70,8 @@ class WorkSpec(SpecBase):
                            'maxDiskCount:integer',
                            'maxWalltime:integer',
                            'killTime:timestamp / index',
-                           'computingElement:text'
+                           'computingElement:text',
+                           'nJobsToReFill:integer'
                            )
 
     # constructor

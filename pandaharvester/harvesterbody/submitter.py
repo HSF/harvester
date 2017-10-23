@@ -132,6 +132,7 @@ class Submitter(AgentBase):
                             self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                               'subStatus': 'prepared'})
                     # OK
+                    pandaIDs = set()
                     workSpecList = []
                     if len(okChunks) > 0:
                         for workSpec, okJobs in okChunks:
@@ -141,7 +142,14 @@ class Submitter(AgentBase):
                                 workSpec.hasJob = 0
                             else:
                                 workSpec.hasJob = 1
-                                workSpec.set_jobspec_list(okJobs)
+                                if workSpec.nJobsToReFill in [None, 0]:
+                                    workSpec.set_jobspec_list(okJobs)
+                                else:
+                                    # refill free slots during the worker is running
+                                    workSpec.set_jobspec_list(okJobs[:workSpec.nJobsToReFill])
+                                    workSpec.nJobsToReFill = None
+                                    for jobSpec in okJobs[workSpec.nJobsToReFill:]:
+                                        pandaIDs.add(jobSpec.PandaID)
                             # map type
                             workSpec.mapType = queueConfig.mapType
                             # queue name
@@ -181,9 +189,10 @@ class Submitter(AgentBase):
                         # submit
                         tmpLog.debug('submitting {0} workers'.format(len(workSpecList)))
                         workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)
-                        pandaIDs = set()
                         for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                             workSpec, jobList = okChunks[iWorker]
+                            # use associated job list since it can be truncated for re-filling
+                            jobList = workSpec.get_jobspec_list()
                             # set status
                             if not tmpRet:
                                 # failed submission
@@ -224,8 +233,8 @@ class Submitter(AgentBase):
                                     tmpLog.error('failed to register a worker for PandaID={0} with batchID={1}'.format(
                                         jobSpec.PandaID,
                                         workSpec.batchID))
-                        # release jobs
-                        self.dbProxy.release_jobs(pandaIDs, lockedBy)
+                    # release jobs
+                    self.dbProxy.release_jobs(pandaIDs, lockedBy)
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.submitter.sleepTime):

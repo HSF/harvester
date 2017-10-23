@@ -1049,6 +1049,10 @@ class DBProxy:
             # sql to count nQueue
             sqlN = "SELECT status,COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlN += "WHERE computingSite=:computingSite GROUP BY status "
+            # sql to count re-fillers
+            sqlR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
+            sqlR += "WHERE computingSite=:computingSite AND status=:status "
+            sqlR += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0 "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
             sqlU += "WHERE queueName=:queueName "
@@ -1065,7 +1069,7 @@ class DBProxy:
                 varMap[':siteName'] = siteName
                 self.execute(sqlQ, varMap)
                 resQ = self.cur.fetchall()
-                for queueName, resouceType, nNewWorkers in resQ:
+                for queueName, resourceType, nNewWorkers in resQ:
                     # count nQueue
                     varMap = dict()
                     varMap[':computingSite'] = queueName
@@ -1080,12 +1084,19 @@ class DBProxy:
                             nReady += tmpNum
                         elif workerStatus in [WorkSpec.ST_running]:
                             nRunning += tmpNum
+                    # count nFillers
+                    varMap = dict()
+                    varMap[':computingSite'] = queueName
+                    varMap[':status'] = WorkSpec.ST_running
+                    self.execute(sqlR, varMap)
+                    nReFill, = self.cur.fetchone()
+                    nReady += nReFill
                     # add
                     retMap[queueName] = {'nReady': nReady,
                                          'nRunning': nRunning,
                                          'nQueue': nQueue,
                                          'nNewWorkers': nNewWorkers}
-                    resourceMap[resouceType] = queueName
+                    resourceMap[resourceType] = queueName
                     # update timestamp
                     varMap = dict()
                     varMap[':queueName'] = queueName
@@ -1818,11 +1829,13 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get workers
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
-            sqlG += "WHERE status=:status AND computingSite=:queueName "
+            sqlG += "WHERE computingSite=:queueName AND (status=:status_ready OR (status=:status_running "
+            sqlG += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0)) "
             sqlG += "ORDER BY modificationTime LIMIT {0} ".format(n_ready)
             # get workers
             varMap = dict()
-            varMap[':status'] = WorkSpec.ST_ready
+            varMap[':status_ready'] = WorkSpec.ST_ready
+            varMap[':status_running'] = WorkSpec.ST_running
             varMap[':queueName'] = queue_name
             self.execute(sqlG, varMap)
             resList = self.cur.fetchall()
