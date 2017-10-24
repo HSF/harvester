@@ -47,6 +47,7 @@ class RucioStagerHPC(PluginBase):
         zip_datasetName = 'harvester_stage_out.{0}'.format(str(uuid.uuid4()))
         fileAttrs = jobspec.get_output_file_attributes()
         for fileSpec in jobspec.outFiles:
+            fileSpec.fileAttributes['transferID'] = None #synchronius transfer
             # skip already done
             tmpLog.debug(' file: %s status: %s' % (fileSpec.lfn,fileSpec.status))                                                                                                                                             
             if fileSpec.status in ['finished', 'failed']:
@@ -82,7 +83,8 @@ class RucioStagerHPC(PluginBase):
             executable += [ '--lifetime',('%d' %lifetime)]
             executable += [ '--rse',dstRSE]
             executable += [ '--scope',scope]
-            executable += [ '--guid',fileSpec.fileAttributes['guid']]
+            if fileSpec.fileAttributes['guid']:
+                executable += [ '--guid',fileSpec.fileAttributes['guid']]
             executable += [('%s:%s' %(scope,datasetName))]
             executable += [('%s' %fileSpec.path)]
 
