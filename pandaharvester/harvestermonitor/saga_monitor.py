@@ -36,7 +36,7 @@ class SAGAMonitor(PluginBase):
                 saga_submission_id = '[{0}]-[{1}]'.format(self.adaptor, workSpec.batchID)
                 try:
                     worker = self.job_service.get_job(saga_submission_id)
-                    tmpLog.info('SAGA State for submission with batchid: {0} is: {0}'.format(workSpec.batchID, worker.state))
+                    tmpLog.info('SAGA State for submission with batchid: {0} is: {1}'.format(workSpec.batchID, worker.state))
                     harvester_job_state = SAGASubmitter.status_translator(worker.state)
                 except saga.SagaException as ex:
                     tmpLog.error('An exception occured during retriving worker information')
