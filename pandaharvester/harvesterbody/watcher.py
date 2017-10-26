@@ -61,9 +61,9 @@ class Watcher(AgentBase):
                     # get processing time for last 1000 queries
                     logDuration = None
                     try:
-                        p = subprocess.Popen(['tail', '-{0}'.format(harvester_config.watcher.nMessages),
-                                              logFileName],
-                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        p = subprocess.Popen('tail -{0} {1} | head -1'.format(harvester_config.watcher.nMessages,
+                                                                              logFileName),
+                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                         line = p.stdout.readline()
                         firstTime = datetime.datetime.strptime(line[:23], "%Y-%m-%d %H:%M:%S,%f")
                         if lastTime is not None:
