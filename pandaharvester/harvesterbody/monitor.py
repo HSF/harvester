@@ -74,6 +74,7 @@ class Monitor(AgentBase):
                         eventsToUpdate = tmpOut['eventsToUpdate']
                         filesToStageOut = tmpOut['filesToStageOut']
                         eventsRequestParams = tmpOut['eventsRequestParams']
+                        nJobsToReFill = tmpOut['nJobsToReFill']
                         pandaIDs = tmpOut['pandaIDs']
                         tmpLog.debug('newStatus={0} monitoredStatus={1} diag={2}'.format(newStatus,
                                                                                          monStatus,
@@ -90,6 +91,9 @@ class Monitor(AgentBase):
                         if eventsRequestParams != {}:
                             workSpec.eventsRequest = WorkSpec.EV_requestEvents
                             workSpec.eventsRequestParams = eventsRequestParams
+                        # jobs to refill
+                        if nJobsToReFill is not None:
+                            workSpec.nJobsToReFill = nJobsToReFill
                         # get associated jobs for the worker chunk
                         if workSpec.hasJob == 1 and jobSpecs is None:
                             jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
@@ -135,8 +139,10 @@ class Monitor(AgentBase):
             eventsRequestParams = {}
             eventsToUpdate = []
             pandaIDs = []
+            workStatus = None
             workAttributes = None
             filesToStageOut = None
+            nJobsToReFill = None
             # job-level late binding
             if workSpec.hasJob == 0 and queue_config.mapType != WorkSpec.MT_NoJob:
                 # check if job is requested
@@ -146,8 +152,13 @@ class Monitor(AgentBase):
                     workStatus = WorkSpec.ST_ready
                 else:
                     workStatus = workSpec.status
+            elif workSpec.nJobsToReFill in [0, None]:
+                # check if job is requested to refill free slots
+                jobRequested = messenger.job_requested(workSpec)
+                if jobRequested:
+                    nJobsToReFill = jobRequested
+                workersToCheck.append(workSpec)
             else:
-                workStatus = None
                 workersToCheck.append(workSpec)
             # add
             retMap[workSpec.workerID] = {'newStatus': workStatus,
@@ -157,7 +168,8 @@ class Monitor(AgentBase):
                                          'eventsRequestParams': eventsRequestParams,
                                          'eventsToUpdate': eventsToUpdate,
                                          'diagMessage': '',
-                                         'pandaIDs': pandaIDs}
+                                         'pandaIDs': pandaIDs,
+                                         'nJobsToReFill': nJobsToReFill}
         # check workers
         tmp_log.debug('checking workers with plugin')
         tmpStat, tmpOut = mon_core.check_workers(workersToCheck)

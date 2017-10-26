@@ -253,8 +253,16 @@ class SharedFileMessenger(PluginBase):
             # not found
             tmpLog.debug('not found')
             return False
-        tmpLog.debug('found')
-        return True
+        # read nJobs
+        try:
+            with open(jsonFilePath) as jsonFile:
+                tmpDict = json.load(jsonFile)
+                nJobs = tmpDict['nJobs']
+        except:
+            # request 1 job by default
+            nJobs = 1
+        tmpLog.debug('requesting {0} jobs'.format(nJobs))
+        return nJobs
 
     # feed jobs
     # * worker_jobspec.json is put under the access point
@@ -442,11 +450,11 @@ class SharedFileMessenger(PluginBase):
             # make the dir if missing
             if not os.path.exists(accessPoint):
                 os.makedirs(accessPoint)
-                for jobSpec in workSpec.get_jobspec_list():
-                    subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
-                    if accessPoint != subAccessPoint:
-                        if not os.path.exists(subAccessPoint):
-                            os.mkdir(subAccessPoint)
+            for jobSpec in workSpec.get_jobspec_list():
+                subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
+                if accessPoint != subAccessPoint:
+                    if not os.path.exists(subAccessPoint):
+                        os.mkdir(subAccessPoint)
 
     # filter for log.tar.gz
     def filter_log_tgz(self, name):

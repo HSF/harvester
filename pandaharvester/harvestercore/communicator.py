@@ -49,7 +49,8 @@ class Communicator:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
             res = requests.post(url,
                                 data=data,
-                                headers={"Accept": "application/json"},
+                                headers={"Accept": "application/json",
+                                         "Connection": "close"},
                                 timeout=harvester_config.pandacon.timeout)
             if self.verbose:
                 tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
@@ -79,7 +80,8 @@ class Communicator:
                         harvester_config.pandacon.key_file)
             res = requests.post(url,
                                 data=data,
-                                headers={"Accept": "application/json"},
+                                headers={"Accept": "application/json",
+                                         "Connection": "close"},
                                 timeout=harvester_config.pandacon.timeout,
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=cert)
