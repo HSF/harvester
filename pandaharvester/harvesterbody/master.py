@@ -180,6 +180,9 @@ class StdErrWrapper(object):
     def write(self, message):
         _logger.error(message)
 
+    def flush(self):
+        _logger.handlers[0].flush()
+
     def fileno(self):
         return _logger.handlers[0].stream.fileno()
 
