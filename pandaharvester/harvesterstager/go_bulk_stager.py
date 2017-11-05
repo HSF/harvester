@@ -23,6 +23,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
+from pandaharvester.harvestermisc import globus_utils
 
 
 # Define dummy transfer identifier
@@ -36,7 +37,6 @@ uID = 0
 # logger
 _logger = core_utils.setup_logger('go_bulk_stager')
 
-from pandaharvester.harvestermisc import globus_utils
 
 def dump(obj):
    for attr in dir(obj):
@@ -72,7 +72,7 @@ class GlobusBulkStager(PluginBase):
                 tmpLog.debug('Got the globus_secrets from PanDA')
                 self.client_id = c_data.data['publicKey']  # client_id
                 self.refresh_token = c_data.data['privateKey'] # refresh_token
-                tmpStat, self.tc = globus_utils.create_globus_transfer_client(self.client_id,self.refresh_token)
+                tmpStat, self.tc = globus_utils.create_globus_transfer_client(tmpLog,self.client_id,self.refresh_token)
                 if not tmpStat:
                     self.tc = None
                     errStr = 'failed to create Globus Transfer Client'
@@ -163,8 +163,8 @@ class GlobusBulkStager(PluginBase):
                     errMsg = None
                     try:
                         # Test endpoints for activation
-                        tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(self.tc,self.srcEndpoint)
-                        tmpStatdst, dstStr = globus_utils.check_endpoint_activation(self.tc,self.dstEndpoint)
+                        tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.srcEndpoint)
+                        tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.dstEndpoint)
                         if tmpStatsrc and tmpStatdst:
                             errStr = 'source Endpoint and destination Endpoint activated'
                             tmpLog.debug(errStr)
@@ -282,7 +282,7 @@ class GlobusBulkStager(PluginBase):
         for transferID in groups:
             if transferID != self.dummy_transfer_id :
                 # get transfer task
-                tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(self.tc,transferID)
+                tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(tmpLog,self.tc,transferID)
                 # return a temporary error when failed to get task
                 if not tmpStat:
                     errStr = 'failed to get transfer task'
