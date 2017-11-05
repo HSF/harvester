@@ -154,8 +154,8 @@ class GlobusStager(PluginBase):
         errMsg = None
         try:
             # Test endpoints for activation
-            tmpStatsrc, srcStr = self.check_endpoint_activation(self.srcEndpoint)
-            tmpStatdst, dstStr = self.check_endpoint_activation(self.dstEndpoint)
+            tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.srcEndpoint)
+            tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.dstEndpoint)
             if tmpStatsrc and tmpStatdst:
                 errStr = 'source Endpoint and destination Endpoint activated'
                 tmpLog.debug(errStr)
