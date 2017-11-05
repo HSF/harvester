@@ -164,10 +164,7 @@ realDatasets_str += 'log.'+ uuid.uuid4().hex
 ddmEndPointOut_str += 'MWT2-UC_DATADISK'
 # remove final ","
 outFiles_scope_str = outFiles_scope_str[:-1]
-jobSpec.jobParams['scopeOut'] = outFiles_scope_str
-jobSpec.jobParams['outFiles'] = outFiles_str
 jobSpec.jobParams['realDatasets'] = realDatasets_str
-jobSpec.jobParams['ddmEndPointOut'] = ddmEndPointOut_str
 msgStr = "jobSpec.jobParams ={}".format(jobSpec.jobParams) 
 tmpLog.debug(msgStr)
 msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(jobSpec.get_output_file_attributes()),type(jobSpec.get_output_file_attributes()))
