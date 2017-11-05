@@ -60,12 +60,11 @@ def handle_globus_exception(tmp_log):
     return (errStat,errMsg)
 
 # Globus create transfer client
-def create_globus_transfer_client(globus_client_id,globus_secret):
+def create_globus_transfer_client(tmpLog,globus_client_id,globus_secret):
     """
     create Globus Transfer Client and return the transfer client
     """
     # get logger
-    tmpLog = core_utils.make_logger(_logger, method_name='create_globus_transfer_client')
     tmpLog.info('Creating instance of GlobusTransferClient')
     # start the Native App authentication process 
     # use the refresh token to get authorizer
