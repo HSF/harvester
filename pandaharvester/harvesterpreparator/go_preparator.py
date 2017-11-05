@@ -40,7 +40,7 @@ class GoPreparator(PluginBase):
                tmpLog.debug('Got the globus_secrets from PanDA')
                self.client_id = c_data.data['publicKey']  # client_id
                self.refresh_token = c_data.data['privateKey'] # refresh_token
-               tmpStat, self.tc = globus_utils.create_globus_transfer_client(self.client_id,self.refresh_token)
+               tmpStat, self.tc = globus_utils.create_globus_transfer_client(tmpLog,self.client_id,self.refresh_token)
                if not tmpStat:
                   self.tc = None
                   errStr = 'failed to create Globus Transfer Client'
@@ -69,7 +69,7 @@ class GoPreparator(PluginBase):
         label = self.make_label(jobspec)
         tmpLog.debug('label={0}'.format(label))
         # get transfer task
-        tmpStat, transferTasks = globus_utils.get_transfer_tasks(self.tc,label)
+        tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog,self.tc,label)
         # return a temporary error when failed to get task
         if not tmpStat:
             errStr = 'failed to get transfer task'
@@ -118,7 +118,7 @@ class GoPreparator(PluginBase):
         label = self.make_label(jobspec)
         tmpLog.debug('label={0}'.format(label))
         # get transfer tasks
-        tmpStat, transferTasks = globus_utils.get_transfer_tasks(self.tc,label)
+        tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog,self.tc,label)
         if not tmpStat:
             errStr = 'failed to get transfer tasks'
             tmpLog.error(errStr)
@@ -158,8 +158,8 @@ class GoPreparator(PluginBase):
         tmpLog.debug('files[] {0}'.format(files))
         try:
             # Test endpoints for activation
-            tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(self.tc,self.srcEndpoint)
-            tmpStatdst, dstStr = globus_utils.check_endpoint_activation(self.tc,self.dstEndpoint)
+            tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.srcEndpoint)
+            tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.dstEndpoint)
             if tmpStatsrc and tmpStatdst:
                 errStr = 'source Endpoint and destination Endpoint activated'
                 tmpLog.debug(errStr)
