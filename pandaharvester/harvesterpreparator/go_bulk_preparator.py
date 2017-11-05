@@ -22,7 +22,6 @@ except:
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermisc import globus_utils
 from pandaharvester.harvestermover import mover_utils
 
 
@@ -34,9 +33,10 @@ uLock = threading.Lock()
 # number to get a unique ID
 uID = 0
 
-
 # logger
 _logger = core_utils.setup_logger('go_bulk_preparator')
+
+from pandaharvester.harvestermisc import globus_utils
 
 def dump(obj):
    for attr in dir(obj):
@@ -48,47 +48,12 @@ def dump(obj):
 # https://github.com/PanDAWMS/panda-harvester/wiki/Utilities#file-grouping-for-file-transfers
 class GlobusBulkPreparator(PluginBase):
     next_id = 0
-    def create_globus_transfer_client(self):
-        """
-        create Globus Transfer Client and put results in self.tc
-        """
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='create_globus_transfer_client')
-        tmpLog.info('Creating instance of GlobusTransferClient')
-        # need to get client_id and refresh_token from PanDA server via harvester cache mechanism
-        tmpLog.debug('about to call dbInterface.get_cache(globus_secret)')
-        c_data = self.dbInterface.get_cache('globus_secret')
-        if (not c_data == None) and  c_data.data['StatusCode'] == 0 :
-            tmpLog.debug('Got the globus_secrets from PanDA')
-            self.client_id = c_data.data['publicKey']  # client_id
-            self.refresh_token = c_data.data['privateKey'] # refresh_token
-        else :
-            self.client_id = None
-            self.refresh_token = None
-            self.tc = None
-            errStr = 'failed to get Globus Client ID and Refresh Token'
-            tmpLog.error(errStr)
-            return False, errStr
-        # start the Native App authentication process 
-        # use the refresh token to get authorizer
-        # create the Globus Transfer Client
-        self.tc = None
-        try:
-            client = NativeAppAuthClient(client_id=self.client_id)
-            authorizer = RefreshTokenAuthorizer(refresh_token=self.refresh_token,auth_client=client)
-            tc = TransferClient(authorizer=authorizer)
-            self.tc = tc
-            tmpLog.debug('Created transfer client - self.id = {0}'.format(self.id))
-            return True,''
-        except:
-            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
-            return errStat, {}
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # make logger
         tmpLog = core_utils.make_logger(_logger, method_name='GlobusBulkStager __init__ ')
-        tmpLog.debug('start')
+        tmpLog.debug('__init__ start')
         self.id = GlobusBulkStager.next_id
         GlobusBulkStager.next_id += 1
         self.have_db_lock = False
@@ -100,13 +65,27 @@ class GlobusBulkPreparator(PluginBase):
         # create Globus Transfer Client
         try:
             self.tc = None
-            tmpStat, statusStr = self.create_globus_transfer_client()
-            if not tmpStat:
-                errStr = 'failed to create Globus Transfer Client'
+            # need to get client_id and refresh_token from PanDA server via harvester cache mechanism
+            tmpLog.debug('about to call dbInterface.get_cache(globus_secret)')
+            c_data = self.dbInterface.get_cache('globus_secret')
+            if (not c_data == None) and  c_data.data['StatusCode'] == 0 :
+                tmpLog.debug('Got the globus_secrets from PanDA')
+                self.client_id = c_data.data['publicKey']  # client_id
+                self.refresh_token = c_data.data['privateKey'] # refresh_token
+                tmpStat, self.tc = globus_utils.create_globus_transfer_client(self.client_id,self.refresh_token)
+                if not tmpStat:
+                    self.tc = None
+                    errStr = 'failed to create Globus Transfer Client'
+                    tmpLog.error(errStr)
+            else :
+                self.client_id = None
+                self.refresh_token = None
+                self.tc = None
+                errStr = 'failed to get Globus Client ID and Refresh Token'
                 tmpLog.error(errStr)
         except:
             core_utils.dump_error_message(tmpLog)
-        tmpLog.debug('finish')
+        tmpLog.debug('__init__ finish')
 
 
     # get dummy_transfer_id
@@ -135,15 +114,6 @@ class GlobusBulkPreparator(PluginBase):
         else:
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
         # test we have a Globus Transfer Client
-        if not self.tc :
-            try:
-                self.tc = None
-                tmpStat, statusStr = self.create_globus_transfer_client()
-                if not tmpStat:
-                    errStr = 'failed to create Globus Transfer Client'
-                    tmpLog.error(errStr)
-            except:
-                core_utils.dump_error_message(tmpLog)
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
             tmpLog.error(errStr)
@@ -193,8 +163,8 @@ class GlobusBulkPreparator(PluginBase):
                     errMsg = None
                     try:
                         # Test endpoints for activation
-                        tmpStatsrc, srcStr = self.check_endpoint_activation(self.srcEndpoint)
-                        tmpStatdst, dstStr = self.check_endpoint_activation(self.dstEndpoint)
+                        tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(self.tc,self.srcEndpoint)
+                        tmpStatdst, dstStr = globus_utils.check_endpoint_activation(self.tc,self.dstEndpoint)
                         if tmpStatsrc and tmpStatdst:
                             errStr = 'source Endpoint and destination Endpoint activated'
                             tmpLog.debug(errStr)
@@ -306,7 +276,7 @@ class GlobusBulkPreparator(PluginBase):
         for transferID in groups:
             if transferID != self.dummy_transfer_id :
                 # get transfer task
-                tmpStat, transferTasks = self.get_transfer_task_by_id(transferID)
+                tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(self.tc,transferID)
                 # return a temporary error when failed to get task
                 if not tmpStat:
                     errStr = 'failed to get transfer task'
@@ -350,15 +320,6 @@ class GlobusBulkPreparator(PluginBase):
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
         # test we have a Globus Transfer Client
         if not self.tc :
-            try:
-                self.tc = None
-                tmpStat, statusStr = self.create_globus_transfer_client()
-                if not tmpStat:
-                    errStr = 'failed to create Globus Transfer Client'
-                    tmpLog.error(errStr)
-            except:
-                core_utils.dump_error_message(tmpLog)
-        if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
             tmpLog.error(errStr)
             return False, errStr
@@ -378,7 +339,7 @@ class GlobusBulkPreparator(PluginBase):
 
     # make label for transfer task
     def make_label(self, jobspec):
-        return "OUT-{computingSite}-{PandaID}".format(computingSite=jobspec.computingSite,
+        return "IN-{computingSite}-{PandaID}".format(computingSite=jobspec.computingSite,
                                                      PandaID=jobspec.PandaID)
 
     # resolve input file paths
@@ -394,113 +355,3 @@ class GlobusBulkPreparator(PluginBase):
 
     # Globus specific commands
 
-    # get transfer tasks
-    def get_transfer_task_by_id(self,transferID=None):
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_task_by_id')
-        # test we have a Globus Transfer Client
-        if not self.tc :
-            try:
-                self.tc = None
-                tmpStat, statusStr = self.create_globus_transfer_client()
-                if not tmpStat:
-                    errStr = 'failed to create Globus Transfer Client'
-                    tmpLog.error(errStr)
-            except:
-                core_utils.dump_error_message(tmpLog)
-        if not self.tc :
-            errStr = 'failed to get Globus Transfer Client'
-            tmpLog.error(errStr)
-            return False, errStr
-        try:
-            # execute
-            if transferID == None:                
-                # error need to have task ID
-                errStr = 'failed to provide transfer task ID '
-                tmpLog.error(errStr)
-                return False, errStr
-            else:
-                 gRes = self.tc.get_task(transferID)
-            # parse output
-            tasks = {}
-            tasks[transferID] = gRes
-            # return
-            tmpLog.debug('got {0} tasks'.format(len(tasks)))
-            return True, tasks
-        except:
-            errStat , errMsg = globus_utils.handle_globus_exception(tmpLog)
-            return errStat, {}
-
-    # get transfer tasks
-    def get_transfer_tasks(self,label=None):
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_tasks')
-        # test we have a Globus Transfer Client
-        if not self.tc :
-            try:
-                self.tc = None
-                tmpStat, statusStr = self.create_globus_transfer_client()
-                if not tmpStat:
-                    errStr = 'failed to create Globus Transfer Client'
-                    tmpLog.error(errStr)
-            except:
-                core_utils.dump_error_message(tmpLog)
-        if not self.tc :
-            errStr = 'failed to get Globus Transfer Client'
-            tmpLog.error(errStr)
-            return False, errStr
-        try:
-            # execute
-            if label == None:                
-                params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED"}
-                gRes = self.tc.task_list(num_results=1000,**params)
-            else:
-                params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED/label:{0}".format(label)}
-                gRes = self.tc.task_list(**params)
-            # parse output
-            tasks = {}
-            for res in gRes:
-                reslabel = res.data['label']
-                tasks[reslabel] = res.data
-            # return
-            tmpLog.debug('got {0} tasks'.format(len(tasks)))
-            return True, tasks
-        except:
-            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
-            return errStat, {}
-
-    def check_endpoint_activation (self,endpoint_id):
-        """
-        check if endpoint is activated 
-        """
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='check_endpoint_activation')
-        # test we have a Globus Transfer Client
-        if not self.tc :
-            errStr = 'failed to get Globus Transfer Client'
-            tmpLog.error(errStr)
-            return False, errStr
-        try: 
-            endpoint = self.tc.get_endpoint(endpoint_id)
-            r = self.tc.endpoint_autoactivate(endpoint_id, if_expires_in=3600)
-
-            tmpLog.info("Endpoint - %s - activation status code %s"%(endpoint["display_name"],str(r["code"])))
-            if r['code'] == 'AutoActivationFailed':
-                errStr = 'Endpoint({0}) Not Active! Error! Source message: {1}'.format(endpoint_id, r['message'])
-                tmpLog.debug(errStr)
-                return False, errStr
-            elif r['code'] == 'AutoActivated.CachedCredential': 
-                errStr = 'Endpoint({0}) autoactivated using a cached credential.'.format(endpoint_id)
-                tmpLog.debug(errStr)
-                return True,errStr
-            elif r['code'] == 'AutoActivated.GlobusOnlineCredential':
-                errStr = 'Endpoint({0}) autoactivated using a built-in Globus '.format(endpoint_id)
-                tmpLog.debug(errStr)
-                return True,errStr
-            elif r['code'] == 'AlreadyActivated':
-                errStr = 'Endpoint({0}) already active until at least {1}'.format(endpoint_id,3600)
-                tmpLog.debug(errStr)
-                return True,errStr
-        except:
-            errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
-            return errStat, {}
