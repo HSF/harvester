@@ -19,6 +19,13 @@ from pandaharvester.harvesterbody.cacher import Cacher
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 from pandaharvester.harvestercore import core_utils  
+from pandaharvester.harvestermisc import globus_utils
+
+from globus_sdk import TransferClient
+from globus_sdk import TransferData
+from globus_sdk import NativeAppAuthClient
+from globus_sdk import RefreshTokenAuthorizer
+
 
 #initial variables
 fileTableName = 'file_table'
@@ -34,6 +41,7 @@ def dump(obj):
    for attr in dir(obj):
        if hasattr( obj, attr ):
            print( "obj.%s = %s" % (attr, getattr(obj, attr)))
+
 
 
 if len(sys.argv) > 1:
@@ -84,7 +92,11 @@ communicator = CommunicatorPool()
 cacher = Cacher(communicator, single_mode=True)
 cacher.run()
 
-
+Globus_srcPath = queueConfig.preparator['Globus_dstPath']
+srcEndpoint = queueConfig.preparator['dstEndpoint']
+basePath = queueConfig.preparator['basePath']
+Globus_dstPath = queueConfig.preparator['Globus_srcPath']
+dstEndpoint = queueConfig.preparator['scrEndpoint']
 
 # check if db lock exits
 locked = preparatorCore.dbInterface.get_object_lock('dummy_id_for_in_0',lock_interval=120)
@@ -96,6 +108,50 @@ if unlocked :
    tmpLog.debug('unlocked db')
 else:
    tmpLog.debug(' Could not unlock db')
+
+# need to get client_id and refresh_token from PanDA server via harvester cache mechanism
+c_data = self.dbInterface.get_cache('globus_secret')
+client_id = None
+privateKey = None
+if (not c_data == None) and  c_data.data['StatusCode'] == 0 :
+   client_id = c_data.data['publicKey']  # client_id
+   privateKey= c_data.data['privateKey'] # refresh_token
+else :
+   client_id = None
+   privateKey = None
+   tc = None
+   errStr = 'failed to get Globus Client ID and Refresh Token'
+   tmpLog.error(errStr)
+   sys.exit(1)
+
+# create Globus transfer client to send initial files to remote Globus source
+tc = globus_utils.create_globus_transfer_client(client_id,privateKey)
+if not tc :
+   try:
+      # Test endpoints for activation
+      tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tc,srcEndpoint)
+      tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tc,dstEndpoint)
+      if tmpStatsrc and tmpStatdst:
+         errStr = 'source Endpoint and destination Endpoint activated'
+         tmpLog.debug(errStr)
+      else:
+         errStr = ''
+         if not tmpStatsrc :
+            errStr += ' source Endpoint not activated '
+         if not tmpStatdst :
+            errStr += ' destination Endpoint not activated '
+         tmpLog.error(errStr)
+         sys.exit(2)
+      # both endpoints activated now prepare to transfer data
+      tdata = TransferData(tc,srcEndpoint,dstEndpoint,sync_level="checksum")
+   except:
+      errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+      sys.exit(1)
+else : 
+   errStr = 'failed to create Initial globus transfer client'
+   tmpLog.error(errStr)
+   sys.exit(1)
+  
 
 # loop over the job id's creating various JobSpecs
 jobSpec_list = []
@@ -130,28 +186,34 @@ for job_id in range(begin_job_id,end_job_id+1):
       assFileSpec.fsize = random.randint(10, 100)
       # create source file
       hash = hashlib.md5()
-      hash.update('%s:%s' % (scope, fileSpec.lfn))
+      hash.update('%s:%s' % (fileSpec.scope, fileSpec.lfn))
       hash_hex = hash.hexdigest()
       correctedscope = "/".join(scope.split('.'))
-      assFileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_srcPath'],
-                                                                           scope=correctedscope,
-                                                                           hash1=hash_hex[0:2],
-                                                                           hash2=hash_hex[2:4],
-                                                                           lfn=assFileSpec.lfn)
+      fileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_srcPath'],
+                                                                        scope=correctedscope,
+                                                                        hash1=hash_hex[0:2],
+                                                                        hash2=hash_hex[2:4],
+                                                                        lfn=fileSpec.lfn)
+      # now create the temporary file
+      assFileSpec.path = "{mountPoint}/testdata/{lfn}".format(mountPoint=queueConfig.preparator['basePath'],
+                                                                        lfn=assFileSpec.lfn)
+
       if not os.path.exists(os.path.dirname(assFileSpec.path)):
          tmpLog.debug("os.makedirs({})".format(os.path.dirname(assFileSpec.path)))
          os.makedirs(os.path.dirname(assFileSpec.path))
       oFile = open(assFileSpec.path, 'w')
       oFile.write(''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(assFileSpec.fsize)))
       oFile.close()
-      fileSpec.path = assFileSpec.path
       fileSpec.add_associated_file(assFileSpec)
+      # add to Globus transfer list
+      tdata.add_item(assFileSpec.path,fileSpec.path)
       #print "dump(fileSpec)"
       #dump(fileSpec)
-      # add output file to jobSpec
-      jobSpec.add_out_file(fileSpec)
+      # add input file to jobSpec
+      jobSpec.add_in_file(fileSpec)
       #
-      tmpLog.debug("file to transfer - {}".format(fileSpec.path)) 
+      tmpLog.debug("source file to transfer - {}".format(assFileSpec.path)) 
+      tmpLog.debug("destination file to transfer - {}".format(fileSpec.path)) 
       #print "dump(jobSpec)"
       #dump(jobSpec)
    # add log file info
@@ -195,17 +257,9 @@ else:
 for jobSpec in jobSpec_list:
    # print out jobSpec PandID
    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
-   msgStr = "testing zip"
-   tmpStat, tmpOut = preparatorCore.zip_output(jobSpec)
-   if tmpStat:
-      msgStr = " OK"
-      tmpLog.debug(msgStr)
-   else:
-      msgStr = " NG {0}".format(tmpOut)         
-      tmpLog.debug(msgStr)
    msgStr = "testing trigger_stage_out"
    tmpLog.debug(msgStr)
-   tmpStat, tmpOut = preparatorCore.trigger_stage_out(jobSpec)
+   tmpStat, tmpOut = preparatorCore.trigger_preparation(jobSpec)
    if tmpStat:
       msgStr = " OK "
       tmpLog.debug(msgStr)
@@ -217,6 +271,7 @@ for jobSpec in jobSpec_list:
       tmpLog.debug(msgStr)
       sys.exit(1)
    print
+   # check status to actually trigger transfer
    # get the files with the group_id and print out
    msgStr = "dummy_transfer_id = {}".format(preparatorCore.get_dummy_transfer_id())
    files = proxy.get_files_with_group_id(preparatorCore.get_dummy_transfer_id())
