@@ -76,15 +76,13 @@ def create_globus_transfer_client(tmpLog,globus_client_id,globus_secret):
         authorizer = RefreshTokenAuthorizer(refresh_token=globus_privateKey,auth_client=client)
         tc = TransferClient(authorizer=authorizer)
     except:
-        errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+        errStat, errMsg = handle_globus_exception(tmpLog)
     return ErrStat,tc
 
-def check_endpoint_activation (tc,endpoint_id):
+def check_endpoint_activation (tmpLog,tc,endpoint_id):
     """
     check if endpoint is activated 
     """
-    # get logger
-    tmpLog = core_utils.make_logger(_logger, method_name='check_endpoint_activation')
     # test we have a Globus Transfer Client
     if not tc :
         errStr = 'failed to get Globus Transfer Client'
@@ -112,13 +110,11 @@ def check_endpoint_activation (tc,endpoint_id):
             tmpLog.debug(errStr)
             return True,errStr
     except:
-        errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+        errStat,errMsg = handle_globus_exception(tmpLog)
         return errStat, {}
 
 # get transfer tasks
-def get_transfer_task_by_id(tc,transferID=None):
-    # get logger
-    tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_task_by_id')
+def get_transfer_task_by_id(tmpLog,tc,transferID=None):
     # test we have a Globus Transfer Client
     if not tc :
         errStr = 'failed to get Globus Transfer Client'
@@ -140,13 +136,11 @@ def get_transfer_task_by_id(tc,transferID=None):
         tmpLog.debug('got {0} tasks'.format(len(tasks)))
         return True, tasks
     except:
-        errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+        errStat,errMsg = handle_globus_exception(tmpLog)
         return errStat, {}
 
 # get transfer tasks
-def get_transfer_tasks(tc,label=None):
-    # get logger
-    tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_tasks')
+def get_transfer_tasks(tmpLog,tc,label=None):
     # test we have a Globus Transfer Client
     if not tc :
         errStr = 'failed to get Globus Transfer Client'
@@ -169,5 +163,5 @@ def get_transfer_tasks(tc,label=None):
         tmpLog.debug('got {0} tasks'.format(len(tasks)))
         return True, tasks
     except:
-        errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+        errStat,errMsg = handle_globus_exception(tmpLog)
         return errStat, {}
