@@ -11,6 +11,10 @@ from globus_sdk import NetworkError
 from globus_sdk import GlobusError
 from globus_sdk import GlobusConnectionError
 from globus_sdk import GlobusTimeoutError
+from globus_sdk import TransferClient
+from globus_sdk import TransferData
+from globus_sdk import NativeAppAuthClient
+from globus_sdk import RefreshTokenAuthorizer
 
 from pandaharvester.harvestercore import core_utils
 from pandalogger.PandaLogger import PandaLogger
@@ -60,7 +64,7 @@ def handle_globus_exception(tmp_log):
     return (errStat,errMsg)
 
 # Globus create transfer client
-def create_globus_transfer_client(tmpLog,globus_client_id,globus_secret):
+def create_globus_transfer_client(tmpLog,globus_client_id,globus_refresh_token):
     """
     create Globus Transfer Client and return the transfer client
     """
@@ -73,7 +77,7 @@ def create_globus_transfer_client(tmpLog,globus_client_id,globus_secret):
     ErrStat = True
     try:
         client = NativeAppAuthClient(client_id=globus_client_id)
-        authorizer = RefreshTokenAuthorizer(refresh_token=globus_privateKey,auth_client=client)
+        authorizer = RefreshTokenAuthorizer(refresh_token=globus_refresh_token,auth_client=client)
         tc = TransferClient(authorizer=authorizer)
     except:
         errStat, errMsg = handle_globus_exception(tmpLog)
