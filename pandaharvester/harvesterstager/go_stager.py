@@ -20,11 +20,11 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
+from pandaharvester.harvestermisc import globus_utils
 
 # logger
 _logger = core_utils.setup_logger('go_stager')
 
-from pandaharvester.harvestermisc import globus_utils
 
 def dump(obj):
    for attr in dir(obj):
@@ -49,7 +49,7 @@ class GlobusStager(PluginBase):
                tmpLog.debug('Got the globus_secrets from PanDA')
                self.client_id = c_data.data['publicKey']  # client_id
                self.refresh_token = c_data.data['privateKey'] # refresh_token
-               tmpStat, self.tc = globus_utils.create_globus_transfer_client(self.client_id,self.refresh_token)
+               tmpStat, self.tc = globus_utils.create_globus_transfer_client(tmpLog,self.client_id,self.refresh_token)
                if not tmpStat:
                   self.tc = None
                   errStr = 'failed to create Globus Transfer Client'
@@ -79,7 +79,7 @@ class GlobusStager(PluginBase):
         label = self.make_label(jobspec)
         tmpLog.debug('label={0}'.format(label))
         # get transfer task
-        tmpStat, transferTasks = globus_utils.get_transfer_tasks(self.tc,label)
+        tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog,self.tc,label)
         # return a temporary error when failed to get task
         if not tmpStat:
             errStr = 'failed to get transfer task'
@@ -132,7 +132,7 @@ class GlobusStager(PluginBase):
         label = self.make_label(jobspec)
         tmpLog.debug('label={0}'.format(label))
         # get transfer tasks
-        tmpStat, transferTasks = globus_utils.get_transfer_tasks(self.tc,label)
+        tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog,self.tc,label)
         if not tmpStat:
             errStr = 'failed to get transfer tasks'
             tmpLog.error(errStr)
