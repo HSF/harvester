@@ -58,3 +58,117 @@ def handle_globus_exception(tmp_log):
     #errMsg += traceback.format_exc()
     tmp_log.error(errMsg)
     return (errStat,errMsg)
+
+# Globus create transfer client
+def create_globus_transfer_client(globus_client_id,globus_secret):
+    """
+    create Globus Transfer Client and return the transfer client
+    """
+    # get logger
+    tmpLog = core_utils.make_logger(_logger, method_name='create_globus_transfer_client')
+    tmpLog.info('Creating instance of GlobusTransferClient')
+    # start the Native App authentication process 
+    # use the refresh token to get authorizer
+    # create the Globus Transfer Client
+    tc = None
+    ErrStat = True
+    try:
+        client = NativeAppAuthClient(client_id=globus_client_id)
+        authorizer = RefreshTokenAuthorizer(refresh_token=globus_privateKey,auth_client=client)
+        tc = TransferClient(authorizer=authorizer)
+    except:
+        errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+    return ErrStat,tc
+
+def check_endpoint_activation (tc,endpoint_id):
+    """
+    check if endpoint is activated 
+    """
+    # get logger
+    tmpLog = core_utils.make_logger(_logger, method_name='check_endpoint_activation')
+    # test we have a Globus Transfer Client
+    if not tc :
+        errStr = 'failed to get Globus Transfer Client'
+        tmpLog.error(errStr)
+        return False, errStr
+    try: 
+        endpoint = tc.get_endpoint(endpoint_id)
+        r = tc.endpoint_autoactivate(endpoint_id, if_expires_in=3600)
+
+        tmpLog.info("Endpoint - %s - activation status code %s"%(endpoint["display_name"],str(r["code"])))
+        if r['code'] == 'AutoActivationFailed':
+            errStr = 'Endpoint({0}) Not Active! Error! Source message: {1}'.format(endpoint_id, r['message'])
+            tmpLog.debug(errStr)
+            return False, errStr
+        elif r['code'] == 'AutoActivated.CachedCredential': 
+            errStr = 'Endpoint({0}) autoactivated using a cached credential.'.format(endpoint_id)
+            tmpLog.debug(errStr)
+            return True,errStr
+        elif r['code'] == 'AutoActivated.GlobusOnlineCredential':
+            errStr = 'Endpoint({0}) autoactivated using a built-in Globus '.format(endpoint_id)
+            tmpLog.debug(errStr)
+            return True,errStr
+        elif r['code'] == 'AlreadyActivated':
+            errStr = 'Endpoint({0}) already active until at least {1}'.format(endpoint_id,3600)
+            tmpLog.debug(errStr)
+            return True,errStr
+    except:
+        errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+        return errStat, {}
+
+# get transfer tasks
+def get_transfer_task_by_id(tc,transferID=None):
+    # get logger
+    tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_task_by_id')
+    # test we have a Globus Transfer Client
+    if not tc :
+        errStr = 'failed to get Globus Transfer Client'
+        tmpLog.error(errStr)
+        return False, errStr
+    if transferID == None:                
+        # error need to have task ID
+        errStr = 'failed to provide transfer task ID '
+        tmpLog.error(errStr)
+        return False, errStr
+    try:
+        # execute
+        gRes = tc.get_task(transferID)
+        # parse output
+        tasks = {}
+        label = gRes['label']
+        tasks[label] = gRes
+        # return
+        tmpLog.debug('got {0} tasks'.format(len(tasks)))
+        return True, tasks
+    except:
+        errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+        return errStat, {}
+
+# get transfer tasks
+def get_transfer_tasks(tc,label=None):
+    # get logger
+    tmpLog = core_utils.make_logger(_logger, method_name='get_transfer_tasks')
+    # test we have a Globus Transfer Client
+    if not tc :
+        errStr = 'failed to get Globus Transfer Client'
+        tmpLog.error(errStr)
+        return False, errStr
+    try:
+        # execute
+        if label == None:                
+            params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED"}
+            gRes = tc.task_list(num_results=1000,**params)
+        else:
+            params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED/label:{0}".format(label)}
+            gRes = tc.task_list(**params)
+        # parse output
+        tasks = {}
+        for res in gRes:
+            reslabel = res.data['label']
+            tasks[reslabel] = res.data
+        # return
+        tmpLog.debug('got {0} tasks'.format(len(tasks)))
+        return True, tasks
+    except:
+        errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
+        return errStat, {}
