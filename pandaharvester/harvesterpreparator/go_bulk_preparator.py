@@ -163,8 +163,8 @@ class GlobusBulkPreparator(PluginBase):
                     errMsg = None
                     try:
                         # Test endpoints for activation
-                        tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(self.tc,self.srcEndpoint)
-                        tmpStatdst, dstStr = globus_utils.check_endpoint_activation(self.tc,self.dstEndpoint)
+                        tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.srcEndpoint)
+                        tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,self.tc,self.dstEndpoint)
                         if tmpStatsrc and tmpStatdst:
                             errStr = 'source Endpoint and destination Endpoint activated'
                             tmpLog.debug(errStr)
@@ -276,7 +276,7 @@ class GlobusBulkPreparator(PluginBase):
         for transferID in groups:
             if transferID != self.dummy_transfer_id :
                 # get transfer task
-                tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(self.tc,transferID)
+                tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(tmpLog,self.tc,transferID)
                 # return a temporary error when failed to get task
                 if not tmpStat:
                     errStr = 'failed to get transfer task'
