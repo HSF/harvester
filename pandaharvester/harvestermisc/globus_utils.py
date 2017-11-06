@@ -134,8 +134,7 @@ def get_transfer_task_by_id(tmpLog,tc,transferID=None):
         gRes = tc.get_task(transferID)
         # parse output
         tasks = {}
-        label = gRes['label']
-        tasks[label] = gRes
+        tasks[transferID] = gRes
         # return
         tmpLog.debug('got {0} tasks'.format(len(tasks)))
         return True, tasks
