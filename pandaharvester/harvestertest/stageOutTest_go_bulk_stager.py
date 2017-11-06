@@ -259,3 +259,27 @@ for jobSpec in jobSpec_list:
    elif not tmpStat:
       msgStr = " NG {0}".format(tmpOut)
       tmpLog.debug(msgStr)
+
+# sleep for 3 minutes 
+      
+msgStr = "Sleep for 180 seconds"
+tmpLog.debug(msgStr)
+time.sleep(180)
+msgStr = "now check the jobs"
+tmpLog.debug(msgStr)
+
+for jobSpec in jobSpec_list:
+   # print out jobSpec PandID
+   msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
+   tmpLog.debug(msgStr)
+   msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
+   tmpStat, tmpOut = stagerCore.check_status(jobSpec)
+   if tmpStat:
+      msgStr = " OK"
+      tmpLog.debug(msgStr)
+   elif tmpStat == None:
+      msgStr = " Temporary failure NG {0}".format(tmpOut)
+      tmpLog.debug(msgStr)
+   elif not tmpStat:
+      msgStr = " NG {0}".format(tmpOut)
+      tmpLog.debug(msgStr)
