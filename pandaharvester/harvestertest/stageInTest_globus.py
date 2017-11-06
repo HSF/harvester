@@ -1,8 +1,30 @@
 import sys
-import time
 import os
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+import os.path
+import hashlib
+import datetime
+import uuid
+import random
+import string
+import time
+import threading
+import logging
+from future.utils import iteritems
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvesterbody.cacher import Cacher
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore import core_utils  
+from pandaharvester.harvestermisc import globus_utils
+
+from globus_sdk import TransferClient
+from globus_sdk import TransferData
+from globus_sdk import NativeAppAuthClient
+from globus_sdk import RefreshTokenAuthorizer
 
 def dump(obj):
    for attr in dir(obj):
@@ -26,7 +48,7 @@ queueConfigMapper = QueueConfigMapper()
 queueConfig = queueConfigMapper.get_queue(queueName)
 initial_queueConfig_preparator = queueConfig.preparator
 queueConfig.preparator['module'] = 'pandaharvester.harvesterpreparator.go_preparator'
-queueConfig.preparator['name'] = 'GlobusPreparator'
+queueConfig.preparator['name'] = 'GoPreparator'
 modified_queueConfig_preparator = queueConfig.preparator
 
 pluginFactory = PluginFactory()
@@ -58,7 +80,6 @@ tmpLog.debug(msgStr)
 
 scope = 'panda'
 
-
 proxy = DBProxy()
 communicator = CommunicatorPool()
 cacher = Cacher(communicator, single_mode=True)
@@ -68,50 +89,72 @@ Globus_srcPath = queueConfig.preparator['Globus_dstPath']
 srcEndpoint = queueConfig.preparator['dstEndpoint']
 basePath = queueConfig.preparator['basePath']
 Globus_dstPath = queueConfig.preparator['Globus_srcPath']
-dstEndpoint = queueConfig.preparator['scrEndpoint']
+dstEndpoint = queueConfig.preparator['srcEndpoint']
 
-# create Globus transfer client to send initial files to remote Globus source
-tc = globus_utils.create_globus_transfer_client(client_id,privateKey)
-if not tc :
-   try:
-      # Test endpoints for activation
-      tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tc,srcEndpoint)
-      tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tc,dstEndpoint)
-      if tmpStatsrc and tmpStatdst:
-         errStr = 'source Endpoint and destination Endpoint activated'
-         tmpLog.debug(errStr)
-      else:
-         errStr = ''
-         if not tmpStatsrc :
-            errStr += ' source Endpoint not activated '
-         if not tmpStatdst :
-            errStr += ' destination Endpoint not activated '
-         tmpLog.error(errStr)
-         sys.exit(2)
-      # both endpoints activated now prepare to transfer data
-      tdata = TransferData(tc,srcEndpoint,dstEndpoint,sync_level="checksum")
-   except:
-      errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
-      sys.exit(1)
-else : 
-   errStr = 'failed to create Initial globus transfer client'
+# need to get client_id and refresh_token from PanDA server via harvester cache mechanism
+c_data = preparatorCore.dbInterface.get_cache('globus_secret')
+client_id = None
+refresh_token = None
+if (not c_data == None) and  c_data.data['StatusCode'] == 0 :
+   client_id = c_data.data['publicKey']  # client_id
+   refresh_token = c_data.data['privateKey'] # refresh_token
+else :
+   client_id = None
+   refresh_token = None
+   tc = None
+   errStr = 'failed to get Globus Client ID and Refresh Token'
    tmpLog.error(errStr)
    sys.exit(1)
 
-
-#dump(queueConfig)
-
+# create Globus transfer client to send initial files to remote Globus source
+tmpStat, tc = globus_utils.create_globus_transfer_client(tmpLog,client_id,refresh_token)
+if not tmpStat:
+   tc = None
+   errStr = 'failed to create Globus Transfer Client'
+   tmpLog.error(errStr)
+   sys.exit(1)
+try:
+   # Test endpoints for activation
+   tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,tc,srcEndpoint)
+   tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,tc,dstEndpoint)
+   if tmpStatsrc and tmpStatdst:
+      errStr = 'source Endpoint and destination Endpoint activated'
+      tmpLog.debug(errStr)
+   else:
+      errStr = ''
+      if not tmpStatsrc :
+         errStr += ' source Endpoint not activated '
+      if not tmpStatdst :
+         errStr += ' destination Endpoint not activated '
+      tmpLog.error(errStr)
+      sys.exit(2)
+   # both endpoints activated now prepare to transfer data
+   tdata = TransferData(tc,srcEndpoint,dstEndpoint,sync_level="checksum")
+except:
+   errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
+   sys.exit(1)
+ 
+# create JobSpec 
 jobSpec = JobSpec()
-
+jobSpec.jobParams = {
+   'scopeLog': 'panda',
+   'logFile': 'log',
+   }
 jobSpec.computingSite = queueName
 jobSpec.PandaID = job_id
 jobSpec.modificationTime = datetime.datetime.now()
 realDataset = 'panda.sgotest.' + uuid.uuid4().hex
-ddmEndPointOut = 'BNL-OSG2_DATADISK'
-outFiles_scope_str = ''
-outFiles_str = ''
+ddmEndPointIn = 'BNL-OSG2_DATADISK'
+inFiles_scope_str = ''
+inFiles_str = ''
 realDatasets_str = ''
-ddmEndPointOut_str = ''
+realDatasetsIn_str = ''
+ddmEndPointIn_str = ''
+GUID_str = ''
+fsize_str = '' 
+checksum_str = ''
+scope_in_str = ''
+
 # create up 5 files for input
 for index in range(random.randint(1, 5)):
    fileSpec = FileSpec()
@@ -120,10 +163,17 @@ for index in range(random.randint(1, 5)):
    assFileSpec.lfn = 'panda.sgotest.' + uuid.uuid4().hex
    fileSpec.lfn = assFileSpec.lfn 
    fileSpec.scope = 'panda'
-   outFiles_scope_str += 'panda,' 
-   outFiles_str += fileSpec.lfn + ','
+   inFiles_scope_str += 'panda,' 
+   inFiles_str += fileSpec.lfn + ','
    realDatasets_str += realDataset + ","
-   ddmEndPointOut_str += ddmEndPointOut + ","
+   realDatasetsIn_str += realDataset + ","
+   ddmEndPointIn_str += ddmEndPointIn + ","
+   # some dummy inputs
+   GUID_str += 'd82e8e5e301b77489fd4da04bcdd6565,'
+   fsize_str += '3084569129,'
+   checksum_str += 'ad:9f60d29f,'
+   scope_in_str += 'panda,'
+   #
    assFileSpec.fileType = 'input'
    assFileSpec.fsize = random.randint(10, 100)
    # create source file
@@ -139,7 +189,6 @@ for index in range(random.randint(1, 5)):
    # now create the temporary file
    assFileSpec.path = "{mountPoint}/testdata/{lfn}".format(mountPoint=queueConfig.preparator['basePath'],
                                                            lfn=assFileSpec.lfn)
-
    if not os.path.exists(os.path.dirname(assFileSpec.path)):
       tmpLog.debug("os.makedirs({})".format(os.path.dirname(assFileSpec.path)))
       os.makedirs(os.path.dirname(assFileSpec.path))
@@ -158,38 +207,82 @@ for index in range(random.randint(1, 5)):
    tmpLog.debug("destination file to transfer - {}".format(fileSpec.path)) 
    #print "dump(jobSpec)"
    #dump(jobSpec)
-# add log file info
-outFiles_str += 'log'
-realDatasets_str += 'log.'+ uuid.uuid4().hex
-ddmEndPointOut_str += 'MWT2-UC_DATADISK'
 # remove final ","
-outFiles_scope_str = outFiles_scope_str[:-1]
+realDatasetsIn_str=realDatasetsIn_str[:-1]
+inFiles_str = inFiles_str[:-1]
+inFiles_scope_str = inFiles_scope_str[:-1]
+GUID_str = GUID_str[:-1]
+fsize_str = fsize_str[:-1]
+checksum_str = checksum_str[:-1]
+scope_in_str = scope_in_str[:-1]
 jobSpec.jobParams['realDatasets'] = realDatasets_str
+jobSpec.jobParams['ddmEndPointIn'] = ddmEndPointIn_str
+jobSpec.jobParams['inFiles'] = inFiles_str
+jobSpec.jobParams['GUID'] = GUID_str
+jobSpec.jobParams['fsize'] = fsize_str
+jobSpec.jobParams['checksum'] = checksum_str
+jobSpec.jobParams['scopeIn'] = scope_in_str
+jobSpec.jobParams['realDatasetsIn'] = realDatasetsIn_str
 msgStr = "jobSpec.jobParams ={}".format(jobSpec.jobParams) 
 tmpLog.debug(msgStr)
-msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(jobSpec.get_output_file_attributes()),type(jobSpec.get_output_file_attributes()))
-tmpLog.debug(msgStr)
-for key, value in jobSpec.get_output_file_attributes().iteritems():
-   msgStr = "output file attributes - pre DB {0} {1}".format(key,value)
-   tmpLog.debug(msgStr)
+ 
+# transfer dummy files to Remote site for input 
+transfer_result = tc.submit_transfer(tdata)
+# check status code and message
+tmpLog.debug(str(transfer_result))
+if transfer_result['code'] == "Accepted":
+   # succeeded
+   # set transfer ID which are used for later lookup
+   transferID = transfer_result['task_id']
+   tmpLog.debug('done')
+else:
+   tmpLog.error('Failed to send intial files')
+   sys.exit(3)
 
+print "sleep {0} seconds".format(globus_sleep_time)
+time.sleep(globus_sleep_time)
 
-print queueConfig.preparator
-print queueConfig.preparator['Globus_srcPath']
-print queueConfig.preparator['srcEndpoint']
-print queueConfig.preparator['Globus_dstPath']
-print queueConfig.preparator['dstEndpoint']
+# enter polling loop to see if the intial files have transfered
+maxloop = 5
+iloop = 0
+NotFound = True
+while (iloop < maxloop) and NotFound :
+   # get transfer task
+   tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(tmpLog,tc,transferID)
+   # return a temporary error when failed to get task
+   if not tmpStat:
+      errStr = 'failed to get transfer task'
+      tmpLog.error(errStr)
+   else:
+      # return a temporary error when task is missing 
+      tmpLog.debug('transferTasks : {} '.format(transferTasks))
+      if transferID not in transferTasks:
+         errStr = 'transfer task ID - {} is missing'.format(transferID)
+         tmpLog.error(errStr)
+      else:
+         # succeeded in finding a transfer task by tranferID
+         if transferTasks[transferID]['status'] == 'SUCCEEDED':
+            tmpLog.debug('transfer task {} succeeded'.format(transferID))
+            NotFound = False
+         # failed
+         if transferTasks[transferID]['status'] == 'FAILED':
+            errStr = 'transfer task {} failed'.format(transferID)
+            tmpLog.error(errStr)
+      # another status
+      tmpStr = 'transfer task {0} status: {1}'.format(transferID,transferTasks[transferID]['status'])
+      tmpLog.debug(tmpStr)
+   if NotFound :
+      print "sleep {0} seconds".format(globus_sleep_time)
+      time.sleep(globus_sleep_time)
+      ++iloop
 
-print "dump(jobSpec)"
-#dump(jobSpec)
+if NotFound :
+   errStr = 'transfer task ID - {} is missing'.format(transferID)
+   tmpLog.error(errStr)
+   sys.exit(1)
 
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
+#dump(queueConfig)
 
-pluginFactory = PluginFactory()
-
-# get plugin
-#GoPreparator  
-preparatorCore = pluginFactory.get_plugin(queueConfig.preparator)
 print "plugin={0}".format(preparatorCore.__class__.__name__)
 
 print "testing stagein:"
