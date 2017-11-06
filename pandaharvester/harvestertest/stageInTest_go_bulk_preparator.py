@@ -95,11 +95,11 @@ communicator = CommunicatorPool()
 cacher = Cacher(communicator, single_mode=True)
 cacher.run()
 
-Globus_srcPath = queueConfig.preparator['Globus_dstPath']
-srcEndpoint = queueConfig.preparator['dstEndpoint']
+Globus_srcPath = queueConfig.preparator['Globus_srcPath']
+srcEndpoint = queueConfig.preparator['srcEndpoint']
 basePath = queueConfig.preparator['basePath']
-Globus_dstPath = queueConfig.preparator['Globus_srcPath']
-dstEndpoint = queueConfig.preparator['srcEndpoint']
+Globus_dstPath = queueConfig.preparator['Globus_dstPath']
+dstEndpoint = queueConfig.preparator['dstEndpoint']
 
 # check if db lock exits
 locked = preparatorCore.dbInterface.get_object_lock('dummy_id_for_in_0',lock_interval=120)
@@ -135,9 +135,10 @@ if not tmpStat:
    tmpLog.error(errStr)
    sys.exit(1)
 try:
+   # We are sending test files from our destination machine to the source machine
    # Test endpoints for activation
-   tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,tc,srcEndpoint)
-   tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,tc,dstEndpoint)
+   tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,tc,dstEndpoint)
+   tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,tc,srcEndpoint)
    if tmpStatsrc and tmpStatdst:
       errStr = 'source Endpoint and destination Endpoint activated'
       tmpLog.debug(errStr)
@@ -150,7 +151,8 @@ try:
       tmpLog.error(errStr)
       sys.exit(2)
    # both endpoints activated now prepare to transfer data
-   tdata = TransferData(tc,srcEndpoint,dstEndpoint,sync_level="checksum")
+   # We are sending test files from our destination machine to the source machine
+   tdata = TransferData(tc,dstEndpoint,srcEndpoint,sync_level="checksum")
 except:
    errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
    sys.exit(1)
@@ -204,31 +206,38 @@ for job_id in range(begin_job_id,end_job_id+1):
       hash.update('%s:%s' % (fileSpec.scope, fileSpec.lfn))
       hash_hex = hash.hexdigest()
       correctedscope = "/".join(scope.split('.'))
-      fileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_srcPath'],
+      fileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_dstPath'],
                                                                         scope=correctedscope,
                                                                         hash1=hash_hex[0:2],
                                                                         hash2=hash_hex[2:4],
                                                                         lfn=fileSpec.lfn)
-      # now create the temporary file
-      assFileSpec.path = "{mountPoint}/testdata/{lfn}".format(mountPoint=queueConfig.preparator['basePath'],
-                                                                        lfn=assFileSpec.lfn)
-
-      if not os.path.exists(os.path.dirname(assFileSpec.path)):
-         tmpLog.debug("os.makedirs({})".format(os.path.dirname(assFileSpec.path)))
-         os.makedirs(os.path.dirname(assFileSpec.path))
-      oFile = open(assFileSpec.path, 'w')
-      oFile.write(''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(assFileSpec.fsize)))
-      oFile.close()
+      assFileSpec.path = fileSpec.path
       fileSpec.add_associated_file(assFileSpec)
-      # add to Globus transfer list
-      tdata.add_item(assFileSpec.path,fileSpec.path)
-      #print "dump(fileSpec)"
-      #dump(fileSpec)
       # add input file to jobSpec
       jobSpec.add_in_file(fileSpec)
+      # now create the temporary file
+      tmpfile_path = "{mountPoint}/testdata/{lfn}".format(mountPoint=queueConfig.preparator['basePath'],
+                                                                        lfn=assFileSpec.lfn)
+
+      if not os.path.exists(os.path.dirname(tmpfile_path)):
+         tmpLog.debug("os.makedirs({})".format(os.path.dirname(tmpfile_path)))
+         os.makedirs(os.path.dirname(tmpfile_path))
+      oFile = open(tmpfile_path, 'w')
+      oFile.write(''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(assFileSpec.fsize)))
+      oFile.close()
+      # create destination file path
+      destfile_path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_srcPath'],
+                                                                        scope=correctedscope,
+                                                                        hash1=hash_hex[0:2],
+                                                                        hash2=hash_hex[2:4],
+                                                                        lfn=fileSpec.lfn)
+      # add to Globus transfer list
+      tdata.add_item(tmpfile_path,destfile_path)
+      #print "dump(fileSpec)"
+      #dump(fileSpec)
       #
-      tmpLog.debug("source file to transfer - {}".format(assFileSpec.path)) 
-      tmpLog.debug("destination file to transfer - {}".format(fileSpec.path)) 
+      tmpLog.debug("source file to transfer - {}".format(tmpfile_path)) 
+      tmpLog.debug("destination file to transfer - {}".format(destfile_path)) 
       #print "dump(jobSpec)"
       #dump(jobSpec)
    # remove final ","
@@ -322,12 +331,11 @@ if NotFound :
    tmpLog.error(errStr)
    sys.exit(1)
 
+
 print "plugin={0}".format(preparatorCore.__class__.__name__)
 
 print "testing stagein:"
 print "BasePath from preparator configuration: %s " % preparatorCore.basePath
-preparatorCore.basePath = preparatorCore.basePath + "/testdata"
-print "basePath redefined for test data: %s " % preparatorCore.basePath
 
 # Now loop over the jobSpec's
 
@@ -373,6 +381,30 @@ msgStr = "Sleep for 601 seconds"
 tmpLog.debug(msgStr)
 #time.sleep(181)
 time.sleep(601)
+msgStr = "now check the jobs"
+tmpLog.debug(msgStr)
+
+for jobSpec in jobSpec_list:
+   # print out jobSpec PandID
+   msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
+   tmpLog.debug(msgStr)
+   msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
+   tmpStat, tmpOut = preparatorCore.check_status(jobSpec)
+   if tmpStat:
+      msgStr = " OK"
+      tmpLog.debug(msgStr)
+   elif tmpStat == None:
+      msgStr = " Temporary failure NG {0}".format(tmpOut)
+      tmpLog.debug(msgStr)
+   elif not tmpStat:
+      msgStr = " NG {0}".format(tmpOut)
+      tmpLog.debug(msgStr)
+
+# sleep for 3 minutes
+      
+msgStr = "Sleep for 180 seconds"
+tmpLog.debug(msgStr)
+time.sleep(180)
 msgStr = "now check the jobs"
 tmpLog.debug(msgStr)
 
