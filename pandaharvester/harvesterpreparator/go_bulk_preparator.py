@@ -52,10 +52,10 @@ class GlobusBulkPreparator(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # make logger
-        tmpLog = core_utils.make_logger(_logger, method_name='GlobusBulkStager __init__ ')
+        tmpLog = core_utils.make_logger(_logger, method_name='GlobusBulkPreparator __init__ ')
         tmpLog.debug('__init__ start')
-        self.id = GlobusBulkStager.next_id
-        GlobusBulkStager.next_id += 1
+        self.id = GlobusBulkPreparator.next_id
+        GlobusBulkPreparator.next_id += 1
         self.have_db_lock = False
         with uLock:
             global uID
@@ -72,7 +72,7 @@ class GlobusBulkPreparator(PluginBase):
                 tmpLog.debug('Got the globus_secrets from PanDA')
                 self.client_id = c_data.data['publicKey']  # client_id
                 self.refresh_token = c_data.data['privateKey'] # refresh_token
-                tmpStat, self.tc = globus_utils.create_globus_transfer_client(self.client_id,self.refresh_token)
+                tmpStat, self.tc = globus_utils.create_globus_transfer_client(tmpLog,self.client_id,self.refresh_token)
                 if not tmpStat:
                     self.tc = None
                     errStr = 'failed to create Globus Transfer Client'
