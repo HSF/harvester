@@ -85,11 +85,11 @@ communicator = CommunicatorPool()
 cacher = Cacher(communicator, single_mode=True)
 cacher.run()
 
-Globus_srcPath = queueConfig.preparator['Globus_dstPath']
-srcEndpoint = queueConfig.preparator['dstEndpoint']
+Globus_srcPath = queueConfig.preparator['Globus_srcPath']
+srcEndpoint = queueConfig.preparator['srcEndpoint']
 basePath = queueConfig.preparator['basePath']
-Globus_dstPath = queueConfig.preparator['Globus_srcPath']
-dstEndpoint = queueConfig.preparator['srcEndpoint']
+Globus_dstPath = queueConfig.preparator['Globus_dstPath']
+dstEndpoint = queueConfig.preparator['dstEndpoint']
 
 # need to get client_id and refresh_token from PanDA server via harvester cache mechanism
 c_data = preparatorCore.dbInterface.get_cache('globus_secret')
@@ -114,9 +114,10 @@ if not tmpStat:
    tmpLog.error(errStr)
    sys.exit(1)
 try:
-   # Test endpoints for activation
-   tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,tc,srcEndpoint)
-   tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,tc,dstEndpoint)
+   # We are sending test files from our destination machine to the source machine
+   # Test endpoints for activation - 
+   tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog,tc,dstEndpoint)
+   tmpStatdst, dstStr = globus_utils.check_endpoint_activation(tmpLog,tc,srcEndpoint)
    if tmpStatsrc and tmpStatdst:
       errStr = 'source Endpoint and destination Endpoint activated'
       tmpLog.debug(errStr)
@@ -128,8 +129,9 @@ try:
          errStr += ' destination Endpoint not activated '
       tmpLog.error(errStr)
       sys.exit(2)
+   # We are sending test files from our destination machine to the source machine
    # both endpoints activated now prepare to transfer data
-   tdata = TransferData(tc,srcEndpoint,dstEndpoint,sync_level="checksum")
+   tdata = TransferData(tc,dstEndpoint,srcEndpoint,sync_level="checksum")
 except:
    errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
    sys.exit(1)
@@ -181,30 +183,38 @@ for index in range(random.randint(1, 5)):
    hash.update('%s:%s' % (fileSpec.scope, fileSpec.lfn))
    hash_hex = hash.hexdigest()
    correctedscope = "/".join(scope.split('.'))
-   fileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_srcPath'],
+   fileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_dstPath'],
                                                                      scope=correctedscope,
                                                                      hash1=hash_hex[0:2],
                                                                      hash2=hash_hex[2:4],
                                                                      lfn=fileSpec.lfn)
+   assFileSpec.path = fileSpec.path
+   fileSpec.add_associated_file(assFileSpec)
    # now create the temporary file
-   assFileSpec.path = "{mountPoint}/testdata/{lfn}".format(mountPoint=queueConfig.preparator['basePath'],
+   tmpfile_path = "{mountPoint}/testdata/{lfn}".format(mountPoint=queueConfig.preparator['basePath'],
                                                            lfn=assFileSpec.lfn)
-   if not os.path.exists(os.path.dirname(assFileSpec.path)):
-      tmpLog.debug("os.makedirs({})".format(os.path.dirname(assFileSpec.path)))
-      os.makedirs(os.path.dirname(assFileSpec.path))
-   oFile = open(assFileSpec.path, 'w')
+   if not os.path.exists(os.path.dirname(tmpfile_path)):
+      tmpLog.debug("os.makedirs({})".format(os.path.dirname(tmpfile_path)))
+      os.makedirs(os.path.dirname(tmpfile_path))
+   oFile = open(tmpfile_path, 'w')
    oFile.write(''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(assFileSpec.fsize)))
    oFile.close()
-   fileSpec.add_associated_file(assFileSpec)
+   # location of destination file
+   destfile_path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_srcPath'],
+                                                                     scope=correctedscope,
+                                                                     hash1=hash_hex[0:2],
+                                                                     hash2=hash_hex[2:4],
+                                                                     lfn=fileSpec.lfn)
+
    # add to Globus transfer list
-   tdata.add_item(assFileSpec.path,fileSpec.path)
+   tdata.add_item(tmpfile_path,destfile_path)
    #print "dump(fileSpec)"
    #dump(fileSpec)
    # add input file to jobSpec
    jobSpec.add_in_file(fileSpec)
    #
-   tmpLog.debug("source file to transfer - {}".format(assFileSpec.path)) 
-   tmpLog.debug("destination file to transfer - {}".format(fileSpec.path)) 
+   tmpLog.debug("source file to transfer - {}".format(tmpfile_path)) 
+   tmpLog.debug("destination file to transfer - {}".format(destfile_path)) 
    #print "dump(jobSpec)"
    #dump(jobSpec)
 # remove final ","
@@ -287,8 +297,6 @@ print "plugin={0}".format(preparatorCore.__class__.__name__)
 
 print "testing stagein:"
 print "BasePath from preparator configuration: %s " % preparatorCore.basePath
-preparatorCore.basePath = preparatorCore.basePath + "/testdata"
-print "basePath redefined for test data: %s " % preparatorCore.basePath
 
 
 tmpStat, tmpOut = preparatorCore.trigger_preparation(jobSpec)
