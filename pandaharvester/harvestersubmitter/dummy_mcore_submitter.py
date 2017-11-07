@@ -40,7 +40,7 @@ def submit_a_worker(workspec):
     return (True, stdoutStr + stderrStr)
 
 
-# dummy submitter
+# dummy submitter with multi-cores
 class DummyMcoreSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
