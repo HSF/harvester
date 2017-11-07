@@ -65,6 +65,7 @@ class DBProxy:
             self.con = sqlite3.connect(harvester_config.db.database_filename,
                                        detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
                                        check_same_thread=False)
+            core_utils.set_file_permission(harvester_config.db.database_filename)
             # change the row factory to use Row
             self.con.row_factory = sqlite3.Row
             self.cur = self.con.cursor()

@@ -462,3 +462,22 @@ def decrypt_string(key_phrase, cipher_text):
     c = Crypto.Cipher.AES.new(k, Crypto.Cipher.AES.MODE_CFB, v)
     cipher_text = cipher_text[Crypto.Cipher.AES.block_size:]
     return c.decrypt(cipher_text)
+
+
+# set permission
+def set_file_permission(path):
+    if not os.path.exists(path):
+        return
+    targets = []
+    if os.path.isfile(path):
+        targets += [path]
+    else:
+        for root, dirs, files in os.walk(path):
+            targets += [os.path.join(root, f) for f in files]
+    umask = os.umask(0)
+    uid = os.getuid()
+    gid = os.getgid()
+    for f in targets:
+        os.chmod(f, 0o666 - umask)
+        os.chown(f, uid, gid)
+    os.umask(umask)

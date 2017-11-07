@@ -15,6 +15,8 @@ try:
 except:
     pass
 
+from pandalogger import logger_config
+
 from pandaharvester import commit_timestamp
 from pandaharvester import panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
@@ -223,6 +225,9 @@ def main(daemon_mode=True):
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
+    # get umask
+    umask = os.umask(0)
+    os.umask(umask)
     # memory logging
     if options.memLogging:
         core_utils.enable_memory_profiling()
@@ -253,11 +258,14 @@ def main(daemon_mode=True):
                                   stderr=sys.stderr,
                                   uid=uid,
                                   gid=gid,
+                                  umask=umask,
                                   files_preserve=files_preserve,
                                   pidfile=daemon.pidfile.PIDLockFile(options.pid))
     else:
         dc = DummyContext()
     with dc:
+        core_utils.set_file_permission(options.pid)
+        core_utils.set_file_permission(logger_config.daemon['logdir'])
         _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
                                                                        commit_timestamp.timestamp))
 
