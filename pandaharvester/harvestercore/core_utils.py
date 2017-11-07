@@ -63,7 +63,7 @@ def make_logger(tmp_log, token=None, method_name=None):
 
 
 # dump error message
-def dump_error_message(tmp_log, err_str=None):
+def dump_error_message(tmp_log, err_str=None, no_message=False):
     if not isinstance(tmp_log, LogWrapper):
         methodName = '{0} : '.format(inspect.stack()[1][3])
     else:
@@ -73,7 +73,8 @@ def dump_error_message(tmp_log, err_str=None):
         errtype, errvalue = sys.exc_info()[:2]
         err_str = "{0} {1} {2} ".format(methodName, errtype.__name__, errvalue)
         err_str += traceback.format_exc()
-    tmp_log.error(err_str)
+    if not no_message:
+        tmp_log.error(err_str)
     return err_str
 
 
