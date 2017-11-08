@@ -1,18 +1,11 @@
 import os
-import sys
-import shutil
 import subprocess
-import time
 import os.path
 import zipfile
 import uuid
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermover import mover_utils
-
-from rucio.client import Client as RucioClient
-from rucio.common.exception import RuleNotFound
 
 # logger
 baseLogger = core_utils.setup_logger('rucio_stager_hpc')
@@ -47,6 +40,7 @@ class RucioStagerHPC(PluginBase):
         zip_datasetName = 'harvester_stage_out.{0}'.format(str(uuid.uuid4()))
         fileAttrs = jobspec.get_output_file_attributes()
         for fileSpec in jobspec.outFiles:
+            fileSpec.fileAttributes['transferID'] = None #synchronius transfer
             # skip already done
             tmpLog.debug(' file: %s status: %s' % (fileSpec.lfn,fileSpec.status))                                                                                                                                             
             if fileSpec.status in ['finished', 'failed']:
@@ -82,14 +76,16 @@ class RucioStagerHPC(PluginBase):
             executable += [ '--lifetime',('%d' %lifetime)]
             executable += [ '--rse',dstRSE]
             executable += [ '--scope',scope]
-            executable += [ '--guid',fileSpec.fileAttributes['guid']]
+            if fileSpec.fileAttributes is not None and 'guid' in fileSpec.fileAttributes:
+                executable += [ '--guid',fileSpec.fileAttributes['guid']]
             executable += [('%s:%s' %(scope,datasetName))]
             executable += [('%s' %fileSpec.path)]
 
             #print executable 
 
             tmpLog.debug('rucio upload command: {0} '.format(executable))
-            
+            tmpLog.debug('rucio upload command (for human): %s ' % ' '.join(executable))
+
             process = subprocess.Popen(executable,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT)
@@ -98,6 +94,7 @@ class RucioStagerHPC(PluginBase):
             
             if process.returncode == 0:
                fileSpec.status = 'finished'
+               tmpLog.debug(stdout)
             else:
                # check what failed
                file_exists = False

@@ -1,9 +1,10 @@
-import saga
 import os
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec as ws
+from datetime import datetime
+import saga
 
 # setup base logger
 baseLogger = core_utils.setup_logger('saga_submitter')
@@ -18,17 +19,14 @@ class SAGASubmitter (PluginBase):
         PluginBase.__init__(self, **kwarg)
         tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
-        self.job_service = saga.job.Service(self.adaptor)
-
-    def __del__(self):
-        self.job_service.close()
 
     def workers_list(self):
-
+        job_service = saga.job.Service(self.adaptor)
         workers = []
-        for j in self.job_service.jobs():
+        for j in job_service.jobs():
             worker = self.job_service.get_job(j)
             workers.append((worker, worker.state))
+        job_service.close()
         return workers
 
     def _get_executable(self, list_of_pandajobs):
@@ -38,8 +36,7 @@ class SAGASubmitter (PluginBase):
         :param list_of_pandajobs - list of job objects, which should be used: 
         :return:  string to execution which will be launched
         '''
-        executable_arr = ['source $MODULESHOME/init/bash',
-                          'module load python']
+        executable_arr = ['module load python']
         for pj in list_of_pandajobs:
             executable_arr.append('aprun -N 1 -d 16 -n 1 ' + pj.jobParams['transformation']
                                   + ' ' + pj.jobParams['jobPars'])
@@ -64,6 +61,10 @@ class SAGASubmitter (PluginBase):
 
         tmpLog = core_utils.make_logger(baseLogger, method_name='_execute')
 
+        job_service = saga.job.Service(self.adaptor)
+
+        #sagadateformat_str = 'Tue Nov  7 11:31:10 2017'
+        sagadateformat_str = '%a %b %d %H:%M:%S %Y'
         try:
             jd = saga.job.Description()
             if self.projectname:
@@ -82,19 +83,28 @@ class SAGASubmitter (PluginBase):
 
             # Create a new job from the job description. The initial state of
             # the job is 'New'.
-            task = self.job_service.create_job(jd)
+            task = job_service.create_job(jd)
 
             self._workSpec = work_spec
             task.add_callback(saga.STATE, self._state_change_cb)
             task.run()
             work_spec.batchID = task.id.split('-')[1][1:-1] #SAGA have own representation, but real batch id easy to extract
-            work_spec.submitTime = task.created
+            tmpLog.info("Worker ID={0} with BatchID={1} submitted".format(work_spec.workerID, work_spec.batchID))
 
             task.wait()  # waiting till payload will be compleated.
-            work_spec.startTime = task.started
-            work_spec.endTime = task.finished
-            tmpLog.debug(
-                'Worker with BatchID={0} completed with exit code {1}'.format(work_spec.batchID, task.exit_code))
+            tmpLog.info('Worker with BatchID={0} completed with exit code {1}'.format(work_spec.batchID, task.exit_code))
+            tmpLog.info('Started: [{0}] finished: [{1}]'.format(task.started, task.finished))
+            work_spec.status = self.status_translator(task.state)
+            # for compatibility with dummy monitor
+            f = open(os.path.join(work_spec.accessPoint, 'status.txt'), 'w')
+            f.write(work_spec.status)
+            f.close()
+
+            work_spec.submitTime = datetime.strptime(task.created, sagadateformat_str)
+            work_spec.startTime = datetime.strptime(task.started, sagadateformat_str)
+            work_spec.endTime = datetime.strptime(task.finished, sagadateformat_str)
+
+            job_service.close()
             return 0
 
         except saga.SagaException as ex:
