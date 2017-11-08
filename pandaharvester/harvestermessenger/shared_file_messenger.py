@@ -450,11 +450,13 @@ class SharedFileMessenger(PluginBase):
             # make the dir if missing
             if not os.path.exists(accessPoint):
                 os.makedirs(accessPoint)
-            for jobSpec in workSpec.get_jobspec_list():
-                subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
-                if accessPoint != subAccessPoint:
-                    if not os.path.exists(subAccessPoint):
-                        os.mkdir(subAccessPoint)
+            jobSpecs = workSpec.get_jobspec_list()
+            if jobSpecs is not None:
+                for jobSpec in jobSpecs:
+                    subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
+                    if accessPoint != subAccessPoint:
+                        if not os.path.exists(subAccessPoint):
+                            os.mkdir(subAccessPoint)
 
     # filter for log.tar.gz
     def filter_log_tgz(self, name):
