@@ -76,7 +76,7 @@ class RucioStagerHPC(PluginBase):
             executable += [ '--lifetime',('%d' %lifetime)]
             executable += [ '--rse',dstRSE]
             executable += [ '--scope',scope]
-            if 'guid' in fileSpec.fileAttributes.keys():
+            if fileSpec.fileAttributes is not None and 'guid' in fileSpec.fileAttributes:
                 executable += [ '--guid',fileSpec.fileAttributes['guid']]
             executable += [('%s:%s' %(scope,datasetName))]
             executable += [('%s' %fileSpec.path)]
