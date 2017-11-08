@@ -4,6 +4,7 @@ import multiprocessing
 
 import re
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
@@ -59,7 +60,7 @@ def submit_a_worker(data):
         errStr = stdOut + ' ' + stdErr
         tmpLog.error(errStr)
         tmpRetVal = (False, errStr)
-    return tmpRetVal
+    return tmpRetVal, workspec.batchID
 
 
 # make batch script
@@ -75,6 +76,8 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir):
         requestDisk=(workspec.maxDiskCount * 1024),
         requestWalltime=workspec.maxWalltime,
         accessPoint=workspec.accessPoint,
+        harvesterID=harvester_config.master.harvester_id,
+        workerID=workspec.workerID,
         logDir=log_dir)
     )
     tmpFile.close()
@@ -107,6 +110,12 @@ class HTCondorSubmitter(PluginBase):
                     'n_core_per_node': self.nCorePerNode}
             dataList.append(data)
         pool = multiprocessing.Pool(processes=self.nProcesses)
-        retList = pool.map(submit_a_worker, dataList)
+        retValList = pool.map(submit_a_worker, dataList)
+        # set batchID
+        retList = []
+        for workSpec, tmpVal in zip(workspec_list, retValList):
+            retVal, batchID = tmpVal
+            workSpec.batchID = batchID
+            retList.append(retVal)
         tmpLog.debug('done')
         return retList
