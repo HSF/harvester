@@ -40,6 +40,7 @@ workSpec = maker.make_worker(jobSpecList, queueConfig)
 
 workSpec.accessPoint = queueConfig.messenger['accessPoint']
 workSpec.mapType = queueConfig.mapType
+workSpec.computingSite = queueConfig.queueName
 
 # set job to worker if not job-level late binding
 if not queueConfig.useJobLateBinding:

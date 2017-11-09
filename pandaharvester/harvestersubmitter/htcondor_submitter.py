@@ -18,6 +18,7 @@ def submit_a_worker(data):
     template = data['template']
     log_dir = data['log_dir']
     n_core_per_node = data['n_core_per_node']
+    workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
@@ -60,7 +61,7 @@ def submit_a_worker(data):
         errStr = stdOut + ' ' + stdErr
         tmpLog.error(errStr)
         tmpRetVal = (False, errStr)
-    return tmpRetVal, workspec.batchID
+    return tmpRetVal, workspec.get_changed_attributes()
 
 
 # make batch script
@@ -78,6 +79,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir):
         accessPoint=workspec.accessPoint,
         harvesterID=harvester_config.master.harvester_id,
         workerID=workspec.workerID,
+        computingSite=workspec.computingSite,
         logDir=log_dir)
     )
     tmpFile.close()
@@ -111,11 +113,11 @@ class HTCondorSubmitter(PluginBase):
             dataList.append(data)
         pool = multiprocessing.Pool(processes=self.nProcesses)
         retValList = pool.map(submit_a_worker, dataList)
-        # set batchID
+        # propagate changed attributes
         retList = []
         for workSpec, tmpVal in zip(workspec_list, retValList):
-            retVal, batchID = tmpVal
-            workSpec.batchID = batchID
+            retVal, tmpDict = tmpVal
+            workSpec.set_attributes_with_dict(tmpDict)
             retList.append(retVal)
         tmpLog.debug('done')
         return retList

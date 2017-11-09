@@ -15,6 +15,7 @@ baseLogger = core_utils.setup_logger('dummy_mcore_submitter')
 def submit_a_worker(workspec):
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
+    workspec.reset_changed_list()
     if workspec.get_jobspec_list() is not None:
         tmpLog.debug('aggregated nCore={0} minRamCount={1} maxDiskCount={2}'.format(workspec.nCore,
                                                                                     workspec.minRamCount,
@@ -37,7 +38,7 @@ def submit_a_worker(workspec):
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
     stdoutStr, stderrStr = p.communicate()
-    return (True, stdoutStr + stderrStr)
+    return (True, stdoutStr + stderrStr), workspec.get_changed_attributes()
 
 
 # dummy submitter with multi-cores
@@ -51,6 +52,12 @@ class DummyMcoreSubmitter(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
         pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-        retList = pool.map(submit_a_worker, workspec_list)
+        retValList = pool.map(submit_a_worker, workspec_list)
+        # propagate changed attributes
+        retList = []
+        for workSpec, tmpVal in zip(workspec_list, retValList):
+            retVal, tmpDict = tmpVal
+            workSpec.set_attributes_with_dict(tmpDict)
+            retList.append(retVal)
         tmpLog.debug('done')
         return retList
