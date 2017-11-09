@@ -479,6 +479,9 @@ def set_file_permission(path):
     uid = os.getuid()
     gid = os.getgid()
     for f in targets:
-        os.chmod(f, 0o666 - umask)
-        os.chown(f, uid, gid)
+        try:
+            os.chmod(f, 0o666 - umask)
+            os.chown(f, uid, gid)
+        except:
+            pass
     os.umask(umask)

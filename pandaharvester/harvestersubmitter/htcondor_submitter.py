@@ -111,13 +111,19 @@ class HTCondorSubmitter(PluginBase):
                     'log_dir': self.logDir,
                     'n_core_per_node': self.nCorePerNode}
             dataList.append(data)
-        pool = multiprocessing.Pool(processes=self.nProcesses)
-        retValList = pool.map(submit_a_worker, dataList)
+        # temporary disabled since pool.close() kills instance
+        # pool = multiprocessing.Pool(processes=self.nProcesses)
+        # retValList = pool.map(submit_a_worker, dataList)
+        retValList = []
+        for data in dataList:
+            retVal = submit_a_worker(data)
+            retValList.append(retVal)
         # propagate changed attributes
         retList = []
         for workSpec, tmpVal in zip(workspec_list, retValList):
             retVal, tmpDict = tmpVal
             workSpec.set_attributes_with_dict(tmpDict)
             retList.append(retVal)
+        # pool.close()
         tmpLog.debug('done')
         return retList
