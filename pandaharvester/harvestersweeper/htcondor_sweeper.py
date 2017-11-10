@@ -12,7 +12,7 @@ import subprocess
 #=== Definitions ==============================================
 
 ## Logger
-baseLogger = core_utils.setup_logger('htcondor_submitter')
+baseLogger = core_utils.setup_logger('htcondor_sweeper')
 
 #==============================================================
 

@@ -1,7 +1,8 @@
 import uuid
 import os
-import multiprocessing
 import subprocess
+
+from concurrent.futures import ProcessPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -34,7 +35,7 @@ def submit_a_worker(workspec):
     f.write(WorkSpec.ST_submitted)
     f.close()
     # fake submission
-    p = subprocess.Popen(['sleep', '30'],
+    p = subprocess.Popen(['sleep', '3'],
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
     stdoutStr, stderrStr = p.communicate()
@@ -51,8 +52,8 @@ class DummyMcoreSubmitter(PluginBase):
     def submit_workers(self, workspec_list):
         tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
-        pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-        retValList = pool.map(submit_a_worker, workspec_list)
+        with Pool() as pool:
+            retValList = pool.map(submit_a_worker, workspec_list)
         # propagate changed attributes
         retList = []
         for workSpec, tmpVal in zip(workspec_list, retValList):

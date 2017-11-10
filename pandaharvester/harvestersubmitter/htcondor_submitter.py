@@ -1,6 +1,7 @@
 import tempfile
 import subprocess
-import multiprocessing
+
+from concurrent.futures import ProcessPoolExecutor as Pool
 
 import re
 
@@ -98,7 +99,7 @@ class HTCondorSubmitter(PluginBase):
         tmpFile.close()
         # number of processes
         if self.nProcesses < 1:
-            self.nProcesses = multiprocessing.cpu_count()
+            self.nProcesses = None
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -112,18 +113,13 @@ class HTCondorSubmitter(PluginBase):
                     'n_core_per_node': self.nCorePerNode}
             dataList.append(data)
         # temporary disabled since pool.close() kills instance
-        # pool = multiprocessing.Pool(processes=self.nProcesses)
-        # retValList = pool.map(submit_a_worker, dataList)
-        retValList = []
-        for data in dataList:
-            retVal = submit_a_worker(data)
-            retValList.append(retVal)
+        with Pool(self.nProcesses) as pool:
+            retValList = pool.map(submit_a_worker, dataList)
         # propagate changed attributes
         retList = []
         for workSpec, tmpVal in zip(workspec_list, retValList):
             retVal, tmpDict = tmpVal
             workSpec.set_attributes_with_dict(tmpDict)
             retList.append(retVal)
-        # pool.close()
         tmpLog.debug('done')
         return retList

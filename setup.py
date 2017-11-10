@@ -27,6 +27,7 @@ setup(
     install_requires=['requests',
                       'python-daemon',
                       'future',
+                      'futures',
                       'pycrypto'
                       ],
     data_files=[

@@ -303,7 +303,7 @@ def main(daemon_mode=True):
                 os.remove(options.pid)
             except:
                 pass
-            os.killpg(os.getpgrp(), signal.SIGKILL)
+            os.kill(os.getpid(), signal.SIGKILL)
 
         def catch_sigterm(sig, frame):
             stopEvent.set()
