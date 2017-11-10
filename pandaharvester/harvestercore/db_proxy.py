@@ -1487,7 +1487,7 @@ class DBProxy:
             sqlFC = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlFC += "WHERE PandaID=:PandaID AND lfn=:lfn "
             # sql to check file with eventRangeID
-            sqlFE = "SELECT 1 FROM {0} ".format(fileTableName)
+            sqlFE = "SELECT 1 c FROM {0} ".format(fileTableName)
             sqlFE += "WHERE PandaID=:PandaID AND lfn=:lfn AND eventRangeID=:eventRangeID ".format(fileTableName)
             # sql to insert file
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
@@ -1500,7 +1500,7 @@ class DBProxy:
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
             sqlFU += "WHERE fileID=:fileID "
             # sql to check event
-            sqlEC = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(eventTableName)
+            sqlEC = "SELECT 1 c FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(eventTableName)
             # sql to check associated file
             sqlEF = "SELECT status FROM {0} ".format(fileTableName)
             sqlEF += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
@@ -1512,7 +1512,7 @@ class DBProxy:
             sqlEU += "SET eventStatus=:eventStatus,subStatus=:subStatus "
             sqlEU += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
             # sql to check if relationship is already available
-            sqlCR = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND workerID=:workerID ".format(jobWorkerTableName)
+            sqlCR = "SELECT 1 c FROM {0} WHERE PandaID=:PandaID AND workerID=:workerID ".format(jobWorkerTableName)
             # sql to insert job and worker relationship
             sqlIR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlIR += JobWorkerRelationSpec.bind_values_expression()
@@ -2660,7 +2660,7 @@ class DBProxy:
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID "
             # sql to check if the file is ready to delete
-            sqlD = "SELECT 1 FROM {0} ".format(fileTableName)
+            sqlD = "SELECT 1 c FROM {0} ".format(fileTableName)
             sqlD += "WHERE lfn=:lfn AND todelete=:to_delete "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()

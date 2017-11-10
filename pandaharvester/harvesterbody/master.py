@@ -299,11 +299,15 @@ def main(daemon_mode=True):
         # signal handlers
         def catch_sigkill(sig, frame):
             disable_profiler()
+            _logger.info('got {0}'.format(sig))
             try:
                 os.remove(options.pid)
             except:
                 pass
-            os.kill(os.getpid(), signal.SIGKILL)
+            if os.getppid() == 1:
+                os.killpg(os.getpgrp(), signal.SIGKILL)
+            else:
+                os.kill(os.getpid(), signal.SIGKILL)
 
         def catch_sigterm(sig, frame):
             stopEvent.set()

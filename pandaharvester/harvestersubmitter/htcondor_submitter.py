@@ -112,7 +112,7 @@ class HTCondorSubmitter(PluginBase):
                     'log_dir': self.logDir,
                     'n_core_per_node': self.nCorePerNode}
             dataList.append(data)
-        # temporary disabled since pool.close() kills instance
+        # exec with mcore
         with Pool(self.nProcesses) as pool:
             retValList = pool.map(submit_a_worker, dataList)
         # propagate changed attributes
