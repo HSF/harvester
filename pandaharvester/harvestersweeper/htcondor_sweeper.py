@@ -97,6 +97,7 @@ class HTCondorSweeper(PluginBase):
         try:
             preparatorBasePath = self.preparatorBasePath
         except AttributeError:
+            tmpLog.debug('No preparator base directory is configured. Skipped cleaning up preparator directory')
             pass
         else:
             if os.path.isdir(preparatorBasePath):
