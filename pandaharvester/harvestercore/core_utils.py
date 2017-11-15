@@ -490,6 +490,6 @@ def set_file_permission(path):
 # get URL of queues config file
 def get_queues_config_url():
     try:
-        return os.environ['HARVESTER_QUEUES_CONFIG_URL']
+        return os.environ['HARVESTER_QUEUE_CONFIG_URL']
     except:
         return None
