@@ -38,7 +38,7 @@ class SAGASubmitter (PluginBase):
         '''
         executable_arr = ['module load python']
         for pj in list_of_pandajobs:
-            executable_arr.append('aprun -N 1 -d 16 -n 1 ' + pj.jobParams['transformation']
+            executable_arr.append('aprun -d 16 -n 1 ' + pj.jobParams['transformation']
                                   + ' ' + pj.jobParams['jobPars'])
         return executable_arr
 
@@ -72,12 +72,15 @@ class SAGASubmitter (PluginBase):
             # launching job at HPC
 
             jd.wall_time_limit = work_spec.maxWalltime / 60  # minutes
-            jd.executable = "\n".join(self._get_executable(work_spec.jobspec_list))
+            if work_spec.workParams in (None, "NULL"):
+                jd.executable = "\n".join(self._get_executable(work_spec.jobspec_list))
+            else:
+                jd.executable = work_spec.workParams
 
-            jd.total_cpu_count = 1 * self.nCorePerNode  # one node with 16 cores for one job
+            jd.total_cpu_count = work_spec.nCore  # one node with 16 cores for one job
             jd.queue = self.localqueue
 
-            jd.working_directory = work_spec.accessPoint  # working directory of all task
+            jd.working_directory = work_spec.accessPoint  # working directory of task
             jd.output = 'saga_task_stdout' #  file for stdout of payload
             jd.error = 'saga_task_stderr'  #  filr for stderr of payload
 
