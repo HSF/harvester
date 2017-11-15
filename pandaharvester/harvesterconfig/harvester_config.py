@@ -8,8 +8,15 @@ from liveconfigparser.LiveConfigParser import LiveConfigParser
 # get ConfigParser
 tmpConf = LiveConfigParser()
 
+# URL for config file if any
+configEnv = 'HARVESTER_INSTANCE_CONFIG_URL'
+if configEnv in os.environ:
+    configURL = os.environ[configEnv]
+else:
+    configURL = None
+
 # read
-tmpConf.read('panda_harvester.cfg')
+tmpConf.read('panda_harvester.cfg', configURL)
 
 
 # dummy section class

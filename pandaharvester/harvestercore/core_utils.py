@@ -485,3 +485,11 @@ def set_file_permission(path):
         except:
             pass
     os.umask(umask)
+
+
+# get URL of queues config file
+def get_queues_config_url():
+    try:
+        return os.environ['HARVESTER_QUEUES_CONFIG_URL']
+    except:
+        return None

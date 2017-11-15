@@ -68,7 +68,7 @@ class Master(object):
         from pandaharvester.harvesterbody.cacher import Cacher
         thr = Cacher(self.communicatorPool, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
-        thr.execute()
+        thr.execute(force_update=True, skip_lock=True)
         thr.start()
         thrList.append(thr)
         # Watcher
@@ -299,7 +299,7 @@ def main(daemon_mode=True):
         # signal handlers
         def catch_sigkill(sig, frame):
             disable_profiler()
-            _logger.info('got {0}'.format(sig))
+            _logger.info('got signal={0}'.format(sig))
             try:
                 os.remove(options.pid)
             except:
