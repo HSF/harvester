@@ -27,11 +27,17 @@ class MultiJobWorkerMaker(PluginBase):
             env_str = "\n".join(map(lambda s: s.strip(),  self.env.split(",")))
 
         # prepare executor
-        if self.executor == "aprun":
-            exe_str = self.executor + " -n {0} -d {1} ".format(self.nJobsPerWorker, queue_config.submitter['nCorePerNode'])
-            exe_str += self.pilot
-        else:
-            exe_str = self.executor + " " + self.pilot
+        try:
+            if self.executor == "aprun": # "aprun -n [number of required nodes/jobs] -d [number of cpu per node/job]" - for one multicore job per node
+                exe_str = self.executor + " -n {0} -d {1} ".format(self.nJobsPerWorker, queue_config.submitter['nCorePerNode'])
+                exe_str += self.pilot
+            else:
+                exe_str = self.executor + " " + self.pilot
+            if self.pilot_params:
+                exe_str = " ".join([exe_str, self.pilot_params])
+        except:
+            tmpLog.error("Unable to build executor command check configuration")
+            exe_str = ""
 
         exe_str = "\n".join([env_str, exe_str])
         tmpLog.debug("Shell script body: \n%s" % exe_str)
