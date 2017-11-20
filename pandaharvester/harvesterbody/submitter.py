@@ -92,6 +92,7 @@ class Submitter(AgentBase):
                     elif queueConfig.mapType == WorkSpec.MT_MultiJobs:
                         # one worker for multiple jobs
                         nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig)
+                        tmpLog.debug('nJobsPerWorker={0}'.format(nJobsPerWorker))
                         jobChunks = self.dbProxy.get_job_chunks_for_workers(queueName,
                                                                             nWorkers, nReady, nJobsPerWorker, None,
                                                                             queueConfig.useJobLateBinding,
