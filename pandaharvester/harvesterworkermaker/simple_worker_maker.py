@@ -39,15 +39,16 @@ class SimpleWorkerMaker(PluginBase):
                     pass
         return workSpec
 
-    # get number of jobs per worker
-    def get_num_jobs_per_worker(self):
+    # get number of jobs per worker.
+    # N.B. n_worker is the number of available slots which may be useful for some workflow
+    def get_num_jobs_per_worker(self, n_workers):
         try:
             return self.nJobsPerWorker
         except:
             return 1
 
     # get number of workers per job
-    def get_num_workers_per_job(self):
+    def get_num_workers_per_job(self, n_workers):
         try:
             return self.nWorkersPerJob
         except:

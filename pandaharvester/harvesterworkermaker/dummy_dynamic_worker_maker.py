@@ -40,12 +40,13 @@ class DummyDynamicWorkerMaker(PluginBase):
                     pass
         return workSpec
 
-    # get number of jobs per worker based on dynamic information such as # of free slots at that time
-    def get_num_jobs_per_worker(self):
+    # get number of jobs per worker based on dynamic information such as # of free CPUs at that time.
+    # N.B. n_worker is the number of available slots which may be useful for some workflow
+    def get_num_jobs_per_worker(self, n_workers):
         # dummy. should use batch system info, etc
         return random.randint(self.minJobsPerWorker, self.maxJobsPerWorker)
 
     # get number of workers per job based on dynamic information
-    def get_num_workers_per_job(self):
+    def get_num_workers_per_job(self, n_workers):
         # dummy. should use batch system info, etc
         return random.randint(self.minWorkersPerJob, self.maxWorkersPerJob)

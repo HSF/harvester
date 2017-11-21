@@ -91,7 +91,7 @@ class Submitter(AgentBase):
                                                                             lockedBy)
                     elif queueConfig.mapType == WorkSpec.MT_MultiJobs:
                         # one worker for multiple jobs
-                        nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig)
+                        nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig, nWorkers)
                         tmpLog.debug('nJobsPerWorker={0}'.format(nJobsPerWorker))
                         jobChunks = self.dbProxy.get_job_chunks_for_workers(queueName,
                                                                             nWorkers, nReady, nJobsPerWorker, None,
@@ -102,7 +102,7 @@ class Submitter(AgentBase):
                                                                             queueConfig.allowJobMixture)
                     elif queueConfig.mapType == WorkSpec.MT_MultiWorkers:
                         # multiple workers for one job
-                        nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig)
+                        nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig, nWorkers)
                         jobChunks = self.dbProxy.get_job_chunks_for_workers(queueName,
                                                                             nWorkers, nReady, None, nWorkersPerJob,
                                                                             queueConfig.useJobLateBinding,
