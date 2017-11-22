@@ -1,6 +1,5 @@
 import os.path
-import multiprocessing
-import subprocess
+from concurrent.futures import ProcessPoolExecutor as Pool
 
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -39,7 +38,7 @@ class DummyMcoreMonitor(PluginBase):
         # make logger
         tmpLog = core_utils.make_logger(baseLogger, method_name='check_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
-        pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-        retList = pool.map(check_a_worker, workspec_list)
+        with Pool() as pool:
+            retList = pool.map(check_a_worker, workspec_list)
         tmpLog.debug('done')
         return True, retList

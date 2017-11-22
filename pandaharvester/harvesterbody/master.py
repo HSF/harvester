@@ -222,6 +222,10 @@ def main(daemon_mode=True):
         print ("Version : {0}".format(panda_pkg_info.release_version))
         print ("Last commit : {0}".format(commit_timestamp.timestamp))
         return
+    # check pid
+    if options.pid is not None and os.path.exists(options.pid):
+        print ("ERROR: Cannot start since lock file {0} already exists".format(options.pid))
+        return
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
@@ -264,6 +268,9 @@ def main(daemon_mode=True):
     else:
         dc = DummyContext()
     with dc:
+        # remove pidfile to prevent child processes crashing in atexit
+        if not options.singleMode:
+            dc.pidfile = None
         core_utils.set_file_permission(options.pid)
         core_utils.set_file_permission(logger_config.daemon['logdir'])
         _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,

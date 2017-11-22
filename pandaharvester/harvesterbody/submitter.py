@@ -223,17 +223,17 @@ class Submitter(AgentBase):
                                 workSpec.eventsRequestParams = eventsRequestParams
                             # register worker
                             tmpStat = self.dbProxy.register_worker(workSpec, jobList, lockedBy)
-                            for jobSpec in jobList:
-                                pandaIDs.add(jobSpec.PandaID)
-                                if tmpStat:
-                                    tmpLog.info('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(
-                                        workSpec.workerID,
-                                        jobSpec.PandaID,
-                                        workSpec.batchID))
-                                else:
-                                    tmpLog.error('failed to register a worker for PandaID={0} with batchID={1}'.format(
-                                        jobSpec.PandaID,
-                                        workSpec.batchID))
+                            if jobList is not None:
+                                for jobSpec in jobList:
+                                    pandaIDs.add(jobSpec.PandaID)
+                                    if tmpStat:
+                                        tmpStr = 'submitted a workerID={0} for PandaID={1} with batchID={2}'
+                                        tmpLog.info(tmpStr.format(workSpec.workerID,
+                                                                  jobSpec.PandaID,
+                                                                  workSpec.batchID))
+                                    else:
+                                        tmpStr = 'failed to register a worker for PandaID={0} with batchID={1}'
+                                        tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
                     # release jobs
                     self.dbProxy.release_jobs(pandaIDs, lockedBy)
             mainLog.debug('done')
