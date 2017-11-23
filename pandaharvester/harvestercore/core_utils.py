@@ -354,8 +354,8 @@ class StopWatch(object):
     # get elapsed time
     def get_elapsed_time(self):
         diff = datetime.datetime.utcnow() - self.startTime
-        return " : took {0}.{0} sec".format(diff.seconds + diff.days * 24 * 3600,
-                                            diff.microseconds/1000)
+        return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600,
+                                               diff.microseconds/1000)
 
     # reset
     def reset(self):
