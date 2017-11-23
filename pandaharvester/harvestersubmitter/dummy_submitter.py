@@ -12,6 +12,7 @@ baseLogger = core_utils.setup_logger('dummy_submitter')
 class DummySubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
+        self.logBaseURL = 'http://localhost/test'
         PluginBase.__init__(self, **kwarg)
 
     # submit workers
@@ -49,6 +50,11 @@ class DummySubmitter(PluginBase):
             workSpec.batchID = 'batch_ID_{0}'.format(uuid.uuid4().hex)
             workSpec.queueName = 'batch_queue_name'
             workSpec.computingElement = 'CE_name'
+            logData = {'batchLog': '{0}/{1}.log'.format(self.logBaseURL, workSpec.batchID),
+                       'stdOut': '{0}/{1}.out'.format(self.logBaseURL, workSpec.batchID),
+                       'stdErr': '{0}/{1}.err'.format(self.logBaseURL, workSpec.batchID),
+                       }
+            workSpec.set_work_attributes(logData)
             f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
             f.write(WorkSpec.ST_submitted)
             f.close()

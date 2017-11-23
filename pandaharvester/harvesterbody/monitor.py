@@ -88,7 +88,7 @@ class Monitor(AgentBase):
                             continue
                         # update worker
                         workSpec.set_status(newStatus)
-                        workSpec.workAttributes = workAttributes
+                        workSpec.set_work_attributes(workAttributes)
                         # request events
                         if eventsRequestParams != {}:
                             workSpec.eventsRequest = WorkSpec.EV_requestEvents

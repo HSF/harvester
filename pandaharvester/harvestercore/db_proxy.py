@@ -982,39 +982,40 @@ class DBProxy:
                 self.execute(sqlU, varMap)
             # collect values to update jobs or insert job/worker mapping
             varMapsR = []
-            for jobSpec in jobspec_list:
-                # get number of workers for the job
-                varMap = dict()
-                varMap[':pandaID'] = jobSpec.PandaID
-                self.execute(sqlNW, varMap)
-                resNW = self.cur.fetchall()
-                workerIDs = set()
-                workerIDs.add(workspec.workerID)
-                for tmpWorkerID, in resNW:
-                    workerIDs.add(tmpWorkerID)
-                # update attributes
-                if jobSpec.subStatus in ['submitted', 'running']:
-                    jobSpec.nWorkers = len(workerIDs)
-                elif workspec.hasJob == 1:
-                    jobSpec.subStatus = 'submitted'
-                    jobSpec.nWorkers = len(workerIDs)
-                else:
-                    jobSpec.subStatus = 'queued'
-                # sql to update job
-                sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
-                sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
-                # update job
-                varMap = jobSpec.values_map(only_changed=True)
-                varMap[':cr_PandaID'] = jobSpec.PandaID
-                varMap[':cr_lockedBy'] = locked_by
-                self.execute(sqlJ, varMap)
-                if jobSpec.subStatus == 'submitted':
-                    # values for job/worker mapping
-                    jwRelation = JobWorkerRelationSpec()
-                    jwRelation.PandaID = jobSpec.PandaID
-                    jwRelation.workerID = workspec.workerID
-                    varMap = jwRelation.values_list()
-                    varMapsR.append(varMap)
+            if jobspec_list is not None:
+                for jobSpec in jobspec_list:
+                    # get number of workers for the job
+                    varMap = dict()
+                    varMap[':pandaID'] = jobSpec.PandaID
+                    self.execute(sqlNW, varMap)
+                    resNW = self.cur.fetchall()
+                    workerIDs = set()
+                    workerIDs.add(workspec.workerID)
+                    for tmpWorkerID, in resNW:
+                        workerIDs.add(tmpWorkerID)
+                    # update attributes
+                    if jobSpec.subStatus in ['submitted', 'running']:
+                        jobSpec.nWorkers = len(workerIDs)
+                    elif workspec.hasJob == 1:
+                        jobSpec.subStatus = 'submitted'
+                        jobSpec.nWorkers = len(workerIDs)
+                    else:
+                        jobSpec.subStatus = 'queued'
+                    # sql to update job
+                    sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
+                    sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
+                    # update job
+                    varMap = jobSpec.values_map(only_changed=True)
+                    varMap[':cr_PandaID'] = jobSpec.PandaID
+                    varMap[':cr_lockedBy'] = locked_by
+                    self.execute(sqlJ, varMap)
+                    if jobSpec.subStatus == 'submitted':
+                        # values for job/worker mapping
+                        jwRelation = JobWorkerRelationSpec()
+                        jwRelation.PandaID = jobSpec.PandaID
+                        jwRelation.workerID = workspec.workerID
+                        varMap = jwRelation.values_list()
+                        varMapsR.append(varMap)
             # insert job/worker mapping
             if len(varMapsR) > 0:
                 self.executemany(sqlR, varMapsR)

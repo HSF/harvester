@@ -92,6 +92,7 @@ class HTCondorSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         self.nProcesses = 1
+        self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
         # template for batch script
         tmpFile = open(self.templateFile)
@@ -120,6 +121,13 @@ class HTCondorSubmitter(PluginBase):
         for workSpec, tmpVal in zip(workspec_list, retValList):
             retVal, tmpDict = tmpVal
             workSpec.set_attributes_with_dict(tmpDict)
+            # URLs for log files
+            if self.logBaseURL is not None and workSpec.batchID is not None:
+                logData = {'batchLog': '{0}/grid.{1}.0.log'.format(self.logBaseURL, workSpec.batchID),
+                           'stdOut': '{0}/grid.{1}.0.out'.format(self.logBaseURL, workSpec.batchID),
+                           'stdErr': '{0}/grid.{1}.0.err'.format(self.logBaseURL, workSpec.batchID),
+                           }
+                workSpec.set_work_attributes(logData)
             retList.append(retVal)
         tmpLog.debug('done')
         return retList

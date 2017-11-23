@@ -46,6 +46,7 @@ def submit_a_worker(workspec):
 class DummyMcoreSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
+        self.logBaseURL = 'http://localhost/test'
         PluginBase.__init__(self, **kwarg)
 
     # submit workers with multiple cores
@@ -59,6 +60,11 @@ class DummyMcoreSubmitter(PluginBase):
         for workSpec, tmpVal in zip(workspec_list, retValList):
             retVal, tmpDict = tmpVal
             workSpec.set_attributes_with_dict(tmpDict)
+            logData = {'batchLog': '{0}/{1}.log'.format(self.logBaseURL, workSpec.batchID),
+                       'stdOut': '{0}/{1}.out'.format(self.logBaseURL, workSpec.batchID),
+                       'stdErr': '{0}/{1}.err'.format(self.logBaseURL, workSpec.batchID),
+                       }
+            workSpec.set_work_attributes(logData)
             retList.append(retVal)
         tmpLog.debug('done')
         return retList

@@ -28,7 +28,8 @@ setup(
                       'python-daemon',
                       'future',
                       'futures',
-                      'pycrypto'
+                      'pycrypto',
+                      'panda-common-s'
                       ],
     data_files=[
         # config and cron files

@@ -5,6 +5,8 @@ Work spec class
 
 import re
 import datetime
+from future.utils import iteritems
+
 from .spec_base import SpecBase
 
 
@@ -179,6 +181,13 @@ class WorkSpec(SpecBase):
                 data[attr] = val
         if self.pandaid_list is not None:
             data['pandaid_list'] = self.pandaid_list
+        if self.workAttributes is not None:
+            for attr in ['stdOut',
+                         'stdErr',
+                         'batchLog'
+                         ]:
+                if attr in self.workAttributes:
+                    data[attr] = self.workAttributes[attr]
         return data
 
     # set start time
@@ -190,3 +199,12 @@ class WorkSpec(SpecBase):
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
             self.endTime = datetime.datetime.utcnow()
+
+    # set work attributes
+    def set_work_attributes(self, data):
+        if self.workAttributes is None and data is not None:
+            self.workAttributes = dict()
+        for key, val in iteritems(data):
+            if key not in self.workAttributes or self.workAttributes[key] != val:
+                self.workAttributes[key] = val
+                self.force_update('workAttributes')
