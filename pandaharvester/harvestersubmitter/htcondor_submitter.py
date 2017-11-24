@@ -123,11 +123,9 @@ class HTCondorSubmitter(PluginBase):
             workSpec.set_attributes_with_dict(tmpDict)
             # URLs for log files
             if self.logBaseURL is not None and workSpec.batchID is not None:
-                logData = {'batchLog': '{0}/grid.{1}.0.log'.format(self.logBaseURL, workSpec.batchID),
-                           'stdOut': '{0}/grid.{1}.0.out'.format(self.logBaseURL, workSpec.batchID),
-                           'stdErr': '{0}/grid.{1}.0.err'.format(self.logBaseURL, workSpec.batchID),
-                           }
-                workSpec.set_work_attributes(logData)
+                workSpec.set_log_file('batch_log', '{0}/{1}.log'.format(self.logBaseURL, workSpec.batchID))
+                workSpec.set_log_file('stdout', '{0}/{1}.out'.format(self.logBaseURL, workSpec.batchID))
+                workSpec.set_log_file('stderr', '{0}/{1}.err'.format(self.logBaseURL, workSpec.batchID))
             retList.append(retVal)
         tmpLog.debug('done')
         return retList

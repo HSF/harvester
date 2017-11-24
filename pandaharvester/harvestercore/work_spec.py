@@ -4,10 +4,13 @@ Work spec class
 """
 
 import re
+import os
 import datetime
 from future.utils import iteritems
 
 from .spec_base import SpecBase
+
+from pandaharvester.harvesterconfig import harvester_config
 
 
 # work spec
@@ -73,7 +76,8 @@ class WorkSpec(SpecBase):
                            'maxWalltime:integer',
                            'killTime:timestamp / index',
                            'computingElement:text',
-                           'nJobsToReFill:integer'
+                           'nJobsToReFill:integer',
+                           'logFilesToUpload:blob'
                            )
 
     # constructor
@@ -208,3 +212,48 @@ class WorkSpec(SpecBase):
             if key not in self.workAttributes or self.workAttributes[key] != val:
                 self.workAttributes[key] = val
                 self.force_update('workAttributes')
+
+    # update log files to upload
+    def update_log_files_to_upload(self, file_path, position, remote_name=None):
+        if self.logFilesToUpload is None:
+            self.logFilesToUpload = dict()
+        if file_path not in self.logFilesToUpload:
+            self.logFilesToUpload[file_path] = {'position': position,
+                                                'remote_name': remote_name}
+            self.force_update('logFilesToUpload')
+        elif self.logFilesToUpload[file_path]['position'] != position:
+            self.logFilesToUpload[file_path]['position'] = position
+            self.force_update('logFilesToUpload')
+
+    # set log file
+    def set_log_file(self, log_type, stream):
+        if log_type == 'stdout':
+            keyName = 'stdOut'
+        elif log_type == 'stderr':
+            keyName = 'stdErr'
+        else:
+            keyName = 'batchLog'
+        if stream.startswith('http'):
+            url = stream
+        else:
+            remoteName = '{0}__{1}'.format(harvester_config.master.harvester_id,
+                                           os.path.basename(stream))
+            url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_R,
+                                   remoteName)
+            # set file to periodically upload
+            self.update_log_files_to_upload(stream, 0, remoteName)
+        self.set_work_attributes({keyName: url})
+
+    # get the list of log files to upload
+    def get_log_files_to_upload(self):
+        retList = []
+        if self.logFilesToUpload is not None:
+            for filePath, fileInfo in iteritems(self.logFilesToUpload):
+                if not os.path.exists(filePath):
+                    continue
+                fileSize = os.stat(filePath).st_size
+                if fileSize <= fileInfo['position']:
+                    continue
+                retList.append((filePath, fileInfo['position'], fileSize-fileInfo['position'],
+                                fileInfo['remote_name']))
+        return retList

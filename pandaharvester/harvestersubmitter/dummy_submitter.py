@@ -50,11 +50,9 @@ class DummySubmitter(PluginBase):
             workSpec.batchID = 'batch_ID_{0}'.format(uuid.uuid4().hex)
             workSpec.queueName = 'batch_queue_name'
             workSpec.computingElement = 'CE_name'
-            logData = {'batchLog': '{0}/{1}.log'.format(self.logBaseURL, workSpec.batchID),
-                       'stdOut': '{0}/{1}.out'.format(self.logBaseURL, workSpec.batchID),
-                       'stdErr': '{0}/{1}.err'.format(self.logBaseURL, workSpec.batchID),
-                       }
-            workSpec.set_work_attributes(logData)
+            workSpec.set_log_file('batch_log', '{0}/{1}.log'.format(self.logBaseURL, workSpec.batchID))
+            workSpec.set_log_file('stdout', '{0}/{1}.out'.format(self.logBaseURL, workSpec.batchID))
+            workSpec.set_log_file('stderr', '{0}/{1}.err'.format(self.logBaseURL, workSpec.batchID))
             f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
             f.write(WorkSpec.ST_submitted)
             f.close()
