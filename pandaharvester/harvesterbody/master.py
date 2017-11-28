@@ -188,6 +188,9 @@ class StdErrWrapper(object):
     def fileno(self):
         return _logger.handlers[0].stream.fileno()
 
+    def isatty(self):
+        return _logger.handlers[0].stream.isatty()
+
 
 # profiler
 prof = None
