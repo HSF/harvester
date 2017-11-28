@@ -73,7 +73,7 @@ class SpecBase(object):
             values = values._asdict()
         for attr in self.attributes:
             val = values[attr]
-            if attr in self.serializedAttrs:
+            if attr in self.serializedAttrs and val is not None:
                 val = json.loads(val, object_hook=as_python_object)
             object.__setattr__(self, attr, val)
 
