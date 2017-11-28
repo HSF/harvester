@@ -1699,6 +1699,7 @@ class DBProxy:
                     # commit
                     self.commit()
             # update worker
+            retVal = True
             for idxW, workSpec in enumerate(workspec_list):
                 tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                                 method_name='update_jobs_workers')
@@ -1724,6 +1725,8 @@ class DBProxy:
                 self.execute(sqlW, varMap)
                 nRow = self.cur.rowcount
                 tmpLog.debug('done with {0}'.format(nRow))
+                if nRow == 0:
+                    retVal = False
                 # insert relationship if necessary
                 if panda_ids_list is not None and len(panda_ids_list) > idxW:
                     varMapsIR = []
@@ -1744,7 +1747,7 @@ class DBProxy:
                 # commit
                 self.commit()
             # return
-            return True
+            return retVal
         except:
             # roll back
             self.rollback()
