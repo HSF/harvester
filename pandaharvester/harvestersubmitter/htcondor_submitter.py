@@ -1,3 +1,4 @@
+import os
 import tempfile
 import subprocess
 
@@ -87,6 +88,19 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir):
     return tmpFile.name
 
 
+# parse log, stdout, stderr filename
+def parse_batch_job_filename(value_str, file_dir, batchID):
+    _filename = os.path.basename(value_str)
+    _sanitized_list = re.sub('\{(\w+)\}|\[(\w+)\]|\((\w+)\)|#(\w+)#|\$', '',  _filename).split('.')
+    _prefix = _sanitized_list[0]
+    _suffix = _sanitized_list[-1] if len(_sanitized_list) > 1 else ''
+
+    for _f in os.listdir(file_dir):
+        if re.match('{prefix}(.*)\.{batchID}\.(.*)\.{suffix}'.format(prefix=_prefix, suffix=_suffix, batchID=batchID), _f):
+            return _f
+    return None
+
+
 # submitter for HTCONDOR batch system
 class HTCondorSubmitter(PluginBase):
     # constructor
@@ -116,6 +130,25 @@ class HTCondorSubmitter(PluginBase):
         # exec with mcore
         with Pool(self.nProcesses) as pool:
             retValList = pool.map(submit_a_worker, dataList)
+
+        # get batch_log, stdout, stderr filename
+        for _line in self.template.split('\n'):
+            if _line.startswith('#'):
+                continue
+            _match_batch_log = re.match('log = (.+)', _line)
+            _match_stdout = re.match('output = (.+)', _line)
+            _match_stderr = re.match('error = (.+)', _line)
+            if _match_batch_log:
+                batch_log_value = _match_batch_log.group(1)
+                continue
+            if _match_stdout:
+                stdout_value = _match_stdout.group(1)
+                continue
+            if _match_stderr:
+                stderr_value = _match_stderr.group(1)
+                continue
+
+
         # propagate changed attributes
         retList = []
         for workSpec, tmpVal in zip(workspec_list, retValList):
@@ -123,9 +156,13 @@ class HTCondorSubmitter(PluginBase):
             workSpec.set_attributes_with_dict(tmpDict)
             # URLs for log files
             if self.logBaseURL is not None and workSpec.batchID is not None:
-                workSpec.set_log_file('batch_log', '{0}/{1}.log'.format(self.logBaseURL, workSpec.batchID))
-                workSpec.set_log_file('stdout', '{0}/{1}.out'.format(self.logBaseURL, workSpec.batchID))
-                workSpec.set_log_file('stderr', '{0}/{1}.err'.format(self.logBaseURL, workSpec.batchID))
+                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=self.logDir, batchID=workSpec.batchID)
+                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=self.logDir, batchID=workSpec.batchID)
+                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=self.logDir, batchID=workSpec.batchID)
+                workSpec.set_log_file('batch_log', '{0}/{1}'.format(self.logBaseURL, batch_log_filename))
+                workSpec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name))
+                workSpec.set_log_file('stderr', '{0}/{1}'.format(self.logBaseURL, stderr_path_filename))
+                tmpLog.debug('Done set_log_file')
             retList.append(retVal)
         tmpLog.debug('done')
         return retList

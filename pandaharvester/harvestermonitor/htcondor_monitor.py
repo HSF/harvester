@@ -187,8 +187,7 @@ class HTCondorMonitor (PluginBase):
                 ## Command failed
                 errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
                 tmpLog.error(errStr)
-                retList.append((newStatus, errStr))
-                return True, retList
+                return False, errStr
 
         if batchIDs_list:
             tmpLog.info( 'Unfound batch jobs: '.format( ' '.join(batchIDs_list) ) )
