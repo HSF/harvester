@@ -59,13 +59,13 @@ class WorkerMaker:
             return [], jobchunk_list
 
     # get number of jobs per worker
-    def get_num_jobs_per_worker(self, queue_config):
+    def get_num_jobs_per_worker(self, queue_config, n_workers):
         # get plugin
         maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.get_num_jobs_per_worker()
+        return maker.get_num_jobs_per_worker(n_workers)
 
     # get number of workers per job
-    def get_num_workers_per_job(self, queue_config):
+    def get_num_workers_per_job(self, queue_config, n_workers):
         # get plugin
         maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.get_num_workers_per_job()
+        return maker.get_num_workers_per_job(n_workers)

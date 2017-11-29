@@ -76,9 +76,11 @@ class Monitor(AgentBase):
                         eventsRequestParams = tmpOut['eventsRequestParams']
                         nJobsToReFill = tmpOut['nJobsToReFill']
                         pandaIDs = tmpOut['pandaIDs']
-                        tmpLog.debug('newStatus={0} monitoredStatus={1} diag={2}'.format(newStatus,
-                                                                                         monStatus,
-                                                                                         diagMessage))
+                        tmpStr = 'newStatus={0} monitoredStatus={1} diag={2} '
+                        tmpStr += 'postProcessed={3} files={4}'
+                        tmpLog.debug(tmpStr.format(newStatus, monStatus, diagMessage,
+                                                   workSpec.is_post_processed(),
+                                                   str(filesToStageOut)))
                         iWorker += 1
                         # check status
                         if newStatus not in WorkSpec.ST_LIST:
@@ -86,7 +88,7 @@ class Monitor(AgentBase):
                             continue
                         # update worker
                         workSpec.set_status(newStatus)
-                        workSpec.workAttributes = workAttributes
+                        workSpec.set_work_attributes(workAttributes)
                         # request events
                         if eventsRequestParams != {}:
                             workSpec.eventsRequest = WorkSpec.EV_requestEvents
@@ -118,7 +120,12 @@ class Monitor(AgentBase):
                                 jobSpec.subStatus,
                                 jobSpec.get_job_status_from_attributes()))
                     # update local database
-                    self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
+                    tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
+                    if not tmpRet:
+                        for workSpec in workSpecs:
+                            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                            method_name='run')
+                            tmpLog.error('failed to update the DB. lockInterval may be too short')
                     # send ACK to workers for events and files
                     if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                         for workSpec in workSpecs:

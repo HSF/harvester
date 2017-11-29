@@ -15,6 +15,8 @@ try:
 except:
     pass
 
+from pandalogger import logger_config
+
 from pandaharvester import commit_timestamp
 from pandaharvester import panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
@@ -66,7 +68,7 @@ class Master(object):
         from pandaharvester.harvesterbody.cacher import Cacher
         thr = Cacher(self.communicatorPool, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
-        thr.execute()
+        thr.execute(force_update=True, skip_lock=True)
         thr.start()
         thrList.append(thr)
         # Watcher
@@ -180,8 +182,14 @@ class StdErrWrapper(object):
     def write(self, message):
         _logger.error(message)
 
+    def flush(self):
+        _logger.handlers[0].flush()
+
     def fileno(self):
         return _logger.handlers[0].stream.fileno()
+
+    def isatty(self):
+        return _logger.handlers[0].stream.isatty()
 
 
 # profiler
@@ -217,9 +225,16 @@ def main(daemon_mode=True):
         print ("Version : {0}".format(panda_pkg_info.release_version))
         print ("Last commit : {0}".format(commit_timestamp.timestamp))
         return
+    # check pid
+    if options.pid is not None and os.path.exists(options.pid):
+        print ("ERROR: Cannot start since lock file {0} already exists".format(options.pid))
+        return
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
+    # get umask
+    umask = os.umask(0)
+    os.umask(umask)
     # memory logging
     if options.memLogging:
         core_utils.enable_memory_profiling()
@@ -250,11 +265,17 @@ def main(daemon_mode=True):
                                   stderr=sys.stderr,
                                   uid=uid,
                                   gid=gid,
+                                  umask=umask,
                                   files_preserve=files_preserve,
                                   pidfile=daemon.pidfile.PIDLockFile(options.pid))
     else:
         dc = DummyContext()
     with dc:
+        # remove pidfile to prevent child processes crashing in atexit
+        if not options.singleMode:
+            dc.pidfile = None
+        core_utils.set_file_permission(options.pid)
+        core_utils.set_file_permission(logger_config.daemon['logdir'])
         _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
                                                                        commit_timestamp.timestamp))
 
@@ -288,11 +309,15 @@ def main(daemon_mode=True):
         # signal handlers
         def catch_sigkill(sig, frame):
             disable_profiler()
+            _logger.info('got signal={0}'.format(sig))
             try:
                 os.remove(options.pid)
             except:
                 pass
-            os.killpg(os.getpgrp(), signal.SIGKILL)
+            if os.getppid() == 1:
+                os.killpg(os.getpgrp(), signal.SIGKILL)
+            else:
+                os.kill(os.getpid(), signal.SIGKILL)
 
         def catch_sigterm(sig, frame):
             stopEvent.set()

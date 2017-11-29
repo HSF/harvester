@@ -65,6 +65,7 @@ class DBProxy:
             self.con = sqlite3.connect(harvester_config.db.database_filename,
                                        detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
                                        check_same_thread=False)
+            core_utils.set_file_permission(harvester_config.db.database_filename)
             # change the row factory to use Row
             self.con.row_factory = sqlite3.Row
             self.cur = self.con.cursor()
@@ -981,39 +982,40 @@ class DBProxy:
                 self.execute(sqlU, varMap)
             # collect values to update jobs or insert job/worker mapping
             varMapsR = []
-            for jobSpec in jobspec_list:
-                # get number of workers for the job
-                varMap = dict()
-                varMap[':pandaID'] = jobSpec.PandaID
-                self.execute(sqlNW, varMap)
-                resNW = self.cur.fetchall()
-                workerIDs = set()
-                workerIDs.add(workspec.workerID)
-                for tmpWorkerID, in resNW:
-                    workerIDs.add(tmpWorkerID)
-                # update attributes
-                if jobSpec.subStatus in ['submitted', 'running']:
-                    jobSpec.nWorkers = len(workerIDs)
-                elif workspec.hasJob == 1:
-                    jobSpec.subStatus = 'submitted'
-                    jobSpec.nWorkers = len(workerIDs)
-                else:
-                    jobSpec.subStatus = 'queued'
-                # sql to update job
-                sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
-                sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
-                # update job
-                varMap = jobSpec.values_map(only_changed=True)
-                varMap[':cr_PandaID'] = jobSpec.PandaID
-                varMap[':cr_lockedBy'] = locked_by
-                self.execute(sqlJ, varMap)
-                if jobSpec.subStatus == 'submitted':
-                    # values for job/worker mapping
-                    jwRelation = JobWorkerRelationSpec()
-                    jwRelation.PandaID = jobSpec.PandaID
-                    jwRelation.workerID = workspec.workerID
-                    varMap = jwRelation.values_list()
-                    varMapsR.append(varMap)
+            if jobspec_list is not None:
+                for jobSpec in jobspec_list:
+                    # get number of workers for the job
+                    varMap = dict()
+                    varMap[':pandaID'] = jobSpec.PandaID
+                    self.execute(sqlNW, varMap)
+                    resNW = self.cur.fetchall()
+                    workerIDs = set()
+                    workerIDs.add(workspec.workerID)
+                    for tmpWorkerID, in resNW:
+                        workerIDs.add(tmpWorkerID)
+                    # update attributes
+                    if jobSpec.subStatus in ['submitted', 'running']:
+                        jobSpec.nWorkers = len(workerIDs)
+                    elif workspec.hasJob == 1:
+                        jobSpec.subStatus = 'submitted'
+                        jobSpec.nWorkers = len(workerIDs)
+                    else:
+                        jobSpec.subStatus = 'queued'
+                    # sql to update job
+                    sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
+                    sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
+                    # update job
+                    varMap = jobSpec.values_map(only_changed=True)
+                    varMap[':cr_PandaID'] = jobSpec.PandaID
+                    varMap[':cr_lockedBy'] = locked_by
+                    self.execute(sqlJ, varMap)
+                    if jobSpec.subStatus == 'submitted':
+                        # values for job/worker mapping
+                        jwRelation = JobWorkerRelationSpec()
+                        jwRelation.PandaID = jobSpec.PandaID
+                        jwRelation.workerID = workspec.workerID
+                        varMap = jwRelation.values_list()
+                        varMapsR.append(varMap)
             # insert job/worker mapping
             if len(varMapsR) > 0:
                 self.executemany(sqlR, varMapsR)
@@ -1486,7 +1488,7 @@ class DBProxy:
             sqlFC = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlFC += "WHERE PandaID=:PandaID AND lfn=:lfn "
             # sql to check file with eventRangeID
-            sqlFE = "SELECT 1 FROM {0} ".format(fileTableName)
+            sqlFE = "SELECT 1 c FROM {0} ".format(fileTableName)
             sqlFE += "WHERE PandaID=:PandaID AND lfn=:lfn AND eventRangeID=:eventRangeID ".format(fileTableName)
             # sql to insert file
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
@@ -1499,7 +1501,7 @@ class DBProxy:
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
             sqlFU += "WHERE fileID=:fileID "
             # sql to check event
-            sqlEC = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(eventTableName)
+            sqlEC = "SELECT 1 c FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(eventTableName)
             # sql to check associated file
             sqlEF = "SELECT status FROM {0} ".format(fileTableName)
             sqlEF += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
@@ -1511,7 +1513,7 @@ class DBProxy:
             sqlEU += "SET eventStatus=:eventStatus,subStatus=:subStatus "
             sqlEU += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
             # sql to check if relationship is already available
-            sqlCR = "SELECT 1 FROM {0} WHERE PandaID=:PandaID AND workerID=:workerID ".format(jobWorkerTableName)
+            sqlCR = "SELECT 1 c FROM {0} WHERE PandaID=:PandaID AND workerID=:workerID ".format(jobWorkerTableName)
             # sql to insert job and worker relationship
             sqlIR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlIR += JobWorkerRelationSpec.bind_values_expression()
@@ -1697,6 +1699,7 @@ class DBProxy:
                     # commit
                     self.commit()
             # update worker
+            retVal = True
             for idxW, workSpec in enumerate(workspec_list):
                 tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                                 method_name='update_jobs_workers')
@@ -1722,6 +1725,8 @@ class DBProxy:
                 self.execute(sqlW, varMap)
                 nRow = self.cur.rowcount
                 tmpLog.debug('done with {0}'.format(nRow))
+                if nRow == 0:
+                    retVal = False
                 # insert relationship if necessary
                 if panda_ids_list is not None and len(panda_ids_list) > idxW:
                     varMapsIR = []
@@ -1742,7 +1747,7 @@ class DBProxy:
                 # commit
                 self.commit()
             # return
-            return True
+            return retVal
         except:
             # roll back
             self.rollback()
@@ -2659,7 +2664,7 @@ class DBProxy:
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID "
             # sql to check if the file is ready to delete
-            sqlD = "SELECT 1 FROM {0} ".format(fileTableName)
+            sqlD = "SELECT 1 c FROM {0} ".format(fileTableName)
             sqlD += "WHERE lfn=:lfn AND todelete=:to_delete "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()

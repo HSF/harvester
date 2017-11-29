@@ -5,6 +5,7 @@ import hashlib
 import uuid
 import random
 import string
+import time
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -17,11 +18,14 @@ def dump(obj):
 
 ueueName = 'ALCF_Theta'
 job_id = 1111
+globus_sleep_time = 15  # seconds
 
 if len(sys.argv) > 1:
    queueName = sys.argv[1]
 if len(sys.argv) > 2:
    job_id = int(sys.argv[2])
+if len(sys.argv) > 3:
+   globus_sleep_time = int(sys.argv[3])
 
 queueConfigMapper = QueueConfigMapper()
 queueConfig = queueConfigMapper.get_queue(queueName)
@@ -37,7 +41,6 @@ queueConfig.stager['module'] = 'pandaharvester.harvesterstager.go_stager'
 queueConfig.stager['name'] = 'GlobusStager'
 print "Modified queueConfig.stager = ",queueConfig.stager
 
-exit
 scope = 'panda'
 
 fileSpec = FileSpec()
@@ -108,7 +111,8 @@ else:
     print " NG {0}".format(tmpOut)
     sys.exit(1)
 
-print
+print "sleep {0} seconds".format(globus_sleep_time)
+time.sleep(globus_sleep_time)
 
 print "checking status for transfer"
 tmpStat, tmpOut = stagerCore.check_status(jobSpec)

@@ -86,6 +86,12 @@ pandaURLSSL = https://pandaserver.cern.ch:25443/server/panda
 # base URL via proxy
 pandaURLProxy = http://pandaserver.cern.ch:25080/server/panda
 
+# base URL for write access to log cache server
+pandaCacheURL_W = https://aipanda011.cern.ch:25443/server/panda
+
+# base URL for read access to log cache server
+pandaCacheURL_R = https://aipanda011.cern.ch:25443/cache
+
 # verbose
 verbose = False
 

@@ -12,6 +12,7 @@ baseLogger = core_utils.setup_logger('dummy_submitter')
 class DummySubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
+        self.logBaseURL = 'http://localhost/test'
         PluginBase.__init__(self, **kwarg)
 
     # submit workers
@@ -35,6 +36,12 @@ class DummySubmitter(PluginBase):
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
         retList = []
         for workSpec in workspec_list:
+            workSpec.batchID = 'batch_ID_{0}'.format(uuid.uuid4().hex)
+            workSpec.queueName = 'batch_queue_name'
+            workSpec.computingElement = 'CE_name'
+            workSpec.set_log_file('batch_log', '{0}/{1}.log'.format(self.logBaseURL, workSpec.batchID))
+            workSpec.set_log_file('stdout', '{0}/{1}.out'.format(self.logBaseURL, workSpec.batchID))
+            workSpec.set_log_file('stderr', '{0}/{1}.err'.format(self.logBaseURL, workSpec.batchID))
             if workSpec.get_jobspec_list() is not None:
                 tmpLog.debug('aggregated nCore={0} minRamCount={1} maxDiskCount={2}'.format(workSpec.nCore,
                                                                                             workSpec.minRamCount,
@@ -44,11 +51,10 @@ class DummySubmitter(PluginBase):
                     tmpLog.debug('PandaID={0} nCore={1} RAM={2}'.format(jobSpec.PandaID,
                                                                         jobSpec.jobParams['coreCount'],
                                                                         jobSpec.jobParams['minRamCount']))
+                    # using batchLog URL as pilot ID
+                    jobSpec.set_one_attribute('pilotID', workSpec.workAttributes['batchLog'])
                 for job in workSpec.jobspec_list:
                     tmpLog.debug(" ".join([job.jobParams['transformation'], job.jobParams['jobPars']]))
-            workSpec.batchID = 'batch_ID_{0}'.format(uuid.uuid4().hex)
-            workSpec.queueName = 'batch_queue_name'
-            workSpec.computingElement = 'CE_name'
             f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
             f.write(WorkSpec.ST_submitted)
             f.close()

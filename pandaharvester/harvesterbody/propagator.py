@@ -106,6 +106,14 @@ class Propagator(AgentBase):
                         if tmpRet:
                             mainLog.debug('updated workerID={0} status={1}'.format(tmpWorkSpec.workerID,
                                                                                    tmpWorkSpec.status))
+                            # update logs
+                            for logFilePath, logOffset, logSize, logRemoteName in \
+                                    tmpWorkSpec.get_log_files_to_upload():
+                                with open(logFilePath, 'rb') as logFileObj:
+                                    tmpStat, tmpErr = self.communicator.upload_file(logRemoteName, logFileObj,
+                                                                                    logOffset, logSize)
+                                    if tmpStat:
+                                        tmpWorkSpec.update_log_files_to_upload(logFilePath, logOffset+logSize)
                             # disable further update
                             if tmpWorkSpec.is_final_status():
                                 tmpWorkSpec.disable_propagation()

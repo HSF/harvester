@@ -27,7 +27,9 @@ setup(
     install_requires=['requests',
                       'python-daemon',
                       'future',
-                      'pycrypto'
+                      'futures',
+                      'pycrypto',
+                      'panda-common-s'
                       ],
     data_files=[
         # config and cron files
