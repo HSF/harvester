@@ -76,7 +76,7 @@ class SAGASubmitter (PluginBase):
                 jd.executable = "\n".join(self._get_executable(work_spec.jobspec_list))
             else:
                 jd.executable = work_spec.workParams
-
+            tmpLog.debug("Command to be launched: \n{0}".format(jd.executable))
             jd.total_cpu_count = work_spec.nCore  # one node with 16 cores for one job
             jd.queue = self.localqueue
 
