@@ -321,6 +321,10 @@ def main(daemon_mode=True):
 
         def catch_sigterm(sig, frame):
             stopEvent.set()
+            try:
+                os.remove(options.pid)
+            except:
+                pass
 
         # set handler
         if daemon_mode:
