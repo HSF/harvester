@@ -163,6 +163,11 @@ class HTCondorSubmitter(PluginBase):
                 workSpec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name))
                 workSpec.set_log_file('stderr', '{0}/{1}'.format(self.logBaseURL, stderr_path_filename))
                 tmpLog.debug('Done set_log_file')
+            for jobSpec in workSpec.get_jobspec_list():
+                # using batchLog and stdOut URL as pilotID and pilotLog
+                jobSpec.set_one_attribute('pilotID', workSpec.workAttributes['stdOut'])
+                jobSpec.set_one_attribute('pilotLog', workSpec.workAttributes['batchLog'])
+                tmpLog.debug('Done jobspec attribute setting')
             retList.append(retVal)
         tmpLog.debug('done')
         return retList
