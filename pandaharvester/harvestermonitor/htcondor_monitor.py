@@ -83,12 +83,16 @@ def _check_one_worker(workspec, job_ads_all_dict):
                 else:
                     errStr = 'cannot get JobStatus of job batchID={0}'.format(workspec.batchID)
                     tmpLog.error(errStr)
+                    tmpLog.warning('Regard the worker as failed by deafault')
                     newStatus = WorkSpec.ST_failed
 
-                tmpLog.info('batchStatus {0} -> workerStatus {1}'.format(batchStatus, newStatus))
+                tmpLog.info('batchID={0} : batchStatus {1} -> workerStatus {2}'.format(workspec.batchID, batchStatus, newStatus))
 
         else:
-            tmpLog.info('condor job batchID={0} not found'.format(workspec.batchID))
+            tmpLog.warning('condor job batchID={0} not found'.format(workspec.batchID))
+            tmpLog.warning('Regard the worker as failed by deafault')
+            newStatus = WorkSpec.ST_failed
+            tmpLog.info('batchID={0}: batchStatus {1} -> workerStatus {2}'.format(workspec.batchID, batchStatus, newStatus))
 
     ## Return
     return (newStatus, errStr)
@@ -138,13 +142,21 @@ class HTCondorMonitor (PluginBase):
                 ## Command succeeded
 
                 ## Kill out redundant xml roots
+#                 badtext = """
+# <?xml version="1.0"?>
+# <!DOCTYPE classads SYSTEM "classads.dtd">
+# <classads>
+#
+# </classads>
+# """
                 badtext = """
+</classads>
+
 <?xml version="1.0"?>
 <!DOCTYPE classads SYSTEM "classads.dtd">
 <classads>
-
-</classads>
 """
+
                 # badtext_re_str = '<?xml version="1.0"?>\W+<!DOCTYPE classads SYSTEM "classads.dtd">\W+<classads>\W+</classads>'
 
                 job_ads_xml_str = '\n'.join(str(stdOut).split(badtext))
