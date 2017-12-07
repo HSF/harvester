@@ -314,10 +314,14 @@ def main(daemon_mode=True):
                 os.remove(options.pid)
             except:
                 pass
-            if os.getppid() == 1:
-                os.killpg(os.getpgrp(), signal.SIGKILL)
-            else:
-                os.kill(os.getpid(), signal.SIGKILL)
+            try:
+                if os.getppid() == 1:
+                    os.killpg(os.getpgrp(), signal.SIGKILL)
+                else:
+                    os.kill(os.getpid(), signal.SIGKILL)
+            except:
+                core_utils.dump_error_message(_logger)
+                _logger.error('failed to be killed')
 
         def catch_sigterm(sig, frame):
             stopEvent.set()
