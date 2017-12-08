@@ -108,7 +108,7 @@ class Stager(AgentBase):
                 if tmpStat is True:
                     # succeeded
                     jobSpec.all_files_triggered_to_stage_out()
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
+                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
                     tmpLog.debug('triggered new subStatus={0}'.format(newSubStatus))
                 elif tmpStat is False:
                     # fatal error
