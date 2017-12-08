@@ -91,7 +91,8 @@ class Submitter(AgentBase):
                                                                             lockedBy)
                     elif queueConfig.mapType == WorkSpec.MT_MultiJobs:
                         # one worker for multiple jobs
-                        nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig)
+                        nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig, nWorkers)
+                        tmpLog.debug('nJobsPerWorker={0}'.format(nJobsPerWorker))
                         jobChunks = self.dbProxy.get_job_chunks_for_workers(queueName,
                                                                             nWorkers, nReady, nJobsPerWorker, None,
                                                                             queueConfig.useJobLateBinding,
@@ -101,7 +102,7 @@ class Submitter(AgentBase):
                                                                             queueConfig.allowJobMixture)
                     elif queueConfig.mapType == WorkSpec.MT_MultiWorkers:
                         # multiple workers for one job
-                        nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig)
+                        nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig, nWorkers)
                         jobChunks = self.dbProxy.get_job_chunks_for_workers(queueName,
                                                                             nWorkers, nReady, None, nWorkersPerJob,
                                                                             queueConfig.useJobLateBinding,
@@ -222,17 +223,17 @@ class Submitter(AgentBase):
                                 workSpec.eventsRequestParams = eventsRequestParams
                             # register worker
                             tmpStat = self.dbProxy.register_worker(workSpec, jobList, lockedBy)
-                            for jobSpec in jobList:
-                                pandaIDs.add(jobSpec.PandaID)
-                                if tmpStat:
-                                    tmpLog.info('submitted a workerID={0} for PandaID={1} with batchID={2}'.format(
-                                        workSpec.workerID,
-                                        jobSpec.PandaID,
-                                        workSpec.batchID))
-                                else:
-                                    tmpLog.error('failed to register a worker for PandaID={0} with batchID={1}'.format(
-                                        jobSpec.PandaID,
-                                        workSpec.batchID))
+                            if jobList is not None:
+                                for jobSpec in jobList:
+                                    pandaIDs.add(jobSpec.PandaID)
+                                    if tmpStat:
+                                        tmpStr = 'submitted a workerID={0} for PandaID={1} with batchID={2}'
+                                        tmpLog.info(tmpStr.format(workSpec.workerID,
+                                                                  jobSpec.PandaID,
+                                                                  workSpec.batchID))
+                                    else:
+                                        tmpStr = 'failed to register a worker for PandaID={0} with batchID={1}'
+                                        tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
                     # release jobs
                     self.dbProxy.release_jobs(pandaIDs, lockedBy)
             mainLog.debug('done')

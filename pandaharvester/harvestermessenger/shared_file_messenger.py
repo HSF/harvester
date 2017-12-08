@@ -304,9 +304,13 @@ class SharedFileMessenger(PluginBase):
                 core_utils.dump_error_message(tmpLog)
                 retVal = False
         # put PandaIDs file
-        jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
-        with open(jsonFilePath, 'w') as jsonPandaIDsFile:
-            json.dump(pandaIDs, jsonPandaIDsFile)
+        try:
+            jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
+            with open(jsonFilePath, 'w') as jsonPandaIDsFile:
+                json.dump(pandaIDs, jsonPandaIDsFile)
+        except:
+            core_utils.dump_error_message(tmpLog)
+            retVal = False
         # remove request file
         try:
             reqFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
@@ -445,18 +449,25 @@ class SharedFileMessenger(PluginBase):
 
     # setup access points
     def setup_access_points(self, workspec_list):
-        for workSpec in workspec_list:
-            accessPoint = workSpec.get_access_point()
-            # make the dir if missing
-            if not os.path.exists(accessPoint):
-                os.makedirs(accessPoint)
-            jobSpecs = workSpec.get_jobspec_list()
-            if jobSpecs is not None:
-                for jobSpec in jobSpecs:
-                    subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
-                    if accessPoint != subAccessPoint:
-                        if not os.path.exists(subAccessPoint):
-                            os.mkdir(subAccessPoint)
+        try:
+            for workSpec in workspec_list:
+                accessPoint = workSpec.get_access_point()
+                # make the dir if missing
+                if not os.path.exists(accessPoint):
+                    os.makedirs(accessPoint)
+                jobSpecs = workSpec.get_jobspec_list()
+                if jobSpecs is not None:
+                    for jobSpec in jobSpecs:
+                        subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
+                        if accessPoint != subAccessPoint:
+                            if not os.path.exists(subAccessPoint):
+                                os.mkdir(subAccessPoint)
+            return True
+        except:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='setup_access_points')
+            core_utils.dump_error_message(tmpLog)
+            return False
 
     # filter for log.tar.gz
     def filter_log_tgz(self, name):

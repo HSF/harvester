@@ -1,6 +1,5 @@
 import sys
 import time
-import os
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.job_spec import JobSpec
 

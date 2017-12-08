@@ -188,6 +188,9 @@ class StdErrWrapper(object):
     def fileno(self):
         return _logger.handlers[0].stream.fileno()
 
+    def isatty(self):
+        return _logger.handlers[0].stream.isatty()
+
 
 # profiler
 prof = None
@@ -221,6 +224,10 @@ def main(daemon_mode=True):
     if options.showVersion:
         print ("Version : {0}".format(panda_pkg_info.release_version))
         print ("Last commit : {0}".format(commit_timestamp.timestamp))
+        return
+    # check pid
+    if options.pid is not None and os.path.exists(options.pid):
+        print ("ERROR: Cannot start since lock file {0} already exists".format(options.pid))
         return
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
@@ -264,6 +271,9 @@ def main(daemon_mode=True):
     else:
         dc = DummyContext()
     with dc:
+        # remove pidfile to prevent child processes crashing in atexit
+        if not options.singleMode:
+            dc.pidfile = None
         core_utils.set_file_permission(options.pid)
         core_utils.set_file_permission(logger_config.daemon['logdir'])
         _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
@@ -304,13 +314,21 @@ def main(daemon_mode=True):
                 os.remove(options.pid)
             except:
                 pass
-            if os.getppid() == 1:
-                os.killpg(os.getpgrp(), signal.SIGKILL)
-            else:
-                os.kill(os.getpid(), signal.SIGKILL)
+            try:
+                if os.getppid() == 1:
+                    os.killpg(os.getpgrp(), signal.SIGKILL)
+                else:
+                    os.kill(os.getpid(), signal.SIGKILL)
+            except:
+                core_utils.dump_error_message(_logger)
+                _logger.error('failed to be killed')
 
         def catch_sigterm(sig, frame):
             stopEvent.set()
+            try:
+                os.remove(options.pid)
+            except:
+                pass
 
         # set handler
         if daemon_mode:
