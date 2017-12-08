@@ -91,12 +91,17 @@ class QueueConfigMapper:
                         queueConfig = self.queueConfig[queueName]
                     else:
                         queueConfig = QueueConfig(queueName)
-                    for key, val in iteritems(queueDict):
-                        setattr(queueConfig, key, val)
                     # queueName = siteName/resourceType
                     queueConfig.siteName = queueConfig.queueName.split('/')[0]
                     if queueConfig.siteName != queueConfig.queueName:
                         queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
+                    for key, val in iteritems(queueDict):
+                        if isinstance(val, dict) and 'module' in val and 'name' in val:
+                            if 'siteName' not in val:
+                                val['siteName'] = queueConfig.siteName
+                            if 'queueName' not in val:
+                                val['queueName'] = queueConfig.queueName
+                        setattr(queueConfig, key, val)
                     # additional criteria for getJob
                     if queueConfig.getJobCriteria is not None:
                         tmpCriteria = dict()
