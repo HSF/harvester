@@ -214,12 +214,15 @@ class Submitter(AgentBase):
                             if tmpRet and workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
                                 workSpec.eventsRequest = WorkSpec.EV_requestEvents
                                 eventsRequestParams = dict()
-                                for jobSpec in jobList:
-                                    eventsRequestParams[jobSpec.PandaID] = {'pandaID': jobSpec.PandaID,
-                                                                            'taskID': jobSpec.taskID,
-                                                                            'jobsetID': jobSpec.jobParams['jobsetID'],
-                                                                            'nRanges': jobSpec.jobParams['coreCount'],
-                                                                            }
+                                if len(jobList) > 0:
+                                    nRanges = workSpec.nCore / len(jobList)
+                                    for jobSpec in jobList:
+                                        jobsetID = jobSpec.jobParams['jobsetID']
+                                        eventsRequestParams[jobSpec.PandaID] = {'pandaID': jobSpec.PandaID,
+                                                                                'taskID': jobSpec.taskID,
+                                                                                'jobsetID': jobsetID,
+                                                                                'nRanges': nRanges,
+                                                                                }
                                 workSpec.eventsRequestParams = eventsRequestParams
                             # register worker
                             tmpStat = self.dbProxy.register_worker(workSpec, jobList, lockedBy)
