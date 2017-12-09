@@ -197,19 +197,8 @@ class GoPreparator(PluginBase):
             # if no files to transfer return True
             return True, 'No files to transfer'
         except:
-<<<<<<< HEAD
-            errmsg = globus_utils.handle_globus_exception(tmpLog)
-            
-            if 'TooManyPendingJobs' in errmsg:
-               # return None so transfer will be retried later
-               tmpLog.info('to many transfers, will try again later')
-               return None,{}
-
-            return False, {}
-=======
             errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
             return errStat, {}
->>>>>>> upstream/master
 
 
     # make label for transfer task
