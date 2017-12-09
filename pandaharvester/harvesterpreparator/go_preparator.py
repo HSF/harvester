@@ -79,7 +79,7 @@ class GoPreparator(PluginBase):
         if label not in transferTasks:
             errStr = 'transfer task is missing'
             tmpLog.error(errStr)
-            return None, errStr
+            return False, errStr
         # succeeded
         if transferTasks[label]['status'] == 'SUCCEEDED':
             transferID = transferTasks[label]['task_id'] 
