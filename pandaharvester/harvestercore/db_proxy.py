@@ -2824,58 +2824,111 @@ class DBProxy:
             # return
             return False
 
+    # clone queue
+    def clone_queue_with_new_resource_type(self, site_name, queue_name, resource_type, new_workers):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'site_name={0} queue_name={1}'.format(site_name, queue_name),
+                                            method_name='clone_queue_with_new_resource_type')
+            tmpLog.debug('start')
+
+            # get the values from one of the existing queues
+            sql_select_queue = "SELECT {0} FROM {1}".format(PandaQueueSpec.column_names(), pandaQueueTableName)
+            self.execute(sql_select_queue)
+            tmpLog.debug(sql_select_queue)
+            queue = self.cur.fetchone()
+
+            if queue: # a queue to clone was found
+                var_map = {}
+                sql_insert = "INSERT INTO {0} (".format(pandaQueueTableName)
+                sql_values = "VALUES ("
+                for attribute, value in zip(PandaQueueSpec.column_names().split(','), queue):
+                    if attribute == 'resourceType':
+                        var_map[attribute] = resource_type
+                    elif attribute == 'nNewWorkers':
+                        var_map[attribute] = resource_type
+                    else:
+                        var_map[attribute] = value
+                    sql_insert += '{0},'.format(attribute)
+                    sql_values += ':{0},'.format(attribute)
+                sql_insert = sql_insert[:-1] + ') '
+                sql_values = sql_values[:-1] + ') '
+
+                self.execute(sql_insert + sql_values, var_map)
+                tmpLog.debug(sql_select_queue)
+            else:
+                tmpLog.debug("Failed to clone the queue")
+            self.commit()
+            return True
+        except:
+            self.rollback()
+            core_utils.dump_error_message(_logger)
+            return False
+
+
     # set queue limit
     def set_queue_limit(self, site_name, params):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='set_queue_limit')
             tmpLog.debug('start')
+
             # sql to update nQueueLimit
-            sqlQ = "UPDATE {0} ".format(pandaQueueTableName)
-            sqlQ += "SET nNewWorkers=:nQueue WHERE siteName=:siteName AND resourceType=:resourceType "
-            # sql to insert nQueueLimit
-            sqlQ_insert = "INSERT INTO {0} ".format(pandaQueueTableName)
-            sqlQ_insert += "SET nNewWorkers=:nQueue WHERE siteName=:siteName AND resourceType=:resourceType "
+            sql_update_queue = "UPDATE {0} ".format(pandaQueueTableName)
+            sql_update_queue += "SET nNewWorkers=:nQueue WHERE siteName=:siteName AND resourceType=:resourceType "
+
             # sql to get num of submitted workers
-            sqlC = "SELECT COUNT(*) cnt "
-            sqlC += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
-            sqlC += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
-            sqlC += "ANd pq.resourceType=:resourceType "
+            sql_count_workers = "SELECT COUNT(*) cnt "
+            sql_count_workers += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
+            sql_count_workers += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
+            sql_count_workers += "ANd pq.resourceType=:resourceType "
+
             # set all queues
             nUp = 0
             retMap = dict()
-            for resourceType, value in iteritems(params):
+            queue_name = site_name
+
+            for resource_type, value in iteritems(params):
                 tmpLog.debug('Processing rt {0} -> {1}'.format(resourceType, value))
-                queueName = site_name
+
                 # get num of submitted workers
                 varMap = dict()
                 varMap[':siteName'] = site_name
-                varMap[':resourceType'] = resourceType
+                varMap[':resourceType'] = resource_type
                 varMap[':status'] = 'submitted'
-                self.execute(sqlC, varMap)
+                self.execute(sql_count_workers, varMap)
                 res = self.cur.fetchone()
-                tmpLog.debug('{0} has {1} submitted workers'.format(resourceType, res))
+                tmpLog.debug('{0} has {1} submitted workers'.format(resource_type, res))
+                nSubmittedWorkers = 0
                 if res is not None:
                     nSubmittedWorkers, = res
-                else:
-                    nSubmittedWorkers = 0
+
                 # set new value
-                value -= nSubmittedWorkers
-                if value < 0:
-                    value = 0
+                value = max(value - nSubmittedWorkers, 0)
                 varMap = dict()
                 varMap[':nQueue'] = value
                 varMap[':siteName'] = site_name
-                varMap[':resourceType'] = resourceType
-                self.execute(sqlQ, varMap)
+                varMap[':resourceType'] = resource_type
+                self.execute(sql_update_queue, varMap)
                 iUp = self.cur.rowcount
+
                 if iUp > 0:
-                    retMap[resourceType] = value
+                    # a queue was updated, add the values to the map
+                    retMap[resource_type] = value
+                else:
+                    # no queue was updated, we need to create a new one for the resource type
+                    cloned = self.clone_queue_with_new_resource_type(site_name, queue_name, resource_type, value)
+                    if cloned:
+                        retMap[resource_type] = value
+                        iUp = 1
+
                 nUp += iUp
-                tmpLog.debug('set nNewWorkers={0} to {1}:{2} with {3}'.format(value, queueName, resourceType, iUp))
+                tmpLog.debug('set nNewWorkers={0} to {1}:{2} with {3}'.format(value, queue_name, resource_type, iUp))
+
             # commit
             self.commit()
             tmpLog.debug('updated {0} queues'.format(nUp))
+
             return retMap
         except:
             # roll back
