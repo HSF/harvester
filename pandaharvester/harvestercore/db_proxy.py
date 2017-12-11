@@ -1109,7 +1109,9 @@ class DBProxy:
                         break
             # commit
             self.commit()
-            tmpLog.debug('got {0}'.format(str(retMap)))
+            tmpLog.debug('got retMap {0}'.format(str(retMap)))
+            tmpLog.debug('got siteName {0}'.format(str(siteName)))
+            tmpLog.debug('got resourceMap {0}'.format(str(resourceMap)))
             return retMap, siteName, resourceMap
         except:
             # roll back
@@ -2828,9 +2830,12 @@ class DBProxy:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='set_queue_limit')
             tmpLog.debug('start')
-            # sql to set nQueueLimit
+            # sql to update nQueueLimit
             sqlQ = "UPDATE {0} ".format(pandaQueueTableName)
             sqlQ += "SET nNewWorkers=:nQueue WHERE siteName=:siteName AND resourceType=:resourceType "
+            # sql to insert nQueueLimit
+            sqlQ_insert = "INSERT INTO {0} ".format(pandaQueueTableName)
+            sqlQ_insert += "SET nNewWorkers=:nQueue WHERE siteName=:siteName AND resourceType=:resourceType "
             # sql to get num of submitted workers
             sqlC = "SELECT COUNT(*) cnt "
             sqlC += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
@@ -2840,6 +2845,7 @@ class DBProxy:
             nUp = 0
             retMap = dict()
             for resourceType, value in iteritems(params):
+                tmpLog.debug('Processing rt {0} -> {1}'.format(resourceType, value))
                 queueName = site_name
                 # get num of submitted workers
                 varMap = dict()
@@ -2848,6 +2854,7 @@ class DBProxy:
                 varMap[':status'] = 'submitted'
                 self.execute(sqlC, varMap)
                 res = self.cur.fetchone()
+                tmpLog.debug('{0} has {1} submitted workers'.format(resourceType, res))
                 if res is not None:
                     nSubmittedWorkers, = res
                 else:
@@ -2865,7 +2872,7 @@ class DBProxy:
                 if iUp > 0:
                     retMap[resourceType] = value
                 nUp += iUp
-                tmpLog.debug('set nNewWorkers={0} to {1} with {2}'.format(value, queueName, iUp))
+                tmpLog.debug('set nNewWorkers={0} to {1}:{2} with {3}'.format(value, queueName, resourceType, iUp))
             # commit
             self.commit()
             tmpLog.debug('updated {0} queues'.format(nUp))
