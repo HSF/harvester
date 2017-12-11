@@ -2847,7 +2847,7 @@ class DBProxy:
                     if attribute == 'resourceType':
                         var_map[attr_binding] = resource_type
                     elif attribute == 'nNewWorkers':
-                        var_map[attr_binding] = resource_type
+                        var_map[attr_binding] = new_workers
                     else:
                         var_map[attr_binding] = value
                     sql_insert += '{0},'.format(attribute)
