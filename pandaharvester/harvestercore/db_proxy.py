@@ -2843,14 +2843,15 @@ class DBProxy:
                 sql_insert = "INSERT INTO {0} (".format(pandaQueueTableName)
                 sql_values = "VALUES ("
                 for attribute, value in zip(PandaQueueSpec.column_names().split(','), queue):
+                    attr_binding = ':{0}'.format(attribute)
                     if attribute == 'resourceType':
-                        var_map[attribute] = resource_type
+                        var_map[attr_binding] = resource_type
                     elif attribute == 'nNewWorkers':
-                        var_map[attribute] = resource_type
+                        var_map[attr_binding] = resource_type
                     else:
-                        var_map[attribute] = value
+                        var_map[attr_binding] = value
                     sql_insert += '{0},'.format(attribute)
-                    sql_values += ':{0},'.format(attribute)
+                    sql_values += '{0},'.format(attr_binding)
                 sql_insert = sql_insert[:-1] + ') '
                 sql_values = sql_values[:-1] + ') '
 
@@ -2889,7 +2890,7 @@ class DBProxy:
             queue_name = site_name
 
             for resource_type, value in iteritems(params):
-                tmpLog.debug('Processing rt {0} -> {1}'.format(resourceType, value))
+                tmpLog.debug('Processing rt {0} -> {1}'.format(resource_type, value))
 
                 # get num of submitted workers
                 varMap = dict()
