@@ -31,6 +31,7 @@ class QueueConfig:
         self.getJobCriteria = None
         self.ddmEndpointIn = None
         self.allowJobMixture = False
+        self.maxSubmissionAttempts = 3
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):

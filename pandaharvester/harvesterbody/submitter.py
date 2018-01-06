@@ -192,16 +192,32 @@ class Submitter(AgentBase):
                         workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)
                         for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                             workSpec, jobList = okChunks[iWorker]
+                            # increment submission attempt
+                            for jobSpec in jobList:
+                                if jobSpec.submissionAttempts is None:
+                                    jobSpec.submissionAttempts = 0
+                                jobSpec.submissionAttempts += 1
                             # use associated job list since it can be truncated for re-filling
                             jobList = workSpec.get_jobspec_list()
                             # set status
-                            if not tmpRet:
+                            if tmpRet is False or tmpRet is None:
                                 # failed submission
                                 tmpLog.error('failed to submit a workerID={0} with {1}'.format(
                                     workSpec.workerID,
                                     tmpStr))
                                 workSpec.set_status(WorkSpec.ST_missed)
-                                jobList = []
+                                if tmpRet is None:
+                                    # temporary error
+                                    newJobList = []
+                                    # give up jobs with too many attempts
+                                    for jobSpec in jobList:
+                                        if jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
+                                            newJobList.append(jobSpec)
+                                        else:
+                                            # increment attempt number
+                                            self.dbProxy.increment_submission_attempt(jobSpec.PandaID,
+                                                                                      jobSpec.submissionAttempts)
+                                    jobList = newJobList
                             elif queueConfig.useJobLateBinding and workSpec.hasJob == 1:
                                 # directly go to running after feeding jobs for late biding
                                 workSpec.set_status(WorkSpec.ST_running)

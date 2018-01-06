@@ -47,10 +47,12 @@ class JobSpec(SpecBase):
                            'zipPerMB:integer',
                            'nWorkers:integer',
                            'nWorkersLimit:integer',
+                           'submissionAttempts:integer'
                            )
 
     # attributes initialized with 0
     zeroAttrs = ('nWorkers',
+                 'submissionAttempts'
                  )
 
     # constructor

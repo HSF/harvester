@@ -997,10 +997,20 @@ class DBProxy:
                     if jobSpec.subStatus in ['submitted', 'running']:
                         jobSpec.nWorkers = len(workerIDs)
                     elif workspec.hasJob == 1:
-                        jobSpec.subStatus = 'submitted'
+                        if workspec.status == WorkSpec.ST_missed:
+                            jobSpec.status = 'failed'
+                            jobSpec.subStatus = 'failed_to_submit'
+                            jobSpec.trigger_propagation()
+                        else:
+                            jobSpec.subStatus = 'submitted'
                         jobSpec.nWorkers = len(workerIDs)
                     else:
-                        jobSpec.subStatus = 'queued'
+                        if workspec.status == WorkSpec.ST_missed:
+                            jobSpec.status = 'failed'
+                            jobSpec.subStatus = 'failed_to_submit'
+                            jobSpec.trigger_propagation()
+                        else:
+                            jobSpec.subStatus = 'queued'
                     # sql to update job
                     sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
                     sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
@@ -3344,6 +3354,32 @@ class DBProxy:
                 fileSpec.groupID = groupID
                 fileSpec.groupStatus = groupStatus
                 fileSpec.groupUpdateTime = groupUpdateTime
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # increment submission attempt
+    def increment_submission_attempt(self, panda_id, new_number):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'pandaID={0}'.format(panda_id),
+                                            method_name='increment_submission_attempt')
+            tmpLog.debug('start with newNum={0}'.format(new_number))
+            # sql to update attempt number
+            sqlL = "UPDATE {0} SET submissionAttempts=:newNum ".format(jobTableName)
+            sqlL += "WHERE PandaID=:PandaID "
+            varMap = dict()
+            varMap[':PandaID'] = panda_id
+            varMap[':newNum'] = new_number
+            self.execute(sqlL, varMap)
             # commit
             self.commit()
             tmpLog.debug('done')

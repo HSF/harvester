@@ -44,10 +44,16 @@ class Sweeper(AgentBase):
                     tmpStat, tmpOut = sweeperCore.kill_worker(workSpec)
                     tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
             mainLog.debug('done kill')
+            # timeout for missed
+            try:
+                keepMissed = harvester_config.sweeper.keepMissed
+            except:
+                keepMissed = 24
             # get workers for cleanup
             statusTimeoutMap = {'finished': harvester_config.sweeper.keepFinished,
                                 'failed': harvester_config.sweeper.keepFailed,
-                                'cancelled': harvester_config.sweeper.keepCancelled
+                                'cancelled': harvester_config.sweeper.keepCancelled,
+                                'missed': keepMissed
                                 }
             workersForCleanup = self.dbProxy.get_workers_for_cleanup(harvester_config.sweeper.maxWorkers,
                                                                      statusTimeoutMap)

@@ -6,6 +6,7 @@
 	       "maxWorkers":1,	
 	       "mapType":"OneToOne",
 	       "zipPerMB":1024,
+	       "maxSubmissionAttempts":3,
 	"preparator":{
 			"name":"RseDirectPreparator",
 			"module":"pandaharvester.harvesterpreparator.rse_direct_preparator",
@@ -54,6 +55,7 @@
 	       "maxWorkers":5,	
 	       "mapType":"OneToOne",
 	       "useJobLateBinding":true,
+	       "maxSubmissionAttempts":3,
 	"preparator":{
 			"name":"GoPreparator",
 			"module":"pandaharvester.harvesterpreparator.go_preparator",
