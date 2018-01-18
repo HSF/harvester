@@ -113,6 +113,11 @@ class QueueConfigMapper:
                             queueConfig.getJobCriteria = None
                         else:
                             queueConfig.getJobCriteria = tmpCriteria
+                    # removal of some attributes based on mapType
+                    if queueConfig.mapType == WorkSpec.MT_NoJob:
+                        for attName in ['nQueueLimitJob']:
+                            if hasattr(queueConfig, attName):
+                                delattr(queueConfig, attName)
                     self.queueConfig[queueName] = queueConfig
             self.lastUpdate = datetime.datetime.utcnow()
 
