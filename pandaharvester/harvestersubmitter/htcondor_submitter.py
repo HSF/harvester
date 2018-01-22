@@ -151,6 +151,7 @@ class HTCondorSubmitter(PluginBase):
 
         # propagate changed attributes
         retList = []
+        tmpLog.debug('workspec_list: {0}, retValList: {1}')
         for workSpec, tmpVal in zip(workspec_list, retValList):
             retVal, tmpDict = tmpVal
             workSpec.set_attributes_with_dict(tmpDict)

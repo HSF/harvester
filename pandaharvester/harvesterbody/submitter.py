@@ -33,6 +33,7 @@ class Submitter(AgentBase):
         while True:
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
+
             # get queues associated to a site to submit workers
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime)
@@ -46,15 +47,18 @@ class Submitter(AgentBase):
                 for commandSpec in commandSpecs:
                     newLimits = self.dbProxy.set_queue_limit(siteName, commandSpec.params)
                     for tmpResource, tmpNewVal in iteritems(newLimits):
+                        # if available, overwrite new worker value with the command from panda server
                         if tmpResource in resMap:
                             tmpQueueName = resMap[tmpResource]
                             if tmpQueueName in curWorkers:
                                 curWorkers[tmpQueueName]['nNewWorkers'] = tmpNewVal
+
                 # define number of new workers
                 if len(curWorkers) == 0:
                     nWorkersPerQueue = dict()
                 else:
                     nWorkersPerQueue = self.workerAdjuster.define_num_workers(curWorkers, siteName)
+
                 if nWorkersPerQueue is None:
                     mainLog.error('WorkerAdjuster failed to define the number of workers')
                 elif len(nWorkersPerQueue) == 0:
@@ -66,16 +70,19 @@ class Submitter(AgentBase):
                         tmpLog.debug('start')
                         nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                         nReady = tmpVal['nReady']
+
                         # check queue
                         if not self.queueConfigMapper.has_queue(queueName):
                             tmpLog.error('config not found')
                             continue
+
                         # no new workers
                         if nWorkers == 0:
                             tmpLog.debug('skipped since no new worker is needed based on current stats')
                             continue
                         # get queue
                         queueConfig = self.queueConfigMapper.get_queue(queueName)
+
                         # actions based on mapping type
                         if queueConfig.mapType == WorkSpec.MT_NoJob:
                             # workers without jobs

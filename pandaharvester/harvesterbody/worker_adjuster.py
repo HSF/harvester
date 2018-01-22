@@ -30,16 +30,20 @@ class WorkerAdjuster:
                 queueStat = dict()
             else:
                 queueStat = queueStat.data
+
             # define num of new workers
             for queueName, tmpVal in iteritems(static_num_workers):
+
                 # set 0 to num of new workers when the queue is disabled
                 if queueName in queueStat and queueStat[queueName]['status'] in ['offline']:
                     dyn_num_workers[queueName]['nNewWorkers'] = 0
                     retMsg = 'set nNewWorkers=0 since status={0}'.format(queueStat[queueName]['status'])
                     tmpLog.debug(retMsg)
                     continue
+
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
+
                 # get throttler
                 if queueName not in self.throttlerMap:
                     if hasattr(queueConfig, 'throttler'):
@@ -47,16 +51,17 @@ class WorkerAdjuster:
                     else:
                         throttler = None
                     self.throttlerMap[queueName] = throttler
+
                 # check throttler
                 throttler = self.throttlerMap[queueName]
                 if throttler is not None:
                     toThrottle, tmpMsg = throttler.to_be_throttled(queueConfig)
                     if toThrottle:
                         dyn_num_workers[queueName]['nNewWorkers'] = 0
-                        retMsg = 'set nNewWorkers=0 by {0}:{1}'.format(throttler.__class__.__name__,
-                                                                       tmpMsg)
+                        retMsg = 'set nNewWorkers=0 by {0}:{1}'.format(throttler.__class__.__name__, tmpMsg)
                         tmpLog.debug(retMsg)
                         continue
+
                 # check stats
                 nQueue = tmpVal['nQueue']
                 nReady = tmpVal['nReady']
@@ -72,14 +77,15 @@ class WorkerAdjuster:
                         continue
                 else:
                     nNewWorkersDef = None
+
                 # define num of new workers based on static site config
                 nNewWorkers = 0
-                if nQueueLimit > 0 and nQueue >= nQueueLimit:
+                if nQueue >= nQueueLimit > 0:
                     # enough queued workers
                     retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimit({1})'.format(nQueue, nQueueLimit)
                     tmpLog.debug(retMsg)
                     pass
-                elif maxWorkers > 0 and (nQueue + nReady + nRunning) >= maxWorkers:
+                elif (nQueue + nReady + nRunning) >= maxWorkers > 0:
                     # enough workers in the system
                     retMsg = 'No nNewWorkers since nQueue({0}) + nReady({1}) + nRunning({2}) '.format(nQueue,
                                                                                                       nReady,
