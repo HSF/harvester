@@ -120,6 +120,9 @@ class QueueConfigMapper:
                                 delattr(queueConfig, attName)
                     self.queueConfig[queueName] = queueConfig
             self.lastUpdate = datetime.datetime.utcnow()
+        # update database
+        dbProxy = DBProxy()
+        dbProxy.fill_panda_queue_table(harvester_config.qconf.queueList, self)
 
     # check if valid queue
     def has_queue(self, queue_name):

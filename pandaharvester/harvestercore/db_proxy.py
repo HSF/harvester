@@ -333,7 +333,7 @@ class DBProxy:
                 print (outStr)
             sys.exit(1)
         # fill PandaQueue table
-        self.fill_panda_queue_table(harvester_config.qconf.queueList, queue_config_mapper)
+        queue_config_mapper.load_data()
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
         # delete process locks
