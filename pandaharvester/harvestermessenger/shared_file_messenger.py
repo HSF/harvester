@@ -46,6 +46,12 @@ xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
 # json to get PandaIDs
 pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
 
+# json to kill worker
+try:
+    killWorkerFile = harvester_config.payload_interaction.killWorkerFile
+except:
+    killWorkerFile = 'kill_worker.json'
+
 # suffix to read json
 suffixReadJson = '.read'
 
@@ -537,3 +543,18 @@ class SharedFileMessenger(PluginBase):
             return retVal
         tmpLog.debug('found')
         return retVal
+
+    # check if requested to kill the worker
+    def kill_requested(self, workspec):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='kill_requested')
+        # look for the json just under the access point
+        jsonFilePath = os.path.join(workspec.get_access_point(), killWorkerFile)
+        tmpLog.debug('looking for kill request file {0}'.format(jsonFilePath))
+        if not os.path.exists(jsonFilePath):
+            # not found
+            tmpLog.debug('not found')
+            return False
+        tmpLog.debug('kill requested')
+        return True

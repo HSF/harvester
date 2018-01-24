@@ -2588,7 +2588,7 @@ class DBProxy:
             # return
             return {}
 
-    # send kill command to worker associated to a job
+    # send kill command to workers associated to a job
     def kill_workers_with_job(self, panda_id):
         try:
             # get logger
@@ -2622,6 +2622,39 @@ class DBProxy:
             # commit
             self.commit()
             tmpLog.debug('set killTime to {0} workers'.format(nRow))
+            return nRow
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None
+
+    # send kill command to a worker
+    def kill_worker(self, worker_id):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
+                                            method_name='kill_worker')
+            tmpLog.debug('start')
+            # sql to set killTime
+            sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
+            # set an older time to trigger sweeper
+            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set killTime
+            varMap = dict()
+            varMap[':workerID'] = worker_id
+            varMap[':setTime'] = setTime
+            varMap[':st1'] = WorkSpec.ST_finished
+            varMap[':st2'] = WorkSpec.ST_failed
+            varMap[':st3'] = WorkSpec.ST_cancelled
+            self.execute(sqlL, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('set killTime with {0}'.format(nRow))
             return nRow
         except:
             # roll back
