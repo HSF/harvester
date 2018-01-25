@@ -73,6 +73,12 @@ class Submitter(AgentBase):
                     if nWorkers == 0:
                         tmpLog.debug('skipped since no new worker is needed based on current stats')
                         continue
+                    # cap
+                    try:
+                        maxWorkers = harvester_config.submitter.maxWorkers
+                    except:
+                        maxWorkers = 500
+                    nWorkers = min(nWorkers, maxWorkers)
                     # get queue
                     queueConfig = self.queueConfigMapper.get_queue(queueName)
                     # actions based on mapping type
