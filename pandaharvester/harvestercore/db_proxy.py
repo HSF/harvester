@@ -1149,8 +1149,8 @@ class DBProxy:
             sqlCore = "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
             sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit)) "
             sqlCore += "AND (submitterTime IS NULL "
-            sqlCore += "OR ((submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
-            sqlCore += "OR submitterTime<:checkTimeLimit)) "
+            sqlCore += "OR (submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sqlCore += "OR (submitterTime<:checkTimeLimit AND lockedBy IS NULL)) "
             sqlCore += "AND computingSite=:queueName "
             # sql to lock job
             sqlL = "UPDATE {0} SET submitterTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
