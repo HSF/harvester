@@ -1,8 +1,12 @@
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore import core_utils
 
 
 # simple maker
+
+# logger
+_logger = core_utils.setup_logger('simple_worker_maker')
 
 class SimpleWorkerMaker(PluginBase):
     # constructor
@@ -11,8 +15,14 @@ class SimpleWorkerMaker(PluginBase):
 
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config):
+        tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
+                                        method_name='make_worker')
+
+        tmpLog.debug('jobspec_list: {0}'.format(jobspec_list))
+
         workSpec = WorkSpec()
         if len(jobspec_list) > 0:
+            # push case: we know the job and set the parameters of the job
             workSpec.nCore = 0
             workSpec.minRamCount = 0
             workSpec.maxDiskCount = 0
@@ -37,6 +47,12 @@ class SimpleWorkerMaker(PluginBase):
                         workSpec.maxWalltime = queue_config.walltimeLimit
                 except:
                     pass
+        else:
+            # pull case: the job was not defined and we need to set the queue parameters
+            workSpec.nCore = queue_config.submitter['nCore'] or 1
+            workSpec.maxWalltime = queue_config.walltimeLimit
+            workSpec.maxDiskCount = 0
+
         return workSpec
 
     # get number of jobs per worker.
