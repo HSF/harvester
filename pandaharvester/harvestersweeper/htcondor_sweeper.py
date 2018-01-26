@@ -87,7 +87,7 @@ class HTCondorSweeper(PluginBase):
         ## Clean up worker directory
         try:
             shutil.rmtree(workspec.accessPoint)
-        except OSError, _err:
+        except OSError as _err:
             if 'No such file or directory' in _err.strerror:
                 tmpLog.debug('Found that {0} was already removed'.format(_err.filename))
             pass
@@ -109,7 +109,7 @@ class HTCondorSweeper(PluginBase):
                         if os.path.isdir(preparator_dir_for_cleanup) and preparator_dir_for_cleanup != preparatorBasePath:
                             try:
                                 shutil.rmtree(preparator_dir_for_cleanup)
-                            except OSError, _err:
+                            except OSError as _err:
                                 if 'No such file or directory' in _err.strerror:
                                     tmpLog.debug('Found that {0} was already removed'.format(_err.filename))
                                 pass
