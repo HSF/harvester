@@ -4,7 +4,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 
 
-# plugin for preparator with RSE + directIO
+# preparator plugin with RSE + no data motion
 class RseDirectPreparator(PluginBase):
     """The workflow for RseDirectPreparator is as follows. First panda makes a rule to
     transfer files to an RSE which is associated to the resource. Once files are transferred

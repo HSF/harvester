@@ -33,6 +33,7 @@ def submit_a_worker(data):
     try:
         p = subprocess.Popen(comStr.split(),
                              shell=False,
+                             universal_newlines=True,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
         # check return code
@@ -60,7 +61,7 @@ def submit_a_worker(data):
             tmpRetVal = (False, errStr)
     else:
         # failed
-        errStr = stdOut + ' ' + stdErr
+        errStr = '{0} \n {1}'.format(stdOut, stdErr)
         tmpLog.error(errStr)
         tmpRetVal = (False, errStr)
     return tmpRetVal, workspec.get_changed_attributes()
@@ -68,16 +69,22 @@ def submit_a_worker(data):
 
 # make batch script
 def make_batch_script(workspec, template, n_core_per_node, log_dir):
-    tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
+    tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
     # Note: In workspec, unit of minRamCount and of maxDiskCount are both MB.
     #       In HTCondor SDF, unit of request_memory is MB, and request_disk is KB.
+    n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
+    n_node = n_core_total // n_core_per_node + min(n_core_total % n_core_per_node, 1)
+    request_ram = workspec.minRamCount if workspec.minRamCount else 1
+    request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
+    request_walltime =  workspec.maxWalltime if workspec.maxWalltime else 0
+
     tmpFile.write(template.format(
         nCorePerNode=n_core_per_node,
-        nCoreTotal=workspec.nCore,
-        nNode=(workspec.nCore // n_core_per_node + min(workspec.nCore % n_core_per_node, 1)),
-        requestRam=workspec.minRamCount,
-        requestDisk=(workspec.maxDiskCount * 1024),
-        requestWalltime=workspec.maxWalltime,
+        nCoreTotal=n_core_total,
+        nNode=n_node,
+        requestRam=request_ram,
+        requestDisk=request_disk,
+        requestWalltime=request_walltime,
         accessPoint=workspec.accessPoint,
         harvesterID=harvester_config.master.harvester_id,
         workerID=workspec.workerID,
@@ -105,7 +112,6 @@ def parse_batch_job_filename(value_str, file_dir, batchID):
 class HTCondorSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
-        self.nProcesses = 1
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
         # template for batch script
@@ -113,19 +119,37 @@ class HTCondorSubmitter(PluginBase):
         self.template = tmpFile.read()
         tmpFile.close()
         # number of processes
-        if self.nProcesses < 1:
-            self.nProcesses = None
+        try:
+            self.nProcesses
+        except AttributeError:
+            self.nProcesses = 1
+        else:
+            if (not self.nProcesses) or (self.nProcesses < 1):
+                self.nProcesses = 1
 
     # submit workers
     def submit_workers(self, workspec_list):
         tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
+        # get info by cacher in db
+        panda_queues_cache = self.dbInterface.get_cache('panda_queues.json')
+        panda_queues_dict = dict() if not panda_queues_cache else panda_queues_cache.data
+        # tmpLog.debug('panda_queues_dict: {0}'.format(panda_queues_dict))
+        tmpLog.debug('panda_queues_name and queue_info: {0}'.format(self.queueName, panda_queues_dict[self.queueName]))
         dataList = []
         for workSpec in workspec_list:
+            # get default resource requirements from queue info
+            n_core_per_node_from_queue = panda_queues_dict.get('corecount', 1)
+            # get override requirements from queue configured
+            try:
+                n_core_per_node_override = self.nCorePerNode
+            except AttributeError:
+                n_core_per_node_override = None
+            # set data dict
             data = {'workspec': workSpec,
                     'template': self.template,
                     'log_dir': self.logDir,
-                    'n_core_per_node': self.nCorePerNode}
+                    'n_core_per_node': n_core_per_node_override if n_core_per_node_override else n_core_per_node_from_queue}
             dataList.append(data)
         # exec with mcore
         with Pool(self.nProcesses) as pool:
@@ -166,10 +190,13 @@ class HTCondorSubmitter(PluginBase):
                 workSpec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name))
                 workSpec.set_log_file('stderr', '{0}/{1}'.format(self.logBaseURL, stderr_path_filename))
                 tmpLog.debug('Done set_log_file')
-            for jobSpec in workSpec.get_jobspec_list():
-                # using batchLog and stdOut URL as pilotID and pilotLog
-                jobSpec.set_one_attribute('pilotID', workSpec.workAttributes['stdOut'])
-                jobSpec.set_one_attribute('pilotLog', workSpec.workAttributes['batchLog'])
+                if not workSpec.get_jobspec_list():
+                    tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workSpec.workerID))
+                else:
+                    for jobSpec in workSpec.get_jobspec_list():
+                        # using batchLog and stdOut URL as pilotID and pilotLog
+                        jobSpec.set_one_attribute('pilotID', workSpec.workAttributes['stdOut'])
+                        jobSpec.set_one_attribute('pilotLog', workSpec.workAttributes['batchLog'])
                 tmpLog.debug('Done jobspec attribute setting')
             retList.append(retVal)
         tmpLog.debug('done')

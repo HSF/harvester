@@ -120,6 +120,7 @@ class Submitter(AgentBase):
                         else:
                             tmpLog.error('unknown mapType={0}'.format(queueConfig.mapType))
                             continue
+
                         tmpLog.debug('got {0} job chunks'.format(len(jobChunks)))
                         if len(jobChunks) == 0:
                             continue

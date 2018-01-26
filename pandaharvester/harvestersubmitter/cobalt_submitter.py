@@ -77,7 +77,8 @@ class CobaltSubmitter(PluginBase):
     def make_batch_script(self, workspec):
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nNode=workspec.nCore / self.nCorePerNode,
-                                           accessPoint=workspec.accessPoint)
+                                           accessPoint=workspec.accessPoint,
+                                           workerID=workspec.workerID)
                       )
         tmpFile.close()
 

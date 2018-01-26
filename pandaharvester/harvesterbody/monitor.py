@@ -187,6 +187,9 @@ class Monitor(AgentBase):
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
                 if workerID in retMap:
+                    # request kill
+                    if messenger.kill_requested(workSpec):
+                        self.dbProxy.kill_worker(workSpec.workerID)
                     # get output files
                     filesToStageOut = messenger.get_files_to_stage_out(workSpec)
                     retMap[workerID]['filesToStageOut'] = filesToStageOut

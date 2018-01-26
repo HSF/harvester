@@ -333,7 +333,7 @@ class DBProxy:
                 print (outStr)
             sys.exit(1)
         # fill PandaQueue table
-        self.fill_panda_queue_table(harvester_config.qconf.queueList, queue_config_mapper)
+        queue_config_mapper.load_data()
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
         # delete process locks
@@ -997,10 +997,20 @@ class DBProxy:
                     if jobSpec.subStatus in ['submitted', 'running']:
                         jobSpec.nWorkers = len(workerIDs)
                     elif workspec.hasJob == 1:
-                        jobSpec.subStatus = 'submitted'
+                        if workspec.status == WorkSpec.ST_missed:
+                            jobSpec.status = 'failed'
+                            jobSpec.subStatus = 'failed_to_submit'
+                            jobSpec.trigger_propagation()
+                        else:
+                            jobSpec.subStatus = 'submitted'
                         jobSpec.nWorkers = len(workerIDs)
                     else:
-                        jobSpec.subStatus = 'queued'
+                        if workspec.status == WorkSpec.ST_missed:
+                            jobSpec.status = 'failed'
+                            jobSpec.subStatus = 'failed_to_submit'
+                            jobSpec.trigger_propagation()
+                        else:
+                            jobSpec.subStatus = 'queued'
                     # sql to update job
                     sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
                     sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
@@ -1141,8 +1151,8 @@ class DBProxy:
             sqlCore = "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
             sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit)) "
             sqlCore += "AND (submitterTime IS NULL "
-            sqlCore += "OR ((submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
-            sqlCore += "OR submitterTime<:checkTimeLimit)) "
+            sqlCore += "OR (submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sqlCore += "OR (submitterTime<:checkTimeLimit AND lockedBy IS NULL)) "
             sqlCore += "AND computingSite=:queueName "
             # sql to lock job
             sqlL = "UPDATE {0} SET submitterTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
@@ -2580,7 +2590,7 @@ class DBProxy:
             # return
             return {}
 
-    # send kill command to worker associated to a job
+    # send kill command to workers associated to a job
     def kill_workers_with_job(self, panda_id):
         try:
             # get logger
@@ -2614,6 +2624,39 @@ class DBProxy:
             # commit
             self.commit()
             tmpLog.debug('set killTime to {0} workers'.format(nRow))
+            return nRow
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None
+
+    # send kill command to a worker
+    def kill_worker(self, worker_id):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
+                                            method_name='kill_worker')
+            tmpLog.debug('start')
+            # sql to set killTime
+            sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
+            # set an older time to trigger sweeper
+            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set killTime
+            varMap = dict()
+            varMap[':workerID'] = worker_id
+            varMap[':setTime'] = setTime
+            varMap[':st1'] = WorkSpec.ST_finished
+            varMap[':st2'] = WorkSpec.ST_failed
+            varMap[':st3'] = WorkSpec.ST_cancelled
+            self.execute(sqlL, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('set killTime with {0}'.format(nRow))
             return nRow
         except:
             # roll back
@@ -3405,6 +3448,32 @@ class DBProxy:
                 fileSpec.groupID = groupID
                 fileSpec.groupStatus = groupStatus
                 fileSpec.groupUpdateTime = groupUpdateTime
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # increment submission attempt
+    def increment_submission_attempt(self, panda_id, new_number):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'pandaID={0}'.format(panda_id),
+                                            method_name='increment_submission_attempt')
+            tmpLog.debug('start with newNum={0}'.format(new_number))
+            # sql to update attempt number
+            sqlL = "UPDATE {0} SET submissionAttempts=:newNum ".format(jobTableName)
+            sqlL += "WHERE PandaID=:PandaID "
+            varMap = dict()
+            varMap[':PandaID'] = panda_id
+            varMap[':newNum'] = new_number
+            self.execute(sqlL, varMap)
             # commit
             self.commit()
             tmpLog.debug('done')
