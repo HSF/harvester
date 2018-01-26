@@ -67,6 +67,11 @@ class SpecBase(object):
         if name in self.attributes:
             self.changedAttrs[name] = getattr(self, name)
 
+    # force not update
+    def force_not_update(self, name):
+        if name in self.changedAttrs:
+            del self.changedAttrs[name]
+
     # pack into attributes
     def pack(self, values):
         if hasattr(values, '_asdict'):

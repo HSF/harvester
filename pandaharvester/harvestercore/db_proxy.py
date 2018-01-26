@@ -5,6 +5,7 @@ database connection
 
 import re
 import sys
+import copy
 import inspect
 import datetime
 import threading
@@ -953,12 +954,8 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, 'batchID={0}'.format(workspec.batchID),
                                             method_name='register_worker')
             tmpLog.debug('start')
-            # sql to insert a worker
-            sqlI = "INSERT INTO {0} ({1}) ".format(workTableName, WorkSpec.column_names())
-            sqlI += WorkSpec.bind_values_expression()
-            # sql to update a worker
-            sqlU = "UPDATE {0} SET {1} ".format(workTableName, workspec.bind_update_changes_expression())
-            sqlU += "WHERE workerID=:workerID "
+            # sql to check if exists
+            sqlE = "SELECT 1 c FROM {0} WHERE workerID=:workerID FOR UPDATE ".format(workTableName)
             # sql to insert job and worker relationship
             sqlR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlR += JobWorkerRelationSpec.bind_values_expression()
@@ -969,7 +966,18 @@ class DBProxy:
             sqlDN += "SET nNewWorkers=nNewWorkers-1 "
             sqlDN += "WHERE queueName=:queueName AND nNewWorkers IS NOT NULL AND nNewWorkers>0 "
             # insert worker if new
+            isNew = False
             if workspec.isNew:
+                varMap = dict()
+                varMap[':workerID'] = workspec.workerID
+                self.execute(sqlE, varMap)
+                resE = self.cur.fetchone()
+                if resE is None:
+                    isNew = True
+            if isNew:
+                # insert a worker
+                sqlI = "INSERT INTO {0} ({1}) ".format(workTableName, WorkSpec.column_names())
+                sqlI += WorkSpec.bind_values_expression()
                 varMap = workspec.values_list()
                 self.execute(sqlI, varMap)
                 # decrement nNewWorkers
@@ -977,6 +985,11 @@ class DBProxy:
                 varMap[':queueName'] = workspec.computingSite
                 self.execute(sqlDN, varMap)
             else:
+                # not update workerID
+                workspec.force_not_update('workerID')
+                # update a worker
+                sqlU = "UPDATE {0} SET {1} ".format(workTableName, workspec.bind_update_changes_expression())
+                sqlU += "WHERE workerID=:workerID "
                 varMap = workspec.values_map(only_changed=True)
                 varMap[':workerID'] = workspec.workerID
                 self.execute(sqlU, varMap)
@@ -1041,8 +1054,39 @@ class DBProxy:
             # return
             return False
 
+    # insert workers
+    def insert_workers(self, workspec_list, locked_by):
+        try:
+            tmpLog = core_utils.make_logger(_logger, 'locked_by={0}'.format(locked_by),
+                                            method_name='insert_workers')
+            tmpLog.debug('start')
+            timeNow = datetime.datetime.utcnow()
+            # sql to insert a worker
+            sqlI = "INSERT INTO {0} ({1}) ".format(workTableName, WorkSpec.column_names())
+            sqlI += WorkSpec.bind_values_expression()
+            for workSpec in workspec_list:
+                tmpWorkSpec = copy.copy(workSpec)
+                # insert worker if new
+                if not tmpWorkSpec.isNew:
+                    continue
+                tmpWorkSpec.modificationTime = timeNow
+                tmpWorkSpec.status = WorkSpec.ST_pending
+                varMap = tmpWorkSpec.values_list()
+                self.execute(sqlI, varMap)
+            # commit
+            self.commit()
+            # return
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
     # get queues to submit workers
-    def get_queues_to_submit(self, n_queues, interval):
+    def get_queues_to_submit(self, n_queues, lookup_interval, lock_interval):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_queues_to_submit')
@@ -1058,6 +1102,10 @@ class DBProxy:
             # sql to get queues
             sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName "
+            # sql to delete orphaned workers
+            sqlD = "DELETE FROM {0} ".format(workTableName)
+            sqlD += "WHERE computingSite=:computingSite AND status=:status "
+            sqlD += "AND modificationTime<:timeLimit "
             # sql to count nQueue
             sqlN = "SELECT status,COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlN += "WHERE computingSite=:computingSite GROUP BY status "
@@ -1071,7 +1119,7 @@ class DBProxy:
             # get sites
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
-            varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
+            varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
             self.execute(sqlS, varMap)
             resS = self.cur.fetchone()
             if resS is not None:
@@ -1082,6 +1130,12 @@ class DBProxy:
                 self.execute(sqlQ, varMap)
                 resQ = self.cur.fetchall()
                 for queueName, resourceType, nNewWorkers in resQ:
+                    # delete orphaned workers
+                    varMap = dict()
+                    varMap[':computingSite'] = queueName
+                    varMap[':status'] = WorkSpec.ST_pending
+                    varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
+                    self.execute(sqlD, varMap)
                     # count nQueue
                     varMap = dict()
                     varMap[':computingSite'] = queueName
@@ -1090,7 +1144,7 @@ class DBProxy:
                     nReady = 0
                     nRunning = 0
                     for workerStatus, tmpNum in self.cur.fetchall():
-                        if workerStatus in [WorkSpec.ST_submitted]:
+                        if workerStatus in [WorkSpec.ST_submitted, WorkSpec.ST_pending]:
                             nQueue += tmpNum
                         elif workerStatus in [WorkSpec.ST_ready]:
                             nReady += tmpNum

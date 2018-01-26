@@ -35,7 +35,8 @@ class Submitter(AgentBase):
             mainLog.debug('getting queues to submit workers')
             # get queues associated to a site to submit workers
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
-                                                                             harvester_config.submitter.lookupTime)
+                                                                             harvester_config.submitter.lookupTime,
+                                                                             harvester_config.submitter.lockInterval)
             mainLog.debug('got {0} queues for site {1}'.format(len(curWorkers), siteName))
             # get commands
             if siteName is not None:
@@ -61,8 +62,9 @@ class Submitter(AgentBase):
             else:
                 # loop over all queues
                 for queueName, tmpVal in iteritems(nWorkersPerQueue):
-                    tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName), method_name='run')
-                    tmpLog.debug('start')
+                    tmpLog = core_utils.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
+                                                    method_name='run')
+                    tmpLog.info('start')
                     nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                     nReady = tmpVal['nReady']
                     # check queue
@@ -193,8 +195,10 @@ class Submitter(AgentBase):
                                 else:
                                     tmpLog.debug(
                                         'sent jobs to workerID={0} with {1}'.format(workSpec.workerID, tmpStat))
+                        # insert workers
+                        self.dbProxy.insert_workers(workSpecList, lockedBy)
                         # submit
-                        tmpLog.debug('submitting {0} workers'.format(len(workSpecList)))
+                        tmpLog.info('submitting {0} workers'.format(len(workSpecList)))
                         workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, workSpecList)
                         for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                             workSpec, jobList = okChunks[iWorker]
@@ -261,7 +265,7 @@ class Submitter(AgentBase):
                                         tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
                     # release jobs
                     self.dbProxy.release_jobs(pandaIDs, lockedBy)
-                    tmpLog.debug('done')
+                    tmpLog.info('done')
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.submitter.sleepTime):
