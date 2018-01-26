@@ -261,6 +261,7 @@ class Submitter(AgentBase):
                                         tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
                     # release jobs
                     self.dbProxy.release_jobs(pandaIDs, lockedBy)
+                    tmpLog.debug('done')
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.submitter.sleepTime):
