@@ -1,7 +1,10 @@
 import json
 import os
 import re
-import urllib
+try:
+    from urllib.parse import urlencode
+except ImportError:
+    from urllib import urlencode
 import uuid
 import os.path
 import tarfile
@@ -289,7 +292,7 @@ class SharedFileMessenger(PluginBase):
                 # put job spec file
                 with open(jobSpecFilePath, 'w') as jobSpecFile:
                     if self.jobSpecFileFormat == 'cgi':
-                        jobSpecFile.write(urllib.urlencode(jobSpec.jobParams))
+                        jobSpecFile.write(urlencode(jobSpec.jobParams))
                     else:
                         json.dump({jobSpec.PandaID: jobSpec.jobParams}, jobSpecFile)
                 # put PFC.xml
