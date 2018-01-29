@@ -53,17 +53,18 @@ class SimpleWorkerMaker(PluginBase):
             # get the queue configuration from the DB
             panda_queues_cache = self.dbInterface.get_cache('panda_queues.json')
             panda_queues_dict = dict() if not panda_queues_cache else panda_queues_cache.data
+            queue_dict = panda_queues_dict.get(queue_config.queueName, {})
 
-            unified_queue = 'unifiedPandaQueue' in panda_queues_dict.get('catchall', '')
+            unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')
             # case of traditional (non-unified) queue: look at the queue configuration
             if not unified_queue:
-                workSpec.nCore = panda_queues_dict.get('corecount', 1) or 1
-                workSpec.minRamCount = panda_queues_dict.get('maxrss', 1) or 1
+                workSpec.nCore = queue_dict.get('corecount', 1) or 1
+                workSpec.minRamCount = queue_dict.get('maxrss', 1) or 1
 
             # case of unified queue: look at the resource type and queue configuration
             else:
-                site_corecount = panda_queues_dict.get('corecount', 1) or 1
-                site_maxrss = panda_queues_dict.get('maxrss', 1) or 1
+                site_corecount = queue_dict.get('corecount', 1) or 1
+                site_maxrss = queue_dict.get('maxrss', 1) or 1
 
                 if 'SCORE' in resource_type:
                     workSpec.nCore = 1
@@ -73,8 +74,8 @@ class SimpleWorkerMaker(PluginBase):
                     workSpec.minRamCount = site_maxrss
 
             # parameters that are independent on traditional vs unified
-            workSpec.maxWalltime = panda_queues_dict.get('maxtime', 1)
-            workSpec.maxDiskCount = panda_queues_dict.get('maxwdir', 1)
+            workSpec.maxWalltime = queue_dict.get('maxtime', 1)
+            workSpec.maxDiskCount = queue_dict.get('maxwdir', 1)
 
         return workSpec
 
