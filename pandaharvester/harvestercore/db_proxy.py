@@ -1104,10 +1104,11 @@ class DBProxy:
                     nReFill, = self.cur.fetchone()
                     nReady += nReFill
                     # add
-                    retMap[queueName] = {'nReady': nReady,
-                                         'nRunning': nRunning,
-                                         'nQueue': nQueue,
-                                         'nNewWorkers': nNewWorkers}
+                    retMap.setdefault(queueName, {})
+                    retMap[queueName][resourceType] = {'nReady': nReady,
+                                                       'nRunning': nRunning,
+                                                       'nQueue': nQueue,
+                                                       'nNewWorkers': nNewWorkers}
                     resourceMap[resourceType] = queueName
                     # update timestamp
                     varMap = dict()

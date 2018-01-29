@@ -14,7 +14,7 @@ class SimpleWorkerMaker(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config):
+    def make_worker(self, jobspec_list, queue_config, resource_type):
         tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
                                         method_name='make_worker')
 
@@ -48,10 +48,33 @@ class SimpleWorkerMaker(PluginBase):
                 except:
                     pass
         else:
-            # pull case: the job was not defined and we need to set the queue parameters
-            workSpec.nCore = queue_config.submitter['nCore'] or 1
-            workSpec.maxWalltime = queue_config.walltimeLimit
-            workSpec.maxDiskCount = 0
+            # pull case: there is no predefined job, so we need to set the parameters based on the queue definition
+            # and the resource type of the job
+            # get the queue configuration from the DB
+            panda_queues_cache = self.dbInterface.get_cache('panda_queues.json')
+            panda_queues_dict = dict() if not panda_queues_cache else panda_queues_cache.data
+
+            unified_queue = 'unifiedPandaQueue' in panda_queues_dict.get('catchall', '')
+            # case of traditional (non-unified) queue: look at the queue configuration
+            if not unified_queue:
+                workSpec.nCore = panda_queues_dict.get('corecount', 1) or 1
+                workSpec.minRamCount = panda_queues_dict.get('maxrss', 1) or 1
+
+            # case of unified queue: look at the resource type and queue configuration
+            else:
+                site_corecount = panda_queues_dict.get('corecount', 1) or 1
+                site_maxrss = panda_queues_dict.get('maxrss', 1) or 1
+
+                if 'SCORE' in resource_type:
+                    workSpec.nCore = 1
+                    workSpec.minRamCount = site_maxrss / site_corecount
+                else:
+                    workSpec.nCore = site_corecount
+                    workSpec.minRamCount = site_maxrss
+
+            # parameters that are independent on traditional vs unified
+            workSpec.maxWalltime = panda_queues_dict.get('maxtime', 1)
+            workSpec.maxDiskCount = panda_queues_dict.get('maxwdir', 1)
 
         return workSpec
 

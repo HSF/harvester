@@ -32,86 +32,87 @@ class WorkerAdjuster:
                 queueStat = queueStat.data
 
             # define num of new workers
-            for queueName, tmpVal in iteritems(static_num_workers):
+            for queueName in static_num_workers:
+                for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
 
-                # set 0 to num of new workers when the queue is disabled
-                if queueName in queueStat and queueStat[queueName]['status'] in ['offline']:
-                    dyn_num_workers[queueName]['nNewWorkers'] = 0
-                    retMsg = 'set nNewWorkers=0 since status={0}'.format(queueStat[queueName]['status'])
-                    tmpLog.debug(retMsg)
-                    continue
-
-                # get queue
-                queueConfig = self.queueConfigMapper.get_queue(queueName)
-
-                # get throttler
-                if queueName not in self.throttlerMap:
-                    if hasattr(queueConfig, 'throttler'):
-                        throttler = self.pluginFactory.get_plugin(queueConfig.throttler)
-                    else:
-                        throttler = None
-                    self.throttlerMap[queueName] = throttler
-
-                # check throttler
-                throttler = self.throttlerMap[queueName]
-                if throttler is not None:
-                    toThrottle, tmpMsg = throttler.to_be_throttled(queueConfig)
-                    if toThrottle:
+                    # set 0 to num of new workers when the queue is disabled
+                    if queueName in queueStat and queueStat[queueName]['status'] in ['offline']:
                         dyn_num_workers[queueName]['nNewWorkers'] = 0
-                        retMsg = 'set nNewWorkers=0 by {0}:{1}'.format(throttler.__class__.__name__, tmpMsg)
+                        retMsg = 'set nNewWorkers=0 since status={0}'.format(queueStat[queueName]['status'])
                         tmpLog.debug(retMsg)
                         continue
 
-                # check stats
-                nQueue = tmpVal['nQueue']
-                nReady = tmpVal['nReady']
-                nRunning = tmpVal['nRunning']
-                nQueueLimit = queueConfig.nQueueLimitWorker
-                maxWorkers = queueConfig.maxWorkers
-                if queueConfig.runMode == 'slave':
-                    nNewWorkersDef = tmpVal['nNewWorkers']
-                    if nNewWorkersDef == 0:
-                        dyn_num_workers[queueName]['nNewWorkers'] = 0
-                        retMsg = 'set nNewWorkers=0 by panda in slave mode'
-                        tmpLog.debug(retMsg)
-                        continue
-                else:
-                    nNewWorkersDef = None
+                    # get queue
+                    queueConfig = self.queueConfigMapper.get_queue(queueName)
 
-                # define num of new workers based on static site config
-                nNewWorkers = 0
-                if nQueue >= nQueueLimit > 0:
-                    # enough queued workers
-                    retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimit({1})'.format(nQueue, nQueueLimit)
-                    tmpLog.debug(retMsg)
-                    pass
-                elif (nQueue + nReady + nRunning) >= maxWorkers > 0:
-                    # enough workers in the system
-                    retMsg = 'No nNewWorkers since nQueue({0}) + nReady({1}) + nRunning({2}) '.format(nQueue,
-                                                                                                      nReady,
-                                                                                                      nRunning)
-                    retMsg += '>= maxWorkers({0})'.format(maxWorkers)
-                    tmpLog.debug(retMsg)
-                    pass
-                else:
-                    # get max number of queued workers
-                    maxQueuedWorkers = 0
-                    if nQueueLimit > 0:
-                        maxQueuedWorkers = nQueueLimit
-                    if maxQueuedWorkers == 0:
-                        if nNewWorkersDef is not None:
-                            # slave mode
-                            maxQueuedWorkers = nNewWorkersDef + nQueue
+                    # get throttler
+                    if queueName not in self.throttlerMap:
+                        if hasattr(queueConfig, 'throttler'):
+                            throttler = self.pluginFactory.get_plugin(queueConfig.throttler)
                         else:
-                            # use default value
-                            maxQueuedWorkers = 1
-                    # new workers
-                    nNewWorkers = max(maxQueuedWorkers - nQueue, 0)
-                    if maxWorkers > 0:
-                        nNewWorkers = min(nNewWorkers, max(maxWorkers - nQueue - nReady - nRunning, 0))
-                if queueConfig.maxNewWorkersPerCycle > 0:
-                    nNewWorkers = min(nNewWorkers, queueConfig.maxNewWorkersPerCycle)
-                dyn_num_workers[queueName]['nNewWorkers'] = nNewWorkers
+                            throttler = None
+                        self.throttlerMap[queueName] = throttler
+
+                    # check throttler
+                    throttler = self.throttlerMap[queueName]
+                    if throttler is not None:
+                        toThrottle, tmpMsg = throttler.to_be_throttled(queueConfig)
+                        if toThrottle:
+                            dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
+                            retMsg = 'set nNewWorkers=0 by {0}:{1}'.format(throttler.__class__.__name__, tmpMsg)
+                            tmpLog.debug(retMsg)
+                            continue
+
+                    # check stats
+                    nQueue = tmpVal['nQueue']
+                    nReady = tmpVal['nReady']
+                    nRunning = tmpVal['nRunning']
+                    nQueueLimit = queueConfig.nQueueLimitWorker
+                    maxWorkers = queueConfig.maxWorkers
+                    if queueConfig.runMode == 'slave':
+                        nNewWorkersDef = tmpVal['nNewWorkers']
+                        if nNewWorkersDef == 0:
+                            dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
+                            retMsg = 'set nNewWorkers=0 by panda in slave mode'
+                            tmpLog.debug(retMsg)
+                            continue
+                    else:
+                        nNewWorkersDef = None
+
+                    # define num of new workers based on static site config
+                    nNewWorkers = 0
+                    if nQueue >= nQueueLimit > 0:
+                        # enough queued workers
+                        retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimit({1})'.format(nQueue, nQueueLimit)
+                        tmpLog.debug(retMsg)
+                        pass
+                    elif (nQueue + nReady + nRunning) >= maxWorkers > 0:
+                        # enough workers in the system
+                        retMsg = 'No nNewWorkers since nQueue({0}) + nReady({1}) + nRunning({2}) '.format(nQueue,
+                                                                                                          nReady,
+                                                                                                          nRunning)
+                        retMsg += '>= maxWorkers({0})'.format(maxWorkers)
+                        tmpLog.debug(retMsg)
+                        pass
+                    else:
+                        # get max number of queued workers
+                        maxQueuedWorkers = 0
+                        if nQueueLimit > 0:
+                            maxQueuedWorkers = nQueueLimit
+                        if maxQueuedWorkers == 0:
+                            if nNewWorkersDef is not None:
+                                # slave mode
+                                maxQueuedWorkers = nNewWorkersDef + nQueue
+                            else:
+                                # use default value
+                                maxQueuedWorkers = 1
+                        # new workers
+                        nNewWorkers = max(maxQueuedWorkers - nQueue, 0)
+                        if maxWorkers > 0:
+                            nNewWorkers = min(nNewWorkers, max(maxWorkers - nQueue - nReady - nRunning, 0))
+                    if queueConfig.maxNewWorkersPerCycle > 0:
+                        nNewWorkers = min(nNewWorkers, queueConfig.maxNewWorkersPerCycle)
+                    dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))
             return dyn_num_workers
