@@ -24,6 +24,7 @@ class WorkSpec(SpecBase):
     ST_cancelled = 'cancelled'
     ST_idle = 'idle'
     ST_missed = 'missed'
+    ST_pending = 'pending'
 
     # list of worker statuses
     ST_LIST = [ST_submitted,
