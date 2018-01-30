@@ -14,7 +14,7 @@ class WorkerMaker:
         self.dbProxy = DBProxy()
 
     # make workers
-    def make_workers(self, jobchunk_list, queue_config, n_ready):
+    def make_workers(self, jobchunk_list, queue_config, n_ready, resource_type):
         tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
                                         method_name='make_workers')
         tmpLog.debug('start')
@@ -33,7 +33,7 @@ class WorkerMaker:
             for iChunk, jobChunk in enumerate(jobchunk_list):
                 # make a worker
                 if iChunk >= n_ready:
-                    workSpec = maker.make_worker(jobChunk, queue_config)
+                    workSpec = maker.make_worker(jobChunk, queue_config, resource_type)
                 else:
                     # use ready worker
                     if iChunk < len(readyWorkers):

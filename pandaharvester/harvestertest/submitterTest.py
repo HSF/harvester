@@ -36,7 +36,7 @@ if queueConfig.mapType != WorkSpec.MT_NoJob:
     jobSpecList.append(jobSpec)
 
 maker = pluginFactory.get_plugin(queueConfig.workerMaker)
-workSpec = maker.make_worker(jobSpecList, queueConfig)
+workSpec = maker.make_worker(jobSpecList, queueConfig, 'SCORE') # TODO: needs to be thought
 
 workSpec.accessPoint = queueConfig.messenger['accessPoint']
 workSpec.mapType = queueConfig.mapType
