@@ -149,7 +149,7 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update worker stats for {0} err={1}'.format(siteName, tmpStr))
 
-            if self._last_stats_update and time.time() - self._last_stats_update > STATS_PERIOD:
+            if not self._last_stats_update or time.time() - self._last_stats_update > STATS_PERIOD:
                 # update worker stats for all sites
                 worker_stats_bulk = self.dbProxy.get_worker_stats_bulk()
                 if not workerStats:
@@ -158,7 +158,7 @@ class Propagator(AgentBase):
                     for site_name in worker_stats_bulk:
                         tmp_ret, tmp_str = self.communicator.update_worker_stats(site_name, worker_stats_bulk[site_name])
                         if tmp_ret:
-                            mainLog.debug('automateupdated worker stats for ')
+                            mainLog.debug('automated update of worker stats for {0}'.format(site_name))
                             self._last_stats_update = time.time()
                         else:
                             mainLog.error('failed to update worker stats for {0} err={1}'.format(site_name, tmp_str))
