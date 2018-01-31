@@ -152,7 +152,7 @@ class Propagator(AgentBase):
             if not self._last_stats_update or time.time() - self._last_stats_update > STATS_PERIOD:
                 # update worker stats for all sites
                 worker_stats_bulk = self.dbProxy.get_worker_stats_bulk()
-                if not workerStats:
+                if not worker_stats_bulk:
                     mainLog.error('failed to get worker stats in bulk')
                 else:
                     for site_name in worker_stats_bulk:
