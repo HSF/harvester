@@ -7,7 +7,7 @@ error = {logDir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = /tmp/userproxy-harvester-twgridpil.pem
 
-grid_resource = condor test_queue@arc-fdr2.grid.sinica.edu.tw arc-fdr2.grid.sinica.edu.tw
+grid_resource = condor {ceHostname} {ceEndpoint}
 remote_initialdir = {accessPoint}
 +remote_jobuniverse = 11
 +remote_requirements = True
