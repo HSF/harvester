@@ -1,8 +1,9 @@
 import os
 import tempfile
 import subprocess
+import random
 
-from concurrent.futures import ProcessPoolExecutor as Pool
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import re
 
@@ -20,12 +21,15 @@ def submit_a_worker(data):
     template = data['template']
     log_dir = data['log_dir']
     n_core_per_node = data['n_core_per_node']
+    ce_endpoint = data['ce_endpoint']
+    ce_hostname = data['ce_hostname']
     workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
     # make batch script
-    batchFile = make_batch_script(workspec, template, n_core_per_node, log_dir)
+    batchFile = make_batch_script(workspec=workspec, template=template, n_core_per_node=n_core_per_node,
+                                    log_dir=log_dir, ce_endpoint=ce_endpoint, ce_hostname=ce_hostname)
     # command
     comStr = 'condor_submit {0}'.format(batchFile)
     # submit
@@ -68,7 +72,10 @@ def submit_a_worker(data):
 
 
 # make batch script
-def make_batch_script(workspec, template, n_core_per_node, log_dir):
+def make_batch_script(workspec, template, n_core_per_node, log_dir, ce_endpoint='', ce_hostname=''):
+    # make logger
+    tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                    method_name='make_batch_script')
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
     # Note: In workspec, unit of minRamCount and of maxDiskCount are both MB.
     #       In HTCondor SDF, unit of request_memory is MB, and request_disk is KB.
@@ -89,9 +96,12 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir):
         harvesterID=harvester_config.master.harvester_id,
         workerID=workspec.workerID,
         computingSite=workspec.computingSite,
+        ceEndpoint=ce_endpoint,
+        ceHostname=ce_hostname,
         logDir=log_dir)
     )
     tmpFile.close()
+    tmpLog.debug('done')
     return tmpFile.name
 
 
@@ -130,30 +140,16 @@ class HTCondorSubmitter(PluginBase):
     # submit workers
     def submit_workers(self, workspec_list):
         tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
-        tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
+
+        nWorkers = len(workspec_list)
+        tmpLog.debug('start nWorkers={0}'.format(nWorkers))
+
         # get info by cacher in db
         panda_queues_cache = self.dbInterface.get_cache('panda_queues.json')
         panda_queues_dict = dict() if not panda_queues_cache else panda_queues_cache.data
         # tmpLog.debug('panda_queues_dict: {0}'.format(panda_queues_dict))
-        tmpLog.debug('panda_queues_name and queue_info: {0}'.format(self.queueName, panda_queues_dict[self.queueName]))
-        dataList = []
-        for workSpec in workspec_list:
-            # get default resource requirements from queue info
-            n_core_per_node_from_queue = panda_queues_dict.get('corecount', 1)
-            # get override requirements from queue configured
-            try:
-                n_core_per_node_override = self.nCorePerNode
-            except AttributeError:
-                n_core_per_node_override = None
-            # set data dict
-            data = {'workspec': workSpec,
-                    'template': self.template,
-                    'log_dir': self.logDir,
-                    'n_core_per_node': n_core_per_node_override if n_core_per_node_override else n_core_per_node_from_queue}
-            dataList.append(data)
-        # exec with mcore
-        with Pool(self.nProcesses) as pool:
-            retValList = pool.map(submit_a_worker, dataList)
+        # tmpLog.debug('panda_queues_name and queue_info: {0}'.format(self.queueName, panda_queues_dict[self.queueName]))
+        this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
 
         # get batch_log, stdout, stderr filename
         for _line in self.template.split('\n'):
@@ -172,29 +168,76 @@ class HTCondorSubmitter(PluginBase):
                 stderr_value = _match_stderr.group(1)
                 continue
 
+        # dataList = []
+        # for workspec in workspec_list:
+        def _handle_one_worker(workspec):
+            # make logger
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                            method_name='_handle_one_worker')
+            # get default information from queue info
+            n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1)
+            queues_from_queue_list = this_panda_queue_dict.get('queues', [])
+            ce_endpoint_from_queue = ''
+            random.shuffle(queues_from_queue_list)
+            for _queue_dict in queues_from_queue_list:
+                if 'CONDOR-CE' in str(_queue_dict.get('ce_flavour', '')).upper():
+                    ce_endpoint_from_queue = _queue_dict.get('ce_endpoint', '')
+                    break
+            ce_hostname_from_queue = re.sub(':\w*', '',  ce_endpoint_from_queue)
+            # get override requirements from queue configured
+            try:
+                n_core_per_node = self.nCorePerNode
+            except AttributeError:
+                n_core_per_node = n_core_per_node_from_queue
+            # set data dict
+            data = {'workspec': workspec,
+                    'template': self.template,
+                    'log_dir': self.logDir,
+                    'n_core_per_node': n_core_per_node,
+                    'ce_endpoint': ce_endpoint_from_queue,
+                    'ce_hostname': ce_hostname_from_queue,
+                    }
+            # dataList.append(data)
+            # URLs for log files
+            if self.logBaseURL is not None and workspec.batchID is not None:
+                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=self.logDir, batchID=workspec.batchID)
+                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=self.logDir, batchID=workspec.batchID)
+                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=self.logDir, batchID=workspec.batchID)
+                workspec.set_log_file('batch_log', '{0}/{1}'.format(self.logBaseURL, batch_log_filename))
+                workspec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name))
+                workspec.set_log_file('stderr', '{0}/{1}'.format(self.logBaseURL, stderr_path_filename))
+                tmpLog.debug('Done set_log_file')
+                if not workspec.get_jobspec_list():
+                    tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
+                else:
+                    for jobSpec in workspec.get_jobspec_list():
+                        # using batchLog and stdOut URL as pilotID and pilotLog
+                        jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
+                        jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
+                tmpLog.debug('Done jobspec attribute setting')
+
+            return data
+
+        tmpLog.debug('finished preparing worker attributes')
+
+        # map(_handle_one_worker, workspec_list)
+        with ThreadPoolExecutor(self.nProcesses) as thread_pool:
+            dataIterator = thread_pool.map(_handle_one_worker, workspec_list)
+        tmpLog.debug('{0} workers handled'.format(nWorkers))
+
+        # exec with mcore
+        with ProcessPoolExecutor(self.nProcesses) as process_pool:
+            # retValList = process_pool.map(submit_a_worker, dataList)
+            retValList = process_pool.map(submit_a_worker, dataIterator)
+        tmpLog.debug('{0} workers submitted'.format(nWorkers))
 
         # propagate changed attributes
         retList = []
-        for workSpec, tmpVal in zip(workspec_list, retValList):
+        for workspec, tmpVal in zip(workspec_list, retValList):
             retVal, tmpDict = tmpVal
-            workSpec.set_attributes_with_dict(tmpDict)
-            # URLs for log files
-            if self.logBaseURL is not None and workSpec.batchID is not None:
-                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=self.logDir, batchID=workSpec.batchID)
-                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=self.logDir, batchID=workSpec.batchID)
-                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=self.logDir, batchID=workSpec.batchID)
-                workSpec.set_log_file('batch_log', '{0}/{1}'.format(self.logBaseURL, batch_log_filename))
-                workSpec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name))
-                workSpec.set_log_file('stderr', '{0}/{1}'.format(self.logBaseURL, stderr_path_filename))
-                tmpLog.debug('Done set_log_file')
-                if not workSpec.get_jobspec_list():
-                    tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workSpec.workerID))
-                else:
-                    for jobSpec in workSpec.get_jobspec_list():
-                        # using batchLog and stdOut URL as pilotID and pilotLog
-                        jobSpec.set_one_attribute('pilotID', workSpec.workAttributes['stdOut'])
-                        jobSpec.set_one_attribute('pilotLog', workSpec.workAttributes['batchLog'])
-                tmpLog.debug('Done jobspec attribute setting')
+            workspec.set_attributes_with_dict(tmpDict)
             retList.append(retVal)
+
         tmpLog.debug('done')
+
         return retList

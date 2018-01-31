@@ -172,8 +172,7 @@ class HTCondorMonitor (PluginBase):
                 job_ads_xml_str = '\n'.join(str(stdOut).split(badtext))
                 # job_ads_xml_str = re.sub(badtext_re_str, '\n', str(stdOut))
                 # tmpLog.debug(job_ads_xml_str)
-                import time
-                with open('/tmp/jobads-{0}.xml'.format(time.time()), 'w') as _f: _f.write(job_ads_xml_str)
+                # with open('/tmp/jobads-{0}.xml'.format(time.time()), 'w') as _f: _f.write(job_ads_xml_str)
 
                 if '<c>' in job_ads_xml_str:
                     ## Found at least one job

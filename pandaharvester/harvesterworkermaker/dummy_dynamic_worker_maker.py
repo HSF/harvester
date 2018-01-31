@@ -11,7 +11,7 @@ class DummyDynamicWorkerMaker(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config):
+    def make_worker(self, jobspec_list, queue_config, resource_type):
         workSpec = WorkSpec()
         if len(jobspec_list) > 0:
             workSpec.nCore = 0
