@@ -21,6 +21,8 @@ class SimpleWorkerMaker(PluginBase):
         tmpLog.debug('jobspec_list: {0}'.format(jobspec_list))
 
         workSpec = WorkSpec()
+        workSpec.resourceType = resource_type
+
         if len(jobspec_list) > 0:
             # push case: we know the job and set the parameters of the job
             workSpec.nCore = 0

@@ -78,7 +78,8 @@ class WorkSpec(SpecBase):
                            'killTime:timestamp / index',
                            'computingElement:text',
                            'nJobsToReFill:integer',
-                           'logFilesToUpload:blob'
+                           'logFilesToUpload:blob',
+                           'resourceType:text'
                            )
 
     # constructor
