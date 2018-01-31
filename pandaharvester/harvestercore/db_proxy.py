@@ -2664,7 +2664,7 @@ class DBProxy:
                     retMap[computingSite][resourceType] = {'running': 0, 'submitted': 0, 'to_submit': nNewWorkers}
 
             # get worker stats
-            sqlW = "SELECT wt.status, wt.computingSite, pq.resourceType, COUNT(*) cnt "
+            sqlW = "SELECT wt.status, wt.computingSite, wt.resourceType, COUNT(*) cnt "
             sqlW += "FROM {0} wt ".format(workTableName)
             sqlW += "WHERE wt.status IN (:st1,:st2) "
             sqlW += "GROUP BY wt.status,wt.computingSite "
