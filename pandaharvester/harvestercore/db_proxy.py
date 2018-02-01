@@ -2660,7 +2660,7 @@ class DBProxy:
             retMap = dict()
             for computingSite, resourceType, nNewWorkers in resQ:
                 retMap.setdefault(computingSite, {})
-                if resourceType not in retMap[computingSite]:
+                if resourceType and resourceType != 'ANY' and resourceType not in retMap[computingSite]:
                     retMap[computingSite][resourceType] = {'running': 0, 'submitted': 0, 'to_submit': nNewWorkers}
 
             # get worker stats
@@ -2675,11 +2675,10 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             for workerStatus, computingSite, resourceType, cnt in resW:
-                if not resourceType or resourceType == 'ANY':
-                    continue
-                retMap.setdefault(computingSite, {})
-                retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
-                retMap[computingSite][resourceType][workerStatus] = cnt
+                if resourceType and resourceType != 'ANY':
+                    retMap.setdefault(computingSite, {})
+                    retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
+                    retMap[computingSite][resourceType][workerStatus] = cnt
 
             # commit
             self.commit()
