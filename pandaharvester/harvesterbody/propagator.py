@@ -145,9 +145,9 @@ class Propagator(AgentBase):
                         # report worker stats
                         tmpRet, tmpStr = self.communicator.update_worker_stats(siteName, workerStats)
                         if tmpRet:
-                            mainLog.debug('updated worker stats for {0}'.format(siteName))
+                            mainLog.debug('updated worker stats (command) for {0}'.format(siteName))
                         else:
-                            mainLog.error('failed to update worker stats for {0} err={1}'.format(siteName, tmpStr))
+                            mainLog.error('failed to update worker stats (command) for {0} err={1}'.format(siteName, tmpStr))
 
             if not self._last_stats_update or time.time() - self._last_stats_update > STATS_PERIOD:
                 # update worker stats for all sites
@@ -158,10 +158,10 @@ class Propagator(AgentBase):
                     for site_name in worker_stats_bulk:
                         tmp_ret, tmp_str = self.communicator.update_worker_stats(site_name, worker_stats_bulk[site_name])
                         if tmp_ret:
-                            mainLog.debug('automated update of worker stats for {0}'.format(site_name))
+                            mainLog.debug('update of worker stats (bulk) for {0}'.format(site_name))
                             self._last_stats_update = time.time()
                         else:
-                            mainLog.error('failed to update worker stats for {0} err={1}'.format(site_name, tmp_str))
+                            mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name, tmp_str))
 
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
