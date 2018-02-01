@@ -21,7 +21,6 @@ class SimpleWorkerMaker(PluginBase):
         tmpLog.debug('jobspec_list: {0}'.format(jobspec_list))
 
         workSpec = WorkSpec()
-        workSpec.resourceType = resource_type
 
         if len(jobspec_list) > 0:
             # push case: we know the job and set the parameters of the job
@@ -78,6 +77,15 @@ class SimpleWorkerMaker(PluginBase):
             # parameters that are independent on traditional vs unified
             workSpec.maxWalltime = queue_dict.get('maxtime', 1)
             workSpec.maxDiskCount = queue_dict.get('maxwdir', 1)
+
+        # TODO: this needs to be improved with real resource types
+        if resource_type and resource_type != 'ANY':
+            workSpec.resourceType = resource_type
+        elif workSpec.nCore == 1:
+            workSpec.resourceType = resource_type
+        else:
+            workSpec.resourceType = resource_type
+
 
         return workSpec
 
