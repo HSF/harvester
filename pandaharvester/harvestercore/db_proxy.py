@@ -2675,8 +2675,10 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             for workerStatus, computingSite, resourceType, cnt in resW:
+                if not resourceType or resourceType == 'ANY':
+                    continue
                 retMap.setdefault(computingSite, {})
-                retMap[computingSite].setdefault(computingSite, {'running': 0, 'submitted': 0, 'to_submit': 0})
+                retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
                 retMap[computingSite][resourceType][workerStatus] = cnt
 
             # commit
