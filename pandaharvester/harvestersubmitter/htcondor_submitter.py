@@ -21,15 +21,16 @@ def submit_a_worker(data):
     template = data['template']
     log_dir = data['log_dir']
     n_core_per_node = data['n_core_per_node']
-    ce_endpoint = data['ce_endpoint']
-    ce_hostname = data['ce_hostname']
+    # ce_endpoint = data['ce_endpoint']
+    # ce_hostname = data['ce_hostname']
+    ce_info_dict = data['ce_info_dict']
     workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
     # make batch script
     batchFile = make_batch_script(workspec=workspec, template=template, n_core_per_node=n_core_per_node,
-                                    log_dir=log_dir, ce_endpoint=ce_endpoint, ce_hostname=ce_hostname)
+                                    log_dir=log_dir, ce_info_dict=ce_info_dict)
     # command
     comStr = 'condor_submit {0}'.format(batchFile)
     # submit
@@ -72,7 +73,7 @@ def submit_a_worker(data):
 
 
 # make batch script
-def make_batch_script(workspec, template, n_core_per_node, log_dir, ce_endpoint='', ce_hostname=''):
+def make_batch_script(workspec, template, n_core_per_node, log_dir, ce_info_dict=dict()):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
@@ -96,8 +97,9 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, ce_endpoint=
         harvesterID=harvester_config.master.harvester_id,
         workerID=workspec.workerID,
         computingSite=workspec.computingSite,
-        ceEndpoint=ce_endpoint,
-        ceHostname=ce_hostname,
+        ceEndpoint=ce_info_dict.get('ce_endpoint', ''),
+        ceHostname=ce_info_dict.get('ce_hostname', ''),
+        ceQueueName=ce_info_dict.get('ce_queue_name', ''),
         logDir=log_dir)
     )
     tmpFile.close()
@@ -179,11 +181,14 @@ class HTCondorSubmitter(PluginBase):
             queues_from_queue_list = this_panda_queue_dict.get('queues', [])
             ce_endpoint_from_queue = ''
             random.shuffle(queues_from_queue_list)
+            ce_info_dict = dict()
             for _queue_dict in queues_from_queue_list:
                 if 'CONDOR-CE' in str(_queue_dict.get('ce_flavour', '')).upper():
-                    ce_endpoint_from_queue = _queue_dict.get('ce_endpoint', '')
+                    # ce_endpoint_from_queue = _queue_dict.get('ce_endpoint', '')
+                    ce_info_dict = _queue_dict.copy()
+                    ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_info_dict.get('ce_endpoint', ''))
                     break
-            ce_hostname_from_queue = re.sub(':\w*', '',  ce_endpoint_from_queue)
+
             # get override requirements from queue configured
             try:
                 n_core_per_node = self.nCorePerNode
@@ -194,8 +199,9 @@ class HTCondorSubmitter(PluginBase):
                     'template': self.template,
                     'log_dir': self.logDir,
                     'n_core_per_node': n_core_per_node,
-                    'ce_endpoint': ce_endpoint_from_queue,
-                    'ce_hostname': ce_hostname_from_queue,
+                    # 'ce_endpoint': ce_endpoint_from_queue,
+                    # 'ce_hostname': ce_hostname_from_queue,
+                    'ce_info_dict': ce_info_dict,
                     }
             # dataList.append(data)
             # URLs for log files
