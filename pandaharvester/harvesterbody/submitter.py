@@ -49,8 +49,8 @@ class Submitter(AgentBase):
                     newLimits = self.dbProxy.set_queue_limit(siteName, commandSpec.params)
                     for tmpResource, tmpNewVal in iteritems(newLimits):
                         # if available, overwrite new worker value with the command from panda server
-                        if siteName in resMap and tmpResource in resMap[siteName]:
-                            tmpQueueName = resMap[siteName][tmpResource]
+                        if tmpResource in resMap:
+                            tmpQueueName = resMap[tmpResource]
                             if tmpQueueName in curWorkers:
                                 curWorkers[tmpQueueName][tmpResource]['nNewWorkers'] = tmpNewVal
 
