@@ -82,9 +82,9 @@ class SimpleWorkerMaker(PluginBase):
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type
         elif workSpec.nCore == 1:
-            workSpec.resourceType = resource_type
+            workSpec.resourceType = 'SCORE'
         else:
-            workSpec.resourceType = resource_type
+            workSpec.resourceType = 'MCORE'
 
 
         return workSpec
