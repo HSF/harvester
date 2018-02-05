@@ -1144,7 +1144,7 @@ class DBProxy:
                     nReady = 0
                     nRunning = 0
                     for workerStatus, tmpNum in self.cur.fetchall():
-                        if workerStatus in [WorkSpec.ST_submitted, WorkSpec.ST_pending]:
+                        if workerStatus in [WorkSpec.ST_submitted, WorkSpec.ST_pending, WorkSpec.ST_idle]:
                             nQueue += tmpNum
                         elif workerStatus in [WorkSpec.ST_ready]:
                             nReady += tmpNum

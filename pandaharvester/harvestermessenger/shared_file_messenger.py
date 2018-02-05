@@ -505,12 +505,12 @@ class SharedFileMessenger(PluginBase):
                     logFilePath += '.{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
                 with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                    for path,dirs,files in os.walk(accessPoint):
+                    for path, dirs, files in os.walk(accessPoint):
                         for filename in files:
-                           if self.filter_log_tgz(filename):
-                              tmpFullPath = os.path.join(path,filename)
-                              tmpRelPath = re.sub(accessPoint+'/*','',tmpFullPath)
-                              tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+                            if self.filter_log_tgz(filename):
+                                tmpFullPath = os.path.join(path, filename)
+                                tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
+                                tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
                 # make json to stage-out the log file
                 fileDict = dict()
                 fileDict[jobSpec.PandaID] = []
