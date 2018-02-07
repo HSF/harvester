@@ -1,5 +1,6 @@
 import os
 import json
+import copy
 import datetime
 import threading
 from future.utils import iteritems
@@ -32,6 +33,7 @@ class QueueConfig:
         self.ddmEndpointIn = None
         self.allowJobMixture = False
         self.maxSubmissionAttempts = 3
+        self.truePilot = False
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -40,6 +42,19 @@ class QueueConfig:
     # check if status without heartbeat
     def is_no_heartbeat_status(self, status):
         return status in self.get_no_heartbeat_status()
+
+    # str
+    def __str__(self):
+        tmpStr = ''
+        pluginStr = ''
+        for key, val in iteritems(self.__dict__):
+            if isinstance(val, dict):
+                pluginStr += '{0} :\n'.format(key)
+                for pKey, pVal in iteritems(val):
+                    pluginStr += '  {0} = {1}\n'.format(pKey, pVal)
+            else:
+                tmpStr += '{0} = {1}\n'.format(key, val)
+        return tmpStr + pluginStr
 
 
 # mapper
@@ -85,40 +100,58 @@ class QueueConfigMapper:
             queueConfigJson = json.load(f)
             f.close()
             queueConfigJsonList.append(queueConfigJson)
-            # set attributes
+            # get all queue names
+            queueNameList = set()
             for queueConfigJson in queueConfigJsonList:
-                for queueName, queueDict in iteritems(queueConfigJson):
-                    if queueName in self.queueConfig:
-                        queueConfig = self.queueConfig[queueName]
-                    else:
-                        queueConfig = QueueConfig(queueName)
-                    # queueName = siteName/resourceType
-                    queueConfig.siteName = queueConfig.queueName.split('/')[0]
-                    if queueConfig.siteName != queueConfig.queueName:
-                        queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
-                    for key, val in iteritems(queueDict):
-                        if isinstance(val, dict) and 'module' in val and 'name' in val:
-                            if 'siteName' not in val:
-                                val['siteName'] = queueConfig.siteName
-                            if 'queueName' not in val:
-                                val['queueName'] = queueConfig.queueName
-                        setattr(queueConfig, key, val)
-                    # additional criteria for getJob
-                    if queueConfig.getJobCriteria is not None:
-                        tmpCriteria = dict()
-                        for tmpItem in queueConfig.getJobCriteria.split(','):
-                            tmpKey, tmpVal = tmpItem.split('=')
-                            tmpCriteria[tmpKey] = tmpVal
-                        if len(tmpCriteria) == 0:
-                            queueConfig.getJobCriteria = None
+                queueNameList |= set(queueConfigJson.keys())
+            # set attributes
+            for queueName in queueNameList:
+                for queueConfigJson in queueConfigJsonList:
+                    queueDictList = []
+                    if queueName in queueConfigJson:
+                        queueDict = queueConfigJson[queueName]
+                        queueDictList.append(queueDict)
+                        # template
+                        if 'templateQueueName' in queueDict:
+                            templateQueueName = queueDict['templateQueueName']
+                            if templateQueueName in queueConfigJson:
+                                queueDictList.insert(0, queueConfigJson[templateQueueName])
+                    for queueDict in queueDictList:
+                        if queueName in self.queueConfig:
+                            queueConfig = self.queueConfig[queueName]
                         else:
-                            queueConfig.getJobCriteria = tmpCriteria
-                    # removal of some attributes based on mapType
-                    if queueConfig.mapType == WorkSpec.MT_NoJob:
-                        for attName in ['nQueueLimitJob']:
-                            if hasattr(queueConfig, attName):
-                                delattr(queueConfig, attName)
-                    self.queueConfig[queueName] = queueConfig
+                            queueConfig = QueueConfig(queueName)
+                        # queueName = siteName/resourceType
+                        queueConfig.siteName = queueConfig.queueName.split('/')[0]
+                        if queueConfig.siteName != queueConfig.queueName:
+                            queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
+                        for key, val in iteritems(queueDict):
+                            if isinstance(val, dict) and 'module' in val and 'name' in val:
+                                val = copy.copy(val)
+                                if 'siteName' not in val:
+                                    val['siteName'] = queueConfig.siteName
+                                if 'queueName' not in val:
+                                    val['queueName'] = queueConfig.queueName
+                            setattr(queueConfig, key, val)
+                        # additional criteria for getJob
+                        if queueConfig.getJobCriteria is not None:
+                            tmpCriteria = dict()
+                            for tmpItem in queueConfig.getJobCriteria.split(','):
+                                tmpKey, tmpVal = tmpItem.split('=')
+                                tmpCriteria[tmpKey] = tmpVal
+                            if len(tmpCriteria) == 0:
+                                queueConfig.getJobCriteria = None
+                            else:
+                                queueConfig.getJobCriteria = tmpCriteria
+                        # removal of some attributes based on mapType
+                        if queueConfig.mapType == WorkSpec.MT_NoJob:
+                            for attName in ['nQueueLimitJob']:
+                                if hasattr(queueConfig, attName):
+                                    delattr(queueConfig, attName)
+                        # heartbeat suppression
+                        if queueConfig.truePilot and queueConfig.noHeartbeat == '':
+                            queueConfig.noHeartbeat = 'running,transferring,finished,failed'
+                        self.queueConfig[queueName] = queueConfig
             self.lastUpdate = datetime.datetime.utcnow()
         # update database
         dbProxy = DBProxy()
