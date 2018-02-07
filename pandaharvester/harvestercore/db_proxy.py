@@ -2645,6 +2645,53 @@ class DBProxy:
             # return
             return {}
 
+    # get worker stats
+    def get_worker_stats_bulk(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats_bulk')
+            tmpLog.debug('start')
+            # sql to get nQueueLimit
+            sqlQ = "SELECT queueName, resourceType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
+
+            # get nQueueLimit
+            self.execute(sqlQ)
+            resQ = self.cur.fetchall()
+            retMap = dict()
+            for computingSite, resourceType, nNewWorkers in resQ:
+                retMap.setdefault(computingSite, {})
+                if resourceType and resourceType != 'ANY' and resourceType not in retMap[computingSite]:
+                    retMap[computingSite][resourceType] = {'running': 0, 'submitted': 0, 'to_submit': nNewWorkers}
+
+            # get worker stats
+            sqlW = "SELECT wt.status, wt.computingSite, wt.resourceType, COUNT(*) cnt "
+            sqlW += "FROM {0} wt ".format(workTableName)
+            sqlW += "WHERE wt.status IN (:st1,:st2) "
+            sqlW += "GROUP BY wt.status,wt.computingSite "
+            # get worker stats
+            varMap = dict()
+            varMap[':st1'] = 'running'
+            varMap[':st2'] = 'submitted'
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            for workerStatus, computingSite, resourceType, cnt in resW:
+                if resourceType and resourceType != 'ANY':
+                    retMap.setdefault(computingSite, {})
+                    retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
+                    retMap[computingSite][resourceType][workerStatus] = cnt
+
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
     # send kill command to workers associated to a job
     def kill_workers_with_job(self, panda_id):
         try:

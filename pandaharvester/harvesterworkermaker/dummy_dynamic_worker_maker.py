@@ -13,6 +13,7 @@ class DummyDynamicWorkerMaker(PluginBase):
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, resource_type):
         workSpec = WorkSpec()
+        workSpec.resourceType = resource_type
         if len(jobspec_list) > 0:
             workSpec.nCore = 0
             workSpec.minRamCount = 0

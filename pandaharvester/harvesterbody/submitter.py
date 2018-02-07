@@ -134,7 +134,7 @@ class Submitter(AgentBase):
                             else:
                                 tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks), len(ngChunks)))
                             timeNow = datetime.datetime.utcnow()
-                            # NG
+                            # NG (=not good)
                             for ngJobs in ngChunks:
                                 for jobSpec in ngJobs:
                                     jobSpec.status = 'failed'

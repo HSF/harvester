@@ -414,7 +414,7 @@ class Communicator:
         data['harvesterID'] = harvester_config.master.harvester_id
         data['siteName'] = site_name
         data['paramsList'] = json.dumps(stats)
-        tmpLog.debug('update stats for {0}'.format(site_name))
+        tmpLog.debug('update stats for {0}, stats: {1}'.format(site_name, stats))
         tmpStat, tmpRes = self.post_ssl('reportWorkerStats', data)
         errStr = 'OK'
         if tmpStat is False:
