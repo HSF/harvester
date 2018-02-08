@@ -72,10 +72,10 @@ class WorkerAdjuster:
                     if queueConfig.runMode == 'slave':
                         nNewWorkersDef = tmpVal['nNewWorkers']
                         if nNewWorkersDef == 0:
-                           dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
-                           retMsg = 'set nNewWorkers=0 by panda in slave mode'
-                           tmpLog.debug(retMsg)
-                           continue
+                            dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
+                            retMsg = 'set nNewWorkers=0 by panda in slave mode'
+                            tmpLog.debug(retMsg)
+                            continue
                     else:
                         nNewWorkersDef = None
 

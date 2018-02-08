@@ -215,6 +215,12 @@ class WorkSpec(SpecBase):
                 self.workAttributes[key] = val
                 self.force_update('workAttributes')
 
+    # get work attribute
+    def get_work_attribute(self, name):
+        if self.workAttributes is None or name not in self.workAttributes:
+            return False, None
+        return True, self.workAttributes[name]
+
     # update log files to upload
     def update_log_files_to_upload(self, file_path, position, remote_name=None):
         if self.logFilesToUpload is None:
