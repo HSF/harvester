@@ -20,6 +20,9 @@ class DummySubmitter(PluginBase):
         """Submit workers to a scheduling system like batch systems and computing elements.
         This method takes a list of WorkSpecs as input argument, and returns a list of tuples.
         Each tuple is composed of a return code and a dialog message.
+        The return code could be True (for success), False (for permanent failures), or None (for temporary failures).
+        If the return code is None, submission is retried maxSubmissionAttempts times at most which is defined
+        for each queue in queue_config.json.
         Nth tuple in the returned list corresponds to submission status and dialog message for Nth worker
         in the given WorkSpec list.
         A unique identifier is set to WorkSpec.batchID when submission is successful,
@@ -28,8 +31,8 @@ class DummySubmitter(PluginBase):
         where the worker is running).
 
         :param workspec_list: a list of work specs instances
-        :return: A list of tuples. Each tuple is composed of submission status (True for success, False otherwise)
-        and dialog message
+        :return: A list of tuples. Each tuple is composed of submission status (True for success,
+        False for permanent failures, None for temporary failures) and dialog message
         :rtype: [(bool, string),]
         """
         tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')

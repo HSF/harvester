@@ -2,6 +2,8 @@ import re
 import subprocess
 import xml.etree.ElementTree as ET
 
+import time
+
 # from concurrent.futures import ProcessPoolExecutor as Pool
 from concurrent.futures import ThreadPoolExecutor as Pool
 
@@ -16,7 +18,7 @@ baseLogger = core_utils.setup_logger('htcondor_monitor')
 ## Run shell function
 def _runShell(cmd):
     cmd = str(cmd)
-    p = subprocess.Popen(cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(cmd.split(), shell=False, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdOut, stdErr = p.communicate()
     retCode = p.returncode
     return (retCode, stdOut, stdErr)
@@ -30,37 +32,47 @@ def _check_one_worker(workspec, job_ads_all_dict):
 
     ## Initialize newStatus
     newStatus = workspec.status
+    errStr = ''
 
     try:
         job_ads_dict = job_ads_all_dict[str(workspec.batchID)]
     except KeyError:
         got_job_ads = False
-    except Exception, e:
+    except Exception as e:
         got_job_ads = False
         tmpLog.error('With error {0}'.format(e))
     else:
         got_job_ads = True
 
         ## Parse job ads
-        errStr = ''
         if got_job_ads:
             ## Check JobStatus
             try:
                 batchStatus = job_ads_dict['JobStatus']
             except KeyError:
-                errStr = 'cannot get JobStatus of job batchID={0}'.format(workspec.batchID)
+                errStr = 'cannot get JobStatus of job batchID={0}. Regard the worker as canceled by default'.format(workspec.batchID)
                 tmpLog.error(errStr)
-                newStatus = WorkSpec.ST_failed
+                newStatus = WorkSpec.ST_cancelled
             else:
                 if batchStatus in ['2', '6']:
                     # 2 running, 6 transferring output
                     newStatus = WorkSpec.ST_running
-                elif batchStatus in ['1', '5', '7']:
-                    # 1 idle, 5 held, 7 suspended
+                elif batchStatus in ['1', '7']:
+                    # 1 idle, 7 suspended
                     newStatus = WorkSpec.ST_submitted
                 elif batchStatus in ['3']:
                     # 3 removed
                     newStatus = WorkSpec.ST_cancelled
+                elif batchStatus in ['5']:
+                    # 5 held
+                    if (
+                        job_ads_dict.get('HoldReason') == 'Job not found' or
+                        int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > 3600
+                        ):
+                        # Kill the job if held too long or other reasons
+                        (retCode, stdOut, stdErr) = _runShell('condor_rm {0}'.format(workspec.batchID))
+                    else:
+                        newStatus = WorkSpec.ST_submitted
                 elif batchStatus in ['4']:
                     # 4 completed
                     try:
@@ -81,17 +93,15 @@ def _check_one_worker(workspec, job_ads_all_dict):
 
                         tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
                 else:
-                    errStr = 'cannot get JobStatus of job batchID={0}'.format(workspec.batchID)
+                    errStr = 'cannot get reasonable JobStatus of job batchID={0}. Regard the worker as failed by default'.format(workspec.batchID)
                     tmpLog.error(errStr)
-                    tmpLog.warning('Regard the worker as failed by deafault')
                     newStatus = WorkSpec.ST_failed
 
                 tmpLog.info('batchID={0} : batchStatus {1} -> workerStatus {2}'.format(workspec.batchID, batchStatus, newStatus))
 
         else:
-            tmpLog.warning('condor job batchID={0} not found'.format(workspec.batchID))
-            tmpLog.warning('Regard the worker as failed by deafault')
-            newStatus = WorkSpec.ST_failed
+            tmpLog.error('condor job batchID={0} not found. Regard the worker as canceled by default'.format(workspec.batchID))
+            newStatus = WorkSpec.ST_cancelled
             tmpLog.info('batchID={0}: batchStatus {1} -> workerStatus {2}'.format(workspec.batchID, batchStatus, newStatus))
 
     ## Return
@@ -112,7 +122,7 @@ class HTCondorMonitor (PluginBase):
                                         method_name='check_workers')
 
         ## Initial a list all batchIDs of workspec_list
-        batchIDs_list = map( lambda _x: str(_x.batchID) , workspec_list )
+        batchIDs_list = list( map( lambda _x: str(_x.batchID) , workspec_list ) )
 
         ## Query commands
         orig_comStr_list = [
@@ -162,8 +172,7 @@ class HTCondorMonitor (PluginBase):
                 job_ads_xml_str = '\n'.join(str(stdOut).split(badtext))
                 # job_ads_xml_str = re.sub(badtext_re_str, '\n', str(stdOut))
                 # tmpLog.debug(job_ads_xml_str)
-                import time
-                with open('/tmp/jobads-{0}.xml'.format(time.time()), 'wb') as _f: _f.write(job_ads_xml_str)
+                # with open('/tmp/jobads-{0}.xml'.format(time.time()), 'w') as _f: _f.write(job_ads_xml_str)
 
                 if '<c>' in job_ads_xml_str:
                     ## Found at least one job
@@ -201,8 +210,12 @@ class HTCondorMonitor (PluginBase):
                 tmpLog.error(errStr)
                 return False, errStr
 
-        if batchIDs_list:
-            tmpLog.info( 'Unfound batch jobs: '.format( ' '.join(batchIDs_list) ) )
+        if len(batchIDs_list) > 0:
+            ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
+            for batchid in batchIDs_list:
+                job_ads_all_dict[batchid] = dict()
+            tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs: {0}'.format( ' '.join(batchIDs_list) ) )
+
 
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:

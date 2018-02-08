@@ -47,10 +47,13 @@ class JobSpec(SpecBase):
                            'zipPerMB:integer',
                            'nWorkers:integer',
                            'nWorkersLimit:integer',
+                           'submissionAttempts:integer',
+                           'jobsetID:integer'
                            )
 
     # attributes initialized with 0
     zeroAttrs = ('nWorkers',
+                 'submissionAttempts'
                  )
 
     # constructor
@@ -107,6 +110,7 @@ class JobSpec(SpecBase):
         self.PandaID = data['PandaID']
         self.taskID = data['taskID']
         self.attemptNr = data['attemptNr']
+        self.jobsetID = data['jobsetID']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
         if 'zipPerMB' in data:

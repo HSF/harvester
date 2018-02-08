@@ -24,6 +24,7 @@ class WorkSpec(SpecBase):
     ST_cancelled = 'cancelled'
     ST_idle = 'idle'
     ST_missed = 'missed'
+    ST_pending = 'pending'
 
     # list of worker statuses
     ST_LIST = [ST_submitted,
@@ -77,7 +78,8 @@ class WorkSpec(SpecBase):
                            'killTime:timestamp / index',
                            'computingElement:text',
                            'nJobsToReFill:integer',
-                           'logFilesToUpload:blob'
+                           'logFilesToUpload:blob',
+                           'resourceType:text'
                            )
 
     # constructor
@@ -212,6 +214,12 @@ class WorkSpec(SpecBase):
             if key not in self.workAttributes or self.workAttributes[key] != val:
                 self.workAttributes[key] = val
                 self.force_update('workAttributes')
+
+    # get work attribute
+    def get_work_attribute(self, name):
+        if self.workAttributes is None or name not in self.workAttributes:
+            return False, None
+        return True, self.workAttributes[name]
 
     # update log files to upload
     def update_log_files_to_upload(self, file_path, position, remote_name=None):

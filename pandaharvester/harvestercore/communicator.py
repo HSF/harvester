@@ -414,7 +414,7 @@ class Communicator:
         data['harvesterID'] = harvester_config.master.harvester_id
         data['siteName'] = site_name
         data['paramsList'] = json.dumps(stats)
-        tmpLog.debug('update stats for {0}'.format(site_name))
+        tmpLog.debug('update stats for {0}, stats: {1}'.format(site_name, stats))
         tmpStat, tmpRes = self.post_ssl('reportWorkerStats', data)
         errStr = 'OK'
         if tmpStat is False:
@@ -511,3 +511,31 @@ class Communicator:
             errStr = tmpRes.text
             tmpLog.debug('got {0}'.format(errStr))
         return tmpStat, errStr
+
+    # check event availability
+    def check_event_availability(self, jobspec):
+        retStat = False
+        retVal = None
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='check_event_availability')
+        tmpLog.debug('start')
+        data = dict()
+        data['taskID'] = jobspec.taskID
+        data['pandaID'] = jobspec.PandaID
+        if jobspec.jobsetID is None:
+            data['jobsetID'] = jobspec.jobParams['jobsetID']
+        else:
+            data['jobsetID'] = jobspec.jobsetID
+        tmpStat, tmpRes = self.post_ssl('checkEventsAvailability', data)
+        if tmpStat is False:
+            core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                tmpDict = tmpRes.json()
+                if tmpDict['StatusCode'] == 0:
+                    retStat = True
+                    retVal = tmpDict['nEventRanges']
+            except:
+                core_utils.dump_error_message(tmpLog, tmpRes)
+        tmpLog.debug('done with {0}'.format(retVal))
+        return retStat, retVal

@@ -1,3 +1,4 @@
+import time
 import datetime
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -9,6 +10,7 @@ from pandaharvester.harvesterbody.agent_base import AgentBase
 # logger
 _logger = core_utils.setup_logger('propagator')
 
+STATS_PERIOD = 300
 
 # propagate important checkpoints to panda
 class Propagator(AgentBase):
@@ -18,6 +20,7 @@ class Propagator(AgentBase):
         self.dbProxy = DBProxy()
         self.communicator = communicator
         self.queueConfigMapper = queue_config_mapper
+        self._last_stats_update = None
 
     # main loop
     def run(self):
@@ -74,6 +77,13 @@ class Propagator(AgentBase):
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'
                         else:
+                            # check event availability
+                            if tmpJobSpec.status == 'starting' and 'eventService' in tmpJobSpec.jobParams and \
+                                    tmpJobSpec.subStatus != 'submitted':
+                                tmpEvStat, tmpEvRet = self.communicator.check_event_availability(tmpJobSpec)
+                                if tmpEvStat and tmpEvRet == 0:
+                                    mainLog.debug('kill PandaID={0} due to no event'.format(tmpJobSpec.PandaID))
+                                    tmpRet['command'] = 'tobekilled'
                             # got kill command
                             if 'command' in tmpRet and tmpRet['command'] in ['tobekilled']:
                                 nWorkers = self.dbProxy.kill_workers_with_job(tmpJobSpec.PandaID)
@@ -135,10 +145,24 @@ class Propagator(AgentBase):
                         # report worker stats
                         tmpRet, tmpStr = self.communicator.update_worker_stats(siteName, workerStats)
                         if tmpRet:
-                            mainLog.debug('updated worker stats for {0}'.format(siteName))
+                            mainLog.debug('updated worker stats (command) for {0}'.format(siteName))
                         else:
-                            mainLog.error('failed to update worker stats for {0} err={1}'.format(siteName,
-                                                                                                 tmpStr))
+                            mainLog.error('failed to update worker stats (command) for {0} err={1}'.format(siteName, tmpStr))
+
+            if not self._last_stats_update or time.time() - self._last_stats_update > STATS_PERIOD:
+                # update worker stats for all sites
+                worker_stats_bulk = self.dbProxy.get_worker_stats_bulk()
+                if not worker_stats_bulk:
+                    mainLog.error('failed to get worker stats in bulk')
+                else:
+                    for site_name in worker_stats_bulk:
+                        tmp_ret, tmp_str = self.communicator.update_worker_stats(site_name, worker_stats_bulk[site_name])
+                        if tmp_ret:
+                            mainLog.debug('update of worker stats (bulk) for {0}'.format(site_name))
+                            self._last_stats_update = time.time()
+                        else:
+                            mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name, tmp_str))
+
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):

@@ -231,6 +231,9 @@ sleepTime = 60
 # number of threads
 nThreads = 3
 
+# max number of workers per queue to try in one cycle
+maxWorkers = 500
+
 # max number of queues to try in one cycle
 nQueues = 3
 
@@ -444,6 +447,10 @@ xmlPoolCatalogFile = PoolFileCatalog_H.xml
 # get PandaIDs
 pandaIDsFile = worker_pandaids.json
 
+# kill request
+killWorkerFile = kill_worker.json
+
+
 
 
 
@@ -497,6 +504,9 @@ keepFailed = 72
 
 # duration in hours to keep cancelled workers
 keepCancelled = 72
+
+# duration in hours to keep missed workers
+keepMissed = 24
 
 
 

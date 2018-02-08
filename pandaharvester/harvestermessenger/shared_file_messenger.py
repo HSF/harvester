@@ -1,7 +1,10 @@
 import json
 import os
 import re
-import urllib
+try:
+    from urllib.parse import urlencode
+except ImportError:
+    from urllib import urlencode
 import uuid
 import os.path
 import tarfile
@@ -45,6 +48,12 @@ xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
 
 # json to get PandaIDs
 pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
+
+# json to kill worker
+try:
+    killWorkerFile = harvester_config.payload_interaction.killWorkerFile
+except:
+    killWorkerFile = 'kill_worker.json'
 
 # suffix to read json
 suffixReadJson = '.read'
@@ -283,7 +292,7 @@ class SharedFileMessenger(PluginBase):
                 # put job spec file
                 with open(jobSpecFilePath, 'w') as jobSpecFile:
                     if self.jobSpecFileFormat == 'cgi':
-                        jobSpecFile.write(urllib.urlencode(jobSpec.jobParams))
+                        jobSpecFile.write(urlencode(jobSpec.jobParams))
                     else:
                         json.dump({jobSpec.PandaID: jobSpec.jobParams}, jobSpecFile)
                 # put PFC.xml
@@ -496,14 +505,12 @@ class SharedFileMessenger(PluginBase):
                     logFilePath += '.{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
                 with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                    for tmpFile in os.listdir(accessPoint):
-                        if not self.filter_log_tgz(tmpFile):
-                            continue
-                        tmpFullPath = os.path.join(accessPoint, tmpFile)
-                        if not os.path.isfile(tmpFullPath):
-                            continue
-                        tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
-                        tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+                    for path, dirs, files in os.walk(accessPoint):
+                        for filename in files:
+                            if self.filter_log_tgz(filename):
+                                tmpFullPath = os.path.join(path, filename)
+                                tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
+                                tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
                 # make json to stage-out the log file
                 fileDict = dict()
                 fileDict[jobSpec.PandaID] = []
@@ -539,3 +546,18 @@ class SharedFileMessenger(PluginBase):
             return retVal
         tmpLog.debug('found')
         return retVal
+
+    # check if requested to kill the worker
+    def kill_requested(self, workspec):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='kill_requested')
+        # look for the json just under the access point
+        jsonFilePath = os.path.join(workspec.get_access_point(), killWorkerFile)
+        tmpLog.debug('looking for kill request file {0}'.format(jsonFilePath))
+        if not os.path.exists(jsonFilePath):
+            # not found
+            tmpLog.debug('not found')
+            return False
+        tmpLog.debug('kill requested')
+        return True
