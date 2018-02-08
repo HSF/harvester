@@ -7,6 +7,7 @@ from socket import gethostname
 from subprocess import call
 import logging
 from mpi4py import MPI
+from jobdescription import JobDescription
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -24,7 +25,23 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
+# TODO:
+# Input file processing
+#   - read file attributes from PoolFileCatalog_H.xml
+#   - check validity of file by checksum
+# Get payload run command
+#   - setup string
+#   - trf full commandline
+# Extract results of execution
+#   - collect exit code, message
+#   - extract data from jobreport
+
+
 def main():
+
+    workerAttributesFile = "worker_attributes.json"
+    eventStatusDumpJsonFile = "event_status.dump.json"
+
     start_g = time.time()
     start_g_str = time.asctime(time.localtime(start_g))
     hostname = gethostname()
@@ -46,7 +63,13 @@ def main():
     logger.debug("Collected list of jobs {0}".format(panda_ids))
     logger.error("Only for test")
     # PandaID of the job for the command
-    job_id = panda_ids[0]
+    try:
+        job_id = panda_ids[rank]
+    except ValueError:
+        logger.critical("Pilot have no job: rank {0}".format(rank))
+        logger.critical("Exit pilot")
+        return 1
+
     logger.debug("Job [{0}] will be processed".format(job_id))
     os.chdir(str(job_id))
 
@@ -59,7 +82,7 @@ def main():
         logger.critical("Unable to open 'HPCJobs.json'")
         return errno
 
-    job = jobs[str(job_id)]
+    job_dict = jobs[str(job_id)]
 
     my_command = " ".join([job['transformation'],job['jobPars']])
     my_command = my_command.strip()
