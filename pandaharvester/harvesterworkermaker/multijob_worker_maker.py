@@ -79,14 +79,14 @@ class MultiJobWorkerMaker(PluginBase):
         return workSpec
 
     # get number of jobs per worker
-    def get_num_jobs_per_worker(self):
+    def get_num_jobs_per_worker(self, n_workers):
         try:
             return self.nJobsPerWorker
         except:
             return 1
 
     # get number of workers per job
-    def get_num_workers_per_job(self):
+    def get_num_workers_per_job(self, n_workers):
         try:
             return self.nWorkersPerJob
         except:
