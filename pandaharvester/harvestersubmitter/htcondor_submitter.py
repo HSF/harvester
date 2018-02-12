@@ -10,10 +10,14 @@ import re
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 baseLogger = core_utils.setup_logger('htcondor_submitter')
 
+# Integer division round up
+def _div_round_up(a, b):
+    return a // b + int(a % b > 0)
 
 # submit a worker
 def submit_a_worker(data):
@@ -21,16 +25,18 @@ def submit_a_worker(data):
     template = data['template']
     log_dir = data['log_dir']
     n_core_per_node = data['n_core_per_node']
-    # ce_endpoint = data['ce_endpoint']
-    # ce_hostname = data['ce_hostname']
+    panda_queue_name = data['panda_queue_name']
+    x509_user_proxy = data['x509_user_proxy']
     ce_info_dict = data['ce_info_dict']
+    batch_log_dict = data['batch_log_dict']
     workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
     # make batch script
-    batchFile = make_batch_script(workspec=workspec, template=template, n_core_per_node=n_core_per_node,
-                                    log_dir=log_dir, ce_info_dict=ce_info_dict)
+    batchFile = make_batch_script(workspec=workspec, template=template, n_core_per_node=n_core_per_node, log_dir=log_dir,
+                                    panda_queue_name=panda_queue_name, x509_user_proxy=x509_user_proxy,
+                                    ce_info_dict=ce_info_dict, batch_log_dict=batch_log_dict)
     # command
     comStr = 'condor_submit {0}'.format(batchFile)
     # submit
@@ -73,7 +79,7 @@ def submit_a_worker(data):
 
 
 # make batch script
-def make_batch_script(workspec, template, n_core_per_node, log_dir, ce_info_dict=dict()):
+def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy, ce_info_dict=dict(), batch_log_dict=dict()):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
@@ -81,26 +87,39 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, ce_info_dict
     # Note: In workspec, unit of minRamCount and of maxDiskCount are both MB.
     #       In HTCondor SDF, unit of request_memory is MB, and request_disk is KB.
     n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
-    n_node = n_core_total // n_core_per_node + min(n_core_total % n_core_per_node, 1)
+    n_node = _div_round_up(n_core_total, n_core_per_node)
     request_ram = workspec.minRamCount if workspec.minRamCount else 1
+    request_ram_per_core = _div_round_up(request_ram * n_node, n_core_total)
     request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
-    request_walltime =  workspec.maxWalltime if workspec.maxWalltime else 0
+    request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
+    request_walltime_minute = _div_round_up(request_walltime, 60)
 
     tmpFile.write(template.format(
         nCorePerNode=n_core_per_node,
         nCoreTotal=n_core_total,
         nNode=n_node,
         requestRam=request_ram,
+        requestRamPerCore=request_ram_per_core,
         requestDisk=request_disk,
         requestWalltime=request_walltime,
+        requestWalltimeMinute=request_walltime_minute,
         accessPoint=workspec.accessPoint,
         harvesterID=harvester_config.master.harvester_id,
         workerID=workspec.workerID,
         computingSite=workspec.computingSite,
+        pandaQueueName=panda_queue_name,
+        x509UserProxy=x509_user_proxy,
         ceEndpoint=ce_info_dict.get('ce_endpoint', ''),
         ceHostname=ce_info_dict.get('ce_hostname', ''),
+        ceFlavour=ce_info_dict.get('ce_flavour', ''),
+        ceJobmanager=ce_info_dict.get('ce_jobmanager', ''),
         ceQueueName=ce_info_dict.get('ce_queue_name', ''),
-        logDir=log_dir)
+        ceVersion=ce_info_dict.get('ce_version', ''),
+        logDir=log_dir,
+        batchLog=batch_log_dict.get('batch_log', ''),
+        batchStdOut=batch_log_dict.get('batch_stdout', ''),
+        batchStdErr=batch_log_dict.get('batch_stderr', ''),
+        )
     )
     tmpFile.close()
     tmpLog.debug('done')
@@ -138,6 +157,18 @@ class HTCondorSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
+        # ATLAS AGIS
+        try:
+            self.useAtlasAGIS = bool(self.useAtlasAGIS)
+        except AttributeError:
+            self.useAtlasAGIS = False
+        # ATLAS Grid CE, requiring AGIS
+        try:
+            self.useAtlasGridCE = bool(self.useAtlasGridCE)
+        except AttributeError:
+            self.useAtlasGridCE = False
+        finally:
+            self.useAtlasAGIS = self.useAtlasAGIS or self.useAtlasGridCE
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -145,13 +176,6 @@ class HTCondorSubmitter(PluginBase):
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
-
-        # get info by cacher in db
-        panda_queues_cache = self.dbInterface.get_cache('panda_queues.json')
-        panda_queues_dict = dict() if not panda_queues_cache else panda_queues_cache.data
-        # tmpLog.debug('panda_queues_dict: {0}'.format(panda_queues_dict))
-        # tmpLog.debug('panda_queues_name and queue_info: {0}'.format(self.queueName, panda_queues_dict[self.queueName]))
-        this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
 
         # get batch_log, stdout, stderr filename
         for _line in self.template.split('\n'):
@@ -170,48 +194,76 @@ class HTCondorSubmitter(PluginBase):
                 stderr_value = _match_stderr.group(1)
                 continue
 
-        # dataList = []
-        # for workspec in workspec_list:
+        # get queue info from AGIS by cacher in db
+        if self.useAtlasAGIS:
+            panda_queues_dict = PandaQueuesDict()
+            panda_queue_name = panda_queues_dict.get_PQ_from_PR(self.queueName)
+            this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
+            # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
+        else:
+            panda_queues_dict = dict()
+            panda_queue_name = self.queueName
+            this_panda_queue_dict = dict()
+
         def _handle_one_worker(workspec):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                             method_name='_handle_one_worker')
+
             # get default information from queue info
-            n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1)
-            queues_from_queue_list = this_panda_queue_dict.get('queues', [])
-            ce_endpoint_from_queue = ''
-            random.shuffle(queues_from_queue_list)
+            sdf_template = self.template
+            n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
             ce_info_dict = dict()
-            for _queue_dict in queues_from_queue_list:
-                if 'CONDOR-CE' in str(_queue_dict.get('ce_flavour', '')).upper():
-                    # ce_endpoint_from_queue = _queue_dict.get('ce_endpoint', '')
-                    ce_info_dict = _queue_dict.copy()
-                    ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_info_dict.get('ce_endpoint', ''))
-                    break
+            batch_log_dict = dict()
+
+            # If ATLAS Grid CE mode used
+            if self.useAtlasGridCE:
+                tmpLog.debug('Using ATLAS Grid CE mode...')
+                queues_from_queue_list = this_panda_queue_dict.get('queues', [])
+                ce_endpoint_from_queue = ''
+                ce_flavour_str = ''
+                random.shuffle(queues_from_queue_list)
+                for _queue_dict in queues_from_queue_list:
+                    if _queue_dict.get('ce_endpoint') and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE':
+                        ce_flavour_str = str( _queue_dict.get('ce_flavour', '') ).lower()
+                        if ce_flavour_str in set(['arc-ce', 'cream-ce', 'htcondor-ce']):
+                            ce_info_dict = _queue_dict.copy()
+                            ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
+                            ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
+                            break
+                        else:
+                            ce_flavour_str = ''
+                tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
+                if os.path.isdir(self.template) and ce_flavour_str:
+                    sdf_template = os.path.join(self.template, '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str))
 
             # get override requirements from queue configured
             try:
-                n_core_per_node = self.nCorePerNode
+                n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
             except AttributeError:
                 n_core_per_node = n_core_per_node_from_queue
-            # set data dict
-            data = {'workspec': workspec,
-                    'template': self.template,
-                    'log_dir': self.logDir,
-                    'n_core_per_node': n_core_per_node,
-                    # 'ce_endpoint': ce_endpoint_from_queue,
-                    # 'ce_hostname': ce_hostname_from_queue,
-                    'ce_info_dict': ce_info_dict,
-                    }
-            # dataList.append(data)
+            try:
+                log_dir = self.logDir
+            except AttributeError:
+                log_dir = '/tmp'
+            try:
+                x509_user_proxy = self.x509UserProxy
+            except AttributeError:
+                x509_user_proxy = os.getenv('X509_USER_PROXY')
             # URLs for log files
-            if self.logBaseURL is not None and workspec.batchID is not None:
+            if not (self.logBaseURL is None) and not (workspec.batchID is None):
                 batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=self.logDir, batchID=workspec.batchID)
                 stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=self.logDir, batchID=workspec.batchID)
                 stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=self.logDir, batchID=workspec.batchID)
-                workspec.set_log_file('batch_log', '{0}/{1}'.format(self.logBaseURL, batch_log_filename))
-                workspec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name))
-                workspec.set_log_file('stderr', '{0}/{1}'.format(self.logBaseURL, stderr_path_filename))
+                batch_log = '{0}/{1}'.format(self.logBaseURL, batch_log_filename)
+                batch_stdout = '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name)
+                batch_stderr = '{0}/{1}'.format(self.logBaseURL, stderr_path_filename)
+                workspec.set_log_file('batch_log', batch_log)
+                workspec.set_log_file('stdout', batch_stdout)
+                workspec.set_log_file('stderr', batch_stderr)
+                batch_log_dict['batch_log'] = batch_log
+                batch_log_dict['batch_stdout'] = batch_stdout
+                batch_log_dict['batch_stderr'] = batch_stderr
                 tmpLog.debug('Done set_log_file')
                 if not workspec.get_jobspec_list():
                     tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
@@ -220,7 +272,18 @@ class HTCondorSubmitter(PluginBase):
                         # using batchLog and stdOut URL as pilotID and pilotLog
                         jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
                         jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
-                tmpLog.debug('Done jobspec attribute setting')
+            tmpLog.debug('Done jobspec attribute setting')
+
+            # set data dict
+            data = {'workspec': workspec,
+                    'template': sdf_template,
+                    'log_dir': log_dir,
+                    'n_core_per_node': n_core_per_node,
+                    'panda_queue_name': panda_queue_name,
+                    'x509_user_proxy': x509_user_proxy,
+                    'ce_info_dict': ce_info_dict,
+                    'batch_log_dict': batch_log_dict,
+                    }
 
             return data
 
@@ -233,7 +296,6 @@ class HTCondorSubmitter(PluginBase):
 
         # exec with mcore
         with ProcessPoolExecutor(self.nProcesses) as process_pool:
-            # retValList = process_pool.map(submit_a_worker, dataList)
             retValList = process_pool.map(submit_a_worker, dataIterator)
         tmpLog.debug('{0} workers submitted'.format(nWorkers))
 

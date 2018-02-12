@@ -1,6 +1,7 @@
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 
 # simple maker
@@ -52,8 +53,7 @@ class SimpleWorkerMaker(PluginBase):
             # pull case: there is no predefined job, so we need to set the parameters based on the queue definition
             # and the resource type of the job
             # get the queue configuration from the DB
-            panda_queues_cache = self.dbInterface.get_cache('panda_queues.json')
-            panda_queues_dict = dict() if not panda_queues_cache else panda_queues_cache.data
+            panda_queues_dict = PandaQueuesDict()
             queue_dict = panda_queues_dict.get(queue_config.queueName, {})
 
             unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')
