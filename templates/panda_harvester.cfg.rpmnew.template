@@ -108,7 +108,7 @@ verbose = False
 # config file
 configFile = panda_queueconfig.json
 
-# queue list : one queue name following a whitespace per line
+# queue list : one queue name following a whitespace per line. Or just ALL if all queues in the configFile are used
 queueList =
  FIXME_1
  FIXME_2
@@ -298,7 +298,7 @@ className =
  NoVomsCredManager
 
 # original certificate file to generate new short-lived certificate
-certFile =
+inCertFile =
  /path_to/FIXME_original_cert_for_proxy_with_production_role
  /path_to/FIXME_original_cert_for_proxy_with_pilot_role
 
