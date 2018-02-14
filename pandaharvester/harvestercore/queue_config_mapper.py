@@ -71,7 +71,7 @@ class QueueConfigMapper:
             timeNow = datetime.datetime.utcnow()
             if self.lastUpdate is not None and timeNow - self.lastUpdate < datetime.timedelta(minutes=10):
                 return
-            self.queueConfig = {}
+            newQueueConfig = {}
             queueConfigJsonList = []
             # load config json on URL
             if core_utils.get_queues_config_url() is not None:
@@ -117,8 +117,8 @@ class QueueConfigMapper:
                             if templateQueueName in queueConfigJson:
                                 queueDictList.insert(0, queueConfigJson[templateQueueName])
                     for queueDict in queueDictList:
-                        if queueName in self.queueConfig:
-                            queueConfig = self.queueConfig[queueName]
+                        if queueName in newQueueConfig:
+                            queueConfig = newQueueConfig[queueName]
                         else:
                             queueConfig = QueueConfig(queueName)
                         # queueName = siteName/resourceType
@@ -151,7 +151,8 @@ class QueueConfigMapper:
                         # heartbeat suppression
                         if queueConfig.truePilot and queueConfig.noHeartbeat == '':
                             queueConfig.noHeartbeat = 'running,transferring,finished,failed'
-                        self.queueConfig[queueName] = queueConfig
+                        newQueueConfig[queueName] = queueConfig
+            self.queueConfig = newQueueConfig
             self.lastUpdate = datetime.datetime.utcnow()
         # update database
         dbProxy = DBProxy()
@@ -160,19 +161,15 @@ class QueueConfigMapper:
     # check if valid queue
     def has_queue(self, queue_name):
         self.load_data()
-        with self.lock:
-            retVal = queue_name in self.queueConfig
-        return retVal
+        return queue_name in self.queueConfig
 
     # get queue config
     def get_queue(self, queue_name):
         self.load_data()
-        with self.lock:
-            if not self.has_queue(queue_name):
-                retVal = None
-            else:
-                retVal = self.queueConfig[queue_name]
-        return retVal
+        if not self.has_queue(queue_name):
+            return None
+        else:
+            return self.queueConfig[queue_name]
 
     # all queue configs
     def get_all_queues(self):
