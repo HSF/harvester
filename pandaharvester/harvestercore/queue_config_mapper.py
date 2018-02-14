@@ -160,14 +160,19 @@ class QueueConfigMapper:
     # check if valid queue
     def has_queue(self, queue_name):
         self.load_data()
-        return queue_name in self.queueConfig
+        with self.lock:
+            retVal = queue_name in self.queueConfig
+        return retVal
 
     # get queue config
     def get_queue(self, queue_name):
         self.load_data()
-        if not self.has_queue(queue_name):
-            return None
-        return self.queueConfig[queue_name]
+        with self.lock:
+            if not self.has_queue(queue_name):
+                retVal = None
+            else:
+                retVal = self.queueConfig[queue_name]
+        return retVal
 
     # all queue configs
     def get_all_queues(self):
