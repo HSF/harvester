@@ -166,7 +166,7 @@ class QueueConfigMapper:
     # get queue config
     def get_queue(self, queue_name):
         self.load_data()
-        if not self.has_queue(queue_name):
+        if queue_name not in self.queueConfig:
             return None
         else:
             return self.queueConfig[queue_name]
