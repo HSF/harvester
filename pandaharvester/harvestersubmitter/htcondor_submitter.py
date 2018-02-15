@@ -119,6 +119,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         batchLog=batch_log_dict.get('batch_log', ''),
         batchStdOut=batch_log_dict.get('batch_stdout', ''),
         batchStdErr=batch_log_dict.get('batch_stderr', ''),
+        gtag=batch_log_dict.get('batch_stdout', 'fake_GTAG_string'),
         )
     )
     tmpFile.close()
@@ -127,16 +128,20 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
 
 
 # parse log, stdout, stderr filename
-def parse_batch_job_filename(value_str, file_dir, batchID):
+def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
     _filename = os.path.basename(value_str)
-    _sanitized_list = re.sub('\{(\w+)\}|\[(\w+)\]|\((\w+)\)|#(\w+)#|\$', '',  _filename).split('.')
-    _prefix = _sanitized_list[0]
-    _suffix = _sanitized_list[-1] if len(_sanitized_list) > 1 else ''
+    if guess:
+        # guess file name before files really created; possibly containing condor macros
+        return _filename
+    else:
+        _sanitized_list = re.sub('\{(\w+)\}|\[(\w+)\]|\((\w+)\)|#(\w+)#|\$', '',  _filename).split('.')
+        _prefix = _sanitized_list[0]
+        _suffix = _sanitized_list[-1] if len(_sanitized_list) > 1 else ''
 
-    for _f in os.listdir(file_dir):
-        if re.match('{prefix}(.*)\.{batchID}\.(.*)\.{suffix}'.format(prefix=_prefix, suffix=_suffix, batchID=batchID), _f):
-            return _f
-    return None
+        for _f in os.listdir(file_dir):
+            if re.match('{prefix}(.*)\.{batchID}\.(.*)\.{suffix}'.format(prefix=_prefix, suffix=_suffix, batchID=batchID), _f):
+                return _f
+        return None
 
 
 # submitter for HTCONDOR batch system
@@ -251,10 +256,16 @@ class HTCondorSubmitter(PluginBase):
             except AttributeError:
                 x509_user_proxy = os.getenv('X509_USER_PROXY')
             # URLs for log files
-            if not (self.logBaseURL is None) and not (workspec.batchID is None):
-                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=self.logDir, batchID=workspec.batchID)
-                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=self.logDir, batchID=workspec.batchID)
-                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=self.logDir, batchID=workspec.batchID)
+            if not (self.logBaseURL is None):
+                if workspec.batchID:
+                    batchID = workspec.batchID
+                    guess = False
+                else:
+                    batchID = ''
+                    guess = True
+                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=self.logDir, batchID=batchID, guess=guess)
+                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=self.logDir, batchID=batchID, guess=guess)
+                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=self.logDir, batchID=batchID, guess=guess)
                 batch_log = '{0}/{1}'.format(self.logBaseURL, batch_log_filename)
                 batch_stdout = '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name)
                 batch_stderr = '{0}/{1}'.format(self.logBaseURL, stderr_path_filename)
