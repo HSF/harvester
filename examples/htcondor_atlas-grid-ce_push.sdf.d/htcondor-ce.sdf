@@ -1,4 +1,4 @@
-executable = /data/atlpan/harvester_common/runpilot3-wrapper-harvester-pull-171110.sh
+executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
 arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -f false
 initialdir = {accessPoint}
 universe = grid
@@ -7,7 +7,7 @@ output = {logDir}/grid.$(Cluster).$(Process).out
 error = {logDir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = {x509UserProxy}
-environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID}"
+environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} GTAG={gtag}"
 transfer_input_files = pandaJobData.out
 
 grid_resource = condor {ceHostname} {ceEndpoint}

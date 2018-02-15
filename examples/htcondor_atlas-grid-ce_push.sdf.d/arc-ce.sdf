@@ -1,4 +1,4 @@
-executable = /data/atlpan/harvester_common/runpilot3-wrapper-harvester-pull-171110.sh
+executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
 arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -f false
 #arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch
 initialdir = {accessPoint}
@@ -12,8 +12,8 @@ environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HAR
 should_transfer_files = True
 transfer_input_files = pandaJobData.out
 
-grid_resource = nordugrid {ceEndpoint}
-nordugrid_rsl = (queue = atlas)(runtimeenvironment = APPS/HEP/ATLAS-SITE-LCG)(runtimeenvironment = ENV/PROXY)(jobname = arc_pilot)(count = {nCoreTotal})(countpernode = {nCoreTotal})(memory = {requestRamPerCore})(walltime = {requestWalltime})(cputime = {requestWalltime})(environment = (PANDA_JSID harvester-{harvesterID})(HARVESTER_ID {harvesterID})(HARVESTER_WORKER_ID {workerID}))
+grid_resource = nordugrid {ceHostname}
+nordugrid_rsl = (queue = atlas)(runtimeenvironment = APPS/HEP/ATLAS-SITE-LCG)(runtimeenvironment = ENV/PROXY)(jobname = arc_pilot)(count = {nCoreTotal})(countpernode = {nCoreTotal})(memory = {requestRamPerCore})(walltime = {requestWalltime})(cputime = {requestWalltime})(environment = (PANDA_JSID harvester-{harvesterID})(HARVESTER_ID {harvesterID})(HARVESTER_WORKER_ID {workerID})(GTAG {gtag}))
 
 +remote_jobuniverse = 5
 +remote_requirements = True
