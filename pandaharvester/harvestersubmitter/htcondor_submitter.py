@@ -76,11 +76,12 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
-            # substitute condor macros in path of batch logs of workspec
-            workspec.workAttributes['batchLog'] = _condor_macro_replace(workspec.workAttributes['batchLog'], ClusterId=workspec.batchID)
-            workspec.workAttributes['stdOut'] = _condor_macro_replace(workspec.workAttributes['stdOut'], ClusterId=workspec.batchID)
-            workspec.workAttributes['stdErr'] = _condor_macro_replace(workspec.workAttributes['stdErr'], ClusterId=workspec.batchID)
-            workspec.force_update('workAttributes')
+            batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
+            batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
+            batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=workspec.batchID)
+            workspec.set_log_file('batch_log', batch_log)
+            workspec.set_log_file('stdout', batch_stdout)
+            workspec.set_log_file('stderr', batch_stderr)
             tmpRetVal = (True, '')
         else:
             errStr = 'batchID cannot be found'
@@ -132,10 +133,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         ceQueueName=ce_info_dict.get('ce_queue_name', ''),
         ceVersion=ce_info_dict.get('ce_version', ''),
         logDir=log_dir,
-        batchLog=batch_log_dict.get('batch_log', ''),
-        batchStdOut=batch_log_dict.get('batch_stdout', ''),
-        batchStdErr=batch_log_dict.get('batch_stderr', ''),
-        gtag=batch_log_dict.get('batch_stdout', 'fake_GTAG_string'),
+        gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         )
     )
     tmpFile.close()
@@ -174,6 +172,16 @@ class HTCondorSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
+        # condor log directory
+        try:
+            self.logDir
+        except AttributeError:
+            self.logDir = os.getenv('TMPDIR') or '/tmp'
+        # x509 proxy
+        try:
+            self.x509UserProxy
+        except AttributeError:
+            self.x509UserProxy = os.getenv('X509_USER_PROXY')
         # ATLAS AGIS
         try:
             self.useAtlasAGIS = bool(self.useAtlasAGIS)
@@ -198,8 +206,6 @@ class HTCondorSubmitter(PluginBase):
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
-
-
 
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
@@ -270,14 +276,7 @@ class HTCondorSubmitter(PluginBase):
                 n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
             except AttributeError:
                 n_core_per_node = n_core_per_node_from_queue
-            try:
-                log_dir = self.logDir
-            except AttributeError:
-                log_dir = '/tmp'
-            try:
-                x509_user_proxy = self.x509UserProxy
-            except AttributeError:
-                x509_user_proxy = os.getenv('X509_USER_PROXY')
+
             # URLs for log files
             if not (self.logBaseURL is None):
                 if workspec.batchID:
@@ -295,9 +294,10 @@ class HTCondorSubmitter(PluginBase):
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
                 workspec.set_log_file('stderr', batch_stderr)
-                batch_log_dict['batch_log'] = workspec.workAttributes['batchLog']
-                batch_log_dict['batch_stdout'] = workspec.workAttributes['stdOut']
-                batch_log_dict['batch_stderr'] = workspec.workAttributes['stdErr']
+                batch_log_dict['batch_log'] = batch_log
+                batch_log_dict['batch_stdout'] = batch_stdout
+                batch_log_dict['batch_stderr'] = batch_stderr
+                batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
                 tmpLog.debug('Done set_log_file')
                 if not workspec.get_jobspec_list():
                     tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
@@ -311,10 +311,10 @@ class HTCondorSubmitter(PluginBase):
             # set data dict
             data = {'workspec': workspec,
                     'template': sdf_template,
-                    'log_dir': log_dir,
+                    'log_dir': self.logDir,
                     'n_core_per_node': n_core_per_node,
                     'panda_queue_name': panda_queue_name,
-                    'x509_user_proxy': x509_user_proxy,
+                    'x509_user_proxy': self.x509UserProxy,
                     'ce_info_dict': ce_info_dict,
                     'batch_log_dict': batch_log_dict,
                     }
