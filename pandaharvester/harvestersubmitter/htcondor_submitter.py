@@ -19,6 +19,17 @@ baseLogger = core_utils.setup_logger('htcondor_submitter')
 def _div_round_up(a, b):
     return a // b + int(a % b > 0)
 
+
+def _condor_macro_replace(string, **kwarg):
+    new_string = string
+    macro_map = {
+                '\$\(Cluster\)': str(kwarg['ClusterId']),
+                '\$\(Process\)': '0',
+                }
+    for k, v in macro_map.items():
+        new_string = re.sub(k, v, new_string)
+    return new_string
+
 # submit a worker
 def submit_a_worker(data):
     workspec = data['workspec']
@@ -65,6 +76,11 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
+            # substitute condor macros in path of batch logs of workspec
+            workspec.workAttributes['batchLog'] = _condor_macro_replace(workspec.workAttributes['batchLog'], ClusterId=workspec.batchID)
+            workspec.workAttributes['stdOut'] = _condor_macro_replace(workspec.workAttributes['stdOut'], ClusterId=workspec.batchID)
+            workspec.workAttributes['stdErr'] = _condor_macro_replace(workspec.workAttributes['stdErr'], ClusterId=workspec.batchID)
+            workspec.force_update('workAttributes')
             tmpRetVal = (True, '')
         else:
             errStr = 'batchID cannot be found'
@@ -150,10 +166,6 @@ class HTCondorSubmitter(PluginBase):
     def __init__(self, **kwarg):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
-        # template for batch script
-        tmpFile = open(self.templateFile)
-        self.template = tmpFile.read()
-        tmpFile.close()
         # number of processes
         try:
             self.nProcesses
@@ -174,6 +186,11 @@ class HTCondorSubmitter(PluginBase):
             self.useAtlasGridCE = False
         finally:
             self.useAtlasAGIS = self.useAtlasAGIS or self.useAtlasGridCE
+        # sdf template directories of CEs
+        try:
+            self.CEtemplateDir
+        except AttributeError:
+            self.CEtemplateDir = ''
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -182,22 +199,7 @@ class HTCondorSubmitter(PluginBase):
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
 
-        # get batch_log, stdout, stderr filename
-        for _line in self.template.split('\n'):
-            if _line.startswith('#'):
-                continue
-            _match_batch_log = re.match('log = (.+)', _line)
-            _match_stdout = re.match('output = (.+)', _line)
-            _match_stderr = re.match('error = (.+)', _line)
-            if _match_batch_log:
-                batch_log_value = _match_batch_log.group(1)
-                continue
-            if _match_stdout:
-                stdout_value = _match_stdout.group(1)
-                continue
-            if _match_stderr:
-                stderr_value = _match_stderr.group(1)
-                continue
+
 
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
@@ -216,13 +218,12 @@ class HTCondorSubmitter(PluginBase):
                                             method_name='_handle_one_worker')
 
             # get default information from queue info
-            sdf_template = self.template
             n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
             ce_info_dict = dict()
             batch_log_dict = dict()
 
-            # If ATLAS Grid CE mode used
             if self.useAtlasGridCE:
+                # If ATLAS Grid CE mode used
                 tmpLog.debug('Using ATLAS Grid CE mode...')
                 queues_from_queue_list = this_panda_queue_dict.get('queues', [])
                 ce_endpoint_from_queue = ''
@@ -239,8 +240,30 @@ class HTCondorSubmitter(PluginBase):
                         else:
                             ce_flavour_str = ''
                 tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
-                if os.path.isdir(self.template) and ce_flavour_str:
-                    sdf_template = os.path.join(self.template, '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str))
+                if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                    self.templateFile = os.path.join(self.CEtemplateDir, '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str))
+
+            # template for batch script
+            tmpFile = open(self.templateFile)
+            sdf_template = tmpFile.read()
+            tmpFile.close()
+
+            # get batch_log, stdout, stderr filename
+            for _line in sdf_template.split('\n'):
+                if _line.startswith('#'):
+                    continue
+                _match_batch_log = re.match('log = (.+)', _line)
+                _match_stdout = re.match('output = (.+)', _line)
+                _match_stderr = re.match('error = (.+)', _line)
+                if _match_batch_log:
+                    batch_log_value = _match_batch_log.group(1)
+                    continue
+                if _match_stdout:
+                    stdout_value = _match_stdout.group(1)
+                    continue
+                if _match_stderr:
+                    stderr_value = _match_stderr.group(1)
+                    continue
 
             # get override requirements from queue configured
             try:
@@ -272,9 +295,9 @@ class HTCondorSubmitter(PluginBase):
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
                 workspec.set_log_file('stderr', batch_stderr)
-                batch_log_dict['batch_log'] = batch_log
-                batch_log_dict['batch_stdout'] = batch_stdout
-                batch_log_dict['batch_stderr'] = batch_stderr
+                batch_log_dict['batch_log'] = workspec.workAttributes['batchLog']
+                batch_log_dict['batch_stdout'] = workspec.workAttributes['stdOut']
+                batch_log_dict['batch_stderr'] = workspec.workAttributes['stdErr']
                 tmpLog.debug('Done set_log_file')
                 if not workspec.get_jobspec_list():
                     tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
