@@ -19,6 +19,17 @@ baseLogger = core_utils.setup_logger('htcondor_submitter')
 def _div_round_up(a, b):
     return a // b + int(a % b > 0)
 
+
+def _condor_macro_replace(string, **kwarg):
+    new_string = string
+    macro_map = {
+                '\$\(Cluster\)': str(kwarg['ClusterId']),
+                '\$\(Process\)': '0',
+                }
+    for k, v in macro_map.items():
+        new_string = re.sub(k, v, new_string)
+    return new_string
+
 # submit a worker
 def submit_a_worker(data):
     workspec = data['workspec']
@@ -65,6 +76,12 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
+            batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
+            batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
+            batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=workspec.batchID)
+            workspec.set_log_file('batch_log', batch_log)
+            workspec.set_log_file('stdout', batch_stdout)
+            workspec.set_log_file('stderr', batch_stderr)
             tmpRetVal = (True, '')
         else:
             errStr = 'batchID cannot be found'
@@ -116,10 +133,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         ceQueueName=ce_info_dict.get('ce_queue_name', ''),
         ceVersion=ce_info_dict.get('ce_version', ''),
         logDir=log_dir,
-        batchLog=batch_log_dict.get('batch_log', ''),
-        batchStdOut=batch_log_dict.get('batch_stdout', ''),
-        batchStdErr=batch_log_dict.get('batch_stderr', ''),
-        gtag=batch_log_dict.get('batch_stdout', 'fake_GTAG_string'),
+        gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         )
     )
     tmpFile.close()
@@ -150,10 +164,6 @@ class HTCondorSubmitter(PluginBase):
     def __init__(self, **kwarg):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
-        # template for batch script
-        tmpFile = open(self.templateFile)
-        self.template = tmpFile.read()
-        tmpFile.close()
         # number of processes
         try:
             self.nProcesses
@@ -162,6 +172,16 @@ class HTCondorSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
+        # condor log directory
+        try:
+            self.logDir
+        except AttributeError:
+            self.logDir = os.getenv('TMPDIR') or '/tmp'
+        # x509 proxy
+        try:
+            self.x509UserProxy
+        except AttributeError:
+            self.x509UserProxy = os.getenv('X509_USER_PROXY')
         # ATLAS AGIS
         try:
             self.useAtlasAGIS = bool(self.useAtlasAGIS)
@@ -174,6 +194,11 @@ class HTCondorSubmitter(PluginBase):
             self.useAtlasGridCE = False
         finally:
             self.useAtlasAGIS = self.useAtlasAGIS or self.useAtlasGridCE
+        # sdf template directories of CEs
+        try:
+            self.CEtemplateDir
+        except AttributeError:
+            self.CEtemplateDir = ''
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -181,23 +206,6 @@ class HTCondorSubmitter(PluginBase):
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
-
-        # get batch_log, stdout, stderr filename
-        for _line in self.template.split('\n'):
-            if _line.startswith('#'):
-                continue
-            _match_batch_log = re.match('log = (.+)', _line)
-            _match_stdout = re.match('output = (.+)', _line)
-            _match_stderr = re.match('error = (.+)', _line)
-            if _match_batch_log:
-                batch_log_value = _match_batch_log.group(1)
-                continue
-            if _match_stdout:
-                stdout_value = _match_stdout.group(1)
-                continue
-            if _match_stderr:
-                stderr_value = _match_stderr.group(1)
-                continue
 
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
@@ -216,13 +224,12 @@ class HTCondorSubmitter(PluginBase):
                                             method_name='_handle_one_worker')
 
             # get default information from queue info
-            sdf_template = self.template
             n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
             ce_info_dict = dict()
             batch_log_dict = dict()
 
-            # If ATLAS Grid CE mode used
             if self.useAtlasGridCE:
+                # If ATLAS Grid CE mode used
                 tmpLog.debug('Using ATLAS Grid CE mode...')
                 queues_from_queue_list = this_panda_queue_dict.get('queues', [])
                 ce_endpoint_from_queue = ''
@@ -239,22 +246,37 @@ class HTCondorSubmitter(PluginBase):
                         else:
                             ce_flavour_str = ''
                 tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
-                if os.path.isdir(self.template) and ce_flavour_str:
-                    sdf_template = os.path.join(self.template, '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str))
+                if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                    self.templateFile = os.path.join(self.CEtemplateDir, '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str))
+
+            # template for batch script
+            tmpFile = open(self.templateFile)
+            sdf_template = tmpFile.read()
+            tmpFile.close()
+
+            # get batch_log, stdout, stderr filename
+            for _line in sdf_template.split('\n'):
+                if _line.startswith('#'):
+                    continue
+                _match_batch_log = re.match('log = (.+)', _line)
+                _match_stdout = re.match('output = (.+)', _line)
+                _match_stderr = re.match('error = (.+)', _line)
+                if _match_batch_log:
+                    batch_log_value = _match_batch_log.group(1)
+                    continue
+                if _match_stdout:
+                    stdout_value = _match_stdout.group(1)
+                    continue
+                if _match_stderr:
+                    stderr_value = _match_stderr.group(1)
+                    continue
 
             # get override requirements from queue configured
             try:
                 n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
             except AttributeError:
                 n_core_per_node = n_core_per_node_from_queue
-            try:
-                log_dir = self.logDir
-            except AttributeError:
-                log_dir = '/tmp'
-            try:
-                x509_user_proxy = self.x509UserProxy
-            except AttributeError:
-                x509_user_proxy = os.getenv('X509_USER_PROXY')
+
             # URLs for log files
             if not (self.logBaseURL is None):
                 if workspec.batchID:
@@ -275,6 +297,7 @@ class HTCondorSubmitter(PluginBase):
                 batch_log_dict['batch_log'] = batch_log
                 batch_log_dict['batch_stdout'] = batch_stdout
                 batch_log_dict['batch_stderr'] = batch_stderr
+                batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
                 tmpLog.debug('Done set_log_file')
                 if not workspec.get_jobspec_list():
                     tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
@@ -288,10 +311,10 @@ class HTCondorSubmitter(PluginBase):
             # set data dict
             data = {'workspec': workspec,
                     'template': sdf_template,
-                    'log_dir': log_dir,
+                    'log_dir': self.logDir,
                     'n_core_per_node': n_core_per_node,
                     'panda_queue_name': panda_queue_name,
-                    'x509_user_proxy': x509_user_proxy,
+                    'x509_user_proxy': self.x509UserProxy,
                     'ce_info_dict': ce_info_dict,
                     'batch_log_dict': batch_log_dict,
                     }

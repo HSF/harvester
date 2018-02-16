@@ -227,9 +227,9 @@ class WorkSpec(SpecBase):
             self.logFilesToUpload = dict()
         if stream_type is not None:
             # delete existing stream
-            for file_path, tmpDict in iteritems(self.logFilesToUpload):
+            for tmp_file_path, tmpDict in iteritems(self.logFilesToUpload.copy()):
                 if tmpDict['stream_type'] == stream_type:
-                    del self.logFilesToUpload[file_path]
+                    del self.logFilesToUpload[tmp_file_path]
         if file_path not in self.logFilesToUpload:
             self.logFilesToUpload[file_path] = {'position': position,
                                                 'remote_name': remote_name,
