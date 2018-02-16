@@ -222,12 +222,18 @@ class WorkSpec(SpecBase):
         return True, self.workAttributes[name]
 
     # update log files to upload
-    def update_log_files_to_upload(self, file_path, position, remote_name=None):
+    def update_log_files_to_upload(self, file_path, position, remote_name=None, stream_type=None):
         if self.logFilesToUpload is None:
             self.logFilesToUpload = dict()
+        if stream_type is not None:
+            # delete existing stream
+            for file_path, tmpDict in iteritems(self.logFilesToUpload):
+                if tmpDict['stream_type'] == stream_type:
+                    del self.logFilesToUpload[file_path]
         if file_path not in self.logFilesToUpload:
             self.logFilesToUpload[file_path] = {'position': position,
-                                                'remote_name': remote_name}
+                                                'remote_name': remote_name,
+                                                'stream_type': stream_type}
             self.force_update('logFilesToUpload')
         elif self.logFilesToUpload[file_path]['position'] != position:
             self.logFilesToUpload[file_path]['position'] = position
@@ -249,7 +255,7 @@ class WorkSpec(SpecBase):
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_R,
                                    remoteName)
             # set file to periodically upload
-            self.update_log_files_to_upload(stream, 0, remoteName)
+            self.update_log_files_to_upload(stream, 0, remoteName, keyName)
         self.set_work_attributes({keyName: url})
 
     # get the list of log files to upload
