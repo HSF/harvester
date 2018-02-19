@@ -5,8 +5,11 @@ import time
 import json
 import logging
 import shutil
+import tarfile
+from glob import glob
 from socket import gethostname
 from subprocess import call, check_output
+from datetime import datetime
 from mpi4py import MPI
 from pilot.util.filehandling import get_json_dictionary
 from pilot.jobdescription import JobDescription #temporary hack
@@ -27,21 +30,12 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
-# TODO:
-# Input file processing
-#   - read file attributes from PoolFileCatalog_H.xml
-#   - check validity of file by checksum
-# Get payload run command
-#   - setup string
-#   - trf full commandline
-# Extract results of execution
-#   - collect exit code, message
-#   - extract data from jobreport
+logger.info('HPC Pilot ver. 0.001')
 
 def get_setup(job):
 
     # special setup command. should be placed in queue defenition (or job defenition) ?
-    setup_commands = ['source /lustre/atlas/proj-shared/csc108/app_dir/pilot/grid_env/external/setup.sh',
+    setup_commands = [ 'source /lustre/atlas/proj-shared/csc108/app_dir/pilot/grid_env/external/setup.sh',
                       'source $MODULESHOME/init/bash',
                       'tmp_dirname=/tmp/scratch',
                       'tmp_dirname+="/tmp"',
@@ -76,6 +70,10 @@ def timestamp():
 
 def dump_worker_attributes(job, workerAttributesFile):
 
+    '''
+    Should be refactored
+
+    '''
     logger.info('Dump worker attributes')
     # Harvester only expects the attributes files for certain states.
     if job.state in ['finished', 'failed', 'running']:
@@ -85,7 +83,10 @@ def dump_worker_attributes(job, workerAttributesFile):
             workAttributes['messageLevel'] = logging.getLevelName(logger.getEffectiveLevel())
             workAttributes['timestamp'] = timestamp()
             workAttributes['cpuConversionFactor'] = 1.0
-
+            if job.startTime:
+                workAttributes['startTime'] = job.startTime
+            if job.endTime:
+                workAttributes['endTime'] = job.endTime
             coreCount = None
             nEvents = None
             dbTime = None
@@ -151,9 +152,9 @@ def dump_worker_attributes(job, workerAttributesFile):
                             workAttributes['nInputFiles'] = len(jobReport['files']['input']['subfiles'])
 
                 if coreCount and nEvents and dbTime and dbData:
-                    res = check_output(['du', '-s'])
-                    workAttributes['jobMetrics'] = 'coreCount=%s nEvents=%s dbTime=%s dbData=%s workDirSize=%s' % (
-                        coreCount, nEvents, dbTime, dbData, res.split()[0])
+                    #res = check_output(['du', '-s'])
+                    workAttributes['jobMetrics'] = 'coreCount=%s nEvents=%s dbTime=%s dbData=%s ' % (
+                        coreCount, nEvents, dbTime, dbData)
 
             else:
                 logger.debug('no jobReport object')
@@ -176,7 +177,9 @@ def main():
     start_g = time.time()
     start_g_str = time.asctime(time.localtime(start_g))
     hostname = gethostname()
-    logger.info("Script statrted at {0} on {1}".format(start_g_str, hostname))
+    logger.info("Pilot statrted at {0} on {1}".format(start_g_str, hostname))
+    starting_point = os.getcwd()
+
     # Get a file name with job descriptions
     if len(sys.argv) > 1:
         input_file = sys.argv[1]
@@ -201,13 +204,14 @@ def main():
         main_exit(1)
     logger.debug("Job [{0}] will be processed".format(job_id))
     os.chdir(str(job_id))
-
+    worker_communication_point = os.getcwd()
     jobs_dict = get_json_dictionary("HPCJobs.json")
     job_dict = jobs_dict[str(job_id)]
 
     job = JobDescription()
     job.load(job_dict)
-
+    job.startTime = ""
+    job.endTime = ""
     setup_str = "; ".join(get_setup(job))
     my_command = " ".join([job.script,job.script_parameters])
     my_command = titan_command_fix(my_command)
@@ -219,8 +223,12 @@ def main():
     payloadstdout = open("job_stdout.txt", "w")
     payloadstderr = open("job_stderr.txt", "w")
     titan_prepare_wd()
+
+    job_working_dir = os.getcwd()
     job.state = 'running'
     start_time = time.asctime(time.localtime(time.time()))
+    job.startTime = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    dump_worker_attributes(job, workerAttributesFile)
     t0 = os.times()
     exit_code = call(my_command, stdout=payloadstdout, stderr=payloadstderr, shell=True)
     t1 = os.times()
@@ -228,6 +236,7 @@ def main():
     t = map(lambda x, y: x - y, t1, t0)
     t_tot = reduce(lambda x, y: x + y, t[2:3])
     job.state = 'finished'
+    job.endTime = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     dump_worker_attributes(job, workerAttributesFile)
     payloadstdout.close()
     payloadstderr.close()
@@ -235,25 +244,36 @@ def main():
     logger.info("CPU comsumption time: {0}".format(t_tot))
     logger.info("Start time: {0}".format(start_time))
     logger.info("End time: {0}".format(end_time))
-
+    logger.debug("Job report start time: {0}".format(job.startTime))
+    logger.debug("Job report end time: {0}".format(job.endTime))
     report = open("rank_report.txt", "w")
     report.write("cpuConsumptionTime: %s\n" % t_tot)
     report.write("exitCode: %s" % exit_code)
     report.close()
-    logger.info("Verify output")
-    out_file_report = {}
-    out_file_report[job.job_id] = []
-    outfiles = job.output_files.keys()
-
-    if job.log_file in outfiles:
-        outfiles.remove(job.log_file)
+    titan_postprocess_wd(job_working_dir)
+    protectedfiles = job.output_files.keys()
+    if job.log_file in protectedfiles:
+        protectedfiles.remove(job.log_file)
     else:
         logger.info("Log files was not declared")
-    for outfile in outfiles:
+
+    logger.info("Cleanup of working directory")
+    protectedfiles.extend([workerAttributesFile, StageOutnFile])
+    removeRedundantFiles(job_working_dir, protectedfiles)
+
+    packlogs(job_working_dir,protectedfiles,job.log_file)
+    logger.info("Declare stage-out")
+    out_file_report = {}
+    out_file_report[job.job_id] = []
+
+    for outfile in job.output_files.keys():
         if os.path.exists(outfile):
             file_desc = {}
-            file_desc['type'] = 'output'
-            file_desc['path'] = outfile
+            if outfile == job.log_file:
+                file_desc['type'] = 'log'
+            else:
+                file_desc['type'] = 'output'
+            file_desc['path'] = os.path.abspath(outfile)
             file_desc['fsize'] = os.path.getsize(outfile)
             if 'guid' in job.output_files[outfile].keys():
                 file_desc['guid'] = job.output_files[outfile]['guid']
@@ -325,6 +345,209 @@ def titan_prepare_wd():
     logger.info('Special Titan setup took: {0}'.format(copy_time))
 
     return True
+
+
+def titan_postprocess_wd(jobdir):
+
+    pseudo_dir = "poolcond"
+    if os.path.exists(pseudo_dir):
+        remove(os.path.join(jobdir, pseudo_dir))
+    return 0
+
+
+def removeRedundantFiles(workdir, outputfiles = []):
+    """ Remove redundant files and directories """
+
+    logger.info("Removing redundant files prior to log creation")
+
+    workdir = os.path.abspath(workdir)
+
+    dir_list = ["AtlasProduction*",
+                "AtlasPoint1",
+                "AtlasTier0",
+                "buildJob*",
+                "CDRelease*",
+                "csc*.log",
+                "DBRelease*",
+                "EvgenJobOptions",
+                "external",
+                "fort.*",
+                "geant4",
+                "geomDB",
+                "geomDB_sqlite",
+                "home",
+                "o..pacman..o",
+                "pacman-*",
+                "python",
+                "runAthena*",
+                "share",
+                "sources.*",
+                "sqlite*",
+                "sw",
+                "tcf_*",
+                "triggerDB",
+                "trusted.caches",
+                "workdir",
+                "*.data*",
+                "*.events",
+                "*.py",
+                "*.pyc",
+                "*.root*",
+                "JEM",
+                "tmp*",
+                "*.tmp",
+                "*.TMP",
+                "MC11JobOptions",
+                "scratch",
+                "jobState-*-test.pickle",
+                "*.writing",
+                "pwg*",
+                "pwhg*",
+                "*PROC*",
+                "madevent",
+                "HPC",
+                "objectstore*.json",
+                "saga",
+                "radical",
+                "ckpt*"]
+
+    # remove core and pool.root files from AthenaMP sub directories
+    try:
+        cleanupAthenaMP(workdir, outputfiles)
+    except Exception, e:
+        print("Failed to execute cleanupAthenaMP(): %s" % (e))
+
+    # explicitly remove any soft linked archives (.a files) since they will be dereferenced by the tar command (--dereference option)
+    matches = []
+    import fnmatch
+    for root, dirnames, filenames in os.walk(workdir):
+        for filename in fnmatch.filter(filenames, '*.a'):
+            matches.append(os.path.join(root, filename))
+    for root, dirnames, filenames in os.walk(os.path.dirname(workdir)):
+        for filename in fnmatch.filter(filenames, 'EventService_premerge_*.tar'):
+            matches.append(os.path.join(root, filename))
+    if matches != []:
+        for f in matches:
+            remove(f)
+    #else:
+    #    print("Found no archive files")
+
+    # note: these should be partitial file/dir names, not containing any wildcards
+    exceptions_list = ["runargs", "runwrapper", "jobReport", "log."]
+
+    to_delete = []
+    for _dir in dir_list:
+        files = glob(os.path.join(workdir, _dir))
+        exclude = []
+
+        if files:
+            for exc in exceptions_list:
+                for f in files:
+                    if exc in f:
+                        exclude.append(os.path.abspath(f))
+
+            _files = []
+            for f in files:
+                if not f in exclude:
+                    _files.append(os.path.abspath(f))
+            to_delete += _files
+
+    exclude_files = []
+    for of in outputfiles:
+        exclude_files.append(os.path.join(workdir, of))
+    for f in to_delete:
+        if not f in exclude_files:
+            remove(f)
+
+    # run a second pass to clean up any broken links
+    broken = []
+    for root, dirs, files in os.walk(workdir):
+        for filename in files:
+            path = os.path.join(root,filename)
+            if os.path.islink(path):
+                target_path = os.readlink(path)
+                # Resolve relative symlinks
+                if not os.path.isabs(target_path):
+                    target_path = os.path.join(os.path.dirname(path),target_path)
+                if not os.path.exists(target_path):
+                    broken.append(path)
+            else:
+                # If it's not a symlink we're not interested.
+                continue
+
+    if broken:
+        for p in broken:
+            remove(p)
+
+    return 0
+
+
+def cleanupAthenaMP(workdir, outputfiles = []):
+    """ Cleanup AthenaMP sud directories prior to log file creation """
+
+    for ampdir in glob('%s/athenaMP-workers-*' % (workdir)):
+        for (p, d, f) in os.walk(ampdir):
+            for filename in f:
+                if 'core' in filename or 'tmp.' in filename:
+                    path = os.path.join(p, filename)
+                    path = os.path.abspath(path)
+                    remove(path)
+                for outfile in outputfiles:
+                    if outfile in filename:
+                        path = os.path.join(p, filename)
+                        path = os.path.abspath(path)
+                        remove(path)
+
+    return 0
+
+
+def remove(path):
+
+    try:
+        os.unlink(path)
+    except OSError as e:
+        logger.error("Problem with deletion: %s : %s" % (e.errno, e.strerror))
+        return -1
+    return 0
+
+
+def packlogs(wkdir, excludedfiles, logfile_name):
+    #logfile_size = 0
+    to_pack = []
+    for path, subdir, files in os.walk(wkdir):
+        for file in files:
+            if not file in excludedfiles:
+                relDir = os.path.relpath(path, wkdir)
+                file_rel_path = os.path.join(relDir, file)
+                file_path = os.path.join(path, file)
+                to_pack.append((file_path, file_rel_path))
+    if to_pack:
+        logfile_name = os.path.join(wkdir, logfile_name)
+        log_pack = tarfile.open(logfile_name, 'w:gz')
+        for f in to_pack:
+            #print f[0], f[1]
+            log_pack.add(f[0],arcname=f[1])
+        log_pack.close()
+        #logfile_size = os.path.getsize(logfile_name)
+
+    for f in to_pack:
+        remove(f[0])
+
+    del_empty_dirs(wkdir)
+
+    return 0
+
+
+def del_empty_dirs(src_dir):
+
+    for dirpath, subdirs, files in os.walk(src_dir, topdown=False):
+        if dirpath == src_dir:
+            break
+        try:
+            os.rmdir(dirpath)
+        except OSError as ex:
+            pass
+    return 0
 
 if __name__ == "__main__":
     main()

@@ -33,6 +33,7 @@ class SAGAMonitor(PluginBase):
             errStr = ''
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                             method_name='check_workers')
+            tmpLog.debug("SAGA monitor for worker started")
             if workSpec.batchID:
                 saga_submission_id = '[{0}]-[{1}]'.format(self.adaptor, workSpec.batchID)
                 try:

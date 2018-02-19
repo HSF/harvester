@@ -45,7 +45,7 @@ class MultiJobWorkerMaker(PluginBase):
         return exe_str
 
     # make a worker from a job with a disk access point
-    def make_worker(self, jobspec_list, queue_config):
+    def make_worker(self, jobspec_list, queue_config, resource_type):
         tmpLog = core_utils.make_logger(baseLogger, method_name='make_worker')
         workSpec = WorkSpec()
         self.nJobsPerWorker = len(jobspec_list)
