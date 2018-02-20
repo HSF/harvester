@@ -49,16 +49,12 @@ class SAGAMonitor(PluginBase):
                         workSpec.startTime = datetime.strptime(worker.started, sagadateformat_str)
                     if worker.finished:
                         workSpec.endTime = datetime.strptime(worker.finished, sagadateformat_str)
-                        tmpLog.debug('Worker {2} with BatchID={0} completed with exit code {1}'.format(workSpec.batchID,
-                                                                                                      worker.exit_code,
-                                                                                                      workSpec.workerID))
-                        tmpLog.debug('Started: [{0}] finished: [{1}]'.format(worker.started, worker.finished))
 
-                    #if workSpec.is_final_status():
-                    #    tmpLog.info('Worker {2} with BatchID={0} completed with exit code {1}'.format(workSpec.batchID,
-                    #                                                                              worker.exit_code,
-                    #                                                                              workSpec.workerID))
-                    #    tmpLog.info('Started: [{0}] finished: [{1}]'.format(worker.started, worker.finished))
+                    if workSpec.is_final_status():
+                        tmpLog.info('Worker {2} with BatchID={0} completed with exit code {1}'.format(workSpec.batchID,
+                                                                                                  worker.exit_code,
+                                                                                                  workSpec.workerID))
+                        tmpLog.debug('Started: [{0}] finished: [{1}]'.format(worker.started, worker.finished))
 
                 except saga.SagaException as ex:
                     tmpLog.error('An exception occured during retriving worker information')
