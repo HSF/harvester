@@ -32,6 +32,7 @@ class SAGASubmitter (PluginBase):
     def _get_executable(self, list_of_pandajobs):
         '''
         Prepare command line to launch payload.
+
         TODO: In general will migrate to specific worker maker
         :param list_of_pandajobs - list of job objects, which should be used: 
         :return:  string to execution which will be launched
@@ -46,9 +47,17 @@ class SAGASubmitter (PluginBase):
 
         tmpLog = core_utils.make_logger(baseLogger, method_name='_state_change_cb')
 
-        self._workSpec.status = self.status_translator(value)
-        tmpLog.debug('Worker with BatchID={0} change state to: {1}'.format(self._workSpec.batchID,
-                                                                           self._workSpec.status))
+        #self._workSpec.status = self.status_translator(value)
+        self._workSpec.set_status(self.status_translator(value))
+        self._workSpec.force_update('status')
+        try:
+            tmpLog.debug("Created time: {}".format(src_obj.created))
+            tmpLog.debug('src obj: {}'.format(src_obj))
+        except:
+            tmpLog.debug('FAILED')
+        tmpLog.info('Worker with BatchID={0} workerID={2} change state to: {1}'.format(self._workSpec.batchID,
+                                                                           self._workSpec.status,
+                                                                           self._workSpec.workerID))
 
         # for compatibility with dummy monitor
         f = open(os.path.join(self._workSpec.accessPoint, 'status.txt'), 'w')
@@ -89,23 +98,23 @@ class SAGASubmitter (PluginBase):
             task = job_service.create_job(jd)
 
             self._workSpec = work_spec
-            task.add_callback(saga.STATE, self._state_change_cb)
+            #task.add_callback(saga.STATE, self._state_change_cb)
             task.run()
             work_spec.batchID = task.id.split('-')[1][1:-1] #SAGA have own representation, but real batch id easy to extract
             tmpLog.info("Worker ID={0} with BatchID={1} submitted".format(work_spec.workerID, work_spec.batchID))
 
-            task.wait()  # waiting till payload will be compleated.
-            tmpLog.info('Worker with BatchID={0} completed with exit code {1}'.format(work_spec.batchID, task.exit_code))
-            tmpLog.info('Started: [{0}] finished: [{1}]'.format(task.started, task.finished))
+            #task.wait()  # waiting till payload will be compleated.
+            #tmpLog.info('Worker with BatchID={0} completed with exit code {1}'.format(work_spec.batchID, task.exit_code))
+            #tmpLog.info('Started: [{0}] finished: [{1}]'.format(task.started, task.finished))
             work_spec.status = self.status_translator(task.state)
             # for compatibility with dummy monitor
             f = open(os.path.join(work_spec.accessPoint, 'status.txt'), 'w')
             f.write(work_spec.status)
             f.close()
 
-            work_spec.submitTime = datetime.strptime(task.created, sagadateformat_str)
-            work_spec.startTime = datetime.strptime(task.started, sagadateformat_str)
-            work_spec.endTime = datetime.strptime(task.finished, sagadateformat_str)
+            #work_spec.submitTime = datetime.strptime(task.created, sagadateformat_str)
+            #work_spec.startTime = datetime.strptime(task.started, sagadateformat_str)
+            #work_spec.endTime = datetime.strptime(task.finished, sagadateformat_str)
 
             job_service.close()
             return 0
