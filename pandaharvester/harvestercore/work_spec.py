@@ -77,9 +77,12 @@ class WorkSpec(SpecBase):
                            'maxWalltime:integer',
                            'killTime:timestamp / index',
                            'computingElement:text',
-                           'nJobsToReFill:integer',
+                           'nJobsToReFill:integer / index',
                            'logFilesToUpload:blob',
-                           'resourceType:text'
+                           'resourceType:text',
+                           'nativeExitCode:integer',
+                           'nativeStatus:text',
+                           'diagMessage:text'
                            )
 
     # constructor
@@ -271,3 +274,7 @@ class WorkSpec(SpecBase):
                 retList.append((filePath, fileInfo['position'], fileSize-fileInfo['position'],
                                 fileInfo['remote_name']))
         return retList
+
+    # set dialog message
+    def set_dialog_message(self, msg):
+        self.diagMessage = msg

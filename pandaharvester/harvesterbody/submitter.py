@@ -215,6 +215,7 @@ class Submitter(AgentBase):
                                             workSpec.workerID,
                                             tmpStr))
                                         workSpec.set_status(WorkSpec.ST_missed)
+                                        workSpec.set_dialog_message(tmpStr)
                                         jobList = []
                                     elif queueConfig.useJobLateBinding and workSpec.hasJob == 1:
                                         # directly go to running after feeding jobs for late biding
@@ -252,8 +253,13 @@ class Submitter(AgentBase):
                             self.dbProxy.release_jobs(pandaIDs, lockedBy)
                             tmpLog.info('done')
             mainLog.debug('done')
+            # define sleep interval
+            if siteName is None:
+                sleepTime = harvester_config.submitter.sleepTime
+            else:
+                sleepTime = 0
             # check if being terminated
-            if self.terminated(harvester_config.submitter.sleepTime):
+            if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
 

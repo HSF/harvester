@@ -89,6 +89,7 @@ class Monitor(AgentBase):
                         # update worker
                         workSpec.set_status(newStatus)
                         workSpec.set_work_attributes(workAttributes)
+                        workSpec.set_dialog_message(diagMessage)
                         # request events
                         if eventsRequestParams != {}:
                             workSpec.eventsRequest = WorkSpec.EV_requestEvents
@@ -186,6 +187,7 @@ class Monitor(AgentBase):
             tmp_log.debug('checked')
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
+                pandaIDs = []
                 if workerID in retMap:
                     # request kill
                     if messenger.kill_requested(workSpec):
