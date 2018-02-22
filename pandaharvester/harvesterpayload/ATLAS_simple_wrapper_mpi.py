@@ -34,7 +34,8 @@ logger.info('HPC Pilot ver. 0.001')
 
 def get_setup(job):
 
-    # special setup command. should be placed in queue defenition (or job defenition) ?
+    # special setup preparation.
+
     setup_commands = [ 'source /lustre/atlas/proj-shared/csc108/app_dir/pilot/grid_env/external/setup.sh',
                       'source $MODULESHOME/init/bash',
                       'tmp_dirname=/tmp/scratch',
@@ -58,7 +59,7 @@ def get_setup(job):
 
 
 def timestamp():
-    """ return ISO-8601 compliant date/time format"""
+    """ return ISO-8601 compliant date/time format. Should be migrated to Pilot 2"""
     tmptz = time.timezone
     sign_str = '+'
     if tmptz > 0:
@@ -144,6 +145,9 @@ def dump_worker_attributes(job, workerAttributesFile):
                 if 'exitCode' in jobReport:
                     workAttributes['transExitCode'] = jobReport['exitCode']
                     workAttributes['exeErrorCode'] = jobReport['exitCode']
+                    if workAttributes['transExitCode'] != 0:
+                        workAttributes['jobStatus'] = 'failed'
+                        job.state = 'failed'
                 if 'exitMsg' in jobReport:
                     workAttributes['exeErrorDiag'] = jobReport['exitMsg']
                 if 'files' in jobReport:
@@ -309,7 +313,7 @@ def titan_command_fix(command):
 def titan_prepare_wd():
 
     #---------
-    # Copy Poolcond files to local working directory
+    # Copy Poolcond files to scratch (RAMdisk, ssd, etc) to cope high IO
 
     scratch_path = '/tmp/scratch/'
     dst_db_path = 'sqlite200/'
@@ -356,7 +360,7 @@ def titan_postprocess_wd(jobdir):
 
 
 def removeRedundantFiles(workdir, outputfiles = []):
-    """ Remove redundant files and directories """
+    """ Remove redundant files and directories. Should be migrated to Pilot2 """
 
     logger.info("Removing redundant files prior to log creation")
 
@@ -483,7 +487,7 @@ def removeRedundantFiles(workdir, outputfiles = []):
 
 
 def cleanupAthenaMP(workdir, outputfiles = []):
-    """ Cleanup AthenaMP sud directories prior to log file creation """
+    """ Cleanup AthenaMP sud directories prior to log file creation. ATLAS specific """
 
     for ampdir in glob('%s/athenaMP-workers-*' % (workdir)):
         for (p, d, f) in os.walk(ampdir):
@@ -502,7 +506,7 @@ def cleanupAthenaMP(workdir, outputfiles = []):
 
 
 def remove(path):
-
+    "Common function for removing of file. Should migrate to Pilo2"
     try:
         os.unlink(path)
     except OSError as e:
@@ -539,6 +543,8 @@ def packlogs(wkdir, excludedfiles, logfile_name):
 
 
 def del_empty_dirs(src_dir):
+
+    "Common function for removing of empty directories. Should migrate to Pilo2"
 
     for dirpath, subdirs, files in os.walk(src_dir, topdown=False):
         if dirpath == src_dir:
