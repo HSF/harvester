@@ -707,13 +707,13 @@ class DBProxy:
             sqlQ = "SELECT queueName,nQueueLimitJob FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE jobFetchTime IS NULL OR jobFetchTime<:timeLimit "
             sqlQ += "ORDER BY jobFetchTime "
-            sqlQ += "FOR UPDATE "
             # sql to count nQueue
             sqlN = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
             sqlN += "WHERE computingSite=:computingSite AND status=:status "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET jobFetchTime=:jobFetchTime ".format(pandaQueueTableName)
             sqlU += "WHERE queueName=:queueName "
+            sqlU += "AND (jobFetchTime IS NULL OR jobFetchTime<:timeLimit) "
             # get queues
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
@@ -721,6 +721,15 @@ class DBProxy:
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             for queueName, nQueueLimit in resQ:
+                # update timestamp to lock the queue
+                varMap = dict()
+                varMap[':queueName'] = queueName
+                varMap[':jobFetchTime'] = timeNow
+                varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
+                self.execute(sqlU, varMap)
+                nRow = self.cur.rowcount
+                if nRow == 0:
+                    continue
                 # count nQueue
                 varMap = dict()
                 varMap[':computingSite'] = queueName
@@ -730,11 +739,6 @@ class DBProxy:
                 # more jobs need to be queued
                 if nQueueLimit is not None and nQueue < nQueueLimit:
                     retMap[queueName] = nQueueLimit - nQueue
-                # update timestamp
-                varMap = dict()
-                varMap[':queueName'] = queueName
-                varMap[':jobFetchTime'] = timeNow
-                self.execute(sqlU, varMap)
                 # enough queues
                 if len(retMap) >= n_queues:
                     break
@@ -1098,7 +1102,6 @@ class DBProxy:
             sqlS = "SELECT siteName FROM {0} ".format(pandaQueueTableName)
             sqlS += "WHERE submitTime IS NULL OR submitTime<:timeLimit "
             sqlS += "ORDER BY submitTime "
-            sqlS += "FOR UPDATE "
             # sql to get queues
             sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName "
@@ -1115,16 +1118,25 @@ class DBProxy:
             sqlR += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0 "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
-            sqlU += "WHERE queueName=:queueName "
+            sqlU += "WHERE siteName=:siteName "
+            sqlU += "AND (submitTime IS NULL OR submitTime<:timeLimit) "
             # get sites
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
             varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
             self.execute(sqlS, varMap)
-            resS = self.cur.fetchone()
-            if resS is not None:
+            resS = self.cur.fetchall()
+            for siteName, in resS:
+                # update timestamp to lock the site
+                varMap = dict()
+                varMap[':siteName'] = siteName
+                varMap[':submitTime'] = timeNow
+                varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
+                self.execute(sqlU, varMap)
+                nRow = self.cur.rowcount
+                if nRow == 0:
+                    continue
                 # get queues
-                siteName, = resS
                 varMap = dict()
                 varMap[':siteName'] = siteName
                 self.execute(sqlQ, varMap)
@@ -1164,14 +1176,9 @@ class DBProxy:
                                                        'nQueue': nQueue,
                                                        'nNewWorkers': nNewWorkers}
                     resourceMap[resourceType] = queueName
-                    # update timestamp
-                    varMap = dict()
-                    varMap[':queueName'] = queueName
-                    varMap[':submitTime'] = timeNow
-                    self.execute(sqlU, varMap)
-                    # enough queues
-                    if len(retMap) >= n_queues:
-                        break
+                # enough queues
+                if len(retMap) >= 0:
+                    break
             # commit
             self.commit()
             tmpLog.debug('got retMap {0}'.format(str(retMap)))
@@ -2776,8 +2783,9 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get worker IDs
             timeNow = datetime.datetime.utcnow()
+            modTimeLimit = timeNow - datetime.timedelta(minutes=60)
             varMap = dict()
-            varMap[':timeLimit'] = timeNow - datetime.timedelta(minutes=60)
+            varMap[':timeLimit'] = modTimeLimit
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE lastUpdate IS NULL AND ("
             for tmpStatus, tmpTimeout in iteritems(status_timeout_map):
@@ -2790,10 +2798,9 @@ class DBProxy:
             sqlW += ') '
             sqlW += 'AND modificationTime<:timeLimit '
             sqlW += "ORDER BY modificationTime LIMIT {0} ".format(max_workers)
-            sqlW += "FOR UPDATE "
             # sql to lock or release worker
             sqlL = "UPDATE {0} SET modificationTime=:setTime ".format(workTableName)
-            sqlL += "WHERE workerID=:workerID "
+            sqlL += "WHERE workerID=:workerID AND modificationTime<:timeLimit "
             # sql to check associated jobs
             sqlA = "SELECT COUNT(*) cnt FROM {0} j, {1} r ".format(jobTableName, jobWorkerTableName)
             sqlA += "WHERE j.PandaID=r.PandaID AND r.workerID=:workerID "
@@ -2820,11 +2827,14 @@ class DBProxy:
             retVal = dict()
             iWorkers = 0
             for workerID, in resW:
-                # lock worker with N sec offset for time-based locking
+                # lock worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
-                varMap[':setTime'] = timeNow + datetime.timedelta(seconds=5)
+                varMap[':setTime'] = timeNow
+                varMap[':timeLimit'] = modTimeLimit
                 self.execute(sqlL, varMap)
+                if self.cur.rowcount == 0:
+                    continue
                 # check associated jobs
                 varMap = dict()
                 varMap[':workerID'] = workerID
