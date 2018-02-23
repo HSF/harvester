@@ -19,7 +19,8 @@ class DummyMonitor(PluginBase):
         and returns a list of worker's statuses.
         Nth element if the return list corresponds to the status of Nth WorkSpec in the given list. Worker's
         status is one of WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled, WorkSpec.ST_running,
-        WorkSpec.ST_submitted.
+        WorkSpec.ST_submitted. nativeExitCode and nativeStatus of WorkSpec can be arbitrary strings to help
+        understanding behaviour of the resource and/or batch scheduler.
 
         :param workspec_list: a list of work specs instances
         :return: A tuple of return code (True for success, False otherwise) and a list of worker's statuses.
@@ -37,6 +38,9 @@ class DummyMonitor(PluginBase):
                 with open(dummyFilePath) as dummyFile:
                     newStatus = dummyFile.readline()
                     newStatus = newStatus.strip()
+                    if newStatus == 'finished':
+                        workSpec.nativeExitCode = 0
+                        workSpec.nativeStatus = 'done'
             except:
                 pass
             tmpLog.debug('newStatus={0}'.format(newStatus))
