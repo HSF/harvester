@@ -52,6 +52,7 @@ class CloudOpenstackSubmitter(PluginBase):
         self.vm_client = OS_SimpleClient(auth_config_json_file=self.AuthConfigFile)
 
         # set vm maps
+        #TODO: be configurable
         self.VM_FLAVOR_MAP = {
                             'SCORE': 'm1.small',
                             'MCORE': 'm1.xlarge',
@@ -64,6 +65,7 @@ class CloudOpenstackSubmitter(PluginBase):
                         }
 
         # set other vm attributes
+        #TODO: be configurable
         self.VM_CREATE_ATTRIBUTES = {
                         'key_name': 'opskey',
                         'nics': {'net-id': '536855fc-8cb2-423a-84d7-d0dc1ce2dff7',},
@@ -81,10 +83,11 @@ class CloudOpenstackSubmitter(PluginBase):
         vm_id = uuid.uuid4()
 
         # decide image
-        if True:
+        if True: #FIXME
             vm_image = self.VM_IAMGE_MAP['el6']
 
         # decide flavor
+        #FIXME
         if workspec.nCore == 1:
             vm_flavor = self.VM_FLAVOR_MAP['SCORE']
         elif workspec.nCore == 8:
@@ -139,7 +142,7 @@ class CloudOpenstackSubmitter(PluginBase):
 
         # exec with multi-thread
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            retValList = thread_pool.map(_submit_a_vm, workspec_list)
+            retValList = thread_pool.map(self._submit_a_vm, workspec_list)
         tmpLog.debug('{0} workers submitted'.format(nWorkers))
 
         # return

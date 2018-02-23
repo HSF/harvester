@@ -11,7 +11,7 @@ class OS_SimpleClient(object):
             auth_config_dict = json.load(_f)
 
         # Openstack API version
-        version = '2.0'
+        version = '2.0' #FIXME
         if version == '2.0':
             loader = keystoneauth1.loading.get_plugin_loader('v2password')
         elif version >= '3.0':
