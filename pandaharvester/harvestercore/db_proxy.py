@@ -728,6 +728,9 @@ class DBProxy:
                 varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
                 self.execute(sqlU, varMap)
                 nRow = self.cur.rowcount
+                # commit
+                self.commit()
+                # skip if not locked
                 if nRow == 0:
                     continue
                 # count nQueue
@@ -742,8 +745,6 @@ class DBProxy:
                 # enough queues
                 if len(retMap) >= n_queues:
                     break
-            # commit
-            self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
         except:
@@ -767,10 +768,11 @@ class DBProxy:
             sql += "AND ((propagatorTime<:lockTimeLimit AND propagatorLock IS NOT NULL) "
             sql += "OR (propagatorTime<:updateTimeLimit AND propagatorLock IS NULL)) "
             sql += "ORDER BY propagatorTime LIMIT {0} ".format(max_jobs)
-            sql += "FOR UPDATE "
             # sql to lock job
             sqlL = "UPDATE {0} SET propagatorTime=:timeNow,propagatorLock=:lockedBy ".format(jobTableName)
-            sqlL += "WHERE PandaID=:PandaID AND propagatorTime<:lockTimeLimit "
+            sqlL += "WHERE PandaID=:PandaID "
+            sqlL += "AND ((propagatorTime<:lockTimeLimit AND propagatorLock IS NOT NULL) "
+            sqlL += "OR (propagatorTime<:updateTimeLimit AND propagatorLock IS NULL)) "
             # sql to get events
             sqlE = "SELECT {0} FROM {1} ".format(EventSpec.column_names(), eventTableName)
             sqlE += "WHERE PandaID=:PandaID AND subStatus<>:statusDone "
@@ -800,8 +802,11 @@ class DBProxy:
                 varMap[':timeNow'] = timeNow
                 varMap[':lockedBy'] = locked_by
                 varMap[':lockTimeLimit'] = lockTimeLimit
+                varMap[':updateTimeLimit'] = updateTimeLimit
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
+                # commit
+                self.commit()
                 if nRow > 0:
                     jobSpec.propagatorLock = locked_by
                     zipFiles = {}
@@ -835,8 +840,6 @@ class DBProxy:
                                 zipFileSpec = zipFiles[zipFileID]
                         jobSpec.add_event(eventSpec, zipFileSpec)
                     jobSpecList.append(jobSpec)
-            # commit
-            self.commit()
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
         except:
@@ -1134,6 +1137,9 @@ class DBProxy:
                 varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
                 self.execute(sqlU, varMap)
                 nRow = self.cur.rowcount
+                # commit
+                self.commit()
+                # skip if not locked
                 if nRow == 0:
                     continue
                 # get queues
@@ -1179,8 +1185,6 @@ class DBProxy:
                 # enough queues
                 if len(retMap) >= 0:
                     break
-            # commit
-            self.commit()
             tmpLog.debug('got retMap {0}'.format(str(retMap)))
             tmpLog.debug('got siteName {0}'.format(str(siteName)))
             tmpLog.debug('got resourceMap {0}'.format(str(resourceMap)))
@@ -1333,10 +1337,14 @@ class DBProxy:
             sqlW += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlW += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
             sqlW += "ORDER BY modificationTime LIMIT {0} ".format(max_workers)
-            sqlW += "FOR UPDATE "
-            # sql to lock worker
+            # sql to lock worker without time check
             sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
             sqlL += "WHERE workerID=:workerID "
+            # sql to lock worker with time check
+            sqlLT = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
+            sqlLT += "WHERE workerID=:workerID "
+            sqlLT += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sqlLT += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
             # sql to get associated workerIDs
             sqlA = "SELECT t.workerID FROM {0} t, {0} s ".format(jobWorkerTableName)
             sqlA += "WHERE s.PandaID=t.PandaID AND s.workerID=:workerID "
@@ -1348,11 +1356,13 @@ class DBProxy:
             sqlP += "WHERE workerID=:workerID "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
+            lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
+            checkTimeLimit = timeNow - datetime.timedelta(seconds=check_interval)
             varMap = dict()
             varMap[':st_submitted'] = WorkSpec.ST_submitted
             varMap[':st_running'] = WorkSpec.ST_running
-            varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
-            varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
+            varMap[':lockTimeLimit'] = lockTimeLimit
+            varMap[':checkTimeLimit'] = checkTimeLimit
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             tmpWorkers = set()
@@ -1363,6 +1373,20 @@ class DBProxy:
             for workerID in tmpWorkers:
                 # skip 
                 if workerID in checkedIDs:
+                    continue
+                # lock worker
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':lockedBy'] = locked_by
+                varMap[':timeNow'] = timeNow
+                varMap[':lockTimeLimit'] = lockTimeLimit
+                varMap[':checkTimeLimit'] = checkTimeLimit
+                self.execute(sqlLT, varMap)
+                nRow = self.cur.rowcount
+                # commit
+                self.commit()
+                # skip if not locked
+                if nRow == 0:
                     continue
                 # get associated workerIDs
                 varMap = dict()
@@ -1404,13 +1428,13 @@ class DBProxy:
                     varMap[':timeNow'] = timeNow
                     self.execute(sqlL, varMap)
                     workSpec.lockedBy = locked_by
+                # commit
+                self.commit()
                 # add
                 if queueName is not None:
                     if queueName not in retVal:
                         retVal[queueName] = []
                     retVal[queueName].append(workersList)
-            # commit
-            self.commit()
             tmpLog.debug('got {0}'.format(str(retVal)))
             return retVal
         except:
@@ -1496,7 +1520,6 @@ class DBProxy:
             sqlW += "WHERE eventsRequest=:eventsRequest AND status IN (:status1,:status2) "
             sqlW += "AND (eventFeedTime IS NULL OR eventFeedTime<:lockTimeLimit) "
             sqlW += "ORDER BY eventFeedTime LIMIT {0} ".format(max_workers)
-            sqlW += "FOR UPDATE "
             # sql to lock worker
             sqlL = "UPDATE {0} SET eventFeedTime=:timeNow ".format(workTableName)
             sqlL += "WHERE eventsRequest=:eventsRequest AND status=:status "
@@ -1529,19 +1552,21 @@ class DBProxy:
                 varMap[':lockTimeLimit'] = lockTimeLimit
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
-                if nRow > 0:
-                    # get worker
-                    varMap = dict()
-                    varMap[':workerID'] = workerID
-                    self.execute(sqlG, varMap)
-                    resG = self.cur.fetchone()
-                    workSpec = WorkSpec()
-                    workSpec.pack(resG)
-                    if workSpec.computingSite not in retVal:
-                        retVal[workSpec.computingSite] = []
-                    retVal[workSpec.computingSite].append(workSpec)
-            # commit
-            self.commit()
+                # commit
+                self.commit()
+                # skip if not locked
+                if nRow == 0:
+                    continue
+                # get worker
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                self.execute(sqlG, varMap)
+                resG = self.cur.fetchone()
+                workSpec = WorkSpec()
+                workSpec.pack(resG)
+                if workSpec.computingSite not in retVal:
+                    retVal[workSpec.computingSite] = []
+                retVal[workSpec.computingSite].append(workSpec)
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
         except:
