@@ -285,6 +285,8 @@ class SharedFileMessenger(PluginBase):
         pandaIDs = []
         for jobSpec in jobspec_list:
             accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
+            if not os.path.exists(accessPoint):
+                os.makedirs(accessPoint)
             jobSpecFilePath = os.path.join(accessPoint, jobSpecFileName)
             xmlFilePath = os.path.join(accessPoint, xmlPoolCatalogFileName)
             tmpLog.debug('feeding jobs to {0}'.format(jobSpecFilePath))
