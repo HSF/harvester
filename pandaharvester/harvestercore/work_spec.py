@@ -224,6 +224,12 @@ class WorkSpec(SpecBase):
             return False, None
         return True, self.workAttributes[name]
 
+    # check if has work attribute
+    def has_work_attribute(self, name):
+        if self.workAttributes is None or name not in self.workAttributes:
+            return False
+        return True
+
     # update log files to upload
     def update_log_files_to_upload(self, file_path, position, remote_name=None, stream_type=None):
         if self.logFilesToUpload is None:
@@ -278,3 +284,12 @@ class WorkSpec(SpecBase):
     # set dialog message
     def set_dialog_message(self, msg):
         self.diagMessage = msg
+
+    # set pilot error
+    def set_pilot_error(self, error_code, error_dialog):
+        self.set_work_attributes({'pilotErrorCode': error_code,
+                                  'pilotErrorDiag': error_dialog})
+
+    # check if has pilot error
+    def has_pilot_error(self):
+        return self.has_work_attribute('pilotErrorCode')

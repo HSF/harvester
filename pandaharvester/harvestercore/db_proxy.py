@@ -1182,6 +1182,8 @@ class DBProxy:
                                                        'nQueue': nQueue,
                                                        'nNewWorkers': nNewWorkers}
                     resourceMap[resourceType] = queueName
+                    # commit
+                    self.commit()
                 # enough queues
                 if len(retMap) >= 0:
                     break
