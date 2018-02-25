@@ -139,9 +139,11 @@ class Submitter(AgentBase):
                             for ngJobs in ngChunks:
                                 for jobSpec in ngJobs:
                                     jobSpec.status = 'failed'
-                                    jobSpec.subStatus = 'failedtomake'
+                                    jobSpec.subStatus = 'failed_to_make'
                                     jobSpec.stateChangeTime = timeNow
                                     jobSpec.lockedBy = None
+                                    errStr = 'failed to make a worker'
+                                    jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
                                     jobSpec.trigger_propagation()
                                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                                       'subStatus': 'prepared'})
@@ -224,7 +226,7 @@ class Submitter(AgentBase):
                                             if jobSpec.submissionAttempts is None:
                                                 jobSpec.submissionAttempts = 0
                                             jobSpec.submissionAttempts += 1
-                                            # max attempt
+                                            # max attempt or permanent error
                                             if tmpRet is False or \
                                                     jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
                                                 jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
