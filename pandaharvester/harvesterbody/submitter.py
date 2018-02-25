@@ -225,7 +225,8 @@ class Submitter(AgentBase):
                                                 jobSpec.submissionAttempts = 0
                                             jobSpec.submissionAttempts += 1
                                             # max attempt
-                                            if jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
+                                            if tmpRet is False or \
+                                                    jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
                                                 jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
                                                 newJobList.append(jobSpec)
                                             else:
