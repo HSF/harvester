@@ -124,6 +124,14 @@ class JobSpec(SpecBase):
     def set_attributes(self, attrs):
         if attrs is None:
             return
+        attrs = copy.copy(attrs)
+        # set work attribute
+        for attName in ['pilotErrorCode', 'pilotErrorDiag', 'exeErrorCode', 'exeErrorDiag']:
+            if attName in attrs:
+                if self.PandaID not in attrs:
+                    attrs[self.PandaID] = dict()
+                if attName not in attrs[self.PandaID]:
+                    attrs[self.PandaID][attName] = attrs[attName]
         if self.PandaID not in attrs:
             return
         attrs = copy.copy(attrs[self.PandaID])
@@ -410,3 +418,10 @@ class JobSpec(SpecBase):
                     continue
                 retList.append(fileSpec)
         return retList
+
+    # set pilot error
+    def set_pilot_error(self, error_code, error_dialog):
+        if not self.has_attribute('pilotErrorCode'):
+            self.set_one_attribute('pilotErrorCode', error_code)
+        if not self.has_attribute('pilotErrorDiag'):
+            self.set_one_attribute('pilotErrorDiag', error_dialog)
