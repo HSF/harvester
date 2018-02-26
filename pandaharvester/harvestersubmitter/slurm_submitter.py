@@ -73,7 +73,8 @@ class SlurmSubmitter(PluginBase):
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            nNode=workspec.nCore / self.nCorePerNode,
-                                           accessPoint=workspec.accessPoint)
+                                           accessPoint=workspec.accessPoint,
+                                           workerID=workspec.workerID)
                       )
         tmpFile.close()
         return tmpFile.name
