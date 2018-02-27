@@ -5,11 +5,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestermisc.cloud-openstack_utils import OS_SimpleClient
+from pandaharvester.harvestermisc.cloud_openstack_utils import OS_SimpleClient
 
 
 # setup base logger
-baseLogger = core_utils.setup_logger('cloud-openstack_monitor')
+baseLogger = core_utils.setup_logger('cloud_openstack_monitor')
 
 
 # status map
@@ -61,7 +61,7 @@ class CloudOpenstackMonitor(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_kill_a_vm')
         try:
             self.vm_client.nova.delete(vm_id)
-        except Exception as _e,
+        except Exception as _e:
             errStr = 'Failed to delete a VM with id={0} ; {1}'.format(vm_id, _e)
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)

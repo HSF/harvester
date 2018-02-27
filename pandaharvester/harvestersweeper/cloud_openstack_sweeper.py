@@ -2,11 +2,11 @@ import os
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermisc.cloud-openstack_utils import OS_SimpleClient
+from pandaharvester.harvestermisc.cloud_openstack_utils import OS_SimpleClient
 
 
 # setup base logger
-baseLogger = core_utils.setup_logger('cloud-openstack_sweeper')
+baseLogger = core_utils.setup_logger('cloud_openstack_sweeper')
 
 
 # Cloud Openstack submitter
@@ -29,7 +29,7 @@ class CloudOpenstackSweeper(PluginBase):
         vm_id = workspec.batchID
         try:
             self.vm_client.nova.delete(vm_id)
-        except Exception as _e,
+        except Exception as _e:
             errStr = 'Failed to delete a VM with id={0} ; {1}'.format(vm_id, _e)
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)

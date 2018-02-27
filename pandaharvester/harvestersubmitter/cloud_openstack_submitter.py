@@ -10,11 +10,11 @@ import re
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermisc.cloud-openstack_utils import OS_SimpleClient
+from pandaharvester.harvestermisc.cloud_openstack_utils import OS_SimpleClient
 
 
 # setup base logger
-baseLogger = core_utils.setup_logger('cloud-openstack_submitter')
+baseLogger = core_utils.setup_logger('cloud_openstack_submitter')
 
 
 def _init_script_replace(string, **kwarg):
