@@ -720,6 +720,7 @@ class DBProxy:
             varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=interval)
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
+            iQueues = 0
             for queueName, nQueueLimit in resQ:
                 # update timestamp to lock the queue
                 varMap = dict()
@@ -743,7 +744,8 @@ class DBProxy:
                 if nQueueLimit is not None and nQueue < nQueueLimit:
                     retMap[queueName] = nQueueLimit - nQueue
                 # enough queues
-                if len(retMap) >= n_queues:
+                iQueues += 1
+                if iQueues >= n_queues:
                     break
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
@@ -1182,6 +1184,8 @@ class DBProxy:
                                                        'nQueue': nQueue,
                                                        'nNewWorkers': nNewWorkers}
                     resourceMap[resourceType] = queueName
+                    # commit
+                    self.commit()
                 # enough queues
                 if len(retMap) >= 0:
                     break
@@ -3013,9 +3017,11 @@ class DBProxy:
             tmpLog.debug('start')
 
             # get the values from one of the existing queues
-            sql_select_queue = "SELECT {0} FROM {1}".format(PandaQueueSpec.column_names(), pandaQueueTableName)
-            self.execute(sql_select_queue)
-            tmpLog.debug(sql_select_queue)
+            sql_select_queue = "SELECT {0} FROM {1} ".format(PandaQueueSpec.column_names(), pandaQueueTableName)
+            sql_select_queue += "WHERE siteName=:siteName "
+            var_map = dict()
+            var_map[':siteName'] = site_name
+            self.execute(sql_select_queue, var_map)
             queue = self.cur.fetchone()
 
             if queue: # a queue to clone was found
@@ -3036,7 +3042,6 @@ class DBProxy:
                 sql_values = sql_values[:-1] + ') '
 
                 self.execute(sql_insert + sql_values, var_map)
-                tmpLog.debug(sql_select_queue)
             else:
                 tmpLog.debug("Failed to clone the queue")
             self.commit()
@@ -3123,7 +3128,7 @@ class DBProxy:
     def get_num_missed_workers(self, queue_name, criteria):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, "queue={0}".format(queue_name),
+            tmpLog = core_utils.make_logger(_logger,"queue={0}".format(queue_name),
                                             method_name='get_num_missed_workers')
             tmpLog.debug('start')
             # get worker stats

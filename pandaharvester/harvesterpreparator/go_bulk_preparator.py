@@ -6,6 +6,7 @@ import os.path
 import threading
 import zipfile
 import hashlib
+import string
 from future.utils import iteritems
 
 from globus_sdk import TransferClient
@@ -37,6 +38,10 @@ uID = 0
 _logger = core_utils.setup_logger('go_bulk_preparator')
 
 from pandaharvester.harvestermisc import globus_utils
+
+def validate_transferid(transferid):
+    tmptransferid = transferid.replace('-','')
+    return all(c in string.hexdigits for c in tmptransferid)
 
 def dump(obj):
    for attr in dir(obj):
@@ -85,12 +90,20 @@ class GlobusBulkPreparator(PluginBase):
                 tmpLog.error(errStr)
         except:
             core_utils.dump_error_message(tmpLog)
+        # tmp debugging
+        tmpLog.debug('self.id = {0}'.format(self.id))
+        tmpLog.debug('self.dummy_transfer_id = {0}'.format(self.dummy_transfer_id))
+        # tmp debugging
         tmpLog.debug('__init__ finish')
 
 
     # get dummy_transfer_id
     def get_dummy_transfer_id(self):
         return self.dummy_transfer_id
+
+    # set dummy_transfer_id for testing
+    def set_dummy_transfer_id_testing(self,dummy_transfer_id):
+        self.dummy_transfer_id = dummy_transfer_id
 
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
@@ -104,6 +117,7 @@ class GlobusBulkPreparator(PluginBase):
         tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
                                         method_name='check_status')
         tmpLog.debug('start')
+        tmpLog.debug('self.dummy_transfer_id = {}'.format(self.dummy_transfer_id))
         # default return
         tmpRetVal = (True, '')
         # check that jobspec.computingSite is defined
@@ -186,7 +200,8 @@ class GlobusBulkPreparator(PluginBase):
                         tdata = TransferData(self.tc,
                                              self.srcEndpoint,
                                              self.dstEndpoint,
-                                             sync_level="checksum")
+                                             sync_level="exists")
+#                                             sync_level="checksum")
                     except:
                         errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
                         # release process lock
@@ -198,15 +213,26 @@ class GlobusBulkPreparator(PluginBase):
                         tmpRetVal = (errStat, errMsg)
                         return tmpRetVal
                     # loop over all files
+                    ifile = 0
                     for fileSpec in fileSpecs:
                         attrs = jobspec.get_input_file_attributes()
                         msgStr = "len(jobSpec.get_input_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
                         tmpLog.debug(msgStr)
+                        counter = 100
                         for key, value in attrs.iteritems():
                             msgStr = "input file attributes - {0} {1}".format(key,value)
                             tmpLog.debug(msgStr)
-                        msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
-                        tmpLog.debug(msgStr)
+                            --counter
+                            if counter < 0: break
+                        # only print to log file first 25 files
+                        if ifile < 25 :
+                            msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
+                            tmpLog.debug(msgStr)
+                            ++ifile
+                            if ifile == 25 :
+                                msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
+                                tmpLog.debug(msgStr)
+                        # end debug log file test
                         scope = fileSpec.scope
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
@@ -223,7 +249,7 @@ class GlobusBulkPreparator(PluginBase):
                                                                                    hash1=hash_hex[0:2],
                                                                                    hash2=hash_hex[2:4],
                                                                                    lfn=fileSpec.lfn)
-                        tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
+                        #tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
                         # add files to transfer object - tdata
                         tmpLog.debug("tdata.add_item({},{})".format(srcURL,dstURL))
                         tdata.add_item(srcURL,dstURL)
@@ -273,13 +299,15 @@ class GlobusBulkPreparator(PluginBase):
         # check transfer with real transfer IDs
         # get transfer groups 
         groups = jobspec.get_groups_of_input_files(skip_ready=True)
+        tmpLog.debug('Number of transfer groups - {0}'.format(len(groups)))
         for transferID in groups:
-            if transferID != self.dummy_transfer_id :
+            # allow only valid UUID
+            if validate_transferid(transferID) :
                 # get transfer task
                 tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(tmpLog,self.tc,transferID)
                 # return a temporary error when failed to get task
                 if not tmpStat:
-                    errStr = 'failed to get transfer task'
+                    errStr = 'failed to get transfer task; tc = %s; transferID = %s' % (str(self.tc),str(transferID))
                     tmpLog.error(errStr)
                     return None, errStr
                 # return a temporary error when task is missing 
@@ -301,8 +329,10 @@ class GlobusBulkPreparator(PluginBase):
                 # another status
                 tmpStr = 'transfer task {0} status: {1}'.format(transferID,transferTasks[transferID]['status'])
                 tmpLog.debug(tmpStr)
-                return None, ''
-
+                return None, tmpStr
+        # end of loop over transfer groups
+        tmpLog.debug('End of loop over transfers groups - ending check_status function')
+        return None,'no valid transfer id found'
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
@@ -329,7 +359,11 @@ class GlobusBulkPreparator(PluginBase):
         for inLFN in inFiles.keys():
             lfns.append(inLFN)
         jobspec.set_groups_to_files({self.dummy_transfer_id: {'lfns': lfns,'groupStatus': 'pending'}})
-        msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending'.format(self.dummy_transfer_id,lfns)
+        if len(lfns) < 25:
+            msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending'.format(self.dummy_transfer_id,lfns)
+        else:
+            tmp_lfns = lfns[:25]
+            msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns (first 25) - {1}, groupStatus - pending'.format(self.dummy_transfer_id,tmp_lfns)
         tmpLog.debug(msgStr)
         tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id,skip_ready=True),self.dummy_transfer_id,pending)')
         tmpStat = self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id, skip_ready=True),self.dummy_transfer_id,'pending')

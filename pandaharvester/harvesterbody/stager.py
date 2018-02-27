@@ -4,6 +4,7 @@ from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 
 # logger
 _logger = core_utils.setup_logger('stager')
@@ -67,6 +68,8 @@ class Stager(AgentBase):
                     for fileSpec in jobSpec.outFiles:
                         if fileSpec.status != 'finished':
                             fileSpec.status = 'failed'
+                    errStr = 'stage-out failed with {0}'.format(tmpStr)
+                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
                     jobSpec.trigger_propagation()
                     newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
                     tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
@@ -117,6 +120,8 @@ class Stager(AgentBase):
                     for fileSpec in jobSpec.outFiles:
                         if fileSpec.status != 'finished':
                             fileSpec.status = 'failed'
+                    errStr = 'stage-out failed with {0}'.format(tmpStr)
+                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
                     jobSpec.trigger_propagation()
                     newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
                     tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
