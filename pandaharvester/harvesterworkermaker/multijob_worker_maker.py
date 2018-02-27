@@ -58,7 +58,7 @@ class MultiJobWorkerMaker(PluginBase):
             workSpec.maxWalltime = 0
             if queue_config.walltimeLimit:
                 workSpec.maxWalltime = queue_config.walltimeLimit
-
+                tmpLog.debug("Wall time limit for worker: {0}".format(workSpec.maxWalltime))
             for jobSpec in jobspec_list:
                 try:
                     workSpec.minRamCount = max(workSpec.minRamCount, jobSpec.jobParams['minRamCount'])
@@ -68,11 +68,11 @@ class MultiJobWorkerMaker(PluginBase):
                     workSpec.maxDiskCount += jobSpec.jobParams['maxDiskCount']
                 except:
                     pass
-                try:
-                    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
-                        workSpec.maxWalltime = max(workSpec.maxWalltime, jobSpec.jobParams['maxWalltime'])
-                except:
-                    pass
+                #try:  we should not relay on job parameters yet (not relaible)
+                #    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
+                #        workSpec.maxWalltime = max(workSpec.maxWalltime, jobSpec.jobParams['maxWalltime'])
+                #except:
+                #    pass
 
             workSpec.workParams = self._get_executable(queue_config)
 

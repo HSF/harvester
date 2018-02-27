@@ -57,15 +57,18 @@ class SAGAMonitor(PluginBase):
                         tmpLog.debug('Started: [{0}] finished: [{1}]'.format(worker.started, worker.finished))
 
                 except saga.SagaException as ex:
-                    tmpLog.error('An exception occured during retriving worker information')
+                    tmpLog.info('An exception occured during retriving worker information {0}'.format(workSpec.batchID))
                     errStr = ex.get_message()
-                    tmpLog.error(errStr)
+                    tmpLog.info(errStr)
                     # probably 'failed' is not proper state in this case, 'undefined' looks a bit better
-                    harvester_job_state = workSpec.ST_failed 
+                    harvester_job_state = workSpec.ST_failed
+                    workSpec.set_status(harvester_job_state)
+                    tmpLog.debug('Worker state set to: {0} ({1})'.format(workSpec.status, harvester_job_state))
                 retList.append((harvester_job_state, errStr))
             else:
-                tmpLog.debug("SAGA monitor find {} submission but not associated with harvester workes".format(len(job_service.list)))
+                tmpLog.debug("SAGA monitor found worker [{0}] without batchID".format(workSpec.workerID))
 
         job_service.close()
+        tmpLog.debug('Results: {0}'.format(retList))
 
         return True, retList

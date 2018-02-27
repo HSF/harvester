@@ -32,6 +32,8 @@ logger.addHandler(debug_h)
 
 logger.info('HPC Pilot ver. 0.001')
 
+# TODO: loglevel as input parameter
+
 def get_setup(job):
 
     # special setup preparation.
@@ -224,8 +226,8 @@ def main():
     logger.debug("Going to launch: {0}".format(my_command))
     wd_path = os.getcwd()
     logger.debug("Current work directory: {0}".format(wd_path))
-    payloadstdout = open("job_stdout.txt", "w")
-    payloadstderr = open("job_stderr.txt", "w")
+    payloadstdout = open("athena_stdout.txt", "w")
+    payloadstderr = open("athena_stderr.txt", "w")
     titan_prepare_wd()
 
     job_working_dir = os.getcwd()
@@ -271,6 +273,7 @@ def main():
     out_file_report[job.job_id] = []
 
     for outfile in job.output_files.keys():
+        logger.debug("File {} will be checked and declared for stage out".format(outfile))
         if os.path.exists(outfile):
             file_desc = {}
             if outfile == job.log_file:
@@ -286,10 +289,13 @@ def main():
             logger.info("Expected output file {0} missed. Job {1} will be failed".format(outfile, job.job_id))
             job.state = 'failed'
 
+    #TODO: state should be dumped
+
     if out_file_report[job.job_id]:
         with open(StageOutnFile, 'w') as stageoutfile:
             json.dump(out_file_report, stageoutfile)
         logger.debug('Stagout declared in: {0}'.format(StageOutnFile))
+        logger.debug('Report for stageout: {}'.format(out_file_report))
 
     logger.info("All done")
     main_exit(0)

@@ -1,14 +1,14 @@
+import saga
 import os
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec as ws
-from datetime import datetime
-import saga
+#from datetime import datetime
+
 
 # setup base logger
 baseLogger = core_utils.setup_logger('saga_submitter')
-
 
 # SAGA submitter
 class SAGASubmitter (PluginBase):
@@ -88,10 +88,10 @@ class SAGASubmitter (PluginBase):
             tmpLog.debug("Command to be launched: \n{0}".format(jd.executable))
             jd.total_cpu_count = work_spec.nCore  # one node with 16 cores for one job
             jd.queue = self.localqueue
-
+            tmpLog.debug("Worker directory: {0}".format(work_spec.accessPoint))
             jd.working_directory = work_spec.accessPoint  # working directory of task
-            jd.output = 'saga_task_stdout' #  file for stdout of payload
-            jd.error = 'saga_task_stderr'  #  filr for stderr of payload
+            jd.output = os.path.join(work_spec.accessPoint, 'MPI_pilot_stdout') #  file for stdout of payload
+            jd.error = os.path.join(work_spec.accessPoint, 'MPI_pilot_stderr')  #  file for stderr of payload
 
             # Create a new job from the job description. The initial state of
             # the job is 'New'.

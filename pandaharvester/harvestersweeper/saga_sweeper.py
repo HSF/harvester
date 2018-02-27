@@ -1,6 +1,6 @@
+import saga
 import os
 import shutil
-import saga
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
@@ -30,6 +30,7 @@ class SAGASweeper(PluginBase):
         job_service = saga.job.Service(self.adaptor)
         tmpLog = core_utils.make_logger(baseLogger, method_name='kill_worker')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
+        errStr = ''
 
         if workspec.batchID:
             saga_submission_id = '[{0}]-[{1}]'.format(self.adaptor, workspec.batchID)
@@ -41,17 +42,17 @@ class SAGASweeper(PluginBase):
                     'Worker state with batchid: {0} is: {1}'.format(workspec.batchID, harvester_job_state))
                 if worker.state in [saga.job.PENDING, saga.job.RUNNING]:
                     worker.cancel()
-                    tmpLog("Worker {0} with batchid {1} canceled".format(workspec.workerID, workspec.batchID))
+                    tmpLog.info("Worker {0} with batchid {1} canceled".format(workspec.workerID, workspec.batchID))
             except saga.SagaException as ex:
                 errStr = ex.get_message()
-                tmpLog.error('An exception occured during canceling of worker: \n{0}'.format(errStr))
+                tmpLog.info('An exception occured during canceling of worker: {0}'.format(errStr))
 
                 # probably 'failed' is not proper state in this case, 'undefined' looks a bit better
                 # harvester_job_state = workspec.ST_failed
 
         job_service.close()
 
-        return True, ''
+        return True, errStr
 
     # cleanup for a worker
     def sweep_worker(self, workspec):
