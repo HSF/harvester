@@ -53,22 +53,31 @@ class CloudOpenstackSubmitter(PluginBase):
 
         # set vm maps
         #TODO: be configurable
+        # self.VM_FLAVOR_MAP = {
+        #                     'SCORE': 'm1.small',
+        #                     'MCORE': 'm1.xlarge',
+        #                     'other': 'm1.medium',
+        #                 }
         self.VM_FLAVOR_MAP = {
-                            'SCORE': 'm1.small',
-                            'MCORE': 'm1.xlarge',
-                            'other': 'm1.medium',
+                            'SCORE': '2',
+                            'MCORE': '5',
+                            'other': '3',
                         }
 
+        # self.VM_IAMGE_MAP = {
+        #                     'el6': 'uCernVM3-2.8-6',
+        #                     'el7': 'uCernVM4-2.8-6',
+        #                 }
         self.VM_IAMGE_MAP = {
-                            'el6': 'uCernVM3-2.8-6',
-                            'el7': 'uCernVM4-2.8-6',
+                            'el6': '65122568-79c7-4f75-8fa3-772de7e9e5b6',
+                            'el7': '58080f8b-f5a3-46e6-95d4-a7c23a3d0b42',
                         }
 
         # set other vm attributes
         #TODO: be configurable
         self.VM_CREATE_ATTRIBUTES = {
                         'key_name': 'opskey',
-                        'nics': {'net-id': '536855fc-8cb2-423a-84d7-d0dc1ce2dff7',},
+                        'nics': [{'net-id': '536855fc-8cb2-423a-84d7-d0dc1ce2dff7',},],
                     }
 
 
@@ -80,56 +89,62 @@ class CloudOpenstackSubmitter(PluginBase):
         tmpRetVal = (None, 'Nothing done')
 
         # decide id
-        vm_id = uuid.uuid4()
-        vm_name = vm_id
+        vm_name = 'harvester-vm_{0}'.format(str(uuid.uuid4()))
 
         # decide image
         if True: #FIXME
-            vm_image = self.VM_IAMGE_MAP['el6']
+            vm_image_id = self.VM_IAMGE_MAP['el6']
 
         # decide flavor
         #FIXME
         if workspec.nCore == 1:
-            vm_flavor = self.VM_FLAVOR_MAP['SCORE']
+            vm_flavor_id = self.VM_FLAVOR_MAP['SCORE']
         elif workspec.nCore == 8:
-            vm_flavor = self.VM_FLAVOR_MAP['SCORE']
+            vm_flavor_id = self.VM_FLAVOR_MAP['SCORE']
         else:
-            vm_flavor = self.VM_FLAVOR_MAP['other']
+            vm_flavor_id = self.VM_FLAVOR_MAP['other']
 
         # decide userdata
         with open(self.InitScriptTemplate) as _f:
             template_str = _f.read()
-        vm_userdata = _make_init_script(workspec, template_str)
+        vm_userdata_file = _make_init_script(workspec, template_str)
+        vm_userdata = open(vm_userdata_file, 'r')
+
+        # get image and flavor
+        try:
+            vm_image = self.vm_client.nova.glance.find_image(vm_image_id)
+            vm_flavor = self.vm_client.nova.flavors.get(vm_flavor_id)
+        except Exception as _e:
+            errStr = 'Failed to create a VM with name={0} ; {1}'.format(vm_name, _e)
+            tmpLog.error(errStr)
+            tmpRetVal = (False, errStr)
+            return tmpRetVal
 
         # create a VM
         try:
             self.vm_client.nova.servers.create( name=vm_name,
                                                 image=vm_image,
                                                 flavor=vm_flavor,
-                                                reservation_id=vm_id,
                                                 userdata=vm_userdata,
                                                 **self.VM_CREATE_ATTRIBUTES)
         except Exception as _e:
-            errStr = 'Failed to create a VM with id={0} ; {1}'.format(vm_id, _e)
+            errStr = 'Failed to create a VM with name={0} ; {1}'.format(vm_name, _e)
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)
         else:
             try:
-                vm_server = self.vm_client.nova.servers.get(vm_id)
-                vm_server.id
+                vm_server = self.vm_client.nova.servers.list(search_opts={'name': vm_name}, limit=1)[0]
+                vm_id = vm_server.id
             except Exception as _e:
-                errStr = 'Failed to create a VM with id={0} ; {1}'.format(vm_id, _e)
+                errStr = 'Failed to create a VM with name={0} ; {1}'.format(vm_name, _e)
                 tmpLog.error(errStr)
                 tmpRetVal = (False, errStr)
             else:
-                if vm_server.id == vm_id:
-                    workspec.batchID = vm_id
-                    tmpLog.info('Created a VM with id={0}'.format(vm_id))
-                    tmpRetVal = (True, '')
-                else:
-                    errStr = 'Created VM id={0} different from specified VM id={1}'.format(vm_server.id, vm_id)
-                    tmpLog.error(errStr)
-                    tmpRetVal = (False, errStr)
+                workspec.batchID = vm_id
+                tmpLog.info('Created a VM with name={vm_name} id={vm_id}'.format(vm_name=vm_name, vm_id=vm_id))
+                tmpRetVal = (True, '')
+
+        vm_userdata.close()
 
         # return
         return tmpRetVal
