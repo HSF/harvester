@@ -5,8 +5,6 @@ from pandaharvester.harvestercore import core_utils
 
 baseLogger = core_utils.setup_logger('google_monitor')
 
-import googleapiclient.discovery
-
 class GoogleMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)

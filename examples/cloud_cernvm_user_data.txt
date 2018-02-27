@@ -1,0 +1,12 @@
+cvmfs:
+  local:
+    CVMFS_REPOSITORIES: atlas.cern.ch,atlas-condb.cern.ch,atlas-nightlies.cern.ch,grid.cern.ch,sft.cern.ch
+    CVMFS_HTTP_PROXY: "DIRECT"
+users:
+ - name: atlpan
+   lock-passwd: false
+   passwd: xxxx
+runcmd:
+ - 'wget https://raw.githubusercontent.com/fbarreir/scribbles/master/vm_script.py -O /tmp/vm_script.py'
+ - 'chmod 755 /tmp/vm_script.py'
+ - 'su - atlpan -c "/tmp/vm_script.py > /tmp/script.log"'
