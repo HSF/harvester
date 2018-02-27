@@ -1,0 +1,34 @@
+executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
+arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -f false
+#arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch
+initialdir = {accessPoint}
+universe = grid
+log = {logDir}/grid.$(Cluster).$(Process).log
+output = {logDir}/grid.$(Cluster).$(Process).out
+error = {logDir}/grid.$(Cluster).$(Process).err
+transfer_executable = True
+x509userproxy = {x509UserProxy}
+environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID}"
+should_transfer_files = True
+transfer_input_files = pandaJobData.out
+
+grid_resource = nordugrid {ceHostname}
+nordugrid_rsl = (queue = {ceQueueName})(runtimeenvironment = APPS/HEP/ATLAS-SITE-LCG)(runtimeenvironment = ENV/PROXY)(jobname = arc_pilot)(count = {nCoreTotal})(countpernode = {nCoreTotal})(memory = {requestRamPerCore})(walltime = {requestWalltime})(cputime = {requestCputime})(environment = (PANDA_JSID harvester-{harvesterID})(HARVESTER_ID {harvesterID})(HARVESTER_WORKER_ID {workerID})(GTAG {gtag}))
+
++remote_jobuniverse = 5
++remote_requirements = True
++remote_ShouldTransferFiles = "YES"
++remote_WhenToTransferOutput = "ON_EXIT"
++remote_TransferOutput = ""
+
+#+remote_RequestCpus = {nCoreTotal}
+#+remote_RequestMemory = {requestRam}
+#+remote_RequestDisk = {requestDisk}
+#+remote_JobMaxVacateTime = {requestWalltime}
+
+#+remote_Requirements = JobRunCount == 0
+periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)
+#+remote_PeriodicHold = ( JobStatus==1 && gridjobstatus=?=UNDEFINED && CurrentTime-EnteredCurrentStatus>3600 ) || ( (JobRunCount =!= UNDEFINED && JobRunCount > 0) ) || ( JobStatus == 2 && CurrentTime-EnteredCurrentStatus>604800 )
++remote_PeriodicRemove = (JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 3600) || (JobStatus == 1 && globusstatus =!= 1 && (CurrentTime - EnteredCurrentStatus) > 86400)
+
+queue 1

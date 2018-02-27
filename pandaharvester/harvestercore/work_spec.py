@@ -77,9 +77,12 @@ class WorkSpec(SpecBase):
                            'maxWalltime:integer',
                            'killTime:timestamp / index',
                            'computingElement:text',
-                           'nJobsToReFill:integer',
+                           'nJobsToReFill:integer / index',
                            'logFilesToUpload:blob',
-                           'resourceType:text'
+                           'resourceType:text',
+                           'nativeExitCode:integer',
+                           'nativeStatus:text',
+                           'diagMessage:text'
                            )
 
     # constructor
@@ -221,13 +224,25 @@ class WorkSpec(SpecBase):
             return False, None
         return True, self.workAttributes[name]
 
+    # check if has work attribute
+    def has_work_attribute(self, name):
+        if self.workAttributes is None or name not in self.workAttributes:
+            return False
+        return True
+
     # update log files to upload
-    def update_log_files_to_upload(self, file_path, position, remote_name=None):
+    def update_log_files_to_upload(self, file_path, position, remote_name=None, stream_type=None):
         if self.logFilesToUpload is None:
             self.logFilesToUpload = dict()
+        if stream_type is not None:
+            # delete existing stream
+            for tmp_file_path, tmpDict in iteritems(self.logFilesToUpload.copy()):
+                if tmpDict['stream_type'] == stream_type:
+                    del self.logFilesToUpload[tmp_file_path]
         if file_path not in self.logFilesToUpload:
             self.logFilesToUpload[file_path] = {'position': position,
-                                                'remote_name': remote_name}
+                                                'remote_name': remote_name,
+                                                'stream_type': stream_type}
             self.force_update('logFilesToUpload')
         elif self.logFilesToUpload[file_path]['position'] != position:
             self.logFilesToUpload[file_path]['position'] = position
@@ -249,7 +264,7 @@ class WorkSpec(SpecBase):
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_R,
                                    remoteName)
             # set file to periodically upload
-            self.update_log_files_to_upload(stream, 0, remoteName)
+            self.update_log_files_to_upload(stream, 0, remoteName, keyName)
         self.set_work_attributes({keyName: url})
 
     # get the list of log files to upload
@@ -265,3 +280,16 @@ class WorkSpec(SpecBase):
                 retList.append((filePath, fileInfo['position'], fileSize-fileInfo['position'],
                                 fileInfo['remote_name']))
         return retList
+
+    # set dialog message
+    def set_dialog_message(self, msg):
+        self.diagMessage = msg
+
+    # set pilot error
+    def set_pilot_error(self, error_code, error_dialog):
+        self.set_work_attributes({'pilotErrorCode': error_code,
+                                  'pilotErrorDiag': error_dialog})
+
+    # check if has pilot error
+    def has_pilot_error(self):
+        return self.has_work_attribute('pilotErrorCode')

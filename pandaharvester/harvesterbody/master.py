@@ -9,6 +9,7 @@ import daemon.pidfile
 import argparse
 import threading
 import cProfile
+import atexit
 from future.utils import iteritems
 try:
     import pprofile
@@ -306,10 +307,17 @@ def main(daemon_mode=True):
                 prof.dump_stats(options.profileOutput)
                 prof = None
 
+        # delete PID
+        def delete_pid(pid):
+            try:
+                os.remove(pid)
+            except:
+                pass
+
         # signal handlers
         def catch_sigkill(sig, frame):
             disable_profiler()
-            _logger.info('got signal={0}'.format(sig))
+            _logger.info('got signal={0} to be killed'.format(sig))
             try:
                 os.remove(options.pid)
             except:
@@ -324,17 +332,20 @@ def main(daemon_mode=True):
                 _logger.error('failed to be killed')
 
         def catch_sigterm(sig, frame):
+            _logger.info('got signal={0} to be terminated'.format(sig))
             stopEvent.set()
-            try:
-                os.remove(options.pid)
-            except:
-                pass
+            # register del function
+            if os.getppid() == 1:
+                atexit.register(delete_pid, options.pid)
+            # set alarm just in case
+            signal.alarm(30)
 
         # set handler
         if daemon_mode:
             signal.signal(signal.SIGINT, catch_sigkill)
             signal.signal(signal.SIGHUP, catch_sigkill)
             signal.signal(signal.SIGTERM, catch_sigkill)
+            signal.signal(signal.SIGALRM, catch_sigkill)
             signal.signal(signal.SIGUSR2, catch_sigterm)
         # start master
         master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)

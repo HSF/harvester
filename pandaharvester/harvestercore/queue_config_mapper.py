@@ -34,6 +34,7 @@ class QueueConfig:
         self.allowJobMixture = False
         self.maxSubmissionAttempts = 3
         self.truePilot = False
+        self.queueStatus = 'online'
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -71,7 +72,7 @@ class QueueConfigMapper:
             timeNow = datetime.datetime.utcnow()
             if self.lastUpdate is not None and timeNow - self.lastUpdate < datetime.timedelta(minutes=10):
                 return
-            self.queueConfig = {}
+            newQueueConfig = {}
             queueConfigJsonList = []
             # load config json on URL
             if core_utils.get_queues_config_url() is not None:
@@ -104,6 +105,7 @@ class QueueConfigMapper:
             queueNameList = set()
             for queueConfigJson in queueConfigJsonList:
                 queueNameList |= set(queueConfigJson.keys())
+            templateQueueList = set()
             # set attributes
             for queueName in queueNameList:
                 for queueConfigJson in queueConfigJsonList:
@@ -114,11 +116,12 @@ class QueueConfigMapper:
                         # template
                         if 'templateQueueName' in queueDict:
                             templateQueueName = queueDict['templateQueueName']
+                            templateQueueList.add(templateQueueName)
                             if templateQueueName in queueConfigJson:
                                 queueDictList.insert(0, queueConfigJson[templateQueueName])
                     for queueDict in queueDictList:
-                        if queueName in self.queueConfig:
-                            queueConfig = self.queueConfig[queueName]
+                        if queueName in newQueueConfig:
+                            queueConfig = newQueueConfig[queueName]
                         else:
                             queueConfig = QueueConfig(queueName)
                         # queueName = siteName/resourceType
@@ -151,11 +154,26 @@ class QueueConfigMapper:
                         # heartbeat suppression
                         if queueConfig.truePilot and queueConfig.noHeartbeat == '':
                             queueConfig.noHeartbeat = 'running,transferring,finished,failed'
-                        self.queueConfig[queueName] = queueConfig
+                        newQueueConfig[queueName] = queueConfig
+            # delete templates
+            for templateQueueName in templateQueueList:
+                if templateQueueName in newQueueConfig:
+                    del newQueueConfig[templateQueueName]
+            # get active queues
+            activeQueues = dict()
+            for queueName, queueConfig in iteritems(newQueueConfig):
+                if queueConfig.queueStatus != 'online':
+                    continue
+                if 'ALL' not in harvester_config.qconf.queueList and \
+                        queueName not in harvester_config.qconf.queueList:
+                    continue
+                activeQueues[queueName] = queueConfig
+            self.queueConfig = newQueueConfig
+            self.activeQueues = activeQueues
             self.lastUpdate = datetime.datetime.utcnow()
         # update database
         dbProxy = DBProxy()
-        dbProxy.fill_panda_queue_table(harvester_config.qconf.queueList, self)
+        dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self)
 
     # check if valid queue
     def has_queue(self, queue_name):
@@ -165,11 +183,17 @@ class QueueConfigMapper:
     # get queue config
     def get_queue(self, queue_name):
         self.load_data()
-        if not self.has_queue(queue_name):
+        if queue_name not in self.queueConfig:
             return None
-        return self.queueConfig[queue_name]
+        else:
+            return self.queueConfig[queue_name]
 
     # all queue configs
     def get_all_queues(self):
         self.load_data()
         return self.queueConfig
+
+    # all active queue config
+    def get_active_queues(self):
+        self.load_data()
+        return self.activeQueues

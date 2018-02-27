@@ -10,6 +10,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 
 # logger
 _logger = core_utils.setup_logger('submitter')
@@ -138,9 +139,11 @@ class Submitter(AgentBase):
                             for ngJobs in ngChunks:
                                 for jobSpec in ngJobs:
                                     jobSpec.status = 'failed'
-                                    jobSpec.subStatus = 'failedtomake'
+                                    jobSpec.subStatus = 'failed_to_make'
                                     jobSpec.stateChangeTime = timeNow
                                     jobSpec.lockedBy = None
+                                    errStr = 'failed to make a worker'
+                                    jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
                                     jobSpec.trigger_propagation()
                                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                                       'subStatus': 'prepared'})
@@ -211,11 +214,27 @@ class Submitter(AgentBase):
                                     # set status
                                     if not tmpRet:
                                         # failed submission
-                                        tmpLog.error('failed to submit a workerID={0} with {1}'.format(
-                                            workSpec.workerID,
-                                            tmpStr))
+                                        errStr = 'failed to submit a workerID={0} with {1}'.format(workSpec.workerID,
+                                                                                                   tmpStr)
+                                        tmpLog.error(errStr)
                                         workSpec.set_status(WorkSpec.ST_missed)
-                                        jobList = []
+                                        workSpec.set_dialog_message(tmpStr)
+                                        workSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                        # increment attempt number
+                                        newJobList = []
+                                        for jobSpec in jobList:
+                                            if jobSpec.submissionAttempts is None:
+                                                jobSpec.submissionAttempts = 0
+                                            jobSpec.submissionAttempts += 1
+                                            # max attempt or permanent error
+                                            if tmpRet is False or \
+                                                    jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
+                                                jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                                newJobList.append(jobSpec)
+                                            else:
+                                                self.dbProxy.increment_submission_attempt(jobSpec.PandaID,
+                                                                                          jobSpec.submissionAttempts)
+                                        jobList = newJobList
                                     elif queueConfig.useJobLateBinding and workSpec.hasJob == 1:
                                         # directly go to running after feeding jobs for late biding
                                         workSpec.set_status(WorkSpec.ST_running)
@@ -241,10 +260,15 @@ class Submitter(AgentBase):
                                         for jobSpec in jobList:
                                             pandaIDs.add(jobSpec.PandaID)
                                             if tmpStat:
-                                                tmpStr = 'submitted a workerID={0} for PandaID={1} with batchID={2}'
-                                                tmpLog.info(tmpStr.format(workSpec.workerID,
-                                                                          jobSpec.PandaID,
-                                                                          workSpec.batchID))
+                                                if tmpRet:
+                                                    tmpStr = 'submitted a workerID={0} for PandaID={1} with batchID={2}'
+                                                    tmpLog.info(tmpStr.format(workSpec.workerID,
+                                                                              jobSpec.PandaID,
+                                                                              workSpec.batchID))
+                                                else:
+                                                    tmpStr = 'failed to submit a workerID={0} for PandaID={1}'
+                                                    tmpLog.error(tmpStr.format(workSpec.workerID,
+                                                                               jobSpec.PandaID))
                                             else:
                                                 tmpStr = 'failed to register a worker for PandaID={0} with batchID={1}'
                                                 tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
@@ -252,8 +276,13 @@ class Submitter(AgentBase):
                             self.dbProxy.release_jobs(pandaIDs, lockedBy)
                             tmpLog.info('done')
             mainLog.debug('done')
+            # define sleep interval
+            if siteName is None:
+                sleepTime = harvester_config.submitter.sleepTime
+            else:
+                sleepTime = 0
             # check if being terminated
-            if self.terminated(harvester_config.submitter.sleepTime):
+            if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
 

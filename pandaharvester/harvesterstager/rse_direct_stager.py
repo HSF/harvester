@@ -1,6 +1,11 @@
+import os
+import zipfile
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
+# logger
+baseLogger = core_utils.setup_logger('rse_direct_stager')
 
 # stager plugin with RSE + no data motion
 class RseDirectStager(PluginBase):
