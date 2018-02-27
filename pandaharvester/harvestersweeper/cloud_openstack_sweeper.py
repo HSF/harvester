@@ -28,7 +28,7 @@ class CloudOpenstackSweeper(PluginBase):
         # kill vm
         vm_id = workspec.batchID
         try:
-            self.vm_client.nova.delete(vm_id)
+            self.vm_client.nova.servers.delete(vm_id)
         except Exception as _e:
             errStr = 'Failed to delete a VM with id={0} ; {1}'.format(vm_id, _e)
             tmpLog.error(errStr)

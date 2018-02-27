@@ -72,7 +72,7 @@ class CloudOpenstackMonitor(PluginBase):
 
 
     # check a vm
-    def _check_a_vm(workspec, job_ads_all_dict):
+    def _check_a_vm(self, workspec):
         # set logger
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_check_a_vm')
 
@@ -82,7 +82,7 @@ class CloudOpenstackMonitor(PluginBase):
         errStr = ''
 
         try:
-            vm_server = self.vm_client.nova.get(vm_id)
+            vm_server = self.vm_client.nova.servers.get(vm_id)
             vm_status = vm_server.status
         except Exception as _e:
             errStr = 'Failed to get VM status of id={0} ; {1}'.format(vm_id, _e)

@@ -36,7 +36,7 @@ def _make_init_script(workspec, template_str):
 
     # make init tempfile
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_init.sh', dir=workspec.get_access_point())
-    new_template_str = _init_script_replace(template_str, workspec.__dict__)
+    new_template_str = _init_script_replace(template_str, **workspec.__dict__)
     tmpFile.write(new_template_str)
     tmpFile.close()
     tmpLog.debug('done')
@@ -74,13 +74,14 @@ class CloudOpenstackSubmitter(PluginBase):
 
     def _submit_a_vm(self, workspec):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='submit_workers')
+        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_submit_a_vm')
 
         # initial return values
         tmpRetVal = (None, 'Nothing done')
 
         # decide id
         vm_id = uuid.uuid4()
+        vm_name = vm_id
 
         # decide image
         if True: #FIXME
@@ -98,23 +99,23 @@ class CloudOpenstackSubmitter(PluginBase):
         # decide userdata
         with open(self.InitScriptTemplate) as _f:
             template_str = _f.read()
-        vm_userdata = _make_init_script(workspec, template_str):
+        vm_userdata = _make_init_script(workspec, template_str)
 
         # create a VM
         try:
-            self.vm_client.nova.create( name=vm_name_id,
-                                        image=vm_image,
-                                        flavor=vm_flavor,
-                                        reservation_id=vm_id,
-                                        userdata=vm_userdata,
-                                        **self.VM_CREATE_ATTRIBUTES)
+            self.vm_client.nova.servers.create( name=vm_name,
+                                                image=vm_image,
+                                                flavor=vm_flavor,
+                                                reservation_id=vm_id,
+                                                userdata=vm_userdata,
+                                                **self.VM_CREATE_ATTRIBUTES)
         except Exception as _e:
             errStr = 'Failed to create a VM with id={0} ; {1}'.format(vm_id, _e)
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)
         else:
             try:
-                vm_server = self.vm_client.nova.get(vm_id)
+                vm_server = self.vm_client.nova.servers.get(vm_id)
                 vm_server.id
             except Exception as _e:
                 errStr = 'Failed to create a VM with id={0} ; {1}'.format(vm_id, _e)
@@ -137,8 +138,10 @@ class CloudOpenstackSubmitter(PluginBase):
     # submit workers
     def submit_workers(self, workspec_list):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='submit_workers')
-        tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
+        tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
+
+        nWorkers = len(workspec_list)
+        tmpLog.debug('start nWorkers={0}'.format(nWorkers))
 
         # exec with multi-thread
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
