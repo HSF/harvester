@@ -1807,9 +1807,6 @@ class DBProxy:
                 tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                                 method_name='update_jobs_workers')
                 tmpLog.debug('update')
-                # sql to update worker
-                sqlW = "UPDATE {0} SET {1} ".format(workTableName, workSpec.bind_update_changes_expression())
-                sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
                 workSpec.lockedBy = None
                 if not workSpec.nextLookup:
                     workSpec.modificationTime = timeNow
@@ -1822,6 +1819,9 @@ class DBProxy:
                         workSpec.startTime = timeNow
                     if workSpec.endTime is None:
                         workSpec.endTime = timeNow
+                # sql to update worker
+                sqlW = "UPDATE {0} SET {1} ".format(workTableName, workSpec.bind_update_changes_expression())
+                sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
                 varMap = workSpec.values_map(only_changed=True)
                 varMap[':workerID'] = workSpec.workerID
                 varMap[':cr_lockedBy'] = locked_by
