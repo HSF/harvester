@@ -358,6 +358,15 @@ class HTCondorSubmitter(PluginBase):
 
             return data
 
+        def _propagate_attributes(workspec, tmpVal):
+            # make logger
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                            method_name='_propagate_attributes')
+            (retVal, tmpDict) = tmpVal
+            workspec.set_attributes_with_dict(tmpDict)
+            tmpLog.debug('Done workspec attributes propagation')
+            return retVal
+
         tmpLog.debug('finished preparing worker attributes')
 
         # map(_handle_one_worker, workspec_list)
@@ -371,12 +380,10 @@ class HTCondorSubmitter(PluginBase):
         tmpLog.debug('{0} workers submitted'.format(nWorkers))
 
         # propagate changed attributes
-        retList = []
-        for workspec, tmpVal in zip(workspec_list, retValList):
-            retVal, tmpDict = tmpVal
-            workspec.set_attributes_with_dict(tmpDict)
-            retList.append(retVal)
+        with ThreadPoolExecutor(self.nProcesses) as thread_pool:
+            retIterator = thread_pool.map(lambda _wv_tuple: _propagate_attributes(*_wv_tuple), zip(workspec_list, retValList))
 
+        retList = list(retIterator)
         tmpLog.debug('done')
 
         return retList
