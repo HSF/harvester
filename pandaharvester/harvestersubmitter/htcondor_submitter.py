@@ -381,7 +381,7 @@ class HTCondorSubmitter(PluginBase):
 
         # propagate changed attributes
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            retIterator = thread_pool.map(lambda _w, _v: _propagate_attributes(_w, _v), zip(workspec_list, retValList))
+            retIterator = thread_pool.map(lambda _wv_tuple: _propagate_attributes(*_wv_tuple), zip(workspec_list, retValList))
 
         retList = list(retIterator)
         tmpLog.debug('done')
