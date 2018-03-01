@@ -1,3 +1,6 @@
+import googleapiclient.discovery
+import os
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercloud import cernvm_aux
 
@@ -7,6 +10,10 @@ USER_DATA_PATH = harvester_config.googlecloud.user_data_file
 IMAGE = harvester_config.googlecloud.image
 ZONE = harvester_config.googlecloud.zone
 PROJECT = harvester_config.googlecloud.project
+SERVICE_ACCOUNT_FILE = harvester_config.googlecloud.service_account_file
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = SERVICE_ACCOUNT_FILE
+
+compute = googleapiclient.discovery.build('compute', 'v1')
 
 class GoogleVM():
 

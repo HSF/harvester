@@ -18,7 +18,6 @@ base_logger = core_utils.setup_logger('google_submitter')
 
 SERVICE_ACCOUNT_FILE = harvester_config.googlecloud.service_account_file
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = SERVICE_ACCOUNT_FILE
-compute = googleapiclient.discovery.build('compute', 'v1')
 
 def wait_for_operation(project, zone, operation_name):
     """
@@ -29,6 +28,7 @@ def wait_for_operation(project, zone, operation_name):
     :param operation_name:
     :return:
     """
+    compute = googleapiclient.discovery.build('compute', 'v1')
     tmp_log = core_utils.make_logger(base_logger, method_name='wait_for_operation')
     tmp_log.debug('Waiting for operation to finish...')
 
@@ -65,7 +65,7 @@ def create_vm(work_spec):
 
     vm = GoogleVM(work_spec)
     # tmp_log.debug('vm.config: {0}'.format(vm.config))
-
+    compute = googleapiclient.discovery.build('compute', 'v1')
     tmp_log.debug('Going to submit VM {0}'.format(vm.name))
     operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
     tmp_log.debug('Submitting VM {0}'.format(vm.name))
