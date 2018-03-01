@@ -1,4 +1,4 @@
-import os.path
+import os
 import googleapiclient.discovery
 
 from pandaharvester.harvesterconfig import harvester_config

@@ -3,16 +3,23 @@ Based on: https://cloud.google.com/compute/docs/tutorials/python-guide#before-yo
 """
 
 import time
+import os
+import googleapiclient.discovery
 
 from concurrent.futures import ProcessPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
+from pandaharvester.harvestercloud.googlecloud import GoogleVM, ZONE, PROJECT
 
 # setup base logger
 base_logger = core_utils.setup_logger('google_submitter')
 
+SERVICE_ACCOUNT_FILE = harvester_config.googlecloud.service_account_file
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = SERVICE_ACCOUNT_FILE
+
+compute = googleapiclient.discovery.build('compute', 'v1')
 
 def wait_for_operation(compute, project, zone, operation_name):
     """
