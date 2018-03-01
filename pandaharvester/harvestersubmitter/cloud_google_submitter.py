@@ -21,11 +21,10 @@ os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = SERVICE_ACCOUNT_FILE
 
 compute = googleapiclient.discovery.build('compute', 'v1')
 
-def wait_for_operation(compute, project, zone, operation_name):
+def wait_for_operation(project, zone, operation_name):
     """
     Waits for an operation to complete.
     TODO: decide whether we want to block or just move on and list the instance status later
-    :param compute:
     :param project:
     :param zone:
     :param operation_name:
@@ -68,8 +67,11 @@ def create_vm(work_spec):
     vm = GoogleVM(work_spec)
     # tmp_log.debug('vm.config: {0}'.format(vm.config))
 
+    tmp_log.debug('Going to submit VM {0}'.format(vm.name))
     operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
-    wait_for_operation(compute, PROJECT, ZONE, operation['name'])
+    tmp_log.debug('Submitting VM {0}'.format(vm.name))
+    wait_for_operation(PROJECT, ZONE, operation['name'])
+    tmp_log.debug('Submitted VM {0}'.format(vm.name))
 
     #work_spec.batchID = operation['targetId']
     work_spec.batchID = vm.name
