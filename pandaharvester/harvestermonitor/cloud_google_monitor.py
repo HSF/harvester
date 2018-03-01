@@ -2,13 +2,13 @@ import os.path
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
 
 baseLogger = core_utils.setup_logger('google_monitor')
 
 class GoogleMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.compute = googleapiclient.discovery.build('compute', 'v1')
 
         # TODO: Figure out the correct states for Google VMs
         self.vm_to_worker_status = {
@@ -26,7 +26,7 @@ class GoogleMonitor(PluginBase):
         """
 
         try:
-            result = self.compute.instances().list(project=project, zone=zone).execute()
+            result = compute.instances().list(project=PROJECT, zone=ZONE).execute()
             baseLogger.debug('VM instances: {0}'.format(result))
 
             vm_instances = result['items']

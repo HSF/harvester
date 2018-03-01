@@ -24,7 +24,9 @@ def wait_for_operation(compute, project, zone, operation_name):
     :param operation_name:
     :return:
     """
-    print('Waiting for operation to finish...')
+    tmp_log = core_utils.make_logger(base_logger, method_name='wait_for_operation')
+    tmp_log.debug('Waiting for operation to finish...')
+
     while True:
         result = compute.zoneOperations().get(project=project, zone=zone, operation=operation_name).execute()
 
@@ -35,6 +37,8 @@ def wait_for_operation(compute, project, zone, operation_name):
             return result
 
         time.sleep(1)
+
+    tmp_log.debug('Operation finished...')
 
 
 def create_vm(work_spec):
@@ -82,7 +86,7 @@ class GoogleSubmitter(PluginBase):
         tmp_log.debug('start nWorkers={0}'.format(len(work_spec_list)))
 
         # Create VMs in parallel
-        pool_size = min(work_spec_list, 10) # TODO: think about the optimal pool size
+        pool_size = min(len(work_spec_list), 10) # TODO: think about the optimal pool size
         with Pool(pool_size) as pool:
             ret_val_list = pool.map(create_vm, work_spec_list)
 
