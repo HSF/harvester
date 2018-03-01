@@ -53,7 +53,7 @@ class GoogleVM():
         cores = 8 # default value. TODO: probably should except if we don't find a suitable number
         standard_cores = [1, 2, 4, 8, 16, 32, 64, 96]
         for standard_core in standard_cores:
-            if self.work_spec.nCore < standard_core:
+            if self.work_spec.nCore <= standard_core:
                 cores = standard_core
                 break
 
@@ -74,10 +74,9 @@ class GoogleVM():
         with open(USER_DATA_PATH, 'r') as user_data_file:
             user_data = user_data_file.read()
 
-        vm_name = 'harvester-{0}'.format(uuid.uuid4())
-
-        config = {'name': vm_name,
-         'machineType': 'zones/us-east1-b/machineTypes/n1-standard-1',
+        config = {
+         'name': self.name,
+         'machineType': self.instance_type,
 
          # Specify the boot disk and the image to use as a source.
          'disks':
@@ -125,7 +124,7 @@ class GoogleVM():
                      [
                          {
                              'key': 'user-data',
-                             'value': cernvm_aux.encode_user_data(user_data)
+                             'value': str(cernvm_aux.encode_user_data(user_data))
                          },
                          {
                              'key': 'proxy',
@@ -133,7 +132,7 @@ class GoogleVM():
                          },
                          {
                              'key': 'panda_queue',
-                             'value': 'CERN-PROD-preprod'
+                             'value': self.work_spec.computingSite
                          },
                      ]
              }

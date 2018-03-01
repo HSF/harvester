@@ -88,6 +88,7 @@ class Submitter(AgentBase):
 
                             # actions based on mapping type
                             if queueConfig.mapType == WorkSpec.MT_NoJob:
+                            if queueConfig.mapType == WorkSpec.MT_NoJob:
                                 # workers without jobs
                                 jobChunks = []
                                 for i in range(nWorkers):
