@@ -18,7 +18,6 @@ base_logger = core_utils.setup_logger('google_submitter')
 
 SERVICE_ACCOUNT_FILE = harvester_config.googlecloud.service_account_file
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = SERVICE_ACCOUNT_FILE
-
 compute = googleapiclient.discovery.build('compute', 'v1')
 
 def wait_for_operation(project, zone, operation_name):
