@@ -59,6 +59,7 @@ def create_vm(work_spec):
                                                                                       work_spec.maxWalltime))
 
     vm = GoogleVM(work_spec)
+    tmp_log.debug('vm.config: {0}'.format(vm.config))
 
     operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
     wait_for_operation(compute, PROJECT, ZONE, operation['name'])

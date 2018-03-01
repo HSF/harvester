@@ -61,14 +61,6 @@ class GoogleVM():
 
         return instance_type
 
-    def configure_disk(self):
-        """
-        TODO: configure the ephemeral disk used by the VM
-        :return: dictionary with disk configuration
-        """
-
-        return {}
-
     def prepare_metadata(self):
         """
         TODO: prepare any user data and metadata that we want to pass to the VM instance
@@ -84,7 +76,7 @@ class GoogleVM():
 
         vm_name = 'harvester-{0}'.format(uuid.uuid4())
 
-        {'name': vm_name,
+        config = {'name': vm_name,
          'machineType': 'zones/us-east1-b/machineTypes/n1-standard-1',
 
          # Specify the boot disk and the image to use as a source.
