@@ -64,7 +64,8 @@ def create_vm(work_spec):
     operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
     wait_for_operation(compute, PROJECT, ZONE, operation['name'])
 
-    work_spec.batchID = operation['targetId']
+    #work_spec.batchID = operation['targetId']
+    work_spec.batchID = vm.name
 
     return (True, 'OK'), work_spec.get_changed_attributes()
 
