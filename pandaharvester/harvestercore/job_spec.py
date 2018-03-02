@@ -154,7 +154,9 @@ class JobSpec(SpecBase):
     def set_one_attribute(self, attr, value):
         if self.jobAttributes is None:
             self.jobAttributes = dict()
-        self.jobAttributes[attr] = value
+        if attr not in self.jobAttributes or self.jobAttributes[attr] != value:
+            self.jobAttributes[attr] = value
+            self.force_update('jobAttributes')
 
     # check if an attribute is there
     def has_attribute(self, attr):
@@ -425,3 +427,9 @@ class JobSpec(SpecBase):
             self.set_one_attribute('pilotErrorCode', error_code)
         if not self.has_attribute('pilotErrorDiag'):
             self.set_one_attribute('pilotErrorDiag', error_dialog)
+
+    # not to suppress heartbeat
+    def not_suppress_heartbeat(self):
+        if self.subStatus in ['missed']:
+            return True
+        return False

@@ -1020,16 +1020,16 @@ class DBProxy:
                         jobSpec.nWorkers = len(workerIDs)
                     elif workspec.hasJob == 1:
                         if workspec.status == WorkSpec.ST_missed:
-                            jobSpec.status = 'failed'
-                            jobSpec.subStatus = 'failed_to_submit'
+                            core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
+                                                                          [workspec], {}, {})
                             jobSpec.trigger_propagation()
                         else:
                             jobSpec.subStatus = 'submitted'
                         jobSpec.nWorkers = len(workerIDs)
                     else:
                         if workspec.status == WorkSpec.ST_missed:
-                            jobSpec.status = 'failed'
-                            jobSpec.subStatus = 'failed_to_submit'
+                            core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
+                                                                          [workspec], {}, {})
                             jobSpec.trigger_propagation()
                         else:
                             jobSpec.subStatus = 'queued'
@@ -1823,13 +1823,14 @@ class DBProxy:
                 sqlW = "UPDATE {0} SET {1} ".format(workTableName, workSpec.bind_update_changes_expression())
                 sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
                 varMap = workSpec.values_map(only_changed=True)
-                varMap[':workerID'] = workSpec.workerID
-                varMap[':cr_lockedBy'] = locked_by
-                self.execute(sqlW, varMap)
-                nRow = self.cur.rowcount
-                tmpLog.debug('done with {0}'.format(nRow))
-                if nRow == 0:
-                    retVal = False
+                if len(varMap) > 0:
+                    varMap[':workerID'] = workSpec.workerID
+                    varMap[':cr_lockedBy'] = locked_by
+                    self.execute(sqlW, varMap)
+                    nRow = self.cur.rowcount
+                    tmpLog.debug('done with {0}'.format(nRow))
+                    if nRow == 0:
+                        retVal = False
                 # insert relationship if necessary
                 if panda_ids_list is not None and len(panda_ids_list) > idxW:
                     varMapsIR = []

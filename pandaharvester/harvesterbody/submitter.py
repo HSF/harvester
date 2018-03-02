@@ -229,7 +229,6 @@ class Submitter(AgentBase):
                                             # max attempt or permanent error
                                             if tmpRet is False or \
                                                     jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
-                                                jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
                                                 newJobList.append(jobSpec)
                                             else:
                                                 self.dbProxy.increment_submission_attempt(jobSpec.PandaID,

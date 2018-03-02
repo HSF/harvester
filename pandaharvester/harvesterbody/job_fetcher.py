@@ -65,6 +65,8 @@ class JobFetcher(AgentBase):
                         jobSpec.subStatus = 'fetched'
                         jobSpec.creationTime = timeNow
                         jobSpec.stateChangeTime = timeNow
+                        jobSpec.set_one_attribute('schedulerID',
+                                                  'harvester-{0}'.format(harvester_config.master.harvester_id))
                         if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                             jobSpec.zipPerMB = queueConfig.zipPerMB
                         for tmpLFN, fileAttrs in iteritems(jobSpec.get_input_file_attributes()):
