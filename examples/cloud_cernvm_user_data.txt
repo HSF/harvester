@@ -7,6 +7,6 @@ users:
    lock-passwd: false
    passwd: xxxx
 runcmd:
- - 'wget https://raw.githubusercontent.com/fbarreir/scribbles/master/vm_script.py -O /tmp/vm_script.py'
+ - 'wget https://raw.githubusercontent.com/PanDAWMS/panda-harvester/google/pandaharvester/harvestercloud/google_startup_script.py -O /tmp/vm_script.py'
  - 'chmod 755 /tmp/vm_script.py'
  - 'su - atlpan -c "/tmp/vm_script.py > /tmp/script.log"'
