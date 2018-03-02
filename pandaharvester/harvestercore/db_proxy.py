@@ -1020,16 +1020,16 @@ class DBProxy:
                         jobSpec.nWorkers = len(workerIDs)
                     elif workspec.hasJob == 1:
                         if workspec.status == WorkSpec.ST_missed:
-                            jobSpec.status = 'failed'
-                            jobSpec.subStatus = 'failed_to_submit'
+                            core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
+                                                                          [workspec], {}, {})
                             jobSpec.trigger_propagation()
                         else:
                             jobSpec.subStatus = 'submitted'
                         jobSpec.nWorkers = len(workerIDs)
                     else:
                         if workspec.status == WorkSpec.ST_missed:
-                            jobSpec.status = 'failed'
-                            jobSpec.subStatus = 'failed_to_submit'
+                            core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
+                                                                          [workspec], {}, {})
                             jobSpec.trigger_propagation()
                         else:
                             jobSpec.subStatus = 'queued'

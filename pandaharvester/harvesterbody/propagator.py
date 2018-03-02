@@ -50,7 +50,8 @@ class Propagator(AgentBase):
                         queueConfig = self.queueConfigMapper.get_queue(tmpJobSpec.computingSite)
                         hbSuppressMap[tmpJobSpec.computingSite] = queueConfig.get_no_heartbeat_status()
                     # heartbeat is suppressed
-                    if tmpJobSpec.status in hbSuppressMap[tmpJobSpec.computingSite]:
+                    if tmpJobSpec.status in hbSuppressMap[tmpJobSpec.computingSite] and \
+                            not tmpJobSpec.not_suppress_heartbeat():
                         # check running job to detect lost heartbeat
                         if tmpJobSpec.status == 'running':
                             jobListToCheck.append(tmpJobSpec)
