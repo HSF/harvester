@@ -19,7 +19,7 @@ class GoogleVM():
 
     def __init__(self, work_spec):
         self.work_spec = work_spec
-        self.name = 'google_vm_{0}_{1}'.format(harvester_config.master.harvester_id, work_spec.workerID)
+        self.name = '{0}-gce-{1}'.format(harvester_config.master.harvester_id, work_spec.workerID)
         self.image = self.resolve_image_url()
         self.instance_type = self.resolve_instance_type()
         self.config = self.prepare_metadata()
