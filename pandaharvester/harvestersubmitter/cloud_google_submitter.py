@@ -3,21 +3,13 @@ Based on: https://cloud.google.com/compute/docs/tutorials/python-guide#before-yo
 """
 
 import time
-import os
-import googleapiclient.discovery
-
-from concurrent.futures import ProcessPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercloud.googlecloud import GoogleVM, ZONE, PROJECT
+from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
 
 # setup base logger
 base_logger = core_utils.setup_logger('google_submitter')
-
-SERVICE_ACCOUNT_FILE = harvester_config.googlecloud.service_account_file
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = SERVICE_ACCOUNT_FILE
 
 def wait_for_operation(project, zone, operation_name):
     """
@@ -28,7 +20,6 @@ def wait_for_operation(project, zone, operation_name):
     :param operation_name:
     :return:
     """
-    compute = googleapiclient.discovery.build('compute', 'v1')
     tmp_log = core_utils.make_logger(base_logger, method_name='wait_for_operation')
     tmp_log.debug('Waiting for operation to finish...')
 
@@ -64,8 +55,6 @@ def create_vm(work_spec):
                                                                                       work_spec.maxWalltime))
 
     vm = GoogleVM(work_spec)
-    # tmp_log.debug('vm.config: {0}'.format(vm.config))
-    compute = googleapiclient.discovery.build('compute', 'v1')
     tmp_log.debug('Going to submit VM {0}'.format(vm.name))
     operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
     tmp_log.debug('Submitting VM {0}'.format(vm.name))
@@ -97,9 +86,14 @@ class GoogleSubmitter(PluginBase):
         tmp_log.debug('start nWorkers={0}'.format(len(work_spec_list)))
 
         # Create VMs in parallel
-        pool_size = min(len(work_spec_list), 10) # TODO: think about the optimal pool size
-        with Pool(pool_size) as pool:
-            ret_val_list = pool.map(create_vm, work_spec_list)
+        # authentication issues when running the Cloud API in multiprocess
+        # pool_size = min(len(work_spec_list), 10) # TODO: think about the optimal pool size
+        # with Pool(pool_size) as pool:
+        #    ret_val_list = pool.map(create_vm, work_spec_list, lock)
+
+        ret_val_list = []
+        for work_spec in work_spec_list:
+             ret_val_list.append(create_vm(work_spec))
 
         # Propagate changed attributes
         ret_list = []
