@@ -1110,10 +1110,13 @@ class DBProxy:
             # sql to get queues
             sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName "
-            # sql to delete orphaned workers
+            # sql to get orphaned workers
+            sqlO = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlO += "WHERE computingSite=:computingSite AND status=:status "
+            sqlO += "AND modificationTime<:timeLimit "
+            # sql to delete orphaned workers. Not to use bulk delete to avoid deadlock with 0-record deletion
             sqlD = "DELETE FROM {0} ".format(workTableName)
-            sqlD += "WHERE computingSite=:computingSite AND status=:status "
-            sqlD += "AND modificationTime<:timeLimit "
+            sqlD += "WHERE workerID=:workerID "
             # sql to count nQueue
             sqlN = "SELECT status,COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlN += "WHERE computingSite=:computingSite GROUP BY status "
@@ -1155,7 +1158,14 @@ class DBProxy:
                     varMap[':computingSite'] = queueName
                     varMap[':status'] = WorkSpec.ST_pending
                     varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
-                    self.execute(sqlD, varMap)
+                    self.execute(sqlO, varMap)
+                    resO = self.cur.fetchall()
+                    for tmpWorkerID, in resO:
+                        varMap = dict()
+                        varMap[':workerID'] = tmpWorkerID
+                        self.execute(sqlD, varMap)
+                        # commit
+                        self.commit()
                     # count nQueue
                     varMap = dict()
                     varMap[':computingSite'] = queueName
@@ -1184,8 +1194,6 @@ class DBProxy:
                                                        'nQueue': nQueue,
                                                        'nNewWorkers': nNewWorkers}
                     resourceMap[resourceType] = queueName
-                    # commit
-                    self.commit()
                 # enough queues
                 if len(retMap) >= 0:
                     break
