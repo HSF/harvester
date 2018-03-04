@@ -6,13 +6,15 @@ import json
 import logging
 import shutil
 import tarfile
+from collections import defaultdict
 from glob import glob
 from socket import gethostname
-from subprocess import call, check_output
+from subprocess import call
 from datetime import datetime
 from mpi4py import MPI
-from pilot.util.filehandling import get_json_dictionary
-from pilot.jobdescription import JobDescription #temporary hack
+from pilot.util.filehandling import get_json_dictionary as read_json
+from pilot.jobdescription import JobDescription  #temporary hack
+#from pilot.control.payload import parse_jobreport_data  # failed with third party import "import _ssl"
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -30,9 +32,81 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
-logger.info('HPC Pilot ver. 0.001')
+logger.info('HPC Pilot ver. 0.002')
 
 # TODO: loglevel as input parameter
+
+def parse_jobreport_data(job_report):
+    work_attributes = {}
+    if job_report is None or not any(job_report):
+        return work_attributes
+
+    # these are default values for job metrics
+    core_count = 16
+    work_attributes["n_events"] = 0
+    work_attributes["__db_time"] = "undef"
+    work_attributes["__db_data"] = "undef"
+
+    class DictQuery(dict):
+        def get(self, path, dst_dict, dst_key):
+            keys = path.split("/")
+            if len(keys) == 0:
+                return
+            last_key = keys.pop()
+            v = self
+            for key in keys:
+                if key in v and isinstance(v[key], dict):
+                    v = v[key]
+                else:
+                    return
+            if last_key in v:
+                dst_dict[dst_key] = v[last_key]
+
+    if 'ATHENA_PROC_NUMBER' in os.environ:
+        work_attributes['core_count'] = os.environ['ATHENA_PROC_NUMBER']
+        core_count = os.environ['ATHENA_PROC_NUMBER']
+
+    dq = DictQuery(job_report)
+    dq.get("resource/transform/processedEvents", work_attributes, "n_events")
+    dq.get("resource/transform/cpuTimeTotal", work_attributes, "cpuConsumptionTime")
+    dq.get("resource/machine/node", work_attributes, "node")
+    dq.get("resource/machine/model_name", work_attributes, "cpuConsumptionUnit")
+    dq.get("resource/dbTimeTotal", work_attributes, "__db_time")
+    dq.get("resource/dbDataTotal", work_attributes, "__db_data")
+    dq.get("exitCode", work_attributes, "transExitCode")
+    dq.get("exitCode", work_attributes, "exeErrorCode")
+    dq.get("exitMsg", work_attributes, "exeErrorDiag")
+
+    if 'resource' in job_report and 'executor' in job_report['resource']:
+        j = job_report['resource']['executor']
+        exc_report = []
+        fin_report = defaultdict(int)
+        for v in filter(lambda d: 'memory' in d and ('Max' or 'Avg' in d['memory']), j.itervalues()):
+            if 'Avg' in v['memory']:
+                exc_report.extend(v['memory']['Avg'].items())
+            if 'Max' in v['memory']:
+                exc_report.extend(v['memory']['Max'].items())
+        for x in exc_report:
+            fin_report[x[0]] += x[1]
+        work_attributes.update(fin_report)
+
+    if 'files' in job_report and 'input' in job_report['files']:
+        nInputFiles = 0
+        for input_file in job_report['files']['input']:
+            if 'subfiles' in input_file:
+                nInputFiles += len(job_report['files']['input']['subfiles'])
+        work_attributes['nInputFiles'] = nInputFiles
+
+    #workdir_size = get_workdir_size()
+    work_attributes['jobMetrics'] = 'core_count=%s n_events=%s db_time=%s db_data=%s' % \
+                                    (core_count,
+                                        work_attributes["n_events"],
+                                        work_attributes["__db_time"],
+                                        work_attributes["__db_data"])
+    del(work_attributes["__db_time"])
+    del(work_attributes["__db_data"])
+
+    return work_attributes
 
 def get_setup(job):
 
@@ -71,120 +145,37 @@ def timestamp():
     return str("%s%s%02d:%02d" % (time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()), sign_str, abs(tmptz_hours), int(tmptz/60-tmptz_hours*60)))
 
 
-def dump_worker_attributes(job, workerAttributesFile):
-
-    '''
-    Should be refactored
-
-    '''
-    logger.info('Dump worker attributes')
-    # Harvester only expects the attributes files for certain states.
-    if job.state in ['finished', 'failed', 'running']:
-        with open(workerAttributesFile, 'w') as outputfile:
-            workAttributes = {'jobStatus': job.state}
-            workAttributes['workdir'] = os.getcwd()
-            workAttributes['messageLevel'] = logging.getLevelName(logger.getEffectiveLevel())
-            workAttributes['timestamp'] = timestamp()
-            workAttributes['cpuConversionFactor'] = 1.0
-            if job.startTime:
-                workAttributes['startTime'] = job.startTime
-            if job.endTime:
-                workAttributes['endTime'] = job.endTime
-            coreCount = None
-            nEvents = None
-            dbTime = None
-            dbData = None
-
-            if 'ATHENA_PROC_NUMBER' in os.environ:
-                workAttributes['coreCount'] = os.environ['ATHENA_PROC_NUMBER']
-                coreCount = os.environ['ATHENA_PROC_NUMBER']
-
-            # check if job report json file exists
-            jobReport = None
-            readJsonPath = os.path.join(os.getcwd(), "jobReport.json")
-            logger.debug('parsing %s' % readJsonPath)
-            if os.path.exists(readJsonPath):
-                # load json
-                with open(readJsonPath) as jsonFile:
-                    jobReport = json.load(jsonFile)
-            if jobReport is not None:
-                if 'resource' in jobReport:
-                    if 'transform' in jobReport['resource']:
-                        if 'processedEvents' in jobReport['resource']['transform']:
-                            workAttributes['nEvents'] = jobReport['resource']['transform']['processedEvents']
-                            nEvents = jobReport['resource']['transform']['processedEvents']
-                        if 'cpuTimeTotal' in jobReport['resource']['transform']:
-                            workAttributes['cpuConsumptionTime'] = jobReport['resource']['transform'][
-                                'cpuTimeTotal']
-
-                    if 'machine' in jobReport['resource']:
-                        if 'node' in jobReport['resource']['machine']:
-                            workAttributes['node'] = jobReport['resource']['machine']['node']
-                        if 'model_name' in jobReport['resource']['machine']:
-                            workAttributes['cpuConsumptionUnit'] = jobReport['resource']['machine']['model_name']
-
-                    if 'dbTimeTotal' in jobReport['resource']:
-                        dbTime = jobReport['resource']['dbTimeTotal']
-                    if 'dbDataTotal' in jobReport['resource']:
-                        dbData = jobReport['resource']['dbDataTotal']
-
-                    if 'executor' in jobReport['resource']:
-                        if 'memory' in jobReport['resource']['executor']:
-                            for transform_name, attributes in jobReport['resource']['executor'].iteritems():
-                                if 'Avg' in attributes['memory']:
-                                    for name, value in attributes['memory']['Avg'].iteritems():
-                                        try:
-                                            workAttributes[name] += value
-                                        except:
-                                            workAttributes[name] = value
-                                if 'Max' in attributes['memory']:
-                                    for name, value in attributes['memory']['Max'].iteritems():
-                                        try:
-                                            workAttributes[name] += value
-                                        except:
-                                            workAttributes[name] = value
-
-                if 'exitCode' in jobReport:
-                    workAttributes['transExitCode'] = jobReport['exitCode']
-                    workAttributes['exeErrorCode'] = jobReport['exitCode']
-                    if workAttributes['transExitCode'] != 0:
-                        workAttributes['jobStatus'] = 'failed'
-                        job.state = 'failed'
-                if 'exitMsg' in jobReport:
-                    workAttributes['exeErrorDiag'] = jobReport['exitMsg']
-                if 'files' in jobReport:
-                    if 'input' in jobReport['files']:
-                        if 'subfiles' in jobReport['files']['input']:
-                            workAttributes['nInputFiles'] = len(jobReport['files']['input']['subfiles'])
-
-                if coreCount and nEvents and dbTime and dbData:
-                    #res = check_output(['du', '-s'])
-                    workAttributes['jobMetrics'] = 'coreCount=%s nEvents=%s dbTime=%s dbData=%s ' % (
-                        coreCount, nEvents, dbTime, dbData)
-
-            else:
-                logger.debug('no jobReport object')
-            logger.info('output worker attributes for Harvester: %s' % workAttributes)
-            json.dump(workAttributes, outputfile)
-    else:
-        logger.debug(' %s is not a good state' % job.state)
-    logger.debug('exit dump worker attributes')
-
-
-def main_exit(exit_code, message = "", jobdesc = None):
+def main_exit(exit_code, work_report=None, workerAttributesFile="worker_attributes.json"):
+    if work_report:
+        publish_work_report(work_report, workerAttributesFile)
     sys.exit(exit_code)
+
+
+def publish_work_report(work_report=None, workerAttributesFile="worker_attributes.json"):
+    """Publishing of work report to file"""
+    if work_report:
+        with open(workerAttributesFile, 'w') as outputfile:
+            work_report['timestamp'] = timestamp()
+            json.dump(work_report, outputfile)
+        logger.debug("Work report published: {0}".format(work_report))
+    return 0
 
 
 def main():
 
     workerAttributesFile = "worker_attributes.json"
     StageOutnFile = "event_status.dump.json"
-
     start_g = time.time()
     start_g_str = time.asctime(time.localtime(start_g))
     hostname = gethostname()
     logger.info("Pilot statrted at {0} on {1}".format(start_g_str, hostname))
     starting_point = os.getcwd()
+
+    work_report = {}
+    work_report["jobStatus"] = "starting"
+    work_report["messageLevel"] = logging.getLevelName(logger.getEffectiveLevel())
+    work_report['cpuConversionFactor'] = 1.0
+    work_report['node'] = hostname
 
     # Get a file name with job descriptions
     if len(sys.argv) > 1:
@@ -198,9 +189,9 @@ def main():
     except IOError as (errno, strerror):
         logger.critical("I/O error({0}): {1}".format(errno, strerror))
         logger.critical("Exit from rank")
-        main_exit(errno, strerror)
+        main_exit(errno)
 
-    logger.debug("Collected list of jobs {0}".format(panda_ids))
+    logger.debug("Collected list of jobs")
     # PandaID of the job for the command
     try:
         job_id = panda_ids[rank]
@@ -208,10 +199,12 @@ def main():
         logger.critical("Pilot have no job for rank {0}".format(rank))
         logger.critical("Exit pilot")
         main_exit(1)
+
     logger.debug("Job [{0}] will be processed".format(job_id))
     os.chdir(str(job_id))
     worker_communication_point = os.getcwd()
-    jobs_dict = get_json_dictionary("HPCJobs.json")
+    work_report['workdir'] = worker_communication_point
+    jobs_dict = read_json("HPCJobs.json")
     job_dict = jobs_dict[str(job_id)]
 
     job = JobDescription()
@@ -232,30 +225,43 @@ def main():
 
     job_working_dir = os.getcwd()
     job.state = 'running'
+    work_report["jobStatus"] = job.state
     start_time = time.asctime(time.localtime(time.time()))
     job.startTime = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    dump_worker_attributes(job, workerAttributesFile)
+    publish_work_report(work_report, workerAttributesFile)
     t0 = os.times()
     exit_code = call(my_command, stdout=payloadstdout, stderr=payloadstderr, shell=True)
     t1 = os.times()
     end_time = time.asctime(time.localtime(time.time()))
     t = map(lambda x, y: x - y, t1, t0)
     t_tot = reduce(lambda x, y: x + y, t[2:3])
-    job.state = 'finished'
     job.endTime = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    dump_worker_attributes(job, workerAttributesFile)
     payloadstdout.close()
     payloadstderr.close()
+    if exit_code == 0:
+        job.state = 'finished'
+    else:
+        job.state = 'failed'
+    job.exitcode = exit_code
+    work_report["endTime"] = job.endTime
+    work_report["jobStatus"] = job.state
+    work_report["cpuConsumptionTime"] = t_tot
+    work_report["transExitCode"] = job.exitcode
     logger.info("Payload exit code: {0}".format(exit_code))
     logger.info("CPU comsumption time: {0}".format(t_tot))
     logger.info("Start time: {0}".format(start_time))
     logger.info("End time: {0}".format(end_time))
     logger.debug("Job report start time: {0}".format(job.startTime))
     logger.debug("Job report end time: {0}".format(job.endTime))
-    report = open("rank_report.txt", "w")
-    report.write("cpuConsumptionTime: %s\n" % t_tot)
-    report.write("exitCode: %s" % exit_code)
-    report.close()
+    #report = open("rank_report.txt", "w")
+    #report.write("cpuConsumptionTime: %s\n" % t_tot)
+    #report.write("exitCode: %s" % exit_code)
+    #report.close()
+    payload_report_file = 'jobReport.json'
+    if os.path.exists(payload_report_file):
+        payload_report = parse_jobreport_data(read_json(payload_report_file))
+        work_report.update(payload_report)
+
     titan_postprocess_wd(job_working_dir)
     protectedfiles = job.output_files.keys()
     if job.log_file in protectedfiles:
@@ -263,9 +269,11 @@ def main():
     else:
         logger.info("Log files was not declared")
 
+    cleanup_strat = time.time()
     logger.info("Cleanup of working directory")
     protectedfiles.extend([workerAttributesFile, StageOutnFile])
     removeRedundantFiles(job_working_dir, protectedfiles)
+    cleanup_end = time.time()
 
     packlogs(job_working_dir,protectedfiles,job.log_file)
     logger.info("Declare stage-out")
@@ -298,7 +306,8 @@ def main():
         logger.debug('Report for stageout: {}'.format(out_file_report))
 
     logger.info("All done")
-    main_exit(0)
+    logger.debug("Final report: {0}".format(work_report))
+    main_exit(0, work_report, workerAttributesFile)
 
 
 def titan_command_fix(command):
@@ -524,6 +533,7 @@ def remove(path):
 def packlogs(wkdir, excludedfiles, logfile_name):
     #logfile_size = 0
     to_pack = []
+    pack_start = time.time()
     for path, subdir, files in os.walk(wkdir):
         for file in files:
             if not file in excludedfiles:
@@ -544,7 +554,8 @@ def packlogs(wkdir, excludedfiles, logfile_name):
         remove(f[0])
 
     del_empty_dirs(wkdir)
-
+    pack_time = time.time() - pack_start
+    logger.debug("Pack of logs took: {0} sec.".format(pack_time))
     return 0
 
 
