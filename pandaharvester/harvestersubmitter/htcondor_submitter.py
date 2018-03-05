@@ -81,13 +81,23 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
+            # set log
             batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
             batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
             batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=workspec.batchID)
             workspec.set_log_file('batch_log', batch_log)
             workspec.set_log_file('stdout', batch_stdout)
             workspec.set_log_file('stderr', batch_stderr)
+            if not workspec.get_jobspec_list():
+                tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
+            else:
+                for jobSpec in workspec.get_jobspec_list():
+                    # using batchLog and stdOut URL as pilotID and pilotLog
+                    jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
+                    jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
+            tmpLog.debug('Done set_log_file after submission')
             tmpRetVal = (True, '')
+
         else:
             errStr = 'batchID cannot be found'
             tmpLog.error(errStr)
@@ -334,14 +344,8 @@ class HTCondorSubmitter(PluginBase):
                 batch_log_dict['batch_stdout'] = batch_stdout
                 batch_log_dict['batch_stderr'] = batch_stderr
                 batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
-                tmpLog.debug('Done set_log_file')
-                if not workspec.get_jobspec_list():
-                    tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
-                else:
-                    for jobSpec in workspec.get_jobspec_list():
-                        # using batchLog and stdOut URL as pilotID and pilotLog
-                        jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
-                        jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
+                tmpLog.debug('Done set_log_file before submission')
+
             tmpLog.debug('Done jobspec attribute setting')
 
             # set data dict
