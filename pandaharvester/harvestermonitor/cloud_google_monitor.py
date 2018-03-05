@@ -9,13 +9,13 @@ class GoogleMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
-        # TODO: Figure out the correct states for Google VMs
+        # States taken from: https://cloud.google.com/compute/docs/instances/checking-instance-status
         self.vm_to_worker_status = {
                                      'RUNNING': WorkSpec.ST_running,
-                                     'FINISHED': WorkSpec.ST_finished,
-                                     'FAILED': WorkSpec.ST_failed,
-                                     'CANCELLED': WorkSpec.ST_cancelled,
-                                     'STARTING': WorkSpec.ST_submitted
+                                     'TERMINATED': WorkSpec.ST_finished,
+                                     'STOPPING': WorkSpec.ST_finished,
+                                     'PROVISIONING': WorkSpec.ST_submitted,
+                                     'STAGING': WorkSpec.ST_submitted
                                      }
 
     def list_vms(self):
@@ -75,8 +75,7 @@ class GoogleMonitor(PluginBase):
                 try:
                     new_status = self.vm_to_worker_status[vm_name_to_status[batch_ID]]
                 except KeyError:
-                    # TODO: check with Tadashi if this state can be used. The VM should be killed
-                    new_status = WorkSpec.ST_idle
+                    new_status = WorkSpec.ST_failed
 
             tmp_log.debug('new_status={0}'.format(new_status))
             ret_list.append((new_status, ''))

@@ -1,5 +1,6 @@
 from pandaharvester.harvestercore.plugin_base import PluginBase
-import googleapiclient.discovery
+
+from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
 
 class GoogleSweeper(PluginBase):
     """
@@ -7,38 +8,31 @@ class GoogleSweeper(PluginBase):
     """
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.compute = googleapiclient.discovery.build('compute', 'v1')
 
-    def kill_worker(self, workspec):
+    def kill_worker(self, work_spec):
         """
         Sends the command to Google to destroy a VM
 
-        :param workspec: worker specification
-        :type workspec: WorkSpec
+        :param work_spec: worker specification
+        :type work_spec: WorkSpec
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
 
+        try:
+            vm_name = work_spec.batchID
+            compute.instances().delete(project=PROJECT, zone=ZONE, instance=vm_name).execute()
+            return True, ''
+        except:
+            return False, 'Problem occurred deleting the instance'
 
+    def sweep_worker(self, work_spec):
+        """
+        In the cloud, cleaning means destroying a VM
 
-
-
-
-
-
-
-
-        return True, ''
-
-    def sweep_worker(self, workspec):
-        """Perform cleanup procedures for a worker, such as deletion of work directory.
-        The list of JobSpecs associated to the worker is available in workspec.get_jobspec_list().
-        The list of input and output FileSpecs, which are not used by any active jobs and thus can
-        safely be deleted, is available in JobSpec.get_files_to_delete().
-
-        :param workspec: worker specification
-        :type workspec: WorkSpec
+        :param work_spec: worker specification
+        :type work_spec: WorkSpec
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        return True, ''
+        return self.kill_worker(work_spec)
