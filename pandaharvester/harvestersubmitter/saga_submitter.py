@@ -147,9 +147,11 @@ class SAGASubmitter (PluginBase):
         retList = []
 
         for workSpec in work_specs:
-            self._execute(workSpec)
-
-        retList.append((True, ''))
+            res = self._execute(workSpec)
+            if res == 0:
+                retList.append((True, ''))
+            else:
+                retList.append((False, 'Failed to submit worker. Check logs'))
 
         tmpLog.debug('done')
 
