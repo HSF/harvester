@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import re
 
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
@@ -44,14 +45,12 @@ def submit_a_worker(data):
     ce_info_dict = data['ce_info_dict']
     batch_log_dict = data['batch_log_dict']
     special_par = data['special_par']
+    harvester_queue_config = data['harvester_queue_config']
     workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
     # make batch script
-    # batchFile = make_batch_script(workspec=workspec, template=template, n_core_per_node=n_core_per_node, log_dir=log_dir,
-    #                                 panda_queue_name=panda_queue_name, x509_user_proxy=x509_user_proxy,
-    #                                 ce_info_dict=ce_info_dict, batch_log_dict=batch_log_dict, special_par=special_par)
     batchFile = make_batch_script(**data)
     # command
     comStr = 'condor_submit {0}'.format(batchFile)
@@ -81,13 +80,23 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
+            # set log
             batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
             batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
             batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=workspec.batchID)
             workspec.set_log_file('batch_log', batch_log)
             workspec.set_log_file('stdout', batch_stdout)
             workspec.set_log_file('stderr', batch_stderr)
+            if not workspec.get_jobspec_list():
+                tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
+            else:
+                for jobSpec in workspec.get_jobspec_list():
+                    # using batchLog and stdOut URL as pilotID and pilotLog
+                    jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
+                    jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
+            tmpLog.debug('Done set_log_file after submission')
             tmpRetVal = (True, '')
+
         else:
             errStr = 'batchID cannot be found'
             tmpLog.error(errStr)
@@ -101,7 +110,8 @@ def submit_a_worker(data):
 
 
 # make batch script
-def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy, ce_info_dict=dict(), batch_log_dict=dict(), special_par=''):
+def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy,
+                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
@@ -165,6 +175,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         ceVersion=ce_info_dict.get('ce_version', ''),
         logDir=log_dir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
+        prodSourceLabel=harvester_queue_config.prodSourceLabel,
         )
     )
     tmpFile.close()
@@ -237,6 +248,10 @@ class HTCondorSubmitter(PluginBase):
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
+
+        # get info from harvester queue config
+        _queueConfigMapper = QueueConfigMapper()
+        harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
 
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
@@ -334,14 +349,8 @@ class HTCondorSubmitter(PluginBase):
                 batch_log_dict['batch_stdout'] = batch_stdout
                 batch_log_dict['batch_stderr'] = batch_stderr
                 batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
-                tmpLog.debug('Done set_log_file')
-                if not workspec.get_jobspec_list():
-                    tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
-                else:
-                    for jobSpec in workspec.get_jobspec_list():
-                        # using batchLog and stdOut URL as pilotID and pilotLog
-                        jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
-                        jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
+                tmpLog.debug('Done set_log_file before submission')
+
             tmpLog.debug('Done jobspec attribute setting')
 
             # set data dict
@@ -354,6 +363,7 @@ class HTCondorSubmitter(PluginBase):
                     'ce_info_dict': ce_info_dict,
                     'batch_log_dict': batch_log_dict,
                     'special_par': special_par,
+                    'harvester_queue_config': harvester_queue_config,
                     }
 
             return data
