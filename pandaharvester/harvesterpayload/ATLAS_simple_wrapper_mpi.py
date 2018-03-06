@@ -74,7 +74,6 @@ def parse_jobreport_data(job_report):
     dq.get("resource/dbTimeTotal", work_attributes, "__db_time")
     dq.get("resource/dbDataTotal", work_attributes, "__db_data")
     dq.get("exitCode", work_attributes, "transExitCode")
-    dq.get("exitCode", work_attributes, "exeErrorCode")
     dq.get("exitMsg", work_attributes, "exeErrorDiag")
 
     if 'resource' in job_report and 'executor' in job_report['resource']:
