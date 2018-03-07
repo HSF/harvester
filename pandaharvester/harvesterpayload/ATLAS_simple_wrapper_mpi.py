@@ -32,7 +32,7 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
-logger.info('HPC Pilot ver. 0.002')
+logger.info('HPC Pilot ver. 0.003a')
 
 # TODO: loglevel as input parameter
 
@@ -228,9 +228,11 @@ def main():
     start_time = time.asctime(time.localtime(time.time()))
     job.startTime = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     publish_work_report(work_report, workerAttributesFile)
+    stime = time.time()
     t0 = os.times()
     exit_code = call(my_command, stdout=payloadstdout, stderr=payloadstderr, shell=True)
     t1 = os.times()
+    exetime = time.time() - stime
     end_time = time.asctime(time.localtime(time.time()))
     t = map(lambda x, y: x - y, t1, t0)
     t_tot = reduce(lambda x, y: x + y, t[2:3])
@@ -250,12 +252,9 @@ def main():
     logger.info("CPU comsumption time: {0}".format(t_tot))
     logger.info("Start time: {0}".format(start_time))
     logger.info("End time: {0}".format(end_time))
+    logger.info("Execution time: {0} sec.".format(exetime))
     logger.debug("Job report start time: {0}".format(job.startTime))
     logger.debug("Job report end time: {0}".format(job.endTime))
-    #report = open("rank_report.txt", "w")
-    #report.write("cpuConsumptionTime: %s\n" % t_tot)
-    #report.write("exitCode: %s" % exit_code)
-    #report.close()
     payload_report_file = 'jobReport.json'
     if os.path.exists(payload_report_file):
         payload_report = parse_jobreport_data(read_json(payload_report_file))
@@ -272,9 +271,15 @@ def main():
     logger.info("Cleanup of working directory")
     protectedfiles.extend([workerAttributesFile, StageOutnFile])
     removeRedundantFiles(job_working_dir, protectedfiles)
-    cleanup_end = time.time()
+    cleanup_time = time.time() - cleanup_strat
+    logger.info("Cleanup took: {0}".format(cleanup_time))
+    res = packlogs(job_working_dir,protectedfiles,job.log_file)
+    if res > 0:
+        job.state = 'failed'
+        work_report['pilotErrorCode'] = 1164 # Let's take this as closed one
+        work_report['jobStatus'] = job.state
+        main_exit(0, work_report, workerAttributesFile)
 
-    packlogs(job_working_dir,protectedfiles,job.log_file)
     logger.info("Declare stage-out")
     out_file_report = {}
     out_file_report[job.job_id] = []
@@ -295,8 +300,6 @@ def main():
         else:
             logger.info("Expected output file {0} missed. Job {1} will be failed".format(outfile, job.job_id))
             job.state = 'failed'
-
-    #TODO: state should be dumped
 
     if out_file_report[job.job_id]:
         with open(StageOutnFile, 'w') as stageoutfile:
@@ -529,7 +532,7 @@ def remove(path):
     return 0
 
 
-def packlogs(wkdir, excludedfiles, logfile_name):
+def packlogs(wkdir, excludedfiles, logfile_name, attempt = 0):
     #logfile_size = 0
     to_pack = []
     pack_start = time.time()
@@ -541,13 +544,22 @@ def packlogs(wkdir, excludedfiles, logfile_name):
                 file_path = os.path.join(path, file)
                 to_pack.append((file_path, file_rel_path))
     if to_pack:
-        logfile_name = os.path.join(wkdir, logfile_name)
-        log_pack = tarfile.open(logfile_name, 'w:gz')
-        for f in to_pack:
-            #print f[0], f[1]
-            log_pack.add(f[0],arcname=f[1])
-        log_pack.close()
-        #logfile_size = os.path.getsize(logfile_name)
+        try:
+            logfile_name = os.path.join(wkdir, logfile_name)
+            log_pack = tarfile.open(logfile_name, 'w:gz')
+            for f in to_pack:
+                log_pack.add(f[0],arcname=f[1])
+            log_pack.close()
+            #logfile_size = os.path.getsize(logfile_name)
+        except IOError as e:
+            if attempt == 0:
+                safe_delay = 15
+                logger.info('I/O error. Will retry in {0} sec.'.format(safe_delay))
+                time.sleep(safe_delay)
+                packlogs(wkdir, excludedfiles, logfile_name, attempt = 1)
+            else:
+                logger.info("Continues I/O error during packing of logs. Job will be failed")
+                return 1
 
     for f in to_pack:
         remove(f[0])
@@ -556,7 +568,6 @@ def packlogs(wkdir, excludedfiles, logfile_name):
     pack_time = time.time() - pack_start
     logger.debug("Pack of logs took: {0} sec.".format(pack_time))
     return 0
-
 
 def del_empty_dirs(src_dir):
 
