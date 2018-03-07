@@ -52,7 +52,7 @@ class CloudOpenstackMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         self.nProcesses = 4
-        self.vm_client = OS_SimpleClient(auth_config_json_file=self.AuthConfigFile)
+        self.vm_client = OS_SimpleClient(auth_config_json_file=self.authConfigFile)
 
 
     # kill a vm

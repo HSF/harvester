@@ -49,36 +49,32 @@ class CloudOpenstackSubmitter(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         self.nProcesses = 4
-        self.vm_client = OS_SimpleClient(auth_config_json_file=self.AuthConfigFile)
+        self.vm_client = OS_SimpleClient(auth_config_json_file=self.authConfigFile)
 
         # set vm maps
         #TODO: be configurable
-        # self.VM_FLAVOR_MAP = {
-        #                     'SCORE': 'm1.small',
-        #                     'MCORE': 'm1.xlarge',
-        #                     'other': 'm1.medium',
+        # self.jobType_vmFlavor_map = {
+        #                     'SCORE': '3',
+        #                     'MCORE': '5',
+        #                     'other': '4',
         #                 }
-        self.VM_FLAVOR_MAP = {
-                            'SCORE': '2',
-                            'MCORE': '5',
-                            'other': '3',
-                        }
 
         # self.VM_IAMGE_MAP = {
         #                     'el6': 'uCernVM3-2.8-6',
         #                     'el7': 'uCernVM4-2.8-6',
         #                 }
-        self.VM_IAMGE_MAP = {
-                            'el6': '65122568-79c7-4f75-8fa3-772de7e9e5b6',
-                            'el7': '58080f8b-f5a3-46e6-95d4-a7c23a3d0b42',
-                        }
+        # self.VM_IAMGE_MAP = {
+        #                     'el6': '65122568-79c7-4f75-8fa3-772de7e9e5b6',
+        #                     'el7': '58080f8b-f5a3-46e6-95d4-a7c23a3d0b42',
+        #                 }
 
         # set other vm attributes
         #TODO: be configurable
-        self.VM_CREATE_ATTRIBUTES = {
-                        'key_name': 'opskey',
-                        'nics': [{'net-id': '536855fc-8cb2-423a-84d7-d0dc1ce2dff7',},],
-                    }
+        # self.vmCreateAttributes = {
+        #                 'image': '65122568-79c7-4f75-8fa3-772de7e9e5b6',
+        #                 'key_name': 'opskey',
+        #                 'nics': [{'net-id': '536855fc-8cb2-423a-84d7-d0dc1ce2dff7',},],
+        #             }
 
 
     def _submit_a_vm(self, workspec):
@@ -91,21 +87,22 @@ class CloudOpenstackSubmitter(PluginBase):
         # decide id
         vm_name = 'harvester-vm_{0}'.format(str(uuid.uuid4()))
 
-        # decide image
-        if True: #FIXME
-            vm_image_id = self.VM_IAMGE_MAP['el6']
+        # # decide image
+        # if True: #FIXME
+        #     vm_image_id = self.VM_IAMGE_MAP['el6']
+        vm_image_id = self.vmImageID
 
         # decide flavor
         #FIXME
         if workspec.nCore == 1:
-            vm_flavor_id = self.VM_FLAVOR_MAP['SCORE']
+            vm_flavor_id = self.jobType_vmFlavor_map['SCORE']
         elif workspec.nCore == 8:
-            vm_flavor_id = self.VM_FLAVOR_MAP['SCORE']
+            vm_flavor_id = self.jobType_vmFlavor_map['MCORE']
         else:
-            vm_flavor_id = self.VM_FLAVOR_MAP['other']
+            vm_flavor_id = self.jobType_vmFlavor_map['other']
 
         # decide userdata
-        with open(self.InitScriptTemplate) as _f:
+        with open(self.initScriptTemplate) as _f:
             template_str = _f.read()
         vm_userdata_file = _make_init_script(workspec, template_str)
         vm_userdata = open(vm_userdata_file, 'r')
@@ -126,7 +123,7 @@ class CloudOpenstackSubmitter(PluginBase):
                                                 image=vm_image,
                                                 flavor=vm_flavor,
                                                 userdata=vm_userdata,
-                                                **self.VM_CREATE_ATTRIBUTES)
+                                                **self.vmCreateAttributes)
         except Exception as _e:
             errStr = 'Failed to create a VM with name={0} ; {1}'.format(vm_name, _e)
             tmpLog.error(errStr)
