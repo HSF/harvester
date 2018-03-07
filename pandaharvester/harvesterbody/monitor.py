@@ -156,14 +156,14 @@ class Monitor(AgentBase):
             pandaIDs = []
             workStatus = None
             workAttributes = None
-            filesToStageOut = None
+            filesToStageOut = []
             nJobsToReFill = None
             # job-level late binding
             if workSpec.hasJob == 0 and queue_config.mapType != WorkSpec.MT_NoJob:
                 # check if job is requested
                 jobRequested = messenger.job_requested(workSpec)
                 if jobRequested:
-                    # set ready when job is requested 
+                    # set ready when job is requested
                     workStatus = WorkSpec.ST_ready
                 else:
                     workStatus = workSpec.status
