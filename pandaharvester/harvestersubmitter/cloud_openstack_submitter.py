@@ -51,31 +51,6 @@ class CloudOpenstackSubmitter(PluginBase):
         self.nProcesses = 4
         self.vm_client = OS_SimpleClient(auth_config_json_file=self.authConfigFile)
 
-        # set vm maps
-        #TODO: be configurable
-        # self.jobType_vmFlavor_map = {
-        #                     'SCORE': '3',
-        #                     'MCORE': '5',
-        #                     'other': '4',
-        #                 }
-
-        # self.VM_IAMGE_MAP = {
-        #                     'el6': 'uCernVM3-2.8-6',
-        #                     'el7': 'uCernVM4-2.8-6',
-        #                 }
-        # self.VM_IAMGE_MAP = {
-        #                     'el6': '65122568-79c7-4f75-8fa3-772de7e9e5b6',
-        #                     'el7': '58080f8b-f5a3-46e6-95d4-a7c23a3d0b42',
-        #                 }
-
-        # set other vm attributes
-        #TODO: be configurable
-        # self.vmCreateAttributes = {
-        #                 'image': '65122568-79c7-4f75-8fa3-772de7e9e5b6',
-        #                 'key_name': 'opskey',
-        #                 'nics': [{'net-id': '536855fc-8cb2-423a-84d7-d0dc1ce2dff7',},],
-        #             }
-
 
     def _submit_a_vm(self, workspec):
         # set logger
@@ -88,8 +63,6 @@ class CloudOpenstackSubmitter(PluginBase):
         vm_name = 'harvester-vm_{0}'.format(str(uuid.uuid4()))
 
         # # decide image
-        # if True: #FIXME
-        #     vm_image_id = self.VM_IAMGE_MAP['el6']
         vm_image_id = self.vmImageID
 
         # decide flavor
