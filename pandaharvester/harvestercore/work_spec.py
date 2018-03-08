@@ -211,6 +211,8 @@ class WorkSpec(SpecBase):
 
     # set work attributes
     def set_work_attributes(self, data):
+        if data is None:
+            return
         if self.workAttributes is None and data is not None:
             self.workAttributes = dict()
         for key, val in iteritems(data):
