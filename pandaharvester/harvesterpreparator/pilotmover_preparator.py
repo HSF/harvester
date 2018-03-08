@@ -65,10 +65,13 @@ class PilotmoverPreparator(PluginBase):
             tmpLog.debug('pilot.api data.StageInClient.transfer(files) result: {0}'.format(result))
         
             # loop over each file check result all must be true for entire result to be true
-            for answer in result:
-                if answer['errno'] != 0:
-                    allChecked = False
-                    ErrMsg = ErrMsg + (" %s " % answer['name'])
+            if result:
+                for answer in result:
+                    if answer['errno'] != 0:
+                        allChecked = False
+                        ErrMsg = ErrMsg + (" %s " % answer['name'])
+            else:
+                tmpLog.info('Looks like all files already inplace: {0}'.format(files))
         # return
         tmpLog.debug('stop')
         if allChecked:
