@@ -16,17 +16,21 @@ class DummyPreparator(PluginBase):
 
     # trigger preparation
     def trigger_preparation(self, jobspec):
-        """Trigger stage-in procedure synchronously or asynchronously for the job.
+        """Trigger the stage-in procedure synchronously or asynchronously for the job.
+        If the return code of this method is True, the job goes to the next step. If it is False,
+        preparator immediately gives up the job. If it is None, the job is retried later.
         Input file attributes are available through jobspec.get_input_file_attributes(skip_ready=True)
         which gives a dictionary. The key of the dictionary is LFN of the input file
         and the value is a dictionary of file attributes. The attribute names are
-        fsize, guid, checksum, scope, dataset, and endpoint. Grouping information such as transferID can be set
-        to input files using jobspec.set_group_to_files(id_map) where id_map is
+        fsize, guid, checksum, scope, dataset, attemptNr, and endpoint. attemptNr shows how many times
+        the file was tried so far. Grouping information such as transferID can be set to input files using
+        jobspec.set_group_to_files(id_map) where id_map is
         {groupID:'lfns':[lfn1, ...], 'status':status}, and groupID and status are arbitrary strings.
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
+        :return: A tuple of return code (True: success, False: fatal error, None: temporary error)
+                 and error dialog
         :rtype: (bool, string)
         """
         # make log
@@ -39,6 +43,7 @@ class DummyPreparator(PluginBase):
         # Here is an example with file grouping :
         # get input files while skipping files already in ready state
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
+        tmpLog.debug('inputs={0}'.format(str(inFiles)))
         lfns = []
         for inLFN in inFiles.keys():
             lfns.append(inLFN)
@@ -51,13 +56,17 @@ class DummyPreparator(PluginBase):
 
     # check status
     def check_status(self, jobspec):
-        """Check status of stage-in procedure. If that is done synchronously in trigger_preparation
+        """Check status of the stage-in procedure.
+        If the return code of this method is True, the job goes to the next step. If it is False,
+        preparator immediately gives up the job. If it is None, the job is retried later.
+        If preparation is done synchronously in trigger_preparation
         this method should always return True. Status of file group can be updated using
-        jobspec.update_group_status_in_files(group_id, group_status)
+        jobspec.update_group_status_in_files(group_id, group_status) if necessary.
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
+        :return: A tuple of return code (True: transfer success, False: fatal transfer failure,
+                 None: on-going or temporary failure) and error dialog
         :rtype: (bool, string)
         """
         #

@@ -1,0 +1,81 @@
+{
+	"TEMPLATE_QUEUE": {
+		"prodSourceLabel": "managed",
+		"nQueueLimitJob": 3,
+		"nQueueLimitWorker": 5,
+		"maxWorkers": 5,
+		"preparator": {
+			"name": "DummyPreparator",
+			"module": "pandaharvester.harvesterpreparator.dummy_preparator"
+		},
+		"submitter": {
+			"name": "DummySingletonSubmitter",
+			"module": "pandaharvester.harvestersubmitter.dummy_singleton_submitter",
+			"logBaseURL": "/tmp/tmaeno/logs"
+                },
+                "throttler": {
+                        "name": "SimpleThrottler",
+                        "module": "pandaharvester.harvesterthrottler.simple_throttler",
+                        "rulesForMissed": [{"level": "pq", "timeWindow": 10, "maxMissed": 10},
+                                           {"level": "ce", "timeWindow": 10, "maxMissed": 5}]
+		},
+		"workerMaker": {
+			"name": "SimpleWorkerMaker",
+			"module": "pandaharvester.harvesterworkermaker.simple_worker_maker"
+		},
+		"messenger": {
+			"name": "SharedFileMessenger",
+			"module": "pandaharvester.harvestermessenger.shared_file_messenger",
+			"accessPoint": "/tmp/tmaeno/workdir/panda/${workerID}"
+		},
+		"stager": {
+			"name": "DummyStager",
+			"module": "pandaharvester.harvesterstager.dummy_stager"
+		},
+		"monitor": {
+			"name": "DummyMonitor",
+			"module": "pandaharvester.harvestermonitor.dummy_monitor"
+		},
+		"sweeper": {
+			"name": "DummySweeper",
+			"module": "pandaharvester.harvestersweeper.dummy_sweeper"
+		}
+	},
+	"PULL_MODEL_1": {
+		"templateQueueName": "TEMPLATE_QUEUE",
+		"mapType": "NoJob"
+	},
+	"PULL_MODEL_2": {
+		"templateQueueName": "TEMPLATE_QUEUE",
+		"mapType": "NoJob"
+	},
+	"PUSH_MODEL_1": {
+		"templateQueueName": "TEMPLATE_QUEUE",
+		"mapType": "OneToOne"
+	},
+	"PUSH_MODEL_2": {
+		"templateQueueName": "TEMPLATE_QUEUE",
+		"nQueueLimitJob": 5,
+		"nQueueLimitWorker": 2,
+		"maxWorkers": 2,
+		"maxNewWorkersPerCycle": 1,
+		"mapType": "ManyToOne",
+		"allowJobMixture": true
+	},
+	"PUSH_MODEL_WITH_TRUE_PILOT_AND_STAGER": {
+		"templateQueueName": "TEMPLATE_QUEUE",
+		"mapType": "OneToOne",
+		"truePilot": true,
+		"stager":{
+			"name":"RucioStagerHPC",
+			"module":"pandaharvester.harvesterstager.rucio_stager_hpc",
+			"srcRSE":"NERSC_DATADISK",
+			"dstRSE_ES":"BNL-OSG2_SCRATCHDISK",
+			"dstRSE_Out":"BNL-OSG2_SCRATCHDISK",
+			"dstRSE_Log":null,
+			"objStoreID_ES":117,
+			"srcBasePath":"/global/homes/t/tmaeno/rucio",
+			"zipDir":"${SRCDIR}"
+		}
+	}
+}

@@ -15,7 +15,6 @@ class SAGAMonitor(PluginBase):
         PluginBase.__init__(self, **kwarg)
         tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
-        self.job_service = saga.job.Service(self.adaptor)
 
     # check workers
     def check_workers(self, workspec_list):
@@ -26,6 +25,8 @@ class SAGAMonitor(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and a list of worker's statuses.
         :rtype: (bool, [string,])
         """
+        job_service = saga.job.Service(self.adaptor)
+
         retList = []
         for workSpec in workspec_list:
             # make logger
@@ -35,14 +36,19 @@ class SAGAMonitor(PluginBase):
             if workSpec.batchID:
                 saga_submission_id = '[{0}]-[{1}]'.format(self.adaptor, workSpec.batchID)
                 try:
-                    worker = self.job_service.get_job(saga_submission_id)
-                    tmpLog.info('SAGA State for submission with batchid: {0} is: {0}'.format(workSpec.batchID, worker.state))
+                    worker = job_service.get_job(saga_submission_id)
+                    tmpLog.info('SAGA State for submission with batchid: {0} is: {1}'.format(workSpec.batchID, worker.state))
                     harvester_job_state = SAGASubmitter.status_translator(worker.state)
+                    tmpLog.info(
+                        'Worker state with batchid: {0} is: {1}'.format(workSpec.batchID, harvester_job_state))
+
                 except saga.SagaException as ex:
                     tmpLog.error('An exception occured during retriving worker information')
                     errStr = ex.get_message()
                     # probably 'failed' is not proper state in this case, 'undefined' looks a bit better
                     harvester_job_state = workSpec.ST_failed 
                 retList.append((harvester_job_state, errStr))
+
+        job_service.close()
 
         return True, retList

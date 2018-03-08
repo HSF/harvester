@@ -5,6 +5,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 
 # logger
 _logger = core_utils.setup_logger('preparator')
@@ -65,7 +66,7 @@ class Preparator(AgentBase):
                     jobSpec.lockedBy = None
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
-                    tmpLog.debug('still running')
+                    tmpLog.debug('try to check later since still preparing with {0}'.format(tmpStr))
                     continue
                 # succeeded
                 if tmpStat is True:
@@ -93,6 +94,8 @@ class Preparator(AgentBase):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                    errStr = 'stage-in failed with {0}'.format(tmpStr)
+                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
                     jobSpec.trigger_propagation()
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
@@ -177,9 +180,9 @@ class Preparator(AgentBase):
                     continue
                 # trigger preparation
                 tmpStat, tmpStr = preparatorCore.trigger_preparation(jobSpec)
-                # succeeded
+                # check result
                 if tmpStat is True:
-                    # update job
+                    # succeeded
                     jobSpec.subStatus = 'preparing'
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
@@ -187,17 +190,25 @@ class Preparator(AgentBase):
                                                       'subStatus': oldSubStatus},
                                             update_in_file=True)
                     tmpLog.debug('triggered')
-                else:
-                    # update job
+                elif tmpStat is False:
+                    # fatal error
                     jobSpec.status = 'failed'
                     jobSpec.subStatus = 'failed_to_prepare'
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                    errStr = 'stage-in failed with {0}'.format(tmpStr)
+                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
                     jobSpec.trigger_propagation()
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
                     tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
+                else:
+                    # temporary error
+                    jobSpec.lockedBy = None
+                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                      'subStatus': oldSubStatus})
+                    tmpLog.debug('try to prepare later since {0}'.format(tmpStr))
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.preparator.sleepTime):

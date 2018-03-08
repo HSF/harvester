@@ -231,7 +231,8 @@ class RucioStager(PluginBase):
                 statInfo = os.stat(zipPath)
                 fileSpec.fsize = statInfo.st_size
                 # added empty attributes
-                fileSpec.fileAttributes = dict()
+                if fileSpec.fileAttributes is None:
+                    fileSpec.fileAttributes = dict()
                 tmpLog.debug('zipped {0}'.format(zipPath))
         except:
             errMsg = core_utils.dump_error_message(tmpLog)

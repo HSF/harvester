@@ -44,7 +44,8 @@ class DummyBulkStager(PluginBase):
                 groupUpdateTime = groups[dummy_transfer_id]['groupUpdateTime']
                 # get files with the dummy transfer ID across jobs
                 fileSpecs = self.dbInterface.get_files_with_group_id(dummy_transfer_id)
-                # submit transfer if there are more than 10 files or the group was made before more than 10 min
+                # submit transfer if there are more than 10 files or the group was made before more than 10 min.
+                # those thresholds may be config params.
                 if len(fileSpecs) >= 10 or \
                         groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
                     # submit transfer and get a real transfer ID
@@ -60,11 +61,13 @@ class DummyBulkStager(PluginBase):
                 # release the lock
                 self.dbInterface.release_object_lock(dummy_transfer_id)
                 # return None to retry later
-                return None, ''
+                return None, msgStr
+            # release the lock
+            self.dbInterface.release_object_lock(dummy_transfer_id)
         # check transfer with real transfer IDs
         # ...
         # then set file status if successful
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             fileSpec.status = 'finished'
         tmpLog.debug('all finished')
         return True, ''
@@ -73,7 +76,7 @@ class DummyBulkStager(PluginBase):
     def trigger_stage_out(self, jobspec):
         # set the dummy transfer ID which will be replaced with a real ID in check_status()
         lfns = []
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             lfns.append(fileSpec.lfn)
         jobspec.set_groups_to_files({dummy_transfer_id: {'lfns': lfns,
                                                          'groupStatus': 'pending'}
@@ -93,6 +96,6 @@ class DummyBulkStager(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        for fileSpec in jobspec.outFiles:
+        for fileSpec in jobspec.get_output_file_specs(skip_done=False):
             fileSpec.path = '/path/to/zip'
         return True, ''

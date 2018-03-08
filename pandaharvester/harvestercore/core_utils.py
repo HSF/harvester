@@ -3,17 +3,24 @@ utilities
 
 """
 
+import os
 import sys
 import time
 import zlib
 import uuid
 import math
+import fcntl
+import base64
 import random
 import inspect
 import datetime
 import threading
 import traceback
+import Crypto.Random
+import Crypto.Hash.HMAC
+import Crypto.Cipher.AES
 from future.utils import iteritems
+from contextlib import contextmanager
 
 from .work_spec import WorkSpec
 from .file_spec import FileSpec
@@ -56,7 +63,7 @@ def make_logger(tmp_log, token=None, method_name=None):
 
 
 # dump error message
-def dump_error_message(tmp_log, err_str=None):
+def dump_error_message(tmp_log, err_str=None, no_message=False):
     if not isinstance(tmp_log, LogWrapper):
         methodName = '{0} : '.format(inspect.stack()[1][3])
     else:
@@ -66,23 +73,28 @@ def dump_error_message(tmp_log, err_str=None):
         errtype, errvalue = sys.exc_info()[:2]
         err_str = "{0} {1} {2} ".format(methodName, errtype.__name__, errvalue)
         err_str += traceback.format_exc()
-    tmp_log.error(err_str)
+    if not no_message:
+        tmp_log.error(err_str)
     return err_str
 
 
 # sleep for random duration and return True if no more sleep is needed
 def sleep(interval, stop_event, randomize=True):
-    if randomize:
+    if randomize and interval > 0:
         randInterval = random.randint(int(interval * 0.8), int(interval * 1.2))
     else:
         randInterval = interval
     if stop_event is None:
         time.sleep(randInterval)
     else:
-        for i in range(randInterval):
-            stop_event.wait(1)
+        i = 0
+        while True:
             if stop_event.is_set():
                 return True
+            if i >= randInterval:
+                break
+            stop_event.wait(1)
+            i += 1
     return False
 
 
@@ -207,6 +219,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 if workSpec.batchID is not None:
                     jobSpec.set_one_attribute('batchID', workSpec.batchID)
             # add files
+            outFileAttrs = jobSpec.get_output_file_attributes()
             for files_to_stage_out in files_to_stage_out_list:
                 if jobSpec.PandaID in files_to_stage_out:
                     for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
@@ -225,6 +238,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                                 fileSpec.chksum = fileAtters['chksum']
                             if 'eventRangeID' in fileAtters:
                                 fileSpec.eventRangeID = fileAtters['eventRangeID']
+                            if lfn in outFileAttrs:
+                                fileSpec.scope = outFileAttrs[lfn]['scope']
                             jobSpec.add_out_file(fileSpec)
             # add events
             for events_to_update in events_to_update_list:
@@ -283,6 +298,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # FIXME
         # jobSpec.set_attributes(workAttributes)
         # add files
+        outFileAttrs = jobSpec.get_output_file_attributes()
         for files_to_stage_out in files_to_stage_out_list:
             if jobSpec.PandaID in files_to_stage_out:
                 for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
@@ -301,6 +317,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                             fileSpec.chksum = fileAtters['chksum']
                         if 'eventRangeID' in fileAtters:
                             fileSpec.eventRangeID = fileAtters['eventRangeID']
+                        if lfn in outFileAttrs:
+                            fileSpec.scope = outFileAttrs[lfn]['scope']
                         jobSpec.add_out_file(fileSpec)
         # add events
         for events_to_update in events_to_update_list:
@@ -340,8 +358,8 @@ class StopWatch(object):
     # get elapsed time
     def get_elapsed_time(self):
         diff = datetime.datetime.utcnow() - self.startTime
-        return " : took {0}.{0} sec".format(diff.seconds + diff.days * 24 * 3600,
-                                            diff.microseconds/1000)
+        return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600,
+                                               diff.microseconds/1000)
 
     # reset
     def reset(self):
@@ -387,3 +405,95 @@ global_dict = MapWithLock()
 # get global dict
 def get_global_dict():
     return global_dict
+
+
+# get file lock
+@contextmanager
+def get_file_lock(file_name, lock_interval):
+    if os.path.exists(file_name):
+        opt = 'r+'
+    else:
+        opt = 'w+'
+    with open(file_name, opt) as f:
+        locked = False
+        try:
+            # lock file
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+            # read timestamp
+            timeNow = datetime.datetime.utcnow()
+            toSkip = False
+            try:
+                s = f.read()
+                pTime = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S.%f")
+                if timeNow - pTime < datetime.timedelta(seconds=lock_interval):
+                    toSkip = True
+            except:
+                pass
+            # skip if still in locked interval
+            if toSkip:
+                raise IOError("skipped since still in locked interval")
+            # write timestamp
+            f.seek(0)
+            f.write(timeNow.strftime("%Y-%m-%d %H:%M:%S.%f"))
+            f.truncate()
+            # execute with block
+            yield
+        finally:
+            # unlock
+            if locked:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
+
+# convert a key phrase to a cipher key
+def convert_phrase_to_key(key_phrase):
+    h = Crypto.Hash.HMAC.new(key_phrase)
+    return h.hexdigest()
+
+
+# encrypt a string
+def encrypt_string(key_phrase, plain_text):
+    k = convert_phrase_to_key(key_phrase)
+    v = Crypto.Random.new().read(Crypto.Cipher.AES.block_size)
+    c = Crypto.Cipher.AES.new(k, Crypto.Cipher.AES.MODE_CFB, v)
+    return base64.b64encode(v + c.encrypt(plain_text))
+
+
+# decrypt a string
+def decrypt_string(key_phrase, cipher_text):
+    cipher_text = base64.b64decode(cipher_text)
+    k = convert_phrase_to_key(key_phrase)
+    v = cipher_text[:Crypto.Cipher.AES.block_size]
+    c = Crypto.Cipher.AES.new(k, Crypto.Cipher.AES.MODE_CFB, v)
+    cipher_text = cipher_text[Crypto.Cipher.AES.block_size:]
+    return c.decrypt(cipher_text)
+
+
+# set permission
+def set_file_permission(path):
+    if not os.path.exists(path):
+        return
+    targets = []
+    if os.path.isfile(path):
+        targets += [path]
+    else:
+        for root, dirs, files in os.walk(path):
+            targets += [os.path.join(root, f) for f in files]
+    umask = os.umask(0)
+    uid = os.getuid()
+    gid = os.getgid()
+    for f in targets:
+        try:
+            os.chmod(f, 0o666 - umask)
+            os.chown(f, uid, gid)
+        except:
+            pass
+    os.umask(umask)
+
+
+# get URL of queues config file
+def get_queues_config_url():
+    try:
+        return os.environ['HARVESTER_QUEUE_CONFIG_URL']
+    except:
+        return None

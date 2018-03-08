@@ -1,7 +1,10 @@
 import json
 import os
 import re
-import urllib
+try:
+    from urllib.parse import urlencode
+except ImportError:
+    from urllib import urlencode
 import uuid
 import os.path
 import tarfile
@@ -45,6 +48,12 @@ xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
 
 # json to get PandaIDs
 pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
+
+# json to kill worker
+try:
+    killWorkerFile = harvester_config.payload_interaction.killWorkerFile
+except:
+    killWorkerFile = 'kill_worker.json'
 
 # suffix to read json
 suffixReadJson = '.read'
@@ -253,8 +262,16 @@ class SharedFileMessenger(PluginBase):
             # not found
             tmpLog.debug('not found')
             return False
-        tmpLog.debug('found')
-        return True
+        # read nJobs
+        try:
+            with open(jsonFilePath) as jsonFile:
+                tmpDict = json.load(jsonFile)
+                nJobs = tmpDict['nJobs']
+        except:
+            # request 1 job by default
+            nJobs = 1
+        tmpLog.debug('requesting {0} jobs'.format(nJobs))
+        return nJobs
 
     # feed jobs
     # * worker_jobspec.json is put under the access point
@@ -275,7 +292,7 @@ class SharedFileMessenger(PluginBase):
                 # put job spec file
                 with open(jobSpecFilePath, 'w') as jobSpecFile:
                     if self.jobSpecFileFormat == 'cgi':
-                        jobSpecFile.write(urllib.urlencode(jobSpec.jobParams))
+                        jobSpecFile.write(urlencode(jobSpec.jobParams))
                     else:
                         json.dump({jobSpec.PandaID: jobSpec.jobParams}, jobSpecFile)
                 # put PFC.xml
@@ -296,9 +313,13 @@ class SharedFileMessenger(PluginBase):
                 core_utils.dump_error_message(tmpLog)
                 retVal = False
         # put PandaIDs file
-        jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
-        with open(jsonFilePath, 'w') as jsonPandaIDsFile:
-            json.dump(pandaIDs, jsonPandaIDsFile)
+        try:
+            jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
+            with open(jsonFilePath, 'w') as jsonPandaIDsFile:
+                json.dump(pandaIDs, jsonPandaIDsFile)
+        except:
+            core_utils.dump_error_message(tmpLog)
+            retVal = False
         # remove request file
         try:
             reqFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
@@ -437,16 +458,25 @@ class SharedFileMessenger(PluginBase):
 
     # setup access points
     def setup_access_points(self, workspec_list):
-        for workSpec in workspec_list:
-            accessPoint = workSpec.get_access_point()
-            # make the dir if missing
-            if not os.path.exists(accessPoint):
-                os.makedirs(accessPoint)
-                for jobSpec in workSpec.get_jobspec_list():
-                    subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
-                    if accessPoint != subAccessPoint:
-                        if not os.path.exists(subAccessPoint):
-                            os.mkdir(subAccessPoint)
+        try:
+            for workSpec in workspec_list:
+                accessPoint = workSpec.get_access_point()
+                # make the dir if missing
+                if not os.path.exists(accessPoint):
+                    os.makedirs(accessPoint)
+                jobSpecs = workSpec.get_jobspec_list()
+                if jobSpecs is not None:
+                    for jobSpec in jobSpecs:
+                        subAccessPoint = self.get_access_point(workSpec, jobSpec.PandaID)
+                        if accessPoint != subAccessPoint:
+                            if not os.path.exists(subAccessPoint):
+                                os.mkdir(subAccessPoint)
+            return True
+        except:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='setup_access_points')
+            core_utils.dump_error_message(tmpLog)
+            return False
 
     # filter for log.tar.gz
     def filter_log_tgz(self, name):
@@ -475,14 +505,12 @@ class SharedFileMessenger(PluginBase):
                     logFilePath += '.{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
                 with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                    for tmpFile in os.listdir(accessPoint):
-                        if not self.filter_log_tgz(tmpFile):
-                            continue
-                        tmpFullPath = os.path.join(accessPoint, tmpFile)
-                        if not os.path.isfile(tmpFullPath):
-                            continue
-                        tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
-                        tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+                    for path, dirs, files in os.walk(accessPoint):
+                        for filename in files:
+                            if self.filter_log_tgz(filename):
+                                tmpFullPath = os.path.join(path, filename)
+                                tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
+                                tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
                 # make json to stage-out the log file
                 fileDict = dict()
                 fileDict[jobSpec.PandaID] = []
@@ -518,3 +546,18 @@ class SharedFileMessenger(PluginBase):
             return retVal
         tmpLog.debug('found')
         return retVal
+
+    # check if requested to kill the worker
+    def kill_requested(self, workspec):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='kill_requested')
+        # look for the json just under the access point
+        jsonFilePath = os.path.join(workspec.get_access_point(), killWorkerFile)
+        tmpLog.debug('looking for kill request file {0}'.format(jsonFilePath))
+        if not os.path.exists(jsonFilePath):
+            # not found
+            tmpLog.debug('not found')
+            return False
+        tmpLog.debug('kill requested')
+        return True

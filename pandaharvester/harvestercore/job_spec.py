@@ -47,10 +47,13 @@ class JobSpec(SpecBase):
                            'zipPerMB:integer',
                            'nWorkers:integer',
                            'nWorkersLimit:integer',
+                           'submissionAttempts:integer',
+                           'jobsetID:integer'
                            )
 
     # attributes initialized with 0
     zeroAttrs = ('nWorkers',
+                 'submissionAttempts'
                  )
 
     # constructor
@@ -82,6 +85,14 @@ class JobSpec(SpecBase):
     def reset_out_file(self):
         self.outFiles.clear()
 
+    # get files to delete
+    def get_files_to_delete(self):
+        files = []
+        for fileSpec in self.inFiles.union(self.outFiles):
+            if fileSpec.todelete == 1:
+                files.append(fileSpec)
+        return files
+
     # add event
     def add_event(self, event_spec, zip_filespec):
         if zip_filespec is None:
@@ -99,6 +110,7 @@ class JobSpec(SpecBase):
         self.PandaID = data['PandaID']
         self.taskID = data['taskID']
         self.attemptNr = data['attemptNr']
+        self.jobsetID = data['jobsetID']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
         if 'zipPerMB' in data:
@@ -112,6 +124,14 @@ class JobSpec(SpecBase):
     def set_attributes(self, attrs):
         if attrs is None:
             return
+        attrs = copy.copy(attrs)
+        # set work attribute
+        for attName in ['pilotErrorCode', 'pilotErrorDiag', 'exeErrorCode', 'exeErrorDiag']:
+            if attName in attrs:
+                if self.PandaID not in attrs:
+                    attrs[self.PandaID] = dict()
+                if attName not in attrs[self.PandaID]:
+                    attrs[self.PandaID][attName] = attrs[attName]
         if self.PandaID not in attrs:
             return
         attrs = copy.copy(attrs[self.PandaID])
@@ -134,7 +154,9 @@ class JobSpec(SpecBase):
     def set_one_attribute(self, attr, value):
         if self.jobAttributes is None:
             self.jobAttributes = dict()
-        self.jobAttributes[attr] = value
+        if attr not in self.jobAttributes or self.jobAttributes[attr] != value:
+            self.jobAttributes[attr] = value
+            self.force_update('jobAttributes')
 
     # check if an attribute is there
     def has_attribute(self, attr):
@@ -199,10 +221,11 @@ class JobSpec(SpecBase):
     # get input file attributes
     def get_input_file_attributes(self, skip_ready=False):
         lfnToSkip = set()
-        if skip_ready:
-            for fileSpec in self.inFiles:
-                if fileSpec.status == 'ready':
-                    lfnToSkip.add(fileSpec.lfn)
+        attemptNrMap = dict()
+        for fileSpec in self.inFiles:
+            if skip_ready and fileSpec.status == 'ready':
+                lfnToSkip.add(fileSpec.lfn)
+            attemptNrMap[fileSpec.lfn] = fileSpec.attemptNr
         inFiles = {}
         lfns = self.jobParams['inFiles'].split(',')
         guids = self.jobParams['GUID'].split(',')
@@ -219,12 +242,17 @@ class JobSpec(SpecBase):
                 fsize = None
             if lfn in lfnToSkip:
                 continue
+            if lfn in attemptNrMap:
+                attemptNr = attemptNrMap[lfn]
+            else:
+                attemptNr = 0
             inFiles[lfn] = {'fsize': fsize,
                             'guid': guid,
                             'checksum': chksum,
                             'scope': scope,
                             'dataset': dataset,
-                            'endpoint': endpoint}
+                            'endpoint': endpoint,
+                            'attemptNr': attemptNr}
         # add path
         if 'inFilePaths' in self.jobParams:
             paths = self.jobParams['inFilePaths'].split(',')
@@ -371,3 +399,37 @@ class JobSpec(SpecBase):
             groups[fileSpec.groupID] = {'groupUpdateTime': fileSpec.groupUpdateTime,
                                         'groupStatus': fileSpec.groupStatus}
         return groups
+
+    # get output file specs
+    def get_output_file_specs(self, skip_done=False):
+        if not skip_done:
+            return self.outFiles
+        else:
+            retList = []
+            for fileSpec in self.outFiles:
+                if fileSpec.status not in ['finished', 'failed']:
+                    retList.append(fileSpec)
+            return retList
+
+    # get input file specs for a given group id
+    def get_input_file_specs(self, group_id, skip_ready=False):
+        retList = []
+        for fileSpec in self.inFiles:
+            if fileSpec.groupID == group_id:
+                if skip_ready and fileSpec.status in ['ready', 'failed']:
+                    continue
+                retList.append(fileSpec)
+        return retList
+
+    # set pilot error
+    def set_pilot_error(self, error_code, error_dialog):
+        if not self.has_attribute('pilotErrorCode'):
+            self.set_one_attribute('pilotErrorCode', error_code)
+        if not self.has_attribute('pilotErrorDiag'):
+            self.set_one_attribute('pilotErrorDiag', error_dialog)
+
+    # not to suppress heartbeat
+    def not_suppress_heartbeat(self):
+        if self.subStatus in ['missed']:
+            return True
+        return False

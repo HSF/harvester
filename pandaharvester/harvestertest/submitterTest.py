@@ -20,7 +20,7 @@ com = CommunicatorPool()
 jobSpecList = []
 if queueConfig.mapType != WorkSpec.MT_NoJob:
     jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel,
-                                'computingElement', 1)
+                                'computingElement', 1, None)
     if len(jobs) == 0:
         print ("Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr))
         sys.exit(0)
@@ -36,18 +36,19 @@ if queueConfig.mapType != WorkSpec.MT_NoJob:
     jobSpecList.append(jobSpec)
 
 maker = pluginFactory.get_plugin(queueConfig.workerMaker)
-workSpec = maker.make_worker(jobSpecList, queueConfig)
+workSpec = maker.make_worker(jobSpecList, queueConfig, 'SCORE') # TODO: needs to be thought
 
 workSpec.accessPoint = queueConfig.messenger['accessPoint']
-messenger = pluginFactory.get_plugin(queueConfig.messenger)
-messenger.setup_access_points([workSpec])
-
 workSpec.mapType = queueConfig.mapType
+workSpec.computingSite = queueConfig.queueName
 
 # set job to worker if not job-level late binding
 if not queueConfig.useJobLateBinding:
     workSpec.hasJob = 1
     workSpec.set_jobspec_list(jobSpecList)
+
+messenger = pluginFactory.get_plugin(queueConfig.messenger)
+messenger.setup_access_points([workSpec])
 
 # get plugin for messenger
 if queueConfig.mapType != WorkSpec.MT_NoJob:

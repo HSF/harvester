@@ -6,6 +6,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 
 # logger
 _logger = core_utils.setup_logger('monitor')
@@ -74,10 +75,13 @@ class Monitor(AgentBase):
                         eventsToUpdate = tmpOut['eventsToUpdate']
                         filesToStageOut = tmpOut['filesToStageOut']
                         eventsRequestParams = tmpOut['eventsRequestParams']
+                        nJobsToReFill = tmpOut['nJobsToReFill']
                         pandaIDs = tmpOut['pandaIDs']
-                        tmpLog.debug('newStatus={0} monitoredStatus={1} diag={2}'.format(newStatus,
-                                                                                         monStatus,
-                                                                                         diagMessage))
+                        tmpStr = 'newStatus={0} monitoredStatus={1} diag={2} '
+                        tmpStr += 'postProcessed={3} files={4}'
+                        tmpLog.debug(tmpStr.format(newStatus, monStatus, diagMessage,
+                                                   workSpec.is_post_processed(),
+                                                   str(filesToStageOut)))
                         iWorker += 1
                         # check status
                         if newStatus not in WorkSpec.ST_LIST:
@@ -85,11 +89,21 @@ class Monitor(AgentBase):
                             continue
                         # update worker
                         workSpec.set_status(newStatus)
-                        workSpec.workAttributes = workAttributes
+                        workSpec.set_work_attributes(workAttributes)
+                        workSpec.set_dialog_message(diagMessage)
+                        if monStatus == WorkSpec.ST_failed:
+                            if not workSpec.has_pilot_error():
+                                workSpec.set_pilot_error(PilotErrors.ERR_GENERALERROR, diagMessage)
+                        elif monStatus == WorkSpec.ST_cancelled:
+                            if not workSpec.has_pilot_error():
+                                workSpec.set_pilot_error(PilotErrors.ERR_PANDAKILL, diagMessage)
                         # request events
                         if eventsRequestParams != {}:
                             workSpec.eventsRequest = WorkSpec.EV_requestEvents
                             workSpec.eventsRequestParams = eventsRequestParams
+                        # jobs to refill
+                        if nJobsToReFill is not None:
+                            workSpec.nJobsToReFill = nJobsToReFill
                         # get associated jobs for the worker chunk
                         if workSpec.hasJob == 1 and jobSpecs is None:
                             jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
@@ -114,7 +128,12 @@ class Monitor(AgentBase):
                                 jobSpec.subStatus,
                                 jobSpec.get_job_status_from_attributes()))
                     # update local database
-                    self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
+                    tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
+                    if not tmpRet:
+                        for workSpec in workSpecs:
+                            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                            method_name='run')
+                            tmpLog.error('failed to update the DB. lockInterval may be too short')
                     # send ACK to workers for events and files
                     if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                         for workSpec in workSpecs:
@@ -135,8 +154,10 @@ class Monitor(AgentBase):
             eventsRequestParams = {}
             eventsToUpdate = []
             pandaIDs = []
+            workStatus = None
             workAttributes = None
             filesToStageOut = None
+            nJobsToReFill = None
             # job-level late binding
             if workSpec.hasJob == 0 and queue_config.mapType != WorkSpec.MT_NoJob:
                 # check if job is requested
@@ -146,8 +167,13 @@ class Monitor(AgentBase):
                     workStatus = WorkSpec.ST_ready
                 else:
                     workStatus = workSpec.status
+            elif workSpec.nJobsToReFill in [0, None]:
+                # check if job is requested to refill free slots
+                jobRequested = messenger.job_requested(workSpec)
+                if jobRequested:
+                    nJobsToReFill = jobRequested
+                workersToCheck.append(workSpec)
             else:
-                workStatus = None
                 workersToCheck.append(workSpec)
             # add
             retMap[workSpec.workerID] = {'newStatus': workStatus,
@@ -157,7 +183,8 @@ class Monitor(AgentBase):
                                          'eventsRequestParams': eventsRequestParams,
                                          'eventsToUpdate': eventsToUpdate,
                                          'diagMessage': '',
-                                         'pandaIDs': pandaIDs}
+                                         'pandaIDs': pandaIDs,
+                                         'nJobsToReFill': nJobsToReFill}
         # check workers
         tmp_log.debug('checking workers with plugin')
         tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
@@ -167,7 +194,11 @@ class Monitor(AgentBase):
             tmp_log.debug('checked')
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                 workerID = workSpec.workerID
+                pandaIDs = []
                 if workerID in retMap:
+                    # request kill
+                    if messenger.kill_requested(workSpec):
+                        self.dbProxy.kill_worker(workSpec.workerID)
                     # get output files
                     filesToStageOut = messenger.get_files_to_stage_out(workSpec)
                     retMap[workerID]['filesToStageOut'] = filesToStageOut

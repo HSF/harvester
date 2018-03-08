@@ -5,6 +5,7 @@ Base class for XyzSpec
 
 import json
 import pickle
+from future.utils import iteritems
 
 
 # encoder for non-native json objects
@@ -66,13 +67,18 @@ class SpecBase(object):
         if name in self.attributes:
             self.changedAttrs[name] = getattr(self, name)
 
+    # force not update
+    def force_not_update(self, name):
+        if name in self.changedAttrs:
+            del self.changedAttrs[name]
+
     # pack into attributes
     def pack(self, values):
         if hasattr(values, '_asdict'):
             values = values._asdict()
         for attr in self.attributes:
             val = values[attr]
-            if attr in self.serializedAttrs:
+            if attr in self.serializedAttrs and val is not None:
                 val = json.loads(val, object_hook=as_python_object)
             object.__setattr__(self, attr, val)
 
@@ -146,3 +152,15 @@ class SpecBase(object):
                 val = json.dumps(val, cls=PythonObjectEncoder)
             ret.append(val)
         return ret
+
+    # get dict of changed attributes
+    def get_changed_attributes(self):
+        retDict = dict()
+        for attr in self.changedAttrs:
+            retDict[attr] = getattr(self, attr)
+        return retDict
+
+    # set attributes
+    def set_attributes_with_dict(self, attr_dict):
+        for attr, val in iteritems(attr_dict):
+            setattr(self, attr, val)

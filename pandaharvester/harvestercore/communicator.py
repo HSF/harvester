@@ -10,6 +10,7 @@ except:
     pass
 import sys
 import json
+import zlib
 import inspect
 import datetime
 import requests
@@ -49,7 +50,8 @@ class Communicator:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
             res = requests.post(url,
                                 data=data,
-                                headers={"Accept": "application/json"},
+                                headers={"Accept": "application/json",
+                                         "Connection": "close"},
                                 timeout=harvester_config.pandacon.timeout)
             if self.verbose:
                 tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
@@ -79,7 +81,8 @@ class Communicator:
                         harvester_config.pandacon.key_file)
             res = requests.post(url,
                                 data=data,
-                                headers={"Accept": "application/json"},
+                                headers={"Accept": "application/json",
+                                         "Connection": "close"},
                                 timeout=harvester_config.pandacon.timeout,
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=cert)
@@ -96,10 +99,42 @@ class Communicator:
             errMsg += traceback.format_exc()
         return False, errMsg
 
+    # PUT with https
+    def put_ssl(self, path, files, cert=None):
+        try:
+            tmpLog = None
+            tmpExec = None
+            if self.verbose:
+                tmpLog = core_utils.make_logger(_logger, method_name='post_ssl')
+                tmpExec = inspect.stack()[1][3]
+            url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, path)
+            if self.verbose:
+                tmpLog.debug('exec={0} URL={1} files={2}'.format(tmpExec, url, files['file'][0]))
+            if cert is None:
+                cert = (harvester_config.pandacon.cert_file,
+                        harvester_config.pandacon.key_file)
+            res = requests.post(url,
+                                files=files,
+                                timeout=harvester_config.pandacon.timeout,
+                                verify=harvester_config.pandacon.ca_cert,
+                                cert=cert)
+            if self.verbose:
+                tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
+            if res.status_code == 200:
+                return True, res
+            else:
+                errMsg = 'StatusCode={0} {1}'.format(res.status_code,
+                                                     res.text)
+        except:
+            errType, errValue = sys.exc_info()[:2]
+            errMsg = "failed to put with {0}:{1} ".format(errType, errValue)
+            errMsg += traceback.format_exc()
+        return False, errMsg
+
     # check server
     def check_panda(self):
         tmpStat, tmpRes = self.post_ssl('isAlive', {})
-        if tmpStat :
+        if tmpStat:
             return tmpStat, tmpRes.status_code, tmpRes.text
         else:
             return tmpStat, tmpRes
@@ -165,9 +200,9 @@ class Communicator:
             if data['state'] == 'cancelled':
                 data['jobSubStatus'] = data['state']
                 data['state'] = 'failed'
-            if jobSpec.startTime is not None:
+            if jobSpec.startTime is not None and 'startTime' not in data:
                 data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
-            if jobSpec.endTime is not None:
+            if jobSpec.endTime is not None and 'endTime' not in data:
                 data['endTime'] = jobSpec.endTime.strftime('%Y-%m-%d %H:%M:%S')
             if jobSpec.nCore is not None:
                 data['coreCount'] = jobSpec.nCore
@@ -379,7 +414,7 @@ class Communicator:
         data['harvesterID'] = harvester_config.master.harvester_id
         data['siteName'] = site_name
         data['paramsList'] = json.dumps(stats)
-        tmpLog.debug('update stats for {0}'.format(site_name))
+        tmpLog.debug('update stats for {0}, stats: {1}'.format(site_name, stats))
         tmpStat, tmpRes = self.post_ssl('reportWorkerStats', data)
         errStr = 'OK'
         if tmpStat is False:
@@ -461,3 +496,46 @@ class Communicator:
             except:
                 errStr = core_utils.dump_error_message(tmpLog)
         return retMap, errStr
+
+    # upload file
+    def upload_file(self, file_name, file_object, offset, read_bytes):
+        tmpLog = core_utils.make_logger(_logger, method_name='upload_file')
+        tmpLog.debug('start for {0} {1}:{2}'.format(file_name, offset, read_bytes))
+        file_object.seek(offset)
+        files = {'file': (file_name, zlib.compress(file_object.read(read_bytes)))}
+        tmpStat, tmpRes = self.put_ssl('updateLog', files)
+        errStr = None
+        if tmpStat is False:
+            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            errStr = tmpRes.text
+            tmpLog.debug('got {0}'.format(errStr))
+        return tmpStat, errStr
+
+    # check event availability
+    def check_event_availability(self, jobspec):
+        retStat = False
+        retVal = None
+        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                        method_name='check_event_availability')
+        tmpLog.debug('start')
+        data = dict()
+        data['taskID'] = jobspec.taskID
+        data['pandaID'] = jobspec.PandaID
+        if jobspec.jobsetID is None:
+            data['jobsetID'] = jobspec.jobParams['jobsetID']
+        else:
+            data['jobsetID'] = jobspec.jobsetID
+        tmpStat, tmpRes = self.post_ssl('checkEventsAvailability', data)
+        if tmpStat is False:
+            core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                tmpDict = tmpRes.json()
+                if tmpDict['StatusCode'] == 0:
+                    retStat = True
+                    retVal = tmpDict['nEventRanges']
+            except:
+                core_utils.dump_error_message(tmpLog, tmpRes)
+        tmpLog.debug('done with {0}'.format(retVal))
+        return retStat, retVal

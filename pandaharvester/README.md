@@ -7,6 +7,7 @@
 * **Misc**: Miscellaneous classes and modules for plugins
 * **Monitor**: Classes to monitor jobs, e.g. through SLURM, SAGA...
 * **Mover**: Base classes or tools for Preparator and Stager
+* **Payload**: Helper classes/modules and scripts for payloads
 * **Preparator**: Classes to prepare (stage **in**) data for jobs
 * **Stager**: Classes to stage **out** data
 * **Submitter**: Classes to submit jobs to the batch system

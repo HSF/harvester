@@ -22,17 +22,22 @@ setup(
     license='GPL',
     author='Panda Team',
     author_email='atlas-adc-panda@cern.ch',
-    url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
+    url='https://github.com/PanDAWMS/panda-harvester/wiki',
+    python_requires='>=2.7',
     packages=find_packages(),
     install_requires=['requests',
                       'python-daemon',
                       'future',
+                      'futures; python_version == "2.*"',
+                      'pycrypto',
+                      'panda-common-s'
                       ],
     data_files=[
         # config and cron files
         ('etc/panda', ['templates/panda_harvester.cfg.rpmnew.template',
                        'templates/logrotate.d/panda_harvester',
-                       'templates/panda_harvester-httpd.conf.rpmnew.template'
+                       'templates/panda_harvester-httpd.conf.rpmnew.template',
+                       'templates/panda_supervisord.cfg.rpmnew.template'
                        ]
          ),
         # sysconfig

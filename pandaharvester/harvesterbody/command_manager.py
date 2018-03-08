@@ -55,8 +55,7 @@ class CommandManager(AgentBase):
             # send command list to be received
             siteNames = set()
             commandList = []
-            for queueName in harvester_config.qconf.queueList:
-                queueConfig = self.queueConfigMapper.get_queue(queueName)
+            for queueName, queueConfig in iteritems(self.queueConfigMapper.get_active_queues()):
                 if queueConfig is None or queueConfig.runMode != 'slave':
                     continue
                 # one command for all queues in one site

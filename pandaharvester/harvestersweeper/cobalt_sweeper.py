@@ -4,7 +4,9 @@
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
-import shutil,os,subprocess
+import os
+import subprocess
+import shutil
 
 #==============================================================
 

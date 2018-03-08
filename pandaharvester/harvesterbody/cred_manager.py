@@ -20,7 +20,10 @@ class CredManager(AgentBase):
         moduleNames = self.get_list(harvester_config.credmanager.moduleName)
         classNames = self.get_list(harvester_config.credmanager.className)
         # file names of original certificates
-        inCertFiles = self.get_list(harvester_config.credmanager.certFile)
+        if hasattr(harvester_config.credmanager, 'inCertFile'):
+            inCertFiles = self.get_list(harvester_config.credmanager.inCertFile)
+        else:
+            inCertFiles = self.get_list(harvester_config.credmanager.certFile)
         # file names of certificates to be generated
         if hasattr(harvester_config.credmanager, 'outCertFile'):
             outCertFiles = self.get_list(harvester_config.credmanager.outCertFile)

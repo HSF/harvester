@@ -29,24 +29,34 @@ class Cacher(AgentBase):
                 return
 
     # main
-    def execute(self):
+    def execute(self, force_update=False, skip_lock=False):
         mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='execute')
         # get lock
         locked = self.dbProxy.get_process_lock('cacher', self.get_pid(), harvester_config.cacher.sleepTime)
-        if locked:
+        if locked or skip_lock:
             mainLog.debug('getting information')
             timeLimit = datetime.datetime.utcnow() - \
-                        datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
+                datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
+            itemsList = []
+            keysForceUpdate = []
             for tmpStr in harvester_config.cacher.data:
                 tmpItems = tmpStr.split('|')
                 if len(tmpItems) != 3:
                     continue
-                mainKey, subKey, infoURL = tmpItems
+                itemsList.append(tmpItems)
+            # add queues_config
+            if core_utils.get_queues_config_url() is not None:
+                tmpKey = 'queues_config_file'
+                itemsList.append((tmpKey, None, core_utils.get_queues_config_url()))
+                keysForceUpdate.append(tmpKey)
+            # loop over all items
+            for mainKey, subKey, infoURL in itemsList:
                 if subKey == '':
                     subKey = None
                 # check last update time
                 lastUpdateTime = self.dbProxy.get_cache_last_update_time(mainKey, subKey)
-                if lastUpdateTime is not None and lastUpdateTime > timeLimit:
+                if (not force_update or mainKey not in keysForceUpdate) and lastUpdateTime is not None \
+                        and lastUpdateTime > timeLimit:
                     continue
                 # get information
                 tmpStat, newInfo = self.get_data(infoURL, mainLog)
@@ -74,7 +84,7 @@ class Cacher(AgentBase):
                         pass
             except:
                 core_utils.dump_error_message(tmp_log)
-        elif info_url.startswith('http:'):
+        elif info_url.startswith('http'):
             try:
                 res = requests.get(info_url, timeout=60)
                 if res.status_code == 200:

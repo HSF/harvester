@@ -9,11 +9,14 @@ import daemon.pidfile
 import argparse
 import threading
 import cProfile
+import atexit
 from future.utils import iteritems
 try:
     import pprofile
 except:
     pass
+
+from pandalogger import logger_config
 
 from pandaharvester import commit_timestamp
 from pandaharvester import panda_pkg_info
@@ -66,7 +69,13 @@ class Master(object):
         from pandaharvester.harvesterbody.cacher import Cacher
         thr = Cacher(self.communicatorPool, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
-        thr.execute()
+        thr.execute(force_update=True, skip_lock=True)
+        thr.start()
+        thrList.append(thr)
+        # Watcher
+        from pandaharvester.harvesterbody.watcher import Watcher
+        thr = Watcher(single_mode=self.singleMode)
+        thr.set_stop_event(self.stopEvent)
         thr.start()
         thrList.append(thr)
         # Job Fetcher
@@ -174,8 +183,14 @@ class StdErrWrapper(object):
     def write(self, message):
         _logger.error(message)
 
+    def flush(self):
+        _logger.handlers[0].flush()
+
     def fileno(self):
         return _logger.handlers[0].stream.fileno()
+
+    def isatty(self):
+        return _logger.handlers[0].stream.isatty()
 
 
 # profiler
@@ -203,15 +218,24 @@ def main(daemon_mode=True):
                         help='profile mode. s (statistic), d (deterministic), or t (thread-aware)')
     parser.add_argument('--memory_logging', action='store_true', dest='memLogging', default=False,
                         help='add information of memory usage in each logging message')
+    parser.add_argument('--foreground', action='store_true', dest='foreground', default=False,
+                        help='run in the foreground not to be daemonized')
     options = parser.parse_args()
     # show version information
     if options.showVersion:
         print ("Version : {0}".format(panda_pkg_info.release_version))
         print ("Last commit : {0}".format(commit_timestamp.timestamp))
         return
+    # check pid
+    if options.pid is not None and os.path.exists(options.pid):
+        print ("ERROR: Cannot start since lock file {0} already exists".format(options.pid))
+        return
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
     gid = grp.getgrnam(harvester_config.master.gname).gr_gid
+    # get umask
+    umask = os.umask(0)
+    os.umask(umask)
     # memory logging
     if options.memLogging:
         core_utils.enable_memory_profiling()
@@ -224,7 +248,7 @@ def main(daemon_mode=True):
         core_utils.do_log_rollover()
         if hasattr(_logger.handlers[0], 'doRollover'):
             _logger.handlers[0].doRollover()
-    if daemon_mode:
+    if daemon_mode and not options.foreground:
         # redirect messages to stdout
         stdoutHandler = logging.StreamHandler(sys.stdout)
         stdoutHandler.setFormatter(_logger.handlers[0].formatter)
@@ -242,14 +266,19 @@ def main(daemon_mode=True):
                                   stderr=sys.stderr,
                                   uid=uid,
                                   gid=gid,
+                                  umask=umask,
                                   files_preserve=files_preserve,
                                   pidfile=daemon.pidfile.PIDLockFile(options.pid))
     else:
         dc = DummyContext()
     with dc:
-        if daemon_mode:
-            _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
-                                                                           commit_timestamp.timestamp))
+        # remove pidfile to prevent child processes crashing in atexit
+        if not options.singleMode:
+            dc.pidfile = None
+        core_utils.set_file_permission(options.pid)
+        core_utils.set_file_permission(logger_config.daemon['logdir'])
+        _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
+                                                                       commit_timestamp.timestamp))
 
         # stop event
         stopEvent = threading.Event()
@@ -278,23 +307,45 @@ def main(daemon_mode=True):
                 prof.dump_stats(options.profileOutput)
                 prof = None
 
+        # delete PID
+        def delete_pid(pid):
+            try:
+                os.remove(pid)
+            except:
+                pass
+
         # signal handlers
         def catch_sigkill(sig, frame):
             disable_profiler()
+            _logger.info('got signal={0} to be killed'.format(sig))
             try:
                 os.remove(options.pid)
             except:
                 pass
-            os.killpg(os.getpgrp(), signal.SIGKILL)
+            try:
+                if os.getppid() == 1:
+                    os.killpg(os.getpgrp(), signal.SIGKILL)
+                else:
+                    os.kill(os.getpid(), signal.SIGKILL)
+            except:
+                core_utils.dump_error_message(_logger)
+                _logger.error('failed to be killed')
 
         def catch_sigterm(sig, frame):
+            _logger.info('got signal={0} to be terminated'.format(sig))
             stopEvent.set()
+            # register del function
+            if os.getppid() == 1:
+                atexit.register(delete_pid, options.pid)
+            # set alarm just in case
+            signal.alarm(30)
 
         # set handler
         if daemon_mode:
             signal.signal(signal.SIGINT, catch_sigkill)
             signal.signal(signal.SIGHUP, catch_sigkill)
             signal.signal(signal.SIGTERM, catch_sigkill)
+            signal.signal(signal.SIGALRM, catch_sigkill)
             signal.signal(signal.SIGUSR2, catch_sigterm)
         # start master
         master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)

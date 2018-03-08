@@ -1,10 +1,16 @@
 import os
 import json
+import copy
+import datetime
+import threading
 from future.utils import iteritems
+
 
 from pandaharvester.harvesterconfig import harvester_config
 from .work_spec import WorkSpec
 from .panda_queue_spec import PandaQueueSpec
+from . import core_utils
+from .db_proxy_pool import DBProxyPool as DBProxy
 
 
 # class for queue config
@@ -26,6 +32,9 @@ class QueueConfig:
         self.getJobCriteria = None
         self.ddmEndpointIn = None
         self.allowJobMixture = False
+        self.maxSubmissionAttempts = 3
+        self.truePilot = False
+        self.queueStatus = 'online'
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -35,63 +44,156 @@ class QueueConfig:
     def is_no_heartbeat_status(self, status):
         return status in self.get_no_heartbeat_status()
 
+    # str
+    def __str__(self):
+        tmpStr = ''
+        pluginStr = ''
+        for key, val in iteritems(self.__dict__):
+            if isinstance(val, dict):
+                pluginStr += '{0} :\n'.format(key)
+                for pKey, pVal in iteritems(val):
+                    pluginStr += '  {0} = {1}\n'.format(pKey, pVal)
+            else:
+                tmpStr += '{0} = {1}\n'.format(key, val)
+        return tmpStr + pluginStr
+
 
 # mapper
 class QueueConfigMapper:
     # constructor
     def __init__(self):
-        self.queueConfig = {}
-        # define config file path
-        if os.path.isabs(harvester_config.qconf.configFile):
-            confFilePath = harvester_config.qconf.configFile
-        else:
-            # check if in PANDA_HOME
-            confFilePath = None
-            if 'PANDA_HOME' in os.environ:
-                confFilePath = os.path.join(os.environ['PANDA_HOME'],
-                                            'etc/panda',
-                                            harvester_config.qconf.configFile)
-                if not os.path.exists(confFilePath):
-                    confFilePath = None
-            # look into /etc/panda
-            if confFilePath is None:
-                confFilePath = os.path.join('/etc/panda',
-                                            harvester_config.qconf.configFile)
-        # load config from json
-        f = open(confFilePath)
-        queueConfigJson = json.load(f)
-        f.close()
-        # set attributes
-        for queueName, queueDict in iteritems(queueConfigJson):
-            queueConfig = QueueConfig(queueName)
-            for key, val in iteritems(queueDict):
-                setattr(queueConfig, key, val)
-            # queueName = siteName/resourceType
-            queueConfig.siteName = queueConfig.queueName.split('/')[0]
-            if queueConfig.siteName != queueConfig.queueName:
-                queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
-            # additional criteria for getJob
-            if queueConfig.getJobCriteria is not None:
-                tmpCriteria = dict()
-                for tmpItem in queueConfig.getJobCriteria.split(','):
-                    tmpKey, tmpVal = tmpItem.split('=')
-                    tmpCriteria[tmpKey] = tmpVal
-                if len(tmpCriteria) == 0:
-                    queueConfig.getJobCriteria = None
-                else:
-                    queueConfig.getJobCriteria = tmpCriteria
-            self.queueConfig[queueName] = queueConfig
+        self.lock = threading.Lock()
+        self.lastUpdate = None
+
+    # load data
+    def load_data(self):
+        with self.lock:
+            # check interval
+            timeNow = datetime.datetime.utcnow()
+            if self.lastUpdate is not None and timeNow - self.lastUpdate < datetime.timedelta(minutes=10):
+                return
+            newQueueConfig = {}
+            queueConfigJsonList = []
+            # load config json on URL
+            if core_utils.get_queues_config_url() is not None:
+                dbProxy = DBProxy()
+                queueConfigJson = dbProxy.get_cache('queues_config_file')
+                if queueConfigJson is not None:
+                    queueConfigJsonList.append(queueConfigJson.data)
+            # define config file path
+            if os.path.isabs(harvester_config.qconf.configFile):
+                confFilePath = harvester_config.qconf.configFile
+            else:
+                # check if in PANDA_HOME
+                confFilePath = None
+                if 'PANDA_HOME' in os.environ:
+                    confFilePath = os.path.join(os.environ['PANDA_HOME'],
+                                                'etc/panda',
+                                                harvester_config.qconf.configFile)
+                    if not os.path.exists(confFilePath):
+                        confFilePath = None
+                # look into /etc/panda
+                if confFilePath is None:
+                    confFilePath = os.path.join('/etc/panda',
+                                                harvester_config.qconf.configFile)
+            # load config from local json file
+            f = open(confFilePath)
+            queueConfigJson = json.load(f)
+            f.close()
+            queueConfigJsonList.append(queueConfigJson)
+            # get all queue names
+            queueNameList = set()
+            for queueConfigJson in queueConfigJsonList:
+                queueNameList |= set(queueConfigJson.keys())
+            templateQueueList = set()
+            # set attributes
+            for queueName in queueNameList:
+                for queueConfigJson in queueConfigJsonList:
+                    queueDictList = []
+                    if queueName in queueConfigJson:
+                        queueDict = queueConfigJson[queueName]
+                        queueDictList.append(queueDict)
+                        # template
+                        if 'templateQueueName' in queueDict:
+                            templateQueueName = queueDict['templateQueueName']
+                            templateQueueList.add(templateQueueName)
+                            if templateQueueName in queueConfigJson:
+                                queueDictList.insert(0, queueConfigJson[templateQueueName])
+                    for queueDict in queueDictList:
+                        if queueName in newQueueConfig:
+                            queueConfig = newQueueConfig[queueName]
+                        else:
+                            queueConfig = QueueConfig(queueName)
+                        # queueName = siteName/resourceType
+                        queueConfig.siteName = queueConfig.queueName.split('/')[0]
+                        if queueConfig.siteName != queueConfig.queueName:
+                            queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
+                        for key, val in iteritems(queueDict):
+                            if isinstance(val, dict) and 'module' in val and 'name' in val:
+                                val = copy.copy(val)
+                                if 'siteName' not in val:
+                                    val['siteName'] = queueConfig.siteName
+                                if 'queueName' not in val:
+                                    val['queueName'] = queueConfig.queueName
+                            setattr(queueConfig, key, val)
+                        # additional criteria for getJob
+                        if queueConfig.getJobCriteria is not None:
+                            tmpCriteria = dict()
+                            for tmpItem in queueConfig.getJobCriteria.split(','):
+                                tmpKey, tmpVal = tmpItem.split('=')
+                                tmpCriteria[tmpKey] = tmpVal
+                            if len(tmpCriteria) == 0:
+                                queueConfig.getJobCriteria = None
+                            else:
+                                queueConfig.getJobCriteria = tmpCriteria
+                        # removal of some attributes based on mapType
+                        if queueConfig.mapType == WorkSpec.MT_NoJob:
+                            for attName in ['nQueueLimitJob']:
+                                if hasattr(queueConfig, attName):
+                                    delattr(queueConfig, attName)
+                        # heartbeat suppression
+                        if queueConfig.truePilot and queueConfig.noHeartbeat == '':
+                            queueConfig.noHeartbeat = 'running,transferring,finished,failed'
+                        newQueueConfig[queueName] = queueConfig
+            # delete templates
+            for templateQueueName in templateQueueList:
+                if templateQueueName in newQueueConfig:
+                    del newQueueConfig[templateQueueName]
+            # get active queues
+            activeQueues = dict()
+            for queueName, queueConfig in iteritems(newQueueConfig):
+                if queueConfig.queueStatus != 'online':
+                    continue
+                if 'ALL' not in harvester_config.qconf.queueList and \
+                        queueName not in harvester_config.qconf.queueList:
+                    continue
+                activeQueues[queueName] = queueConfig
+            self.queueConfig = newQueueConfig
+            self.activeQueues = activeQueues
+            self.lastUpdate = datetime.datetime.utcnow()
+        # update database
+        dbProxy = DBProxy()
+        dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self)
 
     # check if valid queue
     def has_queue(self, queue_name):
+        self.load_data()
         return queue_name in self.queueConfig
 
     # get queue config
     def get_queue(self, queue_name):
-        if not self.has_queue(queue_name):
+        self.load_data()
+        if queue_name not in self.queueConfig:
             return None
-        return self.queueConfig[queue_name]
+        else:
+            return self.queueConfig[queue_name]
 
     # all queue configs
     def get_all_queues(self):
+        self.load_data()
         return self.queueConfig
+
+    # all active queue config
+    def get_active_queues(self):
+        self.load_data()
+        return self.activeQueues

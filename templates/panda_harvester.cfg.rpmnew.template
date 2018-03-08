@@ -86,6 +86,12 @@ pandaURLSSL = https://pandaserver.cern.ch:25443/server/panda
 # base URL via proxy
 pandaURLProxy = http://pandaserver.cern.ch:25080/server/panda
 
+# base URL for write access to log cache server
+pandaCacheURL_W = https://aipanda011.cern.ch:25443/server/panda
+
+# base URL for read access to log cache server
+pandaCacheURL_R = https://aipanda011.cern.ch:25443/cache
+
 # verbose
 verbose = False
 
@@ -102,7 +108,7 @@ verbose = False
 # config file
 configFile = panda_queueconfig.json
 
-# queue list : one queue name following a whitespace per line
+# queue list : one queue name following a whitespace per line. Or just ALL if all queues in the configFile are used
 queueList =
  FIXME_1
  FIXME_2
@@ -225,6 +231,9 @@ sleepTime = 60
 # number of threads
 nThreads = 3
 
+# max number of workers per queue to try in one cycle
+maxWorkers = 500
+
 # max number of queues to try in one cycle
 nQueues = 3
 
@@ -289,7 +298,7 @@ className =
  NoVomsCredManager
 
 # original certificate file to generate new short-lived certificate
-certFile =
+inCertFile =
  /path_to/FIXME_original_cert_for_proxy_with_production_role
  /path_to/FIXME_original_cert_for_proxy_with_pilot_role
 
@@ -438,6 +447,10 @@ xmlPoolCatalogFile = PoolFileCatalog_H.xml
 # get PandaIDs
 pandaIDsFile = worker_pandaids.json
 
+# kill request
+killWorkerFile = kill_worker.json
+
+
 
 
 
@@ -491,3 +504,59 @@ keepFailed = 72
 
 # duration in hours to keep cancelled workers
 keepCancelled = 72
+
+# duration in hours to keep missed workers
+keepMissed = 24
+
+
+
+
+
+##########################
+#
+# Watcher parameters
+#
+
+[watcher]
+
+# action is taken when the last message is older than maxStalled sec. set 0 to disable the action
+maxStalled = 300
+
+# the number of messages to check interval
+nMessages = 1000
+
+# action is taken when it took more than maxDuration sec to generate nMessages messages. set 0 to disable the action
+maxDuration = 600
+
+# check interval in sec
+checkInterval = 180
+
+# sleep interval in sec
+sleepTime = 60
+
+# a comma-concatenated list of actions (email: to send alarms, kill: to be killed). or empty if no action
+actions =
+
+# name of env variable to keep pass-phrase
+passphraseEnv = HARVESTER_WATCHER_PASSPHRASE
+
+# hostname of SMTP server. note that parameters with the prefix of "mail" are required on
+mailServer = localhost
+
+# port of SMTP server
+mailPort = 25
+
+# use SSL for SMTP
+mailUseSSL = False
+
+# login user of SMTP server if any. leave it empty if SMTP doesn't need to logon
+mailUser =
+
+# login password of SMTP server if any. leave it empty if SMTP doesn't need to logon
+mailPassword =
+
+# email sender
+mailFrom = example_from@example.com
+
+# a comma-concatenated list of email recipients
+mailTo = example_to_1@example.com,example_to_2@example.com
