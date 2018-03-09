@@ -275,7 +275,8 @@ def main(daemon_mode=True):
         # remove pidfile to prevent child processes crashing in atexit
         if not options.singleMode:
             dc.pidfile = None
-        core_utils.set_file_permission(options.pid)
+        if options.pid:
+            core_utils.set_file_permission(options.pid)
         core_utils.set_file_permission(logger_config.daemon['logdir'])
         _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version,
                                                                        commit_timestamp.timestamp))
@@ -335,7 +336,7 @@ def main(daemon_mode=True):
             _logger.info('got signal={0} to be terminated'.format(sig))
             stopEvent.set()
             # register del function
-            if os.getppid() == 1:
+            if os.getppid() == 1 and options.pid:
                 atexit.register(delete_pid, options.pid)
             # set alarm just in case
             signal.alarm(30)
