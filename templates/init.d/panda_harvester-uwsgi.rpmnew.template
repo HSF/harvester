@@ -32,7 +32,7 @@ PIDFILE=${LOG_DIR}/panda_harvester.pid
 HSTDOUT=${LOG_DIR}/panda_harvester_stdout.log
 HSTDERR=${LOG_DIR}/panda_harvester_stderr.log
 
-#uwsgi socket
+# uwsgi socket
 uwsgiSocket="127.0.0.1:3334"
 
 # number of uwsgi processes and threads
@@ -48,7 +48,7 @@ maxCheckAttempts=30
 # load module python
 . ${VIRTUAL_ENV}/bin/activate
 
-# Source harvester env variables
+# source harvester env variables
 if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
@@ -103,9 +103,9 @@ function check_pidfile_children_running () {
         sleep $checkInterval
         _old_processes=`echo $@`
         _processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
-        ERROR=$?
+        retCode=$?
         _processes=`echo $_processes`
-	if [ $ERROR = 0 ] && [ "$_processes" != "$_old_processes" ]; then
+	if [ $retCode = 0 ] && [ "$_processes" != "$_old_processes" ]; then
             return 0
         fi
     done
