@@ -64,6 +64,7 @@ class Monitor(AgentBase):
                     pandaIDsList = []
                     eventsToUpdateList = []
                     filesToStageOutList = []
+                    mapType = workSpecs[0].mapType
                     for workSpec in workSpecs:
                         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                                         method_name='run')
@@ -118,7 +119,7 @@ class Monitor(AgentBase):
                     # update jobs and workers
                     if jobSpecs is not None:
                         tmpQueLog.debug('updating {0} jobs with {1} workers'.format(len(jobSpecs), len(workSpecs)))
-                        core_utils.update_job_attributes_with_workers(queueConfig.mapType, jobSpecs, workSpecs,
+                        core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs,
                                                                       filesToStageOutList, eventsToUpdateList)
                         for jobSpec in jobSpecs:
                             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
@@ -159,7 +160,7 @@ class Monitor(AgentBase):
             filesToStageOut = []
             nJobsToReFill = None
             # job-level late binding
-            if workSpec.hasJob == 0 and queue_config.mapType != WorkSpec.MT_NoJob:
+            if workSpec.hasJob == 0 and workSpec.mapType != WorkSpec.MT_NoJob:
                 # check if job is requested
                 jobRequested = messenger.job_requested(workSpec)
                 if jobRequested:
@@ -211,7 +212,7 @@ class Monitor(AgentBase):
                         eventsRequestParams = messenger.events_requested(workSpec)
                         retMap[workerID]['eventsRequestParams'] = eventsRequestParams
                     # get PandaIDs for pull model
-                    if queue_config.mapType == WorkSpec.MT_NoJob:
+                    if workSpec.mapType == WorkSpec.MT_NoJob:
                         pandaIDs = messenger.get_panda_ids(workSpec)
                     retMap[workerID]['pandaIDs'] = pandaIDs
                     # keep original new status
@@ -228,7 +229,7 @@ class Monitor(AgentBase):
                                                                                 None, True,
                                                                                 only_running=True)
                                 # post processing
-                                messenger.post_processing(workSpec, jobSpecs, queue_config.mapType)
+                                messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
                             workSpec.post_processed()
                             newStatus = WorkSpec.ST_running
                         # reset modification time to immediately trigger subsequent lookup

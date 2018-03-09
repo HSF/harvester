@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import datetime
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -49,11 +50,17 @@ xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
 # json to get PandaIDs
 pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
 
-# json to kill worker
+# json to kill worker itself
 try:
     killWorkerFile = harvester_config.payload_interaction.killWorkerFile
 except:
     killWorkerFile = 'kill_worker.json'
+
+# json for heartbeats from the worker
+try:
+    heartbeatFile = harvester_config.payload_interaction.heartbeatFile
+except:
+    heartbeatFile = 'worker_heartbeat.json'
 
 # suffix to read json
 suffixReadJson = '.read'
@@ -547,7 +554,7 @@ class SharedFileMessenger(PluginBase):
         tmpLog.debug('found')
         return retVal
 
-    # check if requested to kill the worker
+    # check if requested to kill the worker itself
     def kill_requested(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
@@ -561,3 +568,26 @@ class SharedFileMessenger(PluginBase):
             return False
         tmpLog.debug('kill requested')
         return True
+
+    # check if the worker is alive
+    def is_alive(self, workspec, time_limit):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='is_alive')
+        # json file
+        jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
+        tmpLog.debug('looking for kill request file {0}'.format(jsonFilePath))
+        if not os.path.exists(jsonFilePath):
+            tmpLog.debug('not found')
+            return None
+        try:
+            mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(jsonFilePath))
+            tmpLog.debug('last modification time : {0}'.format(mtime))
+            if datetime.datetime.utcnow() - mtime > datetime.timedelta(minutes=time_limit):
+                tmpLog.debug('too old')
+                return False
+            tmpLog.debug('OK')
+            return True
+        except:
+            tmpLog.debug('failed to get mtime')
+            return None

@@ -447,10 +447,11 @@ xmlPoolCatalogFile = PoolFileCatalog_H.xml
 # get PandaIDs
 pandaIDsFile = worker_pandaids.json
 
-# kill request
+# request to be killed
 killWorkerFile = kill_worker.json
 
-
+# heartbeat from worker
+heartbeatFile = worker_heartbeat.json
 
 
 
