@@ -46,11 +46,13 @@ maxCheckAttempts=30
 #======= END CONFIGURATION SECTION ============================
 
 # load module python
-. ${VIRTUAL_ENV}/bin/activate
+if [ -r ${VIRTUAL_ENV}/bin/activate ]; then
+    . ${VIRTUAL_ENV}/bin/activate
+fi
 
 # source harvester env variables
 if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
-   . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
 
 # the path to application

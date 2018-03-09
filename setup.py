@@ -46,7 +46,8 @@ setup(
          ),
         # init script
         ('etc/rc.d/init.d', ['templates/init.d/panda_harvester.rpmnew.template',
-                             'templates/init.d/panda_harvester-apachectl.rpmnew.template'
+                             'templates/init.d/panda_harvester-apachectl.rpmnew.template',
+                             'templates/init.d/panda_harvester-uwsgi.rpmnew.template',
                              ]
          ),
         ],
