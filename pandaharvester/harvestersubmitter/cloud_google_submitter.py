@@ -55,17 +55,18 @@ def create_vm(work_spec):
                                                                                       work_spec.maxWalltime))
 
     vm = GoogleVM(work_spec)
-    tmp_log.debug('Going to submit VM {0}'.format(vm.name))
-    operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
-    tmp_log.debug('Submitting VM {0}'.format(vm.name))
-    wait_for_operation(PROJECT, ZONE, operation['name'])
-    tmp_log.debug('Submitted VM {0}'.format(vm.name))
-
-    #work_spec.batchID = operation['targetId']
     work_spec.batchID = vm.name
-    tmp_log.debug('booted VM {0}'.format(vm.name))
 
-    return (True, 'OK'), work_spec.get_changed_attributes()
+    try:
+        tmp_log.debug('Going to submit VM {0}'.format(vm.name))
+        operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
+        tmp_log.debug('Submitting VM {0}'.format(vm.name))
+        wait_for_operation(PROJECT, ZONE, operation['name'])
+        tmp_log.debug('Submitted VM {0}'.format(vm.name))
+
+        return (True, 'OK'), work_spec.get_changed_attributes()
+    except Exception as e:
+        return (False, str(e)), work_spec.get_changed_attributes()
 
 
 class GoogleSubmitter(PluginBase):
