@@ -108,7 +108,7 @@ function check_pidfile_children_respawn () {
         _processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
         ERROR=$?
         if [ $ERROR = 0 ]; then
-            _old_process=$(python -c "print(' '.join('$_old_processes'.split()))")
+            _old_processes=$(python -c "print(' '.join('$_old_processes'.split()))")
             _processes=$(python -c "print(' '.join('`echo $_processes`'.split()))")
             [ "$_processes" != "$_old_processes" ] \
             && [ $(python -c "print(len('`echo $_processes`'.split()[1:]))") -ge "$nProcesses" ] \
