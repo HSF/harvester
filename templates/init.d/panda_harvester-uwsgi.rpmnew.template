@@ -56,7 +56,7 @@ if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
 fi
 
 # the path to application
-PROGNAME="uwsgi --socket ${uwsgiSocket} --master --plugins python
+PROGNAME="uwsgi --socket ${uwsgiSocket} --master --chdir ${VIRTUAL_ENV}
     --wsgi-file ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
     --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
     --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}"
