@@ -32,7 +32,7 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
-logger.info('HPC Pilot ver. 0.003a')
+logger.info('HPC Pilot ver. 0.004')
 
 # TODO: loglevel as input parameter
 
@@ -43,9 +43,9 @@ def parse_jobreport_data(job_report):
 
     # these are default values for job metrics
     core_count = 16
-    work_attributes["n_events"] = 0
-    work_attributes["__db_time"] = "undef"
-    work_attributes["__db_data"] = "undef"
+    work_attributes["nEvents"] = 0
+    work_attributes["dbTime"] = "undef"
+    work_attributes["dbData"] = "undef"
 
     class DictQuery(dict):
         def get(self, path, dst_dict, dst_key):
@@ -67,12 +67,12 @@ def parse_jobreport_data(job_report):
         core_count = os.environ['ATHENA_PROC_NUMBER']
 
     dq = DictQuery(job_report)
-    dq.get("resource/transform/processedEvents", work_attributes, "n_events")
+    dq.get("resource/transform/processedEvents", work_attributes, "nEvents")
     dq.get("resource/transform/cpuTimeTotal", work_attributes, "cpuConsumptionTime")
     dq.get("resource/machine/node", work_attributes, "node")
     dq.get("resource/machine/model_name", work_attributes, "cpuConsumptionUnit")
-    dq.get("resource/dbTimeTotal", work_attributes, "__db_time")
-    dq.get("resource/dbDataTotal", work_attributes, "__db_data")
+    dq.get("resource/dbTimeTotal", work_attributes, "dbTime")
+    dq.get("resource/dbDataTotal", work_attributes, "dbData")
     dq.get("exitCode", work_attributes, "transExitCode")
     dq.get("exitMsg", work_attributes, "exeErrorDiag")
 
@@ -97,15 +97,16 @@ def parse_jobreport_data(job_report):
         work_attributes['nInputFiles'] = nInputFiles
 
     #workdir_size = get_workdir_size()
-    work_attributes['jobMetrics'] = 'core_count=%s n_events=%s db_time=%s db_data=%s' % \
-                                    (core_count,
-                                        work_attributes["n_events"],
-                                        work_attributes["__db_time"],
-                                        work_attributes["__db_data"])
-    del(work_attributes["__db_time"])
-    del(work_attributes["__db_data"])
+    work_attributes['jobMetrics'] = 'coreCount=%s nEvents=%s dbTime=%s dbData=%s' % \
+                                    (   core_count,
+                                        work_attributes["nEvents"],
+                                        work_attributes["dbTime"],
+                                        work_attributes["dbData"])
+    del(work_attributes["dbData"])
+    del(work_attributes["dbTime"])
 
     return work_attributes
+
 
 def get_setup(job):
 
@@ -169,6 +170,8 @@ def main():
     hostname = gethostname()
     logger.info("Pilot statrted at {0} on {1}".format(start_g_str, hostname))
     starting_point = os.getcwd()
+    scratch_path = '/tmp/scratch/'
+    cleanup_pathes()
 
     work_report = {}
     work_report["jobStatus"] = "starting"
@@ -202,27 +205,35 @@ def main():
     logger.debug("Job [{0}] will be processed".format(job_id))
     os.chdir(str(job_id))
     worker_communication_point = os.getcwd()
+
     work_report['workdir'] = worker_communication_point
+    workerAttributesFile = os.path.join(worker_communication_point, workerAttributesFile)
+    workerAttributesFile = os.path.join(worker_communication_point, workerAttributesFile)
+    trans_job_workdir = os.path.join(scratch_path, str(job_id))
+
     jobs_dict = read_json("HPCJobs.json")
     job_dict = jobs_dict[str(job_id)]
 
     job = JobDescription()
     job.load(job_dict)
+    # add path to input files in RAM
+    for inp_file in job.input_files:
+        job.input_files[inp_file]["scratch_path"] = os.path.join(trans_job_workdir, inp_file)
+
     job.startTime = ""
     job.endTime = ""
     setup_str = "; ".join(get_setup(job))
+
+    job_working_dir = titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point, job)
+
     my_command = " ".join([job.script,job.script_parameters])
-    my_command = titan_command_fix(my_command)
-    #my_command = my_command.strip()
+    my_command = titan_command_fix(my_command, job_working_dir)
     my_command = setup_str + my_command
     logger.debug("Going to launch: {0}".format(my_command))
-    wd_path = os.getcwd()
-    logger.debug("Current work directory: {0}".format(wd_path))
+    logger.debug("Current work directory: {0}".format(job_working_dir))
     payloadstdout = open("athena_stdout.txt", "w")
     payloadstderr = open("athena_stderr.txt", "w")
-    titan_prepare_wd()
 
-    job_working_dir = os.getcwd()
     job.state = 'running'
     work_report["jobStatus"] = job.state
     start_time = time.asctime(time.localtime(time.time()))
@@ -244,15 +255,17 @@ def main():
     else:
         job.state = 'failed'
     job.exitcode = exit_code
+
     work_report["endTime"] = job.endTime
     work_report["jobStatus"] = job.state
     work_report["cpuConsumptionTime"] = t_tot
     work_report["transExitCode"] = job.exitcode
-    logger.info("Payload exit code: {0}".format(exit_code))
-    logger.info("CPU comsumption time: {0}".format(t_tot))
-    logger.info("Start time: {0}".format(start_time))
-    logger.info("End time: {0}".format(end_time))
-    logger.info("Execution time: {0} sec.".format(exetime))
+
+    logger.info("Payload exit code: {0} JobID: {1}".format(exit_code, job_id))
+    logger.info("CPU comsumption time: {0}  JobID: {1}".format(t_tot, job_id))
+    logger.info("Start time: {0}  JobID: {1}".format(start_time, job_id))
+    logger.info("End time: {0}  JobID: {1}".format(end_time, job_id))
+    logger.info("Execution time: {0} sec.  JobID: {1}".format(exetime, job_id))
     logger.debug("Job report start time: {0}".format(job.startTime))
     logger.debug("Job report end time: {0}".format(job.endTime))
     payload_report_file = 'jobReport.json'
@@ -261,6 +274,8 @@ def main():
         work_report.update(payload_report)
 
     titan_postprocess_wd(job_working_dir)
+
+    # log file not produced (yet)
     protectedfiles = job.output_files.keys()
     if job.log_file in protectedfiles:
         protectedfiles.remove(job.log_file)
@@ -272,13 +287,23 @@ def main():
     protectedfiles.extend([workerAttributesFile, StageOutnFile])
     removeRedundantFiles(job_working_dir, protectedfiles)
     cleanup_time = time.time() - cleanup_strat
-    logger.info("Cleanup took: {0}".format(cleanup_time))
+    logger.info("Cleanup took: {0} sec.".format(cleanup_time))
     res = packlogs(job_working_dir,protectedfiles,job.log_file)
     if res > 0:
         job.state = 'failed'
         work_report['pilotErrorCode'] = 1164 # Let's take this as closed one
         work_report['jobStatus'] = job.state
         main_exit(0, work_report, workerAttributesFile)
+
+    # Copy of output to shared FS for stageout
+    if not  job_working_dir == worker_communication_point:
+        cp_start = time.time()
+        for outfile in job.output_files.keys():
+            if os.path.exists(outfile):
+                shutil.copyfile(os.path.join(job_working_dir,outfile),os.path.join(worker_communication_point,outfile))
+        os.chdir(worker_communication_point)
+        cp_time = time.time() - cp_start
+        logger.info("Copy of outputs took: {0} sec.".format(cp_time))
 
     logger.info("Declare stage-out")
     out_file_report = {}
@@ -312,13 +337,16 @@ def main():
     main_exit(0, work_report, workerAttributesFile)
 
 
-def titan_command_fix(command):
+def titan_command_fix(command, job_working_dir):
 
     subs_a = command.split()
     for i in range(len(subs_a)):
         if i > 0:
             if '(' in subs_a[i] and not subs_a[i][0] == '"':
                 subs_a[i] = '"'+subs_a[i]+'"'
+            if subs_a[i].startswith("--inputEVNTFile"):
+                filename = subs_a[i].split("=")[1]
+                subs_a[i] = subs_a[i].replace(filename, os.path.join(job_working_dir, filename))
 
     command = ' '.join(subs_a)
     command = command.strip()
@@ -327,12 +355,11 @@ def titan_command_fix(command):
     return command
 
 
-def titan_prepare_wd():
+def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point,job):
 
     #---------
-    # Copy Poolcond files to scratch (RAMdisk, ssd, etc) to cope high IO
+    # Copy Poolcond files to scratch (RAMdisk, ssd, etc) to cope high IO. MOve execution to RAM disk
 
-    scratch_path = '/tmp/scratch/'
     dst_db_path = 'sqlite200/'
     dst_db_filename = 'ALLP200.db'
     dst_db_path_2 = 'geomDB/'
@@ -351,21 +378,26 @@ def titan_prepare_wd():
             if not os.path.exists(scratch_path + dst_db_path_2):
                 os.makedirs(scratch_path + dst_db_path_2)
             shutil.copyfile(src_file_2, scratch_path + dst_db_path_2 + dst_db_filename_2)
+            if not os.path.exists(trans_job_workdir):
+                os.makedirs(trans_job_workdir)
+            for inp_file in job.input_files:
+                shutil.copyfile(os.path.join(worker_communication_point, inp_file), job.input_files[inp_file]["scratch_path"])
         except:
             logger.error("Copy to scratch failed, execution terminated':  \n %s " % (sys.exc_info()[1]))
             main_exit(1, "Copy to scratch failed, execution terminated")
     else:
-        logger.error('Scratch directory (%s) dose not exist, execution terminated' % scratch_path)
-        return False
-    logger.debug("Current directory: {0}".format(os.getcwd()))
+        logger.info('Scratch directory (%s) dose not exist' % scratch_path)
+        return worker_communication_point
 
+    os.chdir(trans_job_workdir)
+    logger.debug("Current directory: {0}".format(os.getcwd()))
     true_dir = '/ccs/proj/csc108/AtlasReleases/21.0.15/nfs_db_files'
     pseudo_dir = "./poolcond"
     os.symlink(true_dir, pseudo_dir)
     copy_time = time.time() - copy_start
     logger.info('Special Titan setup took: {0}'.format(copy_time))
 
-    return True
+    return trans_job_workdir
 
 
 def titan_postprocess_wd(jobdir):
@@ -580,6 +612,34 @@ def del_empty_dirs(src_dir):
             os.rmdir(dirpath)
         except OSError as ex:
             pass
+    return 0
+
+
+def cleanup_pathes(pathprefix = "/lustre/"):
+    """"
+    Cleanup of PATH, LD_PATH etc from entities, which points to shared file system required to reduce IO from traversing
+    of python libraries
+    """
+    path = os.environ['PATH'].split(':')
+    for p in path[:]:
+        if p.startswith("/lustre/"):
+            path.remove(p)
+    ppath = os.environ['PYTHONPATH'].split(':')
+    for p in ppath[:]:
+        if p.startswith("/lustre/"):
+            ppath.remove(p)
+    ldpath = os.environ['LD_LIBRARY_PATH'].split(':')
+    for p in ldpath[:]:
+        if p.startswith("/lustre/"):
+            ldpath.remove(p)
+
+    os.environ['PATH'] = ':'.join(path)
+    os.putenv('PATH', ':'.join(path))
+    os.environ['PYTHONPATH'] = ':'.join(ppath)
+    os.putenv('PYTHONPATH', ':'.join(ppath))
+    os.environ['LD_LIBRARY_PATH'] = ':'.join(ldpath)
+    os.putenv('LD_LIBRARY_PATH', ':'.join(ldpath))
+
     return 0
 
 if __name__ == "__main__":
