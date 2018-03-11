@@ -87,7 +87,7 @@ class CloudOpenstackSubmitter(PluginBase):
         except Exception as _e:
             errStr = 'Failed to create a VM with name={0} ; {1}'.format(vm_name, _e)
             tmpLog.error(errStr)
-            tmpRetVal = (False, errStr)
+            tmpRetVal = (None, errStr)
             return tmpRetVal
 
         # create a VM
@@ -100,7 +100,7 @@ class CloudOpenstackSubmitter(PluginBase):
         except Exception as _e:
             errStr = 'Failed to create a VM with name={0} ; {1}'.format(vm_name, _e)
             tmpLog.error(errStr)
-            tmpRetVal = (False, errStr)
+            tmpRetVal = (None, errStr)
         else:
             try:
                 vm_server = self.vm_client.nova.servers.list(search_opts={'name': vm_name}, limit=1)[0]
@@ -108,7 +108,7 @@ class CloudOpenstackSubmitter(PluginBase):
             except Exception as _e:
                 errStr = 'Failed to create a VM with name={0} ; {1}'.format(vm_name, _e)
                 tmpLog.error(errStr)
-                tmpRetVal = (False, errStr)
+                tmpRetVal = (None, errStr)
             else:
                 workspec.batchID = vm_id
                 tmpLog.info('Created a VM with name={vm_name} id={vm_id}'.format(vm_name=vm_name, vm_id=vm_id))
