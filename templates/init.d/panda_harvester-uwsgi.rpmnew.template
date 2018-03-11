@@ -46,15 +46,18 @@ maxCheckAttempts=30
 #======= END CONFIGURATION SECTION ============================
 
 # load module python
-. ${VIRTUAL_ENV}/bin/activate
+if [ -r ${VIRTUAL_ENV}/bin/activate ]; then
+    . ${VIRTUAL_ENV}/bin/activate
+fi
 
 # source harvester env variables
 if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
-   . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
 
 # the path to application
-PROGNAME="uwsgi -s ${uwsgiSocket} --pyimport ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py --master
+PROGNAME="uwsgi --socket ${uwsgiSocket} --master --chdir ${VIRTUAL_ENV}
+    --wsgi-file ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
     --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
     --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}"
 
@@ -92,7 +95,7 @@ function check_pidfile_killed () {
     return 1
 }
 
-function check_pidfile_children_running () {
+function check_pidfile_children_respawn () {
     if [ ! -f ${PIDFILE} ]; then
         echo "ERROR: pidfile:${PIDFILE} does not exist"
         return 1
@@ -103,10 +106,13 @@ function check_pidfile_children_running () {
         sleep $checkInterval
         _old_processes=`echo $@`
         _processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
-        retCode=$?
-        _processes=`echo $_processes`
-	if [ $retCode = 0 ] && [ "$_processes" != "$_old_processes" ]; then
-            return 0
+        ERROR=$?
+        if [ $ERROR = 0 ]; then
+            _old_processes=$(python -c "print(' '.join('$_old_processes'.split()))")
+            _processes=$(python -c "print(' '.join('`echo $_processes`'.split()))")
+            [ "$_processes" != "$_old_processes" ] \
+            && [ $(python -c "print(len('`echo $_processes`'.split()[1:]))") -ge "$nProcesses" ] \
+            && return 0
         fi
     done
     echo "ERROR: check_pidfile_children_running timeout"
@@ -156,7 +162,7 @@ reload)
         echo Reload Harvester
         _old_processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
         uwsgi --reload ${PIDFILE}
-        check_pidfile_children_running $_old_processes
+        check_pidfile_children_respawn $_old_processes
         ERROR=$?
         if [ $ERROR = 0 ]; then
 	    echo "succeeded"
