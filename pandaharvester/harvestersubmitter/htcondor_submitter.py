@@ -100,12 +100,12 @@ def submit_a_worker(data):
         else:
             errStr = 'batchID cannot be found'
             tmpLog.error(errStr)
-            tmpRetVal = (False, errStr)
+            tmpRetVal = (None, errStr)
     else:
         # failed
         errStr = '{0} \n {1}'.format(stdOut, stdErr)
         tmpLog.error(errStr)
-        tmpRetVal = (False, errStr)
+        tmpRetVal = (None, errStr)
     return tmpRetVal, workspec.get_changed_attributes()
 
 
