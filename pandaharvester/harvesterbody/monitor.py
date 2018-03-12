@@ -190,6 +190,16 @@ class Monitor(AgentBase):
                     # request kill
                     if messenger.kill_requested(workSpec):
                         self.dbProxy.kill_worker(workSpec.workerID)
+
+                    try:
+                        # check if the queue configuration requires checking for worker heartbeat
+                        worker_heartbeat = queue_config.messenger.worker_heartbeat
+                    except:
+                        worker_heartbeat = False
+                    if worker_heartbeat and not messenger.check_worker_heartbeat(workSpec):
+                        # heartbeat is requested for the queue, but not up to date: worker needs to be killed
+                        self.dbProxy.kill_worker(workSpec.workerID)
+
                     # get output files
                     filesToStageOut = messenger.get_files_to_stage_out(workSpec)
                     retMap[workerID]['filesToStageOut'] = filesToStageOut

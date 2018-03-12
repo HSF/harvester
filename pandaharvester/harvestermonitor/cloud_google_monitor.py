@@ -40,6 +40,7 @@ class GoogleMonitor(PluginBase):
                 vm_name_to_status[vm_instance['name']] = vm_instance['status']
 
             return vm_names, vm_name_to_status
+
         except:
             return None, None
 
@@ -70,10 +71,14 @@ class GoogleMonitor(PluginBase):
             tmp_log = core_utils.make_logger(baseLogger, 'batch ID={0}'.format(batch_ID), method_name='check_workers')
 
             if batch_ID not in vm_names:
-                new_status = WorkSpec.ST_missed # TODO: check with Tadashi if this state can be used
+                new_status = WorkSpec.ST_missed
             else:
                 try:
-                    new_status = self.vm_to_worker_status[vm_name_to_status[batch_ID]]
+                    tmp_status = self.vm_to_worker_status[vm_name_to_status[batch_ID]]
+
+                    if tmp_status == WorkSpec.ST_running:
+
+
                 except KeyError:
                     new_status = WorkSpec.ST_failed
 

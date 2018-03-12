@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -54,6 +55,12 @@ try:
     killWorkerFile = harvester_config.payload_interaction.killWorkerFile
 except:
     killWorkerFile = 'kill_worker.json'
+
+# json with worker heartbeat
+try:
+    heartbeatFile = harvester_config.payload_interaction.heartbeatFile
+except:
+    heartbeatFile = 'heartbeat.json'
 
 # suffix to read json
 suffixReadJson = '.read'
@@ -561,3 +568,35 @@ class SharedFileMessenger(PluginBase):
             return False
         tmpLog.debug('kill requested')
         return True
+
+    # check if the worker heartbeat is up to date
+    def check_worker_heartbeat(self, workspec):
+
+        # define the desired timeout: 20 min
+        heartbeat_timeout = 1200
+
+        # get logger
+        tmp_log = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='check_worker_heartbeat')
+
+        # look for the json just under the access point
+        json_file_path = os.path.join(workspec.get_access_point(), heartbeatFile)
+        tmp_log.debug('looking for heartbeat file {0}'.format(json_file_path))
+        if not os.path.exists(json_file_path):
+            # not found
+            if time.time() - workspec.creationTime > heartbeat_timeout:
+                # the worker has been running enough to be considered dead
+                tmp_log.debug('not found and to be killed')
+                return False
+            else:
+                # the worker is too young to be killed
+                tmp_log.debug('not found, but too early to kill')
+                return True
+        elif time.time() - os.stat(json_file_path).mtime > heartbeat_timeout:
+            # found but outdated
+            tmp_log.debug('worker {0} is dead'.format(workspec.batchID))
+            return False
+        else:
+            # found and up to date
+            tmp_log.debug('worker {0} is alive'.format(workspec.batchID))
+            return True
