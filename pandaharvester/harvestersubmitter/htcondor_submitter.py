@@ -175,7 +175,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         ceVersion=ce_info_dict.get('ce_version', ''),
         logDir=log_dir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
-        prodSourceLabel=harvester_queue_config.prodSourceLabel,
+        prodSourceLabel=harvester_queue_config.get_source_label(),
         )
     )
     tmpFile.close()

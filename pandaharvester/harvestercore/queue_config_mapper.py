@@ -20,6 +20,7 @@ class QueueConfig:
     def __init__(self, queue_name):
         self.queueName = queue_name
         self.pandaQueueName = None
+        self.prodSourceLabel = 'managed'
         # default parameters
         self.mapType = WorkSpec.MT_OneToOne
         self.useJobLateBinding = False
@@ -46,6 +47,12 @@ class QueueConfig:
     # check if status without heartbeat
     def is_no_heartbeat_status(self, status):
         return status in self.get_no_heartbeat_status()
+
+    # get prodSourceLabel
+    def get_source_label(self):
+        if self.queueStatus == 'test':
+            return 'test'
+        return self.prodSourceLabel
 
     # str
     def __str__(self):

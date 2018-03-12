@@ -117,7 +117,7 @@ queueList =
 resolverModule = pandaharvester.harvestermisc.info_utils
 resolverClass = PandaQueuesDict
 
-# use auto-blacklisting of resolver
+# enable auto-blacklisting of resolver which returns status='offline' to blacklist the queue
 autoBlacklist = False
 
 
