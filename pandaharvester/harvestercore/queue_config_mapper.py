@@ -35,6 +35,7 @@ class QueueConfig:
         self.maxSubmissionAttempts = 3
         self.truePilot = False
         self.queueStatus = 'online'
+        self.prefetchEvents = True
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
