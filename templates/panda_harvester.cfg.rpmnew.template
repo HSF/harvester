@@ -113,6 +113,13 @@ queueList =
  FIXME_1
  FIXME_2
 
+# module and class names to resolve queue names to panda queue names
+resolverModule = pandaharvester.harvestermisc.info_utils
+resolverClass = PandaQueuesDict
+
+# use auto-blacklisting of resolver
+autoBlacklist = False
+
 
 
 

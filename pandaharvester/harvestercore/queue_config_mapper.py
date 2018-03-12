@@ -11,6 +11,7 @@ from .work_spec import WorkSpec
 from .panda_queue_spec import PandaQueueSpec
 from . import core_utils
 from .db_proxy_pool import DBProxyPool as DBProxy
+from .plugin_factory import PluginFactory
 
 
 # class for queue config
@@ -18,6 +19,7 @@ class QueueConfig:
 
     def __init__(self, queue_name):
         self.queueName = queue_name
+        self.pandaQueueName = None
         # default parameters
         self.mapType = WorkSpec.MT_OneToOne
         self.useJobLateBinding = False
@@ -34,7 +36,7 @@ class QueueConfig:
         self.allowJobMixture = False
         self.maxSubmissionAttempts = 3
         self.truePilot = False
-        self.queueStatus = 'online'
+        self.queueStatus = None
         self.prefetchEvents = True
 
     # get list of status without heartbeat
@@ -107,6 +109,15 @@ class QueueConfigMapper:
             for queueConfigJson in queueConfigJsonList:
                 queueNameList |= set(queueConfigJson.keys())
             templateQueueList = set()
+            # get resolver module
+            if hasattr(harvester_config.qconf, 'resolverModule') and \
+                    hasattr(harvester_config.qconf, 'resolverClass'):
+                pluginConf = {'module': harvester_config.qconf.resolverModule,
+                              'name': harvester_config.qconf.resolverClass}
+                pluginFactory = PluginFactory()
+                resolver = pluginFactory.get_plugin(pluginConf)
+            else:
+                resolver = None
             # set attributes
             for queueName in queueNameList:
                 for queueConfigJson in queueConfigJsonList:
@@ -137,6 +148,9 @@ class QueueConfigMapper:
                                 if 'queueName' not in val:
                                     val['queueName'] = queueConfig.queueName
                             setattr(queueConfig, key, val)
+                        # get Panda Queue Name
+                        if resolver is not None:
+                            queueConfig.pandaQueueName = resolver.get_panda_queue_name(queueConfig.siteName)
                         # additional criteria for getJob
                         if queueConfig.getJobCriteria is not None:
                             tmpCriteria = dict()
@@ -160,10 +174,23 @@ class QueueConfigMapper:
             for templateQueueName in templateQueueList:
                 if templateQueueName in newQueueConfig:
                     del newQueueConfig[templateQueueName]
+            # auto blacklisting
+            autoBlacklist = False
+            if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \
+                    harvester_config.qconf.autoBlacklist:
+                autoBlacklist = True
             # get active queues
             activeQueues = dict()
             for queueName, queueConfig in iteritems(newQueueConfig):
-                if queueConfig.queueStatus != 'online':
+                # get dynamic information
+                if queueConfig.queueStatus is None and autoBlacklist:
+                    queueConfig.queueStatus = resolver.get_queue_status(queueName)
+                # set online if undefined
+                if queueConfig.queueStatus is None:
+                    queueConfig.queueStatus = 'online'
+                queueConfig.queueStatus = queueConfig.queueStatus.lower()
+                # ignore offline
+                if queueConfig.queueStatus == 'offline':
                     continue
                 if 'ALL' not in harvester_config.qconf.queueList and \
                         queueName not in harvester_config.qconf.queueList:

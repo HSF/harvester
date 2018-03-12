@@ -256,7 +256,7 @@ class HTCondorSubmitter(PluginBase):
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
             panda_queues_dict = PandaQueuesDict()
-            panda_queue_name = panda_queues_dict.get_PQ_from_PR(self.queueName)
+            panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
         else:
