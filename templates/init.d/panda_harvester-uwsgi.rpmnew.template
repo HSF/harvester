@@ -32,14 +32,19 @@ PIDFILE=${LOG_DIR}/panda_harvester.pid
 HSTDOUT=${LOG_DIR}/panda_harvester_stdout.log
 HSTDERR=${LOG_DIR}/panda_harvester_stderr.log
 
-# uwsgi socket
+# uwsgi socket address
 uwsgiSocket="127.0.0.1:3334"
+
+# http router address
+# Make uWSGI spawn an http proxy process. Use this only when http is needed and
+# no other frontend proxy/webserver (nginx, apache, etc.) is set for harvester
+#httpRouter=":25080"
 
 # number of uwsgi processes and threads
 nProcesses=2
 nThreads=4
 
-# check interval in second and max number of check attempts of service process handle
+# check interval in second and max number of check attempts of process handle
 checkInterval=1
 maxCheckAttempts=30
 
@@ -55,8 +60,12 @@ if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
     . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
 
+# handle uWSGI options
+[ "x${httpRouter}y" != "xy" ] && httpRouter_option="--http ${httpRouter}"
+
 # the path to application
-PROGNAME="uwsgi --socket ${uwsgiSocket} --master --chdir ${VIRTUAL_ENV}
+PROGNAME="uwsgi --socket ${uwsgiSocket} ${httpRouter_option}
+    --master --lazy-apps --chdir ${VIRTUAL_ENV}
     --wsgi-file ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
     --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
     --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}"
@@ -110,9 +119,9 @@ function check_pidfile_children_respawn () {
         if [ $ERROR = 0 ]; then
             _old_processes=$(python -c "print(' '.join('$_old_processes'.split()))")
             _processes=$(python -c "print(' '.join('`echo $_processes`'.split()))")
-            [ "$_processes" != "$_old_processes" ] \
-            && [ $(python -c "print(len('`echo $_processes`'.split()[1:]))") -ge "$nProcesses" ] \
-            && return 0
+            _python_command="if set('`echo $_old_processes`'.split()).intersection(set('`echo $_processes`'.split())) == set(['PID']) and len('`echo $_processes`'.split()) >= int(${nProcesses}) + bool('${httpRouter_option}'): print(0)"
+            _ret=$(python -c "$_python_command")
+            [ "$_ret" == "0" ] && return 0
         fi
     done
     echo "ERROR: check_pidfile_children_running timeout"
