@@ -1,4 +1,5 @@
 import saga
+import os
 from datetime import datetime
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -66,6 +67,11 @@ class SAGAMonitor(PluginBase):
                     workSpec.set_status(harvester_job_state)
                     tmpLog.debug('Worker state set to: {0} ({1})'.format(workSpec.status, harvester_job_state))
                 retList.append((harvester_job_state, errStr))
+                # for compatibility with dummy monitor
+                f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
+                f.write(workSpec.status)
+                f.close()
+
             else:
                 tmpLog.debug("SAGA monitor found worker [{0}] without batchID".format(workSpec.workerID))
 
