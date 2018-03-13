@@ -10,9 +10,25 @@ This script will be executed at the VM startup time.
 import requests
 import subprocess
 import os
+from threading import Timer
 
 METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/{0}"
 
+
+def contact_harvester(harvester_frontend, data)
+    try:
+        resp = requests.post(harvester_frontend, json=data, headers={'Content-Type': 'application/json'})
+    except:
+        # message could not be sent
+        pass
+
+def heartbeat(harvester_frontend, worker_id):
+    data = {'methodName': 'heartbeat', 'workerID': worker_id, 'data': None}
+    return contact_harvester(harvester_frontend, data)
+
+def suicide(harvester_frontend, worker_id):
+    data = {'methodName': 'killWorker', 'workerID': worker_id, 'data': None}
+    return contact_harvester(harvester_frontend, data)
 
 def get_url(url, headers=None):
     """
@@ -40,6 +56,16 @@ os.environ['X509_USER_PROXY'] = proxy_path
 pq_url = METADATA_URL.format("panda_queue")
 panda_queue = get_url(pq_url, headers={"Metadata-Flavor": "Google"})
 
+harvester_frontend_url = METADATA_URL.format("harvester_frontend")
+harvester_frontend = get_url(harvester_frontend_url, headers={"Metadata-Flavor": "Google"})
+
+worker_id_url = METADATA_URL.format("worker_id")
+worker_id = get_url(worker_id_url, headers={"Metadata-Flavor": "Google"})
+
+# start a thread that will send a heartbeat to harvester every 5 minutes
+heartbeat_thread = Timer(300, heartbeat, [harvester_frontend, worker_id])
+heartbeat_thread.start()
+
 # get the pilot wrapper
 wrapper_path = "/tmp/runpilot3-wrapper.sh"
 wrapper_url = "https://raw.githubusercontent.com/fbarreir/adc/master/runpilot3-wrapper.sh"
@@ -52,6 +78,11 @@ os.chmod(wrapper_path, 0544) # make pilot wrapper executable
 command = "/tmp/runpilot3-wrapper.sh -s {0} -h {0} -p 25443 -w https://pandaserver.cern.ch >& /tmp/wrapper-wid.log".format(panda_queue)
 subprocess.call(command, shell=True)
 
-# TODO: upload logs to panda cache
+# ask harvester to kill the VM and stop the heartbeat
+suicide(harvester_frontend, worker_id)
+heartbeat_thread.cancel()
+
+
+# TODO: upload logs to panda cache or harvester
 
 
