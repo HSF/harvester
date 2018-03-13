@@ -11,6 +11,7 @@ from .work_spec import WorkSpec
 from .panda_queue_spec import PandaQueueSpec
 from . import core_utils
 from .db_proxy_pool import DBProxyPool as DBProxy
+from .plugin_factory import PluginFactory
 
 
 # class for queue config
@@ -18,6 +19,8 @@ class QueueConfig:
 
     def __init__(self, queue_name):
         self.queueName = queue_name
+        self.pandaQueueName = None
+        self.prodSourceLabel = 'managed'
         # default parameters
         self.mapType = WorkSpec.MT_OneToOne
         self.useJobLateBinding = False
@@ -34,6 +37,8 @@ class QueueConfig:
         self.allowJobMixture = False
         self.maxSubmissionAttempts = 3
         self.truePilot = False
+        self.queueStatus = None
+        self.prefetchEvents = True
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -42,6 +47,12 @@ class QueueConfig:
     # check if status without heartbeat
     def is_no_heartbeat_status(self, status):
         return status in self.get_no_heartbeat_status()
+
+    # get prodSourceLabel
+    def get_source_label(self):
+        if self.queueStatus == 'test':
+            return 'test'
+        return self.prodSourceLabel
 
     # str
     def __str__(self):
@@ -71,7 +82,7 @@ class QueueConfigMapper:
             timeNow = datetime.datetime.utcnow()
             if self.lastUpdate is not None and timeNow - self.lastUpdate < datetime.timedelta(minutes=10):
                 return
-            self.queueConfig = {}
+            newQueueConfig = {}
             queueConfigJsonList = []
             # load config json on URL
             if core_utils.get_queues_config_url() is not None:
@@ -104,6 +115,16 @@ class QueueConfigMapper:
             queueNameList = set()
             for queueConfigJson in queueConfigJsonList:
                 queueNameList |= set(queueConfigJson.keys())
+            templateQueueList = set()
+            # get resolver module
+            if hasattr(harvester_config.qconf, 'resolverModule') and \
+                    hasattr(harvester_config.qconf, 'resolverClass'):
+                pluginConf = {'module': harvester_config.qconf.resolverModule,
+                              'name': harvester_config.qconf.resolverClass}
+                pluginFactory = PluginFactory()
+                resolver = pluginFactory.get_plugin(pluginConf)
+            else:
+                resolver = None
             # set attributes
             for queueName in queueNameList:
                 for queueConfigJson in queueConfigJsonList:
@@ -114,11 +135,12 @@ class QueueConfigMapper:
                         # template
                         if 'templateQueueName' in queueDict:
                             templateQueueName = queueDict['templateQueueName']
+                            templateQueueList.add(templateQueueName)
                             if templateQueueName in queueConfigJson:
                                 queueDictList.insert(0, queueConfigJson[templateQueueName])
                     for queueDict in queueDictList:
-                        if queueName in self.queueConfig:
-                            queueConfig = self.queueConfig[queueName]
+                        if queueName in newQueueConfig:
+                            queueConfig = newQueueConfig[queueName]
                         else:
                             queueConfig = QueueConfig(queueName)
                         # queueName = siteName/resourceType
@@ -133,6 +155,9 @@ class QueueConfigMapper:
                                 if 'queueName' not in val:
                                     val['queueName'] = queueConfig.queueName
                             setattr(queueConfig, key, val)
+                        # get Panda Queue Name
+                        if resolver is not None:
+                            queueConfig.pandaQueueName = resolver.get_panda_queue_name(queueConfig.siteName)
                         # additional criteria for getJob
                         if queueConfig.getJobCriteria is not None:
                             tmpCriteria = dict()
@@ -151,11 +176,39 @@ class QueueConfigMapper:
                         # heartbeat suppression
                         if queueConfig.truePilot and queueConfig.noHeartbeat == '':
                             queueConfig.noHeartbeat = 'running,transferring,finished,failed'
-                        self.queueConfig[queueName] = queueConfig
+                        newQueueConfig[queueName] = queueConfig
+            # delete templates
+            for templateQueueName in templateQueueList:
+                if templateQueueName in newQueueConfig:
+                    del newQueueConfig[templateQueueName]
+            # auto blacklisting
+            autoBlacklist = False
+            if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \
+                    harvester_config.qconf.autoBlacklist:
+                autoBlacklist = True
+            # get active queues
+            activeQueues = dict()
+            for queueName, queueConfig in iteritems(newQueueConfig):
+                # get dynamic information
+                if queueConfig.queueStatus is None and autoBlacklist:
+                    queueConfig.queueStatus = resolver.get_queue_status(queueName)
+                # set online if undefined
+                if queueConfig.queueStatus is None:
+                    queueConfig.queueStatus = 'online'
+                queueConfig.queueStatus = queueConfig.queueStatus.lower()
+                # ignore offline
+                if queueConfig.queueStatus == 'offline':
+                    continue
+                if 'ALL' not in harvester_config.qconf.queueList and \
+                        queueName not in harvester_config.qconf.queueList:
+                    continue
+                activeQueues[queueName] = queueConfig
+            self.queueConfig = newQueueConfig
+            self.activeQueues = activeQueues
             self.lastUpdate = datetime.datetime.utcnow()
         # update database
         dbProxy = DBProxy()
-        dbProxy.fill_panda_queue_table(harvester_config.qconf.queueList, self)
+        dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self)
 
     # check if valid queue
     def has_queue(self, queue_name):
@@ -165,11 +218,17 @@ class QueueConfigMapper:
     # get queue config
     def get_queue(self, queue_name):
         self.load_data()
-        if not self.has_queue(queue_name):
+        if queue_name not in self.queueConfig:
             return None
-        return self.queueConfig[queue_name]
+        else:
+            return self.queueConfig[queue_name]
 
     # all queue configs
     def get_all_queues(self):
         self.load_data()
         return self.queueConfig
+
+    # all active queue config
+    def get_active_queues(self):
+        self.load_data()
+        return self.activeQueues

@@ -1,7 +1,7 @@
 import json
 import os
 import re
-import time
+import datetime
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -50,17 +50,17 @@ xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
 # json to get PandaIDs
 pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
 
-# json to kill worker
+# json to kill worker itself
 try:
     killWorkerFile = harvester_config.payload_interaction.killWorkerFile
 except:
     killWorkerFile = 'kill_worker.json'
 
-# json with worker heartbeat
+# json for heartbeats from the worker
 try:
     heartbeatFile = harvester_config.payload_interaction.heartbeatFile
 except:
-    heartbeatFile = 'heartbeat.json'
+    heartbeatFile = 'worker_heartbeat.json'
 
 # suffix to read json
 suffixReadJson = '.read'
@@ -554,7 +554,7 @@ class SharedFileMessenger(PluginBase):
         tmpLog.debug('found')
         return retVal
 
-    # check if requested to kill the worker
+    # check if requested to kill the worker itself
     def kill_requested(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
@@ -569,34 +569,25 @@ class SharedFileMessenger(PluginBase):
         tmpLog.debug('kill requested')
         return True
 
-    # check if the worker heartbeat is up to date
-    def check_worker_heartbeat(self, workspec):
-
-        # define the desired timeout: 20 min
-        heartbeat_timeout = 1200
-
+    # check if the worker is alive
+    def is_alive(self, workspec, time_limit):
         # get logger
-        tmp_log = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='check_worker_heartbeat')
-
-        # look for the json just under the access point
-        json_file_path = os.path.join(workspec.get_access_point(), heartbeatFile)
-        tmp_log.debug('looking for heartbeat file {0}'.format(json_file_path))
-        if not os.path.exists(json_file_path):
-            # not found
-            if time.time() - workspec.creationTime > heartbeat_timeout:
-                # the worker has been running enough to be considered dead
-                tmp_log.debug('not found and to be killed')
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='is_alive')
+        # json file
+        jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
+        tmpLog.debug('looking for kill request file {0}'.format(jsonFilePath))
+        if not os.path.exists(jsonFilePath):
+            tmpLog.debug('not found')
+            return None
+        try:
+            mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(jsonFilePath))
+            tmpLog.debug('last modification time : {0}'.format(mtime))
+            if datetime.datetime.utcnow() - mtime > datetime.timedelta(minutes=time_limit):
+                tmpLog.debug('too old')
                 return False
-            else:
-                # the worker is too young to be killed
-                tmp_log.debug('not found, but too early to kill')
-                return True
-        elif time.time() - os.stat(json_file_path).mtime > heartbeat_timeout:
-            # found but outdated
-            tmp_log.debug('worker {0} is dead'.format(workspec.batchID))
-            return False
-        else:
-            # found and up to date
-            tmp_log.debug('worker {0} is alive'.format(workspec.batchID))
+            tmpLog.debug('OK')
             return True
+        except:
+            tmpLog.debug('failed to get mtime')
+            return None

@@ -1,8 +1,4 @@
 import sys
-import os
-import uuid
-import random
-import string
 import logging
 
 from future.utils import iteritems
@@ -11,22 +7,27 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
-#Define a helper function - get list
+
+# Define a helper function - get list
 def get_list(data):
     if isinstance(data, list):
         return data
     else:
         return [data]
 
+
 pluginFactory = PluginFactory()
 
-# get the configuration details - from the harverster config file
+# get the configuration details - from the harvester config file
 
 # get module and class names
 moduleNames = get_list(harvester_config.credmanager.moduleName)
 classNames = get_list(harvester_config.credmanager.className)
 # file names of original certificates
-inCertFiles = get_list(harvester_config.credmanager.inCertFile)
+if hasattr(harvester_config.credmanager, 'inCertFile'):
+    inCertFiles = get_list(harvester_config.credmanager.inCertFile)
+else:
+    inCertFiles = get_list(harvester_config.credmanager.certFile)
 # file names of certificates to be generated
 if hasattr(harvester_config.credmanager, 'outCertFile'):
     outCertFiles = get_list(harvester_config.credmanager.outCertFile)
@@ -38,20 +39,6 @@ vomses = get_list(harvester_config.credmanager.voms)
 
 # logger
 _logger = core_utils.setup_logger('credManagerTest')
-
-# setup logger to write to screen also
-for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
-    if loggerName.startswith('panda.log'):
-        if len(loggerObj.handlers) == 0:
-            continue
-        if loggerName.split('.')[-1] in ['db_proxy']:
-            continue
-        stdoutHandler = logging.StreamHandler(sys.stdout)
-        stdoutHandler.setFormatter(loggerObj.handlers[0].formatter)
-        loggerObj.addHandler(stdoutHandler)
-
-
-
 
 # get plugin(s)
 exeCores = []
@@ -65,6 +52,17 @@ for moduleName, className, inCertFile, outCertFile, voms in \
     pluginPar['voms'] = voms
     exeCore = pluginFactory.get_plugin(pluginPar)
     exeCores.append(exeCore)
+
+# setup logger to write to screen also
+for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
+    if loggerName.startswith('panda.log'):
+        if len(loggerObj.handlers) == 0:
+            continue
+        if loggerName.split('.')[-1] in ['db_proxy']:
+            continue
+        stdoutHandler = logging.StreamHandler(sys.stdout)
+        stdoutHandler.setFormatter(loggerObj.handlers[0].formatter)
+        loggerObj.addHandler(stdoutHandler)
 
 # loop over all plugins
 for exeCore in exeCores:
@@ -91,6 +89,3 @@ for exeCore in exeCores:
             mainLog.error('failed : {0}'.format(tmpOut))
             continue
     mainLog.debug('done')
-
-
-

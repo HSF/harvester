@@ -124,6 +124,14 @@ class JobSpec(SpecBase):
     def set_attributes(self, attrs):
         if attrs is None:
             return
+        attrs = copy.copy(attrs)
+        # set work attribute
+        for attName in ['pilotErrorCode', 'pilotErrorDiag', 'exeErrorCode', 'exeErrorDiag']:
+            if attName in attrs:
+                if self.PandaID not in attrs:
+                    attrs[self.PandaID] = dict()
+                if attName not in attrs[self.PandaID]:
+                    attrs[self.PandaID][attName] = attrs[attName]
         if self.PandaID not in attrs:
             return
         attrs = copy.copy(attrs[self.PandaID])
@@ -146,7 +154,9 @@ class JobSpec(SpecBase):
     def set_one_attribute(self, attr, value):
         if self.jobAttributes is None:
             self.jobAttributes = dict()
-        self.jobAttributes[attr] = value
+        if attr not in self.jobAttributes or self.jobAttributes[attr] != value:
+            self.jobAttributes[attr] = value
+            self.force_update('jobAttributes')
 
     # check if an attribute is there
     def has_attribute(self, attr):
@@ -410,3 +420,16 @@ class JobSpec(SpecBase):
                     continue
                 retList.append(fileSpec)
         return retList
+
+    # set pilot error
+    def set_pilot_error(self, error_code, error_dialog):
+        if not self.has_attribute('pilotErrorCode'):
+            self.set_one_attribute('pilotErrorCode', error_code)
+        if not self.has_attribute('pilotErrorDiag'):
+            self.set_one_attribute('pilotErrorDiag', error_dialog)
+
+    # not to suppress heartbeat
+    def not_suppress_heartbeat(self):
+        if self.subStatus in ['missed']:
+            return True
+        return False

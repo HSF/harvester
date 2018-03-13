@@ -1,0 +1,188 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+#
+# description: Panda Harvester uWSGI
+# processname: uwsgi
+# config: ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+# pidfile: ${LOG_DIR}/panda_harvester.pid
+
+# When multiple arguments are given, only the error from the
+# last one is reported.
+#
+ARGV="$@"
+#
+
+#======= START CONFIGURATION SECTION ==========================
+# user and group to run harvester uwsgi
+userName="#FIXME"
+groupName="#FIXME"
+
+# setup python and virtual env
+VIRTUAL_ENV=/#FIXME
+
+# set log directory
+#LOG_DIR=${VIRTUAL_ENV}/var/log/panda
+LOG_DIR=/#FIXME
+
+# pid and lock files
+PIDFILE=${LOG_DIR}/panda_harvester.pid
+
+# log files
+HSTDOUT=${LOG_DIR}/panda_harvester_stdout.log
+HSTDERR=${LOG_DIR}/panda_harvester_stderr.log
+
+# uwsgi socket address
+uwsgiSocket="127.0.0.1:3334"
+
+# http router address
+# Make uWSGI spawn an http proxy process. Use this only when http is needed and
+# no other frontend proxy/webserver (nginx, apache, etc.) is set for harvester
+#httpRouter=":25080"
+
+# number of uwsgi processes and threads
+nProcesses=2
+nThreads=4
+
+# check interval in second and max number of check attempts of process handle
+checkInterval=1
+maxCheckAttempts=30
+
+#======= END CONFIGURATION SECTION ============================
+
+# load module python
+if [ -r ${VIRTUAL_ENV}/bin/activate ]; then
+    . ${VIRTUAL_ENV}/bin/activate
+fi
+
+# source harvester env variables
+if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
+    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+fi
+
+# handle uWSGI options
+[ "x${httpRouter}y" != "xy" ] && httpRouter_option="--http ${httpRouter}"
+
+# the path to application
+PROGNAME="uwsgi --socket ${uwsgiSocket} ${httpRouter_option}
+    --master --lazy-apps --chdir ${VIRTUAL_ENV}
+    --wsgi-file ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
+    --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
+    --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}"
+
+
+function check_pidfile_running () {
+    itry=0
+    while [ "$itry" -lt "$maxCheckAttempts" ]; do
+        itry=$((itry + 1))
+        sleep $checkInterval
+        if [ ! -f ${PIDFILE} ]; then
+            continue
+        fi
+	if ps -o pid -p `cat ${PIDFILE}` >& /dev/null ; then
+            return 0
+        fi
+    done
+    echo "ERROR: check_pidfile_running timeout"
+    return 1
+}
+
+function check_pidfile_killed () {
+    if [ ! -f ${PIDFILE} ]; then
+        echo "ERROR: pidfile:${PIDFILE} does not exist"
+        return 1
+    fi
+    itry=0
+    while [ "$itry" -lt "$maxCheckAttempts" ]; do
+        itry=$((itry + 1))
+        sleep $checkInterval
+	if ! ps -o pid -p `cat ${PIDFILE}` >& /dev/null ; then
+            return 0
+        fi
+    done
+    echo "ERROR: check_pidfile_killed timeout"
+    return 1
+}
+
+function check_pidfile_children_respawn () {
+    if [ ! -f ${PIDFILE} ]; then
+        echo "ERROR: pidfile:${PIDFILE} does not exist"
+        return 1
+    fi
+    itry=0
+    while [ "$itry" -lt "$maxCheckAttempts" ]; do
+        itry=$((itry + 1))
+        sleep $checkInterval
+        _old_processes=`echo $@`
+        _processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
+        ERROR=$?
+        if [ $ERROR = 0 ]; then
+            _old_processes=$(python -c "print(' '.join('$_old_processes'.split()))")
+            _processes=$(python -c "print(' '.join('`echo $_processes`'.split()))")
+            _python_command="if set('`echo $_old_processes`'.split()).intersection(set('`echo $_processes`'.split())) == set(['PID']) and len('`echo $_processes`'.split()) >= int(${nProcesses}) + bool('${httpRouter_option}'): print(0)"
+            _ret=$(python -c "$_python_command")
+            [ "$_ret" == "0" ] && return 0
+        fi
+    done
+    echo "ERROR: check_pidfile_children_running timeout"
+    return 1
+}
+
+
+case $ARGV in
+start)
+    if [ -f ${PIDFILE} ]; then
+	echo ERROR: Harvester is already running with pidfile:${PIDFILE}
+    else
+	echo Start Harvester
+	${PROGNAME} >> ${HSTDOUT} 2>> ${HSTDERR} &
+	check_pidfile_running
+	ERROR=$?
+	if [ $ERROR = 0 ]; then
+	    echo "succeeded"
+	    break
+	else
+	    echo "failed with exit code $ERROR"
+	    [ -f ${PIDFILE} ] && rm -f ${PIDFILE}
+	fi
+    fi
+    ;;
+stop)
+    if [ ! -f ${PIDFILE} ]; then
+        echo "WANRING: pidfile:${PIDFILE} does not exist. Nothing done"
+    else
+        echo Stop Harvester
+        uwsgi --stop ${PIDFILE}
+        check_pidfile_killed
+        ERROR=$?
+        if [ $ERROR = 0 ]; then
+    	    echo "succeeded"
+            rm -f ${PIDFILE}
+        else
+	    echo "failed with exit code $ERROR"
+        fi
+    fi
+    rm -f ${PIDFILE}
+    ;;
+reload)
+    if [ ! -f ${PIDFILE} ]; then
+        echo "ERROR: pidfile:${PIDFILE} does not exist"
+    else
+        echo Reload Harvester
+        _old_processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
+        uwsgi --reload ${PIDFILE}
+        check_pidfile_children_respawn $_old_processes
+        ERROR=$?
+        if [ $ERROR = 0 ]; then
+	    echo "succeeded"
+        else
+	    echo "failed with exit code $ERROR"
+        fi
+    fi
+    ;;
+*)
+    echo ERROR: unknown command $ARGV
+    ERROR=1
+esac
+
+exit $ERROR

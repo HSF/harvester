@@ -30,22 +30,15 @@ def _runShell(cmd):
 
 #=== Classes ==================================================
 
-# dummy plugin for sweeper
+# sweeper for HTCONDOR batch system
 class HTCondorSweeper(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
+
     # kill a worker
     def kill_worker(self, workspec):
-        """Kill a worker in a scheduling system like batch systems and computing elements.
-
-        :param workspec: worker specification
-        :type workspec: WorkSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
-        :rtype: (bool, string)
-        """
-
         ## Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='kill_worker')
@@ -57,32 +50,32 @@ class HTCondorSweeper(PluginBase):
             comStr = 'condor_q -l {0}'.format(workspec.batchID)
             (retCode, stdOut, stdErr) = _runShell(comStr)
             if str(workspec.batchID) in str(stdOut) or retCode != 0:
+                ## Force to cancel if batch job not terminated first time
+                comStr = 'condor_rm -forcex {0}'.format(workspec.batchID)
+                (retCode, stdOut, stdErr) = _runShell(comStr)
+            if str(workspec.batchID) in str(stdOut) or retCode != 0:
                 ## Command failed to kill
                 errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
                 tmpLog.error(errStr)
                 return False, errStr
             else:
                 ## Found already killed
-                tmpLog.warning('Found workerID={0} batchID={1} already killed'.format(workspec.workerID, workspec.batchID))
+                tmpLog.info('Found workerID={0} batchID={1} already killed'.format(workspec.workerID, workspec.batchID))
         else:
             tmpLog.info('Succeeded to kill workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID))
 
         ## Return
         return True, ''
 
+
     # cleanup for a worker
     def sweep_worker(self, workspec):
-        """Perform cleanup procedures for a worker, such as deletion of work directory.
-
-        :param workspec: worker specification
-        :type workspec: WorkSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
-        :rtype: (bool, string)
-        """
-
         ## Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='sweep_worker')
+
+        ## Make sure batch job is terminated
+        self.kill_worker(workspec)
 
         ## Clean up worker directory
         try:

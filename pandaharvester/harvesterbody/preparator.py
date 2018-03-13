@@ -5,6 +5,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 
 # logger
 _logger = core_utils.setup_logger('preparator')
@@ -93,6 +94,8 @@ class Preparator(AgentBase):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                    errStr = 'stage-in failed with {0}'.format(tmpStr)
+                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
                     jobSpec.trigger_propagation()
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})
@@ -194,6 +197,8 @@ class Preparator(AgentBase):
                     jobSpec.lockedBy = None
                     jobSpec.preparatorTime = None
                     jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                    errStr = 'stage-in failed with {0}'.format(tmpStr)
+                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
                     jobSpec.trigger_propagation()
                     self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                       'subStatus': oldSubStatus})

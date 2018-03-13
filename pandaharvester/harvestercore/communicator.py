@@ -200,9 +200,9 @@ class Communicator:
             if data['state'] == 'cancelled':
                 data['jobSubStatus'] = data['state']
                 data['state'] = 'failed'
-            if jobSpec.startTime is not None:
+            if jobSpec.startTime is not None and 'startTime' not in data:
                 data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
-            if jobSpec.endTime is not None:
+            if jobSpec.endTime is not None and 'endTime' not in data:
                 data['endTime'] = jobSpec.endTime.strftime('%Y-%m-%d %H:%M:%S')
             if jobSpec.nCore is not None:
                 data['coreCount'] = jobSpec.nCore

@@ -1,5 +1,5 @@
 import saga
-
+from datetime import datetime
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestersubmitter.saga_submitter import SAGASubmitter
@@ -26,29 +26,49 @@ class SAGAMonitor(PluginBase):
         :rtype: (bool, [string,])
         """
         job_service = saga.job.Service(self.adaptor)
-
+        sagadateformat_str = '%a %b %d %H:%M:%S %Y'
         retList = []
         for workSpec in workspec_list:
             # make logger
             errStr = ''
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                             method_name='check_workers')
+            tmpLog.debug("SAGA monitor started")
             if workSpec.batchID:
                 saga_submission_id = '[{0}]-[{1}]'.format(self.adaptor, workSpec.batchID)
                 try:
                     worker = job_service.get_job(saga_submission_id)
-                    tmpLog.info('SAGA State for submission with batchid: {0} is: {1}'.format(workSpec.batchID, worker.state))
+                    tmpLog.debug('SAGA State for submission with batchid: {0} is: {1}'.format(workSpec.batchID, worker.state))
                     harvester_job_state = SAGASubmitter.status_translator(worker.state)
-                    tmpLog.info(
+                    tmpLog.debug(
                         'Worker state with batchid: {0} is: {1}'.format(workSpec.batchID, harvester_job_state))
+                    workSpec.set_status(harvester_job_state)
+                    if worker.created:
+                        workSpec.submitTime = datetime.strptime(worker.created, sagadateformat_str)
+                    if worker.started:
+                        workSpec.startTime = datetime.strptime(worker.started, sagadateformat_str)
+                    if worker.finished:
+                        workSpec.endTime = datetime.strptime(worker.finished, sagadateformat_str)
+
+                    if workSpec.is_final_status():
+                        tmpLog.info('Worker {2} with BatchID={0} completed with exit code {1}'.format(workSpec.batchID,
+                                                                                                  worker.exit_code,
+                                                                                                  workSpec.workerID))
+                        tmpLog.debug('Started: [{0}] finished: [{1}]'.format(worker.started, worker.finished))
 
                 except saga.SagaException as ex:
-                    tmpLog.error('An exception occured during retriving worker information')
+                    tmpLog.info('An exception occured during retriving worker information {0}'.format(workSpec.batchID))
                     errStr = ex.get_message()
+                    tmpLog.info(errStr)
                     # probably 'failed' is not proper state in this case, 'undefined' looks a bit better
-                    harvester_job_state = workSpec.ST_failed 
+                    harvester_job_state = workSpec.ST_failed
+                    workSpec.set_status(harvester_job_state)
+                    tmpLog.debug('Worker state set to: {0} ({1})'.format(workSpec.status, harvester_job_state))
                 retList.append((harvester_job_state, errStr))
+            else:
+                tmpLog.debug("SAGA monitor found worker [{0}] without batchID".format(workSpec.workerID))
 
         job_service.close()
+        tmpLog.debug('Results: {0}'.format(retList))
 
         return True, retList

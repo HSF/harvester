@@ -27,8 +27,7 @@ def _runShell(cmd):
 ## Check one worker
 def _check_one_worker(workspec, job_ads_all_dict):
     # Make logger for one single worker
-    tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-    method_name='check_workers')
+    tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_check_one_worker')
 
     ## Initialize newStatus
     newStatus = workspec.status
@@ -71,6 +70,12 @@ def _check_one_worker(workspec, job_ads_all_dict):
                         ):
                         # Kill the job if held too long or other reasons
                         (retCode, stdOut, stdErr) = _runShell('condor_rm {0}'.format(workspec.batchID))
+                        if retCode == 0:
+                            tmpLog.info('killed held job batchID={0}'.format(workspec.batchID))
+                        else:
+                            newStatus = WorkSpec.ST_cancelled
+                            errStr = 'cannot kill held job batchID={0}. Force worker to be in cancelled status'.format(workspec.batchID)
+                            tmpLog.error(errStr)
                     else:
                         newStatus = WorkSpec.ST_submitted
                 elif batchStatus in ['4']:
@@ -187,7 +192,6 @@ class HTCondorMonitor (PluginBase):
                         _t = ' '.join(attribute_xml_element.itertext())
                         return (_n, _t)
 
-
                     ## Every batch job
                     for _c in xml_root.findall('c'):
                         job_ads_dict = dict()
@@ -210,16 +214,17 @@ class HTCondorMonitor (PluginBase):
                 tmpLog.error(errStr)
                 return False, errStr
 
+
         if len(batchIDs_list) > 0:
             ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
             for batchid in batchIDs_list:
                 job_ads_all_dict[batchid] = dict()
             tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs: {0}'.format( ' '.join(batchIDs_list) ) )
 
-
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:
-            retList = _pool.map(lambda _x: _check_one_worker(_x, job_ads_all_dict), workspec_list)
+            retIterator = _pool.map(lambda _x: _check_one_worker(_x, job_ads_all_dict), workspec_list)
 
+        retList = list(retIterator)
 
         return True, retList

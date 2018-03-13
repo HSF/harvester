@@ -36,7 +36,8 @@ class WorkerAdjuster:
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
 
                     # set 0 to num of new workers when the queue is disabled
-                    if queueName in queueStat and queueStat[queueName]['status'] in ['offline']:
+                    if queueName in queueStat and queueStat[queueName]['status'] in ['offline', 'standby',
+                                                                                     'maintenance']:
                         dyn_num_workers[queueName]['nNewWorkers'] = 0
                         retMsg = 'set nNewWorkers=0 since status={0}'.format(queueStat[queueName]['status'])
                         tmpLog.debug(retMsg)
@@ -72,10 +73,10 @@ class WorkerAdjuster:
                     if queueConfig.runMode == 'slave':
                         nNewWorkersDef = tmpVal['nNewWorkers']
                         if nNewWorkersDef == 0:
-                           dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
-                           retMsg = 'set nNewWorkers=0 by panda in slave mode'
-                           tmpLog.debug(retMsg)
-                           continue
+                            dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
+                            retMsg = 'set nNewWorkers=0 by panda in slave mode'
+                            tmpLog.debug(retMsg)
+                            continue
                     else:
                         nNewWorkersDef = None
 

@@ -48,7 +48,7 @@ class JobFetcher(AgentBase):
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
                 siteName = queueConfig.siteName
                 jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
-                                                          queueConfig.prodSourceLabel,
+                                                          queueConfig.get_source_label(),
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
                 tmpLog.debug('got {0} jobs with {1}'.format(len(jobs), errStr))
@@ -65,6 +65,8 @@ class JobFetcher(AgentBase):
                         jobSpec.subStatus = 'fetched'
                         jobSpec.creationTime = timeNow
                         jobSpec.stateChangeTime = timeNow
+                        jobSpec.set_one_attribute('schedulerID',
+                                                  'harvester-{0}'.format(harvester_config.master.harvester_id))
                         if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                             jobSpec.zipPerMB = queueConfig.zipPerMB
                         for tmpLFN, fileAttrs in iteritems(jobSpec.get_input_file_attributes()):

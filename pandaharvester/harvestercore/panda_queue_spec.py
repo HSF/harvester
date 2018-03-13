@@ -8,13 +8,13 @@ from .spec_base import SpecBase
 
 class PandaQueueSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('queueName:text',
+    attributesWithTypes = ('queueName:text / index',
                            'nQueueLimitJob:integer',
                            'nQueueLimitWorker:integer',
                            'maxWorkers:integer',
-                           'jobFetchTime:timestamp',
-                           'submitTime:timestamp',
-                           'siteName:text',
+                           'jobFetchTime:timestamp / index',
+                           'submitTime:timestamp / index',
+                           'siteName:text / index',
                            'resourceType:text',
                            'nNewWorkers:integer'
                            )
