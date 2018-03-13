@@ -44,8 +44,8 @@ uwsgiSocket="127.0.0.1:3334"
 nProcesses=2
 nThreads=4
 
-# check interval in second and max nubmer of check attempts of process handle
-checkInterval=2
+# check interval in second and max number of check attempts of process handle
+checkInterval=1
 maxCheckAttempts=30
 
 #======= END CONFIGURATION SECTION ============================
