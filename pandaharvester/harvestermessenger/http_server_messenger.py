@@ -116,6 +116,14 @@ class HttpHandler(BaseHTTPRequestHandler):
                         filePath = os.path.join(workSpec.get_access_point(),
                                                 shared_file_messenger.pandaIDsFile)
                         opType = 'w'
+                    elif methodName == 'killWorker':
+                        filePath = os.path.join(workSpec.get_access_point(),
+                                                shared_file_messenger.killWorkerFile)
+                        opType = 'w'
+                    elif methodName == 'heartbeat':
+                        filePath = os.path.join(workSpec.get_access_point(),
+                                                shared_file_messenger.heartbeatFile)
+                        opType = 'w'
                     else:
                         self.send_response(501)
                         message = 'method not implemented'
@@ -124,8 +132,8 @@ class HttpHandler(BaseHTTPRequestHandler):
                     if not toSkip:
                         # write actions
                         if opType == 'w':
-                            # check if file exists
-                            if os.path.exists(filePath):
+                            # check if file exists. Methods such as heartbeat however need to overwrite the file
+                            if os.path.exists(filePath) and methodName not in ['heartbeat']:
                                 message = 'previous request is not yet processed'
                                 self.send_response(503)
                             else:

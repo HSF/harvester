@@ -568,3 +568,23 @@ mailFrom = example_from@example.com
 
 # a comma-concatenated list of email recipients
 mailTo = example_to_1@example.com,example_to_2@example.com
+
+
+
+##########################
+#
+# Google cloud parameters
+#
+
+[googlecloud]
+
+# zone where you are booting up your VMs and storage, e.g. us-east1-b
+zone = us-east1-b
+# project defined in the google compute account, where the activity will be billed
+project = atlas-harvester
+# private service account json generated in the google cloud management console
+service_account_file = /path/to/service_file.json
+# file with the user data to send to CERN VM
+user_data_file = /path/to/user_data.txt
+# image to use
+image = https://www.googleapis.com/compute/v1/projects/atlas-harvester/global/images/cernvm4-micro-3-0-6
