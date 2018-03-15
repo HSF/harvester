@@ -203,11 +203,10 @@ class Monitor(AgentBase):
 
                     try:
                         # check if the queue configuration requires checking for worker heartbeat
-                        worker_heartbeat = queue_config.messenger.worker_heartbeat
+                        worker_heartbeat_limit = int(queue_config.messenger.worker_heartbeat)
                     except:
-                        worker_heartbeat = False
-                    if worker_heartbeat and not messenger.check_worker_heartbeat(workSpec):
-                        # heartbeat is requested for the queue, but not up to date: worker needs to be killed
+                        worker_heartbeat_limit = None
+                    if worker_heartbeat_limit and not messenger.is_alive(workSpec, worker_heartbeat_limit):
                         self.dbProxy.kill_worker(workSpec.workerID)
 
                     # get work attributes
