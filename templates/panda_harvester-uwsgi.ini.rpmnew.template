@@ -1,0 +1,27 @@
+[uwsgi]
+; Comment with semicolon like this line
+
+; These options are necessary to run harvester with uwsgi and control with
+; the uwsgi servie script. Better not change them :)
+master = true
+lazy-apps = true
+wsgi-file = $(SITE_PACKAGES_PATH)/pandaharvester/harvesterbody/master.py
+
+; Following options are all configurable
+uid = $(userName)
+gid = $(groupName)
+
+socket = $(uwsgiSocket)
+;http = $(httpRouter)
+;https = $(httpsRouter)
+
+chdir = $(VIRTUAL_ENV)
+safe-pidfile = $(PIDFILE)
+
+processes = 2
+threads = 4
+
+worker-reload-mercy = 1
+
+buffer = 32768
+post-buffering = 32768

@@ -37,7 +37,8 @@ setup(
         ('etc/panda', ['templates/panda_harvester.cfg.rpmnew.template',
                        'templates/logrotate.d/panda_harvester',
                        'templates/panda_harvester-httpd.conf.rpmnew.template',
-                       'templates/panda_supervisord.cfg.rpmnew.template'
+                       'templates/panda_supervisord.cfg.rpmnew.template',
+                       'templates/panda_harvester-uwsgi.ini.rpmnew.template',
                        ]
          ),
         # sysconfig

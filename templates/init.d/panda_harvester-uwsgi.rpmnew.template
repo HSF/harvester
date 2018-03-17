@@ -13,8 +13,9 @@
 ARGV="$@"
 #
 
+set -a
 #======= START CONFIGURATION SECTION ==========================
-# user and group to run harvester uwsgi
+# user and group to run harvester uWSGI
 userName="#FIXME"
 groupName="#FIXME"
 
@@ -32,23 +33,35 @@ PIDFILE=${LOG_DIR}/panda_harvester.pid
 HSTDOUT=${LOG_DIR}/panda_harvester_stdout.log
 HSTDERR=${LOG_DIR}/panda_harvester_stderr.log
 
-# uwsgi socket address
+# check interval in second and max number of check attempts of process handle
+checkInterval=1
+maxCheckAttempts=30
+
+# uWSGI socket address
 uwsgiSocket="127.0.0.1:3334"
 
-# http router address
+# http and/or https router
 # Make uWSGI spawn an http proxy process. Use this only when http is needed and
 # no other frontend proxy/webserver (nginx, apache, etc.) is set for harvester
+# For http, only address required
+# For https, the concatenated string of address,hostcert,hostkey should be set
+# and more optional string (,cipher_suite,ca_cert) can be concatenated after
 #httpRouter=":25080"
+#httpsRouter=":25443,hostcert.pem,hostkey.pem,HIGH,ca-bundle.pem"
 
 # number of uwsgi processes and threads
 nProcesses=2
 nThreads=4
 
-# check interval in second and max number of check attempts of process handle
-checkInterval=1
-maxCheckAttempts=30
+# uWSGI configuration file
+# Path of the configuration file in .ini format. Optional.
+# If set, uWSGI will run according to the configuration file alone and the
+# env variables set above will not take effect. However, one can still
+# use them in the configuration file in form of $(ENV_VAR) as well.
+#uwsgiConfig=${VIRTUAL_ENV}/etc/panda/panda_harvester-uwsgi.ini
 
 #======= END CONFIGURATION SECTION ============================
+set +a
 
 # load module python
 if [ -r ${VIRTUAL_ENV}/bin/activate ]; then
@@ -60,15 +73,19 @@ if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
     . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
 
-# handle uWSGI options
-[ "x${httpRouter}y" != "xy" ] && httpRouter_option="--http ${httpRouter}"
-
-# the path to application
-PROGNAME="uwsgi --socket ${uwsgiSocket} ${httpRouter_option}
-    --master --lazy-apps --chdir ${VIRTUAL_ENV}
-    --wsgi-file ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
-    --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
-    --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}"
+# handle uWSGI program
+if [ "x${uwsgiConfig}y" != "xy" ]; then
+    PROGNAME="uwsgi ${uwsgiConfig}"
+else
+    [ "x${httpRouter}y" != "xy" ] && httpRouter_option="--http ${httpRouter}"
+    [ "x${httpsRouter}y" != "xy" ] && httpsRouter_option="--https ${httpsRouter}"
+    PROGNAME="uwsgi --socket ${uwsgiSocket} ${httpRouter_option} ${httpsRouter_option}
+        --master --lazy-apps --chdir ${VIRTUAL_ENV}
+        --wsgi-file ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
+        --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
+        --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}
+        --post-buffering 32768 --buffer 32768"
+fi
 
 
 function check_pidfile_running () {
