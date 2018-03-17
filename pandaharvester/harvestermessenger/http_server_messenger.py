@@ -4,6 +4,10 @@ import os.path
 import threading
 from queue import Queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
+try:
+    from urllib.parse import parse_qsl
+except ImportError:
+    from cgi import parse_qsl
 from socketserver import ThreadingMixIn
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -145,7 +149,12 @@ class HttpHandler(BaseHTTPRequestHandler):
                             # read actions
                             if os.path.exists(filePath):
                                 with open(filePath) as fileHandle:
-                                    message = json.load(fileHandle)
+                                    try:
+                                        _message = json.load(fileHandle)
+                                    except json.decoder.JSONDecodeError:
+                                        _f_qs = open(filePath).read()
+                                        _message = dict(parse_qsl(_f_qs, keep_blank_values=True))
+                                    message = json.dumps(_message)
                                     self.send_response(200)
                                     self.send_header('Content-Type', 'application/json')
                             else:
