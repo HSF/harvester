@@ -151,12 +151,14 @@ class HttpHandler(BaseHTTPRequestHandler):
                                 with open(filePath) as fileHandle:
                                     try:
                                         _message = json.load(fileHandle)
+                                        message = json.dumps(_message)
+                                        self.send_header('Content-Type', 'application/json')
                                     except json.decoder.JSONDecodeError:
                                         _f_qs = open(filePath).read()
-                                        _message = dict(parse_qsl(_f_qs, keep_blank_values=True))
-                                    message = json.dumps(_message)
+                                        # _message = dict(parse_qsl(_f_qs, keep_blank_values=True))
+                                        message = _f_qs
+                                        self.send_header('Content-Type', 'text/plain')
                                     self.send_response(200)
-                                    self.send_header('Content-Type', 'application/json')
                             else:
                                 message = 'previous request is not yet processed'
                                 self.send_response(503)
