@@ -35,7 +35,7 @@ class ApacheHandler(http_server_messenger.HttpHandler):
         self.form = form
 
     def do_postprocessing(self, message):
-        self.message = message
+        self.message = message.encode('ascii')
 
     def send_header(self, keyword, value):
         self.headerList = [(keyword, value)]
