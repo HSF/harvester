@@ -15,7 +15,7 @@ from threading import Timer
 METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/{0}"
 
 
-def contact_harvester(harvester_frontend, data)
+def contact_harvester(harvester_frontend, data):
     try:
         resp = requests.post(harvester_frontend, json=data, headers={'Content-Type': 'application/json'})
     except:
