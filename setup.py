@@ -30,7 +30,8 @@ setup(
                       'future',
                       'futures; python_version == "2.*"',
                       'pycrypto',
-                      'panda-common-s'
+                      'panda-common-s',
+                      'pyjwt',
                       ],
     data_files=[
         # config and cron files

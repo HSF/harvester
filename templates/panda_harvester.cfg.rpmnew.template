@@ -481,6 +481,11 @@ verbose = False
 # type : simple or apache
 type = simple
 
+# file of secret used in token signature
+secretFile = /FIXME
+
+# whether to verify token (of its signature, expiration, etc.) when decoding token
+verifyToken = True
 
 
 
