@@ -6,6 +6,7 @@ from pandaharvester.harvestercloud import cernvm_aux
 
 PROXY_PATH = harvester_config.pandacon.cert_file
 USER_DATA_PATH = harvester_config.googlecloud.user_data_file
+HARVESTER_FRONTEND = harvester_config.googlecloud.harvester_frontend
 
 IMAGE = harvester_config.googlecloud.image
 ZONE = harvester_config.googlecloud.zone
@@ -133,6 +134,19 @@ class GoogleVM():
                              'key': 'panda_queue',
                              'value': self.work_spec.computingSite
                          },
+                         {
+                             'key': 'harvester_frontend',
+                             'value': HARVESTER_FRONTEND
+                         },
+                         {
+                             'key': 'worker_id',
+                             'value': self.work_spec.workerID
+                         }
+                         #,
+                         #{
+                         #    'key': 'auth_token',
+                         #    'value': HarvesterToken.generate(payload={'sub': self.work_spec.batchID})
+                         #}
                      ]
              }
          }

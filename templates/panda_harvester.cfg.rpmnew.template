@@ -593,3 +593,5 @@ service_account_file = /path/to/service_file.json
 user_data_file = /path/to/user_data.txt
 # image to use
 image = https://www.googleapis.com/compute/v1/projects/atlas-harvester/global/images/cernvm4-micro-3-0-6
+# harvester frontend
+harvester_frontend = aipanda170.cern.ch:25443
