@@ -36,7 +36,7 @@ class HarvesterToken():
         """
         timestamp_now = int(time.time())
         payload_dict = self.default_payload_dict.copy()
-        payload_dict['isa'] = timestamp_now
+        payload_dict['iat'] = timestamp_now
         payload_dict['exp'] = timestamp_now + self.default_lifetime
         if payload:
             payload_dict.update(payload)

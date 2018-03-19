@@ -4,10 +4,10 @@ import os.path
 import threading
 from queue import Queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
-try:
-    from urllib.parse import parse_qsl
-except ImportError:
-    from cgi import parse_qsl
+# try:
+#     from urllib.parse import parse_qsl
+# except ImportError:
+#     from cgi import parse_qsl
 from socketserver import ThreadingMixIn
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
