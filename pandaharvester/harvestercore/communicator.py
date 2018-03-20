@@ -378,7 +378,7 @@ class Communicator:
             tmpLog.debug('done with {0}'.format(errStr))
         return retList, errStr
 
-    # send instance heartbeat
+    # send heartbeat of harvester instance
     def is_alive(self, key_values):
         tmpLog = core_utils.make_logger(_logger, method_name='is_alive')
         tmpLog.debug('start')

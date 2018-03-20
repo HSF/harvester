@@ -181,7 +181,11 @@ class WorkSpec(SpecBase):
                      'nodeID',
                      'submitTime',
                      'startTime',
-                     'endTime'
+                     'endTime',
+                     'resourceType',
+                     'nativeExitCode',
+                     'nativeStatus',
+                     'diagMessage'
                      ]:
             val = getattr(self, attr)
             if val is not None:
