@@ -26,7 +26,7 @@ harvester_id = test_fbarreir
 
 [db]
 
-# filename
+# database filename for sqlite. Better to use local disk if possible since sqlite doesn't like NAS
 database_filename = FIXME
 
 # verbose
@@ -38,19 +38,19 @@ nConnections = 10
 # database engine : sqlite or mariadb
 engine = sqlite
 
-# user name
+# user name for MariaDB. N/A for sqlite
 user = harvester
 
-# password
+# password for MariaDB. N/A for sqlite
 password = FIXME
 
-# schema
+# schema for MariaDB. N/A for sqlite
 schema = HARVESTER
 
-# host name for MariaDB
+# host name for MariaDB. N/A for sqlite
 host = localhost
 
-# port number for MariaDB
+# port number for MariaDB. N/A for sqlite
 port = 	3306
 
 
