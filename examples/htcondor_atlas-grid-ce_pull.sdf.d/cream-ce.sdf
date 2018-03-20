@@ -1,0 +1,31 @@
+executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
+arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel}
+initialdir = {accessPoint}
+universe = grid
+log = {logDir}/grid.$(Cluster).$(Process).log
+output = {logDir}/grid.$(Cluster).$(Process).out
+error = {logDir}/grid.$(Cluster).$(Process).err
+transfer_executable = True
+x509userproxy = {x509UserProxy}
+environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} RUCIO_ACCOUNT=pilot GTAG={gtag}"
+
+grid_resource = cream https://{ceEndpoint}/ce-cream/services/{ceVersion} {ceJobmanager} {ceQueueName}
++remote_jobuniverse = 5
++remote_requirements = True
++remote_ShouldTransferFiles = "YES"
++remote_WhenToTransferOutput = "ON_EXIT"
++remote_TransferOutput = ""
+
+#+remote_RequestCpus = {nCoreTotal}
+#+remote_RequestMemory = {requestRam}
+#+remote_RequestDisk = {requestDisk}
+#+remote_JobMaxVacateTime = {requestWalltime}
+
+cream_attributes = CpuNumber={nCoreTotal};WholeNodes=false;SMPGranularity={nCoreTotal};CERequirements = "other.GlueCEPolicyMaxCPUTime == {requestCputimeMinute} && other.GlueCEPolicyMaxWallClockTime == {requestWalltimeMinute} && other.GlueHostMainMemoryRAMSize == {requestRam}";
+
+#+remote_Requirements = JobRunCount == 0
+periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)
+#+remote_PeriodicHold = ( JobStatus==1 && gridjobstatus=?=UNDEFINED && CurrentTime-EnteredCurrentStatus>3600 ) || ( (JobRunCount =!= UNDEFINED && JobRunCount > 0) ) || ( JobStatus == 2 && CurrentTime-EnteredCurrentStatus>604800 )
++remote_PeriodicRemove = (JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 3600) || (JobStatus == 1 && globusstatus =!= 1 && (CurrentTime - EnteredCurrentStatus) > 86400)
+
+queue 1
