@@ -497,3 +497,8 @@ def get_queues_config_url():
         return os.environ['HARVESTER_QUEUE_CONFIG_URL']
     except:
         return None
+
+
+# get unique queue name
+def get_unique_queue_name(queue_name, resource_type):
+    return '{0}:{1}'.format(queue_name, resource_type)

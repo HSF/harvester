@@ -39,6 +39,7 @@ class QueueConfig:
         self.truePilot = False
         self.queueStatus = None
         self.prefetchEvents = True
+        self.uniqueName = None
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -53,6 +54,10 @@ class QueueConfig:
         if self.queueStatus == 'test':
             return 'test'
         return self.prodSourceLabel
+
+    # set unique name
+    def set_unique_name(self):
+        self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType)
 
     # str
     def __str__(self):
@@ -176,6 +181,8 @@ class QueueConfigMapper:
                         # heartbeat suppression
                         if queueConfig.truePilot and queueConfig.noHeartbeat == '':
                             queueConfig.noHeartbeat = 'running,transferring,finished,failed'
+                        # set unique name
+                        queueConfig.set_unique_name()
                         newQueueConfig[queueName] = queueConfig
             # delete templates
             for templateQueueName in templateQueueList:
