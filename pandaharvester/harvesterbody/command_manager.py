@@ -6,6 +6,8 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.command_spec import CommandSpec
+from pandaharvester import commit_timestamp
+from pandaharvester import panda_pkg_info
 
 
 # logger
@@ -72,10 +74,13 @@ class CommandManager(AgentBase):
                                'resourceType': queueConfig.resourceType
                                }
                 commandList.append(commandItem)
+            data = {'startTime': datetime.datetime.utcnow(),
+                    'sw_version': panda_pkg_info.release_version,
+                    'commit_stamp': commit_timestamp.timestamp}
             if len(commandList) > 0:
                 main_log.debug('sending command list to receive')
-                self.communicator.is_alive({'startTime': datetime.datetime.utcnow(),
-                                            'commands': commandList})
+                data['commands'] = commandList
+            self.communicator.is_alive(data)
 
         # main loop
         while True:
@@ -90,7 +95,7 @@ class CommandManager(AgentBase):
                 if self.lastHeartbeat is None \
                         or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
                     self.lastHeartbeat = datetime.datetime.utcnow()
-                    self.communicator.is_alive({'startTime': datetime.datetime.utcnow()})
+                    self.communicator.is_alive({})
 
                 continuous_loop = True  # as long as there are commands, retrieve them
 

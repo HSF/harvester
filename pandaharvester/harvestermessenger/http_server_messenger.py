@@ -4,6 +4,10 @@ import os.path
 import threading
 from queue import Queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
+# try:
+#     from urllib.parse import parse_qsl
+# except ImportError:
+#     from cgi import parse_qsl
 from socketserver import ThreadingMixIn
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -116,6 +120,14 @@ class HttpHandler(BaseHTTPRequestHandler):
                         filePath = os.path.join(workSpec.get_access_point(),
                                                 shared_file_messenger.pandaIDsFile)
                         opType = 'w'
+                    elif methodName == 'killWorker':
+                        filePath = os.path.join(workSpec.get_access_point(),
+                                                shared_file_messenger.killWorkerFile)
+                        opType = 'w'
+                    elif methodName == 'heartbeat':
+                        filePath = os.path.join(workSpec.get_access_point(),
+                                                shared_file_messenger.heartbeatFile)
+                        opType = 'w'
                     else:
                         self.send_response(501)
                         message = 'method not implemented'
@@ -124,8 +136,8 @@ class HttpHandler(BaseHTTPRequestHandler):
                     if not toSkip:
                         # write actions
                         if opType == 'w':
-                            # check if file exists
-                            if os.path.exists(filePath):
+                            # check if file exists. Methods such as heartbeat however need to overwrite the file
+                            if os.path.exists(filePath) and methodName not in ['heartbeat']:
                                 message = 'previous request is not yet processed'
                                 self.send_response(503)
                             else:
@@ -137,9 +149,16 @@ class HttpHandler(BaseHTTPRequestHandler):
                             # read actions
                             if os.path.exists(filePath):
                                 with open(filePath) as fileHandle:
-                                    message = json.load(fileHandle)
+                                    try:
+                                        _message = json.load(fileHandle)
+                                        message = json.dumps(_message)
+                                        self.send_header('Content-Type', 'application/json')
+                                    except json.decoder.JSONDecodeError:
+                                        _f_qs = open(filePath).read()
+                                        # _message = dict(parse_qsl(_f_qs, keep_blank_values=True))
+                                        message = _f_qs
+                                        self.send_header('Content-Type', 'text/plain')
                                     self.send_response(200)
-                                    self.send_header('Content-Type', 'application/json')
                             else:
                                 message = 'previous request is not yet processed'
                                 self.send_response(503)

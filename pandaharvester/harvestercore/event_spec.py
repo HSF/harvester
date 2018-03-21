@@ -16,7 +16,7 @@ class EventSpec(SpecBase):
                            'eventStatus:text',
                            'coreCount:integer',
                            'cpuConsumptionTime:integer',
-                           'subStatus:text',
+                           'subStatus:text / index',
                            'fileID:integer'
                            )
 

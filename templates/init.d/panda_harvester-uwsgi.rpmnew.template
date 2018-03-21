@@ -13,8 +13,9 @@
 ARGV="$@"
 #
 
+set -a
 #======= START CONFIGURATION SECTION ==========================
-# user and group to run harvester uwsgi
+# user and group to run harvester uWSGI
 userName="#FIXME"
 groupName="#FIXME"
 
@@ -32,31 +33,59 @@ PIDFILE=${LOG_DIR}/panda_harvester.pid
 HSTDOUT=${LOG_DIR}/panda_harvester_stdout.log
 HSTDERR=${LOG_DIR}/panda_harvester_stderr.log
 
-# uwsgi socket
+# check interval in second and max number of check attempts of process handle
+checkInterval=1
+maxCheckAttempts=30
+
+# uWSGI socket address
 uwsgiSocket="127.0.0.1:3334"
+
+# http and/or https router
+# Make uWSGI spawn an http proxy process. Use this only when http is needed and
+# no other frontend proxy/webserver (nginx, apache, etc.) is set for harvester
+# For http, only address required
+# For https, the concatenated string of address,hostcert,hostkey should be set
+# and more optional string (,cipher_suite,ca_cert) can be concatenated after
+#httpRouter=":25080"
+#httpsRouter=":25443,hostcert.pem,hostkey.pem,HIGH,ca-bundle.pem"
 
 # number of uwsgi processes and threads
 nProcesses=2
 nThreads=4
 
-# check interval in second and max number of check attempts of service process handle
-checkInterval=1
-maxCheckAttempts=30
+# uWSGI configuration file
+# Path of the configuration file in .ini format. Optional.
+# If set, uWSGI will run according to the configuration file alone and the
+# env variables set above will not take effect. However, one can still
+# use them in the configuration file in form of $(ENV_VAR) as well.
+#uwsgiConfig=${VIRTUAL_ENV}/etc/panda/panda_harvester-uwsgi.ini
 
 #======= END CONFIGURATION SECTION ============================
+set +a
 
 # load module python
-. ${VIRTUAL_ENV}/bin/activate
+if [ -r ${VIRTUAL_ENV}/bin/activate ]; then
+    . ${VIRTUAL_ENV}/bin/activate
+fi
 
 # source harvester env variables
 if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
-   . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
 
-# the path to application
-PROGNAME="uwsgi -s ${uwsgiSocket} --pyimport ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py --master
-    --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
-    --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}"
+# handle uWSGI program
+if [ "x${uwsgiConfig}y" != "xy" ]; then
+    PROGNAME="uwsgi ${uwsgiConfig}"
+else
+    [ "x${httpRouter}y" != "xy" ] && httpRouter_option="--http ${httpRouter}"
+    [ "x${httpsRouter}y" != "xy" ] && httpsRouter_option="--https ${httpsRouter}"
+    PROGNAME="uwsgi --socket ${uwsgiSocket} ${httpRouter_option} ${httpsRouter_option}
+        --master --lazy-apps --chdir ${VIRTUAL_ENV}
+        --wsgi-file ${SITE_PACKAGES_PATH}/pandaharvester/harvesterbody/master.py
+        --processes ${nProcesses} --threads ${nThreads} --worker-reload-mercy 1
+        --safe-pidfile ${PIDFILE} --uid ${userName} --gid ${groupName}
+        --post-buffering 32768 --buffer 32768"
+fi
 
 
 function check_pidfile_running () {
@@ -92,7 +121,7 @@ function check_pidfile_killed () {
     return 1
 }
 
-function check_pidfile_children_running () {
+function check_pidfile_children_respawn () {
     if [ ! -f ${PIDFILE} ]; then
         echo "ERROR: pidfile:${PIDFILE} does not exist"
         return 1
@@ -103,10 +132,13 @@ function check_pidfile_children_running () {
         sleep $checkInterval
         _old_processes=`echo $@`
         _processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
-        retCode=$?
-        _processes=`echo $_processes`
-	if [ $retCode = 0 ] && [ "$_processes" != "$_old_processes" ]; then
-            return 0
+        ERROR=$?
+        if [ $ERROR = 0 ]; then
+            _old_processes=$(python -c "print(' '.join('$_old_processes'.split()))")
+            _processes=$(python -c "print(' '.join('`echo $_processes`'.split()))")
+            _python_command="if set('`echo $_old_processes`'.split()).intersection(set('`echo $_processes`'.split())) == set(['PID']) and len('`echo $_processes`'.split()) >= int(${nProcesses}) + bool('${httpRouter_option}'): print(0)"
+            _ret=$(python -c "$_python_command")
+            [ "$_ret" == "0" ] && return 0
         fi
     done
     echo "ERROR: check_pidfile_children_running timeout"
@@ -156,7 +188,7 @@ reload)
         echo Reload Harvester
         _old_processes=$(ps -o pid --ppid `cat ${PIDFILE}`)
         uwsgi --reload ${PIDFILE}
-        check_pidfile_children_running $_old_processes
+        check_pidfile_children_respawn $_old_processes
         ERROR=$?
         if [ $ERROR = 0 ]; then
 	    echo "succeeded"

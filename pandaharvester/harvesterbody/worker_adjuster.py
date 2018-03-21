@@ -22,7 +22,7 @@ class WorkerAdjuster:
     def define_num_workers(self, static_num_workers, site_name):
         tmpLog = core_utils.make_logger(_logger, 'site={0}'.format(site_name), method_name='define_num_workers')
         tmpLog.debug('start')
-        dyn_num_workers = copy.copy(static_num_workers)
+        dyn_num_workers = copy.deepcopy(static_num_workers)
         try:
             # get queue status
             queueStat = self.dbProxy.get_cache("panda_queues.json", None)
@@ -36,8 +36,9 @@ class WorkerAdjuster:
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
 
                     # set 0 to num of new workers when the queue is disabled
-                    if queueName in queueStat and queueStat[queueName]['status'] in ['offline']:
-                        dyn_num_workers[queueName]['nNewWorkers'] = 0
+                    if queueName in queueStat and queueStat[queueName]['status'] in ['offline', 'standby',
+                                                                                     'maintenance']:
+                        dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
                         retMsg = 'set nNewWorkers=0 since status={0}'.format(queueStat[queueName]['status'])
                         tmpLog.debug(retMsg)
                         continue

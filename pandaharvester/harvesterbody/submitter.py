@@ -243,7 +243,9 @@ class Submitter(AgentBase):
                                     workSpec.submitTime = timeNow
                                     workSpec.modificationTime = timeNow
                                     # prefetch events
-                                    if tmpRet and workSpec.hasJob == 1 and workSpec.eventsRequest == WorkSpec.EV_useEvents:
+                                    if tmpRet and workSpec.hasJob == 1 and \
+                                            workSpec.eventsRequest == WorkSpec.EV_useEvents and \
+                                            queueConfig.prefetchEvents:
                                         workSpec.eventsRequest = WorkSpec.EV_requestEvents
                                         eventsRequestParams = dict()
                                         for jobSpec in jobList:

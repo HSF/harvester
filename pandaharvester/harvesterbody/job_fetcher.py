@@ -48,7 +48,7 @@ class JobFetcher(AgentBase):
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
                 siteName = queueConfig.siteName
                 jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
-                                                          queueConfig.prodSourceLabel,
+                                                          queueConfig.get_source_label(),
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
                 tmpLog.debug('got {0} jobs with {1}'.format(len(jobs), errStr))

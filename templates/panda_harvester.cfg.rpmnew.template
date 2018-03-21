@@ -26,7 +26,7 @@ harvester_id = test_fbarreir
 
 [db]
 
-# filename
+# database filename for sqlite. Better to use local disk if possible since sqlite doesn't like NAS
 database_filename = FIXME
 
 # verbose
@@ -38,19 +38,19 @@ nConnections = 10
 # database engine : sqlite or mariadb
 engine = sqlite
 
-# user name
+# user name for MariaDB. N/A for sqlite
 user = harvester
 
-# password
+# password for MariaDB. N/A for sqlite
 password = FIXME
 
-# schema
+# schema for MariaDB. N/A for sqlite
 schema = HARVESTER
 
-# host name for MariaDB
+# host name for MariaDB. N/A for sqlite
 host = localhost
 
-# port number for MariaDB
+# port number for MariaDB. N/A for sqlite
 port = 	3306
 
 
@@ -112,6 +112,13 @@ configFile = panda_queueconfig.json
 queueList =
  FIXME_1
  FIXME_2
+
+# module and class names to resolve queue names to panda queue names
+resolverModule = pandaharvester.harvestermisc.info_utils
+resolverClass = PandaQueuesDict
+
+# enable auto-blacklisting of resolver which returns status='offline' to blacklist the queue
+autoBlacklist = False
 
 
 
@@ -474,6 +481,11 @@ verbose = False
 # type : simple or apache
 type = simple
 
+# file of secret used in token signature
+secretFile = /FIXME
+
+# whether to verify token (of its signature, expiration, etc.) when decoding token
+verifyToken = True
 
 
 
@@ -561,3 +573,25 @@ mailFrom = example_from@example.com
 
 # a comma-concatenated list of email recipients
 mailTo = example_to_1@example.com,example_to_2@example.com
+
+
+
+##########################
+#
+# Google cloud parameters
+#
+
+[googlecloud]
+
+# zone where you are booting up your VMs and storage, e.g. us-east1-b
+zone = us-east1-b
+# project defined in the google compute account, where the activity will be billed
+project = atlas-harvester
+# private service account json generated in the google cloud management console
+service_account_file = /path/to/service_file.json
+# file with the user data to send to CERN VM
+user_data_file = /path/to/user_data.txt
+# image to use
+image = https://www.googleapis.com/compute/v1/projects/atlas-harvester/global/images/cernvm4-micro-3-0-6
+# harvester frontend
+harvester_frontend = aipanda170.cern.ch:25443

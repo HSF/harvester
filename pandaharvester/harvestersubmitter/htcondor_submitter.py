@@ -100,12 +100,12 @@ def submit_a_worker(data):
         else:
             errStr = 'batchID cannot be found'
             tmpLog.error(errStr)
-            tmpRetVal = (False, errStr)
+            tmpRetVal = (None, errStr)
     else:
         # failed
         errStr = '{0} \n {1}'.format(stdOut, stdErr)
         tmpLog.error(errStr)
-        tmpRetVal = (False, errStr)
+        tmpRetVal = (None, errStr)
     return tmpRetVal, workspec.get_changed_attributes()
 
 
@@ -175,7 +175,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         ceVersion=ce_info_dict.get('ce_version', ''),
         logDir=log_dir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
-        prodSourceLabel=harvester_queue_config.prodSourceLabel,
+        prodSourceLabel=harvester_queue_config.get_source_label(),
         )
     )
     tmpFile.close()
@@ -256,7 +256,7 @@ class HTCondorSubmitter(PluginBase):
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
             panda_queues_dict = PandaQueuesDict()
-            panda_queue_name = panda_queues_dict.get_PQ_from_PR(self.queueName)
+            panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
         else:
