@@ -11,24 +11,37 @@ import requests
 import subprocess
 import os
 from threading import Timer
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
+                    filename='/tmp/vm_script.log', filemode='w')
 
 METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/{0}"
 
 
-def contact_harvester(harvester_frontend, data):
+def contact_harvester(harvester_frontend, data, auth_token):
     try:
-        resp = requests.post(harvester_frontend, json=data, headers={'Content-Type': 'application/json'})
-    except:
+        headers = {'Content-Type': 'application/json',
+                   'Authorization': 'Bearer {0}'.format(auth_token)}
+        resp = requests.post(harvester_frontend, json=data, headers=headers)
+        logging.debug('[contact_harvester] harvester returned: {0}'.format(resp.text))
+    except Exception as e:
         # message could not be sent
+        logging.debug('[contact_harvester] failed to send message to harvester: {0}'.format(e))
         pass
 
-def heartbeat(harvester_frontend, worker_id):
-    data = {'methodName': 'heartbeat', 'workerID': worker_id, 'data': None}
-    return contact_harvester(harvester_frontend, data)
 
-def suicide(harvester_frontend, worker_id):
+def heartbeat(harvester_frontend, worker_id, auth_token):
+    data = {'methodName': 'heartbeat', 'workerID': worker_id, 'data': None}
+    logging.debug('[heartbeat] sending heartbeat to harvester: {0}'.format(data))
+    return contact_harvester(harvester_frontend, data, auth_token)
+
+
+def suicide(harvester_frontend, worker_id, auth_token):
     data = {'methodName': 'killWorker', 'workerID': worker_id, 'data': None}
-    return contact_harvester(harvester_frontend, data)
+    logging.debug('[suicide] sending suicide message to harvester: {0}'.format(data))
+    return contact_harvester(harvester_frontend, data, auth_token)
+
 
 def get_url(url, headers=None):
     """
@@ -37,52 +50,70 @@ def get_url(url, headers=None):
 
     reply = requests.get(url, headers=headers)
     if reply.status_code != 200:
-        print '[get_attribute] Failed to open {0}'.format(url)
+        logging.debug('[get_attribute] Failed to open {0}'.format(url))
         return None
     else:
         return reply.content
 
 
-# get the proxy certificate and save it
-proxy_path = "/tmp/x509up"
-proxy_url = METADATA_URL.format("proxy")
-proxy_string = get_url(proxy_url, headers={"Metadata-Flavor": "Google"})
-with open(proxy_path, "w") as proxy_file:
-    proxy_file.write(proxy_string)
+if __name__ == "__main__":
 
-os.environ['X509_USER_PROXY'] = proxy_path
+    # get the proxy certificate and save it
+    proxy_path = "/tmp/x509up"
+    proxy_url = METADATA_URL.format("proxy")
+    proxy_string = get_url(proxy_url, headers={"Metadata-Flavor": "Google"})
+    with open(proxy_path, "w") as proxy_file:
+        proxy_file.write(proxy_string)
+    os.environ['X509_USER_PROXY'] = proxy_path
+    logging.debug('[main] initialized proxy')
 
-# get the panda queue name
-pq_url = METADATA_URL.format("panda_queue")
-panda_queue = get_url(pq_url, headers={"Metadata-Flavor": "Google"})
+    # get the panda queue name
+    pq_url = METADATA_URL.format("panda_queue")
+    panda_queue = get_url(pq_url, headers={"Metadata-Flavor": "Google"})
+    logging.debug('[main] got panda queue: {0}'.format(panda_queue))
 
-harvester_frontend_url = METADATA_URL.format("harvester_frontend")
-harvester_frontend = get_url(harvester_frontend_url, headers={"Metadata-Flavor": "Google"})
+    # get the harvester frontend URL, where we'll send heartbeats
+    harvester_frontend_url = METADATA_URL.format("harvester_frontend")
+    harvester_frontend = get_url(harvester_frontend_url, headers={"Metadata-Flavor": "Google"})
+    logging.debug('[main] got harvester frontend: {0}'.format(harvester_frontend))
 
-worker_id_url = METADATA_URL.format("worker_id")
-worker_id = get_url(worker_id_url, headers={"Metadata-Flavor": "Google"})
+    # get the worker id
+    worker_id_url = METADATA_URL.format("worker_id")
+    worker_id = get_url(worker_id_url, headers={"Metadata-Flavor": "Google"})
+    logging.debug('[main] got worker id: {0}'.format(worker_id))
 
-# start a thread that will send a heartbeat to harvester every 5 minutes
-heartbeat_thread = Timer(300, heartbeat, [harvester_frontend, worker_id])
-heartbeat_thread.start()
+    # get the authentication token
+    token_url = METADATA_URL.format("token")
+    token = get_url(token_url, headers={"Metadata-Flavor": "Google"})
+    logging.debug('[main] got authentication token'
 
-# get the pilot wrapper
-wrapper_path = "/tmp/runpilot3-wrapper.sh"
-wrapper_url = "https://raw.githubusercontent.com/fbarreir/adc/master/runpilot3-wrapper.sh"
-wrapper_string = get_url(wrapper_url)
-with open(wrapper_path, "w") as wrapper_file:
-    wrapper_file.write(wrapper_string)
-os.chmod(wrapper_path, 0544) # make pilot wrapper executable
+    # start a separate thread that will send a heartbeat to harvester every 5 minutes
+    heartbeat_thread = Timer(300, heartbeat, [harvester_frontend, worker_id])
+    heartbeat_thread.start()
 
-# execute the pilot wrapper
-command = "/tmp/runpilot3-wrapper.sh -s {0} -h {0} -p 25443 -w https://pandaserver.cern.ch >& /tmp/wrapper-wid.log".format(panda_queue)
-subprocess.call(command, shell=True)
+    # get the pilot wrapper
+    wrapper_path = "/tmp/runpilot3-wrapper.sh"
+    wrapper_url = "https://raw.githubusercontent.com/fbarreir/adc/master/runpilot3-wrapper.sh"
+    wrapper_string = get_url(wrapper_url)
+    with open(wrapper_path, "w") as wrapper_file:
+        wrapper_file.write(wrapper_string)
+    os.chmod(wrapper_path, 0544) # make pilot wrapper executable
+    logging.debug('[main] downloaded pilot wrapper')
 
-# ask harvester to kill the VM and stop the heartbeat
-suicide(harvester_frontend, worker_id)
-heartbeat_thread.cancel()
+    # execute the pilot wrapper
+    logging.debug('[main] starting pilot wrapper...')
+    wrapper_params = '-s {0} -h {0}'.format(panda_queue)
+    if 'ANALY' in panda_queue:
+        wrapper_params = '{0} -u user'.format(wrapper_params)
+    command = "/tmp/runpilot3-wrapper.sh {0} -p 25443 -w https://pandaserver.cern.ch >& /tmp/wrapper-wid.log".\
+        format(wrapper_params)
+    subprocess.call(command, shell=True)
+    logging.debug('[main] pilot wrapper done...')
 
+    # ask harvester to kill the VM and stop the heartbeat
+    suicide(harvester_frontend, worker_id)
+    heartbeat_thread.cancel()
 
-# TODO: upload logs to panda cache or harvester
+    # TODO: upload logs to panda cache or harvester
 
 
