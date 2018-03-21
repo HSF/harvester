@@ -1,5 +1,8 @@
 import re
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 import xml.etree.ElementTree as ET
 
 import time
