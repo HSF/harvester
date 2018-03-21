@@ -3,6 +3,7 @@ import os
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercloud import cernvm_aux
+from pandaharvester.harvestermisc.frontend_utils import HarvesterToken
 
 PROXY_PATH = harvester_config.pandacon.cert_file
 USER_DATA_PATH = harvester_config.googlecloud.user_data_file
@@ -142,11 +143,11 @@ class GoogleVM():
                              'key': 'worker_id',
                              'value': self.work_spec.workerID
                          }
-                         #,
-                         #{
-                         #    'key': 'auth_token',
-                         #    'value': HarvesterToken.generate(payload={'sub': self.work_spec.batchID})
-                         #}
+                         ,
+                         {
+                             'key': 'auth_token',
+                             'value': HarvesterToken.generate(payload={'sub': self.work_spec.batchID})
+                         }
                      ]
              }
          }

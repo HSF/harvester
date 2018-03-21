@@ -83,9 +83,9 @@ if __name__ == "__main__":
     logging.debug('[main] got worker id: {0}'.format(worker_id))
 
     # get the authentication token
-    token_url = METADATA_URL.format("token")
+    token_url = METADATA_URL.format("auth_token")
     token = get_url(token_url, headers={"Metadata-Flavor": "Google"})
-    logging.debug('[main] got authentication token'
+    logging.debug('[main] got authentication token')
 
     # start a separate thread that will send a heartbeat to harvester every 5 minutes
     heartbeat_thread = Timer(300, heartbeat, [harvester_frontend, worker_id])
@@ -115,5 +115,4 @@ if __name__ == "__main__":
     heartbeat_thread.cancel()
 
     # TODO: upload logs to panda cache or harvester
-
 
