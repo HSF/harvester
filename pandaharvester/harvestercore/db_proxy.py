@@ -97,6 +97,9 @@ class DBProxy:
         # remove FOR UPDATE for sqlite
         if harvester_config.db.engine == 'sqlite':
             sql = re.sub(' FOR UPDATE', ' ', sql, re.I)
+            sql = re.sub('INSERT IGNORE', 'INSERT OR IGNORE', sql, re.I)
+        else:
+            sql = re.sub('INSERT OR IGNORE', 'INSERT IGNORE', sql, re.I)
         # no conversation unless dict
         if not isinstance(varmap, dict):
             # using the printf style syntax for mariaDB
@@ -228,13 +231,17 @@ class DBProxy:
 
     # check if index is needed
     def need_index(self, attr):
+        isIndex = False
+        isUnique = False
         # look for separator
-        if '/' not in attr:
-            return False
-        decorators = attr.split('/')[-1].split()
-        if 'index' in decorators:
-            return True
-        return False
+        if '/' in attr:
+            decorators = attr.split('/')[-1].split()
+            if 'index' in decorators:
+                isIndex = True
+            if 'unique' in decorators:
+                isIndex = True
+                isUnique = True
+        return isIndex, isUnique
 
     # make table
     def make_table(self, cls, table_name):
@@ -254,6 +261,7 @@ class DBProxy:
             self.execute(sqlC, varMap)
             resC = self.cur.fetchone()
             indexes = []
+            uniques = set()
             # not exists
             if resC is None:
                 #  sql to make table
@@ -264,8 +272,11 @@ class DBProxy:
                     attrName, attrType = attr.split(':')
                     attrType = self.type_conversion(attrType)
                     # check if index is needed
-                    if self.need_index(attr):
+                    isIndex, isUnique = self.need_index(attr)
+                    if isIndex:
                         indexes.append(attrName)
+                        if isUnique:
+                            uniques.add(attrName)
                     sqlM += '{0} {1},'.format(attrName, attrType)
                 sqlM = sqlM[:-1]
                 sqlM += ')'
@@ -286,8 +297,11 @@ class DBProxy:
                         if attrName not in missingAttrs:
                             continue
                         # check if index is needed
-                        if self.need_index(attr):
+                        isIndex, isUnique = self.need_index(attr)
+                        if isIndex:
                             indexes.append(attrName)
+                            if isUnique:
+                                uniques.add(attrName)
                         # add column
                         sqlA = 'ALTER TABLE {0} ADD COLUMN '.format(table_name)
                         sqlA += '{0} {1}'.format(attrName, attrType)
@@ -298,7 +312,11 @@ class DBProxy:
             # make indexes
             for index in indexes:
                 indexName = 'idx_{0}_{1}'.format(index, table_name)
-                sqlI = "CREATE INDEX {0} ON {1}({2})".format(indexName, table_name, index)
+                if index in uniques:
+                    sqlI = "CREATE UNIQUE INDEX "
+                else:
+                    sqlI = "CREATE INDEX "
+                sqlI += "{0} ON {1}({2}) ".format(indexName, table_name, index)
                 self.execute(sqlI)
                 # commit
                 self.commit()
@@ -641,6 +659,8 @@ class DBProxy:
                     varMap = dict()
                     varMap[':queueName'] = queueName
                     self.execute(sqlD, varMap)
+                    # commit
+                    self.commit()
             # loop over queues
             for queueName in panda_queue_list:
                 queueConfig = queue_config_mapper.get_queue(queueName)
@@ -666,25 +686,25 @@ class DBProxy:
                         sqlU += " WHERE queueName=:queueName "
                         varMap[':queueName'] = queueName
                         self.execute(sqlU, varMap)
-                        continue
-                    # insert queue
-                    varMap = dict()
-                    varMap[':queueName'] = queueName
-                    sqlP = "INSERT INTO {0} (".format(pandaQueueTableName)
-                    sqlS = "VALUES ("
-                    for attrName in PandaQueueSpec.column_names().split(','):
-                        if hasattr(queueConfig, attrName):
-                            tmpKey = ':{0}'.format(attrName)
-                            sqlP += '{0},'.format(attrName)
-                            sqlS += '{0},'.format(tmpKey)
-                            varMap[tmpKey] = getattr(queueConfig, attrName)
-                    sqlP = sqlP[:-1]
-                    sqlS = sqlS[:-1]
-                    sqlP += ') '
-                    sqlS += ') '
-                    self.execute(sqlP + sqlS, varMap)
-            # commit
-            self.commit()
+                    else:
+                        # insert queue
+                        varMap = dict()
+                        varMap[':queueName'] = queueName
+                        sqlP = "INSERT IGNORE INTO {0} (".format(pandaQueueTableName)
+                        sqlS = "VALUES ("
+                        for attrName in PandaQueueSpec.column_names().split(','):
+                            if hasattr(queueConfig, attrName):
+                                tmpKey = ':{0}'.format(attrName)
+                                sqlP += '{0},'.format(attrName)
+                                sqlS += '{0},'.format(tmpKey)
+                                varMap[tmpKey] = getattr(queueConfig, attrName)
+                        sqlP = sqlP[:-1]
+                        sqlS = sqlS[:-1]
+                        sqlP += ') '
+                        sqlS += ') '
+                        self.execute(sqlP + sqlS, varMap)
+                    # commit
+                    self.commit()
             tmpLog.debug('done')
             # return
             return True
@@ -3052,7 +3072,7 @@ class DBProxy:
 
             if queue: # a queue to clone was found
                 var_map = {}
-                sql_insert = "INSERT INTO {0} (".format(pandaQueueTableName)
+                sql_insert = "INSERT IGNORE INTO {0} (".format(pandaQueueTableName)
                 sql_values = "VALUES ("
                 for attribute, value in zip(PandaQueueSpec.column_names().split(','), queue):
                     attr_binding = ':{0}'.format(attribute)
@@ -3060,6 +3080,8 @@ class DBProxy:
                         var_map[attr_binding] = resource_type
                     elif attribute == 'nNewWorkers':
                         var_map[attr_binding] = new_workers
+                    elif attribute == 'uniqueName':
+                        var_map[attr_binding] = core_utils.get_unique_queue_name(queue_name, resource_type)
                     else:
                         var_map[attr_binding] = value
                     sql_insert += '{0},'.format(attribute)

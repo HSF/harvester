@@ -16,7 +16,8 @@ class PandaQueueSpec(SpecBase):
                            'submitTime:timestamp / index',
                            'siteName:text / index',
                            'resourceType:text',
-                           'nNewWorkers:integer'
+                           'nNewWorkers:integer',
+                           'uniqueName:text / unique'
                            )
 
     # catchall resource type
