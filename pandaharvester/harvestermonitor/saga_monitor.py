@@ -59,8 +59,7 @@ class SAGAMonitor(PluginBase):
 
                 except saga.SagaException as ex:
                     tmpLog.info('An exception occured during retriving worker information {0}'.format(workSpec.batchID))
-                    errStr = ex.get_message()
-                    tmpLog.info(errStr)
+                    tmpLog.info(ex.get_message())
                     # probably 'fnished' is not proper state in this case, 'undefined' looks a bit better
                     # some more work for SAGA to get proper state
                     harvester_job_state = workSpec.ST_finished

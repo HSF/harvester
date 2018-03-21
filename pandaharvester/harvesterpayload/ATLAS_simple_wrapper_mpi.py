@@ -16,6 +16,8 @@ from pilot.util.filehandling import get_json_dictionary as read_json
 from pilot.jobdescription import JobDescription  #temporary hack
 #from pilot.control.payload import parse_jobreport_data  # failed with third party import "import _ssl"
 
+#TODO Safe local copy, with proper exit on failure
+
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 max_rank = comm.Get_size()
@@ -32,7 +34,7 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
-logger.info('HPC Pilot ver. 0.004')
+logger.info('HPC Pilot ver. 0.006')
 
 # TODO: loglevel as input parameter
 
@@ -44,8 +46,8 @@ def parse_jobreport_data(job_report):
     # these are default values for job metrics
     core_count = 16
     work_attributes["nEvents"] = 0
-    work_attributes["dbTime"] = "undef"
-    work_attributes["dbData"] = "undef"
+    work_attributes["dbTime"] = ""
+    work_attributes["dbData"] = ""
 
     class DictQuery(dict):
         def get(self, path, dst_dict, dst_key):
@@ -165,6 +167,8 @@ def main():
 
     workerAttributesFile = "worker_attributes.json"
     StageOutnFile = "event_status.dump.json"
+    payload_report_file = 'jobReport.json'
+
     start_g = time.time()
     start_g_str = time.asctime(time.localtime(start_g))
     hostname = gethostname()
@@ -224,7 +228,7 @@ def main():
     job.endTime = ""
     setup_str = "; ".join(get_setup(job))
 
-    job_working_dir = titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point, job)
+    job_working_dir = titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point, job, workerAttributesFile)
 
     my_command = " ".join([job.script,job.script_parameters])
     my_command = titan_command_fix(my_command, job_working_dir)
@@ -268,10 +272,10 @@ def main():
     logger.info("Execution time: {0} sec.  JobID: {1}".format(exetime, job_id))
     logger.debug("Job report start time: {0}".format(job.startTime))
     logger.debug("Job report end time: {0}".format(job.endTime))
-    payload_report_file = 'jobReport.json'
     if os.path.exists(payload_report_file):
         payload_report = parse_jobreport_data(read_json(payload_report_file))
         work_report.update(payload_report)
+        copy_jobreport(job_working_dir, worker_communication_point, payload_report_file, workerAttributesFile)
 
     titan_postprocess_wd(job_working_dir)
 
@@ -337,6 +341,35 @@ def main():
     main_exit(0, work_report, workerAttributesFile)
 
 
+def copy_jobreport(job_working_dir, worker_communication_point, payload_report_file, workerattributesfile):
+
+    src_file = os.path.join(job_working_dir, payload_report_file)
+    dst_file = os.path.join(worker_communication_point, payload_report_file)
+
+    try:
+        logger.info(
+            "Copy of payload report [{0}] to access point: {1}".format(payload_report_file, worker_communication_point))
+        cp_start = time.time()
+        # shrink jobReport
+        job_report = read_json(src_file)
+        if 'executor' in job_report:
+            for executor in job_report['executor']:
+                if 'logfileReport' in executor:
+                    executor['logfileReport'] = {}
+
+        with open(dst_file, 'w') as job_report_outfile:
+            json.dump(job_report, job_report_outfile)
+        cp_time = time.time() - cp_start
+        logger.info("Copy of payload report file took: {0} sec.".format(cp_time))
+    except:
+        logger.error("Job report copy failed, execution terminated':  \n %s " % (sys.exc_info()[1]))
+        work_report = dict()
+        work_report["jobStatus"] = "failed"
+        work_report["pilotErrorCode"] = 1103  # Should be changed to Pilot2 errors
+        work_report["exitMsg"] = str(sys.exc_info()[1])
+        main_exit(1103, work_report, workerattributesfile)
+
+
 def titan_command_fix(command, job_working_dir):
 
     subs_a = command.split()
@@ -355,7 +388,7 @@ def titan_command_fix(command, job_working_dir):
     return command
 
 
-def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point,job):
+def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point,job, workerAttributesFile):
 
     #---------
     # Copy Poolcond files to scratch (RAMdisk, ssd, etc) to cope high IO. MOve execution to RAM disk
@@ -382,9 +415,17 @@ def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point
                 os.makedirs(trans_job_workdir)
             for inp_file in job.input_files:
                 shutil.copyfile(os.path.join(worker_communication_point, inp_file), job.input_files[inp_file]["scratch_path"])
-        except:
+        except IOError as e:
+            copy_time = time.time() - copy_start
+            logger.info('Special Titan setup failed after: {0}'.format(copy_time))
             logger.error("Copy to scratch failed, execution terminated':  \n %s " % (sys.exc_info()[1]))
-            main_exit(1, "Copy to scratch failed, execution terminated")
+            work_report = dict()
+            work_report["jobStatus"] = "failed"
+            work_report["pilotErrorCode"] = 1103 # Should be changed to Pilot2 errors
+            work_report["exitMsg"] = str(sys.exc_info()[1])
+            main_exit(1103, work_report, workerAttributesFile)
+        except:
+            pass
     else:
         logger.info('Scratch directory (%s) dose not exist' % scratch_path)
         return worker_communication_point
