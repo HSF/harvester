@@ -132,6 +132,11 @@ class ARCMessenger(PluginBase):
 
         if pandapickle:
             jobinfo = arc_utils.ARCPandaJob(filehandle=pandapickle)
+            # de-serialise the metadata to json
+            try:
+                jobinfo.metaData = json.loads(jobinfo.metaData)
+            except:
+                log.warning("{0}: no metaData in pilot pickle".format(pandaid))
         else:
             jobinfo = arc_utils.ARCPandaJob(jobinfo={'jobId': pandaid, 'state': 'finished'})
             # TODO: set error code based on batch error message (memory kill etc)
