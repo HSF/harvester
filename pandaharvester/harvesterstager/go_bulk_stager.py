@@ -208,11 +208,11 @@ class GlobusBulkStager(PluginBase):
                         attrs = jobspec.get_output_file_attributes()
                         # only print to log file first 25 files
                         if ifile < 25 :
-                            msgStr = "len(jobSpec.get_input_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
+                            msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
                             tmpLog.debug(msgStr)
                             counter = 100
                             for key, value in attrs.iteritems():
-                                msgStr = "input file attributes - {0} {1}".format(key,value)
+                                msgStr = "output file attributes - {0} {1}".format(key,value)
                                 tmpLog.debug(msgStr)
                                 --counter
                                 if counter < 0: break
