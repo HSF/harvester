@@ -1,6 +1,9 @@
 import uuid
 import os
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 
 from concurrent.futures import ProcessPoolExecutor as Pool
 

@@ -6,7 +6,10 @@ from pandaharvester.harvestercore import core_utils
 
 import os
 import shutil
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 
 #==============================================================
 

@@ -1,6 +1,9 @@
 import os
 import tempfile
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 import random
 
 from concurrent.futures import ThreadPoolExecutor

@@ -66,7 +66,8 @@ class Monitor(AgentBase):
                     filesToStageOutList = []
                     mapType = workSpecs[0].mapType
                     for workSpec in workSpecs:
-                        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                        tmpLog = core_utils.make_logger(_logger,
+                                                        'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                                         method_name='run')
                         tmpOut = tmpRetMap[workSpec.workerID]
                         newStatus = tmpOut['newStatus']
@@ -122,7 +123,8 @@ class Monitor(AgentBase):
                         core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs,
                                                                       filesToStageOutList, eventsToUpdateList)
                         for jobSpec in jobSpecs:
-                            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                            tmpLog = core_utils.make_logger(_logger,
+                                                            'id={0} PandaID={1}'.format(lockedBy, jobSpec.PandaID),
                                                             method_name='run')
                             tmpLog.debug('new status={0} subStatus={1} status_in_metadata={2}'.format(
                                 jobSpec.status,
@@ -132,7 +134,8 @@ class Monitor(AgentBase):
                     tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                     if not tmpRet:
                         for workSpec in workSpecs:
-                            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                            tmpLog = core_utils.make_logger(_logger,
+                                                            'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                                             method_name='run')
                             tmpLog.error('failed to update the DB. lockInterval may be too short')
                     # send ACK to workers for events and files

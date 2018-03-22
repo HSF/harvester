@@ -32,6 +32,7 @@ setup(
                       'pycrypto',
                       'panda-common-s',
                       'pyjwt',
+                      'subprocess32; python_version == "2.*"'
                       ],
     data_files=[
         # config and cron files

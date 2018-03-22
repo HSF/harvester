@@ -5,7 +5,10 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
 import os
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 import shutil
 
 #==============================================================

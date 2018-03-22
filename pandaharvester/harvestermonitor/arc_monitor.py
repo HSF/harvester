@@ -1,6 +1,9 @@
 import json
 import re
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 import arc
 
 from pandaharvester.harvestercore import core_utils
