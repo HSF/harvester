@@ -8,7 +8,10 @@ This script will be executed at the VM startup time.
 """
 
 import requests
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 import os
 from threading import Timer
 import logging

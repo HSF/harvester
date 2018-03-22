@@ -4,7 +4,10 @@ import signal
 import socket
 import smtplib
 import datetime
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 from email.mime.text import MIMEText
 
 from pandaharvester.harvesterconfig import harvester_config

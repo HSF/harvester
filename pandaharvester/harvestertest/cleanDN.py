@@ -1,6 +1,9 @@
 import re
 import sys
-import subprocess
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 
 
 def clean_user_id(id):
