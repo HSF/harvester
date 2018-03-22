@@ -146,7 +146,7 @@ class GoogleVM():
                          },
                          {
                              'key': 'auth_token',
-                             'value': self.harvester_token.generate(payload={'sub': self.work_spec.batchID})
+                             'value': self.harvester_token.generate(payload={'sub': str(self.work_spec.batchID)})
                          }
                      ]
              }
