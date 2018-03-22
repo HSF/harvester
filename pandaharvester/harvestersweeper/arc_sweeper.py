@@ -87,13 +87,22 @@ class ARCSweeper(PluginBase):
         arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
         tmplog = arclog.log
 
-        (job, modtime) = arc_utils.workspec2arcjob(workspec)
+        (job, modtime, proxyrole) = arc_utils.workspec2arcjob(workspec)
         if not job.JobID:
             # Job not submitted
             tmplog.info("Job was not submitted so cannot be cleaned")
             return True, ''
 
-        job_supervisor = arc.JobSupervisor(self.userconfig, [job])
+        # Set certificate
+        userconfig = arc.UserConfig(self.cred_type)
+        try:
+            userconfig.ProxyPath(str(self.certs[proxyrole]))
+        except:
+            # Log a warning and return True so that job can be cleaned
+            tmplog.warning("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
+            return True, ''
+
+        job_supervisor = arc.JobSupervisor(userconfig, [job])
         job_supervisor.Update()
         job_supervisor.Clean()
         
