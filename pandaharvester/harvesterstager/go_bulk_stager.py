@@ -43,6 +43,10 @@ def dump(obj):
        if hasattr( obj, attr ):
            print( "obj.%s = %s" % (attr, getattr(obj, attr)))
 
+def validate_transferid(transferid):
+    tmptransferid = transferid.replace('-','')
+    return all(c in string.hexdigits for c in tmptransferid)
+
 
 # Globus plugin for stager with bulk transfers. For JobSpec and DBInterface methods, see
 # https://github.com/PanDAWMS/panda-harvester/wiki/Utilities#file-grouping-for-file-transfers
@@ -305,12 +309,13 @@ class GlobusBulkStager(PluginBase):
         # get transfer groups 
         groups = jobspec.get_groups_of_output_files()
         for transferID in groups:
-            if transferID != self.dummy_transfer_id :
+            # allow only valid UUID
+            if validate_transferid(transferID) :
                 # get transfer task
                 tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(tmpLog,self.tc,transferID)
                 # return a temporary error when failed to get task
                 if not tmpStat:
-                    errStr = 'failed to get transfer task'
+                    errStr = 'failed to get transfer task; tc = %s; transferID = %s' % (str(self.tc),str(transferID))
                     tmpLog.error(errStr)
                     return None, errStr
                 # return a temporary error when task is missing 
@@ -333,7 +338,9 @@ class GlobusBulkStager(PluginBase):
                 tmpStr = 'transfer task {0} status: {1}'.format(transferID,transferTasks[transferID]['status'])
                 tmpLog.debug(tmpStr)
                 return None, ''
-
+        # end of loop over transfer groups
+        tmpLog.debug('End of loop over transfers groups - ending check_status function')
+        return None,'no valid transfer id found'
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
