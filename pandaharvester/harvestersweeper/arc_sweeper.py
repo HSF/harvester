@@ -15,12 +15,10 @@ class ARCSweeper(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         
-        # Get credential file from config
-        # TODO Handle multiple credentials for prod/analy
-        self.cert = harvester_config.credmanager.certFile
-        cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
-        self.userconfig = arc.UserConfig(cred_type)
-        self.userconfig.ProxyPath(str(self.cert))
+        # Credential dictionary role: proxy file
+        self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
+                              list(harvester_config.credmanager.outCertFile)))
+        self.cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
 
 
     def kill_worker(self, workspec):
@@ -36,13 +34,22 @@ class ARCSweeper(PluginBase):
         arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
         tmplog = arclog.log
 
-        (job, modtime) = arc_utils.workspec2arcjob(workspec)
+        (job, modtime, proxyrole) = arc_utils.workspec2arcjob(workspec)
         if not job.JobID:
             # Job not submitted
             tmplog.info("Job was not submitted so cannot be cancelled")
             return True, ''
 
-        job_supervisor = arc.JobSupervisor(self.userconfig, [job])
+        # Set certificate
+        userconfig = arc.UserConfig(self.cred_type)
+        try:
+            userconfig.ProxyPath(str(self.certs[proxyrole]))
+        except:
+            # Log a warning and return True so that job can be cleaned
+            tmplog.warning("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
+            return True, ''
+
+        job_supervisor = arc.JobSupervisor(userconfig, [job])
         job_supervisor.Update()
         job_supervisor.Cancel()
 

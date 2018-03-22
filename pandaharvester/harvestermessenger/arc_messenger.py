@@ -29,12 +29,11 @@ class ARCMessenger(PluginBase):
         PluginBase.__init__(self, **kwarg)
         self.schedulerid = harvester_config.master.harvester_id
 
-        # Get credential file from config
-        # TODO Handle multiple credentials for prod/analy
-        self.cert = harvester_config.credmanager.certFile
-        cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
-        self.userconfig = arc.UserConfig(cred_type)
-        self.userconfig.ProxyPath(str(self.cert))
+        # Credential dictionary role: proxy file
+        self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
+                              list(harvester_config.credmanager.outCertFile)))
+        self.cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
+
 
     def _list_url_recursive(self, url, log, fname='', filelist=[]):
         '''List ARC job directory recursively to find all files'''
@@ -52,13 +51,13 @@ class ARCMessenger(PluginBase):
         return filelist
   
 
-    def _download_outputs(self, files, jobid, log):
+    def _download_outputs(self, files, jobid, userconfig, log):
         '''Download the output files specified in downloadfiles'''
 
         # construct datapoint object, initialising connection. Use the same
         # object until base URL changes. TODO group by base URL.
         
-        datapoint = arc_utils.DataPoint(str(jobid), self.userconfig)
+        datapoint = arc_utils.DataPoint(str(jobid), userconfig)
         dp = datapoint.h
         dm = arc.DataMover()
         dm.retry(False)
@@ -97,7 +96,7 @@ class ARCMessenger(PluginBase):
                     break
             remotefile = arc.URL(str(jobid + '/' + f))
             dp.SetURL(remotefile)
-            localdp = arc_utils.DataPoint(str(localfile), self.userconfig)
+            localdp = arc_utils.DataPoint(str(localfile), userconfig)
             # do the copy
             status = dm.Transfer(dp, localdp.h, arc.FileCache(), arc.URLMap())
             if not status and str(status).find('File unavailable') == -1: # tmp fix for globus error which is always retried
@@ -175,6 +174,7 @@ class ARCMessenger(PluginBase):
         tmplog = arclog.log
         tmplog.info('Post processing ARC job {0}'.format(workspec.batchID))
         job = workspec.workAttributes['arcjob']
+        proxyrole = workspec.workAttributes['proxyrole']
         arcid = job['JobID']
         tmplog.info('Job id {0}'.format(arcid))
 
@@ -182,10 +182,18 @@ class ARCMessenger(PluginBase):
             tmplog.error('No files to download')
             return
 
+        # Set certificate
+        userconfig = arc.UserConfig(self.cred_type)
+        try:
+            userconfig.ProxyPath(str(self.certs[proxyrole]))
+        except:
+            tmplog.error("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
+            return
+
         # post_processing is only called once, so no retries are done. But keep
         # the possibility here in case it changes
         (fetched, notfetched, notfetchedretry) = self._download_outputs(workspec.workAttributes['arcdownloadfiles'],
-                                                                        arcid, tmplog)
+                                                                        arcid, userconfig, tmplog)
         if arcid not in fetched:
             tmplog.warning("Could not get outputs of {0}".format(arcid))
 
@@ -249,6 +257,14 @@ class ARCMessenger(PluginBase):
     def acknowledge_events_files(self, workSpec):
         '''Tell workers that harvester received events/files. No-op here'''
         pass
+    
+    def kill_requested(self, workspec):
+        '''Worker wants to kill itself (?)'''
+        return False
+    
+    def is_alive(self, workspec, time_limit):
+        '''Check if worker is alive, not for Grid'''
+        return True
     
 
 def test():
