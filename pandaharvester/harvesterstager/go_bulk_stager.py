@@ -6,6 +6,7 @@ import os.path
 import threading
 import zipfile
 import hashlib
+import string
 from future.utils import iteritems
 
 from globus_sdk import TransferClient
