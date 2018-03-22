@@ -26,6 +26,7 @@ class GoogleVM():
         self.image = self.resolve_image_url()
         self.instance_type = self.resolve_instance_type()
         self.config = self.prepare_metadata()
+        self.harvester_token = HarvesterToken()
 
     def resolve_image_url(self):
         """
@@ -145,7 +146,7 @@ class GoogleVM():
                          },
                          {
                              'key': 'auth_token',
-                             'value': HarvesterToken.generate(payload={'sub': self.work_spec.batchID})
+                             'value': self.harvester_token.generate(payload={'sub': self.work_spec.batchID})
                          }
                      ]
              }
