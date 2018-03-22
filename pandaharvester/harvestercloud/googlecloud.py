@@ -142,8 +142,7 @@ class GoogleVM():
                          {
                              'key': 'worker_id',
                              'value': self.work_spec.workerID
-                         }
-                         ,
+                         },
                          {
                              'key': 'auth_token',
                              'value': HarvesterToken.generate(payload={'sub': self.work_spec.batchID})
