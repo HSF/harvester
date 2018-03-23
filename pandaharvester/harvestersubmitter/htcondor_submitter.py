@@ -14,7 +14,6 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 
@@ -212,8 +211,6 @@ class HTCondorSubmitter(PluginBase):
     def __init__(self, **kwarg):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
-        # DBProxy
-        self.dbProxy = DBProxy()
         # number of processes
         try:
             self.nProcesses
@@ -302,8 +299,8 @@ class HTCondorSubmitter(PluginBase):
                         ce_auxilary_dict[ce_endpoint] = _queue_dict
                 # qualified CEs from AGIS info
                 n_qualified_ce = len(ce_auxilary_dict)
-                queue_status_dict = self.dbProxy.get_queue_status(self.queueName)
-                worker_ce_stats_dict = self.dbProxy.get_worker_ce_stats(self.queueName)
+                queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
+                worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
                 # good CEs which can be submitted to
                 good_ce_list= []
                 for _ce_endpoint, _queue_dict in ce_auxilary_dict.items():
