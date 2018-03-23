@@ -91,6 +91,7 @@ class CobaltMonitor (PluginBase):
                 
                 retList.append((newStatus, errStr))
             elif retCode == 1 and len(stdOut.strip()) == 0 and len(stdErr.strip()) == 0:
+                tmpLog.debug('job has already exited, checking cobalt log for exit status')
                 # exit code 1 and stdOut/stdErr has no content means job exited
                 # need to look at cobalt log to determine exit status
 
@@ -104,7 +105,11 @@ class CobaltMonitor (PluginBase):
                         if 'task completed normally' in line:
                             start_index = line.find('exit code of ') + len('exit code of ')
                             end_index = line.find(';',start_index)
-                            return_code = int(line[start_index:end_index])
+                            str_return_code = line[start_index:end_index]
+                            if 'None' in str_return_code:
+                              return_code = -1
+                            else:
+                              return_code = int(str_return_code)
                             break
                         elif 'maximum execution time exceeded' in line:
                             errStr += ' batch job exceeded wall clock time '
@@ -114,21 +119,27 @@ class CobaltMonitor (PluginBase):
                             
                             
                     if return_code == 0:
+                        tmpLog.debug('job finished normally')
                         newStatus = WorkSpec.ST_finished
                         retList.append((newStatus,errStr))
                     elif return_code is None:
                         if job_cancelled:
+                            tmpLog.debug('job was cancelled')
+                            errStr += ' job cancelled '
                             newStatus = WorkSpec.ST_cancelled
                             retList.append((newStatus,errStr))
                         else:
+                            tmpLog.debug('job has no exit code, failing job')
                             errStr += ' exit code not found in cobalt log file %s ' % cobalt_logfile
                             newStatus = WorkSpec.ST_failed
                             retList.append((newStatus,errStr))
                     else:
+                        tmpLog.debug(' non zero exit code %s from batch job id %s' % (return_code,workSpec.batchID))
                         errStr += ' non-zero exit code %s from batch job id %s ' % (return_code,workSpec.batchID)
                         newStatus = WorkSpec.ST_failed
                         retList.append((newStatus,errStr))
                 else:
+                    tmpLog.debug(' cobalt log file does not exist')
                     errStr += ' cobalt log file %s does not exist ' % cobalt_logfile
                     newStatus = WorkSpec.ST_failed
                     retList.append((newStatus,errStr))
