@@ -27,6 +27,18 @@ def _runShell(cmd):
     return (retCode, stdOut, stdErr)
 
 
+## Native HTCondor status map
+CONDOR_JOB_STATUS_MAP = {
+    '1': 'idle',
+    '2': 'running',
+    '3': 'removed',
+    '4': 'completed',
+    '5': 'held',
+    '6': 'transferring output',
+    '7': 'suspended',
+    }
+
+
 ## Check one worker
 def _check_one_worker(workspec, job_ads_all_dict):
     # Make logger for one single worker
@@ -56,6 +68,8 @@ def _check_one_worker(workspec, job_ads_all_dict):
                 tmpLog.error(errStr)
                 newStatus = WorkSpec.ST_cancelled
             else:
+                # Propagate native condor job STATUS
+                workspec.nativeStatus = CONDOR_JOB_STATUS_MAP.get(batchStatus, 'unexpected')
                 if batchStatus in ['2', '6']:
                     # 2 running, 6 transferring output
                     newStatus = WorkSpec.ST_running
@@ -64,12 +78,15 @@ def _check_one_worker(workspec, job_ads_all_dict):
                     newStatus = WorkSpec.ST_submitted
                 elif batchStatus in ['3']:
                     # 3 removed
+                    errStr = 'Condor HoldReason: {0} ; RemoveReason: {1}'.format(
+                        job_ads_dict.get('HoldReason'),
+                        job_ads_dict.get('RemoveReason'))
                     newStatus = WorkSpec.ST_cancelled
                 elif batchStatus in ['5']:
                     # 5 held
                     if (
                         job_ads_dict.get('HoldReason') == 'Job not found' or
-                        int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > 3600
+                        int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > 7200
                         ):
                         # Kill the job if held too long or other reasons
                         (retCode, stdOut, stdErr) = _runShell('condor_rm {0}'.format(workspec.batchID))
@@ -90,6 +107,8 @@ def _check_one_worker(workspec, job_ads_all_dict):
                         tmpLog.error(errStr)
                         newStatus = WorkSpec.ST_failed
                     else:
+                        # Propagate condor return code
+                        workspec.nativeExitCode = payloadExitCode
                         if payloadExitCode in ['0']:
                             # Payload should return 0 after successful run
                             newStatus = WorkSpec.ST_finished

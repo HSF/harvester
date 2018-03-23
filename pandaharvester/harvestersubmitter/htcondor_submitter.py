@@ -83,6 +83,8 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
+            # set computingElement
+            workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
             # set log
             batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
             batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
@@ -283,21 +285,33 @@ class HTCondorSubmitter(PluginBase):
                 tmpLog.debug('Using ATLAS Grid CE mode...')
                 queues_from_queue_list = this_panda_queue_dict.get('queues', [])
                 special_par = this_panda_queue_dict.get('special_par', '')
-                ce_endpoint_from_queue = ''
-                ce_flavour_str = ''
-                ce_version_str = ''
-                random.shuffle(queues_from_queue_list)
+                ce_auxilary_dict = {}
                 for _queue_dict in queues_from_queue_list:
-                    if _queue_dict.get('ce_endpoint') and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE':
-                        ce_flavour_str = str( _queue_dict.get('ce_flavour', '') ).lower()
-                        ce_version_str = str( _queue_dict.get('ce_version', '') ).lower()
-                        if ce_flavour_str in set(['arc-ce', 'cream-ce', 'htcondor-ce']):
-                            ce_info_dict = _queue_dict.copy()
-                            ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
-                            ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                            break
-                        else:
-                            ce_flavour_str = ''
+                    if not ( _queue_dict.get('ce_endpoint')
+                            and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE'
+                            and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
+                        continue
+                    ce_endpoint = _queue_dict.get('ce_endpoint')
+                    if ( ce_endpoint in ce_auxilary_dict
+                        and str(_queue_dict.get('ce_queue_name', '')).lower() == 'default' ):
+                        pass
+                    else:
+                        ce_auxilary_dict[ce_endpoint] = _queue_dict
+                # qualified CEs from AGIS info
+                n_qualified_ce = len(ce_auxilary_dict)
+                queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
+                worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
+                # good CEs which can be submitted to
+                good_ce_list= []
+                for _ce_endpoint, _queue_dict in ce_auxilary_dict.items():
+                    if ( _ce_endpoint not in worker_ce_stats_dict
+                        or worker_ce_stats_dict[_ce_endpoint]['submitted'] >= (queue_status_dict['nQueueLimitWorker'] // n_qualified_ce) ):
+                        good_ce_list.append(_queue_dict)
+                ce_info_dict = random.choice(good_ce_list).copy()
+                ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
+                ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
+                ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
                 tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
                 if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                     sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
