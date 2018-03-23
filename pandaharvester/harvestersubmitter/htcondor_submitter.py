@@ -14,6 +14,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 
@@ -209,6 +210,8 @@ class HTCondorSubmitter(PluginBase):
     def __init__(self, **kwarg):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
+        # DBProxy
+        self.dbProxy = DBProxy()
         # number of processes
         try:
             self.nProcesses
@@ -295,8 +298,15 @@ class HTCondorSubmitter(PluginBase):
                         pass
                     else:
                         ce_auxilary_dict[ce_endpoint] = _queue_dict
-                n_good_ce = len(ce_auxilary_dict)
-                ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
+                # qualified CEs from AGIS info
+                n_qualified_ce = len(ce_auxilary_dict)
+                worker_ce_stats_dict = self.dbProxy.get_worker_ce_stats(siteName)
+                # good CEs which can be submitted to
+                good_ce_list= []
+                for _ce_endpoint, _queue_dict in ce_auxilary_dict.items():
+                    if worker_ce_stats_dict[_ce_endpoint]['submitted'] >= ( // n_qualified_ce):
+                        good_ce_list.append(_queue_dict)
+                ce_info_dict = random.choice(good_ce_list).copy()
                 ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
                 ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                 ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()

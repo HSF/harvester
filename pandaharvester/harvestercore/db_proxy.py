@@ -572,7 +572,7 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return None
-    
+
     # insert output files into database
     def insert_files(self,jobspec_list):
         # get logger
@@ -1403,7 +1403,7 @@ class DBProxy:
             checkedIDs = set()
             retVal = {}
             for workerID in tmpWorkers:
-                # skip 
+                # skip
                 if workerID in checkedIDs:
                     continue
                 # lock worker
@@ -2716,6 +2716,60 @@ class DBProxy:
                         'to_submit': 0
                     }
                 retMap[resourceType][workerStatus] = cnt
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # get worker CE stats
+    def get_worker_ce_stats(self, site_name):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats')
+            tmpLog.debug('start')
+            # sql to get nQueueLimit
+            sqlQ = "SELECT queueName,computingElement,nNewWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ += "WHERE siteName=:siteName "
+            # get nQueueLimit
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            self.execute(sqlQ, varMap)
+            resQ = self.cur.fetchall()
+            retMap = dict()
+            for computingSite, computingElement, nNewWorkers in resQ:
+                if computingElement not in retMap:
+                    retMap[computingElement] = {
+                        'running': 0,
+                        'submitted': 0,
+                        'to_submit': nNewWorkers
+                    }
+            # get worker CE stats
+            sqlW = "SELECT wt.status,wt.computingSite,wt.computingElement,COUNT(*) cnt "
+            sqlW += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
+            sqlW += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2) "
+            sqlW += "GROUP BY wt.status,wt.computingSite "
+            # get worker CE stats
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            varMap[':st1'] = 'running'
+            varMap[':st2'] = 'submitted'
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            for workerStatus, computingSite, computingElement, cnt in resW:
+                if computingElement not in retMap:
+                    retMap[computingElement] = {
+                        'running': 0,
+                        'submitted': 0,
+                        'to_submit': 0
+                    }
+                retMap[computingElement][workerStatus] = cnt
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
