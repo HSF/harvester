@@ -300,11 +300,13 @@ class HTCondorSubmitter(PluginBase):
                         ce_auxilary_dict[ce_endpoint] = _queue_dict
                 # qualified CEs from AGIS info
                 n_qualified_ce = len(ce_auxilary_dict)
-                worker_ce_stats_dict = self.dbProxy.get_worker_ce_stats(siteName)
+                queue_status_dict = self.dbProxy.get_queue_status(self.queueName)
+                worker_ce_stats_dict = self.dbProxy.get_worker_ce_stats(self.queueName)
                 # good CEs which can be submitted to
                 good_ce_list= []
                 for _ce_endpoint, _queue_dict in ce_auxilary_dict.items():
-                    if worker_ce_stats_dict[_ce_endpoint]['submitted'] >= ( // n_qualified_ce):
+                    if ( _ce_endpoint not in worker_ce_stats_dict
+                        or worker_ce_stats_dict[_ce_endpoint]['submitted'] >= (queue_status_dict['nQueueLimitWorker'] // n_qualified_ce) ):
                         good_ce_list.append(_queue_dict)
                 ce_info_dict = random.choice(good_ce_list).copy()
                 ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
