@@ -27,7 +27,8 @@ def contact_harvester(harvester_frontend, data, auth_token, proxy_path):
         headers = {'Content-Type': 'application/json',
                    'Authorization': 'Bearer {0}'.format(auth_token)}
         cert = [proxy_path, proxy_path]
-        verify = '/etc/grid-security/certificates'
+        #verify = '/etc/grid-security/certificates' # not supported in CernVM - requests.exceptions.SSLError: [Errno 21] Is a directory
+        verify = False
         resp = requests.post(harvester_frontend, json=data, headers=headers, cert=cert, verify=verify)
         logging.debug('[contact_harvester] harvester returned: {0}'.format(resp.text))
     except Exception as e:
