@@ -2,6 +2,7 @@ import json
 import os
 import re
 import datetime
+import time
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -96,6 +97,9 @@ class SharedFileMessenger(PluginBase):
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='get_work_attributes')
         allRetDict = dict()
+        readjobreporttime = 0.0
+        numofreads = 0
+        start_time = time.time()
         for pandaID in workspec.pandaid_list:
             # look for the json just under the access point
             accessPoint = self.get_access_point(workspec, pandaID)
@@ -114,18 +118,28 @@ class SharedFileMessenger(PluginBase):
             # look for job report
             jsonFilePath = os.path.join(accessPoint, jsonJobReport)
             tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
+            cr_start = time.time()
             if not os.path.exists(jsonFilePath):
                 # not found
                 tmpLog.debug('not found')
             else:
                 try:
+                    read_start = time.time()
                     with open(jsonFilePath) as jsonFile:
                         tmpDict = json.load(jsonFile)
-                        retDict['metaData'] = tmpDict
-                    tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
+                    read_time = time.time() - read_start
+                    retDict['metaData'] = tmpDict
+                    tmpLog.debug('got {0} kB of job report in {1} sec.'.format(os.stat(jsonFilePath).st_size / 1024,
+                                                                               read_time))
+                    numofreads += 1
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
+            cr_time = time.time() - cr_start
+            readjobreporttime += cr_time
+            tmpLog.debug("Check file and read file time: {0} sec.".format(cr_time))
             allRetDict[pandaID] = retDict
+
+        tmpLog.debug("{0} sec. spent for reading {1} job report files".format(readjobreporttime, numofreads))
         return allRetDict
 
     # get files to stage-out.
