@@ -283,21 +283,25 @@ class HTCondorSubmitter(PluginBase):
                 tmpLog.debug('Using ATLAS Grid CE mode...')
                 queues_from_queue_list = this_panda_queue_dict.get('queues', [])
                 special_par = this_panda_queue_dict.get('special_par', '')
-                ce_endpoint_from_queue = ''
-                ce_flavour_str = ''
-                ce_version_str = ''
-                random.shuffle(queues_from_queue_list)
+                ce_auxilary_dict = {}
                 for _queue_dict in queues_from_queue_list:
-                    if _queue_dict.get('ce_endpoint') and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE':
-                        ce_flavour_str = str( _queue_dict.get('ce_flavour', '') ).lower()
-                        ce_version_str = str( _queue_dict.get('ce_version', '') ).lower()
-                        if ce_flavour_str in set(['arc-ce', 'cream-ce', 'htcondor-ce']):
-                            ce_info_dict = _queue_dict.copy()
-                            ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
-                            ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                            break
-                        else:
-                            ce_flavour_str = ''
+                    if not ( _queue_dict.get('ce_endpoint')
+                            and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE'
+                            and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
+                        continue
+                    ce_endpoint = _queue_dict.get('ce_endpoint')
+                    if ( ce_endpoint in ce_auxilary_dict
+                        and str(_queue_dict.get('ce_queue_name', '')).lower() == 'default' ):
+                        pass
+                    else:
+                        ce_auxilary_dict[ce_endpoint] = _queue_dict
+                n_good_ce = len(ce_auxilary_dict)
+                ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
+                ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
+                ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
+                ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
+                workspec.computingElement = ce_endpoint_from_queue
                 tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
                 if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                     sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
