@@ -2,6 +2,7 @@ import errno
 import os
 import json
 import re
+import shutil
 import tarfile
 from urlparse import urlparse
 import arc
@@ -28,6 +29,9 @@ class ARCMessenger(PluginBase):
         self.jobSpecFileFormat = 'json'
         PluginBase.__init__(self, **kwarg)
         self.schedulerid = harvester_config.master.harvester_id
+        self.logdir = harvester_config.joblog.logdir
+        self.logurl = harvester_config.joblog.logurl
+        self.tmpdir = '/tmp' # TODO configurable or common function
 
         # Credential dictionary role: proxy file
         self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
@@ -51,7 +55,7 @@ class ARCMessenger(PluginBase):
         return filelist
   
 
-    def _download_outputs(self, files, jobid, userconfig, log):
+    def _download_outputs(self, files, logsubdir, jobid, pandaid, userconfig, log):
         '''Download the output files specified in downloadfiles'''
 
         # construct datapoint object, initialising connection. Use the same
@@ -67,8 +71,24 @@ class ARCMessenger(PluginBase):
         notfetched = []
         notfetchedretry = []
         
-        # TODO: configurable dir
-        localdir = os.path.join(os.getcwd(), 'tmp', jobid.split('/')[-1])
+        # create required local log dirs
+        logdir = os.path.join(self.logdir, logsubdir)
+        try:
+            os.makedirs(logdir, 0755)
+        except OSError as e:
+            if e.errno != errno.EEXIST or not os.path.isdir(logdir):
+                log.warning('Failed to create directory {0}: {1}'.format(logdir, os.strerror(e.errno)))
+                notfetched.append(jobid)
+                return (fetched, notfetched, notfetchedretry)
+
+        tmpdldir = os.path.join(self.tmpdir, pandaid)
+        try:
+            os.makedirs(tmpdldir, 0755)
+        except OSError as e:
+            if e.errno != errno.EEXIST or not os.path.isdir(tmpdldir):
+                log.warning('Failed to create directory {0}: {1}'.format(tmpdldir, os.strerror(e.errno)))
+                notfetched.append(jobid)
+                return (fetched, notfetched, notfetchedretry)
 
         filelist = files.split(';')
         if re.search(r'[\*\[\]\?]', files):
@@ -85,15 +105,13 @@ class ARCMessenger(PluginBase):
             filelist = list(set(expandedfiles))
 
         for f in filelist:
-            localfile = os.path.join(localdir, f)
-            # create required local dirs
-            try:
-                os.makedirs(localdir, 0755)
-            except OSError as e:
-                if e.errno != errno.EEXIST or not os.path.isdir(localdir):
-                    log.warning('Failed to create directory {0}: {1}'.format(localdir, os.strerror(e.errno)))
-                    notfetched.append(jobid)
-                    break
+            if f == 'gmlog/errors':
+                localfile = os.path.join(logdir, '%d.log' % pandaid)
+            elif f.find('.log') != -1:
+                localfile = os.path.join(logdir, '%d.out' % pandaid)
+            else:
+                localfile = os.path.join(tmpdldir, f)
+
             remotefile = arc.URL(str(jobid + '/' + f))
             dp.SetURL(remotefile)
             localdp = arc_utils.DataPoint(str(localfile), userconfig)
@@ -107,25 +125,26 @@ class ARCMessenger(PluginBase):
                     log.error('Failed to download with permanent failure {0}: {1}'.format(dp.GetURL().str(), str(status)))
                     notfetched.append(jobid)
             else:
+                os.chmod(localfile, 0644)
                 log.info('Downloaded {0}'.format(dp.GetURL().str()))
+
         if jobid not in notfetched and jobid not in notfetchedretry:
             fetched.append(jobid)
 
         return (fetched, notfetched, notfetchedretry)
 
-    def _extractAndFixPilotPickle(self, arcjob, pandaid, haveoutput, log):
+    def _extractAndFixPilotPickle(self, arcjob, pandaid, haveoutput, logsubdir, log):
         '''
         Extract the pilot pickle from jobSmallFiles.tgz, and fix attributes
         '''
 
         arcid = arcjob['JobID']
         pandapickle = None
+        tmpjobdir = os.path.join(self.tmpdir, pandaid)
         if haveoutput:
-            # TODO: configurable dir
-            localdir = os.path.join(os.getcwd(), 'tmp', arcid.split('/')[-1])
             log.debug('os.cwd(): {0}'.format(os.getcwd()))
             try:
-                smallfiles = tarfile.open(os.path.join(localdir, 'jobSmallFiles.tgz'))
+                smallfiles = tarfile.open(os.path.join(tmpjobdir, 'jobSmallFiles.tgz'))
                 pandapickle = smallfiles.extractfile("panda_node_struct.pickle")
             except Exception as e:
                 log.error("{0}: failed to extract pickle for arcjob {1}: {2}".format(pandaid, arcid, str(e)))
@@ -137,8 +156,12 @@ class ARCMessenger(PluginBase):
                 jobinfo.metaData = json.loads(jobinfo.metaData)
             except:
                 log.warning("{0}: no metaData in pilot pickle".format(pandaid))
+            shutil.rmtree(tmpjobdir, ignore_errors=True)
         else:
             jobinfo = arc_utils.ARCPandaJob(jobinfo={'jobId': pandaid, 'state': 'finished'})
+            jobinfo.schedulerID = self.schedulerid
+            jobinfo.pilotID = "%s.out|Unknown|Unknown|Unknown|Unknown" % '/'.join([self.logurl, logsubdir, str(pandaid)])
+                
             # TODO: set error code based on batch error message (memory kill etc)
             jobinfo.pilotErrorCode = 1008
             if arcjob['Error']:
@@ -147,21 +170,7 @@ class ARCMessenger(PluginBase):
                 # Probably failure getting outputs
                 jobinfo.pilotErrorDiag = "Failed to get outputs from CE"            
 
-        jobinfo.schedulerID = self.schedulerid
         jobinfo.computingElement = urlparse(arcid).netloc
-
-        # Add url of logs
-        if jobinfo.dictionary().get('pilotID'):
-            t = jobinfo.pilotID.split("|")
-        else:
-            t = ['Unknown'] * 5
-        # TODO: store log
-        #logurl = os.path.join(self.conf.get(["joblog","urlprefix"]), date, cluster, sessionid)
-        logurl = 'http://nowhere/'
-        try: # TODO catch and handle non-ascii
-            jobinfo.pilotID = '|'.join([logurl] + t[1:])
-        except:
-            pass
         
         return jobinfo.dictionary()
 
@@ -187,6 +196,11 @@ class ARCMessenger(PluginBase):
             tmplog.error('No files to download')
             return
 
+        # Assume one-to-one mapping of workers to jobs. If jobspec_list is empty
+        # it means the job was cancelled by panda or otherwise forgotten
+        if not jobspec_list:
+            return
+
         # Set certificate
         userconfig = arc.UserConfig(self.cred_type)
         try:
@@ -195,22 +209,18 @@ class ARCMessenger(PluginBase):
             tmplog.error("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
             return
 
+        pandaid = long(jobspec_list[0].PandaID)
         # post_processing is only called once, so no retries are done. But keep
         # the possibility here in case it changes
         (fetched, notfetched, notfetchedretry) = self._download_outputs(workspec.workAttributes['arcdownloadfiles'],
-                                                                        arcid, userconfig, tmplog)
+                                                                        workspec.workAttributes['logsubdir'],
+                                                                        arcid, pandaid, userconfig, tmplog)
         if arcid not in fetched:
             tmplog.warning("Could not get outputs of {0}".format(arcid))
 
-        # Assume one-to-one mapping of workers to jobs. If jobspec_list is empty
-        # it means the job was cancelled by panda or otherwise forgotten
-        if not jobspec_list:
-            return
-
-        pandaid = long(jobspec_list[0].PandaID)
         workspec.workAttributes[pandaid] = {}
 
-        workspec.workAttributes[pandaid] = self._extractAndFixPilotPickle(job, pandaid, (arcid in fetched), tmplog)
+        workspec.workAttributes[pandaid] = self._extractAndFixPilotPickle(job, pandaid, (arcid in fetched), workspec.workAttributes['logsubdir'], tmplog)
         
         tmplog.debug("pilot info for {0}: {1}".format(pandaid, workspec.workAttributes[pandaid]))
 

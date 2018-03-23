@@ -1,6 +1,8 @@
 import json
+import os
 import re
 from threading import Thread
+import time
 import traceback
 import arc
 
@@ -65,6 +67,9 @@ class ARCSubmitter(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         self.dbproxy = DBProxy()
+        self.logdir = harvester_config.joblog.logdir
+        self.logurl = harvester_config.joblog.logurl
+        self.schedulerid = harvester_config.master.harvester_id
 
         # Credential dictionary role: proxy file
         self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
@@ -156,6 +161,11 @@ class ARCSubmitter(PluginBase):
         return self._run_submit(thr)
 
 
+    def _set_logdir(self, site):
+        date = time.strftime('%Y-%m-%d')
+        return os.path.join(date, site)
+
+
     # submit workers
     def submit_workers(self, workspec_list):
         retlist = []
@@ -204,10 +214,16 @@ class ARCSubmitter(PluginBase):
                 queueconfig = queueconfigmapper.get_queue(jobspec.computingSite)
                 pandaqueues[jobspec.computingSite]['truepilot'] = 'running' in queueconfig.noHeartbeat
 
+                # Set log URL for GTAG env in job description
+                logsubdir = self._set_logdir(jobspec.computingSite)
+                logfileurl = '/'.join([self.logurl, logsubdir, '%d.out' % jobspec.PandaID])
+
                 tmplog.debug("Converting to ARC XRSL format")
                 arcxrsl = ARCParser(jobspec.jobParams,
                                     jobspec.computingSite,
                                     pandaqueues[jobspec.computingSite],
+                                    logfileurl,
+                                    self.schedulerid,
                                     osmap,
                                     '/tmp', # tmpdir, TODO common tmp dir
                                     None, #jobSpec.eventranges, # TODO event ranges
@@ -241,6 +257,7 @@ class ARCSubmitter(PluginBase):
                     arc_utils.arcjob2workspec(arcjob, workspec)
                     workspec.workAttributes['arcdownloadfiles'] = downloadfiles
                     workspec.workAttributes['proxyrole'] = proxyrole
+                    workspec.workAttributes['logsubdir'] = logsubdir
                     workspec.batchID = arcjob.JobID
                     tmplog.debug(workspec.workAttributes)
                     result = (True, '')

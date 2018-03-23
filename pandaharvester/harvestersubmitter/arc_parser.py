@@ -7,7 +7,7 @@ import re
 class ARCParser:
     '''Converts panda job description to ARC job description using AGIS info'''
 
-    def __init__(self, jobdesc, pandaqueue, siteinfo, osmap, tmpdir, eventranges, log):
+    def __init__(self, jobdesc, pandaqueue, siteinfo, logurl, schedulerid, osmap, tmpdir, eventranges, log):
         self.log = log
         # The URL-encoded job that is eventually passed to the pilot
         self.pandajob = urllib.urlencode(jobdesc)
@@ -17,6 +17,8 @@ class ARCParser:
         self.xrsl = {}
         self.siteinfo = siteinfo
         self.ncores = siteinfo['corecount']
+        self.logurl = logurl
+        self.schedulerid = schedulerid
 
         self.defaults = {}
         self.defaults['memory'] = 2000
@@ -375,6 +377,21 @@ class ARCParser:
             if 'wuppertalprod' in self.sitename:
                 self.xrsl['priority'] = ""
 
+    def setEnvironment(self):
+        environment = {}
+        environment['PANDA_JSID'] = self.schedulerid
+        environment['GTAG'] = self.logurl
+
+        # Vars for APFMon
+        if self.truepilot and self.monitorurl:
+            environment['APFCID'] = self.pandaid
+            environment['APFFID'] = schedid
+            environment['APFMON'] = self.monitorurl
+            environment['FACTORYQUEUE'] = self.sitename
+
+        self.xrsl['environment'] = '(environment = %s)' % ''.join(['("%s" "%s")' % (k,v) for (k,v) in environment.items()])
+
+
     def parse(self):
         self.setTime()
         self.setJobname()
@@ -388,6 +405,7 @@ class ARCParser:
         self.setGMLog()
         self.setOutputs()
         self.setPriority()
+        self.setEnvironment()
 
     def getXrsl(self):
         x = "&"
