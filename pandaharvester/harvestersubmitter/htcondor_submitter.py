@@ -84,6 +84,8 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
+            # set computingElement
+            workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
             # set log
             batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
             batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
@@ -313,7 +315,6 @@ class HTCondorSubmitter(PluginBase):
                 ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                 ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
                 ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                workspec.computingElement = ce_endpoint_from_queue
                 tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
                 if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                     sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
