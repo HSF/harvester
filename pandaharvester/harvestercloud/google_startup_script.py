@@ -22,11 +22,14 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(mes
 METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/{0}"
 
 
-def contact_harvester(harvester_frontend, data, auth_token):
+def contact_harvester(harvester_frontend, data, auth_token, proxy_path):
     try:
         headers = {'Content-Type': 'application/json',
                    'Authorization': 'Bearer {0}'.format(auth_token)}
-        resp = requests.post(harvester_frontend, json=data, headers=headers)
+        cert = [proxy_path, proxy_path]
+        #verify = '/etc/grid-security/certificates' # not supported in CernVM - requests.exceptions.SSLError: [Errno 21] Is a directory
+        verify = False
+        resp = requests.post(harvester_frontend, json=data, headers=headers, cert=cert, verify=verify)
         logging.debug('[contact_harvester] harvester returned: {0}'.format(resp.text))
     except Exception as e:
         # message could not be sent
@@ -34,16 +37,16 @@ def contact_harvester(harvester_frontend, data, auth_token):
         pass
 
 
-def heartbeat(harvester_frontend, worker_id, auth_token):
+def heartbeat(harvester_frontend, worker_id, auth_token, proxy_path):
     data = {'methodName': 'heartbeat', 'workerID': worker_id, 'data': None}
     logging.debug('[heartbeat] sending heartbeat to harvester: {0}'.format(data))
-    return contact_harvester(harvester_frontend, data, auth_token)
+    return contact_harvester(harvester_frontend, data, auth_token, proxy_path)
 
 
-def suicide(harvester_frontend, worker_id, auth_token):
+def suicide(harvester_frontend, worker_id, auth_token, proxy_path):
     data = {'methodName': 'killWorker', 'workerID': worker_id, 'data': None}
     logging.debug('[suicide] sending suicide message to harvester: {0}'.format(data))
-    return contact_harvester(harvester_frontend, data, auth_token)
+    return contact_harvester(harvester_frontend, data, auth_token, proxy_path)
 
 
 def get_url(url, headers=None):
@@ -86,12 +89,12 @@ if __name__ == "__main__":
     logging.debug('[main] got worker id: {0}'.format(worker_id))
 
     # get the authentication token
-    token_url = METADATA_URL.format("auth_token")
-    token = get_url(token_url, headers={"Metadata-Flavor": "Google"})
+    auth_token_url = METADATA_URL.format("auth_token")
+    auth_token = get_url(auth_token_url, headers={"Metadata-Flavor": "Google"})
     logging.debug('[main] got authentication token')
 
     # start a separate thread that will send a heartbeat to harvester every 5 minutes
-    heartbeat_thread = Timer(300, heartbeat, [harvester_frontend, worker_id])
+    heartbeat_thread = Timer(300, heartbeat, [harvester_frontend, worker_id, auth_token, proxy_path])
     heartbeat_thread.start()
 
     # get the pilot wrapper
@@ -114,7 +117,7 @@ if __name__ == "__main__":
     logging.debug('[main] pilot wrapper done...')
 
     # ask harvester to kill the VM and stop the heartbeat
-    suicide(harvester_frontend, worker_id)
+    suicide(harvester_frontend, worker_id, auth_token, proxy_path)
     heartbeat_thread.cancel()
 
     # TODO: upload logs to panda cache or harvester

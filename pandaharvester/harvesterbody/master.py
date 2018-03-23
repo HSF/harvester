@@ -341,12 +341,27 @@ def main(daemon_mode=True):
             # set alarm just in case
             signal.alarm(30)
 
+        def catch_debug(sig, frame):
+            _logger.info('got signal={0} to go into debugger mode'.format(sig))
+            from trepan.interfaces import server
+            from trepan.api import debug
+            try:
+                portNum = harvester_config.master.debugger_port
+            except:
+                portNum = 19550
+            connection_opts = {'IO': 'TCP', 'PORT': portNum}
+            interface = server.ServerInterface(connection_opts=connection_opts)
+            dbg_opts = {'interface': interface}
+            _logger.info('starting debugger on port {0}'.format(portNum))
+            debug(dbg_opts=dbg_opts)
+
         # set handler
         if daemon_mode:
             signal.signal(signal.SIGINT, catch_sigkill)
             signal.signal(signal.SIGHUP, catch_sigkill)
             signal.signal(signal.SIGTERM, catch_sigkill)
             signal.signal(signal.SIGALRM, catch_sigkill)
+            signal.signal(signal.SIGUSR1, catch_debug)
             signal.signal(signal.SIGUSR2, catch_sigterm)
         # start master
         master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)

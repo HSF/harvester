@@ -201,6 +201,11 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         workSpec = workspec_list[0]
         for jobSpec in jobspec_list:
             jobSpec.set_attributes(workSpec.workAttributes)
+            # delete job metadata from worker attributes
+            try:
+                del workSpec.workAttributes[jobSpec.PandaID]['metaData']
+            except:
+                pass
             # set start and end times
             if workSpec.status in [WorkSpec.ST_running]:
                 jobSpec.set_start_time()

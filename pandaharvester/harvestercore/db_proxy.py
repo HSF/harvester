@@ -1748,6 +1748,7 @@ class DBProxy:
                                 fileSpec = FileSpec()
                                 fileSpec.status = 'zipping'
                                 fileSpec.lfn = 'panda.' + subFileIDs[0][-1] + '.zip'
+                                fileSpec.scope = 'panda'
                                 fileSpec.fileType = 'zip_output'
                                 fileSpec.PandaID = jobSpec.PandaID
                                 fileSpec.taskID = jobSpec.taskID

@@ -74,11 +74,7 @@ class GoogleMonitor(PluginBase):
                 new_status = WorkSpec.ST_missed
             else:
                 try:
-                    tmp_status = self.vm_to_worker_status[vm_name_to_status[batch_ID]]
-
-                    if tmp_status == WorkSpec.ST_running:
-
-
+                    new_status = self.vm_to_worker_status[vm_name_to_status[batch_ID]]
                 except KeyError:
                     new_status = WorkSpec.ST_failed
 

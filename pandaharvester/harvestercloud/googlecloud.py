@@ -20,6 +20,7 @@ compute = googleapiclient.discovery.build('compute', 'v1')
 class GoogleVM():
 
     def __init__(self, work_spec):
+        self.harvester_token = HarvesterToken()
         self.work_spec = work_spec
         self.name = '{0}-gce-{1}'.format(harvester_config.master.harvester_id, work_spec.workerID)
         self.name = self.name.replace('_', '-') # underscores in VM names are not allowed by GCE
@@ -142,11 +143,10 @@ class GoogleVM():
                          {
                              'key': 'worker_id',
                              'value': self.work_spec.workerID
-                         }
-                         ,
+                         },
                          {
                              'key': 'auth_token',
-                             'value': HarvesterToken.generate(payload={'sub': self.work_spec.batchID})
+                             'value': self.harvester_token.generate(payload={'sub': str(self.work_spec.batchID)})
                          }
                      ]
              }
