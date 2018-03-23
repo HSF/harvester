@@ -125,6 +125,22 @@ autoBlacklist = False
 
 ##########################
 #
+# Job log parameters
+#
+
+[joblog]
+
+# Local dir where log should be stored
+logdir = /var/www/html/jobs
+
+# URL to access job logs
+logurl = http://localhost/jobs
+
+
+
+
+##########################
+#
 # Command manager parameters
 #
 [commandmanager]
