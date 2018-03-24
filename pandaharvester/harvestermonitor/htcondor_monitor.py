@@ -68,7 +68,7 @@ def _check_one_worker(workspec, job_ads_all_dict):
                 tmpLog.error(errStr)
                 newStatus = WorkSpec.ST_cancelled
             else:
-                # Propagate native condor job STATUS
+                # Propagate native condor job status
                 workspec.nativeStatus = CONDOR_JOB_STATUS_MAP.get(batchStatus, 'unexpected')
                 if batchStatus in ['2', '6']:
                     # 2 running, 6 transferring output

@@ -305,7 +305,7 @@ class HTCondorSubmitter(PluginBase):
                 good_ce_list= []
                 for _ce_endpoint, _queue_dict in ce_auxilary_dict.items():
                     if ( _ce_endpoint not in worker_ce_stats_dict
-                        or worker_ce_stats_dict[_ce_endpoint]['submitted'] >= (queue_status_dict['nQueueLimitWorker'] // n_qualified_ce) ):
+                        or worker_ce_stats_dict[_ce_endpoint]['submitted'] < (queue_status_dict['nQueueLimitWorker'] // n_qualified_ce) ):
                         good_ce_list.append(_queue_dict)
                 ce_info_dict = random.choice(good_ce_list).copy()
                 ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
