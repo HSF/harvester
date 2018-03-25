@@ -44,5 +44,5 @@ class DummyMonitor(PluginBase):
             except:
                 pass
             tmpLog.debug('newStatus={0}'.format(newStatus))
-            retList.append((newStatus, ''))
+            retList.append((newStatus, 'dialog_message'))
         return True, retList

@@ -201,6 +201,11 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         workSpec = workspec_list[0]
         for jobSpec in jobspec_list:
             jobSpec.set_attributes(workSpec.workAttributes)
+            # delete job metadata from worker attributes
+            try:
+                del workSpec.workAttributes[jobSpec.PandaID]['metaData']
+            except:
+                pass
             # set start and end times
             if workSpec.status in [WorkSpec.ST_running]:
                 jobSpec.set_start_time()
@@ -359,7 +364,7 @@ class StopWatch(object):
     def get_elapsed_time(self):
         diff = datetime.datetime.utcnow() - self.startTime
         return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600,
-                                               diff.microseconds/1000)
+                                               diff.microseconds // 1000)
 
     # reset
     def reset(self):

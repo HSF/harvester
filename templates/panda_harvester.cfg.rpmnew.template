@@ -17,6 +17,8 @@ loggername = harvester
 # harvester id - unique id as registered also in panda server
 harvester_id = test_fbarreir
 
+# port number of debugger
+debugger_port = 19550
 
 
 ##########################
