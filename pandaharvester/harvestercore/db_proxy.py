@@ -3745,6 +3745,7 @@ class DBProxy:
             varMap[':st2'] = 'submitted'
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
+            retMap = dict()
             for workerStatus, computingSite, computingElement, cnt in resW:
                 if computingElement not in retMap:
                     retMap[computingElement] = {

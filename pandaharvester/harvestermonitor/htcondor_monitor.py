@@ -68,7 +68,7 @@ def _check_one_worker(workspec, job_ads_all_dict):
                 tmpLog.error(errStr)
                 newStatus = WorkSpec.ST_cancelled
             else:
-                # Propagate native condor job STATUS
+                # Propagate native condor job status
                 workspec.nativeStatus = CONDOR_JOB_STATUS_MAP.get(batchStatus, 'unexpected')
                 if batchStatus in ['2', '6']:
                     # 2 running, 6 transferring output
@@ -78,12 +78,12 @@ def _check_one_worker(workspec, job_ads_all_dict):
                     newStatus = WorkSpec.ST_submitted
                 elif batchStatus in ['3']:
                     # 3 removed
-                    errStr = 'Condor HoldReason: {0} ; RemoveReason: {1}'.format(
-                        job_ads_dict.get('HoldReason'),
-                        job_ads_dict.get('RemoveReason'))
+                    errStr = 'Condor HoldReason: {0} ; Condor RemoveReason: {1} '.format(
+                                job_ads_dict.get('LastHoldReason'), job_ads_dict.get('RemoveReason'))
                     newStatus = WorkSpec.ST_cancelled
                 elif batchStatus in ['5']:
                     # 5 held
+
                     if (
                         job_ads_dict.get('HoldReason') == 'Job not found' or
                         int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > 7200
@@ -94,8 +94,7 @@ def _check_one_worker(workspec, job_ads_all_dict):
                             tmpLog.info('killed held job batchID={0}'.format(workspec.batchID))
                         else:
                             newStatus = WorkSpec.ST_cancelled
-                            errStr = 'cannot kill held job batchID={0}. Force worker to be in cancelled status'.format(workspec.batchID)
-                            tmpLog.error(errStr)
+                            tmpLog.error('cannot kill held job batchID={0}. Force worker to be in cancelled status'.format(workspec.batchID))
                     else:
                         newStatus = WorkSpec.ST_submitted
                 elif batchStatus in ['4']:
