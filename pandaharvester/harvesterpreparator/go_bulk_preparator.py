@@ -143,15 +143,20 @@ class GlobusBulkPreparator(PluginBase):
             # lock for 120 sec
             tmpLog.debug('attempt to set DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
             have_db_lock = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
+            tmpLog.debug(' DB lock result - {0}'.format(have_db_lock))
             if not have_db_lock:
                 # escape since locked by another thread
                 msgStr = 'escape since locked by another thread'
                 tmpLog.debug(msgStr)
                 return None, msgStr
             # refresh group information since that could have been updated by another thread before getting the lock
+            tmpLog.debug('self.dbInterface.refresh_file_group_info(jobspec)')
             self.dbInterface.refresh_file_group_info(jobspec)
+            tmpLog.debug('after self.dbInterface.refresh_file_group_info(jobspec)')
             # get transfer groups again with refreshed info
+            tmpLog.debug('groups = jobspec.get_groups_of_input_files(skip_ready=True)')
             groups = jobspec.get_groups_of_input_files(skip_ready=True)
+            tmpLog.debug('after db lock and refresh - jobspec.get_groups_of_input_files(skip_ready=True) = : {0}'.format(groups))            
             # the dummy transfer ID is still there
             if self.dummy_transfer_id in groups:
                 groupUpdateTime = groups[self.dummy_transfer_id]['groupUpdateTime']
@@ -233,7 +238,9 @@ class GlobusBulkPreparator(PluginBase):
                                 msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                                 tmpLog.debug(msgStr)
                         # end debug log file test
-                        scope = fileSpec.scope
+                        scope = 'panda'
+                        if fileSpec.scope is not None :
+                            scope = fileSpec.scope
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
                         hash_hex = hash.hexdigest()
