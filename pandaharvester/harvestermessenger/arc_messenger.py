@@ -81,7 +81,7 @@ class ARCMessenger(PluginBase):
                 notfetched.append(jobid)
                 return (fetched, notfetched, notfetchedretry)
 
-        tmpdldir = os.path.join(self.tmpdir, pandaid)
+        tmpdldir = os.path.join(self.tmpdir, str(pandaid))
         try:
             os.makedirs(tmpdldir, 0755)
         except OSError as e:
@@ -140,7 +140,7 @@ class ARCMessenger(PluginBase):
 
         arcid = arcjob['JobID']
         pandapickle = None
-        tmpjobdir = os.path.join(self.tmpdir, pandaid)
+        tmpjobdir = os.path.join(self.tmpdir, str(pandaid))
         if haveoutput:
             log.debug('os.cwd(): {0}'.format(os.getcwd()))
             try:
