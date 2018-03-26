@@ -73,7 +73,8 @@ class JobFetcher(AgentBase):
                             # check file status
                             if tmpLFN not in fileStatMap:
                                 fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, 'input',
-                                                                                   queueConfig.ddmEndpointIn)
+                                                                                   queueConfig.ddmEndpointIn,
+                                                                                   'starting')
                             # make file spec
                             fileSpec = FileSpec()
                             fileSpec.PandaID = jobSpec.PandaID

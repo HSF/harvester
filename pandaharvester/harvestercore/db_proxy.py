@@ -3380,22 +3380,24 @@ class DBProxy:
             return False
 
     # get file status
-    def get_file_status(self, lfn, file_type, endpoint):
+    def get_file_status(self, lfn, file_type, endpoint, job_status):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint),
                                             method_name='get_file_status')
             tmpLog.debug('start')
             # sql to get files
-            sqlF = "SELECT status, COUNT(*) cnt FROM {0} ".format(fileTableName)
-            sqlF += "WHERE lfn=:lfn AND fileType=:type "
+            sqlF = "SELECT f.status, COUNT(*) cnt FROM {0} f, {1} j ".format(fileTableName, jobTableName)
+            sqlF += "WHERE j.PandaID=f.PandaID AND j.status=:jobStatus "
+            sqlF += "AND f.lfn=:lfn AND f.fileType=:type "
             if endpoint is not None:
-                sqlF += "AND endpoint=:endpoint "
-            sqlF += "GROUP BY status "
+                sqlF += "AND f.endpoint=:endpoint "
+            sqlF += "GROUP BY f.status "
             # get files
             varMap = dict()
             varMap[':lfn'] = lfn
             varMap[':type'] = file_type
+            varMap[':jobStatus'] = job_status
             if endpoint is not None:
                 varMap[':endpoint'] = endpoint
             self.execute(sqlF, varMap)
