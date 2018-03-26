@@ -143,7 +143,8 @@ class Preparator(AgentBase):
                         updateStatus = False
                         if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
                             fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
-                                = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn)
+                                = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn,
+                                                               'starting')
                         if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                             # the file is ready
                             fileSpec.status = 'ready'

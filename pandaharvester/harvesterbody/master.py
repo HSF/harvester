@@ -332,6 +332,7 @@ def main(daemon_mode=True):
                 core_utils.dump_error_message(_logger)
                 _logger.error('failed to be killed')
 
+        '''
         def catch_sigterm(sig, frame):
             _logger.info('got signal={0} to be terminated'.format(sig))
             stopEvent.set()
@@ -340,6 +341,7 @@ def main(daemon_mode=True):
                 atexit.register(delete_pid, options.pid)
             # set alarm just in case
             signal.alarm(30)
+        '''
 
         def catch_debug(sig, frame):
             _logger.info('got signal={0} to go into debugger mode'.format(sig))
@@ -362,7 +364,7 @@ def main(daemon_mode=True):
             signal.signal(signal.SIGTERM, catch_sigkill)
             signal.signal(signal.SIGALRM, catch_sigkill)
             signal.signal(signal.SIGUSR1, catch_debug)
-            signal.signal(signal.SIGUSR2, catch_sigterm)
+            signal.signal(signal.SIGUSR2, catch_sigkill)
         # start master
         master = Master(single_mode=options.singleMode, stop_event=stopEvent, daemon_mode=daemon_mode)
         if master is None:
