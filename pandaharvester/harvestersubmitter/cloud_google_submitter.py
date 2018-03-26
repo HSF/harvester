@@ -54,10 +54,10 @@ def create_vm(work_spec):
                                                                                       work_spec.maxDiskCount,
                                                                                       work_spec.maxWalltime))
 
-    vm = GoogleVM(work_spec)
-    work_spec.batchID = vm.name
-
     try:
+        vm = GoogleVM(work_spec)
+        work_spec.batchID = vm.name
+
         tmp_log.debug('Going to submit VM {0}'.format(vm.name))
         operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
         tmp_log.debug('Submitting VM {0}'.format(vm.name))
