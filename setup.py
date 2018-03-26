@@ -34,7 +34,7 @@ setup(
                       'pyjwt',
                       'subprocess32; python_version == "2.*"',
                       'trepan2; python_version == "2.*"',
-                      'trepan; python_version == "3.*"'
+                      'trepan3k; python_version == "3.*"'
                       ],
     data_files=[
         # config and cron files

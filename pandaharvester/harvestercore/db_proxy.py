@@ -572,7 +572,7 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return None
-    
+
     # insert output files into database
     def insert_files(self,jobspec_list):
         # get logger
@@ -1403,7 +1403,7 @@ class DBProxy:
             checkedIDs = set()
             retVal = {}
             for workerID in tmpWorkers:
-                # skip 
+                # skip
                 if workerID in checkedIDs:
                     continue
                 # lock worker
@@ -3380,22 +3380,24 @@ class DBProxy:
             return False
 
     # get file status
-    def get_file_status(self, lfn, file_type, endpoint):
+    def get_file_status(self, lfn, file_type, endpoint, job_status):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'lfn={0} endpoint={1}'.format(lfn, endpoint),
                                             method_name='get_file_status')
             tmpLog.debug('start')
             # sql to get files
-            sqlF = "SELECT status, COUNT(*) cnt FROM {0} ".format(fileTableName)
-            sqlF += "WHERE lfn=:lfn AND fileType=:type "
+            sqlF = "SELECT f.status, COUNT(*) cnt FROM {0} f, {1} j ".format(fileTableName, jobTableName)
+            sqlF += "WHERE j.PandaID=f.PandaID AND j.status=:jobStatus "
+            sqlF += "AND f.lfn=:lfn AND f.fileType=:type "
             if endpoint is not None:
-                sqlF += "AND endpoint=:endpoint "
-            sqlF += "GROUP BY status "
+                sqlF += "AND f.endpoint=:endpoint "
+            sqlF += "GROUP BY f.status "
             # get files
             varMap = dict()
             varMap[':lfn'] = lfn
             varMap[':type'] = file_type
+            varMap[':jobStatus'] = job_status
             if endpoint is not None:
                 varMap[':endpoint'] = endpoint
             self.execute(sqlF, varMap)
@@ -3691,3 +3693,75 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return False
+
+    # get queue status
+    def get_queue_status(self, site_name):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_queue_status')
+            tmpLog.debug('start')
+            # sql to get
+            sqlQ = "SELECT queueName,nQueueLimitJob,nQueueLimitWorker,maxWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ += "WHERE siteName=:siteName AND resourceType='ANY'"
+            # get
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            self.execute(sqlQ, varMap)
+            resQ = self.cur.fetchall()
+            retMap = dict()
+            for computingSite, nQueueLimitJob, nQueueLimitWorker, maxWorkers in resQ:
+                retMap.update({
+                    'nQueueLimitJob': nQueueLimitJob,
+                    'nQueueLimitWorker': nQueueLimitWorker,
+                    'maxWorkers': maxWorkers,
+                })
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # get worker CE stats
+    def get_worker_ce_stats(self, site_name):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_ce_stats')
+            tmpLog.debug('start')
+            # get worker CE stats
+            sqlW = "SELECT wt.status,wt.computingSite,wt.computingElement,COUNT(*) cnt "
+            sqlW += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
+            sqlW += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2) "
+            sqlW += "GROUP BY wt.status,wt.computingSite "
+            # get worker CE stats
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            varMap[':st1'] = 'running'
+            varMap[':st2'] = 'submitted'
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            retMap = dict()
+            for workerStatus, computingSite, computingElement, cnt in resW:
+                if computingElement not in retMap:
+                    retMap[computingElement] = {
+                        'running': 0,
+                        'submitted': 0,
+                        'to_submit': 0
+                    }
+                retMap[computingElement][workerStatus] = cnt
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}

@@ -140,9 +140,12 @@ class GlobusBulkStager(PluginBase):
                 tmpLog.debug(msgStr)
                 return None, msgStr
             # refresh group information since that could have been updated by another thread before getting the lock
+            tmpLog.debug('self.dbInterface.refresh_file_group_info(jobspec)')
             self.dbInterface.refresh_file_group_info(jobspec)
             # get transfer groups again with refreshed info
+            tmpLog.debug('After db refresh call groups=jobspec.get_groups_of_output_files()')
             groups = jobspec.get_groups_of_output_files()
+            tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
             # the dummy transfer ID is still there
             if self.dummy_transfer_id in groups:
                 groupUpdateTime = groups[self.dummy_transfer_id]['groupUpdateTime']
@@ -223,7 +226,9 @@ class GlobusBulkStager(PluginBase):
                                 msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                                 tmpLog.debug(msgStr)
                         # end debug log file test
-                        scope = fileSpec.scope
+                        scope ='panda'
+                        if fileSpec.scope is not None :
+                            scope = fileSpec.scope
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
                         hash_hex = hash.hexdigest()
