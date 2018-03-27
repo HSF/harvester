@@ -41,10 +41,8 @@ def get_resource_type(string, is_unified_queue):
     string = str(string)
     if not is_unified_queue:
         ret = ''
-    elif string.startswith('SCORE'):
-        ret = 'SCORE'
-    elif string.startswith('MCORE'):
-        ret = 'MCORE'
+    elif string in set(['SCORE', 'MCORE', 'SCORE_HIMEM', 'MCORE_HIMEM']):
+        ret = string
     else:
         ret = ''
     return ret
