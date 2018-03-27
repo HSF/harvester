@@ -37,18 +37,24 @@ def _condor_macro_replace(string, **kwarg):
     return new_string
 
 
+def get_resource_type(string, is_unified_queue):
+    string = str(string)
+    if not is_unified_queue:
+        ret = ''
+    elif string.startswith('SCORE'):
+        ret = 'SCORE'
+    elif string.startswith('MCORE'):
+        ret = 'MCORE'
+    else:
+        ret = ''
+    return ret
+
+
 # submit a worker
 def submit_a_worker(data):
     workspec = data['workspec']
-    template = data['template']
-    log_dir = data['log_dir']
-    n_core_per_node = data['n_core_per_node']
-    panda_queue_name = data['panda_queue_name']
-    x509_user_proxy = data['x509_user_proxy']
     ce_info_dict = data['ce_info_dict']
     batch_log_dict = data['batch_log_dict']
-    special_par = data['special_par']
-    harvester_queue_config = data['harvester_queue_config']
     workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
@@ -116,7 +122,7 @@ def submit_a_worker(data):
 
 # make batch script
 def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy,
-                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None):
+                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None, is_unified_queue=False):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
@@ -181,6 +187,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         logDir=log_dir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=harvester_queue_config.get_source_label(),
+        resourceType=get_resource_type(workspec.resourceType, is_unified_queue),
         )
     )
     tmpFile.close()
@@ -276,6 +283,7 @@ class HTCondorSubmitter(PluginBase):
 
             # get default information from queue info
             n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
+            is_unified_queue = 'unifiedPandaQueue' in this_panda_queue_dict.get('catchall', '').split(',')
             ce_info_dict = dict()
             batch_log_dict = dict()
             special_par = ''
@@ -381,6 +389,7 @@ class HTCondorSubmitter(PluginBase):
                     'batch_log_dict': batch_log_dict,
                     'special_par': special_par,
                     'harvester_queue_config': harvester_queue_config,
+                    'is_unified_queue': is_unified_queue,
                     }
 
             return data
