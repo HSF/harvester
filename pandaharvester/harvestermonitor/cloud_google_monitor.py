@@ -26,13 +26,10 @@ class GoogleMonitor(PluginBase):
 
         try:
             result = compute.instances().list(project=PROJECT, zone=ZONE).execute()
-            baseLogger.debug('VM instances: {0}'.format(result))
-
             vm_instances = result['items']
 
             # make a list with the VM names
             vm_names = map(lambda vm_instance: vm_instance['name'], vm_instances)
-            baseLogger.debug('VM names: {0}'.format(vm_names))
 
             # make a dictionary so we can retrieve a VM by its name
             vm_name_to_status = {}
@@ -48,7 +45,6 @@ class GoogleMonitor(PluginBase):
         """
         This method takes a list of WorkSpecs as input argument and returns a list of worker's statuses.
         Nth element in the return list corresponds to the status of Nth WorkSpec in the given list.
-        Worker status needs to be one of
 
         :param worker_list: a list of work specs instances
         :return: A tuple containing the return code (True for success, False otherwise) and a list of worker's statuses

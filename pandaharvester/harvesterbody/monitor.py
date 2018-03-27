@@ -204,13 +204,18 @@ class Monitor(AgentBase):
                     if messenger.kill_requested(workSpec):
                         self.dbProxy.kill_worker(workSpec.workerID)
 
+                    # expired heartbeat - only when requested in the configuration
                     try:
                         # check if the queue configuration requires checking for worker heartbeat
-                        worker_heartbeat_limit = int(queue_config.messenger.worker_heartbeat)
-                    except:
+                        worker_heartbeat_limit = int(queue_config.messenger['worker_heartbeat'])
+                    except KeyError:
                         worker_heartbeat_limit = None
-                    if worker_heartbeat_limit and not messenger.is_alive(workSpec, worker_heartbeat_limit):
-                        self.dbProxy.kill_worker(workSpec.workerID)
+                    if worker_heartbeat_limit:
+                        if messenger.is_alive(workSpec, worker_heartbeat_limit):
+                            tmp_log.debug('heartbeat for {0} is valid'.format(workerID))
+                        else:
+                            tmp_log.debug('heartbeat for {0} is expired: sending kill request'.format(workerID))
+                            self.dbProxy.kill_worker(workSpec.workerID)
 
                     # get work attributes
                     workAttributes = messenger.get_work_attributes(workSpec)

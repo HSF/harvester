@@ -13,14 +13,17 @@ try:
 except:
     import subprocess
 import os
-from threading import Timer
+from threading import Thread
 import logging
+import time
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
                     filename='/tmp/vm_script.log', filemode='w')
 
 METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/{0}"
 
+global loop
+loop = True
 
 def contact_harvester(harvester_frontend, data, auth_token, proxy_path):
     try:
@@ -47,6 +50,12 @@ def suicide(harvester_frontend, worker_id, auth_token, proxy_path):
     data = {'methodName': 'killWorker', 'workerID': worker_id, 'data': None}
     logging.debug('[suicide] sending suicide message to harvester: {0}'.format(data))
     return contact_harvester(harvester_frontend, data, auth_token, proxy_path)
+
+
+def heartbeat_loop(harvester_frontend, worker_id, auth_token, proxy_path):
+    while loop:
+        heartbeat(harvester_frontend, worker_id, auth_token, proxy_path)
+        time.sleep(300)
 
 
 def get_url(url, headers=None):
@@ -94,7 +103,7 @@ if __name__ == "__main__":
     logging.debug('[main] got authentication token')
 
     # start a separate thread that will send a heartbeat to harvester every 5 minutes
-    heartbeat_thread = Timer(300, heartbeat, [harvester_frontend, worker_id, auth_token, proxy_path])
+    heartbeat_thread = Thread(target=heartbeat_loop, args=(harvester_frontend, worker_id, auth_token, proxy_path]))
     heartbeat_thread.start()
 
     # get the pilot wrapper
@@ -116,9 +125,10 @@ if __name__ == "__main__":
     subprocess.call(command, shell=True)
     logging.debug('[main] pilot wrapper done...')
 
+    # TODO: upload logs to panda cache or harvester
+
     # ask harvester to kill the VM and stop the heartbeat
     suicide(harvester_frontend, worker_id, auth_token, proxy_path)
-    heartbeat_thread.cancel()
-
-    # TODO: upload logs to panda cache or harvester
+    loop = False
+    heartbeat_thread.join()
 
