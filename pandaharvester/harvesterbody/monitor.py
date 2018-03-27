@@ -208,7 +208,7 @@ class Monitor(AgentBase):
                     try:
                         # check if the queue configuration requires checking for worker heartbeat
                         worker_heartbeat_limit = int(queue_config.messenger['worker_heartbeat'])
-                    except KeyError:
+                    except AttributeError, KeyError:
                         worker_heartbeat_limit = None
                     if worker_heartbeat_limit:
                         if messenger.is_alive(workSpec, worker_heartbeat_limit):
