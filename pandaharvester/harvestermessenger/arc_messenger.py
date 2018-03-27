@@ -11,6 +11,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc import arc_utils
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 
 # json for outputs
@@ -29,8 +30,6 @@ class ARCMessenger(PluginBase):
         self.jobSpecFileFormat = 'json'
         PluginBase.__init__(self, **kwarg)
         self.schedulerid = harvester_config.master.harvester_id
-        self.logdir = harvester_config.joblog.logdir
-        self.logurl = harvester_config.joblog.logurl
         self.tmpdir = '/tmp' # TODO configurable or common function
 
         # Credential dictionary role: proxy file
@@ -55,7 +54,7 @@ class ARCMessenger(PluginBase):
         return filelist
   
 
-    def _download_outputs(self, files, logsubdir, jobid, pandaid, userconfig, log):
+    def _download_outputs(self, files, logdir, jobid, pandaid, userconfig, log):
         '''Download the output files specified in downloadfiles'''
 
         # construct datapoint object, initialising connection. Use the same
@@ -72,7 +71,6 @@ class ARCMessenger(PluginBase):
         notfetchedretry = []
         
         # create required local log dirs
-        logdir = os.path.join(self.logdir, logsubdir)
         try:
             os.makedirs(logdir, 0755)
         except OSError as e:
@@ -81,7 +79,7 @@ class ARCMessenger(PluginBase):
                 notfetched.append(jobid)
                 return (fetched, notfetched, notfetchedretry)
 
-        tmpdldir = os.path.join(self.tmpdir, str(pandaid))
+        tmpdldir = os.path.join(self.tmpdir, pandaid)
         try:
             os.makedirs(tmpdldir, 0755)
         except OSError as e:
@@ -106,9 +104,9 @@ class ARCMessenger(PluginBase):
 
         for f in filelist:
             if f == 'gmlog/errors':
-                localfile = os.path.join(logdir, '%d.log' % pandaid)
+                localfile = os.path.join(logdir, '%s.log' % pandaid)
             elif f.find('.log') != -1:
-                localfile = os.path.join(logdir, '%d.out' % pandaid)
+                localfile = os.path.join(logdir, '%s.out' % pandaid)
             else:
                 localfile = os.path.join(tmpdldir, f)
 
@@ -133,14 +131,14 @@ class ARCMessenger(PluginBase):
 
         return (fetched, notfetched, notfetchedretry)
 
-    def _extractAndFixPilotPickle(self, arcjob, pandaid, haveoutput, logsubdir, log):
+    def _extractAndFixPilotPickle(self, arcjob, pandaid, haveoutput, logurl, log):
         '''
         Extract the pilot pickle from jobSmallFiles.tgz, and fix attributes
         '''
 
         arcid = arcjob['JobID']
         pandapickle = None
-        tmpjobdir = os.path.join(self.tmpdir, str(pandaid))
+        tmpjobdir = os.path.join(self.tmpdir, pandaid)
         if haveoutput:
             log.debug('os.cwd(): {0}'.format(os.getcwd()))
             try:
@@ -158,9 +156,10 @@ class ARCMessenger(PluginBase):
                 log.warning("{0}: no metaData in pilot pickle".format(pandaid))
             shutil.rmtree(tmpjobdir, ignore_errors=True)
         else:
-            jobinfo = arc_utils.ARCPandaJob(jobinfo={'jobId': pandaid, 'state': 'finished'})
+            jobinfo = arc_utils.ARCPandaJob(jobinfo={'jobId': long(pandaid), 'state': 'finished'})
             jobinfo.schedulerID = self.schedulerid
-            jobinfo.pilotID = "%s.out|Unknown|Unknown|Unknown|Unknown" % '/'.join([self.logurl, logsubdir, str(pandaid)])
+            if logurl:
+                jobinfo.pilotID = "%s.out|Unknown|Unknown|Unknown|Unknown" % '/'.join([logurl, pandaid])
                 
             # TODO: set error code based on batch error message (memory kill etc)
             jobinfo.pilotErrorCode = 1008
@@ -209,20 +208,29 @@ class ARCMessenger(PluginBase):
             tmplog.error("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
             return
 
-        pandaid = long(jobspec_list[0].PandaID)
+        queueconfigmapper = QueueConfigMapper()
+        queueconfig = queueconfigmapper.get_queue(jobspec_list[0].computingSite)
+        logbaseurl = queueconfig.submitter.get('logBaseURL')
+        logbasedir = queueconfig.submitter.get('logDir', self.tmpdir)
+        logsubdir = workspec.workAttributes['logsubdir']
+        pandaid = str(jobspec_list[0].PandaID)
+
+        # Construct log path and url
+        logurl = '/'.join([logbaseurl, logsubdir, str(pandaid)]) if logbaseurl else None
+        logdir = os.path.join(logbasedir, logsubdir)
+
         # post_processing is only called once, so no retries are done. But keep
         # the possibility here in case it changes
         (fetched, notfetched, notfetchedretry) = self._download_outputs(workspec.workAttributes['arcdownloadfiles'],
-                                                                        workspec.workAttributes['logsubdir'],
-                                                                        arcid, pandaid, userconfig, tmplog)
+                                                                        logdir, arcid, pandaid, userconfig, tmplog)
         if arcid not in fetched:
             tmplog.warning("Could not get outputs of {0}".format(arcid))
 
-        workspec.workAttributes[pandaid] = {}
+        workspec.workAttributes[long(pandaid)] = {}
 
-        workspec.workAttributes[pandaid] = self._extractAndFixPilotPickle(job, pandaid, (arcid in fetched), workspec.workAttributes['logsubdir'], tmplog)
+        workspec.workAttributes[long(pandaid)] = self._extractAndFixPilotPickle(job, pandaid, (arcid in fetched), logurl, tmplog)
         
-        tmplog.debug("pilot info for {0}: {1}".format(pandaid, workspec.workAttributes[pandaid]))
+        tmplog.debug("pilot info for {0}: {1}".format(pandaid, workspec.workAttributes[long(pandaid)]))
 
     def get_work_attributes(self, workspec):
         '''Get info from the job to pass back to harvester'''

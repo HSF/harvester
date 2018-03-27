@@ -67,8 +67,6 @@ class ARCSubmitter(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         self.dbproxy = DBProxy()
-        self.logdir = harvester_config.joblog.logdir
-        self.logurl = harvester_config.joblog.logurl
         self.schedulerid = harvester_config.master.harvester_id
 
         # Credential dictionary role: proxy file
@@ -215,8 +213,9 @@ class ARCSubmitter(PluginBase):
                 pandaqueues[jobspec.computingSite]['truepilot'] = 'running' in queueconfig.noHeartbeat
 
                 # Set log URL for GTAG env in job description
+                logbaseurl = queueconfig.submitter.get('logBaseURL')
                 logsubdir = self._set_logdir(jobspec.computingSite)
-                logfileurl = '/'.join([self.logurl, logsubdir, '%d.out' % jobspec.PandaID])
+                logfileurl = '/'.join([logbaseurl, logsubdir, '%d.out' % jobspec.PandaID]) if logbaseurl else None
 
                 tmplog.debug("Converting to ARC XRSL format")
                 arcxrsl = ARCParser(jobspec.jobParams,

@@ -380,7 +380,8 @@ class ARCParser:
     def setEnvironment(self):
         environment = {}
         environment['PANDA_JSID'] = self.schedulerid
-        environment['GTAG'] = self.logurl
+        if self.logurl:
+            environment['GTAG'] = self.logurl
 
         # Vars for APFMon
         if self.truepilot and self.monitorurl:
