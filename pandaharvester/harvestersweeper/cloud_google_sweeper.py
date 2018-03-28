@@ -1,6 +1,7 @@
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercloud.googlecloud import compute, ZONE, PROJECT
+import googleapiclient
 
 base_logger = core_utils.setup_logger('google_sweeper')
 
@@ -27,9 +28,15 @@ class GoogleSweeper(PluginBase):
             compute.instances().delete(project=PROJECT, zone=ZONE, instance=vm_name).execute()
             base_logger.debug('Killed VM {0}'.format(vm_name))
             return True, ''
-        except:
-            base_logger.debug('Did not kill VM, probably it was killed already'.format(vm_name))
-            return False, 'Problem occurred deleting the instance'
+        except googleapiclient.errors.HttpError as e:
+            if 'was not found' in e.content:
+                # the VM was already killed or does not exist for any other reason
+                message = 'VM does not exist'.format(vm_name)
+                base_logger.debug(message)
+                return True, message
+            else:
+                # there was an issue killing the VM and it should be retried at another time
+                return False, 'Problems killing the VM: {0}'.format(e)
 
     def sweep_worker(self, work_spec):
         """
