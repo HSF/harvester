@@ -193,10 +193,11 @@ class Monitor(AgentBase):
         tmp_log.debug('checking workers with plugin')
         tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
         if not tmpStat:
-            tmp_log.error('failed to check workers with {0}'.format(tmpOut))
+            tmp_log.error('failed to check workers with: {0}'.format(tmpOut))
         else:
             tmp_log.debug('checked')
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
+                tmp_log.debug('Going to check worker {0}'.format(workerID))
                 workerID = workSpec.workerID
                 pandaIDs = []
                 if workerID in retMap:
@@ -210,6 +211,7 @@ class Monitor(AgentBase):
                         worker_heartbeat_limit = int(queue_config.messenger['worker_heartbeat'])
                     except (AttributeError, KeyError):
                         worker_heartbeat_limit = None
+                    tmp_log.debug('Worker {0} heartbeat limit is configured to {1}'.format(workerID, worker_heartbeat_limit))
                     if worker_heartbeat_limit:
                         if messenger.is_alive(workSpec, worker_heartbeat_limit):
                             tmp_log.debug('heartbeat for {0} is valid'.format(workerID))
@@ -256,4 +258,6 @@ class Monitor(AgentBase):
                         workSpec.trigger_next_lookup()
                     retMap[workerID]['newStatus'] = newStatus
                     retMap[workerID]['diagMessage'] = diagMessage
+                else:
+                    tmp_log.debug('Worker {0} not in retMap'.format(workerID))
         return retMap

@@ -67,14 +67,18 @@ class GoogleMonitor(PluginBase):
             tmp_log = core_utils.make_logger(baseLogger, 'batch ID={0}'.format(batch_ID), method_name='check_workers')
 
             if batch_ID not in vm_names:
-                new_status = WorkSpec.ST_missed
+                new_status = WorkSpec.ST_finished
+                message = 'VM not found'
             else:
                 try:
                     new_status = self.vm_to_worker_status[vm_name_to_status[batch_ID]]
+                    message = 'VM status returned by GCE API'
                 except KeyError:
-                    new_status = WorkSpec.ST_failed
+                    new_status = WorkSpec.ST_missed
+                    message = 'Unknown status to Harvester: {0}'.format(vm_name_to_status[batch_ID])
 
             tmp_log.debug('new_status={0}'.format(new_status))
-            ret_list.append((new_status, ''))
+            ret_list.append((new_status, message))
 
+        baseLogger.debug('ret_list: {0}'.format(ret_list))
         return True, ret_list

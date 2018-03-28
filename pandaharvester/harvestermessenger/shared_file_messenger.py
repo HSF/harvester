@@ -576,7 +576,7 @@ class SharedFileMessenger(PluginBase):
                                         method_name='is_alive')
         # json file
         jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
-        tmpLog.debug('looking for kill request file {0}'.format(jsonFilePath))
+        tmpLog.debug('looking for heartbeat file {0}'.format(jsonFilePath))
         if not os.path.exists(jsonFilePath):
             tmpLog.debug('not found')
             return None

@@ -2,7 +2,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercloud.googlecloud import compute, ZONE, PROJECT
 
-base_logger = core_utils.setup_logger('google_monitor')
+base_logger = core_utils.setup_logger('google_sweeper')
 
 class GoogleSweeper(PluginBase):
     """
@@ -28,6 +28,7 @@ class GoogleSweeper(PluginBase):
             base_logger.debug('Killed VM {0}'.format(vm_name))
             return True, ''
         except:
+            base_logger.debug('Did not kill VM, probably it was killed already'.format(vm_name))
             return False, 'Problem occurred deleting the instance'
 
     def sweep_worker(self, work_spec):
