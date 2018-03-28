@@ -197,8 +197,8 @@ class Monitor(AgentBase):
         else:
             tmp_log.debug('checked')
             for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
-                tmp_log.debug('Going to check worker {0}'.format(workerID))
                 workerID = workSpec.workerID
+                tmp_log.debug('Going to check worker {0}'.format(workerID))
                 pandaIDs = []
                 if workerID in retMap:
                     # request kill
