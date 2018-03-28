@@ -3735,9 +3735,9 @@ class DBProxy:
             tmpLog.debug('start')
             # get worker CE stats
             sqlW = "SELECT wt.status,wt.computingSite,wt.computingElement,COUNT(*) cnt "
-            sqlW += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
-            sqlW += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2) "
-            sqlW += "GROUP BY wt.status,wt.computingSite "
+            sqlW += "FROM {0} wt ".format(workTableName)
+            sqlW += "WHERE wt.computingSite=:siteName AND wt.status IN (:st1,:st2) "
+            sqlW += "GROUP BY wt.status,wt.computingElement "
             # get worker CE stats
             varMap = dict()
             varMap[':siteName'] = site_name

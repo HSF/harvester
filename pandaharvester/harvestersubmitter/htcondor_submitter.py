@@ -308,11 +308,14 @@ class HTCondorSubmitter(PluginBase):
                 queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
                 worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
                 # good CEs which can be submitted to
-                good_ce_list= []
+                good_ce_list = []
                 for _ce_endpoint, _queue_dict in ce_auxilary_dict.items():
                     if ( _ce_endpoint not in worker_ce_stats_dict
-                        or worker_ce_stats_dict[_ce_endpoint]['submitted'] < (queue_status_dict['nQueueLimitWorker'] // n_qualified_ce) ):
+                        or worker_ce_stats_dict[_ce_endpoint]['submitted'] < _div_round_up(queue_status_dict['nQueueLimitWorker'], n_qualified_ce) ):
                         good_ce_list.append(_queue_dict)
+                tmpLog.debug('queue_status_dict: {0} ; worker_ce_stats_dict: {1} ; good_ce_endpoints: {2}'.format(
+                        queue_status_dict, worker_ce_stats_dict,
+                        list(map(lambda _d: _d.get('ce_endpoint', ''), good_ce_list)), ))
                 ce_info_dict = random.choice(good_ce_list).copy()
                 ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
                 ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
