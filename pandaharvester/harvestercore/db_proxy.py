@@ -8,6 +8,7 @@ import sys
 import copy
 import inspect
 import datetime
+import logging
 import threading
 from future.utils import iteritems
 
@@ -21,6 +22,7 @@ from .seq_number_spec import SeqNumberSpec
 from .panda_queue_spec import PandaQueueSpec
 from .job_worker_relation_spec import JobWorkerRelationSpec
 from .process_lock_spec import ProcessLockSpec
+from .diag_spec import DiagSpec
 
 from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -39,6 +41,7 @@ seqNumberTableName = 'seq_table'
 pandaQueueTableName = 'pq_table'
 jobWorkerTableName = 'jw_table'
 processLockTableName = 'lock_table'
+diagTableName = 'diag_table'
 
 # connection lock
 conLock = threading.Lock()
@@ -341,6 +344,7 @@ class DBProxy:
         outStrs += self.make_table(PandaQueueSpec, pandaQueueTableName)
         outStrs += self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
         outStrs += self.make_table(ProcessLockSpec, processLockTableName)
+        outStrs += self.make_table(DiagSpec, diagTableName)
         # dump error messages
         if len(outStrs) > 0:
             errMsg = "ERROR : Definitions of some database tables are incorrect. "
@@ -3765,3 +3769,140 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # add dialog message
+    def add_dialog_message(self, message, level, module_name, identifier=None):
+        try:
+            validLevels = ['DEBUG', 'INFO', 'ERROR', 'WARNING']
+            # set level
+            if level not in validLevels:
+                level = 'INFO'
+            levelNum = getattr(logging, level)
+            # get minimum level
+            try:
+                minLevel = harvester_config.propagator.minMessageLevel
+            except:
+                minLevel = None
+            if minLevel not in validLevels:
+                minLevel = 'WARNING'
+            minLevelNum = getattr(logging, minLevel)
+            # check
+            if levelNum < minLevelNum:
+                return True
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='add_dialog_message')
+            tmpLog.debug('start')
+            # delete old messages
+            sqlD = "DELETE FROM {0} ".format(diagTableName)
+            sqlD += "WHERE creationTime<:timeLimit "
+            varMap = dict()
+            varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+            self.execute(sqlD, varMap)
+            # commit
+            self.commit()
+            # make spec
+            diagSpec = DiagSpec()
+            diagSpec.moduleName = module_name
+            diagSpec.creationTime = datetime.datetime.utcnow()
+            diagSpec.messageLevel = level
+            try:
+                diagSpec.identifier = identifier[:100]
+            except:
+                pass
+            diagSpec.diagMessage = message[:500]
+            # insert
+            sqlI = "INSERT INTO {0} ({1}) ".format(diagTableName, DiagSpec.column_names())
+            sqlI += DiagSpec.bind_values_expression()
+            varMap = diagSpec.values_list()
+            self.execute(sqlI, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # get dialog messages to send
+    def get_dialog_messages_to_send(self, n_messages, lock_interval):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_dialog_messages_to_send')
+            tmpLog.debug('start')
+            # sql to select messages
+            sqlD = "SELECT diagID FROM {0} ".format(diagTableName)
+            sqlD += "WHERE (lockTime IS NULL OR lockTime<:timeLimit) "
+            sqlD += "ORDER BY diagID LIMIT {0} ".format(n_messages)
+            # sql to lock message
+            sqlL = "UPDATE {0} SET lockTime=:timeNow ".format(diagTableName)
+            sqlL += "WHERE diagID=:diagID "
+            sqlL += "AND (lockTime IS NULL OR lockTime<:timeLimit) "
+            # sql to get message
+            sqlM = "SELECT {0} FROM {1} ".format(DiagSpec.column_names(), diagTableName)
+            sqlM += "WHERE diagID=:diagID "
+            # select messages
+            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(seconds=lock_interval)
+            varMap = dict()
+            varMap[':timeLimit'] = timeLimit
+            self.execute(sqlD, varMap)
+            resD = self.cur.fetchall()
+            diagList = []
+            for diagID, in resD:
+                # lock
+                varMap = dict()
+                varMap[':diagID'] = diagID
+                varMap[':timeLimit'] = timeLimit
+                varMap[':timeNow'] = datetime.datetime.utcnow()
+                self.execute(sqlL, varMap)
+                nRow = self.cur.rowcount
+                if nRow == 1:
+                    # get
+                    varMap = dict()
+                    varMap[':diagID'] = diagID
+                    self.execute(sqlM, varMap)
+                    resM = self.cur.fetchone()
+                    # make spec
+                    diagSpec = DiagSpec()
+                    diagSpec.pack(resM)
+                    diagList.append(diagSpec)
+                # commit
+                self.commit()
+            tmpLog.debug('got {0} messages'.format(len(diagList)))
+            return diagList
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return []
+
+    # delete dialog messages
+    def delete_dialog_messages(self, ids):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='delete_dialog_messages')
+            tmpLog.debug('start')
+            # sql to delete message
+            sqlM = "DELETE FROM {0} ".format(diagTableName)
+            sqlM += "WHERE diagID=:diagID "
+            for diagID in ids:
+                # lock
+                varMap = dict()
+                varMap[':diagID'] = diagID
+                self.execute(sqlM, varMap)
+                # commit
+                self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False

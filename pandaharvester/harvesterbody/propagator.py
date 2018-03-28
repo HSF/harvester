@@ -26,7 +26,7 @@ class Propagator(AgentBase):
     def run(self):
         while True:
             sw = core_utils.get_stopwatch()
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
             mainLog.debug('getting jobs to propagate')
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,
@@ -163,7 +163,24 @@ class Propagator(AgentBase):
                             self._last_stats_update = time.time()
                         else:
                             mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name, tmp_str))
+            # send dialog messages
+            mainLog.debug('getting dialog messages to propagate')
+            try:
+                maxDialogs = harvester_config.propagator.maxDialogs
+            except:
+                maxDialogs = 50
+            diagSpecs = self.dbProxy.get_dialog_messages_to_send(maxDialogs,
+                                                                 harvester_config.propagator.lockInterval)
+            mainLog.debug('got {0} dialogs'.format(len(diagSpecs)))
+            if len(diagSpecs) > 0:
+                tmpStat, tmpStr = self.communicator.send_dialog_messages(diagSpecs)
+                if tmpStat:
+                    diagIDs = [diagSpec.diagID for diagSpec in diagSpecs]
+                    self.dbProxy.delete_dialog_messages(diagIDs)
+                    mainLog.debug('sent {0} dialogs'.format(len(diagSpecs)))
 
+                else:
+                    mainLog.error('failed to send dialogs err={0}'.format(tmpStr))
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):

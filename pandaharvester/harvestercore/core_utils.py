@@ -48,7 +48,7 @@ def setup_logger(name=None):
 
 
 # make logger
-def make_logger(tmp_log, token=None, method_name=None):
+def make_logger(tmp_log, token=None, method_name=None, hook=None):
     # get method name of caller
     if method_name is None:
         tmpStr = inspect.stack()[1][3]
@@ -58,7 +58,7 @@ def make_logger(tmp_log, token=None, method_name=None):
         tmpStr += ' <{0}>'.format(token)
     else:
         tmpStr += ' :'.format(token)
-    newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile)
+    newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile, hook=hook)
     return newLog
 
 

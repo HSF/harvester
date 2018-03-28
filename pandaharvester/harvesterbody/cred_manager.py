@@ -75,9 +75,8 @@ class CredManager(AgentBase):
             if exeCore is None:
                 continue
                 # make logger
-            mainLog = core_utils.make_logger(_logger, "{0} {1}".format(exeCore.__class__.__name__,
-                                                                       exeCore.outCertFile),
-                                             method_name='execute')
+            mainLog = self.make_logger(_logger, "{0} {1}".format(exeCore.__class__.__name__, exeCore.outCertFile),
+                                       method_name='execute')
             # check credential
             mainLog.debug('check credential')
             isValid = exeCore.check_credential()

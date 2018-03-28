@@ -25,14 +25,14 @@ class EventFeeder(AgentBase):
     def run(self):
         lockedBy = 'eventfeeder-{0}'.format(self.ident)
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting workers to feed events')
             workSpecsPerQueue = self.dbProxy.get_workers_to_feed_events(harvester_config.eventfeeder.maxWorkers,
                                                                         harvester_config.eventfeeder.lockInterval)
             mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
             # loop over all workers
             for queueName, workSpecList in iteritems(workSpecsPerQueue):
-                tmpQueLog = core_utils.make_logger(_logger, 'queue={0}'.format(queueName), method_name='run')
+                tmpQueLog = self.make_logger(_logger, 'queue={0}'.format(queueName), method_name='run')
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     tmpQueLog.error('config not found')

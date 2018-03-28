@@ -175,17 +175,23 @@ sleepTime = 60
 # number of threads
 nThreads = 3
 
-# max number of jobs tp update in one cycle
+# max number of jobs to update in one cycle
 maxJobs = 100
 
 # number of jobs in bulk update
 nJobsInBulk = 10
 
-# max number of workers tp update in one cycle
+# max number of workers to update in one cycle
 maxWorkers = 100
 
 # number of workers in bulk update
 nWorkersInBulk = 10
+
+# number of dialog message to send
+maxDialogs = 50
+
+# minimum level of dialog messages to send. DEBUG, INFO, WARNING, or ERROR
+minMessageLevel = WARNING
 
 # lock interval in sec
 lockInterval = 600

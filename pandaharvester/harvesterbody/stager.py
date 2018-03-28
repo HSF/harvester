@@ -25,7 +25,7 @@ class Stager(AgentBase):
         lockedBy = 'stager-{0}'.format(self.ident)
         while True:
             sw = core_utils.get_stopwatch()
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToCheck,
@@ -36,8 +36,8 @@ class Stager(AgentBase):
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
-                                                method_name='run')
+                tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                          method_name='run')
                 tmpLog.debug('start checking')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -86,8 +86,8 @@ class Stager(AgentBase):
             mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
             # loop over all jobs
             for jobSpec in jobsToTrigger:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
-                                                method_name='run')
+                tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                          method_name='run')
                 tmpLog.debug('try to trigger stage-out')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -138,8 +138,8 @@ class Stager(AgentBase):
             mainLog.debug('got {0} jobs to zip'.format(len(jobsToZip)))
             # loop over all jobs
             for jobSpec in jobsToZip:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
-                                                method_name='run')
+                tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                          method_name='run')
                 tmpLog.debug('try to zip output')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):

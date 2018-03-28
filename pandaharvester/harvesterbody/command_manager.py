@@ -49,7 +49,7 @@ class CommandManager(AgentBase):
         """
         main
         """
-        main_log = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
+        main_log = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
         bulk_size = harvester_config.commandmanager.commands_bulk_size
         locked = self.db_proxy.get_process_lock('commandmanager', self.get_pid(),
                                                 harvester_config.commandmanager.sleepTime)

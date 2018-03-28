@@ -32,7 +32,7 @@ class Submitter(AgentBase):
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.ident)
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
 
             # get queues associated to a site to submit workers
@@ -70,7 +70,10 @@ class Submitter(AgentBase):
                     for queueName in n_workers_per_queue_and_rt:
                         for resource_type, tmpVal in iteritems(n_workers_per_queue_and_rt[queueName]):
 
-                            tmpLog = core_utils.make_logger(_logger, 'id={0} queue={1} resource_type={2}'.format(lockedBy, queueName, resource_type), method_name='run')
+                            tmpLog = self.make_logger(_logger, 'id={0} queue={1} rtype={2}'.format(lockedBy,
+                                                                                                   queueName,
+                                                                                                   resource_type),
+                                                      method_name='run')
                             tmpLog.debug('start')
                             nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                             nReady = tmpVal['nReady']

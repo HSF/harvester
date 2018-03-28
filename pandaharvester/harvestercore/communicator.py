@@ -539,3 +539,32 @@ class Communicator:
                 core_utils.dump_error_message(tmpLog, tmpRes)
         tmpLog.debug('done with {0}'.format(retVal))
         return retStat, retVal
+
+    # send dialog messages
+    def send_dialog_messages(self, dialog_list):
+        tmpLog = core_utils.make_logger(_logger, method_name='send_dialog_messages')
+        tmpLog.debug('start')
+        dataList = []
+        for diagSpec in dialog_list:
+            dataList.append(diagSpec.convert_to_propagate())
+        data = dict()
+        data['harvesterID'] = harvester_config.master.harvester_id
+        data['dialogs'] = json.dumps(dataList)
+        tmpLog.debug('send {0} messages'.format(len(dataList)))
+        tmpStat, tmpRes = self.post_ssl('addHarvesterDialogs', data)
+        errStr = 'OK'
+        if tmpStat is False:
+            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                retCode, tmpStr = tmpRes.json()
+                if not retCode:
+                    errStr = core_utils.dump_error_message(tmpLog, tmpStr)
+                    tmpStat = False
+            except:
+                errStr = core_utils.dump_error_message(tmpLog)
+                tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
+                tmpStat = False
+        if tmpStat:
+            tmpLog.debug('done with {0}'.format(errStr))
+        return tmpStat, errStr

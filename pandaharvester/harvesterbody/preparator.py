@@ -27,7 +27,7 @@ class Preparator(AgentBase):
         lockedBy = 'preparator-{0}'.format(self.ident)
         while True:
             sw = core_utils.get_stopwatch()
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
             jobsToCheck = self.dbProxy.get_jobs_in_sub_status('preparing',
@@ -39,8 +39,8 @@ class Preparator(AgentBase):
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
-                                                method_name='run')
+                tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                          method_name='run')
                 tmpLog.debug('start checking')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
@@ -113,8 +113,8 @@ class Preparator(AgentBase):
             # loop over all jobs
             fileStatMap = dict()
             for jobSpec in jobsToTrigger:
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
-                                                method_name='run')
+                tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                          method_name='run')
                 tmpLog.debug('try to trigger preparation')
                 # get queue
                 if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
