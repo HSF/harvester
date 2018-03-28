@@ -28,9 +28,9 @@ class AgentBase(threading.Thread):
         return '{0}-{1}'.format(self.os_pid, self.ident)
 
     # make logger
-    def make_logger(self, base_log, token, method_name=None, send_dialog=True):
+    def make_logger(self, base_log, token=None, method_name=None, send_dialog=True):
         if send_dialog and hasattr(self, 'dbProxy'):
             hook = self.dbProxy
         else:
             hook = None
-        return core_utils.make_logger(base_log, token, method_name=method_name, hook=hook)
+        return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
