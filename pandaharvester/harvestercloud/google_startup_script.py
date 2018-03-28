@@ -103,7 +103,7 @@ if __name__ == "__main__":
     logging.debug('[main] got authentication token')
 
     # start a separate thread that will send a heartbeat to harvester every 5 minutes
-    heartbeat_thread = Thread(target=heartbeat_loop, args=(harvester_frontend, worker_id, auth_token, proxy_path]))
+    heartbeat_thread = Thread(target=heartbeat_loop, args=(harvester_frontend, worker_id, auth_token, proxy_path))
     heartbeat_thread.start()
 
     # get the pilot wrapper
