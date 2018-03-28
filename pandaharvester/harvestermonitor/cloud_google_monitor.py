@@ -26,7 +26,12 @@ class GoogleMonitor(PluginBase):
 
         try:
             result = compute.instances().list(project=PROJECT, zone=ZONE).execute()
-            vm_instances = result['items']
+
+            try:
+                vm_instances = result['items']
+            except KeyError:
+                # there are no VMs running
+                return [], {}
 
             # make a list with the VM names
             vm_names = map(lambda vm_instance: vm_instance['name'], vm_instances)
