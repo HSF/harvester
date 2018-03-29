@@ -139,6 +139,7 @@ class Monitor(AgentBase):
                                                           'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                                           method_name='run')
                                 tmpLog.error('failed to update the DB. lockInterval may be too short')
+                                sendWarning = True
                         # send ACK to workers for events and files
                         if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                             for workSpec in workSpecs:
@@ -146,7 +147,10 @@ class Monitor(AgentBase):
                 else:
                     tmpQueLog.error('failed to check workers')
                 tmpQueLog.debug('done')
-            mainLog.debug('done' + sw.get_elapsed_time())
+            if sw.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
+                mainLog.warning('a single cycle was longer than lockInterval ' + sw.get_elapsed_time())
+            else:
+                mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.monitor.sleepTime):
                 mainLog.debug('terminated')

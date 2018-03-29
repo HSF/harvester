@@ -182,7 +182,10 @@ class Propagator(AgentBase):
 
                 else:
                     mainLog.error('failed to send dialogs err={0}'.format(tmpStr))
-            mainLog.debug('done' + sw.get_elapsed_time())
+            if sw.get_elapsed_time_in_sec() > harvester_config.propagator.lockInterval:
+                mainLog.warning('a single cycle was longer than lockInterval ' + sw.get_elapsed_time())
+            else:
+                mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):
                 mainLog.debug('terminated')
