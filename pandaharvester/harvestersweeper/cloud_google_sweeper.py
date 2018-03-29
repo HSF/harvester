@@ -37,6 +37,8 @@ class GoogleSweeper(PluginBase):
             else:
                 # there was an issue killing the VM and it should be retried at another time
                 return False, 'Problems killing the VM: {0}'.format(e)
+        except Exception as e:
+            return False, 'Problems killing the VM: {0}'.format(e)
 
     def sweep_worker(self, work_spec):
         """
