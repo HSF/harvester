@@ -27,7 +27,6 @@ def wait_for_operation(project, zone, operation_name):
         result = compute.zoneOperations().get(project=project, zone=zone, operation=operation_name).execute()
 
         if result['status'] == 'DONE':
-            print("done.")
             if 'error' in result:
                 raise Exception(result['error'])
             return result

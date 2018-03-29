@@ -223,20 +223,21 @@ class Submitter(AgentBase):
                                         workSpec.set_status(WorkSpec.ST_missed)
                                         workSpec.set_dialog_message(tmpStr)
                                         workSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
-                                        # increment attempt number
-                                        newJobList = []
-                                        for jobSpec in jobList:
-                                            if jobSpec.submissionAttempts is None:
-                                                jobSpec.submissionAttempts = 0
-                                            jobSpec.submissionAttempts += 1
-                                            # max attempt or permanent error
-                                            if tmpRet is False or \
-                                                    jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
-                                                newJobList.append(jobSpec)
-                                            else:
-                                                self.dbProxy.increment_submission_attempt(jobSpec.PandaID,
-                                                                                          jobSpec.submissionAttempts)
-                                        jobList = newJobList
+                                        if jobList is not None:
+                                            # increment attempt number
+                                            newJobList = []
+                                            for jobSpec in jobList:
+                                                if jobSpec.submissionAttempts is None:
+                                                    jobSpec.submissionAttempts = 0
+                                                jobSpec.submissionAttempts += 1
+                                                # max attempt or permanent error
+                                                if tmpRet is False or \
+                                                        jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
+                                                    newJobList.append(jobSpec)
+                                                else:
+                                                    self.dbProxy.increment_submission_attempt(jobSpec.PandaID,
+                                                                                              jobSpec.submissionAttempts)
+                                            jobList = newJobList
                                     elif queueConfig.useJobLateBinding and workSpec.hasJob == 1:
                                         # directly go to running after feeding jobs for late biding
                                         workSpec.set_status(WorkSpec.ST_running)
