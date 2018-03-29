@@ -19,7 +19,7 @@ class GridCredManager(PluginBase):
     # check proxy
     def check_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger, method_name='check_credential')
+        mainLog = self.make_logger(_logger, method_name='check_credential')
         comStr = "grid-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
         mainLog.debug(comStr)
         try:
@@ -38,7 +38,7 @@ class GridCredManager(PluginBase):
     # renew proxy
     def renew_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger, method_name='renew_credential')
+        mainLog = self.make_logger(_logger, method_name='renew_credential')
         comStr = "grid-proxy-init -out {0} -valid 96:00 -cert {1}".format(self.outCertFile,
                                                                           self.inCertFile)
         mainLog.debug(comStr)

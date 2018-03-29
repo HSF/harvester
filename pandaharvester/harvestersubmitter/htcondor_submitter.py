@@ -254,7 +254,7 @@ class HTCondorSubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
+        tmpLog = self.make_logger(baseLogger, method_name='submit_workers')
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))

@@ -36,7 +36,7 @@ class DummyMcoreMonitor(PluginBase):
     # check workers
     def check_workers(self, workspec_list):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, method_name='check_workers')
+        tmpLog = self.make_logger(baseLogger, method_name='check_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
         with Pool() as pool:
             retList = pool.map(check_a_worker, workspec_list)

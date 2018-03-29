@@ -57,7 +57,7 @@ class GlobusBulkStager(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # make logger
-        tmpLog = core_utils.make_logger(_logger, method_name='GlobusBulkStager __init__ ')
+        tmpLog = self.make_logger(_logger, method_name='GlobusBulkStager __init__ ')
         tmpLog.debug('start')
         self.id = GlobusBulkStager.next_id
         GlobusBulkStager.next_id += 1
@@ -105,8 +105,8 @@ class GlobusBulkStager(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='check_status')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_status')
         tmpLog.debug('start')
         # default return
         tmpRetVal = (True, '')
@@ -347,11 +347,12 @@ class GlobusBulkStager(PluginBase):
         # end of loop over transfer groups
         tmpLog.debug('End of loop over transfers groups - ending check_status function')
         return None,'no valid transfer id found'
+
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='trigger_stage_out')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='trigger_stage_out')
         tmpLog.debug('start')
         # default return
         tmpRetVal = (True, '')
@@ -382,8 +383,8 @@ class GlobusBulkStager(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='zip_output')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='zip_output')
         tmpLog.debug('start')
         try:
             for fileSpec in jobspec.outFiles:

@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from threading import Thread
@@ -9,7 +8,7 @@ import arc
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestersubmitter.arc_parser import ARCParser
+from pandaharvester.harvestermisc.arc_parser import ARCParser
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestermisc import arc_utils

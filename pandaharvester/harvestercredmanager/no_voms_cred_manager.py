@@ -19,7 +19,7 @@ class NoVomsCredManager(PluginBase):
     # check proxy
     def check_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger, method_name='check_credential')
+        mainLog = self.make_logger(_logger, method_name='check_credential')
         comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
         mainLog.debug(comStr)
         try:
@@ -38,7 +38,7 @@ class NoVomsCredManager(PluginBase):
     # renew proxy
     def renew_credential(self):
         # make logger
-        mainLog = core_utils.make_logger(_logger, method_name='renew_credential')
+        mainLog = self.make_logger(_logger, method_name='renew_credential')
         comStr = "voms-proxy-init -rfc -noregen -voms {0} -out {1} -valid 96:00 -cert={2} -key={2}".format(self.voms,
                                                                                                            self.outCertFile,
                                                                                                            self.inCertFile)

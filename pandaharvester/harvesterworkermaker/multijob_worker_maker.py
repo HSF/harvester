@@ -11,7 +11,7 @@ class MultiJobWorkerMaker(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
+        tmpLog = self.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("Multijob workermaker")
 
 
@@ -19,7 +19,7 @@ class MultiJobWorkerMaker(PluginBase):
         # return string which contain body of script for scheduler: specific enviroment setup, executor with parameters
         exe_str = ""
 
-        tmpLog = core_utils.make_logger(baseLogger, method_name='_get_executable')
+        tmpLog = self.make_logger(baseLogger, method_name='_get_executable')
 
         # prepare static enviroment
         env_str = ""
@@ -46,7 +46,7 @@ class MultiJobWorkerMaker(PluginBase):
 
     # make a worker from a job with a disk access point
     def make_worker(self, jobspec_list, queue_config, resource_type):
-        tmpLog = core_utils.make_logger(baseLogger, method_name='make_worker')
+        tmpLog = self.make_logger(baseLogger, method_name='make_worker')
         workSpec = WorkSpec()
         self.nJobsPerWorker = len(jobspec_list)
         tmpLog.info("Worker for {0} jobs will be prepared".format(self.nJobsPerWorker))

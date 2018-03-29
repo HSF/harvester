@@ -77,17 +77,20 @@ class CredManager(AgentBase):
                 # make logger
             mainLog = self.make_logger(_logger, "{0} {1}".format(exeCore.__class__.__name__, exeCore.outCertFile),
                                        method_name='execute')
-            # check credential
-            mainLog.debug('check credential')
-            isValid = exeCore.check_credential()
-            if isValid:
-                mainLog.debug('valid')
-            elif not isValid:
-                # renew it if necessary
-                mainLog.debug('invalid')
-                mainLog.debug('renew credential')
-                tmpStat, tmpOut = exeCore.renew_credential()
-                if not tmpStat:
-                    mainLog.error('failed : {0}'.format(tmpOut))
-                    continue
+            try:
+                # check credential
+                mainLog.debug('check credential')
+                isValid = exeCore.check_credential()
+                if isValid:
+                    mainLog.debug('valid')
+                elif not isValid:
+                    # renew it if necessary
+                    mainLog.debug('invalid')
+                    mainLog.debug('renew credential')
+                    tmpStat, tmpOut = exeCore.renew_credential()
+                    if not tmpStat:
+                        mainLog.error('failed : {0}'.format(tmpOut))
+                        continue
+            except:
+                core_utils.dump_error_message(mainLog)
             mainLog.debug('done')

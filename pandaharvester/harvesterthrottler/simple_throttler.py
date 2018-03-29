@@ -19,8 +19,8 @@ class SimpleThrottler(PluginBase):
 
     # check if to be throttled
     def to_be_throttled(self, queue_config):
-        tmpLog = core_utils.make_logger(baseLogger, 'computingSite={0}'.format(queue_config.queueName),
-                                        method_name='to_be_throttled')
+        tmpLog = self.make_logger(baseLogger, 'computingSite={0}'.format(queue_config.queueName),
+                                  method_name='to_be_throttled')
         tmpLog.debug('start')
         # set default return vale
         if self.logicType == 'OR':

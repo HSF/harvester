@@ -34,8 +34,8 @@ class DummyPreparator(PluginBase):
         :rtype: (bool, string)
         """
         # make log
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='trigger_preparation')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='trigger_preparation')
         tmpLog.debug('start')
         # Here is an example to access cached data
         c_data = self.dbInterface.get_cache('panda_queues.json')

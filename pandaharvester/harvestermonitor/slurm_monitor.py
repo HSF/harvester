@@ -23,8 +23,8 @@ class SlurmMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
-                                            method_name='check_workers')
+            tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                      method_name='check_workers')
             # command
             comStr = "sacct --jobs={0}".format(workSpec.batchID)
             # check

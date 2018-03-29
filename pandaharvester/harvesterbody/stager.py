@@ -38,44 +38,47 @@ class Stager(AgentBase):
             for jobSpec in jobsToCheck:
                 tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
                                           method_name='run')
-                tmpLog.debug('start checking')
-                # get queue
-                if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                    tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
-                # get plugin
-                stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
-                if stagerCore is None:
-                    # not found
-                    tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                # lock job again
-                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
-                if not lockedAgain:
-                    tmpLog.debug('skip since locked by another thread')
-                    continue
-                tmpStat, tmpStr = stagerCore.check_status(jobSpec)
-                # check result
-                if tmpStat is True:
-                    # succeeded
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
-                    tmpLog.debug('succeeded new subStatus={0}'.format(newSubStatus))
-                elif tmpStat is False:
-                    # fatal error
-                    tmpLog.debug('fatal error when checking status with {0}'.format(tmpStr))
-                    # update job
-                    for fileSpec in jobSpec.outFiles:
-                        if fileSpec.status != 'finished':
-                            fileSpec.status = 'failed'
-                    errStr = 'stage-out failed with {0}'.format(tmpStr)
-                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
-                    jobSpec.trigger_propagation()
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
-                    tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
-                else:
-                    # on-going
-                    tmpLog.debug('try to check later since {0}'.format(tmpStr))
+                try:
+                    tmpLog.debug('start checking')
+                    # get queue
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
+                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    # get plugin
+                    stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
+                    if stagerCore is None:
+                        # not found
+                        tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    # lock job again
+                    lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                    if not lockedAgain:
+                        tmpLog.debug('skip since locked by another thread')
+                        continue
+                    tmpStat, tmpStr = stagerCore.check_status(jobSpec)
+                    # check result
+                    if tmpStat is True:
+                        # succeeded
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        tmpLog.debug('succeeded new subStatus={0}'.format(newSubStatus))
+                    elif tmpStat is False:
+                        # fatal error
+                        tmpLog.debug('fatal error when checking status with {0}'.format(tmpStr))
+                        # update job
+                        for fileSpec in jobSpec.outFiles:
+                            if fileSpec.status != 'finished':
+                                fileSpec.status = 'failed'
+                        errStr = 'stage-out failed with {0}'.format(tmpStr)
+                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                        jobSpec.trigger_propagation()
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
+                    else:
+                        # on-going
+                        tmpLog.debug('try to check later since {0}'.format(tmpStr))
+                except:
+                    core_utils.dump_error_message(tmpLog)
             # get jobs to trigger stage-out
             jobsToTrigger = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToTrigger,
                                                                 harvester_config.stager.triggerInterval,
@@ -88,46 +91,49 @@ class Stager(AgentBase):
             for jobSpec in jobsToTrigger:
                 tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
                                           method_name='run')
-                tmpLog.debug('try to trigger stage-out')
-                # get queue
-                if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                    tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
-                # get plugin
-                stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
-                if stagerCore is None:
-                    # not found
-                    tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                # lock job again
-                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
-                if not lockedAgain:
-                    tmpLog.debug('skip since locked by another thread')
-                    continue
-                # trigger stage-out
-                tmpStat, tmpStr = stagerCore.trigger_stage_out(jobSpec)
-                # check result
-                if tmpStat is True:
-                    # succeeded
-                    jobSpec.all_files_triggered_to_stage_out()
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
-                    tmpLog.debug('triggered new subStatus={0}'.format(newSubStatus))
-                elif tmpStat is False:
-                    # fatal error
-                    tmpLog.debug('fatal error to trigger with {0}'.format(tmpStr))
-                    # update job
-                    for fileSpec in jobSpec.outFiles:
-                        if fileSpec.status != 'finished':
-                            fileSpec.status = 'failed'
-                    errStr = 'stage-out failed with {0}'.format(tmpStr)
-                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
-                    jobSpec.trigger_propagation()
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
-                    tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
-                else:
-                    # temporary error
-                    tmpLog.debug('try to trigger later since {0}'.format(tmpStr))
+                try:
+                    tmpLog.debug('try to trigger stage-out')
+                    # get queue
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
+                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    # get plugin
+                    stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
+                    if stagerCore is None:
+                        # not found
+                        tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    # lock job again
+                    lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                    if not lockedAgain:
+                        tmpLog.debug('skip since locked by another thread')
+                        continue
+                    # trigger stage-out
+                    tmpStat, tmpStr = stagerCore.trigger_stage_out(jobSpec)
+                    # check result
+                    if tmpStat is True:
+                        # succeeded
+                        jobSpec.all_files_triggered_to_stage_out()
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        tmpLog.debug('triggered new subStatus={0}'.format(newSubStatus))
+                    elif tmpStat is False:
+                        # fatal error
+                        tmpLog.debug('fatal error to trigger with {0}'.format(tmpStr))
+                        # update job
+                        for fileSpec in jobSpec.outFiles:
+                            if fileSpec.status != 'finished':
+                                fileSpec.status = 'failed'
+                        errStr = 'stage-out failed with {0}'.format(tmpStr)
+                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                        jobSpec.trigger_propagation()
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
+                    else:
+                        # temporary error
+                        tmpLog.debug('try to trigger later since {0}'.format(tmpStr))
+                except:
+                    core_utils.dump_error_message(tmpLog)
             # get jobs to zip output
             jobsToZip = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToZip,
                                                             harvester_config.stager.triggerInterval,
@@ -140,34 +146,37 @@ class Stager(AgentBase):
             for jobSpec in jobsToZip:
                 tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
                                           method_name='run')
-                tmpLog.debug('try to zip output')
-                # get queue
-                if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                    tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
-                # get plugin
-                stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
-                if stagerCore is None:
-                    # not found
-                    tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                # lock job again
-                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
-                if not lockedAgain:
-                    tmpLog.debug('skip since locked by another thread')
-                    continue
-                # trigger preparation
-                tmpStat, tmpStr = stagerCore.zip_output(jobSpec)
-                # succeeded
-                if tmpStat is True:
-                    # update job
-                    jobSpec.all_files_zipped()
-                    newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
-                    tmpLog.debug('zipped new subStatus={0}'.format(newSubStatus))
-                else:
-                    # failed
-                    tmpLog.debug('failed to zip with {0}'.format(tmpStr))
+                try:
+                    tmpLog.debug('try to zip output')
+                    # get queue
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
+                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    # get plugin
+                    stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
+                    if stagerCore is None:
+                        # not found
+                        tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    # lock job again
+                    lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'stagerTime', 'stagerLock', lockedBy)
+                    if not lockedAgain:
+                        tmpLog.debug('skip since locked by another thread')
+                        continue
+                    # trigger preparation
+                    tmpStat, tmpStr = stagerCore.zip_output(jobSpec)
+                    # succeeded
+                    if tmpStat is True:
+                        # update job
+                        jobSpec.all_files_zipped()
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
+                        tmpLog.debug('zipped new subStatus={0}'.format(newSubStatus))
+                    else:
+                        # failed
+                        tmpLog.debug('failed to zip with {0}'.format(tmpStr))
+                except:
+                    core_utils.dump_error_message(tmpLog)
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.stager.sleepTime):

@@ -21,8 +21,8 @@ class DummyBulkStager(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='check_status')
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_status')
         tmpLog.debug('start')
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()

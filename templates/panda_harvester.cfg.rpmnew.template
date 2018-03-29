@@ -190,7 +190,7 @@ nWorkersInBulk = 10
 # number of dialog message to send
 maxDialogs = 50
 
-# minimum level of dialog messages to send. DEBUG, INFO, WARNING, or ERROR
+# minimum level of dialog messages to send. INFO, WARNING, or ERROR
 minMessageLevel = WARNING
 
 # lock interval in sec

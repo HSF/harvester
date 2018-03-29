@@ -82,7 +82,7 @@ class GoogleSubmitter(PluginBase):
         :param work_spec_list: list of workers to submit
         :return:
         """
-        tmp_log = core_utils.make_logger(base_logger, method_name='submit_workers')
+        tmp_log = self.make_logger(base_logger, method_name='submit_workers')
         tmp_log.debug('start nWorkers={0}'.format(len(work_spec_list)))
 
         # Create VMs in parallel

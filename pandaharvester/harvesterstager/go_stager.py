@@ -39,7 +39,7 @@ class GlobusStager(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # create Globus Transfer Client
-        tmpLog = core_utils.make_logger(_logger, method_name='GlobusStager __init__ ')
+        tmpLog = self.make_logger(_logger, method_name='GlobusStager __init__ ')
         try:
             self.tc = None
             # need to get client_id and refresh_token from PanDA server via harvester cache mechanism
@@ -72,8 +72,8 @@ class GlobusStager(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='check_status')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_status')
         tmpLog.debug('start')
         # get label
         label = self.make_label(jobspec)
@@ -111,8 +111,8 @@ class GlobusStager(PluginBase):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='trigger_stage_out')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='trigger_stage_out')
         tmpLog.debug('start')
         # default return
         tmpRetVal = (True, '')
@@ -235,8 +235,8 @@ class GlobusStager(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='zip_output')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='zip_output')
         tmpLog.debug('start')
         try:
             for fileSpec in jobspec.outFiles:
@@ -281,4 +281,3 @@ class GlobusStager(PluginBase):
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ''
-

@@ -32,8 +32,8 @@ class PilotmoverPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='trigger_preparation')
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='trigger_preparation')
         tmpLog.debug('start')        
        
         # check that jobspec.computingSite is defined

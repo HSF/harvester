@@ -40,9 +40,12 @@ class Sweeper(AgentBase):
                 for workSpec in workSpecs:
                     tmpLog = self.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                               method_name='run')
-                    tmpLog.debug('start killing')
-                    tmpStat, tmpOut = sweeperCore.kill_worker(workSpec)
-                    tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
+                    try:
+                        tmpLog.debug('start killing')
+                        tmpStat, tmpOut = sweeperCore.kill_worker(workSpec)
+                        tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
+                    except:
+                        core_utils.dump_error_message(tmpLog)
             mainLog.debug('done kill')
             # timeout for missed
             try:
@@ -68,12 +71,15 @@ class Sweeper(AgentBase):
                 for workSpec in workSpecs:
                     tmpLog = self.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                               method_name='run')
-                    tmpLog.debug('start cleanup')
-                    tmpStat, tmpOut = sweeperCore.sweep_worker(workSpec)
-                    tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
-                    if tmpStat:
-                        # delete from DB
-                        self.dbProxy.delete_worker(workSpec.workerID)
+                    try:
+                        tmpLog.debug('start cleanup')
+                        tmpStat, tmpOut = sweeperCore.sweep_worker(workSpec)
+                        tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
+                        if tmpStat:
+                            # delete from DB
+                            self.dbProxy.delete_worker(workSpec.workerID)
+                    except:
+                        core_utils.dump_error_message(tmpLog)
             mainLog.debug('done cleanup')
             # check if being terminated
             if self.terminated(harvester_config.sweeper.sleepTime):

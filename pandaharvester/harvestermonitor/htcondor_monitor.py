@@ -144,8 +144,8 @@ class HTCondorMonitor (PluginBase):
     # check workers
     def check_workers(self, workspec_list):
         ## Make logger for batch job query
-        tmpLog = core_utils.make_logger(baseLogger, '{0}'.format('batch job query'),
-                                        method_name='check_workers')
+        tmpLog = self.make_logger(baseLogger, '{0}'.format('batch job query'),
+                                  method_name='check_workers')
 
         ## Initial a list all batchIDs of workspec_list
         batchIDs_list = list( map( lambda _x: str(_x.batchID) , workspec_list ) )

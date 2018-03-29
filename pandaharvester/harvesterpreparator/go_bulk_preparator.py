@@ -57,7 +57,7 @@ class GlobusBulkPreparator(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # make logger
-        tmpLog = core_utils.make_logger(_logger, method_name='GlobusBulkPreparator __init__ ')
+        tmpLog = self.make_logger(_logger, method_name='GlobusBulkPreparator __init__ ')
         tmpLog.debug('__init__ start')
         self.id = GlobusBulkPreparator.next_id
         GlobusBulkPreparator.next_id += 1
@@ -113,8 +113,8 @@ class GlobusBulkPreparator(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='check_status')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_status')
         tmpLog.debug('start')
         tmpLog.debug('self.dummy_transfer_id = {}'.format(self.dummy_transfer_id))
         # default return
@@ -363,8 +363,8 @@ class GlobusBulkPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='trigger_preparation')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='trigger_preparation')
         tmpLog.debug('start')
         # default return
         tmpRetVal = (True, '')

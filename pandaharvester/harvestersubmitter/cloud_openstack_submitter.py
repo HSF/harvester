@@ -57,7 +57,7 @@ class CloudOpenstackSubmitter(PluginBase):
 
     def _submit_a_vm(self, workspec):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_submit_a_vm')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_submit_a_vm')
 
         # initial return values
         tmpRetVal = (None, 'Nothing done')
@@ -126,7 +126,7 @@ class CloudOpenstackSubmitter(PluginBase):
     # submit workers
     def submit_workers(self, workspec_list):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
+        tmpLog = self.make_logger(baseLogger, method_name='submit_workers')
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))

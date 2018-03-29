@@ -41,65 +41,68 @@ class Preparator(AgentBase):
             for jobSpec in jobsToCheck:
                 tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
                                           method_name='run')
-                tmpLog.debug('start checking')
-                # get queue
-                if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                    tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
-                oldSubStatus = jobSpec.subStatus
-                # get plugin
-                preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
-                if preparatorCore is None:
-                    # not found
-                    tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                # lock job again
-                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
-                if not lockedAgain:
-                    tmpLog.debug('skip since locked by another thread')
-                    continue
-                tmpStat, tmpStr = preparatorCore.check_status(jobSpec)
-                # still running
-                if tmpStat is None:
-                    # update job
-                    jobSpec.lockedBy = None
-                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus})
-                    tmpLog.debug('try to check later since still preparing with {0}'.format(tmpStr))
-                    continue
-                # succeeded
-                if tmpStat is True:
-                    # resolve path
-                    tmpStat, tmpStr = preparatorCore.resolve_input_paths(jobSpec)
-                    if tmpStat is False:
+                try:
+                    tmpLog.debug('start checking')
+                    # get queue
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
+                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    oldSubStatus = jobSpec.subStatus
+                    # get plugin
+                    preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                    if preparatorCore is None:
+                        # not found
+                        tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    # lock job again
+                    lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
+                    if not lockedAgain:
+                        tmpLog.debug('skip since locked by another thread')
+                        continue
+                    tmpStat, tmpStr = preparatorCore.check_status(jobSpec)
+                    # still running
+                    if tmpStat is None:
+                        # update job
                         jobSpec.lockedBy = None
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus})
-                        tmpLog.error('failed to resolve input file paths : {0}'.format(tmpStr))
+                        tmpLog.debug('try to check later since still preparing with {0}'.format(tmpStr))
                         continue
-                    # update job
-                    jobSpec.subStatus = 'prepared'
-                    jobSpec.lockedBy = None
-                    jobSpec.preparatorTime = None
-                    jobSpec.set_all_input_ready()
-                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus},
-                                            update_in_file=True)
-                    tmpLog.debug('succeeded')
-                else:
-                    # update job
-                    jobSpec.status = 'failed'
-                    jobSpec.subStatus = 'failed_to_prepare'
-                    jobSpec.lockedBy = None
-                    jobSpec.preparatorTime = None
-                    jobSpec.stateChangeTime = datetime.datetime.utcnow()
-                    errStr = 'stage-in failed with {0}'.format(tmpStr)
-                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
-                    jobSpec.trigger_propagation()
-                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus})
-                    tmpLog.error('failed with {0}'.format(tmpStr))
+                    # succeeded
+                    if tmpStat is True:
+                        # resolve path
+                        tmpStat, tmpStr = preparatorCore.resolve_input_paths(jobSpec)
+                        if tmpStat is False:
+                            jobSpec.lockedBy = None
+                            self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                              'subStatus': oldSubStatus})
+                            tmpLog.error('failed to resolve input file paths : {0}'.format(tmpStr))
+                            continue
+                        # update job
+                        jobSpec.subStatus = 'prepared'
+                        jobSpec.lockedBy = None
+                        jobSpec.preparatorTime = None
+                        jobSpec.set_all_input_ready()
+                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                          'subStatus': oldSubStatus},
+                                                update_in_file=True)
+                        tmpLog.debug('succeeded')
+                    else:
+                        # update job
+                        jobSpec.status = 'failed'
+                        jobSpec.subStatus = 'failed_to_prepare'
+                        jobSpec.lockedBy = None
+                        jobSpec.preparatorTime = None
+                        jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                        errStr = 'stage-in failed with {0}'.format(tmpStr)
+                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
+                        jobSpec.trigger_propagation()
+                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                          'subStatus': oldSubStatus})
+                        tmpLog.error('failed with {0}'.format(tmpStr))
+                except:
+                    core_utils.dump_error_message(tmpLog)
             # get jobs to trigger preparation
             mainLog.debug('try to get jobs to prepare')
             jobsToTrigger = self.dbProxy.get_jobs_in_sub_status('fetched',
@@ -115,101 +118,104 @@ class Preparator(AgentBase):
             for jobSpec in jobsToTrigger:
                 tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
                                           method_name='run')
-                tmpLog.debug('try to trigger preparation')
-                # get queue
-                if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                    tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
-                oldSubStatus = jobSpec.subStatus
-                # get plugin
-                preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
-                if preparatorCore is None:
-                    # not found
-                    tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
-                    continue
-                # lock job again
-                lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
-                if not lockedAgain:
-                    tmpLog.debug('skip since locked by another thread')
-                    continue
-                # check file status
-                if queueConfig.ddmEndpointIn not in fileStatMap:
-                    fileStatMap[queueConfig.ddmEndpointIn] = dict()
-                newFileStatusData = []
-                toWait = False
-                for fileSpec in jobSpec.inFiles:
-                    if fileSpec.status == 'preparing':
-                        updateStatus = False
-                        if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
-                            fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
-                                = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn,
-                                                               'starting')
-                        if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
-                            # the file is ready
-                            fileSpec.status = 'ready'
-                            # set group info if any
-                            groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, 'input',
-                                                                        queueConfig.ddmEndpointIn)
-                            if groupInfo is not None:
-                                fileSpec.groupID = groupInfo['groupID']
-                                fileSpec.groupStatus = groupInfo['groupStatus']
-                                fileSpec.groupUpdateTime = groupInfo['groupUpdateTime']
-                            updateStatus = True
-                        elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
-                            # the file is being prepared by another
-                            toWait = True
-                        else:
-                            # change file status if the file is not prepared by another
-                            fileSpec.status = 'to_prepare'
-                            updateStatus = True
-                        # set new status
-                        if updateStatus:
-                            newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
-                            if fileSpec.status not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
-                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] = 0
-                            fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] += 1
-                if len(newFileStatusData) > 0:
-                    self.dbProxy.change_file_status(jobSpec.PandaID, newFileStatusData, lockedBy)
-                # wait since files are being prepared by another
-                if toWait:
-                    # update job
-                    jobSpec.lockedBy = None
-                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus})
-                    tmpLog.debug('wait since files are being prepared by another job')
-                    continue
-                # trigger preparation
-                tmpStat, tmpStr = preparatorCore.trigger_preparation(jobSpec)
-                # check result
-                if tmpStat is True:
-                    # succeeded
-                    jobSpec.subStatus = 'preparing'
-                    jobSpec.lockedBy = None
-                    jobSpec.preparatorTime = None
-                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus},
-                                            update_in_file=True)
-                    tmpLog.debug('triggered')
-                elif tmpStat is False:
-                    # fatal error
-                    jobSpec.status = 'failed'
-                    jobSpec.subStatus = 'failed_to_prepare'
-                    jobSpec.lockedBy = None
-                    jobSpec.preparatorTime = None
-                    jobSpec.stateChangeTime = datetime.datetime.utcnow()
-                    errStr = 'stage-in failed with {0}'.format(tmpStr)
-                    jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
-                    jobSpec.trigger_propagation()
-                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus})
-                    tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
-                else:
-                    # temporary error
-                    jobSpec.lockedBy = None
-                    self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                      'subStatus': oldSubStatus})
-                    tmpLog.debug('try to prepare later since {0}'.format(tmpStr))
+                try:
+                    tmpLog.debug('try to trigger preparation')
+                    # get queue
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
+                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    oldSubStatus = jobSpec.subStatus
+                    # get plugin
+                    preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                    if preparatorCore is None:
+                        # not found
+                        tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
+                        continue
+                    # lock job again
+                    lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
+                    if not lockedAgain:
+                        tmpLog.debug('skip since locked by another thread')
+                        continue
+                    # check file status
+                    if queueConfig.ddmEndpointIn not in fileStatMap:
+                        fileStatMap[queueConfig.ddmEndpointIn] = dict()
+                    newFileStatusData = []
+                    toWait = False
+                    for fileSpec in jobSpec.inFiles:
+                        if fileSpec.status == 'preparing':
+                            updateStatus = False
+                            if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
+                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
+                                    = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn,
+                                                                   'starting')
+                            if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                                # the file is ready
+                                fileSpec.status = 'ready'
+                                # set group info if any
+                                groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, 'input',
+                                                                            queueConfig.ddmEndpointIn)
+                                if groupInfo is not None:
+                                    fileSpec.groupID = groupInfo['groupID']
+                                    fileSpec.groupStatus = groupInfo['groupStatus']
+                                    fileSpec.groupUpdateTime = groupInfo['groupUpdateTime']
+                                updateStatus = True
+                            elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                                # the file is being prepared by another
+                                toWait = True
+                            else:
+                                # change file status if the file is not prepared by another
+                                fileSpec.status = 'to_prepare'
+                                updateStatus = True
+                            # set new status
+                            if updateStatus:
+                                newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
+                                if fileSpec.status not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                                    fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] = 0
+                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] += 1
+                    if len(newFileStatusData) > 0:
+                        self.dbProxy.change_file_status(jobSpec.PandaID, newFileStatusData, lockedBy)
+                    # wait since files are being prepared by another
+                    if toWait:
+                        # update job
+                        jobSpec.lockedBy = None
+                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                          'subStatus': oldSubStatus})
+                        tmpLog.debug('wait since files are being prepared by another job')
+                        continue
+                    # trigger preparation
+                    tmpStat, tmpStr = preparatorCore.trigger_preparation(jobSpec)
+                    # check result
+                    if tmpStat is True:
+                        # succeeded
+                        jobSpec.subStatus = 'preparing'
+                        jobSpec.lockedBy = None
+                        jobSpec.preparatorTime = None
+                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                          'subStatus': oldSubStatus},
+                                                update_in_file=True)
+                        tmpLog.debug('triggered')
+                    elif tmpStat is False:
+                        # fatal error
+                        jobSpec.status = 'failed'
+                        jobSpec.subStatus = 'failed_to_prepare'
+                        jobSpec.lockedBy = None
+                        jobSpec.preparatorTime = None
+                        jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                        errStr = 'stage-in failed with {0}'.format(tmpStr)
+                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
+                        jobSpec.trigger_propagation()
+                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                          'subStatus': oldSubStatus})
+                        tmpLog.debug('failed to trigger with {0}'.format(tmpStr))
+                    else:
+                        # temporary error
+                        jobSpec.lockedBy = None
+                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                          'subStatus': oldSubStatus})
+                        tmpLog.debug('try to prepare later since {0}'.format(tmpStr))
+                except:
+                    core_utils.dump_error_message(tmpLog)
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.preparator.sleepTime):

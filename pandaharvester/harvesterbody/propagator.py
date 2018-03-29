@@ -12,6 +12,7 @@ _logger = core_utils.setup_logger('propagator')
 
 STATS_PERIOD = 300
 
+
 # propagate important checkpoints to panda
 class Propagator(AgentBase):
     # constructor

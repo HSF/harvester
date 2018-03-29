@@ -28,7 +28,7 @@ class SAGASweeper(PluginBase):
         :rtype: (bool, string)
         """
         job_service = saga.job.Service(self.adaptor)
-        tmpLog = core_utils.make_logger(baseLogger, method_name='kill_worker')
+        tmpLog = self.make_logger(baseLogger, method_name='kill_worker')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
         errStr = ''
 
@@ -65,8 +65,8 @@ class SAGASweeper(PluginBase):
         """
 
         ## Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='sweep_worker')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                  method_name='sweep_worker')
 
         ## Clean up worker directory
         if os.path.exists(workspec.accessPoint):

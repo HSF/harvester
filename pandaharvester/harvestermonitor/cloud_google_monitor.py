@@ -69,7 +69,7 @@ class GoogleMonitor(PluginBase):
 
         ret_list = []
         for batch_ID in batch_IDs:
-            tmp_log = core_utils.make_logger(baseLogger, 'batch ID={0}'.format(batch_ID), method_name='check_workers')
+            tmp_log = self.make_logger(baseLogger, 'batch ID={0}'.format(batch_ID), method_name='check_workers')
 
             if batch_ID not in vm_names:
                 new_status = WorkSpec.ST_finished
