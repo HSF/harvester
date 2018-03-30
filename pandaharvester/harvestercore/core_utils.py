@@ -255,6 +255,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                         jobSpec.add_event(eventSpec, None)
             statusInJobAttr = jobSpec.get_job_status_from_attributes()
             jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(statusInJobAttr)
+            if workSpec.pilot_closed:
+                jobSpec.set_pilot_closed()
             if workSpec.new_status:
                 jobSpec.trigger_propagation()
     elif map_type == WorkSpec.MT_MultiWorkers:

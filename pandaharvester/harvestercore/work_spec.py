@@ -93,6 +93,7 @@ class WorkSpec(SpecBase):
         object.__setattr__(self, 'jobspec_list', None)
         object.__setattr__(self, 'pandaid_list', None)
         object.__setattr__(self, 'new_status', False)
+        object.__setattr__(self, 'pilot_closed', False)
 
     # set status
     def set_status(self, value):
