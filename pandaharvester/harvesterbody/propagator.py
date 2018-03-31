@@ -6,6 +6,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 
 # logger
 _logger = core_utils.setup_logger('propagator')
@@ -90,9 +91,11 @@ class Propagator(AgentBase):
                             if 'command' in tmpRet and tmpRet['command'] in ['tobekilled']:
                                 nWorkers = self.dbProxy.kill_workers_with_job(tmpJobSpec.PandaID)
                                 if nWorkers == 0:
-                                    # no remaining workers
+                                    # no workers
                                     tmpJobSpec.status = 'cancelled'
                                     tmpJobSpec.subStatus = 'killed'
+                                    tmpJobSpec.set_pilot_error(PilotErrors.ERR_PANDAKILL,
+                                                               PilotErrors.pilotError[PilotErrors.ERR_PANDAKILL])
                                     tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
                                     tmpJobSpec.trigger_propagation()
                         self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.ident})

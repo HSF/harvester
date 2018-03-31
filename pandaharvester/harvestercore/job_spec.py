@@ -169,7 +169,7 @@ class JobSpec(SpecBase):
     def is_final_status(self, job_status=None):
         if job_status is None:
             job_status = self.status
-        return job_status in ['finished', 'failed', 'cancelled']
+        return job_status in ['finished', 'failed', 'cancelled', 'missed']
 
     # get status
     def get_status(self):

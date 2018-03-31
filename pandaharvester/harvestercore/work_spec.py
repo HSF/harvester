@@ -137,7 +137,7 @@ class WorkSpec(SpecBase):
             jobStatus = status
             jobSubStatus = 'to_transfer'
         elif status in [self.ST_missed]:
-            jobStatus = 'failed'
+            jobStatus = 'missed'
             jobSubStatus = status
         else:
             jobStatus = 'running'

@@ -680,7 +680,8 @@ class DBProxy:
                         # update limits just in case
                         varMap = dict()
                         sqlU = "UPDATE {0} SET ".format(pandaQueueTableName)
-                        for qAttr in ['nQueueLimitJob', 'nQueueLimitWorker', 'maxWorkers']:
+                        for qAttr in ['nQueueLimitJob', 'nQueueLimitWorker', 'maxWorkers',
+                                      'nQueueLimitJobRatio', 'nQueueLimitJobMax', 'nQueueLimitJobMin']:
                             if hasattr(queueConfig, qAttr):
                                 sqlU += '{0}=:{0},'.format(qAttr)
                                 varMap[':{0}'.format(qAttr)] = getattr(queueConfig, qAttr)
@@ -728,12 +729,14 @@ class DBProxy:
             tmpLog.debug('start')
             retMap = {}
             # sql to get queues
-            sqlQ = "SELECT queueName,nQueueLimitJob FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName,nQueueLimitJob,nQueueLimitJobRatio,nQueueLimitJobMax,nQueueLimitJobMin "
+            sqlQ += "FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE jobFetchTime IS NULL OR jobFetchTime<:timeLimit "
             sqlQ += "ORDER BY jobFetchTime "
             # sql to count nQueue
-            sqlN = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
-            sqlN += "WHERE computingSite=:computingSite AND status=:status "
+            sqlN = "SELECT COUNT(*) cnt,status FROM {0} ".format(jobTableName)
+            sqlN += "WHERE computingSite=:computingSite AND status IN (:status1,:status2) "
+            sqlN += "GROUP BY status "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET jobFetchTime=:jobFetchTime ".format(pandaQueueTableName)
             sqlU += "WHERE queueName=:queueName "
@@ -745,7 +748,7 @@ class DBProxy:
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             iQueues = 0
-            for queueName, nQueueLimit in resQ:
+            for queueName, nQueueLimitJob, nQueueLimitJobRatio,nQueueLimitJobMax,nQueueLimitJobMin in resQ:
                 # update timestamp to lock the queue
                 varMap = dict()
                 varMap[':queueName'] = queueName
@@ -761,12 +764,33 @@ class DBProxy:
                 # count nQueue
                 varMap = dict()
                 varMap[':computingSite'] = queueName
-                varMap[':status'] = 'starting'
+                varMap[':status1'] = 'starting'
+                varMap[':status2'] = 'running'
                 self.execute(sqlN, varMap)
-                nQueue, = self.cur.fetchone()
+                resN = self.cur.fetchall()
+                nsMap = dict()
+                for tmpN, tmpStatus in resN:
+                    nsMap[tmpStatus] = tmpN
+                # get num of queued jobs
+                try:
+                    nQueue = nsMap['starting']
+                except:
+                    nQueue = 0
+                # dynamic nQueueLimitJob
+                if nQueueLimitJobRatio is not None and nQueueLimitJobRatio > 0:
+                    try:
+                        nRunning = nsMap['running']
+                    except:
+                        nRunning = 0
+                    nQueueLimitJob = int(nRunning * nQueueLimitJobRatio / 100)
+                    if nQueueLimitJobMax is not None:
+                        nQueueLimitJob = min(nQueueLimitJob, nQueueLimitJobMax)
+                    if nQueueLimitJobMin is None:
+                        nQueueLimitJobMin = 1
+                    nQueueLimitJob = max(nQueueLimitJob, nQueueLimitJobMin)
                 # more jobs need to be queued
-                if nQueueLimit is not None and nQueue < nQueueLimit:
-                    retMap[queueName] = nQueueLimit - nQueue
+                if nQueueLimitJob is not None and nQueue < nQueueLimitJob:
+                        retMap[queueName] = nQueueLimitJob - nQueue
                 # enough queues
                 iQueues += 1
                 if iQueues >= n_queues:

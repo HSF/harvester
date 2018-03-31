@@ -197,7 +197,7 @@ class Communicator:
             data['attemptNr'] = jobSpec.attemptNr
             data['jobSubStatus'] = jobSpec.subStatus
             # change cancelled to failed to be accepted by panda server
-            if data['state'] == 'cancelled':
+            if data['state'] in ['cancelled', 'missed']:
                 if jobSpec.is_pilot_closed():
                     data['jobSubStatus'] = 'pilot_closed'
                 else:

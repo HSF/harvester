@@ -175,7 +175,7 @@ class QueueConfigMapper:
                                 queueConfig.getJobCriteria = tmpCriteria
                         # removal of some attributes based on mapType
                         if queueConfig.mapType == WorkSpec.MT_NoJob:
-                            for attName in ['nQueueLimitJob']:
+                            for attName in ['nQueueLimitJob', 'nQueueLimitJobRatio']:
                                 if hasattr(queueConfig, attName):
                                     delattr(queueConfig, attName)
                         # heartbeat suppression
