@@ -300,3 +300,7 @@ class WorkSpec(SpecBase):
     # check if has pilot error
     def has_pilot_error(self):
         return self.has_work_attribute('pilotErrorCode')
+
+    # set pilot_closed
+    def set_pilot_closed(self):
+        self.pilot_closed = True
