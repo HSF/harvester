@@ -316,7 +316,11 @@ class HTCondorSubmitter(PluginBase):
                 tmpLog.debug('queue_status_dict: {0} ; worker_ce_stats_dict: {1} ; good_ce_endpoints: {2}'.format(
                         queue_status_dict, worker_ce_stats_dict,
                         list(map(lambda _d: _d.get('ce_endpoint', ''), good_ce_list)), ))
-                ce_info_dict = random.choice(good_ce_list).copy()
+                if len(good_ce_list) > 0:
+                    ce_info_dict = random.choice(good_ce_list).copy()
+                else:
+                    tmpLog.info('No good CE endpoint left. Choose an arbitrary CE endpoint')
+                    ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
                 ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
                 ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                 ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
