@@ -83,7 +83,6 @@ def _check_one_worker(workspec, job_ads_all_dict):
                     newStatus = WorkSpec.ST_cancelled
                 elif batchStatus in ['5']:
                     # 5 held
-
                     if (
                         job_ads_dict.get('HoldReason') == 'Job not found' or
                         int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > 7200
@@ -95,6 +94,9 @@ def _check_one_worker(workspec, job_ads_all_dict):
                         else:
                             newStatus = WorkSpec.ST_cancelled
                             tmpLog.error('cannot kill held job batchID={0}. Force worker to be in cancelled status'.format(workspec.batchID))
+                        # Mark the PanDA job as closed instead of failed
+                        workspec.set_pilot_closed()
+                        tmpLog.debug('Called workspec set_pilot_closed')
                     else:
                         newStatus = WorkSpec.ST_submitted
                 elif batchStatus in ['4']:

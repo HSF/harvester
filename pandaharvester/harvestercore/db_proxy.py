@@ -790,7 +790,7 @@ class DBProxy:
                     nQueueLimitJob = max(nQueueLimitJob, nQueueLimitJobMin)
                 # more jobs need to be queued
                 if nQueueLimitJob is not None and nQueue < nQueueLimitJob:
-                        retMap[queueName] = nQueueLimitJob - nQueue
+                    retMap[queueName] = nQueueLimitJob - nQueue
                 # enough queues
                 iQueues += 1
                 if iQueues >= n_queues:
