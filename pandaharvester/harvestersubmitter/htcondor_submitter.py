@@ -7,8 +7,8 @@ except:
 import random
 
 from concurrent.futures import ThreadPoolExecutor
-
 import re
+from math import sqrt, log1p
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -26,6 +26,40 @@ def _div_round_up(a, b):
     return a // b + int(a % b > 0)
 
 
+# Compute weight of each CE according to worker stat, return dict
+def _get_ce_weight_dict(ce_endpoint_list=[], queue_status_dict={}, worker_ce_stats_dict={}):
+    print('ce_endpoint_list', ce_endpoint_list)
+    print('queue_status_dict', queue_status_dict)
+    print('worker_ce_stats_dict', worker_ce_stats_dict)
+    multiplier = 10.0
+    n_ce = len(ce_endpoint_list)
+    def _get_init_weight(_ce_endpoint):
+        if ( _ce_endpoint not in worker_ce_stats_dict or n_ce == 1 ):
+            return float(1)
+        N = float(n_ce)
+        Q = float(queue_status_dict['nQueueLimitWorker'])
+        R = float(queue_status_dict['maxWorkers'])
+        q = float(worker_ce_stats_dict[_ce_endpoint]['submitted'])
+        r = float(worker_ce_stats_dict[_ce_endpoint]['running'])
+        if ( _ce_endpoint in worker_ce_stats_dict and q > Q ):
+            return float(0)
+        else:
+            ret = ( 1 if (N*q <= Q) else sqrt((1 - q/Q)*N/(N - 1)) )
+            if r == 0:
+                ret = ret / (1 + log1p(q)**2)
+            return ret
+    init_weight_iterator = map(_get_init_weight, ce_endpoint_list)
+    sum_of_weight = sum(list(init_weight_iterator))
+    try:
+        regulator = multiplier * n_ce / sum_of_weight
+    except ZeroDivisionError:
+        regulator = 1
+    ce_init_weight_dict = dict(map( lambda x: (x[0], int(x[1] * regulator)),
+                            zip(ce_endpoint_list, init_weight_iterator) ))
+    return ce_init_weight_dict
+
+
+# Replace condor Marco from SDF file, return string
 def _condor_macro_replace(string, **kwarg):
     new_string = string
     macro_map = {
@@ -37,7 +71,8 @@ def _condor_macro_replace(string, **kwarg):
     return new_string
 
 
-def get_resource_type(string, is_unified_queue):
+# Parse resource type from string for Unified PanDA Queue
+def _get_resource_type(string, is_unified_queue):
     string = str(string)
     if not is_unified_queue:
         ret = ''
@@ -185,7 +220,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         logDir=log_dir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=harvester_queue_config.get_source_label(),
-        resourceType=get_resource_type(workspec.resourceType, is_unified_queue),
+        resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
         )
     )
     tmpFile.close()
@@ -298,7 +333,7 @@ class HTCondorSubmitter(PluginBase):
                             and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
                         continue
                     ce_endpoint = _queue_dict.get('ce_endpoint')
-                    if ( ce_endpoint in ce_auxilary_dict
+                    if ( (ce_endpoint in ce_auxilary_dict or 'BNL_' in str(this_panda_queue_dict.get('panda_resource', '')) )
                         and str(_queue_dict.get('ce_queue_name', '')).lower() == 'default' ):
                         pass
                     else:
@@ -307,17 +342,17 @@ class HTCondorSubmitter(PluginBase):
                 n_qualified_ce = len(ce_auxilary_dict)
                 queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
                 worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
-                # good CEs which can be submitted to
-                good_ce_list = []
-                for _ce_endpoint, _queue_dict in ce_auxilary_dict.items():
-                    if ( _ce_endpoint not in worker_ce_stats_dict
-                        or worker_ce_stats_dict[_ce_endpoint]['submitted'] < _div_round_up(queue_status_dict['nQueueLimitWorker'], n_qualified_ce) ):
-                        good_ce_list.append(_queue_dict)
-                tmpLog.debug('queue_status_dict: {0} ; worker_ce_stats_dict: {1} ; good_ce_endpoints: {2}'.format(
-                        queue_status_dict, worker_ce_stats_dict,
-                        list(map(lambda _d: _d.get('ce_endpoint', ''), good_ce_list)), ))
-                if len(good_ce_list) > 0:
-                    ce_info_dict = random.choice(good_ce_list).copy()
+                ce_weight_dict = _get_ce_weight_dict(ce_endpoint_list=list(ce_auxilary_dict.keys()),
+                                                        queue_status_dict=queue_status_dict,
+                                                        worker_ce_stats_dict=worker_ce_stats_dict)
+                # good CEs which can be submitted to, duplicate by weight
+                good_ce_weighted_list = []
+                for _ce_endpoint in ce_auxilary_dict.keys():
+                    good_ce_weighted_list.extend([_ce_endpoint] * ce_weight_dict.get(_ce_endpoint, 0))
+                tmpLog.debug('queue_status_dict: {0} ; worker_ce_stats_dict: {1} ; ce_weight_dict: {2}'.format(
+                        queue_status_dict, worker_ce_stats_dict, ce_weight_dict))
+                if len(good_ce_weighted_list) > 0:
+                    ce_info_dict = ce_auxilary_dict[random.choice(good_ce_weighted_list)].copy()
                 else:
                     tmpLog.info('No good CE endpoint left. Choose an arbitrary CE endpoint')
                     ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
