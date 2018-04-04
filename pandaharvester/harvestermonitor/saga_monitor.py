@@ -46,10 +46,13 @@ class SAGAMonitor(PluginBase):
                         'Worker state with batchid: {0} is: {1}'.format(workSpec.batchID, harvester_job_state))
                     workSpec.set_status(harvester_job_state)
                     if worker.created:
+                        tmpLog.debug("Worker created (SAGA): {0}".format(worker.created))
                         workSpec.submitTime = datetime.strptime(worker.created, sagadateformat_str)
                     if worker.started:
+                        tmpLog.debug("Worker started (SAGA): {0}".format(worker.started))
                         workSpec.startTime = datetime.strptime(worker.started, sagadateformat_str)
                     if worker.finished:
+                        tmpLog.debug("Worker finished (SAGA): {0}".format(worker.finished))
                         workSpec.endTime = datetime.strptime(worker.finished, sagadateformat_str)
 
                     if workSpec.is_final_status():
