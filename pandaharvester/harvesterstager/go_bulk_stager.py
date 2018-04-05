@@ -64,7 +64,7 @@ class GlobusBulkStager(PluginBase):
         GlobusBulkStager.next_id += 1
         with uLock:
             global uID
-            self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base, uID,lambda: int(round(time.time() * 1000)))
+            self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base,self.id,int(round(time.time() * 1000)))
             uID += 1
             uID %= harvester_config.stager.nThreads
         # create Globus Transfer Client
@@ -131,10 +131,13 @@ class GlobusBulkStager(PluginBase):
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
         # lock if the dummy transfer ID is used to avoid submitting duplicated transfer requests
-        if self.dummy_transfer_id in groups:
+        for dummy_transferID in groups:
+            # skip if valid transfer ID not dummy one
+            if validate_transferid(dummy_transferID) :
+                continue
             # lock for 120 sec
-            tmpLog.debug('attempt to set DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-            have_db_lock = self.dbInterface.get_object_lock(self.dummy_transfer_id, lock_interval=120)
+            tmpLog.debug('attempt to set DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+            have_db_lock = self.dbInterface.get_object_lock(dummy_transferID, lock_interval=120)
             if not have_db_lock:
                 # escape since locked by another thread
                 msgStr = 'escape since locked by another thread'
@@ -148,12 +151,12 @@ class GlobusBulkStager(PluginBase):
             groups = jobspec.get_groups_of_output_files()
             tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
             # the dummy transfer ID is still there
-            if self.dummy_transfer_id in groups:
-                groupUpdateTime = groups[self.dummy_transfer_id]['groupUpdateTime']
+            if dummy_transferID in groups:
+                groupUpdateTime = groups[dummy_transferID]['groupUpdateTime']
                 # get files with the dummy transfer ID across jobs
-                fileSpecs = self.dbInterface.get_files_with_group_id(self.dummy_transfer_id)
+                fileSpecs = self.dbInterface.get_files_with_group_id(dummy_transferID)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
-                msgStr = 'self.dummy_transfer_id = {0}  number of files = {1}'.format(self.dummy_transfer_id,len(fileSpecs))
+                msgStr = 'dummy_transferID = {0}  number of files = {1}'.format(dummy_transferID,len(fileSpecs))
                 tmpLog.debug(msgStr)
                 if len(fileSpecs) >= 10 or \
                         groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
@@ -184,10 +187,10 @@ class GlobusBulkStager(PluginBase):
                             if not tmpStatdst :
                                 errMsg += ' destination Endpoint not activated '
                             # release process lock
-                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            self.have_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+                            self.have_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                             if not self.have_db_lock:
-                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                                errMsg += ' - Could not release DB lock for {}'.format(dummy_transferID)
                             tmpLog.error(errMsg)
                             tmpRetVal = (None,errMsg)
                             return tmpRetVal
@@ -199,10 +202,10 @@ class GlobusBulkStager(PluginBase):
                     except:
                         errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
                         # release process lock
-                        tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                        release_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                        tmpLog.debug('attempt to release DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+                        release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                         if not release_db_lock:
-                            errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                            errMsg += ' - Could not release DB lock for {}'.format(dummy_transferID)
                         tmpLog.error(errMsg)
                         tmpRetVal = (errStat, errMsg)
                         return tmpRetVal
@@ -249,10 +252,10 @@ class GlobusBulkStager(PluginBase):
                         else:
                             errMsg = "source file {} does not exist".format(srcURL)
                             # release process lock
-                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            release_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+                            release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                             if not release_db_lock:
-                                errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                                errMsg += ' - Could not release DB lock for {}'.format(dummy_transferID)
                             tmpLog.error(errMsg)
                             tmpRetVal = (False,errMsg)
                             return tmpRetVal
@@ -272,45 +275,45 @@ class GlobusBulkStager(PluginBase):
                             tmpLog.debug(msgStr)
                         else:
                             # release process lock
-                            tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                            release_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                            tmpLog.debug('attempt to release DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+                            release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                             if not release_db_lock:
-                                errMsg = 'Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                                errMsg = 'Could not release DB lock for {}'.format(dummy_transferID)
                                 tmpLog.error(errMsg)
                             tmpRetVal = (None, transfer_result['message'])
                             return tmpRetVal
                     except Exception as e:
                         errStat,errMsg = globus_utils.handle_globus_exception(tmpLog)
                         # release process lock
-                        tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                        release_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id)
+                        tmpLog.debug('attempt to release DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+                        release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                         if not release_db_lock:
-                            errMsg += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                            errMsg += ' - Could not release DB lock for {}'.format(dummy_transferID)
                         tmpLog.error(errMsg)
                         return errStat, errMsg
                 else:
                     msgStr = 'wait until enough files are pooled'
                     tmpLog.debug(msgStr)
                 # release the lock
-                tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                release_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id) 
+                tmpLog.debug('attempt to release DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+                release_db_lock = self.dbInterface.release_object_lock(dummy_transferID) 
                 if release_db_lock:
-                    tmpLog.debug('released DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                    tmpLog.debug('released DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
                     have_db_lock = False
                 else:
-                    msgStr += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                    msgStr += ' - Could not release DB lock for {}'.format(dummy_transferID)
                     tmpLog.error(msgStr)
                 # return None to retry later
                 return None, msgStr
             # release the db lock if needed
             if have_db_lock:
-                tmpLog.debug('attempt to release DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
-                release_db_lock = self.dbInterface.release_object_lock(self.dummy_transfer_id) 
+                tmpLog.debug('attempt to release DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
+                release_db_lock = self.dbInterface.release_object_lock(dummy_transferID) 
                 if release_db_lock:
-                    tmpLog.debug('released DB lock for self.id - {0} self.dummy_transfer_id - {1}'.format(self.id,self.dummy_transfer_id))
+                    tmpLog.debug('released DB lock for self.id - {0} dummy_transferID - {1}'.format(self.id,dummy_transferID))
                     have_db_lock = False 
                 else:
-                    msgStr += ' - Could not release DB lock for {}'.format(self.dummy_transfer_id)
+                    msgStr += ' - Could not release DB lock for {}'.format(dummy_transferID)
                     tmpLog.error(msgStr)
                     return None, msgStr
         # check transfer with real transfer IDs
