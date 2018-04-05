@@ -6,6 +6,7 @@ import time
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
+# from requests.exceptions import SSLError
 from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
 
 # setup base logger
@@ -29,11 +30,10 @@ def wait_for_operation(project, zone, operation_name):
         if result['status'] == 'DONE':
             if 'error' in result:
                 raise Exception(result['error'])
+            tmp_log.debug('Operation finished...')
             return result
 
         time.sleep(1)
-
-    tmp_log.debug('Operation finished...')
 
 
 def create_vm(work_spec):
@@ -59,8 +59,8 @@ def create_vm(work_spec):
 
         tmp_log.debug('Going to submit VM {0}'.format(vm.name))
         operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
-        tmp_log.debug('Submitting VM {0}'.format(vm.name))
-        wait_for_operation(PROJECT, ZONE, operation['name'])
+        # tmp_log.debug('Submitting VM {0}'.format(vm.name))
+        # wait_for_operation(PROJECT, ZONE, operation['name'])
         tmp_log.debug('Submitted VM {0}'.format(vm.name))
 
         return (True, 'OK'), work_spec.get_changed_attributes()
