@@ -48,7 +48,7 @@ class SimpleThrottler(PluginBase):
             elif rule['level'] == 'ce':
                 elmName = 'computingElements'
                 if elmName not in queue_config.submitter:
-                    tmpLog.error('{0} is undefined in submitter config'.format(elmName))
+                    tmpLog.debug('skipped since {0} is undefined in submitter config'.format(elmName))
                     continue
                 for ce in queue_config.submitter[elmName]:
                     criteria = dict()

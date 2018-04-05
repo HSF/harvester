@@ -748,7 +748,7 @@ class DBProxy:
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             iQueues = 0
-            for queueName, nQueueLimitJob, nQueueLimitJobRatio,nQueueLimitJobMax,nQueueLimitJobMin in resQ:
+            for queueName, nQueueLimitJob, nQueueLimitJobRatio, nQueueLimitJobMax, nQueueLimitJobMin in resQ:
                 # update timestamp to lock the queue
                 varMap = dict()
                 varMap[':queueName'] = queueName
