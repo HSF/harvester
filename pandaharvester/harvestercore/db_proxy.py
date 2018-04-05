@@ -3729,7 +3729,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_queue_status')
             tmpLog.debug('start')
             # sql to get
-            sqlQ = "SELECT queueName,nQueueLimitJob,nQueueLimitWorker,maxWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName,nQueueLimitWorker,maxWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName AND resourceType='ANY'"
             # get
             varMap = dict()
@@ -3737,9 +3737,8 @@ class DBProxy:
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             retMap = dict()
-            for computingSite, nQueueLimitJob, nQueueLimitWorker, maxWorkers in resQ:
+            for computingSite, nQueueLimitWorker, maxWorkers in resQ:
                 retMap.update({
-                    'nQueueLimitJob': nQueueLimitJob,
                     'nQueueLimitWorker': nQueueLimitWorker,
                     'maxWorkers': maxWorkers,
                 })
