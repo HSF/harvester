@@ -1,6 +1,7 @@
 import json
 import datetime
 import requests
+import requests.exceptions
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -95,6 +96,8 @@ class Cacher(AgentBase):
                 else:
                     errMsg = 'failed with StatusCode={0} {1}'.format(res.status_code, res.text)
                     tmp_log.error(errMsg)
+            except requests.exceptions.ReadTimeout:
+                tmp_log.error('read timeout when getting data from {0}'.format(info_url))
             except:
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('panda_cache:'):
