@@ -1,3 +1,4 @@
+import time
 import datetime
 import uuid
 import os
@@ -63,7 +64,7 @@ class GlobusBulkPreparator(PluginBase):
         GlobusBulkPreparator.next_id += 1
         with uLock:
             global uID
-            self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base, uID)
+            self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base, uID,lambda: int(round(time.time() * 1000)))
             uID += 1
             uID %= harvester_config.preparator.nThreads
         # create Globus Transfer Client
@@ -258,7 +259,8 @@ class GlobusBulkPreparator(PluginBase):
                                                                                    lfn=fileSpec.lfn)
                         #tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
                         # add files to transfer object - tdata
-                        tmpLog.debug("tdata.add_item({},{})".format(srcURL,dstURL))
+                        if ifile < 25 :
+                            tmpLog.debug("tdata.add_item({},{})".format(srcURL,dstURL))
                         tdata.add_item(srcURL,dstURL)
                     # submit transfer 
                     try:
