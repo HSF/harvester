@@ -45,7 +45,7 @@ class Submitter(AgentBase):
                 # get commands
                 comStr = '{0}:{1}'.format(CommandSpec.COM_setNWorkers, siteName)
                 commandSpecs = self.dbProxy.get_commands_for_receiver('submitter', comStr)
-                mainLog.debug('got {0} commands'.format(len(commandSpecs)))
+                mainLog.debug('got {0} {1} commands'.format(len(commandSpecs, comStr)))
                 for commandSpec in commandSpecs:
                     newLimits = self.dbProxy.set_queue_limit(siteName, commandSpec.params)
                     for tmpResource, tmpNewVal in iteritems(newLimits):

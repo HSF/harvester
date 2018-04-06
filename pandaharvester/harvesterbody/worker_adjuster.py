@@ -34,6 +34,8 @@ class WorkerAdjuster:
             # define num of new workers
             for queueName in static_num_workers:
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
+                    tmpLog.debug('Processing queue {0} resource {1} with static_num_workers {2}'.
+                                 format(queueName, resource_type, tmpVal))
 
                     # set 0 to num of new workers when the queue is disabled
                     if queueName in queueStat and queueStat[queueName]['status'] in ['offline', 'standby',
