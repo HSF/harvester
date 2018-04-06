@@ -22,6 +22,7 @@ class WorkerAdjuster:
     def define_num_workers(self, static_num_workers, site_name):
         tmpLog = core_utils.make_logger(_logger, 'site={0}'.format(site_name), method_name='define_num_workers')
         tmpLog.debug('start')
+        tmpLog.debug('static_num_workers: {0}'.format(static_num_workers))
         dyn_num_workers = copy.deepcopy(static_num_workers)
         try:
             # get queue status
@@ -111,10 +112,16 @@ class WorkerAdjuster:
                                 maxQueuedWorkers = 1
                         # new workers
                         nNewWorkers = max(maxQueuedWorkers - nQueue, 0)
+                        tmpLog.debug('setting nNewWorkers to {0} in maxQueuedWorkers calculation'
+                                     .format(nNewWorkers))
                         if maxWorkers > 0:
                             nNewWorkers = min(nNewWorkers, max(maxWorkers - nQueue - nReady - nRunning, 0))
+                            tmpLog.debug('setting nNewWorkers to {0} to respect maxWorkers'
+                                         .format(nNewWorkers))
                     if queueConfig.maxNewWorkersPerCycle > 0:
                         nNewWorkers = min(nNewWorkers, queueConfig.maxNewWorkersPerCycle)
+                        tmpLog.debug('setting nNewWorkers to {0} in order to respect maxNewWorkersPerCycle'
+                                     .format(nNewWorkers))
                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))
