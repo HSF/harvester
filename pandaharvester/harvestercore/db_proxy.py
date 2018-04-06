@@ -1160,17 +1160,18 @@ class DBProxy:
             sqlQ += "WHERE siteName=:siteName "
             # sql to get orphaned workers
             sqlO = "SELECT workerID FROM {0} ".format(workTableName)
-            sqlO += "WHERE computingSite=:computingSite AND status=:status "
-            sqlO += "AND modificationTime<:timeLimit "
+            sqlO += "WHERE computingSite=:computingSite AND resourceType=:resourceType "
+            sqlO += "AND status=:status AND modificationTime<:timeLimit "
             # sql to delete orphaned workers. Not to use bulk delete to avoid deadlock with 0-record deletion
             sqlD = "DELETE FROM {0} ".format(workTableName)
             sqlD += "WHERE workerID=:workerID "
             # sql to count nQueue
             sqlN = "SELECT status,COUNT(*) cnt FROM {0} ".format(workTableName)
-            sqlN += "WHERE computingSite=:computingSite GROUP BY status "
+            sqlN += "WHERE computingSite=:computingSite  AND resourceType=:resourceType "
+            sqlN += "GROUP BY status"
             # sql to count re-fillers
             sqlR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
-            sqlR += "WHERE computingSite=:computingSite AND status=:status "
+            sqlR += "WHERE computingSite=:computingSite AND resourceType=:resourceType AND status=:status "
             sqlR += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0 "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
@@ -1204,6 +1205,7 @@ class DBProxy:
                     # delete orphaned workers
                     varMap = dict()
                     varMap[':computingSite'] = queueName
+                    varMap[':resourceType'] = resourceType
                     varMap[':status'] = WorkSpec.ST_pending
                     varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
                     self.execute(sqlO, varMap)
