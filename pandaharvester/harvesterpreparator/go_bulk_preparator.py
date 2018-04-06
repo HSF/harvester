@@ -229,12 +229,16 @@ class GlobusBulkPreparator(PluginBase):
                         if ifile < 25 :
                             msgStr = "len(jobSpec.get_input_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
                             tmpLog.debug(msgStr)
-                            #counter = 100
-                            #for key, value in attrs.iteritems():
-                            #    msgStr = "input file attributes - {0} {1}".format(key,value)
-                            #    tmpLog.debug(msgStr)
-                            #    --counter
-                            #    if counter < 0: break
+                            #  print out to debug log only the first 10 file attributes
+                            counter = 10
+                            for key, value in attrs.iteritems():
+                                msgStr = "input file attributes - {0} {1}".format(key,value)
+                                tmpLog.debug(msgStr)
+                                counter -= 1
+                                if counter < 0:
+                                    msgStr = "Only print to debug log file first 10 file attributes"
+                                    tmpLog.debug(msgStr)
+                                    break
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
                         if ifile == 25 :
@@ -264,7 +268,7 @@ class GlobusBulkPreparator(PluginBase):
                         if ifile < 25 :
                             tmpLog.debug("tdata.add_item({},{})".format(srcURL,dstURL))
                         tdata.add_item(srcURL,dstURL)
-                        ++ifile
+                        ifile += 1
                     # submit transfer 
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)
