@@ -217,18 +217,17 @@ class GlobusBulkStager(PluginBase):
                         if ifile < 25 :
                             msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
                             tmpLog.debug(msgStr)
-                            counter = 100
-                            for key, value in attrs.iteritems():
-                                msgStr = "output file attributes - {0} {1}".format(key,value)
-                                tmpLog.debug(msgStr)
-                                --counter
-                                if counter < 0: break
+                            #counter = 100
+                            #for key, value in attrs.iteritems():
+                            #    msgStr = "output file attributes - {0} {1}".format(key,value)
+                            #    tmpLog.debug(msgStr)
+                            #    --counter
+                            #    if counter < 0: break
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
-                            ++ifile
-                            if ifile == 25 :
-                                msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
-                                tmpLog.debug(msgStr)
+                        if ifile == 25 :
+                            msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
+                            tmpLog.debug(msgStr)
                         # end debug log file test
                         scope ='panda'
                         if fileSpec.scope is not None :
@@ -259,6 +258,7 @@ class GlobusBulkStager(PluginBase):
                             tmpLog.error(errMsg)
                             tmpRetVal = (False,errMsg)
                             return tmpRetVal
+                        ++ifile
                     # submit transfer 
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)
