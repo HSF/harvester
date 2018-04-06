@@ -221,7 +221,7 @@ class GlobusBulkStager(PluginBase):
                             #for key, value in attrs.iteritems():
                             #    msgStr = "output file attributes - {0} {1}".format(key,value)
                             #    tmpLog.debug(msgStr)
-                            #    --counter
+                            #    counter -= 1
                             #    if counter < 0: break
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
@@ -258,7 +258,7 @@ class GlobusBulkStager(PluginBase):
                             tmpLog.error(errMsg)
                             tmpRetVal = (False,errMsg)
                             return tmpRetVal
-                        ++ifile
+                        ifile += 1
                     # submit transfer 
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)

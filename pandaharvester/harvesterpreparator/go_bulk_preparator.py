@@ -233,7 +233,7 @@ class GlobusBulkPreparator(PluginBase):
                             #for key, value in attrs.iteritems():
                             #    msgStr = "input file attributes - {0} {1}".format(key,value)
                             #    tmpLog.debug(msgStr)
-                            #    --counter
+                            #    counter -= 1
                             #    if counter < 0: break
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
@@ -264,7 +264,7 @@ class GlobusBulkPreparator(PluginBase):
                         if ifile < 25 :
                             tmpLog.debug("tdata.add_item({},{})".format(srcURL,dstURL))
                         tdata.add_item(srcURL,dstURL)
-                        ++ifile
+                        ifile += 1
                     # submit transfer 
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)
