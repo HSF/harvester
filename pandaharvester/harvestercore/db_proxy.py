@@ -3181,7 +3181,9 @@ class DBProxy:
                     nSubmittedWorkers, = res
 
                 # set new value
-                value = max(value - nSubmittedWorkers, 0)
+                # value = max(value - nSubmittedWorkers, 0)
+                if value is None:
+                    value = 0
                 varMap = dict()
                 varMap[':nQueue'] = value
                 varMap[':siteName'] = site_name
