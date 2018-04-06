@@ -1219,6 +1219,7 @@ class DBProxy:
                     # count nQueue
                     varMap = dict()
                     varMap[':computingSite'] = queueName
+                    varMap[':resourceType'] = resourceType
                     self.execute(sqlN, varMap)
                     nQueue = 0
                     nReady = 0
@@ -1233,6 +1234,7 @@ class DBProxy:
                     # count nFillers
                     varMap = dict()
                     varMap[':computingSite'] = queueName
+                    varMap[':resourceType'] = resourceType
                     varMap[':status'] = WorkSpec.ST_running
                     self.execute(sqlR, varMap)
                     nReFill, = self.cur.fetchone()
