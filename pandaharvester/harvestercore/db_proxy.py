@@ -1206,10 +1206,11 @@ class DBProxy:
                     varMap[':computingSite'] = queueName
                     varMap[':status'] = WorkSpec.ST_pending
                     varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
+                    sqlO_tmp = sqlO
                     if resourceType != 'ANY':
                         varMap[':resourceType'] = resourceType
-                        sqlO += "AND resourceType=:resourceType "
-                    self.execute(sqlO, varMap)
+                        sqlO_tmp += "AND resourceType=:resourceType "
+                    self.execute(sqlO_tmp, varMap)
                     resO = self.cur.fetchall()
                     for tmpWorkerID, in resO:
                         varMap = dict()
@@ -1221,11 +1222,12 @@ class DBProxy:
                     varMap = dict()
                     varMap[':computingSite'] = queueName
                     varMap[':resourceType'] = resourceType
+                    sqlN_tmp = sqlN
                     if resourceType != 'ANY':
                         varMap[':resourceType'] = resourceType
-                        sqlN += "AND resourceType=:resourceType "
-                    sqlN += "GROUP BY status"
-                    self.execute(sqlN, varMap)
+                        sqlN_tmp += "AND resourceType=:resourceType "
+                    sqlN_tmp += "GROUP BY status "
+                    self.execute(sqlN_tmp, varMap)
                     nQueue = 0
                     nReady = 0
                     nRunning = 0
@@ -1240,10 +1242,11 @@ class DBProxy:
                     varMap = dict()
                     varMap[':computingSite'] = queueName
                     varMap[':status'] = WorkSpec.ST_running
+                    sqlR_tmp = sqlR
                     if resourceType != 'ANY':
                         varMap[':resourceType'] = resourceType
-                        sqlR += "AND resourceType=:resourceType "
-                    self.execute(sqlR, varMap)
+                        sqlR_tmp += "AND resourceType=:resourceType "
+                    self.execute(sqlR_tmp, varMap)
                     nReFill, = self.cur.fetchone()
                     nReady += nReFill
                     # add
