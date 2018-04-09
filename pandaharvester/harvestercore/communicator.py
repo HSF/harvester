@@ -12,7 +12,7 @@ import sys
 import json
 import zlib
 import inspect
-import datetime
+import datetime, time
 import requests
 import traceback
 from future.utils import iteritems
@@ -79,6 +79,7 @@ class Communicator:
             if cert is None:
                 cert = (harvester_config.pandacon.cert_file,
                         harvester_config.pandacon.key_file)
+            req_time_start = time.time()
             res = requests.post(url,
                                 data=data,
                                 headers={"Accept": "application/json",
@@ -86,8 +87,9 @@ class Communicator:
                                 timeout=harvester_config.pandacon.timeout,
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=cert)
+            req_time = time.time() - req_time_start
             if self.verbose:
-                tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
+                tmpLog.debug('exec={0} code={1} return={2} took={3} sec.'.format(tmpExec, res.status_code, res.text, req_time))
             if res.status_code == 200:
                 return True, res
             else:
@@ -154,7 +156,10 @@ class Communicator:
         if additional_criteria is not None:
             for tmpKey, tmpVal in additional_criteria:
                 data[tmpKey] = tmpVal
+        start_getjobs = time.time()
         tmpStat, tmpRes = self.post_ssl('getJob', data)
+        time_getjobs = time.time() - start_getjobs
+        tmpLog.debug('getJob for {0} jobs took {1} sec.'.format(n_jobs,time_getjobs))
         errStr = 'OK'
         if tmpStat is False:
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)
@@ -178,6 +183,7 @@ class Communicator:
     # update jobs TOBEFIXED to use bulk method
     def update_jobs(self, jobspec_list):
         retList = []
+
         for jobSpec in jobspec_list:
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
                                             method_name='update_jobs')

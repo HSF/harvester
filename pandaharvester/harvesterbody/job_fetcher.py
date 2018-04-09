@@ -1,5 +1,5 @@
 import socket
-import datetime
+import datetime, time
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -46,16 +46,19 @@ class JobFetcher(AgentBase):
                     nJobs = harvester_config.jobfetcher.maxJobs
                 # get jobs
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
+                start_getJobs = time.time()
                 siteName = queueConfig.siteName
                 jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
                                                           queueConfig.get_source_label(),
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
-                tmpLog.debug('got {0} jobs with {1}'.format(len(jobs), errStr))
+                time_getJobs = time.time() - start_getJobs
+                tmpLog.debug('got {0} jobs with {1} in {2} sec.'.format(len(jobs), errStr, time_getJobs))
                 # convert to JobSpec
                 if len(jobs) > 0:
                     jobSpecs = []
                     fileStatMap = dict()
+                    start_convert = time.time()
                     for job in jobs:
                         timeNow = datetime.datetime.utcnow()
                         jobSpec = JobSpec()
@@ -96,7 +99,12 @@ class JobFetcher(AgentBase):
                         jobSpec.trigger_propagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB
+                    time_convert = time.time() - start_convert
+                    tmpLog.debug("Converting of {0} jobs took {1} sec.".format(len(jobs),time_convert))
+                    strart_insertdb = time.time()
                     self.dbProxy.insert_jobs(jobSpecs)
+                    time_insertdb = time.time() - strart_insertdb
+                    tmpLog.debug('Insert of {0} jobs took {} sec.'.format(len(jobSpecs), time_insertdb))
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.jobfetcher.sleepTime):

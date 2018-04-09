@@ -28,11 +28,13 @@ class Propagator(AgentBase):
             sw = core_utils.get_stopwatch()
             mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
             mainLog.debug('getting jobs to propagate')
+            getjobs_start = time.time()
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,
                                                           harvester_config.propagator.updateInterval,
                                                           self.ident)
-            mainLog.debug('got {0} jobs'.format(len(jobSpecs)))
+            getjobs_time = time.time() - getjobs_start
+            mainLog.debug('got {0} jobs in {1} sec.'.format(len(jobSpecs), getjobs_time))
             # update jobs in central database
             iJobs = 0
             nJobs = harvester_config.propagator.nJobsInBulk

@@ -121,6 +121,8 @@ class DBProxy:
 
     # wrapper for execute
     def execute(self, sql, varmap=None):
+        sw = core_utils.get_stopwatch()
+        newSQL = ''
         if varmap is None:
             varmap = dict()
         # get lock if application side lock is used
@@ -148,6 +150,7 @@ class DBProxy:
                     self.verbLog.debug('thr={0} release'.format(self.thrName))
                 conLock.release()
         # return
+        self.verbLog.debug('thr={0} | {1} | sql=[{2}]'.format(self.thrName, sw.get_elapsed_time(), newSQL))
         return retVal
 
     # wrapper for executemany
