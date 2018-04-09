@@ -22,12 +22,10 @@ class ARCMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
-        # Get credential file from config
-        # TODO Handle multiple credentials for prod/analy
-        self.cert = harvester_config.credmanager.certFile
-        cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
-        self.userconfig = arc.UserConfig(cred_type)
-        self.userconfig.ProxyPath(str(self.cert))
+        # Credential dictionary role: proxy file
+        self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
+                              list(harvester_config.credmanager.outCertFile)))
+        self.cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
 
 
     # check workers
@@ -39,9 +37,18 @@ class ARCMonitor(PluginBase):
             arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
             tmplog = arclog.log
             tmplog.info("checking worker id {0}".format(workspec.workerID))
-            (job, modtime) = arc_utils.workspec2arcjob(workspec)
+            (job, modtime, proxyrole) = arc_utils.workspec2arcjob(workspec)
 
-            job_supervisor = arc.JobSupervisor(self.userconfig, [job])
+            # Set certificate
+            userconfig = arc.UserConfig(self.cred_type)
+            try:
+                userconfig.ProxyPath(str(self.certs[proxyrole]))
+            except:
+                tmplog.error("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
+                retList.append((workspec.status, ''))
+                continue
+
+            job_supervisor = arc.JobSupervisor(userconfig, [job])
             job_supervisor.Update()
 
             jobsupdated = job_supervisor.GetAllJobs()

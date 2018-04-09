@@ -1,6 +1,7 @@
 import json
 import datetime
 import requests
+import requests.exceptions
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -30,7 +31,7 @@ class Cacher(AgentBase):
 
     # main
     def execute(self, force_update=False, skip_lock=False):
-        mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='execute')
+        mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='execute')
         # get lock
         locked = self.dbProxy.get_process_lock('cacher', self.get_pid(), harvester_config.cacher.sleepTime)
         if locked or skip_lock:
@@ -95,6 +96,8 @@ class Cacher(AgentBase):
                 else:
                     errMsg = 'failed with StatusCode={0} {1}'.format(res.status_code, res.text)
                     tmp_log.error(errMsg)
+            except requests.exceptions.ReadTimeout:
+                tmp_log.error('read timeout when getting data from {0}'.format(info_url))
             except:
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('panda_cache:'):

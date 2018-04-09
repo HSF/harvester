@@ -1,13 +1,14 @@
-import json
+import os
 import re
 from threading import Thread
+import time
 import traceback
 import arc
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestersubmitter.arc_parser import ARCParser
+from pandaharvester.harvestermisc.arc_parser import ARCParser
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestermisc import arc_utils
@@ -65,13 +66,12 @@ class ARCSubmitter(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         self.dbproxy = DBProxy()
+        self.schedulerid = harvester_config.master.harvester_id
 
-        # Get credential file from config
-        # TODO Handle multiple credentials for prod/analy
-        self.cert = harvester_config.credmanager.certFile
-        cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
-        self.userconfig = arc.UserConfig(cred_type)
-        self.userconfig.ProxyPath(str(self.cert))
+        # Credential dictionary role: proxy file
+        self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
+                              list(harvester_config.credmanager.outCertFile)))
+        self.cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
 
 
     def _run_submit(self, thr):
@@ -93,7 +93,7 @@ class ARCSubmitter(PluginBase):
         return thr.job
 
 
-    def _arc_submit(self, xrsl, arcces, log):
+    def _arc_submit(self, xrsl, arcces, userconfig, log):
         '''Check the available CEs and submit'''
 
         queuelist = []
@@ -114,7 +114,7 @@ class ARCSubmitter(PluginBase):
                                               'org.nordugrid.ldapng')]
 
             # retriever contains a list of CE endpoints
-            retriever = arc.ComputingServiceRetriever(self.userconfig, infoendpoints)
+            retriever = arc.ComputingServiceRetriever(userconfig, infoendpoints)
             retriever.wait()
             # targets is the list of queues
             # parse target.ComputingService.ID for the CE hostname
@@ -154,8 +154,13 @@ class ARCSubmitter(PluginBase):
             raise Exception("Failed to prepare job description")
 
         # Run the submission in a separate thread
-        thr = SubmitThr(queuelist, jobdescs, self.userconfig)
+        thr = SubmitThr(queuelist, jobdescs, userconfig)
         return self._run_submit(thr)
+
+
+    def _set_logdir(self, site):
+        date = time.strftime('%Y-%m-%d')
+        return os.path.join(date, site)
 
 
     # submit workers
@@ -206,10 +211,17 @@ class ARCSubmitter(PluginBase):
                 queueconfig = queueconfigmapper.get_queue(jobspec.computingSite)
                 pandaqueues[jobspec.computingSite]['truepilot'] = 'running' in queueconfig.noHeartbeat
 
+                # Set log URL for GTAG env in job description
+                logbaseurl = queueconfig.submitter.get('logBaseURL')
+                logsubdir = self._set_logdir(jobspec.computingSite)
+                logfileurl = '/'.join([logbaseurl, logsubdir, '%d.out' % jobspec.PandaID]) if logbaseurl else None
+
                 tmplog.debug("Converting to ARC XRSL format")
                 arcxrsl = ARCParser(jobspec.jobParams,
                                     jobspec.computingSite,
                                     pandaqueues[jobspec.computingSite],
+                                    logfileurl,
+                                    self.schedulerid,
                                     osmap,
                                     '/tmp', # tmpdir, TODO common tmp dir
                                     None, #jobSpec.eventranges, # TODO event ranges
@@ -224,14 +236,27 @@ class ARCSubmitter(PluginBase):
                     downloadfiles += ';%s' %jobspec.jobParams['logFile'].replace('.tgz', '')
                 if not pandaqueues[jobspec.computingSite]['truepilot']:
                     downloadfiles += ';jobSmallFiles.tgz'
+                    
+                # Set certificate
+                userconfig = arc.UserConfig(self.cred_type)
+                proxyrole = ''
+                if jobspec.jobParams['prodSourceLabel'] == 'user':
+                    userconfig.ProxyPath(str(self.certs['pilot']))
+                    proxyrole = 'pilot'
+                else:
+                    userconfig.ProxyPath(str(self.certs['production']))
+                    proxyrole = 'production'
+                tmplog.debug("Submitting using {0} proxy at {1}".format(proxyrole, userconfig.ProxyPath()))
 
                 try:
                     tmplog.debug("Submission targets: {0}".format(arcces))
-                    arcjob = self._arc_submit(xrsl, arcces, tmplog)
+                    arcjob = self._arc_submit(xrsl, arcces, userconfig, tmplog)
                     tmplog.info("ARC CE job id {0}".format(arcjob.JobID))
                     arc_utils.arcjob2workspec(arcjob, workspec)
                     workspec.workAttributes['arcdownloadfiles'] = downloadfiles
-                    workspec.batchID = arcjob.JobID[:79] # panda DB limit
+                    workspec.workAttributes['proxyrole'] = proxyrole
+                    workspec.workAttributes['logsubdir'] = logsubdir
+                    workspec.batchID = arcjob.JobID
                     tmplog.debug(workspec.workAttributes)
                     result = (True, '')
                 except Exception as exc:

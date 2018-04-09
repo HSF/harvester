@@ -16,7 +16,7 @@ class SAGASubmitter (PluginBase):
     # constructor define job service with particular adaptor (can be extended to support remote execution)
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
+        tmpLog = self.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
 
     def workers_list(self):
@@ -44,7 +44,7 @@ class SAGASubmitter (PluginBase):
 
     def _state_change_cb(self, src_obj, fire_on, value):
 
-        tmpLog = core_utils.make_logger(baseLogger, method_name='_state_change_cb')
+        tmpLog = self.make_logger(baseLogger, method_name='_state_change_cb')
 
         #self._workSpec.status = self.status_translator(value)
         self._workSpec.set_status(self.status_translator(value))
@@ -67,7 +67,7 @@ class SAGASubmitter (PluginBase):
 
     def _execute(self, work_spec):
 
-        tmpLog = core_utils.make_logger(baseLogger, method_name='_execute')
+        tmpLog = self.make_logger(baseLogger, method_name='_execute')
 
         job_service = saga.job.Service(self.adaptor)
 
@@ -142,7 +142,7 @@ class SAGASubmitter (PluginBase):
 
     # submit workers
     def submit_workers(self, work_specs):
-        tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
+        tmpLog = self.make_logger(baseLogger, method_name='submit_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(work_specs)))
         retList = []
 

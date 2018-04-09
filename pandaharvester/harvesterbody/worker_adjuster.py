@@ -22,6 +22,7 @@ class WorkerAdjuster:
     def define_num_workers(self, static_num_workers, site_name):
         tmpLog = core_utils.make_logger(_logger, 'site={0}'.format(site_name), method_name='define_num_workers')
         tmpLog.debug('start')
+        tmpLog.debug('static_num_workers: {0}'.format(static_num_workers))
         dyn_num_workers = copy.deepcopy(static_num_workers)
         try:
             # get queue status
@@ -34,6 +35,8 @@ class WorkerAdjuster:
             # define num of new workers
             for queueName in static_num_workers:
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
+                    tmpLog.debug('Processing queue {0} resource {1} with static_num_workers {2}'.
+                                 format(queueName, resource_type, tmpVal))
 
                     # set 0 to num of new workers when the queue is disabled
                     if queueName in queueStat and queueStat[queueName]['status'] in ['offline', 'standby',
@@ -96,23 +99,34 @@ class WorkerAdjuster:
                         tmpLog.debug(retMsg)
                         pass
                     else:
-                        # get max number of queued workers
-                        maxQueuedWorkers = 0
-                        if nQueueLimit > 0:
+
+                        maxQueuedWorkers = None
+
+                        if nQueueLimit > 0:  # there is a limit set for the queue
                             maxQueuedWorkers = nQueueLimit
-                        if maxQueuedWorkers == 0:
-                            if nNewWorkersDef is not None:
-                                # slave mode
-                                maxQueuedWorkers = nNewWorkersDef + nQueue
+
+                        if nNewWorkersDef is not None:  # don't surpass limits given centrally
+                            maxQueuedWorkers_slave = nNewWorkersDef + nQueue
+                            if maxQueuedWorkers is not None:
+                                maxQueuedWorkers = min(maxQueuedWorkers_slave, maxQueuedWorkers)
                             else:
-                                # use default value
-                                maxQueuedWorkers = 1
+                                maxQueuedWorkers = maxQueuedWorkers_slave
+
+                        if maxQueuedWorkers is None:  # no value found, use default value
+                            maxQueuedWorkers = 1
+
                         # new workers
                         nNewWorkers = max(maxQueuedWorkers - nQueue, 0)
+                        tmpLog.debug('setting nNewWorkers to {0} in maxQueuedWorkers calculation'
+                                     .format(nNewWorkers))
                         if maxWorkers > 0:
                             nNewWorkers = min(nNewWorkers, max(maxWorkers - nQueue - nReady - nRunning, 0))
+                            tmpLog.debug('setting nNewWorkers to {0} to respect maxWorkers'
+                                         .format(nNewWorkers))
                     if queueConfig.maxNewWorkersPerCycle > 0:
                         nNewWorkers = min(nNewWorkers, queueConfig.maxNewWorkersPerCycle)
+                        tmpLog.debug('setting nNewWorkers to {0} in order to respect maxNewWorkersPerCycle'
+                                     .format(nNewWorkers))
                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))

@@ -20,7 +20,7 @@ class CloudOpenstackSweeper(PluginBase):
     # kill a worker
     def kill_worker(self, workspec):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='kill_worker')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='kill_worker')
 
         # initial return values
         tmpRetVal = (None, 'Nothing done')
@@ -43,6 +43,6 @@ class CloudOpenstackSweeper(PluginBase):
     # cleanup for a worker
     def sweep_worker(self, workspec):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='sweep_worker')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='sweep_worker')
 
         return True, ''

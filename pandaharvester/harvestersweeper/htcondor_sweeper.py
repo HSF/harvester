@@ -43,8 +43,8 @@ class HTCondorSweeper(PluginBase):
     # kill a worker
     def kill_worker(self, workspec):
         ## Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='kill_worker')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                  method_name='kill_worker')
 
         ## Kill command
         comStr = 'condor_rm {0}'.format(workspec.batchID)
@@ -74,8 +74,8 @@ class HTCondorSweeper(PluginBase):
     # cleanup for a worker
     def sweep_worker(self, workspec):
         ## Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='sweep_worker')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                  method_name='sweep_worker')
 
         ## Make sure batch job is terminated
         self.kill_worker(workspec)

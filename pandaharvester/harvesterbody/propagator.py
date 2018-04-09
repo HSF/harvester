@@ -6,11 +6,13 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 
 # logger
 _logger = core_utils.setup_logger('propagator')
 
 STATS_PERIOD = 300
+
 
 # propagate important checkpoints to panda
 class Propagator(AgentBase):
@@ -26,7 +28,7 @@ class Propagator(AgentBase):
     def run(self):
         while True:
             sw = core_utils.get_stopwatch()
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
             mainLog.debug('getting jobs to propagate')
             getjobs_start = time.time()
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
@@ -91,9 +93,11 @@ class Propagator(AgentBase):
                             if 'command' in tmpRet and tmpRet['command'] in ['tobekilled']:
                                 nWorkers = self.dbProxy.kill_workers_with_job(tmpJobSpec.PandaID)
                                 if nWorkers == 0:
-                                    # no remaining workers
+                                    # no workers
                                     tmpJobSpec.status = 'cancelled'
                                     tmpJobSpec.subStatus = 'killed'
+                                    tmpJobSpec.set_pilot_error(PilotErrors.ERR_PANDAKILL,
+                                                               PilotErrors.pilotError[PilotErrors.ERR_PANDAKILL])
                                     tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
                                     tmpJobSpec.trigger_propagation()
                         self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.ident})
@@ -165,8 +169,28 @@ class Propagator(AgentBase):
                             self._last_stats_update = time.time()
                         else:
                             mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name, tmp_str))
+            # send dialog messages
+            mainLog.debug('getting dialog messages to propagate')
+            try:
+                maxDialogs = harvester_config.propagator.maxDialogs
+            except:
+                maxDialogs = 50
+            diagSpecs = self.dbProxy.get_dialog_messages_to_send(maxDialogs,
+                                                                 harvester_config.propagator.lockInterval)
+            mainLog.debug('got {0} dialogs'.format(len(diagSpecs)))
+            if len(diagSpecs) > 0:
+                tmpStat, tmpStr = self.communicator.send_dialog_messages(diagSpecs)
+                if tmpStat:
+                    diagIDs = [diagSpec.diagID for diagSpec in diagSpecs]
+                    self.dbProxy.delete_dialog_messages(diagIDs)
+                    mainLog.debug('sent {0} dialogs'.format(len(diagSpecs)))
 
-            mainLog.debug('done' + sw.get_elapsed_time())
+                else:
+                    mainLog.error('failed to send dialogs err={0}'.format(tmpStr))
+            if sw.get_elapsed_time_in_sec() > harvester_config.propagator.lockInterval:
+                mainLog.warning('a single cycle was longer than lockInterval ' + sw.get_elapsed_time())
+            else:
+                mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):
                 mainLog.debug('terminated')

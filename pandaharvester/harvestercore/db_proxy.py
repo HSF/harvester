@@ -8,6 +8,7 @@ import sys
 import copy
 import inspect
 import datetime
+import logging
 import threading
 from future.utils import iteritems
 
@@ -21,6 +22,7 @@ from .seq_number_spec import SeqNumberSpec
 from .panda_queue_spec import PandaQueueSpec
 from .job_worker_relation_spec import JobWorkerRelationSpec
 from .process_lock_spec import ProcessLockSpec
+from .diag_spec import DiagSpec
 
 from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -39,6 +41,7 @@ seqNumberTableName = 'seq_table'
 pandaQueueTableName = 'pq_table'
 jobWorkerTableName = 'jw_table'
 processLockTableName = 'lock_table'
+diagTableName = 'diag_table'
 
 # connection lock
 conLock = threading.Lock()
@@ -344,6 +347,7 @@ class DBProxy:
         outStrs += self.make_table(PandaQueueSpec, pandaQueueTableName)
         outStrs += self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
         outStrs += self.make_table(ProcessLockSpec, processLockTableName)
+        outStrs += self.make_table(DiagSpec, diagTableName)
         # dump error messages
         if len(outStrs) > 0:
             errMsg = "ERROR : Definitions of some database tables are incorrect. "
@@ -679,7 +683,8 @@ class DBProxy:
                         # update limits just in case
                         varMap = dict()
                         sqlU = "UPDATE {0} SET ".format(pandaQueueTableName)
-                        for qAttr in ['nQueueLimitJob', 'nQueueLimitWorker', 'maxWorkers']:
+                        for qAttr in ['nQueueLimitJob', 'nQueueLimitWorker', 'maxWorkers',
+                                      'nQueueLimitJobRatio', 'nQueueLimitJobMax', 'nQueueLimitJobMin']:
                             if hasattr(queueConfig, qAttr):
                                 sqlU += '{0}=:{0},'.format(qAttr)
                                 varMap[':{0}'.format(qAttr)] = getattr(queueConfig, qAttr)
@@ -727,12 +732,14 @@ class DBProxy:
             tmpLog.debug('start')
             retMap = {}
             # sql to get queues
-            sqlQ = "SELECT queueName,nQueueLimitJob FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName,nQueueLimitJob,nQueueLimitJobRatio,nQueueLimitJobMax,nQueueLimitJobMin "
+            sqlQ += "FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE jobFetchTime IS NULL OR jobFetchTime<:timeLimit "
             sqlQ += "ORDER BY jobFetchTime "
             # sql to count nQueue
-            sqlN = "SELECT COUNT(*) cnt FROM {0} ".format(jobTableName)
-            sqlN += "WHERE computingSite=:computingSite AND status=:status "
+            sqlN = "SELECT COUNT(*) cnt,status FROM {0} ".format(jobTableName)
+            sqlN += "WHERE computingSite=:computingSite AND status IN (:status1,:status2) "
+            sqlN += "GROUP BY status "
             # sql to update timestamp
             sqlU = "UPDATE {0} SET jobFetchTime=:jobFetchTime ".format(pandaQueueTableName)
             sqlU += "WHERE queueName=:queueName "
@@ -744,7 +751,7 @@ class DBProxy:
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             iQueues = 0
-            for queueName, nQueueLimit in resQ:
+            for queueName, nQueueLimitJob, nQueueLimitJobRatio, nQueueLimitJobMax, nQueueLimitJobMin in resQ:
                 # update timestamp to lock the queue
                 varMap = dict()
                 varMap[':queueName'] = queueName
@@ -760,12 +767,33 @@ class DBProxy:
                 # count nQueue
                 varMap = dict()
                 varMap[':computingSite'] = queueName
-                varMap[':status'] = 'starting'
+                varMap[':status1'] = 'starting'
+                varMap[':status2'] = 'running'
                 self.execute(sqlN, varMap)
-                nQueue, = self.cur.fetchone()
+                resN = self.cur.fetchall()
+                nsMap = dict()
+                for tmpN, tmpStatus in resN:
+                    nsMap[tmpStatus] = tmpN
+                # get num of queued jobs
+                try:
+                    nQueue = nsMap['starting']
+                except:
+                    nQueue = 0
+                # dynamic nQueueLimitJob
+                if nQueueLimitJobRatio is not None and nQueueLimitJobRatio > 0:
+                    try:
+                        nRunning = nsMap['running']
+                    except:
+                        nRunning = 0
+                    nQueueLimitJob = int(nRunning * nQueueLimitJobRatio / 100)
+                    if nQueueLimitJobMax is not None:
+                        nQueueLimitJob = min(nQueueLimitJob, nQueueLimitJobMax)
+                    if nQueueLimitJobMin is None:
+                        nQueueLimitJobMin = 1
+                    nQueueLimitJob = max(nQueueLimitJob, nQueueLimitJobMin)
                 # more jobs need to be queued
-                if nQueueLimit is not None and nQueue < nQueueLimit:
-                    retMap[queueName] = nQueueLimit - nQueue
+                if nQueueLimitJob is not None and nQueue < nQueueLimitJob:
+                    retMap[queueName] = nQueueLimitJob - nQueue
                 # enough queues
                 iQueues += 1
                 if iQueues >= n_queues:
@@ -1135,14 +1163,14 @@ class DBProxy:
             sqlQ += "WHERE siteName=:siteName "
             # sql to get orphaned workers
             sqlO = "SELECT workerID FROM {0} ".format(workTableName)
-            sqlO += "WHERE computingSite=:computingSite AND status=:status "
-            sqlO += "AND modificationTime<:timeLimit "
+            sqlO += "WHERE computingSite=:computingSite "
+            sqlO += "AND status=:status AND modificationTime<:timeLimit "
             # sql to delete orphaned workers. Not to use bulk delete to avoid deadlock with 0-record deletion
             sqlD = "DELETE FROM {0} ".format(workTableName)
             sqlD += "WHERE workerID=:workerID "
             # sql to count nQueue
             sqlN = "SELECT status,COUNT(*) cnt FROM {0} ".format(workTableName)
-            sqlN += "WHERE computingSite=:computingSite GROUP BY status "
+            sqlN += "WHERE computingSite=:computingSite "
             # sql to count re-fillers
             sqlR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlR += "WHERE computingSite=:computingSite AND status=:status "
@@ -1181,7 +1209,11 @@ class DBProxy:
                     varMap[':computingSite'] = queueName
                     varMap[':status'] = WorkSpec.ST_pending
                     varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
-                    self.execute(sqlO, varMap)
+                    sqlO_tmp = sqlO
+                    if resourceType != 'ANY':
+                        varMap[':resourceType'] = resourceType
+                        sqlO_tmp += "AND resourceType=:resourceType "
+                    self.execute(sqlO_tmp, varMap)
                     resO = self.cur.fetchall()
                     for tmpWorkerID, in resO:
                         varMap = dict()
@@ -1192,7 +1224,13 @@ class DBProxy:
                     # count nQueue
                     varMap = dict()
                     varMap[':computingSite'] = queueName
-                    self.execute(sqlN, varMap)
+                    varMap[':resourceType'] = resourceType
+                    sqlN_tmp = sqlN
+                    if resourceType != 'ANY':
+                        varMap[':resourceType'] = resourceType
+                        sqlN_tmp += "AND resourceType=:resourceType "
+                    sqlN_tmp += "GROUP BY status "
+                    self.execute(sqlN_tmp, varMap)
                     nQueue = 0
                     nReady = 0
                     nRunning = 0
@@ -1207,7 +1245,11 @@ class DBProxy:
                     varMap = dict()
                     varMap[':computingSite'] = queueName
                     varMap[':status'] = WorkSpec.ST_running
-                    self.execute(sqlR, varMap)
+                    sqlR_tmp = sqlR
+                    if resourceType != 'ANY':
+                        varMap[':resourceType'] = resourceType
+                        sqlR_tmp += "AND resourceType=:resourceType "
+                    self.execute(sqlR_tmp, varMap)
                     nReFill, = self.cur.fetchone()
                     nReady += nReFill
                     # add
@@ -3156,7 +3198,9 @@ class DBProxy:
                     nSubmittedWorkers, = res
 
                 # set new value
-                value = max(value - nSubmittedWorkers, 0)
+                # value = max(value - nSubmittedWorkers, 0)
+                if value is None:
+                    value = 0
                 varMap = dict()
                 varMap[':nQueue'] = value
                 varMap[':siteName'] = site_name
@@ -3704,7 +3748,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_queue_status')
             tmpLog.debug('start')
             # sql to get
-            sqlQ = "SELECT queueName,nQueueLimitJob,nQueueLimitWorker,maxWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName,nQueueLimitWorker,maxWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName AND resourceType='ANY'"
             # get
             varMap = dict()
@@ -3712,9 +3756,8 @@ class DBProxy:
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             retMap = dict()
-            for computingSite, nQueueLimitJob, nQueueLimitWorker, maxWorkers in resQ:
+            for computingSite, nQueueLimitWorker, maxWorkers in resQ:
                 retMap.update({
-                    'nQueueLimitJob': nQueueLimitJob,
                     'nQueueLimitWorker': nQueueLimitWorker,
                     'maxWorkers': maxWorkers,
                 })
@@ -3738,9 +3781,9 @@ class DBProxy:
             tmpLog.debug('start')
             # get worker CE stats
             sqlW = "SELECT wt.status,wt.computingSite,wt.computingElement,COUNT(*) cnt "
-            sqlW += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
-            sqlW += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2) "
-            sqlW += "GROUP BY wt.status,wt.computingSite "
+            sqlW += "FROM {0} wt ".format(workTableName)
+            sqlW += "WHERE wt.computingSite=:siteName AND wt.status IN (:st1,:st2) "
+            sqlW += "GROUP BY wt.status,wt.computingElement "
             # get worker CE stats
             varMap = dict()
             varMap[':siteName'] = site_name
@@ -3768,3 +3811,140 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # add dialog message
+    def add_dialog_message(self, message, level, module_name, identifier=None):
+        try:
+            validLevels = ['DEBUG', 'INFO', 'ERROR', 'WARNING']
+            # set level
+            if level not in validLevels:
+                level = 'INFO'
+            levelNum = getattr(logging, level)
+            # get minimum level
+            try:
+                minLevel = harvester_config.propagator.minMessageLevel
+            except:
+                minLevel = None
+            if minLevel not in validLevels:
+                minLevel = 'WARNING'
+            minLevelNum = getattr(logging, minLevel)
+            # check
+            if levelNum < minLevelNum:
+                return True
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='add_dialog_message')
+            tmpLog.debug('start')
+            # delete old messages
+            sqlD = "DELETE FROM {0} ".format(diagTableName)
+            sqlD += "WHERE creationTime<:timeLimit "
+            varMap = dict()
+            varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+            self.execute(sqlD, varMap)
+            # commit
+            self.commit()
+            # make spec
+            diagSpec = DiagSpec()
+            diagSpec.moduleName = module_name
+            diagSpec.creationTime = datetime.datetime.utcnow()
+            diagSpec.messageLevel = level
+            try:
+                diagSpec.identifier = identifier[:100]
+            except:
+                pass
+            diagSpec.diagMessage = message[:500]
+            # insert
+            sqlI = "INSERT INTO {0} ({1}) ".format(diagTableName, DiagSpec.column_names())
+            sqlI += DiagSpec.bind_values_expression()
+            varMap = diagSpec.values_list()
+            self.execute(sqlI, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # get dialog messages to send
+    def get_dialog_messages_to_send(self, n_messages, lock_interval):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_dialog_messages_to_send')
+            tmpLog.debug('start')
+            # sql to select messages
+            sqlD = "SELECT diagID FROM {0} ".format(diagTableName)
+            sqlD += "WHERE (lockTime IS NULL OR lockTime<:timeLimit) "
+            sqlD += "ORDER BY diagID LIMIT {0} ".format(n_messages)
+            # sql to lock message
+            sqlL = "UPDATE {0} SET lockTime=:timeNow ".format(diagTableName)
+            sqlL += "WHERE diagID=:diagID "
+            sqlL += "AND (lockTime IS NULL OR lockTime<:timeLimit) "
+            # sql to get message
+            sqlM = "SELECT {0} FROM {1} ".format(DiagSpec.column_names(), diagTableName)
+            sqlM += "WHERE diagID=:diagID "
+            # select messages
+            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(seconds=lock_interval)
+            varMap = dict()
+            varMap[':timeLimit'] = timeLimit
+            self.execute(sqlD, varMap)
+            resD = self.cur.fetchall()
+            diagList = []
+            for diagID, in resD:
+                # lock
+                varMap = dict()
+                varMap[':diagID'] = diagID
+                varMap[':timeLimit'] = timeLimit
+                varMap[':timeNow'] = datetime.datetime.utcnow()
+                self.execute(sqlL, varMap)
+                nRow = self.cur.rowcount
+                if nRow == 1:
+                    # get
+                    varMap = dict()
+                    varMap[':diagID'] = diagID
+                    self.execute(sqlM, varMap)
+                    resM = self.cur.fetchone()
+                    # make spec
+                    diagSpec = DiagSpec()
+                    diagSpec.pack(resM)
+                    diagList.append(diagSpec)
+                # commit
+                self.commit()
+            tmpLog.debug('got {0} messages'.format(len(diagList)))
+            return diagList
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return []
+
+    # delete dialog messages
+    def delete_dialog_messages(self, ids):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='delete_dialog_messages')
+            tmpLog.debug('start')
+            # sql to delete message
+            sqlM = "DELETE FROM {0} ".format(diagTableName)
+            sqlM += "WHERE diagID=:diagID "
+            for diagID in ids:
+                # lock
+                varMap = dict()
+                varMap[':diagID'] = diagID
+                self.execute(sqlM, varMap)
+                # commit
+                self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False

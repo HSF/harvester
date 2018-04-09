@@ -17,7 +17,10 @@ class PandaQueueSpec(SpecBase):
                            'siteName:text / index',
                            'resourceType:text',
                            'nNewWorkers:integer',
-                           'uniqueName:text / unique'
+                           'uniqueName:text / unique',
+                           'nQueueLimitJobRatio:integer',
+                           'nQueueLimitJobMax:integer',
+                           'nQueueLimitJobMin:integer',
                            )
 
     # catchall resource type

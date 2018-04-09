@@ -26,13 +26,15 @@ class GoogleMonitor(PluginBase):
 
         try:
             result = compute.instances().list(project=PROJECT, zone=ZONE).execute()
-            baseLogger.debug('VM instances: {0}'.format(result))
 
-            vm_instances = result['items']
+            try:
+                vm_instances = result['items']
+            except KeyError:
+                # there are no VMs running
+                return [], {}
 
             # make a list with the VM names
             vm_names = map(lambda vm_instance: vm_instance['name'], vm_instances)
-            baseLogger.debug('VM names: {0}'.format(vm_names))
 
             # make a dictionary so we can retrieve a VM by its name
             vm_name_to_status = {}
@@ -48,7 +50,6 @@ class GoogleMonitor(PluginBase):
         """
         This method takes a list of WorkSpecs as input argument and returns a list of worker's statuses.
         Nth element in the return list corresponds to the status of Nth WorkSpec in the given list.
-        Worker status needs to be one of
 
         :param worker_list: a list of work specs instances
         :return: A tuple containing the return code (True for success, False otherwise) and a list of worker's statuses
@@ -68,17 +69,21 @@ class GoogleMonitor(PluginBase):
 
         ret_list = []
         for batch_ID in batch_IDs:
-            tmp_log = core_utils.make_logger(baseLogger, 'batch ID={0}'.format(batch_ID), method_name='check_workers')
+            tmp_log = self.make_logger(baseLogger, 'batch ID={0}'.format(batch_ID), method_name='check_workers')
 
             if batch_ID not in vm_names:
-                new_status = WorkSpec.ST_missed
+                new_status = WorkSpec.ST_finished
+                message = 'VM not found'
             else:
                 try:
                     new_status = self.vm_to_worker_status[vm_name_to_status[batch_ID]]
+                    message = 'VM status returned by GCE API'
                 except KeyError:
-                    new_status = WorkSpec.ST_failed
+                    new_status = WorkSpec.ST_missed
+                    message = 'Unknown status to Harvester: {0}'.format(vm_name_to_status[batch_ID])
 
             tmp_log.debug('new_status={0}'.format(new_status))
-            ret_list.append((new_status, ''))
+            ret_list.append((new_status, message))
 
+        baseLogger.debug('ret_list: {0}'.format(ret_list))
         return True, ret_list

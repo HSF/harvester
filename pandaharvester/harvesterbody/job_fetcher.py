@@ -26,7 +26,7 @@ class JobFetcher(AgentBase):
     # main loop
     def run(self):
         while True:
-            mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
             mainLog.debug('getting number of jobs to be fetched')
             # get number of jobs to be fetched
             nJobsPerQueue = self.dbProxy.get_num_jobs_to_fetch(harvester_config.jobfetcher.nQueues,
@@ -37,8 +37,8 @@ class JobFetcher(AgentBase):
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     continue
-                tmpLog = core_utils.make_logger(_logger, 'queueName={0}'.format(queueName),
-                                                method_name='run')
+                tmpLog = self.make_logger(_logger, 'queueName={0}'.format(queueName),
+                                          method_name='run')
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 # upper limit
@@ -53,7 +53,7 @@ class JobFetcher(AgentBase):
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
                 time_getJobs = time.time() - start_getJobs
-                tmpLog.debug('got {0} jobs with {1} in {2} sec.'.format(len(jobs), errStr, time_getJobs))
+                tmpLog.info('got {0} jobs with {1}'.format(len(jobs), errStr))
                 # convert to JobSpec
                 if len(jobs) > 0:
                     jobSpecs = []

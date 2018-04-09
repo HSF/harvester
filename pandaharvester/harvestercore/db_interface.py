@@ -59,3 +59,7 @@ class DBInterface:
     # get worker CE stats
     def get_worker_ce_stats(self, site_name):
         return self.dbProxy.get_worker_ce_stats(site_name)
+
+    # add dialog message
+    def add_dialog_message(self, message, level, module_name, identifier=None):
+        return self.dbProxy.add_dialog_message(message, level, module_name, identifier)

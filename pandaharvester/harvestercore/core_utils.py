@@ -48,7 +48,7 @@ def setup_logger(name=None):
 
 
 # make logger
-def make_logger(tmp_log, token=None, method_name=None):
+def make_logger(tmp_log, token=None, method_name=None, hook=None):
     # get method name of caller
     if method_name is None:
         tmpStr = inspect.stack()[1][3]
@@ -58,7 +58,7 @@ def make_logger(tmp_log, token=None, method_name=None):
         tmpStr += ' <{0}>'.format(token)
     else:
         tmpStr += ' :'.format(token)
-    newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile)
+    newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile, hook=hook)
     return newLog
 
 
@@ -255,6 +255,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                         jobSpec.add_event(eventSpec, None)
             statusInJobAttr = jobSpec.get_job_status_from_attributes()
             jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(statusInJobAttr)
+            if workSpec.pilot_closed:
+                jobSpec.set_pilot_closed()
             if workSpec.new_status:
                 jobSpec.trigger_propagation()
     elif map_type == WorkSpec.MT_MultiWorkers:
@@ -365,6 +367,11 @@ class StopWatch(object):
         diff = datetime.datetime.utcnow() - self.startTime
         return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600,
                                                diff.microseconds // 1000)
+
+    # get elapsed time in seconds
+    def get_elapsed_time_in_sec(self):
+        diff = datetime.datetime.utcnow() - self.startTime
+        return diff.seconds + diff.days * 24 * 3600
 
     # reset
     def reset(self):

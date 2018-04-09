@@ -116,9 +116,10 @@ def workspec2arcjob(workspec):
     job = arc.Job()
     try:
         wsattrs = workspec.workAttributes['arcjob']
+        proxyrole = workspec.workAttributes['proxyrole']
     except:
         # Job was not submitted yet
-        return (job, arc.Time())
+        return (job, arc.Time(), None)
 
     for attr in dir(job):
         if attr not in wsattrs or attr == 'CreationTime':
@@ -138,7 +139,7 @@ def workspec2arcjob(workspec):
             setattr(job, attr, ssm)
         else:
             setattr(job, attr, attrtype(str(wsattrs[attr])))
-    return (job, arc.Time(str(wsattrs['ModificationTime'])))
+    return (job, arc.Time(str(wsattrs['ModificationTime'])), proxyrole)
 
 def arcjob2workspec(arcjob, workspec):
     '''Fill WorkSpec workAttributes with ARC job attributes'''

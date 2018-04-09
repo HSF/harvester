@@ -35,7 +35,7 @@ class DummySubmitter(PluginBase):
         False for permanent failures, None for temporary failures) and dialog message
         :rtype: [(bool, string),]
         """
-        tmpLog = core_utils.make_logger(baseLogger, method_name='submit_workers')
+        tmpLog = self.make_logger(baseLogger, method_name='submit_workers')
         tmpLog.debug('start nWorkers={0}'.format(len(workspec_list)))
         retList = []
         for workSpec in workspec_list:

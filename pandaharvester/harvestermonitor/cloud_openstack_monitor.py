@@ -58,7 +58,7 @@ class CloudOpenstackMonitor(PluginBase):
     # kill a vm
     def _kill_a_vm(self, vm_id):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_kill_a_vm')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_kill_a_vm')
         try:
             self.vm_client.nova.delete(vm_id)
         except Exception as _e:
@@ -74,7 +74,7 @@ class CloudOpenstackMonitor(PluginBase):
     # check a vm
     def _check_a_vm(self, workspec):
         # set logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_check_a_vm')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_check_a_vm')
 
         ## initialization
         vm_id = workspec.batchID

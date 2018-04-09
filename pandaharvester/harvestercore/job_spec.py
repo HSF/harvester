@@ -48,7 +48,8 @@ class JobSpec(SpecBase):
                            'nWorkers:integer',
                            'nWorkersLimit:integer',
                            'submissionAttempts:integer',
-                           'jobsetID:integer'
+                           'jobsetID:integer',
+                           'pilotClosed:integer'
                            )
 
     # attributes initialized with 0
@@ -168,7 +169,7 @@ class JobSpec(SpecBase):
     def is_final_status(self, job_status=None):
         if job_status is None:
             job_status = self.status
-        return job_status in ['finished', 'failed', 'cancelled']
+        return job_status in ['finished', 'failed', 'cancelled', 'missed']
 
     # get status
     def get_status(self):
@@ -433,3 +434,11 @@ class JobSpec(SpecBase):
         if self.subStatus in ['missed']:
             return True
         return False
+
+    # set pilot_closed
+    def set_pilot_closed(self):
+        self.pilotClosed = 1
+
+    # check if pilot_closed
+    def is_pilot_closed(self):
+        return self.pilotClosed == 1

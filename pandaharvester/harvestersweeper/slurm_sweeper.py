@@ -28,8 +28,8 @@ class SlurmSweeper(PluginBase):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='kill_worker')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                  method_name='kill_worker')
         # kill command
         comStr = 'scancel {0}'.format(workspec.batchID)
         # execute
@@ -56,8 +56,8 @@ class SlurmSweeper(PluginBase):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='sweep_worker')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                  method_name='sweep_worker')
         # clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)

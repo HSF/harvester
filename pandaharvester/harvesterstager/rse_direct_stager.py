@@ -28,8 +28,8 @@ class RseDirectStager(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='zip_output')
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='zip_output')
         tmpLog.debug('start')
         try:
             for fileSpec in jobspec.outFiles:

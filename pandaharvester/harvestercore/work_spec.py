@@ -93,6 +93,7 @@ class WorkSpec(SpecBase):
         object.__setattr__(self, 'jobspec_list', None)
         object.__setattr__(self, 'pandaid_list', None)
         object.__setattr__(self, 'new_status', False)
+        object.__setattr__(self, 'pilot_closed', False)
 
     # set status
     def set_status(self, value):
@@ -136,7 +137,7 @@ class WorkSpec(SpecBase):
             jobStatus = status
             jobSubStatus = 'to_transfer'
         elif status in [self.ST_missed]:
-            jobStatus = 'failed'
+            jobStatus = 'missed'
             jobSubStatus = status
         else:
             jobStatus = 'running'
@@ -299,3 +300,7 @@ class WorkSpec(SpecBase):
     # check if has pilot error
     def has_pilot_error(self):
         return self.has_work_attribute('pilotErrorCode')
+
+    # set pilot_closed
+    def set_pilot_closed(self):
+        self.pilot_closed = True

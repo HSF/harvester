@@ -15,7 +15,7 @@ class SAGAMonitor(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
+        tmpLog = self.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
 
     # check workers
@@ -33,8 +33,8 @@ class SAGAMonitor(PluginBase):
         for workSpec in workspec_list:
             # make logger
             errStr = ''
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
-                                            method_name='check_workers')
+            tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                      method_name='check_workers')
             tmpLog.debug("SAGA monitor started")
             if workSpec.batchID:
                 saga_submission_id = '[{0}]-[{1}]'.format(self.adaptor, workSpec.batchID)

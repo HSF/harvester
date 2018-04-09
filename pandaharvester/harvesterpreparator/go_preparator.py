@@ -30,7 +30,7 @@ class GoPreparator(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # create Globus Transfer Client
-        tmpLog = core_utils.make_logger(_logger, method_name='GoPreparator __init__ ')
+        tmpLog = self.make_logger(_logger, method_name='GoPreparator __init__ ')
         try:
             self.tc = None
             # need to get client_id and refresh_token from PanDA server via harvester cache mechanism
@@ -58,8 +58,8 @@ class GoPreparator(PluginBase):
     # check status
     def check_status(self, jobspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='check_status')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_status')
         # get groups of input files except ones already in ready state
         transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
         #print type(transferGroups)," ",transferGroups
@@ -99,8 +99,8 @@ class GoPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='trigger_preparation')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='trigger_preparation')
         tmpLog.debug('start')               
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:

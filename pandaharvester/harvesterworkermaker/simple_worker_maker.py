@@ -17,8 +17,8 @@ class SimpleWorkerMaker(PluginBase):
 
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, resource_type):
-        tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
-                                        method_name='make_worker')
+        tmpLog = self.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
+                                  method_name='make_worker')
 
         tmpLog.debug('jobspec_list: {0}'.format(jobspec_list))
 

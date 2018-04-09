@@ -35,8 +35,8 @@ class CobaltMonitor (PluginBase):
             # print "pprint(vars(workSpec))"
             # pprint(vars(workSpec))
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
-                                            method_name='check_workers')
+            tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
+                                      method_name='check_workers')
             # first command
             comStr = "qstat {0}".format(workSpec.batchID)
             # first check
