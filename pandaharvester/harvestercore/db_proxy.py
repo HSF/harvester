@@ -1495,6 +1495,8 @@ class DBProxy:
                     workSpec.pandaid_list = []
                     for tmpPandaID, in resP:
                         workSpec.pandaid_list.append(tmpPandaID)
+                    if len(workSpec.pandaid_list) > 0:
+                        workSpec.nJobs = len(workSpec.pandaid_list)
                     # lock worker
                     varMap = dict()
                     varMap[':workerID'] = tmpWorkID
@@ -2012,6 +2014,9 @@ class DBProxy:
             sqlG += "WHERE computingSite=:queueName AND (status=:status_ready OR (status=:status_running "
             sqlG += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0)) "
             sqlG += "ORDER BY modificationTime LIMIT {0} ".format(n_ready)
+            # sql to get associated PandaIDs
+            sqlP = "SELECT COUNT(*) cnt FROM {0} ".format(jobWorkerTableName)
+            sqlP += "WHERE workerID=:workerID "
             # get workers
             varMap = dict()
             varMap[':status_ready'] = WorkSpec.ST_ready
@@ -2023,6 +2028,13 @@ class DBProxy:
             for res in resList:
                 workSpec = WorkSpec()
                 workSpec.pack(res)
+                # get number of jobs
+                varMap = dict()
+                varMap[':workerID'] = workSpec.workerID
+                self.execute(sqlP, varMap)
+                resP = self.cur.fetchone()
+                if resP is not None and resP[0] > 0:
+                    workSpec.nJobs = resP[0]
                 retVal.append(workSpec)
             # commit
             self.commit()
