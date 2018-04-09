@@ -99,17 +99,22 @@ class WorkerAdjuster:
                         tmpLog.debug(retMsg)
                         pass
                     else:
-                        # get max number of queued workers
-                        maxQueuedWorkers = 0
-                        if nQueueLimit > 0:
+
+                        maxQueuedWorkers = None
+
+                        if nQueueLimit > 0:  # there is a limit set for the queue
                             maxQueuedWorkers = nQueueLimit
-                        if maxQueuedWorkers == 0:
-                            if nNewWorkersDef is not None:
-                                # slave mode
-                                maxQueuedWorkers = nNewWorkersDef + nQueue
+
+                        if nNewWorkersDef is not None:  # don't surpass limits given centrally
+                            maxQueuedWorkers_slave = nNewWorkersDef + nQueue
+                            if maxQueuedWorkers is not None:
+                                maxQueuedWorkers = min(maxQueuedWorkers_slave, maxQueuedWorkers)
                             else:
-                                # use default value
-                                maxQueuedWorkers = 1
+                                maxQueuedWorkers = maxQueuedWorkers_slave
+
+                        if maxQueuedWorkers is None:  # no value found, use default value
+                            maxQueuedWorkers = 1
+
                         # new workers
                         nNewWorkers = max(maxQueuedWorkers - nQueue, 0)
                         tmpLog.debug('setting nNewWorkers to {0} in maxQueuedWorkers calculation'
