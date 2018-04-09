@@ -82,7 +82,8 @@ class WorkSpec(SpecBase):
                            'resourceType:text',
                            'nativeExitCode:integer',
                            'nativeStatus:text',
-                           'diagMessage:text'
+                           'diagMessage:text',
+                           'nJobs:integer'
                            )
 
     # constructor
@@ -125,6 +126,16 @@ class WorkSpec(SpecBase):
     # get job spec list
     def get_jobspec_list(self):
         return self.jobspec_list
+
+    # set number of jobs with jobspec list
+    def set_num_jobs_with_list(self):
+        if self.jobspec_list is None:
+            return
+        if len(self.jobspec_list) == 0:
+            return
+        if self.nJobs is None:
+            self.nJobs = 0
+        self.nJobs += len(self.jobspec_list)
 
     # convert worker status to job status
     def convert_to_job_status(self, status=None):
@@ -186,7 +197,9 @@ class WorkSpec(SpecBase):
                      'resourceType',
                      'nativeExitCode',
                      'nativeStatus',
-                     'diagMessage'
+                     'diagMessage',
+                     'nJobs',
+                     'computingElement'
                      ]:
             val = getattr(self, attr)
             if val is not None:
