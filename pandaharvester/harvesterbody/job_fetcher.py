@@ -104,7 +104,7 @@ class JobFetcher(AgentBase):
                     strart_insertdb = time.time()
                     self.dbProxy.insert_jobs(jobSpecs)
                     time_insertdb = time.time() - strart_insertdb
-                    tmpLog.debug('Insert of {0} jobs took {} sec.'.format(len(jobSpecs), time_insertdb))
+                    tmpLog.debug('Insert of {0} jobs took {1} sec.'.format(len(jobSpecs), time_insertdb))
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.jobfetcher.sleepTime):
