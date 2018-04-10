@@ -246,9 +246,6 @@ sleepTime = 60
 # number of threads
 nThreads = 3
 
-# max number of workers per queue to try in one cycle
-#maxWorkers = 500
-
 # max number of queues to try in one cycle
 nQueues = 3
 
