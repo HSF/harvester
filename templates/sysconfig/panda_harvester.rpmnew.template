@@ -1,9 +1,13 @@
+# define virtual env if not using python venv
+#export VIRTUAL_ENV=/usr
+
 # panda home
 export PANDA_HOME=${VIRTUAL_ENV}
 
 # timezone
 export TZ=UTC
 
+# python site packages
 export SITE_PACKAGES_PATH=`python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"`
 
 # import panda modules
