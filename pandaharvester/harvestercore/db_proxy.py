@@ -3162,6 +3162,8 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='set_queue_limit')
             tmpLog.debug('start')
 
+            # sql to reset queue limits
+
             # sql to get resource types
             sql_get_resource = "SELECT resourceType FROM {0} ".format(pandaQueueTableName)
             sql_get_resource += "WHERE siteName=:siteName "

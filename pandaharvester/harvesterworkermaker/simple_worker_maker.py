@@ -3,6 +3,8 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
+import datetime
+
 
 # simple maker
 
@@ -23,6 +25,7 @@ class SimpleWorkerMaker(PluginBase):
         tmpLog.debug('jobspec_list: {0}'.format(jobspec_list))
 
         workSpec = WorkSpec()
+        workSpec.creationTime = datetime.datetime.utcnow()
 
         # get the queue configuration from the DB
         panda_queues_dict = PandaQueuesDict()
