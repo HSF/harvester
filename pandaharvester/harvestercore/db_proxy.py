@@ -3182,7 +3182,9 @@ class DBProxy:
             sql_count_workers += "ANd pq.resourceType=:resourceType "
 
             # reset nqueued for all resource types
-            varMap = {':zero': 0}
+            varMap = dict()
+            varMap[':zero'] = 0
+            varMap[':siteName'] = site_name
             self.execute(sql_reset, varMap)
 
             # get resource types
