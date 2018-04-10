@@ -3162,7 +3162,9 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='set_queue_limit')
             tmpLog.debug('start')
 
-            # sql to reset queue limits
+            # sql to reset queue limits before setting new command to avoid old values being repeated again and again
+            sql_reset = "UPDATE {0} ".format(pandaQueueTableName)
+            sql_reset += "SET nNewWorkers=:zero WHERE siteName=:siteName "
 
             # sql to get resource types
             sql_get_resource = "SELECT resourceType FROM {0} ".format(pandaQueueTableName)
@@ -3178,6 +3180,10 @@ class DBProxy:
             sql_count_workers += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
             sql_count_workers += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
             sql_count_workers += "ANd pq.resourceType=:resourceType "
+
+            # reset nqueued for all resource types
+            varMap = {':zero': 0}
+            self.execute(sql_reset, varMap)
 
             # get resource types
             varMap = dict()
