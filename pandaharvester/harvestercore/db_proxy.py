@@ -1498,6 +1498,8 @@ class DBProxy:
                     workSpec.pandaid_list = []
                     for tmpPandaID, in resP:
                         workSpec.pandaid_list.append(tmpPandaID)
+                    if len(workSpec.pandaid_list) > 0:
+                        workSpec.nJobs = len(workSpec.pandaid_list)
                     # lock worker
                     varMap = dict()
                     varMap[':workerID'] = tmpWorkID
@@ -2015,6 +2017,9 @@ class DBProxy:
             sqlG += "WHERE computingSite=:queueName AND (status=:status_ready OR (status=:status_running "
             sqlG += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0)) "
             sqlG += "ORDER BY modificationTime LIMIT {0} ".format(n_ready)
+            # sql to get associated PandaIDs
+            sqlP = "SELECT COUNT(*) cnt FROM {0} ".format(jobWorkerTableName)
+            sqlP += "WHERE workerID=:workerID "
             # get workers
             varMap = dict()
             varMap[':status_ready'] = WorkSpec.ST_ready
@@ -2026,6 +2031,13 @@ class DBProxy:
             for res in resList:
                 workSpec = WorkSpec()
                 workSpec.pack(res)
+                # get number of jobs
+                varMap = dict()
+                varMap[':workerID'] = workSpec.workerID
+                self.execute(sqlP, varMap)
+                resP = self.cur.fetchone()
+                if resP is not None and resP[0] > 0:
+                    workSpec.nJobs = resP[0]
                 retVal.append(workSpec)
             # commit
             self.commit()
@@ -3153,6 +3165,10 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='set_queue_limit')
             tmpLog.debug('start')
 
+            # sql to reset queue limits before setting new command to avoid old values being repeated again and again
+            sql_reset = "UPDATE {0} ".format(pandaQueueTableName)
+            sql_reset += "SET nNewWorkers=:zero WHERE siteName=:siteName "
+
             # sql to get resource types
             sql_get_resource = "SELECT resourceType FROM {0} ".format(pandaQueueTableName)
             sql_get_resource += "WHERE siteName=:siteName "
@@ -3167,6 +3183,12 @@ class DBProxy:
             sql_count_workers += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
             sql_count_workers += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
             sql_count_workers += "ANd pq.resourceType=:resourceType "
+
+            # reset nqueued for all resource types
+            varMap = dict()
+            varMap[':zero'] = 0
+            varMap[':siteName'] = site_name
+            self.execute(sql_reset, varMap)
 
             # get resource types
             varMap = dict()

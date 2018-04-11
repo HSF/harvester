@@ -179,6 +179,7 @@ class Submitter(AgentBase):
                                                 workSpec.nJobsToReFill = None
                                                 for jobSpec in okJobs[workSpec.nJobsToReFill:]:
                                                     pandaIDs.add(jobSpec.PandaID)
+                                            workSpec.set_num_jobs_with_list()
                                         # map type
                                         workSpec.mapType = queueConfig.mapType
                                         # queue name
@@ -321,7 +322,7 @@ class Submitter(AgentBase):
         newSpecList = []
         workersToSubmit = []
         for workSpec in workspec_list:
-            if workSpec.status == WorkSpec.ST_ready:
+            if workSpec.status in [WorkSpec.ST_ready, WorkSpec.ST_running]:
                 newSpecList.append(workSpec)
                 retList.append(True)
                 strList.append('')

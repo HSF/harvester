@@ -591,9 +591,20 @@ class SharedFileMessenger(PluginBase):
         # json file
         jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
         tmpLog.debug('looking for heartbeat file {0}'.format(jsonFilePath))
-        if not os.path.exists(jsonFilePath):
-            tmpLog.debug('not found')
-            return None
+        if not os.path.exists(jsonFilePath): # no heartbeat file was found
+            tmpLog.debug('startTime: {0}, now: {1}'.format(workspec.startTime, datetime.datetime.utcnow()))
+            if not workspec.startTime:
+                # the worker didn't even have time to start
+                tmpLog.debug('heartbeat not found, but no startTime yet for worker')
+                return True
+            elif datetime.datetime.utcnow() - workspec.startTime < datetime.timedelta(minutes=time_limit):
+                # the worker is too young and maybe didn't have time to generate the heartbeat
+                tmpLog.debug('heartbeat not found, but worker too young')
+                return True
+            else:
+                # the worker is old and the heartbeat should be expected
+                tmpLog.debug('not found')
+                return None
         try:
             mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(jsonFilePath))
             tmpLog.debug('last modification time : {0}'.format(mtime))

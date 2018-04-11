@@ -180,63 +180,86 @@ class Communicator:
                 errStr = core_utils.dump_error_message(tmpLog, tmpRes)
         return [], errStr
 
-    # update jobs TOBEFIXED to use bulk method
+    # update jobs
     def update_jobs(self, jobspec_list):
+        tmpLogG = core_utils.make_logger(_logger, method_name='update_jobs')
+        tmpLogG.debug('update {0} jobs'.format(len(jobspec_list)))
         retList = []
-
+        # update events
         for jobSpec in jobspec_list:
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
-                                            method_name='update_jobs')
-            tmpLog.debug('start')
-            # update events
             eventRanges, eventSpecs = jobSpec.to_event_data()
             if eventRanges != []:
-                tmpRet = self.update_event_ranges(eventRanges, tmpLog)
+                tmpLogG.debug('update events for PandaID={0}'.format(jobSpec.PandaID))
+                tmpRet = self.update_event_ranges(eventRanges, tmpLogG)
                 if tmpRet['StatusCode'] == 0:
                     for eventSpec, retVal in zip(eventSpecs, tmpRet['Returns']):
                         if retVal in [True, False] and eventSpec.is_final_status():
                             eventSpec.subStatus = 'done'
-            # update job
-            data = jobSpec.get_job_attributes_for_panda()
-            data['jobId'] = jobSpec.PandaID
-            data['state'] = jobSpec.get_status()
-            data['attemptNr'] = jobSpec.attemptNr
-            data['jobSubStatus'] = jobSpec.subStatus
-            # change cancelled to failed to be accepted by panda server
-            if data['state'] in ['cancelled', 'missed']:
-                if jobSpec.is_pilot_closed():
-                    data['jobSubStatus'] = 'pilot_closed'
-                else:
-                    data['jobSubStatus'] = data['state']
-                data['state'] = 'failed'
-            if jobSpec.startTime is not None and 'startTime' not in data:
-                data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
-            if jobSpec.endTime is not None and 'endTime' not in data:
-                data['endTime'] = jobSpec.endTime.strftime('%Y-%m-%d %H:%M:%S')
-            if jobSpec.nCore is not None:
-                data['coreCount'] = jobSpec.nCore
-            if jobSpec.is_final_status() and jobSpec.status == jobSpec.get_status():
-                if jobSpec.metaData is not None:
-                    data['metaData'] = json.dumps(jobSpec.metaData)
-                if jobSpec.outputFilesToReport is not None:
-                    data['xml'] = jobSpec.outputFilesToReport
-            tmpLog.debug('data={0}'.format(str(data)))
-            tmpStat, tmpRes = self.post_ssl('updateJob', data)
-            retMap = None
+        # update jobs in bulk
+        nLookup = 100
+        iLookup = 0
+        while iLookup < len(jobspec_list):
+            dataList = []
+            jobSpecSubList = jobspec_list[iLookup:iLookup+nLookup]
+            for jobSpec in jobSpecSubList:
+                data = jobSpec.get_job_attributes_for_panda()
+                data['jobId'] = jobSpec.PandaID
+                data['state'] = jobSpec.get_status()
+                data['attemptNr'] = jobSpec.attemptNr
+                data['jobSubStatus'] = jobSpec.subStatus
+                # change cancelled to failed to be accepted by panda server
+                if data['state'] in ['cancelled', 'missed']:
+                    if jobSpec.is_pilot_closed():
+                        data['jobSubStatus'] = 'pilot_closed'
+                    else:
+                        data['jobSubStatus'] = data['state']
+                    data['state'] = 'failed'
+                if jobSpec.startTime is not None and 'startTime' not in data:
+                    data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
+                if jobSpec.endTime is not None and 'endTime' not in data:
+                    data['endTime'] = jobSpec.endTime.strftime('%Y-%m-%d %H:%M:%S')
+                if jobSpec.nCore is not None:
+                    data['coreCount'] = jobSpec.nCore
+                if jobSpec.is_final_status() and jobSpec.status == jobSpec.get_status():
+                    if jobSpec.metaData is not None:
+                        data['metaData'] = json.dumps(jobSpec.metaData)
+                    if jobSpec.outputFilesToReport is not None:
+                        data['xml'] = jobSpec.outputFilesToReport
+                dataList.append(data)
+            tmpStat, tmpRes = self.post_ssl('updateJobsInBulk', {'jobList': json.dumps(dataList)})
+            retMaps = None
             errStr = ''
             if tmpStat is False:
-                errStr = core_utils.dump_error_message(tmpLog, tmpRes)
+                errStr = core_utils.dump_error_message(tmpLogG, tmpRes)
             else:
                 try:
-                    retMap = tmpRes.json()
+                    tmpStat, retMaps = tmpRes.json()
+                    if tmpStat is False:
+                        tmpLogG.error('updateJobsInBulk failed with {0}'.format(retMaps))
+                        retMaps = None
                 except:
-                    errStr = core_utils.dump_error_message(tmpLog)
-            if retMap is None:
+                    errStr = core_utils.dump_error_message(tmpLogG)
+            if retMaps is None:
                 retMap = {}
-                retMap['StatusCode'] = 999
-                retMap['ErrorDiag'] = errStr
-            retList.append(retMap)
-            tmpLog.debug('done with {0}'.format(str(retMap)))
+                retMap['content'] = {}
+                retMap['content']['StatusCode'] = 999
+                retMap['content']['ErrorDiag'] = errStr
+                retMaps = [json.dumps(retMap)] * len(jobSpecSubList)
+            for jobSpec, retMap, data in zip(jobSpecSubList, retMaps, dataList):
+                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                                                method_name='update_jobs')
+                try:
+                    retMap = json.loads(retMap['content'])
+                except:
+                    errStr = 'falied to load json'
+                    retMap = {}
+                    retMap['StatusCode'] = 999
+                    retMap['ErrorDiag'] = errStr
+                tmpLog.debug('data={0}'.format(str(data)))
+                tmpLog.debug('done with {0}'.format(str(retMap)))
+                retList.append(retMap)
+            iLookup += nLookup
+        tmpLogG.debug('done')
         return retList
 
     # get events
