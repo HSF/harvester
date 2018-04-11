@@ -153,7 +153,7 @@ class DBProxy:
                     self.verbLog.debug('thr={0} release'.format(self.thrName))
                 conLock.release()
         # return
-        self.verbLog.debug('thr={0} | {1} | sql=[{2}]'.format(self.thrName, sw.get_elapsed_time(), newSQL))
+        self.verbLog.debug('thr={0}  {1}  sql=[{2}]'.format(self.thrName, sw.get_elapsed_time(), newSQL.replace('\n', ' ').strip()))
         return retVal
 
     # wrapper for executemany

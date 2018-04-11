@@ -64,8 +64,14 @@ class Propagator(AgentBase):
                             retList.append({'StatusCode': 0, 'command': None})
                     else:
                         jobListToUpdate.append(tmpJobSpec)
+                start_checkjobs = time.time()
                 retList += self.communicator.check_jobs(jobListToCheck)
+                time_checkjobs = time.time() - start_checkjobs
+                mainLog.debug('check_jobs for {0} jobs took {1} sec.'.format(len(jobListToCheck), time_checkjobs))
+                start_updatejobs = time.time()
                 retList += self.communicator.update_jobs(jobListToUpdate)
+                time_updatejobs = time.time() - start_updatejobs
+                mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate), time_updatejobs))
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
                     if tmpRet['StatusCode'] == 0:

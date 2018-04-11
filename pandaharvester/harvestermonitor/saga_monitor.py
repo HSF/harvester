@@ -1,6 +1,7 @@
 import radical.utils
 import saga
 import os
+import time
 from datetime import datetime
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -27,7 +28,11 @@ class SAGAMonitor(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and a list of worker's statuses.
         :rtype: (bool, [string,])
         """
-        job_service = saga.job.Service(self.adaptor)
+        try:
+            job_service = saga.job.Service(self.adaptor)
+        except saga.SagaException as ex:
+            time.sleep(30)
+            self.check_workers(workspec_list)
         sagadateformat_str = '%a %b %d %H:%M:%S %Y'
         retList = []
         for workSpec in workspec_list:

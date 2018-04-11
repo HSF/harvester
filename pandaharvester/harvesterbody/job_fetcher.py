@@ -53,7 +53,7 @@ class JobFetcher(AgentBase):
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
                 time_getJobs = time.time() - start_getJobs
-                tmpLog.info('got {0} jobs with {1}'.format(len(jobs), errStr))
+                tmpLog.info('got {0} jobs with {1} took {2} sec.'.format(len(jobs), errStr, time_getJobs))
                 # convert to JobSpec
                 if len(jobs) > 0:
                     jobSpecs = []

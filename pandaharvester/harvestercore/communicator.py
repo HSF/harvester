@@ -89,7 +89,7 @@ class Communicator:
                                 cert=cert)
             req_time = time.time() - req_time_start
             if self.verbose:
-                tmpLog.debug('exec={0} code={1} return={2} took={3} sec.'.format(tmpExec, res.status_code, res.text, req_time))
+                tmpLog.debug('exec={0} code={1} took={3} sec. return={2}'.format(tmpExec, res.status_code, len(res.text), req_time))
             if res.status_code == 200:
                 return True, res
             else:
