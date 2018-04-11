@@ -154,7 +154,7 @@ class GoogleVM():
                          },
                          {
                              'key': 'logs_url_r',
-                             'value': '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_R, 'updateLog')
+                             'value': harvester_config.pandacon.pandaCacheURL_R
                          }
                      ]
              }
