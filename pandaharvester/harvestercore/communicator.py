@@ -105,7 +105,7 @@ class Communicator:
             tmpLog = None
             tmpExec = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger, method_name='post_ssl')
+                tmpLog = core_utils.make_logger(_logger, method_name='put_ssl')
                 tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, path)
             if self.verbose:

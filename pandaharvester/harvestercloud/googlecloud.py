@@ -147,6 +147,14 @@ class GoogleVM():
                          {
                              'key': 'auth_token',
                              'value': self.harvester_token.generate(payload={'sub': str(self.work_spec.batchID)})
+                         },
+                         {
+                             'key': 'logs_url_w',
+                             'value': '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, 'updateLog')
+                         },
+                         {
+                             'key': 'logs_url_r',
+                             'value': '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_R, 'updateLog')
                          }
                      ]
              }
