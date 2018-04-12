@@ -3,6 +3,7 @@ Connection to the PanDA server
 
 """
 import ssl
+
 try:
     # disable SNI for TLSV1_UNRECOGNIZED_NAME before importing requests
     ssl.HAS_SNI = False
@@ -18,6 +19,7 @@ import traceback
 from future.utils import iteritems
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
+
 try:
     requests.packages.urllib3.disable_warnings()
 except:
@@ -89,7 +91,7 @@ class Communicator:
                                 cert=cert)
             req_time = time.time() - req_time_start
             if self.verbose:
-                tmpLog.debug('exec={0} code={1} took={3} sec. return={2}'.format(tmpExec, res.status_code, len(res.text), req_time))
+                tmpLog.debug('exec={0} code={1} took={3} sec. return={2}'.format(tmpExec, res.status_code, res.text, req_time))
             if res.status_code == 200:
                 return True, res
             else:
@@ -107,7 +109,7 @@ class Communicator:
             tmpLog = None
             tmpExec = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger, method_name='post_ssl')
+                tmpLog = core_utils.make_logger(_logger, method_name='put_ssl')
                 tmpExec = inspect.stack()[1][3]
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, path)
             if self.verbose:
@@ -182,6 +184,7 @@ class Communicator:
 
     # update jobs
     def update_jobs(self, jobspec_list):
+        sw = core_utils.get_stopwatch()
         tmpLogG = core_utils.make_logger(_logger, method_name='update_jobs')
         tmpLogG.debug('update {0} jobs'.format(len(jobspec_list)))
         retList = []
@@ -200,7 +203,7 @@ class Communicator:
         iLookup = 0
         while iLookup < len(jobspec_list):
             dataList = []
-            jobSpecSubList = jobspec_list[iLookup:iLookup+nLookup]
+            jobSpecSubList = jobspec_list[iLookup:iLookup + nLookup]
             for jobSpec in jobSpecSubList:
                 data = jobSpec.get_job_attributes_for_panda()
                 data['jobId'] = jobSpec.PandaID
@@ -259,7 +262,7 @@ class Communicator:
                 tmpLog.debug('done with {0}'.format(str(retMap)))
                 retList.append(retMap)
             iLookup += nLookup
-        tmpLogG.debug('done')
+        tmpLogG.debug('done' + sw.get_elapsed_time())
         return retList
 
     # get events
@@ -351,7 +354,7 @@ class Communicator:
             except KeyError:
                 core_utils.dump_error_message(_logger, tmp_res)
         return False
-    
+
     # get proxy
     def get_proxy(self, voms_role, cert=None):
         retVal = None
@@ -474,7 +477,7 @@ class Communicator:
         iLookup = 0
         while iLookup < len(jobspec_list):
             ids = []
-            for jobSpec in jobspec_list[iLookup:iLookup+nLookup]:
+            for jobSpec in jobspec_list[iLookup:iLookup + nLookup]:
                 ids.append(str(jobSpec.PandaID))
             iLookup += nLookup
             data = dict()
