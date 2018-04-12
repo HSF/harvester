@@ -348,6 +348,8 @@ class JobSpec(SpecBase):
         panda_attributes = set(panda_attributes)
         for aName, aValue in iteritems(self.jobAttributes):
             if aName in panda_attributes:
+                if type(aValue) in (int, long):
+                    aValue = str(aValue)
                 data[aName] = aValue
         return data
 

@@ -91,11 +91,12 @@ class DBProxy:
     # convert param dict to list
     def convert_params(self, sql, varmap):
         # lock database if application side lock is used
-        if self.usingAppLock \
-                and re.search('^INSERT', sql, re.I) is not None \
-                or re.search('^UPDATE', sql, re.I) is not None \
-                or re.search(' FOR UPDATE', sql, re.I) is not None \
-                or re.search('^DELETE', sql, re.I) is not None:
+        if self.usingAppLock and \
+                (re.search('^INSERT', sql, re.I) is not None
+                 or re.search('^UPDATE', sql, re.I) is not None
+                 or re.search(' FOR UPDATE', sql, re.I) is not None
+                 or re.search('^DELETE', sql, re.I) is not None
+                 ):
                 self.lockDB = True
         # remove FOR UPDATE for sqlite
         if harvester_config.db.engine == 'sqlite':
@@ -191,17 +192,21 @@ class DBProxy:
     def commit(self):
         try:
             self.con.commit()
-        finally:
-            if self.usingAppLock and self.lockDB:
-                if harvester_config.db.verbose:
-                    self.verbLog.debug('thr={0} release with commit'.format(self.thrName))
-                conLock.release()
-                self.lockDB = False
+        except Exception:
+            self.verbLog.debug('thr={0} exception during commit'.format(self.thrName))
+            raise
+        if self.usingAppLock and self.lockDB:
+            if harvester_config.db.verbose:
+                self.verbLog.debug('thr={0} release with commit'.format(self.thrName))
+            conLock.release()
+            self.lockDB = False
 
     # rollback
     def rollback(self):
         try:
             self.con.rollback()
+        except Exception:
+            self.verbLog.debug('thr={0} exception during rollback'.format(self.thrName))
         finally:
             if self.usingAppLock and self.lockDB:
                 if harvester_config.db.verbose:
