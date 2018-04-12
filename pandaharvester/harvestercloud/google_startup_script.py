@@ -13,9 +13,12 @@ try:
 except:
     import subprocess
 import os
-from threading import Thread
+import sys
 import logging
 import time
+import traceback
+import zlib
+from threading import Thread
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
                     filename='/tmp/vm_script.log', filemode='w')
@@ -24,6 +27,31 @@ METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance/attr
 
 global loop
 loop = True
+
+
+def upload_logs(url, log_file_name, destination_name, proxy_path):
+    try:
+
+        # open and compress the content of the file
+        with open(log_file_name, 'rb') as log_file_object:
+            files = {'file': (destination_name, zlib.compress(log_file_object.read()))}
+
+        cert = [proxy_path, proxy_path]
+        # verify = '/etc/grid-security/certificates' # not supported in CernVM - requests.exceptions.SSLError: [Errno 21] Is a directory
+
+        logging.debug('[upload_logs] start')
+        res = requests.post(url, files=files, timeout=180, verify=False, cert=cert)
+        logging.debug('[upload_logs] finished with code={0} msg={1}'.format(res.status_code, res.text))
+        if res.status_code == 200:
+            return True
+    except:
+        err_type, err_value = sys.exc_info()[:2]
+        err_messsage = "failed to put with {0}:{1} ".format(err_type, err_value)
+        err_messsage += traceback.format_exc()
+        logging.debug('[upload_logs] excepted with:\n {0}'.format(err_messsage))
+
+    return False
+
 
 def contact_harvester(harvester_frontend, data, auth_token, proxy_path):
     try:
@@ -71,7 +99,7 @@ def get_url(url, headers=None):
         return reply.content
 
 
-if __name__ == "__main__":
+def get_configuration():
 
     # get the proxy certificate and save it
     proxy_path = "/tmp/x509up"
@@ -102,9 +130,32 @@ if __name__ == "__main__":
     auth_token = get_url(auth_token_url, headers={"Metadata-Flavor": "Google"})
     logging.debug('[main] got authentication token')
 
+    # get the URL (e.g. panda cache) to upload logs
+    logs_frontend_w_url = METADATA_URL.format("logs_url_w")
+    logs_frontend_w = get_url(logs_frontend_w_url, headers={"Metadata-Flavor": "Google"})
+    logging.debug('[main] got url to upload logs')
+
+    # get the URL (e.g. panda cache) where the logs can be downloaded afterwards
+    logs_frontend_r_url = METADATA_URL.format("logs_url_r")
+    logs_frontend_r = get_url(logs_frontend_r_url, headers={"Metadata-Flavor": "Google"})
+    logging.debug('[main] got url to download logs')
+
+    return proxy_path, panda_queue, harvester_frontend, worker_id, auth_token, logs_frontend_w, logs_frontend_r
+
+
+if __name__ == "__main__":
+
+    # get all the configuration from the GCE metadata server
+    proxy_path, panda_queue, harvester_frontend, worker_id, auth_token, logs_frontend_w, logs_frontend_r = get_configuration()
+
     # start a separate thread that will send a heartbeat to harvester every 5 minutes
     heartbeat_thread = Thread(target=heartbeat_loop, args=(harvester_frontend, worker_id, auth_token, proxy_path))
     heartbeat_thread.start()
+
+    # the pilot should propagate the download link via the pilotId field in the job table
+    destination_name = '{0}.log'.format(worker_id)
+    log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
+    os.environ['GTAG'] = log_download_url # GTAG env variable is read by pilot
 
     # get the pilot wrapper
     wrapper_path = "/tmp/runpilot3-wrapper.sh"
@@ -125,10 +176,10 @@ if __name__ == "__main__":
     subprocess.call(command, shell=True)
     logging.debug('[main] pilot wrapper done...')
 
-    # TODO: upload logs to panda cache or harvester
+    # upload logs to e.g. panda cache or similar
+    upload_logs(logs_frontend_w, '/tmp/wrapper-wid.log', destination_name, proxy_path)
 
     # ask harvester to kill the VM and stop the heartbeat
     suicide(harvester_frontend, worker_id, auth_token, proxy_path)
     loop = False
     heartbeat_thread.join()
-

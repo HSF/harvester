@@ -52,12 +52,17 @@ def create_vm(work_spec):
                                                                                       work_spec.minRamCount,
                                                                                       work_spec.maxDiskCount,
                                                                                       work_spec.maxWalltime))
-
     try:
         vm = GoogleVM(work_spec)
-        work_spec.batchID = vm.name
+    except Exception as e:
+        tmp_log.debug('VM preparation failed with: {0}'.format(e))
+        # there was some problem preparing the VM, usually related to interaction with GCE
+        # since the VM was not submitted yet, we mark the worker as "missed"
+        return (False, str(e)), work_spec.get_changed_attributes()
 
+    try:
         tmp_log.debug('Going to submit VM {0}'.format(vm.name))
+        work_spec.batchID = vm.name
         operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
         # tmp_log.debug('Submitting VM {0}'.format(vm.name))
         # wait_for_operation(PROJECT, ZONE, operation['name'])
@@ -65,7 +70,12 @@ def create_vm(work_spec):
 
         return (True, 'OK'), work_spec.get_changed_attributes()
     except Exception as e:
-        return (False, str(e)), work_spec.get_changed_attributes()
+        tmp_log.debug('GCE API exception: {0}'.format(e))
+        # Despite the exception we will consider the submission successful to set the worker as "submitted".
+        # This is related to the GCE API reliability. We have observed that despite failures (time outs, SSL errors, etc)
+        # in many cases the VMs still start and we don't want VMs that are not inventorized. If the VM submission failed
+        # the harvester monitor will see when listing the running VMs
+        return (True, str(e)), work_spec.get_changed_attributes()
 
 
 class GoogleSubmitter(PluginBase):

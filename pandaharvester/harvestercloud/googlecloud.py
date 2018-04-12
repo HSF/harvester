@@ -59,7 +59,13 @@ class GoogleVM():
                 cores = standard_core
                 break
 
-        instance_type = 'zones/{0}/machineTypes/n1-standard-{1}'.format(ZONE, cores)
+        # Calculate the memory: 2 GBs per core. It needs to be expressed in MB
+        # https://cloud.google.com/compute/docs/instances/creating-instance-with-custom-machine-type
+        memory = cores * 2 * 1024
+
+        #instance_type = 'zones/{0}/machineTypes/n1-standard-{1}'.format(ZONE, cores)
+        # Use custom machine types to reduce cost
+        instance_type = 'zones/{0}/machineTypes/custom-{1}-{2}'.format(ZONE, cores, memory)
 
         return instance_type
 
@@ -147,6 +153,14 @@ class GoogleVM():
                          {
                              'key': 'auth_token',
                              'value': self.harvester_token.generate(payload={'sub': str(self.work_spec.batchID)})
+                         },
+                         {
+                             'key': 'logs_url_w',
+                             'value': '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, 'updateLog')
+                         },
+                         {
+                             'key': 'logs_url_r',
+                             'value': harvester_config.pandacon.pandaCacheURL_R
                          }
                      ]
              }
