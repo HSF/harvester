@@ -2757,10 +2757,10 @@ class DBProxy:
                         'to_submit': nNewWorkers
                     }
             # get worker stats
-            sqlW = "SELECT wt.status,wt.computingSite,pq.resourceType,COUNT(*) cnt "
+            sqlW = "SELECT wt.status, wt.computingSite, pq.resourceType, COUNT(*) cnt "
             sqlW += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
             sqlW += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2) "
-            sqlW += "GROUP BY wt.status,wt.computingSite "
+            sqlW += "GROUP BY wt.status, wt.computingSite, pq.resourceType "
             # get worker stats
             varMap = dict()
             varMap[':siteName'] = site_name
@@ -2810,7 +2810,7 @@ class DBProxy:
             sqlW = "SELECT wt.status, wt.computingSite, wt.resourceType, COUNT(*) cnt "
             sqlW += "FROM {0} wt ".format(workTableName)
             sqlW += "WHERE wt.status IN (:st1,:st2) "
-            sqlW += "GROUP BY wt.status,wt.computingSite "
+            sqlW += "GROUP BY wt.status,wt.computingSite, wt.resourceType "
             # get worker stats
             varMap = dict()
             varMap[':st1'] = 'running'
