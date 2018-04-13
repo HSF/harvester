@@ -158,7 +158,7 @@ class RucioStagerHPC(PluginBase):
                 # make zip file
                 with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
                     for assFileSpec in fileSpec.associatedFiles:
-                        zf.write(assFileSpec.path)
+                        zf.write(assFileSpec.path,os.path.basename(assFileSpec.path))
                 # set the file type
                 fileSpec.fileType = 'zip_output'
                 # set path
