@@ -47,7 +47,7 @@ class RseDirectStager(PluginBase):
                 # make zip file
                 with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
                     for assFileSpec in fileSpec.associatedFiles:
-                        zf.write(assFileSpec.path)
+                        zf.write(assFileSpec.path,os.path.basename(assFileSpec.path))
                 # set path
                 fileSpec.path = zipPath
                 # get size
