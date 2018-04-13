@@ -72,12 +72,15 @@ def _condor_macro_replace(string, **kwarg):
 
 
 # Parse resource type from string for Unified PanDA Queue
-def _get_resource_type(string, is_unified_queue):
+def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
     string = str(string)
     if not is_unified_queue:
         ret = ''
     elif string in set(['SCORE', 'MCORE', 'SCORE_HIMEM', 'MCORE_HIMEM']):
-        ret = string
+        if is_pilot_option:
+            ret = '-R {0}'.format(string)
+        else:
+            ret = string
     else:
         ret = ''
     return ret
@@ -221,6 +224,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=harvester_queue_config.get_source_label(),
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
+        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
         )
     )
     tmpFile.close()
@@ -333,7 +337,7 @@ class HTCondorSubmitter(PluginBase):
                             and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
                         continue
                     ce_endpoint = _queue_dict.get('ce_endpoint')
-                    if ( (ce_endpoint in ce_auxilary_dict or 'BNL_' in str(this_panda_queue_dict.get('panda_resource', '')) )
+                    if ( ce_endpoint in ce_auxilary_dict
                         and str(_queue_dict.get('ce_queue_name', '')).lower() == 'default' ):
                         pass
                     else:
