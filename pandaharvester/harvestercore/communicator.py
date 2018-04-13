@@ -199,6 +199,7 @@ class Communicator:
             for jobSpec in jobSpecSubList:
                 data = jobSpec.get_job_attributes_for_panda()
                 data['jobId'] = jobSpec.PandaID
+                data['siteName'] = jobSpec.computingSite
                 data['state'] = jobSpec.get_status()
                 data['attemptNr'] = jobSpec.attemptNr
                 data['jobSubStatus'] = jobSpec.subStatus
