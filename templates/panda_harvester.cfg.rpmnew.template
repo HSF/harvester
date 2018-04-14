@@ -600,3 +600,32 @@ user_data_file = /path/to/user_data.txt
 image = https://www.googleapis.com/compute/v1/projects/atlas-harvester/global/images/cernvm4-micro-3-0-6
 # harvester frontend
 harvester_frontend = aipanda170.cern.ch:25443
+
+
+
+
+##########################
+#
+# Agent Queue parameters
+#
+
+[monitor_queue]
+
+# module and class names to provide the queue
+agentQueueModule = pandaharvester.harvesteragentqueue.sqlite_queue
+agentQueueClass = SqliteQueue
+
+# database filename for sqlite.
+# must be different from main Harvester DB and other agent queue DBs if using sqlite
+database_filename = /dev/shm/monitor_queue.db
+
+# max number of workers in a bulk to enqueue
+maxWorkersPerBulk = 500
+
+# lock interval in sec
+lockInterval = 600
+
+# sleep interval in sec
+sleepTime = 60
+
+[sweeper_queue]
