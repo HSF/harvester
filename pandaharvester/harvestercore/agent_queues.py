@@ -1,3 +1,5 @@
+from future.utils import iteritems
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -8,9 +10,6 @@ class AgentQueueBase:
     def __init__(self, **kwarg):
         for tmpKey, tmpVal in iteritems(kwarg):
             setattr(self, tmpKey, tmpVal)
-        self.agentQueueConfigSection = None
-        self.config = None
-        self.agent_queue = None
 
     # make logger
     def make_logger(self, base_log, token=None, method_name=None, send_dialog=True):
@@ -22,13 +21,13 @@ class AgentQueueBase:
 
     # intialize agent_queue from harvester configuration
     def _initialize_agent_queue(self):
-        self.agent_queue = None
         if hasattr(harvester_config, self.agentQueueConfigSection):
             self.config = getattr(harvester_config, self.agentQueueConfigSection)
             if hasattr(self.config, 'agentQueueModule') \
                 and hasattr(self.config, 'agentQueueClass'):
-                pluginConf = {'module': self.config.agentQueueModule,
-                              'name': self.config.agentQueueClass}
+                pluginConf = vars(self.config).copy()
+                pluginConf.update( {'module': self.config.agentQueueModule,
+                                    'name': self.config.agentQueueClass,} )
                 pluginFactory = PluginFactory()
                 self.agent_queue = pluginFactory.get_plugin(pluginConf)
 

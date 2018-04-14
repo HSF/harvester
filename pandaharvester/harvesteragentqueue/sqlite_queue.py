@@ -39,13 +39,15 @@ class SqliteQueue(PluginBase):
             'ORDER BY id DESC LIMIT 1'
             )
     _pop_del_sql = 'DELETE FROM queue_table WHERE id = ?'
+    _clear_sql = 'DELETE FROM queue_table'
     _peek_sql = (
             'SELECT item FROM queue_table '
             'ORDER BY id LIMIT 1'
             )
 
     # constructor
-    def __init__(self):
+    def __init__(self, **kwarg):
+        PluginBase.__init__(self, **kwarg)
         self.db_path = os.path.abspath(self.database_filename)
         self._connection_cache = {}
         with self._get_conn() as conn:
@@ -53,13 +55,13 @@ class SqliteQueue(PluginBase):
 
     def __len__(self):
         with self._get_conn() as conn:
-            size = conn.execute(self._count_sql).next()[0]
+            size = next(conn.execute(self._count_sql))[0]
         return size
 
     def __iter__(self):
         with self._get_conn() as conn:
             for id, obj_buf in conn.execute(self._iterate_sql):
-                yield pickle.loads(str(obj_buf))
+                yield pickle.loads(bytes(obj_buf))
 
     def _get_conn(self):
         id = get_ident()
@@ -83,7 +85,7 @@ class SqliteQueue(PluginBase):
                 conn.execute(self._write_lock_sql)
                 cursor = conn.execute(get_sql)
                 try:
-                    id, obj_buf = cursor.next()
+                    id, obj_buf = next(cursor)
                     keep_pooling = False
                 except StopIteration:
                     # unlock the database
@@ -97,14 +99,14 @@ class SqliteQueue(PluginBase):
             if id:
                 conn.execute(self._pop_del_sql, (id,))
                 conn.commit()
-                return pickle.loads(str(obj_buf))
+                return pickle.loads(bytes(obj_buf))
         return None
 
     def _peek(self):
         with self._get_conn() as conn:
             cursor = conn.execute(self._peek_sql)
             try:
-                return pickle.loads(str(cursor.next()[0]))
+                return pickle.loads(bytes(next(cursor)[0]))
             except StopIteration:
                 return None
 
@@ -114,12 +116,34 @@ class SqliteQueue(PluginBase):
 
     # enqueue
     def put(self, obj):
-        self._push(obj, push_sql=_rpush_sql)
+        self._push(obj, push_sql=self._rpush_sql)
 
     # dequeue
     def get(self):
-        return self._pop(get_sql=_lpop_get_sql)
+        return self._pop(get_sql=self._lpop_get_sql)
 
     # dequeue the last
     def getlast(self):
-        return self._pop(get_sql=_rpop_get_sql)
+        return self._pop(get_sql=self._rpop_get_sql)
+
+    # number of objects in queue
+    def size(self):
+        return len(self)
+
+    # enqueue
+    def put(self, obj):
+        self._push(obj, push_sql=self._rpush_sql)
+
+    # dequeue
+    def get(self):
+        return self._pop(get_sql=self._lpop_get_sql)
+
+    # dequeue from the last
+    def getlast(self):
+        return self._pop(get_sql=self._rpop_get_sql)
+
+    # drop all objects in queue
+    def clear(self):
+        with self._get_conn() as conn:
+            conn.execute(self._clear_sql)
+            conn.commit()
