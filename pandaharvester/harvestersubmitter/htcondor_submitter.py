@@ -28,9 +28,6 @@ def _div_round_up(a, b):
 
 # Compute weight of each CE according to worker stat, return dict
 def _get_ce_weight_dict(ce_endpoint_list=[], queue_status_dict={}, worker_ce_stats_dict={}):
-    print('ce_endpoint_list', ce_endpoint_list)
-    print('queue_status_dict', queue_status_dict)
-    print('worker_ce_stats_dict', worker_ce_stats_dict)
     multiplier = 10.0
     n_ce = len(ce_endpoint_list)
     def _get_init_weight(_ce_endpoint):
