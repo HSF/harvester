@@ -326,15 +326,20 @@ class GlobusBulkStager(PluginBase):
                     return None, msgStr
         # check transfer with real transfer IDs
         # get transfer groups 
-        tmpLog.debug("groups = jobspec.get_groups_of_output_files(skip_ready=True)")
-        groups = jobspec.get_groups_of_output_files(skip_ready=True)
-        tmpLog.debug('Number of transfer groups (skip_ready)- {0}'.format(len(groups)))
-        tmpLog.debug('transfer groups any state (skip_ready)- {0}'.format(groups))
+        tmpLog.debug("groups = jobspec.get_groups_of_output_files(skip_done=True)")
+        groups = jobspec.get_groups_of_output_files(skip_done=True)
+        tmpLog.debug('Number of transfer groups (skip_done)- {0}'.format(len(groups)))
+        tmpLog.debug('transfer groups any state (skip_done)- {0}'.format(groups))
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('Number of transfer groups - {0}'.format(len(groups)))
         tmpLog.debug('transfer groups any state - {0}'.format(groups))
-        tmpLog.debug("groups = jobspec.get_groups_of_output_files(skip_ready=True)")
-        groups = jobspec.get_groups_of_output_files(skip_ready=True)            
+        tmpLog.debug("groups = jobspec.get_groups_of_output_files(skip_done=True)")
+        groups = jobspec.get_groups_of_output_files(skip_done=True)            
+        if len(groups) == 0:
+            tmpLog.debug("jobspec.get_groups_of_output_files(skip_done=True) returned no files ")
+            tmpLog.debug("check_status return status - True ")
+            return True,''
+
         for transferID in groups:
             # allow only valid UUID
             if validate_transferid(transferID) :
