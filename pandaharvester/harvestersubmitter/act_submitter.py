@@ -3,6 +3,7 @@ import urllib
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvesterconfig import harvester_config
 
 from act.common.aCTConfig import aCTConfigARC
 from act.common.aCTProxy import aCTProxy
@@ -21,20 +22,23 @@ class ACTSubmitter(PluginBase):
         self.log = core_utils.make_logger(baseLogger, 'aCT submitter', method_name='__init__')
         self.conf = aCTConfigARC()
         self.actDB = aCTDBPanda(self.log, self.conf.get(["db", "file"]))
+        # Credential dictionary role: proxy file
+        self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
+                              list(harvester_config.credmanager.outCertFile)))
+        # Map of role to aCT proxyid
+        self.proxymap = {}
 
         # Get proxy info
-        # TODO: specify DN in conf instead
-        cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
-        uc = arc.UserConfig(cred_type)
-        uc.ProxyPath(str(self.conf.get(['voms', 'proxypath'])))
-        cred = arc.Credential(uc)
-        dn = cred.GetIdentityName()
-        self.log.info("Running under DN %s" % dn)
-
-        # Set up proxy map (prod/pilot roles)
-        self.proxymap = {}
-        actp = aCTProxy(self.log)
-        for role in self.conf.getList(['voms', 'roles', 'item']):
+        # TODO: better to send aCT the proxy file and let it handle it
+        for role, proxy in self.certs.items():
+            cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
+            uc = arc.UserConfig(cred_type)
+            uc.ProxyPath(str(proxy))
+            cred = arc.Credential(uc)
+            dn = cred.GetIdentityName()
+            self.log.info("Proxy {0} with DN {1} and role {2}".format(proxy, dn, role))
+    
+            actp = aCTProxy(self.log)
             attr = '/atlas/Role='+role
             proxyid = actp.getProxyId(dn, attr)
             if not proxyid:
@@ -60,10 +64,8 @@ class ACTSubmitter(PluginBase):
                 desc['actpandastatus'] = 'sent'
                 desc['siteName'] = jobSpec.computingSite
                 desc['proxyid'] = self.proxymap['pilot' if jobSpec.jobParams['prodSourceLabel'] == 'user' else 'production']
-                try:
-                    desc['sendhb'] = 'running' in self.noHeartbeat
-                except:
-                    desc['sendhb'] = 0
+                desc['sendhb'] = 0
+                desc['harvesteraccesspoint'] = workSpec.get_access_point()
 
                 # aCT takes the url-encoded job description (like it gets from panda server)
                 actjobdesc = urllib.urlencode(jobSpec.jobParams)
