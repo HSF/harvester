@@ -342,6 +342,8 @@ class GlobusBulkPreparator(PluginBase):
         groups = jobspec.get_groups_of_input_files()
         tmpLog.debug('Number of transfer groups - {0}'.format(len(groups)))
         tmpLog.debug('transfer groups any state - {0}'.format(groups))
+        tmpLog.debug("groups = jobspec.get_groups_of_input_files(skip_ready=True)")
+        groups = jobspec.get_groups_of_input_files(skip_ready=True)
         for transferID in groups:
             # allow only valid UUID
             if validate_transferid(transferID) :
