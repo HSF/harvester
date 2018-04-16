@@ -97,6 +97,10 @@ class GlobusBulkStager(PluginBase):
     def get_dummy_transfer_id(self):
         return self.dummy_transfer_id
 
+    # set dummy_transfer_id for testing
+    def set_dummy_transfer_id_testing(self,dummy_transfer_id):
+        self.dummy_transfer_id = dummy_transfer_id
+
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
         # loop over all output files
@@ -322,15 +326,15 @@ class GlobusBulkStager(PluginBase):
                     return None, msgStr
         # check transfer with real transfer IDs
         # get transfer groups 
-        tmpLog.debug("groups = jobspec.get_groups_of_output_files(skip_ready=True)")
-        groups = jobspec.get_groups_of_output_files(skip_ready=True)
-        tmpLog.debug('Number of transfer groups (skip_ready)- {0}'.format(len(groups)))
-        tmpLog.debug('transfer groups any state (skip_ready)- {0}'.format(groups))
+        tmpLog.debug("groups = jobspec.get_groups_of_output_files()")
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('Number of transfer groups - {0}'.format(len(groups)))
         tmpLog.debug('transfer groups any state - {0}'.format(groups))
-        tmpLog.debug("groups = jobspec.get_groups_of_output_files(skip_ready=True)")
-        groups = jobspec.get_groups_of_output_files(skip_ready=True)            
+        if len(groups) == 0:
+            tmpLog.debug("jobspec.get_groups_of_output_files(skip_done=True) returned no files ")
+            tmpLog.debug("check_status return status - True ")
+            return True,''
+
         for transferID in groups:
             # allow only valid UUID
             if validate_transferid(transferID) :
