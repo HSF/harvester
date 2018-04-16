@@ -97,6 +97,10 @@ class GlobusBulkStager(PluginBase):
     def get_dummy_transfer_id(self):
         return self.dummy_transfer_id
 
+    # set dummy_transfer_id for testing
+    def set_dummy_transfer_id_testing(self,dummy_transfer_id):
+        self.dummy_transfer_id = dummy_transfer_id
+
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
         # loop over all output files
