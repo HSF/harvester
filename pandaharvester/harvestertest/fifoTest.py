@@ -56,6 +56,12 @@ def single_thread_test(nObjects=3):
 
 single_thread_test(nObjects=1000)
 
+time_point = time.time()
+print('MonitorFIFO.populate')
+mq.populate()
+time_consumed = time.time() - time_point
+print('Time consumed: ', time_consumed)
+
 # workspec1 = WorkSpec()
 # workspec1.workerID = 777
 # workspec1.computingSite = 'TEST-SITE1'

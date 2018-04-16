@@ -24,15 +24,14 @@ class FIFOBase:
 
     # intialize fifo from harvester configuration
     def _initialize_fifo(self):
-        if hasattr(harvester_config, self.fifoConfigSection):
-            self.config = getattr(harvester_config, self.fifoConfigSection)
-            if hasattr(self.config, 'fifoModule') \
-                and hasattr(self.config, 'fifoClass'):
-                pluginConf = vars(self.config).copy()
-                pluginConf.update( {'module': self.config.fifoModule,
-                                    'name': self.config.fifoClass,} )
-                pluginFactory = PluginFactory()
-                self.fifo = pluginFactory.get_plugin(pluginConf)
+        self.config = getattr(harvester_config, self.fifoConfigSection)
+        if hasattr(self.config, 'fifoModule') \
+            and hasattr(self.config, 'fifoClass'):
+            pluginConf = vars(self.config).copy()
+            pluginConf.update( {'module': self.config.fifoModule,
+                                'name': self.config.fifoClass,} )
+            pluginFactory = PluginFactory()
+            self.fifo = pluginFactory.get_plugin(pluginConf)
 
 
 # monitor fifo
@@ -43,7 +42,7 @@ class MonitorFIFO(FIFOBase):
         self.fifoConfigSection = 'monitor_fifo'
         self._initialize_fifo()
 
-    def populate_fifo(self, clear_fifo=True):
+    def populate(self, clear_fifo=True):
         """
         Populate monitor fifo with active worker chunks
         """

@@ -606,7 +606,7 @@ harvester_frontend = aipanda170.cern.ch:25443
 
 ##########################
 #
-# Agent Queue parameters
+# FIFO parameters
 #
 
 [monitor_fifo]
@@ -631,4 +631,4 @@ lockInterval = 600
 # sleep interval in sec
 sleepTime = 60
 
-[sweeper_queue]
+[sweeper_fifo]

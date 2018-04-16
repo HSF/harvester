@@ -134,5 +134,8 @@ class SqliteQueue(PluginBase):
         with self._get_conn() as conn:
             conn.execute(self._exclusive_lock_sql)
             conn.execute(self._clear_delete_table_sql)
-            conn.execute(self._clear_zero_id_sql)
+            try:
+                conn.execute(self._clear_zero_id_sql)
+            except sqlite3.OperationalError:
+                pass
             conn.commit()

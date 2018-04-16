@@ -3994,8 +3994,12 @@ class DBProxy:
             varMap[':st_running'] = WorkSpec.ST_running
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
-            retVal = map(lambda rec: WorkSpec().pack(rec), resW)
-            tmpLog.debug('got {0} workers'.format(len(retVal)))
+            def _get_workspec_from_record(rec):
+                workspec = WorkSpec()
+                workspec.pack(rec)
+                return workspec
+            retVal = map(_get_workspec_from_record, resW)
+            tmpLog.debug('got {0} workers'.format(len(resW)))
             return retVal
         except:
             # roll back
