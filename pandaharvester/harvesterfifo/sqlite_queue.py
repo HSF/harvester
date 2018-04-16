@@ -29,6 +29,7 @@ class SqliteQueue(PluginBase):
     _count_sql = 'SELECT COUNT(*) FROM queue_table'
     _iterate_sql = 'SELECT id, item FROM queue_table'
     _write_lock_sql = 'BEGIN IMMEDIATE'
+    _exclusive_lock_sql = 'BEGIN EXCLUSIVE'
     _rpush_sql = 'INSERT INTO queue_table (item) VALUES (?)'
     _lpop_get_sql = (
             'SELECT id, item FROM queue_table '
@@ -39,7 +40,8 @@ class SqliteQueue(PluginBase):
             'ORDER BY id DESC LIMIT 1'
             )
     _pop_del_sql = 'DELETE FROM queue_table WHERE id = ?'
-    _clear_sql = 'DELETE FROM queue_table'
+    _clear_delete_table_sql = 'DELETE FROM queue_table'
+    _clear_zero_id_sql = 'DELETE FROM sqlite_sequence WHERE name = queue_table'
     _peek_sql = (
             'SELECT item FROM queue_table '
             'ORDER BY id LIMIT 1'
@@ -102,7 +104,24 @@ class SqliteQueue(PluginBase):
                 return pickle.loads(bytes(obj_buf))
         return None
 
-    def _peek(self):
+    # number of objects in queue
+    def size(self):
+        return len(self)
+
+    # enqueue
+    def put(self, obj):
+        self._push(obj, push_sql=self._rpush_sql)
+
+    # dequeue the first object
+    def get(self):
+        return self._pop(get_sql=self._lpop_get_sql)
+
+    # dequeue the last object
+    def getlast(self):
+        return self._pop(get_sql=self._rpop_get_sql)
+
+    # get the first object without dequeuing it
+    def peek(self):
         with self._get_conn() as conn:
             cursor = conn.execute(self._peek_sql)
             try:
@@ -110,40 +129,10 @@ class SqliteQueue(PluginBase):
             except StopIteration:
                 return None
 
-    # number of objects in queue
-    def size(self):
-        return len(self)
-
-    # enqueue
-    def put(self, obj):
-        self._push(obj, push_sql=self._rpush_sql)
-
-    # dequeue
-    def get(self):
-        return self._pop(get_sql=self._lpop_get_sql)
-
-    # dequeue the last
-    def getlast(self):
-        return self._pop(get_sql=self._rpop_get_sql)
-
-    # number of objects in queue
-    def size(self):
-        return len(self)
-
-    # enqueue
-    def put(self, obj):
-        self._push(obj, push_sql=self._rpush_sql)
-
-    # dequeue
-    def get(self):
-        return self._pop(get_sql=self._lpop_get_sql)
-
-    # dequeue from the last
-    def getlast(self):
-        return self._pop(get_sql=self._rpop_get_sql)
-
-    # drop all objects in queue
+    # drop all objects in queue and reset primary key auto_increment
     def clear(self):
         with self._get_conn() as conn:
-            conn.execute(self._clear_sql)
+            conn.execute(self._exclusive_lock_sql)
+            conn.execute(self._clear_delete_table_sql)
+            conn.execute(self._clear_zero_id_sql)
             conn.commit()

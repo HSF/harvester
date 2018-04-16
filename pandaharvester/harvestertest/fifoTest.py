@@ -11,20 +11,20 @@ from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
-from pandaharvester.harvestercore.agent_queues import MonitorQueue
+from pandaharvester.harvestercore.fifos import MonitorFIFO
 
 
 # start test
 
-mq = MonitorQueue()
+mq = MonitorFIFO()
 
 print('sleepTime', mq.config.sleepTime)
 
 def single_thread_test(nObjects=3):
     time_point = time.time()
     print('clear')
-    mq.agent_queue.clear()
-    print('size', mq.agent_queue.size())
+    mq.fifo.clear()
+    print('size', mq.fifo.size())
     time_consumed = time.time() - time_point
     print('Time consumed: ', time_consumed)
 
@@ -36,20 +36,20 @@ def single_thread_test(nObjects=3):
         workspec.workAttributes = data
 
         # print('put')
-        mq.agent_queue.put(workspec)
-        # print('size', mq.agent_queue.size())
+        mq.fifo.put(workspec)
+        # print('size', mq.fifo.size())
     time_consumed = time.time() - time_point
     print('Time consumed: {0} sec ; Avg: {1} obj/sec '.format(time_consumed, nObjects/time_consumed))
 
-    print('_peek')
-    print(mq.agent_queue._peek())
+    print('peek')
+    print(mq.fifo.peek())
 
     time_point = time.time()
     for i in range(nObjects):
         # print('get')
-        obj = mq.agent_queue.get()
+        obj = mq.fifo.get()
         # print(obj)
-        # print('size', mq.agent_queue.size())
+        # print('size', mq.fifo.size())
     time_consumed = time.time() - time_point
     print('Time consumed: {0} sec ; Avg: {1} obj/sec '.format(time_consumed, nObjects/time_consumed))
 

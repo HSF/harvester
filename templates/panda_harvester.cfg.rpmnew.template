@@ -609,18 +609,21 @@ harvester_frontend = aipanda170.cern.ch:25443
 # Agent Queue parameters
 #
 
-[monitor_queue]
+[monitor_fifo]
 
-# module and class names to provide the queue
-agentQueueModule = pandaharvester.harvesteragentqueue.sqlite_queue
-agentQueueClass = SqliteQueue
+# module and class names to provide the fifo queue
+fifoModule = pandaharvester.harvesterfifo.sqlite_queue
+fifoClass = SqliteQueue
 
 # database filename for sqlite.
-# must be different from main Harvester DB and other agent queue DBs if using sqlite
-database_filename = /dev/shm/monitor_queue.db
+# must be different from main Harvester DB and other fifo DBs if using sqlite
+database_filename = /dev/shm/monitor_fifo.db
 
-# max number of workers in a bulk to enqueue
-maxWorkersPerBulk = 500
+# max number of workers to be populated into the fifo queue
+maxWorkersToPopulate = 10000
+
+# max number of workers in a chunk to enqueue
+maxWorkersPerChunk = 500
 
 # lock interval in sec
 lockInterval = 600

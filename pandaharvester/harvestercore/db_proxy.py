@@ -3978,3 +3978,29 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return False
+
+    # get iterator of active workers to monitor fifo
+    def get_active_workers(self, n_workers):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_active_workers')
+            tmpLog.debug('start')
+            # sql to get workers
+            sqlW = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
+            sqlW += "WHERE status IN (:st_submitted,:st_running) "
+            sqlW += "ORDER BY modificationTime LIMIT {0} ".format(n_workers)
+            varMap = dict()
+            varMap[':st_submitted'] = WorkSpec.ST_submitted
+            varMap[':st_running'] = WorkSpec.ST_running
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            retVal = map(lambda rec: WorkSpec().pack(rec), resW)
+            tmpLog.debug('got {0} workers'.format(len(retVal)))
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
