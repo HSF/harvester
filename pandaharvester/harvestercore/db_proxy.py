@@ -73,7 +73,7 @@ class DBProxy:
             # change the row factory to use Row
             self.con.row_factory = sqlite3.Row
             self.cur = self.con.cursor()
-            self.cur.execute('PRAGMA journal_mode = WAL')
+            #self.cur.execute('PRAGMA journal_mode = WAL')
         self.lockDB = False
         # using application side lock if DB doesn't have a mechanism for exclusive access
         if harvester_config.db.engine == 'mariadb':

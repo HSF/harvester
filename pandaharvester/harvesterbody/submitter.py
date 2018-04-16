@@ -1,3 +1,4 @@
+import math
 import datetime
 from future.utils import iteritems
 
@@ -275,7 +276,8 @@ class Submitter(AgentBase):
                                                     {'pandaID': jobSpec.PandaID,
                                                      'taskID': jobSpec.taskID,
                                                      'jobsetID': jobSpec.jobParams['jobsetID'],
-                                                     'nRanges': jobSpec.jobParams['coreCount'],
+                                                     'nRanges': max(int(math.ceil(workSpec.nCore / len(jobList))),
+                                                                    jobSpec.jobParams['coreCount']),
                                                      }
                                             workSpec.eventsRequestParams = eventsRequestParams
                                         # register worker
