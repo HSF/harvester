@@ -25,6 +25,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 
 # Define dummy transfer identifier
@@ -183,7 +184,6 @@ class GlobusBulkPreparator(PluginBase):
                     tmpLog.debug('prepare to transfer files')
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually  
-                    from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
                     queueConfigMapper = QueueConfigMapper()
                     queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
                     self.Globus_srcPath = queueConfig.preparator['Globus_srcPath']
