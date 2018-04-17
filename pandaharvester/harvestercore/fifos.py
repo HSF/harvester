@@ -42,14 +42,17 @@ class MonitorFIFO(FIFOBase):
         self.fifoConfigSection = 'monitor_fifo'
         self._initialize_fifo()
 
-    def populate(self, clear_fifo=True):
+    def populate(self, seconds_ago=0, clear_fifo=False):
         """
-        Populate monitor fifo with active worker chunks
+        Populate monitor fifo with all active worker chunks from DB
+        with modificationTime earlier than seconds_ago seconds ago
         """
         if clear_fifo:
             self.fifo.clear()
-        workspec_iterator = self.dbProxy.get_active_workers(self.config.maxWorkersToPopulate)
+        n_workers = self.config.maxWorkersToPopulate
+        workspec_iterator = self.dbProxy.get_active_workers(n_workers, seconds_ago)
         last_queueName = None
+        workspec_chunk = []
         for workspec in workspec_iterator:
             if last_queueName == None:
                 workspec_chunk = [workspec]
@@ -61,4 +64,5 @@ class MonitorFIFO(FIFOBase):
                 self.fifo.put(workspec_chunk)
                 workspec_chunk = [workspec]
                 last_queueName = workspec.computingSite
-        self.fifo.put(workspec_chunk)
+        if len(workspec_chunk) > 0:
+            self.fifo.put(workspec_chunk)

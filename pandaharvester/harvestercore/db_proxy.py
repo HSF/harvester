@@ -3980,7 +3980,7 @@ class DBProxy:
             return False
 
     # get iterator of active workers to monitor fifo
-    def get_active_workers(self, n_workers):
+    def get_active_workers(self, n_workers, seconds_ago=0):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_active_workers')
@@ -3988,8 +3988,10 @@ class DBProxy:
             # sql to get workers
             sqlW = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlW += "WHERE status IN (:st_submitted,:st_running) "
+            sqlW += "AND modificationTime<:timeLimit "
             sqlW += "ORDER BY modificationTime,computingSite LIMIT {0} ".format(n_workers)
             varMap = dict()
+            varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(seconds=seconds_ago)
             varMap[':st_submitted'] = WorkSpec.ST_submitted
             varMap[':st_running'] = WorkSpec.ST_running
             self.execute(sqlW, varMap)

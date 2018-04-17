@@ -58,7 +58,7 @@ single_thread_test(nObjects=1000)
 
 time_point = time.time()
 print('MonitorFIFO.populate')
-mq.populate()
+mq.populate(seconds_ago=0, clear_fifo=True)
 time_consumed = time.time() - time_point
 print('Time consumed: ', time_consumed)
 
