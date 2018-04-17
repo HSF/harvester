@@ -23,8 +23,8 @@ print('sleepTime', mq.config.sleepTime)
 def single_thread_test(nObjects=3):
     time_point = time.time()
     print('clear')
-    mq.fifo.clear()
-    print('size', mq.fifo.size())
+    mq.clear()
+    print('size', mq.size())
     time_consumed = time.time() - time_point
     print('Time consumed: ', time_consumed)
 
@@ -36,20 +36,20 @@ def single_thread_test(nObjects=3):
         workspec.workAttributes = data
 
         # print('put')
-        mq.fifo.put(workspec)
-        # print('size', mq.fifo.size())
+        mq.put(workspec)
+        # print('size', mq.size())
     time_consumed = time.time() - time_point
     print('Time consumed: {0} sec ; Avg: {1} obj/sec '.format(time_consumed, nObjects/time_consumed))
 
     print('peek')
-    print(mq.fifo.peek())
+    print(mq.peek())
 
     time_point = time.time()
     for i in range(nObjects):
         # print('get')
-        obj = mq.fifo.get()
+        obj = mq.get()
         # print(obj)
-        # print('size', mq.fifo.size())
+        # print('size', mq.size())
     time_consumed = time.time() - time_point
     print('Time consumed: {0} sec ; Avg: {1} obj/sec '.format(time_consumed, nObjects/time_consumed))
 
