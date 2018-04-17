@@ -16,9 +16,9 @@ import inspect
 import datetime
 import threading
 import traceback
-import Crypto.Random
-import Crypto.Hash.HMAC
-import Crypto.Cipher.AES
+import Cryptodome.Random
+import Cryptodome.Hash.HMAC
+import Cryptodome.Cipher.AES
 from future.utils import iteritems
 from contextlib import contextmanager
 
@@ -459,15 +459,15 @@ def get_file_lock(file_name, lock_interval):
 
 # convert a key phrase to a cipher key
 def convert_phrase_to_key(key_phrase):
-    h = Crypto.Hash.HMAC.new(key_phrase)
+    h = Cryptodome.Hash.HMAC.new(key_phrase)
     return h.hexdigest()
 
 
 # encrypt a string
 def encrypt_string(key_phrase, plain_text):
     k = convert_phrase_to_key(key_phrase)
-    v = Crypto.Random.new().read(Crypto.Cipher.AES.block_size)
-    c = Crypto.Cipher.AES.new(k, Crypto.Cipher.AES.MODE_CFB, v)
+    v = Cryptodome.Random.new().read(Cryptodome.Cipher.AES.block_size)
+    c = Cryptodome.Cipher.AES.new(k, Cryptodome.Cipher.AES.MODE_CFB, v)
     return base64.b64encode(v + c.encrypt(plain_text))
 
 
@@ -475,9 +475,9 @@ def encrypt_string(key_phrase, plain_text):
 def decrypt_string(key_phrase, cipher_text):
     cipher_text = base64.b64decode(cipher_text)
     k = convert_phrase_to_key(key_phrase)
-    v = cipher_text[:Crypto.Cipher.AES.block_size]
-    c = Crypto.Cipher.AES.new(k, Crypto.Cipher.AES.MODE_CFB, v)
-    cipher_text = cipher_text[Crypto.Cipher.AES.block_size:]
+    v = cipher_text[:Cryptodome.Cipher.AES.block_size]
+    c = Cryptodome.Cipher.AES.new(k, Cryptodome.Cipher.AES.MODE_CFB, v)
+    cipher_text = cipher_text[Cryptodome.Cipher.AES.block_size:]
     return c.decrypt(cipher_text)
 
 
