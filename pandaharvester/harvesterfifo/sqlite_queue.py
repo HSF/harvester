@@ -41,7 +41,7 @@ class SqliteQueue(PluginBase):
             )
     _pop_del_sql = 'DELETE FROM queue_table WHERE id = ?'
     _clear_delete_table_sql = 'DELETE FROM queue_table'
-    _clear_zero_id_sql = 'DELETE FROM sqlite_sequence WHERE name = queue_table'
+    _clear_zero_id_sql = 'DELETE FROM sqlite_sequence WHERE name = "queue_table"'
     _peek_sql = (
             'SELECT item FROM queue_table '
             'ORDER BY id LIMIT 1'

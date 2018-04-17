@@ -3988,7 +3988,7 @@ class DBProxy:
             # sql to get workers
             sqlW = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlW += "WHERE status IN (:st_submitted,:st_running) "
-            sqlW += "ORDER BY modificationTime LIMIT {0} ".format(n_workers)
+            sqlW += "ORDER BY modificationTime,computingSite LIMIT {0} ".format(n_workers)
             varMap = dict()
             varMap[':st_submitted'] = WorkSpec.ST_submitted
             varMap[':st_running'] = WorkSpec.ST_running

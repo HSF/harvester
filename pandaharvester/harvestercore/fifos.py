@@ -46,11 +46,15 @@ class MonitorFIFO(FIFOBase):
         """
         Populate monitor fifo with active worker chunks
         """
+        if clear_fifo:
+            self.fifo.clear()
         workspec_iterator = self.dbProxy.get_active_workers(self.config.maxWorkersToPopulate)
         last_queueName = None
-        workspec_chunk = []
         for workspec in workspec_iterator:
-            if ( last_queueName == None or workspec.computingSite == last_queueName ) \
+            if last_queueName == None:
+                workspec_chunk = [workspec]
+                last_queueName = workspec.computingSite
+            elif workspec.computingSite == last_queueName \
                 and len(workspec_chunk) < self.config.maxWorkersPerChunk:
                 workspec_chunk.append(workspec)
             else:
