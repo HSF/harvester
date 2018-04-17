@@ -67,7 +67,6 @@ class GlobusBulkPreparator(PluginBase):
         GlobusBulkPreparator.next_id += 1
         with uLock:
             global uID
-            #self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base, self.id ,int(round(time.time() * 1000)))
             self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base, 'XXXX')
             uID += 1
             uID %= harvester_config.preparator.nThreads
