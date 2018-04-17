@@ -29,7 +29,7 @@ setup(
                       'python-daemon',
                       'future',
                       'futures; python_version == "2.*"',
-                      'pycrypto',
+                      'pycryptodomex',
                       'panda-common-s',
                       'pyjwt',
                       'subprocess32; python_version == "2.*"',

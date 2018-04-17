@@ -3978,3 +3978,32 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return False
+
+    # delete old jobs
+    def delete_old_jobs(self, timeout):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'timeout={0}'.format(timeout),
+                                            method_name='delete_old_jobs')
+            tmpLog.debug('start')
+            # sql to delete old jobs
+            sqlDJ = "DELETE FROM {0} ".format(jobTableName)
+            sqlDJ += "WHERE subStatus=:subStatus AND propagatorTime IS NULL "
+            sqlDJ += "AND modificationTime<:timeLimit "
+            # delete jobs
+            varMap = dict()
+            varMap[':subStatus'] = 'done'
+            varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(hours=timeout)
+            self.execute(sqlDJ, varMap)
+            nDel = self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('deleted {0} jobs'.format(nDel))
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
