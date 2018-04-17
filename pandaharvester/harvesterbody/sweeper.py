@@ -80,6 +80,10 @@ class Sweeper(AgentBase):
                             self.dbProxy.delete_worker(workSpec.workerID)
                     except:
                         core_utils.dump_error_message(tmpLog)
+            # delete old jobs
+            mainLog.debug('delete old jobs')
+            jobTimeout = max(statusTimeoutMap.values()) + 1
+            self.dbProxy.delete_old_jobs(jobTimeout)
             mainLog.debug('done cleanup')
             # check if being terminated
             if self.terminated(harvester_config.sweeper.sleepTime):

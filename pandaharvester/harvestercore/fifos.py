@@ -34,8 +34,8 @@ class FIFOBase:
                                 'name': self.config.fifoClass,} )
             pluginFactory = PluginFactory()
             self.fifo = pluginFactory.get_plugin(pluginConf)
-            for tmpAttr in self._attrs_from_plugin:
-                setattr(self, tmpAttr, vars(self.fifo)[tmpAttr])
+            # for tmpAttr in self._attrs_from_plugin:
+            #     setattr(self, tmpAttr, vars(self.fifo)[tmpAttr])
 
 
 # monitor fifo
@@ -50,7 +50,7 @@ class MonitorFIFO(FIFOBase):
         """
         Populate monitor fifo with all active worker chunks from DB
         with modificationTime earlier than seconds_ago seconds ago
-        object in fifo = [(queueName_1, [worker_1_1, worker_1_2, ...]), (queueName_2, ...)]
+        object in fifo = [(queueName_1, [[worker_1_1], [worker_1_2], ...]), (queueName_2, ...)]
         """
         if clear_fifo:
             self.fifo.clear()
@@ -60,14 +60,14 @@ class MonitorFIFO(FIFOBase):
         workspec_chunk = []
         for workspec in workspec_iterator:
             if last_queueName == None:
-                workspec_chunk = [workspec]
+                workspec_chunk = [[workspec]]
                 last_queueName = workspec.computingSite
             elif workspec.computingSite == last_queueName \
                 and len(workspec_chunk) < self.config.maxWorkersPerChunk:
-                workspec_chunk.append(workspec)
+                workspec_chunk.append([workspec])
             else:
                 self.fifo.put((last_queueName, workspec_chunk))
-                workspec_chunk = [workspec]
+                workspec_chunk = [[workspec]]
                 last_queueName = workspec.computingSite
         if len(workspec_chunk) > 0:
             self.fifo.put((last_queueName, workspec_chunk))

@@ -16,9 +16,10 @@ from pandaharvester.harvestercore.fifos import MonitorFIFO
 
 # start test
 
-mq = MonitorFIFO()
+fifo_obj = MonitorFIFO()
+mq = fifo_obj.fifo
 
-print('sleepTime', mq.config.sleepTime)
+print('sleepTime', fifo_obj.config.sleepTime)
 
 def single_thread_test(nObjects=3):
     time_point = time.time()
