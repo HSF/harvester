@@ -272,7 +272,6 @@ class GlobusBulkPreparator(PluginBase):
                                                                                    hash1=hash_hex[0:2],
                                                                                    hash2=hash_hex[2:4],
                                                                                    lfn=fileSpec.lfn)
-                        #tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
                         # add files to transfer object - tdata
                         if ifile < 25 :
                             tmpLog.debug("tdata.add_item({},{})".format(srcURL,dstURL))
