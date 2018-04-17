@@ -58,13 +58,16 @@ class GlobusBulkPreparator(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # make logger
-        tmpLog = self.make_logger(_logger, method_name='GlobusBulkPreparator __init__ ')
+        tmpLog = self.make_logger(_logger, 'ThreadID={0}'.format(threading.current_thread().ident),
+                                  method_name='GlobusBulkPreparator __init__ {} ')
         tmpLog.debug('__init__ start')
+        self.thread_id = threading.current_thread().ident
         self.id = GlobusBulkPreparator.next_id
         GlobusBulkPreparator.next_id += 1
         with uLock:
             global uID
-            self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base, self.id ,int(round(time.time() * 1000)))
+            #self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base, self.id ,int(round(time.time() * 1000)))
+            self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base, 'XXXX')
             uID += 1
             uID %= harvester_config.preparator.nThreads
         # create Globus Transfer Client
@@ -114,10 +117,16 @@ class GlobusBulkPreparator(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+        tmpLog = self.make_logger(_logger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='check_status')
         tmpLog.debug('start')
+        # show the dummy transfer id and set to a value with the PandaID if needed.
         tmpLog.debug('self.dummy_transfer_id = {}'.format(self.dummy_transfer_id))
+        if self.dummy_transfer_id == '{0}_{1}'.format(dummy_transfer_id_base,'XXXX') :
+            old_dummy_transfer_id = self.dummy_transfer_id
+            self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base,jobspec.PandaID)
+            tmpLog.debug('Change self.dummy_transfer_id  from {0} to {1}'.format(old_dummy_transfer_id,self.dummy_transfer_id))
+            
         # default return
         tmpRetVal = (True, '')
         # set flag if have db lock
@@ -384,7 +393,7 @@ class GlobusBulkPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+        tmpLog = self.make_logger(_logger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='trigger_preparation')
         tmpLog.debug('start')
         # default return
@@ -401,6 +410,12 @@ class GlobusBulkPreparator(PluginBase):
             errStr = 'failed to get Globus Transfer Client'
             tmpLog.error(errStr)
             return False, errStr
+        # show the dummy transfer id and set to a value with the PandaID if needed.
+        tmpLog.debug('self.dummy_transfer_id = {}'.format(self.dummy_transfer_id))
+        if self.dummy_transfer_id == '{0}_{1}'.format(dummy_transfer_id_base,'XXXX') :
+            old_dummy_transfer_id = self.dummy_transfer_id
+            self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base,jobspec.PandaID)
+            tmpLog.debug('Change self.dummy_transfer_id  from {0} to {1}'.format(old_dummy_transfer_id,self.dummy_transfer_id))
         # set the dummy transfer ID which will be replaced with a real ID in check_status()
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         lfns = inFiles.keys()
