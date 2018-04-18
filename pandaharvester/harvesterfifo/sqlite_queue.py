@@ -76,28 +76,30 @@ class SqliteQueue(PluginBase):
         with self._get_conn() as conn:
             conn.execute(push_sql, (obj_buf,))
 
-    def _pop(self, get_sql, sleep_wait=True):
-        keep_pooling = True
+    def _pop(self, get_sql, timeout=None):
+        keep_polling = True
         wait = 0.1
         max_wait = 2
         tries = 0
+        last_attempt_timestamp = time.time()
         with self._get_conn() as conn:
             id = None
-            while keep_pooling:
+            while keep_polling:
                 conn.execute(self._write_lock_sql)
                 cursor = conn.execute(get_sql)
                 try:
                     id, obj_buf = next(cursor)
-                    keep_pooling = False
+                    keep_polling = False
                 except StopIteration:
                     # unlock the database
                     conn.commit()
-                    if not sleep_wait:
-                        keep_pooling = False
+                    now_timestamp = time.time()
+                    if (now_timestamp - last_attempt_timestamp) >= timeout:
+                        keep_polling = False
                         continue
                     tries += 1
                     time.sleep(wait)
-                    wait = min(max_wait, tries/10 + wait)
+                    wait = min(max_wait, tries/10.0 + wait)
             if id:
                 conn.execute(self._pop_del_sql, (id,))
                 conn.commit()
@@ -113,12 +115,12 @@ class SqliteQueue(PluginBase):
         self._push(obj, push_sql=self._rpush_sql)
 
     # dequeue the first object
-    def get(self):
-        return self._pop(get_sql=self._lpop_get_sql)
+    def get(self, timeout=None):
+        return self._pop(get_sql=self._lpop_get_sql, timeout=None)
 
     # dequeue the last object
-    def getlast(self):
-        return self._pop(get_sql=self._rpop_get_sql)
+    def getlast(self, timeout=None):
+        return self._pop(get_sql=self._rpop_get_sql, timeout=None)
 
     # get the first object without dequeuing it
     def peek(self):

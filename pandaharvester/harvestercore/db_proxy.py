@@ -4028,6 +4028,7 @@ class DBProxy:
             def _get_workspec_from_record(rec):
                 workspec = WorkSpec()
                 workspec.pack(rec)
+                workspec.pandaid_list = []
                 return workspec
             retVal = map(_get_workspec_from_record, resW)
             tmpLog.debug('got {0} workers'.format(len(resW)))

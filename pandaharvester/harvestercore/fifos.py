@@ -1,10 +1,18 @@
+import datetime
 from future.utils import iteritems
+
+try:
+    from threading import get_ident
+except ImportError:
+    from thread import get_ident
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
+# logger
+_logger = core_utils.setup_logger('fifos')
 
 # base class of fifo message queue
 class FIFOBase:
@@ -26,7 +34,7 @@ class FIFOBase:
 
     # intialize fifo from harvester configuration
     def _initialize_fifo(self):
-        self.config = getattr(harvester_config, self.fifoConfigSection)
+        self.config = getattr(harvester_config, self.fifoName)
         if hasattr(self.config, 'fifoModule') \
             and hasattr(self.config, 'fifoClass'):
             pluginConf = vars(self.config).copy()
@@ -34,8 +42,30 @@ class FIFOBase:
                                 'name': self.config.fifoClass,} )
             pluginFactory = PluginFactory()
             self.fifo = pluginFactory.get_plugin(pluginConf)
-            # for tmpAttr in self._attrs_from_plugin:
-            #     setattr(self, tmpAttr, vars(self.fifo)[tmpAttr])
+
+    # size of queue
+    def size(self):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='size')
+        retVal = self.fifo.size()
+        return retVal
+
+    # enqueue
+    def put(self, obj):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
+        retVal = self.fifo.put(obj)
+        return retVal
+
+    # dequeue
+    def get(self, timeout=None):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='get')
+        retVal = self.fifo.get(timeout)
+        return retVal
+
+    # get without dequeuing
+    def peek(self):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='peek')
+        retVal = self.fifo.peek()
+        return retVal
 
 
 # monitor fifo
@@ -43,7 +73,7 @@ class MonitorFIFO(FIFOBase):
     # constructor
     def __init__(self, **kwarg):
         FIFOBase.__init__(self, **kwarg)
-        self.fifoConfigSection = 'monitor_fifo'
+        self.fifoName = 'monitor_fifo'
         self._initialize_fifo()
 
     def populate(self, seconds_ago=0, clear_fifo=False):
@@ -71,3 +101,24 @@ class MonitorFIFO(FIFOBase):
                 last_queueName = workspec.computingSite
         if len(workspec_chunk) > 0:
             self.fifo.put((last_queueName, workspec_chunk))
+
+    def to_check_worker(self, seconds_ago=0):
+        """
+        Justify whether to check any worker by the modificationTime of the first worker in fifo
+        Return True if the first worker is earlier than seconds_ago seconds ago. Otherwise False
+        """
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='to_check_worker')
+        retVal = False
+        timeNow = datetime.datetime.utcnow()
+        obj_peeked = self.peek()
+        if obj_peeked is not None:
+            queueName, workSpecsList = obj_peeked
+            _workspec = workSpecsList[0][0]
+            if timeNow - datetime.timedelta(seconds=seconds_ago) > _workspec.modificationTime:
+                retVal = True
+                mainLog.debug('True')
+            else:
+                mainLog.debug('False. Worker too young to check')
+        else:
+            mainLog.debug('False. No worker in FIFO')
+        return retVal

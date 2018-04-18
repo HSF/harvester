@@ -31,7 +31,7 @@ class Monitor(AgentBase):
             # just import for module initialization
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
-        mq = MonitorFIFO().fifo
+        mq = MonitorFIFO()
         last_time_run_with_DB = 0
         while True:
             sw = core_utils.get_stopwatch()
@@ -40,13 +40,18 @@ class Monitor(AgentBase):
             # run with workers from FIFO
             mainLog.debug('starting run with FIFO')
             mainLog.debug('getting workers to monitor')
-            try:
-                queueName, workSpecsList = mq.get()
-            except Exception as errStr:
-                mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
-            else:
-                mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
-                self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+            if mq.to_check_worker():
+                try:
+                    obj_gotten = mq.get(timeout=3)
+                except Exception as errStr:
+                    mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
+                else:
+                    if obj_gotten is not None:
+                        queueName, workSpecsList = obj_gotten
+                        mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
+                        self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                    else:
+                        mainLog.debug('got nothing in FIFO')
             mainLog.debug('ended run with FIFO')
 
             # run with workers from DB
