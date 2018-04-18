@@ -609,7 +609,7 @@ harvester_frontend = aipanda170.cern.ch:25443
 #
 # To set logging level for each logger
 #
-# Notes: Make sure to set a higher logging level than log_level in panda_common.cfg
+# Notes: Global logging level is set by log_level in panda_common.cfg
 
 [log_level]
 
