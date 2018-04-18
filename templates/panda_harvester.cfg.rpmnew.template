@@ -600,3 +600,20 @@ user_data_file = /path/to/user_data.txt
 image = https://www.googleapis.com/compute/v1/projects/atlas-harvester/global/images/cernvm4-micro-3-0-6
 # harvester frontend
 harvester_frontend = aipanda170.cern.ch:25443
+
+
+
+##########################
+#
+# Log level parameters
+#
+# To set logging level for each logger
+#
+# Notes: Make sure to set a higher logging level than log_level in panda_common.cfg
+
+[log_level]
+
+# logger_name = level (CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET)
+#
+# E.g. to set INFO level to panda-monitor.log
+# monitor = INFO

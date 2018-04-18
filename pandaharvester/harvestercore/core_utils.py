@@ -27,6 +27,7 @@ from .file_spec import FileSpec
 from .event_spec import EventSpec
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
+from pandaharvester.harvesterconfig import harvester_config
 
 
 with_memory_profile = False
@@ -44,6 +45,11 @@ def setup_logger(name=None):
         frm = inspect.stack()[1][0]
         mod = inspect.getmodule(frm)
         name = mod.__name__.split('.')[-1]
+    try:
+        log_level = getattr(harvester_config.log_level, name)
+        return PandaLogger().getLogger(name, log_level=log_level)
+    except Exception:
+        pass
     return PandaLogger().getLogger(name)
 
 
