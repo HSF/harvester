@@ -138,6 +138,8 @@ class GlobusBulkPreparator(PluginBase):
             return False, 'jobspec.computingSite is not defined'
         else:
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
+        queueConfigMapper = QueueConfigMapper()
+        queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
         # test we have a Globus Transfer Client
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
@@ -174,17 +176,18 @@ class GlobusBulkPreparator(PluginBase):
             if dummy_transferID in groups:
                 groupUpdateTime = groups[dummy_transferID]['groupUpdateTime']
                 # get files with the dummy transfer ID across jobs
-                fileSpecs = self.dbInterface.get_files_with_group_id(dummy_transferID)
-                # submit transfer if there are more than 10 files or the group was made before more than 10 min
-                msgStr = 'dummy_transferID = {0}  number of files = {1}'.format(dummy_transferID,len(fileSpecs))
+                fileSpecs_allgroups = self.dbInterface.get_files_with_group_id(dummy_transferID)
+                msgStr = 'dummy_transferID = {0} self.dbInterface.get_files_with_group_id(dummy_transferID)  number of files = {1}'.format(dummy_transferID,len(fileSpecs_allgroups))
                 tmpLog.debug(msgStr)
+                fileSpecs = jobspec.get_input_file_specs(dummy_transferID, skip_ready=True)
+                msgStr = 'dummy_transferID = {0} jobspec.get_input_file_specs(dummy_transferID,skip_ready=True)  number of files = {1}'.format(dummy_transferID,len(fileSpecs))
+                tmpLog.debug(msgStr)
+                # submit transfer if there are more than 10 files or the group was made before more than 10 min
                 if len(fileSpecs) >= 10 or \
                         groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
                     tmpLog.debug('prepare to transfer files')
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually  
-                    queueConfigMapper = QueueConfigMapper()
-                    queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
                     self.Globus_srcPath = queueConfig.preparator['Globus_srcPath']
                     self.srcEndpoint = queueConfig.preparator['srcEndpoint']
                     self.Globus_dstPath = self.basePath
@@ -214,11 +217,14 @@ class GlobusBulkPreparator(PluginBase):
                             tmpRetVal = (None,errMsg)
                             return tmpRetVal
                         # both endpoints activated now prepare to transfer data
+                        tdata = None
                         tdata = TransferData(self.tc,
                                              self.srcEndpoint,
                                              self.dstEndpoint,
                                              sync_level="exists")
 #                                             sync_level="checksum")
+                        tmpLog.debug('size of tdata[DATA] - {}'.format(len(tdata['DATA'])))
+
                     except:
                         errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
                         # release process lock
@@ -232,21 +238,8 @@ class GlobusBulkPreparator(PluginBase):
                     # loop over all files
                     ifile = 0
                     for fileSpec in fileSpecs:
-                        attrs = jobspec.get_input_file_attributes()
                         # only print to log file first 25 files
                         if ifile < 25 :
-                            msgStr = "len(jobSpec.get_input_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
-                            tmpLog.debug(msgStr)
-                            #  print out to debug log only the first 10 file attributes
-                            counter = 10
-                            for key, value in attrs.iteritems():
-                                msgStr = "input file attributes - {0} {1}".format(key,value)
-                                tmpLog.debug(msgStr)
-                                counter -= 1
-                                if counter < 0:
-                                    msgStr = "Only print to debug log file first 10 file attributes"
-                                    tmpLog.debug(msgStr)
-                                    break
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
                         if ifile == 25 :
@@ -277,6 +270,7 @@ class GlobusBulkPreparator(PluginBase):
                         tdata.add_item(srcURL,dstURL)
                         ifile += 1
                     # submit transfer 
+                    tmpLog.debug('Number of files to transfer - {}'.format(len(tdata['DATA'])))
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)
                         # check status code and message
@@ -417,18 +411,22 @@ class GlobusBulkPreparator(PluginBase):
         # set the dummy transfer ID which will be replaced with a real ID in check_status()
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         lfns = inFiles.keys()
-        for inLFN in inFiles.keys():
-            lfns.append(inLFN)
+        #for inLFN in inFiles.keys():
+        #    lfns.append(inLFN)
+        tmpLog.debug('number of lfns - {0} type(lfns) - {1}'.format(len(lfns),type(lfns)))
         jobspec.set_groups_to_files({self.dummy_transfer_id: {'lfns': lfns,'groupStatus': 'pending'}})
-        if len(lfns) < 25:
+        if len(lfns) < 10:
             msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending'.format(self.dummy_transfer_id,lfns)
         else:
-            tmp_lfns = lfns[:25]
+            tmp_lfns = lfns[:10]
             msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns (first 25) - {1}, groupStatus - pending'.format(self.dummy_transfer_id,tmp_lfns)
         tmpLog.debug(msgStr)
+        fileSpec_list = jobspec.get_input_file_specs(self.dummy_transfer_id, skip_ready=True)
+        tmpLog.debug('call jobspec.get_input_file_specs({0}, skip_ready=True) num files returned = {1}'.format(self.dummy_transfer_id,len(fileSpec_list)))
         tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id,skip_ready=True),self.dummy_transfer_id,pending)')
-        tmpStat = self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id, skip_ready=True),self.dummy_transfer_id,'pending')
-        tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id,skip_ready=True),self.dummy_transfer_id,pending)')
+        tmpStat = self.dbInterface.set_file_group(fileSpec_list,self.dummy_transfer_id,'pending')
+        msgStr = 'called self.dbInterface.set_file_group(jobspec.get_input_file_specs(self.dummy_transfer_id,skip_ready=True),self.dummy_transfer_id,pending) return Status {}'.format(tmpStat)
+        tmpLog.debug(msgStr)
         return True, ''
 
 
