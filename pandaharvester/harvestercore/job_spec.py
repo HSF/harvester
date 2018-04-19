@@ -109,7 +109,10 @@ class JobSpec(SpecBase):
     # convert from Job JSON
     def convert_job_json(self, data):
         self.PandaID = data['PandaID']
-        self.taskID = data['taskID']
+        if data['taskID'] == 'NULL':
+            self.taskID = None
+        else:
+            self.taskID = data['taskID']
         self.attemptNr = data['attemptNr']
         self.jobsetID = data['jobsetID']
         self.currentPriority = data['currentPriority']
@@ -214,8 +217,9 @@ class JobSpec(SpecBase):
             tmpData['eventRanges'] = eventRanges
             if zipFileID is not None:
                 zipFileSpec = eventsData['zip']
-                tmpData['zipFile'] = {'lfn': zipFileSpec.lfn,
-                                      'objstoreID': zipFileSpec.objstoreID}
+                if zipFileSpec.status == 'finished':
+                    tmpData['zipFile'] = {'lfn': zipFileSpec.lfn,
+                                          'objstoreID': zipFileSpec.objstoreID}
             data.append(tmpData)
         return data, eventSpecs
 

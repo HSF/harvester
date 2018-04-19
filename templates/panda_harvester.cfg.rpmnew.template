@@ -603,32 +603,17 @@ harvester_frontend = aipanda170.cern.ch:25443
 
 
 
-
 ##########################
 #
-# FIFO parameters
+# Log level parameters
 #
+# To set logging level for each logger
+#
+# Notes: Global logging level is set by log_level in panda_common.cfg
 
-[monitor_fifo]
+[log_level]
 
-# module and class names to provide the fifo queue
-fifoModule = pandaharvester.harvesterfifo.sqlite_queue
-fifoClass = SqliteQueue
-
-# database filename for sqlite.
-# must be different from main Harvester DB and other fifo DBs if using sqlite
-database_filename = /dev/shm/monitor_fifo.db
-
-# max number of workers to be populated into the fifo queue
-maxWorkersToPopulate = 10000
-
-# max number of workers in a chunk to enqueue
-maxWorkersPerChunk = 500
-
-# lock interval in sec
-lockInterval = 600
-
-# sleep interval in sec
-sleepTime = 60
-
-[sweeper_fifo]
+# logger_name = level (CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET)
+#
+# E.g. to set INFO level to panda-monitor.log
+# monitor = INFO

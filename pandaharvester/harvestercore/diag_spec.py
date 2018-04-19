@@ -16,7 +16,7 @@ class DiagSpec(SpecBase):
                            'lockTime:timestamp / index',
                            'messageLevel:text',
                            'lockedBy:integer / index',
-                           'diagMessage:text'
+                           'diagMessage:varchar(500)'
                            )
 
     # constructor

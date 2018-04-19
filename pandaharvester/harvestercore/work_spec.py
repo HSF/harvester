@@ -82,7 +82,7 @@ class WorkSpec(SpecBase):
                            'resourceType:text',
                            'nativeExitCode:integer',
                            'nativeStatus:text',
-                           'diagMessage:text',
+                           'diagMessage:varchar(500)',
                            'nJobs:integer'
                            )
 
@@ -303,6 +303,8 @@ class WorkSpec(SpecBase):
 
     # set dialog message
     def set_dialog_message(self, msg):
+        if msg is not None:
+            msg = msg[:500]
         self.diagMessage = msg
 
     # set pilot error
