@@ -114,7 +114,10 @@ class JobSpec(SpecBase):
         else:
             self.taskID = data['taskID']
         self.attemptNr = data['attemptNr']
-        self.jobsetID = data['jobsetID']
+        if data['jobsetID'] == 'NULL':
+            self.jobsetID = None
+        else:
+            self.jobsetID = data['jobsetID']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
         if 'zipPerMB' in data:
