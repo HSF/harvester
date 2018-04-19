@@ -63,6 +63,7 @@ class GlobusBulkStager(PluginBase):
                                   method_name='GlobusBulkStager __init__ ')
         tmpLog.debug('start')
         self.Yodajob = False 
+        self.pathConvention = None
         self.id = GlobusBulkStager.next_id
         GlobusBulkStager.next_id += 1
         with uLock:
@@ -106,10 +107,12 @@ class GlobusBulkStager(PluginBase):
         self.dummy_transfer_id = dummy_transfer_id
 
     # set FileSpec.objstoreID 
-    def set_FileSpec_objstoreID(self,jobspec,objstoreID):
+    def set_FileSpec_objstoreID(self,jobspec,objstoreID,pathConvention):
         # loop over all output files
         for fileSpec in jobspec.outFiles:
             fileSpec.objstoreID = objstoreID
+            if pathConvention is not None:
+                fileSpec.pathConvention = pathConvention
 
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
@@ -150,11 +153,12 @@ class GlobusBulkStager(PluginBase):
                 self.Yodajob = True
         # set the location of the files in fileSpec.objstoreID
         # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
+        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
         if self.Yodajob :
-            self.objstoreID = '{0}/100'.format(queueConfig.stager['objStoreID_ES'])
+            self.pathConvention = int(queueConfig.stager['pathConvention'])
+            tmpLog.debug('Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}'.format(jobspec.PandaID,self.objstoreID,self.pathConvention))
         else:
-            self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
-        tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
+            tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
         # test we have a Globus Transfer Client
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
@@ -373,7 +377,7 @@ class GlobusBulkStager(PluginBase):
                 # succeeded in finding a transfer task by tranferID
                 if transferTasks[transferID]['status'] == 'SUCCEEDED':
                     tmpLog.debug('transfer task {} succeeded'.format(transferID))
-                    self.set_FileSpec_objstoreID(jobspec,self.objstoreID)
+                    self.set_FileSpec_objstoreID(jobspec,self.objstoreID,self.pathConvention)
                     self.set_FileSpec_status(jobspec,'finished')
                     return True, ''
                 # failed
