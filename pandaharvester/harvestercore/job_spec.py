@@ -218,8 +218,11 @@ class JobSpec(SpecBase):
             if zipFileID is not None:
                 zipFileSpec = eventsData['zip']
                 if zipFileSpec.status == 'finished':
+                    objstoreID = "{0}".format(zipFileSpec.objstoreID)
+                    if zipFileSpec.pathConvention is not None:
+                        objstoreID += "/{0}".format(zipFileSpec.pathConvention)
                     tmpData['zipFile'] = {'lfn': zipFileSpec.lfn,
-                                          'objstoreID': zipFileSpec.objstoreID}
+                                          'objstoreID': objstoreID}
             data.append(tmpData)
         return data, eventSpecs
 
