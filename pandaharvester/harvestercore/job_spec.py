@@ -214,8 +214,9 @@ class JobSpec(SpecBase):
             tmpData['eventRanges'] = eventRanges
             if zipFileID is not None:
                 zipFileSpec = eventsData['zip']
-                tmpData['zipFile'] = {'lfn': zipFileSpec.lfn,
-                                      'objstoreID': zipFileSpec.objstoreID}
+                if zipFileSpec.status == 'finished':
+                    tmpData['zipFile'] = {'lfn': zipFileSpec.lfn,
+                                          'objstoreID': zipFileSpec.objstoreID}
             data.append(tmpData)
         return data, eventSpecs
 
