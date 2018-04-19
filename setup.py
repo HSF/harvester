@@ -30,7 +30,7 @@ setup(
                       'future',
                       'futures; python_version == "2.*"',
                       'pycryptodomex',
-                      'panda-common-s',
+                      'panda-common-s >= 0.0.11',
                       'pyjwt',
                       'subprocess32; python_version == "2.*"',
                       'trepan2; python_version == "2.*"',

@@ -151,6 +151,7 @@ class Communicator:
         data['prodSourceLabel'] = prod_source_label
         data['computingElement'] = computing_element
         data['nJobs'] = n_jobs
+        data['schedulerID'] = 'harvester-{0}'.format(harvester_config.master.harvester_id)
         if additional_criteria is not None:
             for tmpKey, tmpVal in additional_criteria:
                 data[tmpKey] = tmpVal
