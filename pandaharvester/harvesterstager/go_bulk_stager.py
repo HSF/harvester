@@ -151,7 +151,8 @@ class GlobusBulkStager(PluginBase):
         # set the location of the files in fileSpec.objstoreID
         # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
         if self.Yodajob :
-            self.objstoreID = '{0}/100'.format(queueConfig.stager['objStoreID_ES'])
+            self.objstoreID = queueConfig.stager['objStoreID_ES']
+            self.pathConvention = 100
         else:
             self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
         tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
