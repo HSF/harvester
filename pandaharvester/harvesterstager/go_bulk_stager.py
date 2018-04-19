@@ -104,6 +104,12 @@ class GlobusBulkStager(PluginBase):
     def set_dummy_transfer_id_testing(self,dummy_transfer_id):
         self.dummy_transfer_id = dummy_transfer_id
 
+    # set FileSpec.objstoreID 
+    def set_FileSpec_objstoreID(self,jobspec,objstoreID):
+        # loop over all output files
+        for fileSpec in jobspec.outFiles:
+            fileSpec.objstoreID = objstoreID
+
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
         # loop over all output files
@@ -134,6 +140,13 @@ class GlobusBulkStager(PluginBase):
             return False, 'jobspec.computingSite is not defined'
         else:
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
+        # get the queueConfig and corresponding objStoreID_ES
+        queueConfigMapper = QueueConfigMapper()
+        queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
+        # set the location of the files in fileSpec.objstoreID
+        # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
+        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
+        tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
         # test we have a Globus Transfer Client
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
@@ -177,8 +190,6 @@ class GlobusBulkStager(PluginBase):
                     tmpLog.debug('prepare to transfer files')
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually  
-                    queueConfigMapper = QueueConfigMapper()
-                    queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
                     #self.Globus_srcPath = queueConfig.stager['Globus_srcPath']
                     self.srcEndpoint = queueConfig.stager['srcEndpoint']
                     self.Globus_srcPath = self.basePath
@@ -225,11 +236,6 @@ class GlobusBulkStager(PluginBase):
                     # loop over all files
                     ifile = 0
                     for fileSpec in fileSpecs:
-                        # set the location of the files in fileSpec.objstoreID
-                        # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
-                        fileSpec.objstoreID = int(queueConfig.stager['objStoreID_ES'])
-                        if ifile == 0 :
-                            tmpLog.debug('write out fileSpec.objstoreID = {0}'.format(fileSpec.objstoreID))
                         attrs = jobspec.get_output_file_attributes()
                         # only print to log file first 25 files
                         if ifile < 25 :
@@ -282,6 +288,7 @@ class GlobusBulkStager(PluginBase):
                             return tmpRetVal
                         ifile += 1
                     # submit transfer 
+                    tmpLog.debug('Number of files to transfer - {}'.format(len(tdata['DATA'])))
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)
                         # check status code and message
@@ -367,6 +374,7 @@ class GlobusBulkStager(PluginBase):
                 # succeeded in finding a transfer task by tranferID
                 if transferTasks[transferID]['status'] == 'SUCCEEDED':
                     tmpLog.debug('transfer task {} succeeded'.format(transferID))
+                    self.set_FileSpec_objstoreID(jobspec,self.objstoreID)
                     self.set_FileSpec_status(jobspec,'finished')
                     return True, ''
                 # failed
