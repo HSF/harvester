@@ -62,6 +62,7 @@ class GlobusBulkStager(PluginBase):
         tmpLog = self.make_logger(_logger, 'ThreadID={0}'.format(threading.current_thread().ident),
                                   method_name='GlobusBulkStager __init__ ')
         tmpLog.debug('start')
+        self.Yodajob = False 
         self.id = GlobusBulkStager.next_id
         GlobusBulkStager.next_id += 1
         with uLock:
@@ -143,9 +144,17 @@ class GlobusBulkStager(PluginBase):
         # get the queueConfig and corresponding objStoreID_ES
         queueConfigMapper = QueueConfigMapper()
         queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
+        # check queueConfig stager section to see if jobtype is set
+        if 'jobtype' in queueConfig.stager:
+            if queueConfig.stager['jobtype'] == "Yoda" :
+                self.Yodajob = True
         # set the location of the files in fileSpec.objstoreID
         # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
-        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
+        if self.Yodajob :
+            self.objstoreID = queueConfig.stager['objStoreID_ES']
+            self.pathConvention = 100
+        else:
+            self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
         tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
         # test we have a Globus Transfer Client
         if not self.tc :
@@ -219,6 +228,7 @@ class GlobusBulkStager(PluginBase):
                             tmpRetVal = (None,errMsg)
                             return tmpRetVal
                         # both endpoints activated now prepare to transfer data
+                        tdata = None
                         tdata = TransferData(self.tc,
                                              self.srcEndpoint,
                                              self.dstEndpoint,
@@ -236,30 +246,19 @@ class GlobusBulkStager(PluginBase):
                     # loop over all files
                     ifile = 0
                     for fileSpec in fileSpecs:
-                        attrs = jobspec.get_output_file_attributes()
+                        scope ='panda'
+                        if fileSpec.scope is not None :
+                            scope = fileSpec.scope
+                        # for Yoda job set the scope to transient 
+                        if self.Yodajob :
+                            scope = 'transient'
                         # only print to log file first 25 files
                         if ifile < 25 :
-                            msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
-                            tmpLog.debug(msgStr)
-                            # print out to debug log at most 10 file attributes
-                            counter = 10
-                            for key, value in attrs.iteritems():
-                                msgStr = "output file attributes - {0} {1}".format(key,value)
-                                tmpLog.debug(msgStr)
-                                counter -= 1
-                                if counter < 0: 
-                                    msgStr = "Only printing first 10 file attributes"
-                                    tmpLog.debug(msgStr)
-                                    break
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
                         if ifile == 25 :
                             msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
-                        # end debug log file test
-                        scope ='panda'
-                        if fileSpec.scope is not None :
-                            scope = fileSpec.scope
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
                         hash_hex = hash.hexdigest()
@@ -270,7 +269,8 @@ class GlobusBulkStager(PluginBase):
                                                                                    hash1=hash_hex[0:2],
                                                                                    hash2=hash_hex[2:4],
                                                                                    lfn=fileSpec.lfn)
-                        tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
+                        if ifile < 25 :
+                            tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
                         # add files to transfer object - tdata
                         if os.access(srcURL, os.R_OK):
                             if ifile < 25 :
