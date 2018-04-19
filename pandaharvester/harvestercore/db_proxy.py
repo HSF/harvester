@@ -3383,6 +3383,8 @@ class DBProxy:
             varMap = dict()
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
             self.execute(sqlD, varMap)
+            # commit
+            self.commit()
             # check lock
             sqlC = "SELECT lockTime FROM {0} ".format(processLockTableName)
             sqlC += "WHERE processName=:processName "
