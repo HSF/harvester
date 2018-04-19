@@ -63,6 +63,7 @@ class GlobusBulkStager(PluginBase):
                                   method_name='GlobusBulkStager __init__ ')
         tmpLog.debug('start')
         self.Yodajob = False 
+        self.pathConvention = None
         self.id = GlobusBulkStager.next_id
         GlobusBulkStager.next_id += 1
         with uLock:
@@ -151,13 +152,13 @@ class GlobusBulkStager(PluginBase):
                 self.Yodajob = True
         # set the location of the files in fileSpec.objstoreID
         # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
+        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
         if self.Yodajob :
-            self.objstoreID = queueConfig.stager['objStoreID_ES']
-            self.pathConvention = 100
+            self.pathConvention = int(queueConfig.stager['pathConvention'])
+            tmpLog.debug('Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}'.format(jobspec.PandaID,self.objstoreID,self.pathConvention))
         else:
-            self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
             self.pathConvention = None
-        tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
+            tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
         # test we have a Globus Transfer Client
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
