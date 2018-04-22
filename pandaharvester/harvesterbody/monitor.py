@@ -1,4 +1,5 @@
 import time
+import datetime
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -31,28 +32,49 @@ class Monitor(AgentBase):
             # just import for module initialization
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
-        mq = MonitorFIFO()
         last_time_run_with_DB = 0
+        if harvester_config.monitor.fifoEnable:
+            monitor_fifo = MonitorFIFO()
         while True:
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
 
             # run with workers from FIFO
-            mainLog.debug('starting run with FIFO')
-            mainLog.debug('getting workers to monitor')
-            if mq.to_check_worker():
-                try:
-                    obj_gotten = mq.get(timeout=3)
-                except Exception as errStr:
-                    mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
-                else:
-                    if obj_gotten is not None:
-                        queueName, workSpecsList = obj_gotten
-                        mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
-                        self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+            if harvester_config.monitor.fifoEnable:
+                # check fifo size
+                fifo_size = monitor_fifo.size()
+                mainLog.debug('FIFO size is {0}'.format(fifo_size))
+                mainLog.debug('starting run with FIFO')
+                if monitor_fifo.to_check_workers():
+                    mainLog.debug('getting workers to monitor')
+                    try:
+                        obj_gotten = monitor_fifo.get(timeout=1)
+                    except Exception as errStr:
+                        mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
                     else:
-                        mainLog.debug('got nothing in FIFO')
-            mainLog.debug('ended run with FIFO')
+                        if obj_gotten is not None:
+                            queueName, workSpecsList = obj_gotten
+                            mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
+                            for workSpecs in workSpecsList:
+                                for workSpec in workSpecs:
+                                    if workSpec.pandaid_list is None:
+                                        workSpec.pandaid_list = []
+                                        for key in workSpec.workAttributes.keys():
+                                            if key not in ['batchLog', 'stdOut', 'stdErr']:
+                                                workSpec.pandaid_list.append(key)
+                                        workSpec.force_update('pandaid_list')
+                            workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
+                            if workSpecsToEnqueue:
+                                mainLog.debug('putting workers to FIFO')
+                                try:
+                                    monitor_fifo.put((queueName, workSpecsToEnqueue))
+                                except Exception as errStr:
+                                    mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
+                            else:
+                                mainLog.debug('nothing to put to FIFO')
+                        else:
+                            mainLog.debug('got nothing in FIFO')
+                mainLog.debug('ended run with FIFO')
 
             # run with workers from DB
             if time.time() >= last_time_run_with_DB + harvester_config.monitor.sleepTime:
@@ -65,7 +87,16 @@ class Monitor(AgentBase):
                 mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
                 # loop over all workers
                 for queueName, workSpecsList in iteritems(workSpecsPerQueue):
-                    self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                    workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                    if harvester_config.monitor.fifoEnable:
+                        if workSpecsToEnqueue:
+                            mainLog.debug('putting workers to FIFO')
+                            try:
+                                monitor_fifo.put((queueName, workSpecsToEnqueue))
+                            except Exception as errStr:
+                                mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
+                        else:
+                            mainLog.debug('nothing to put to FIFO')
                 last_time_run_with_DB = time.time()
                 mainLog.debug('ended run with DB')
 
@@ -75,13 +106,14 @@ class Monitor(AgentBase):
                 mainLog.debug('done' + sw.get_elapsed_time())
 
             # check if being terminated
-            if self.terminated(harvester_config.monitor_fifo.sleepTime):
+            sleepTime = harvester_config.monitor.fifoSleepTime if harvester_config.monitor.fifoEnable else harvester_config.monitor.sleepTime
+            if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
 
 
     # core of monitor agent to check workers in workSpecsList of queueName
-    def monitor_agent_core(self, lockedBy, queueName, workSpecsList):
+    def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False):
         tmpQueLog = self.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
                                      method_name='run')
         # check queue
@@ -93,6 +125,8 @@ class Monitor(AgentBase):
         # get plugins
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
+        # workspec chunk of active workers
+        workSpecsToEnqueue = []
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
@@ -180,15 +214,40 @@ class Monitor(AgentBase):
                         tmpLog = self.make_logger(_logger,
                                                   'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                                   method_name='run')
-                        tmpLog.error('failed to update the DB. lockInterval may be too short')
+                        if from_fifo:
+                            tmpLog.info('workers still locked. DB not updated')
+                        else:
+                            tmpLog.error('failed to update the DB. lockInterval may be too short')
                         sendWarning = True
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                     for workSpec in workSpecs:
                         messenger.acknowledge_events_files(workSpec)
+                # active workers for fifo
+                if harvester_config.monitor.fifoEnable and workSpecs:
+                    workSpec = workSpecs[0]
+                    if workSpec.status in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
+                        and workSpec.mapType != WorkSpec.MT_MultiWorkers \
+                        and workSpec.workAttributes is not None:
+                        forceEnqueueInterval = datetime.timedelta(seconds=harvester_config.monitor.fifoForceEnqueueInterval)
+                        if from_fifo:
+                            # workSpec.pandaid_list = []
+                            # for key in workSpec.workAttributes.keys():
+                            #     if key not in ['batchLog', 'stdOut', 'stdErr']:
+                            #         workSpec.pandaid_list.append(key)
+                            # workSpec.force_update('pandaid_list')
+                            workSpec.modificationTime = datetime.datetime.utcnow()
+                            workSpec.force_update('modificationTime')
+                            workSpecsToEnqueue.append(workSpecs)
+                        elif tmpRet and datetime.datetime.utcnow() - forceEnqueueInterval > workSpec.modificationTime:
+                            workSpec.modificationTime = datetime.datetime.utcnow()
+                            workSpec.force_update('modificationTime')
+                            workSpecsToEnqueue.append(workSpecs)
         else:
             tmpQueLog.error('failed to check workers')
+        retVal = workSpecsToEnqueue
         tmpQueLog.debug('done')
+        return retVal
 
 
     # wrapper for checkWorkers

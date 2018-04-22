@@ -34,37 +34,44 @@ class FIFOBase:
 
     # intialize fifo from harvester configuration
     def _initialize_fifo(self):
-        self.config = getattr(harvester_config, self.fifoName)
-        if hasattr(self.config, 'fifoModule') \
-            and hasattr(self.config, 'fifoClass'):
-            pluginConf = vars(self.config).copy()
+        self.fifoName = '{0}_fifo'.format(self.agentName)
+        self.config = getattr(harvester_config, self.agentName)
+        pluginConf = vars(self.config).copy()
+        if hasattr(self.config, 'fifoModule') and hasattr(self.config, 'fifoClass'):
             pluginConf.update( {'module': self.config.fifoModule,
                                 'name': self.config.fifoClass,} )
-            pluginFactory = PluginFactory()
-            self.fifo = pluginFactory.get_plugin(pluginConf)
+        else:
+            pluginConf.update( {'module': harvester_config.fifo.fifoModule,
+                                'name': harvester_config.fifo.fifoClass,} )
+        pluginFactory = PluginFactory()
+        self.fifo = pluginFactory.get_plugin(pluginConf)
 
     # size of queue
     def size(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='size')
         retVal = self.fifo.size()
+        mainLog.debug('size={0}'.format(retVal))
         return retVal
 
     # enqueue
     def put(self, obj):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
         retVal = self.fifo.put(obj)
+        mainLog.debug('called')
         return retVal
 
     # dequeue
     def get(self, timeout=None):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='get')
         retVal = self.fifo.get(timeout)
+        mainLog.debug('called')
         return retVal
 
     # get without dequeuing
     def peek(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='peek')
         retVal = self.fifo.peek()
+        mainLog.debug('called')
         return retVal
 
 
@@ -73,7 +80,7 @@ class MonitorFIFO(FIFOBase):
     # constructor
     def __init__(self, **kwarg):
         FIFOBase.__init__(self, **kwarg)
-        self.fifoName = 'monitor_fifo'
+        self.agentName = 'monitor'
         self._initialize_fifo()
 
     def populate(self, seconds_ago=0, clear_fifo=False):
@@ -84,7 +91,7 @@ class MonitorFIFO(FIFOBase):
         """
         if clear_fifo:
             self.fifo.clear()
-        n_workers = self.config.maxWorkersToPopulate
+        n_workers = self.config.fifoMaxWorkersToPopulate
         workspec_iterator = self.dbProxy.get_active_workers(n_workers, seconds_ago)
         last_queueName = None
         workspec_chunk = []
@@ -93,7 +100,7 @@ class MonitorFIFO(FIFOBase):
                 workspec_chunk = [[workspec]]
                 last_queueName = workspec.computingSite
             elif workspec.computingSite == last_queueName \
-                and len(workspec_chunk) < self.config.maxWorkersPerChunk:
+                and len(workspec_chunk) < self.config.fifoMaxWorkersPerChunk:
                 workspec_chunk.append([workspec])
             else:
                 self.fifo.put((last_queueName, workspec_chunk))
@@ -102,10 +109,11 @@ class MonitorFIFO(FIFOBase):
         if len(workspec_chunk) > 0:
             self.fifo.put((last_queueName, workspec_chunk))
 
-    def to_check_worker(self, seconds_ago=0):
+    def to_check_workers(self):
         """
         Justify whether to check any worker by the modificationTime of the first worker in fifo
-        Return True if the first worker is earlier than seconds_ago seconds ago. Otherwise False
+        Return True if OK to dequeue to check;
+        Return False otherwise.
         """
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='to_check_worker')
         retVal = False
@@ -114,11 +122,12 @@ class MonitorFIFO(FIFOBase):
         if obj_peeked is not None:
             queueName, workSpecsList = obj_peeked
             _workspec = workSpecsList[0][0]
-            if timeNow - datetime.timedelta(seconds=seconds_ago) > _workspec.modificationTime:
+            _check_interval = harvester_config.monitor.checkInterval
+            if timeNow - datetime.timedelta(seconds=_check_interval) > _workspec.modificationTime:
                 retVal = True
                 mainLog.debug('True')
             else:
-                mainLog.debug('False. Worker too young to check')
+                mainLog.debug('False. Workers younger than {0} seconds ago to check'.format(_check_interval))
         else:
-            mainLog.debug('False. No worker in FIFO')
+            mainLog.debug('False. No workers in FIFO')
         return retVal

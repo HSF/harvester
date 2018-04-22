@@ -12,6 +12,7 @@ from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
+from pandaharvester.harvestercore.fifos import MonitorFIFO
 
 # logger
 _logger = core_utils.setup_logger('submitter')
@@ -35,6 +36,7 @@ class Submitter(AgentBase):
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
+            monitor_fifo = MonitorFIFO()
 
             # get queues associated to a site to submit workers
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
@@ -300,6 +302,13 @@ class Submitter(AgentBase):
                                                     tmpStr = \
                                                         'failed to register a worker for PandaID={0} with batchID={1}'
                                                     tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
+                                    # enqueue to monitor fifo
+                                    if harvester_config.monitor.fifoEnable \
+                                        and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
+                                        workSpecsToEnqueue = []
+                                        workSpecsToEnqueue = list(map(lambda x: [x], workSpecList))
+                                        monitor_fifo.put((queueName, workSpecsToEnqueue))
+                                        mainLog.debug('put workers to monitor FIFO')
                                 # release jobs
                                 self.dbProxy.release_jobs(pandaIDs, lockedBy)
                                 tmpLog.info('done')

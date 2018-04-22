@@ -1,5 +1,6 @@
 import os
 import time
+import re
 
 import sqlite3
 
@@ -14,6 +15,7 @@ except ImportError:
     from thread import get_ident
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvesterconfig import harvester_config
 
 
 class SqliteQueue(PluginBase):
@@ -50,7 +52,11 @@ class SqliteQueue(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.db_path = os.path.abspath(self.database_filename)
+        if hasattr(self, 'database_filename'):
+            _db_filename = self.database_filename
+        else:
+            _db_filename = harvester_config.fifo.database_filename
+        self.db_path = os.path.abspath(re.sub('\$\(AGENT\)', self.agentName, _db_filename))
         self._connection_cache = {}
         with self._get_conn() as conn:
             conn.execute(self._create_sql)
