@@ -17,6 +17,11 @@ except ImportError:
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 
+try:
+    memoryviewOrBuffer = buffer
+except NameError:
+    memoryviewOrBuffer = memoryview
+
 
 class SqliteQueue(PluginBase):
 
@@ -78,7 +83,7 @@ class SqliteQueue(PluginBase):
         return self._connection_cache[id]
 
     def _push(self, obj, push_sql):
-        obj_buf = memoryview(pickle.dumps(obj, -1))
+        obj_buf = memoryviewOrBuffer(pickle.dumps(obj, -1))
         with self._get_conn() as conn:
             conn.execute(push_sql, (obj_buf,))
 
