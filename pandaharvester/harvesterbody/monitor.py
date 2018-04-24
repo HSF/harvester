@@ -17,6 +17,9 @@ _logger = core_utils.setup_logger('monitor')
 
 # propagate important checkpoints to panda
 class Monitor(AgentBase):
+    # Whether fifos enabled
+    monitor_fifo_enabled = hasattr(harvester_config.monitor, 'fifoEnable') and harvester_config.monitor.fifoEnable
+
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
@@ -33,7 +36,7 @@ class Monitor(AgentBase):
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
         last_time_run_with_DB = 0
-        if harvester_config.monitor.fifoEnable:
+        if self.monitor_fifo_enabled:
             monitor_fifo = MonitorFIFO()
         while True:
             sw = core_utils.get_stopwatch()
@@ -51,7 +54,7 @@ class Monitor(AgentBase):
                 # loop over all workers
                 for queueName, workSpecsList in iteritems(workSpecsPerQueue):
                     workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
-                    if harvester_config.monitor.fifoEnable:
+                    if self.monitor_fifo_enabled:
                         if workSpecsToEnqueue:
                             mainLog.debug('putting workers to FIFO')
                             try:
@@ -62,7 +65,7 @@ class Monitor(AgentBase):
                             mainLog.debug('nothing to put to FIFO')
                 last_time_run_with_DB = time.time()
                 mainLog.debug('ended run with DB')
-            elif harvester_config.monitor.fifoEnable:
+            elif self.monitor_fifo_enabled:
                 # run with workers from FIFO
                 mainLog.debug('starting run with FIFO')
                 # check fifo size
@@ -105,7 +108,7 @@ class Monitor(AgentBase):
                 mainLog.debug('done' + sw.get_elapsed_time())
 
             # check if being terminated
-            sleepTime = harvester_config.monitor.fifoSleepTime if harvester_config.monitor.fifoEnable else harvester_config.monitor.sleepTime
+            sleepTime = harvester_config.monitor.fifoSleepTime if self.monitor_fifo_enabled else harvester_config.monitor.sleepTime
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
@@ -230,7 +233,7 @@ class Monitor(AgentBase):
                     for workSpec in workSpecs:
                         messenger.acknowledge_events_files(workSpec)
                 # active workers for fifo
-                if harvester_config.monitor.fifoEnable and workSpecs:
+                if self.monitor_fifo_enabled and workSpecs:
                     workSpec = workSpecs[0]
                     if workSpec.status in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \

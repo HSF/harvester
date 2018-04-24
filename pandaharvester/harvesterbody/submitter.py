@@ -20,6 +20,9 @@ _logger = core_utils.setup_logger('submitter')
 
 # class to submit workers
 class Submitter(AgentBase):
+    # Whether fifos enabled
+    monitor_fifo_enabled = hasattr(harvester_config.monitor, 'fifoEnable') and harvester_config.monitor.fifoEnable
+
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
@@ -303,7 +306,7 @@ class Submitter(AgentBase):
                                                         'failed to register a worker for PandaID={0} with batchID={1}'
                                                     tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
                                     # enqueue to monitor fifo
-                                    if harvester_config.monitor.fifoEnable \
+                                    if self.monitor_fifo_enabled \
                                         and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
                                         workSpecsToEnqueue = []
                                         workSpecsToEnqueue = list(map(lambda x: [x], workSpecList))
