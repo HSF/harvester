@@ -42,6 +42,8 @@ class FIFOBase:
             pluginConf.update( {'module': self.config.fifoModule,
                                 'name': self.config.fifoClass,} )
         else:
+            if not hasattr(harvester_config, 'fifo'):
+                return
             pluginConf.update( {'module': harvester_config.fifo.fifoModule,
                                 'name': harvester_config.fifo.fifoClass,} )
         pluginFactory = PluginFactory()
