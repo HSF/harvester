@@ -39,12 +39,35 @@ class Monitor(AgentBase):
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
 
-            # run with workers from FIFO
-            if harvester_config.monitor.fifoEnable:
+            if time.time() >= last_time_run_with_DB + harvester_config.monitor.sleepTime:
+                # run with workers from DB
+                mainLog.debug('starting run with DB')
+                mainLog.debug('getting workers to monitor')
+                workSpecsPerQueue = self.dbProxy.get_workers_to_update(harvester_config.monitor.maxWorkers,
+                                                                       harvester_config.monitor.checkInterval,
+                                                                       harvester_config.monitor.lockInterval,
+                                                                       lockedBy)
+                mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
+                # loop over all workers
+                for queueName, workSpecsList in iteritems(workSpecsPerQueue):
+                    workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                    if harvester_config.monitor.fifoEnable:
+                        if workSpecsToEnqueue:
+                            mainLog.debug('putting workers to FIFO')
+                            try:
+                                monitor_fifo.put((queueName, workSpecsToEnqueue))
+                            except Exception as errStr:
+                                mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
+                        else:
+                            mainLog.debug('nothing to put to FIFO')
+                last_time_run_with_DB = time.time()
+                mainLog.debug('ended run with DB')
+            elif harvester_config.monitor.fifoEnable:
+                # run with workers from FIFO
+                mainLog.debug('starting run with FIFO')
                 # check fifo size
                 fifo_size = monitor_fifo.size()
                 mainLog.debug('FIFO size is {0}'.format(fifo_size))
-                mainLog.debug('starting run with FIFO')
                 if monitor_fifo.to_check_workers():
                     mainLog.debug('getting workers to monitor')
                     try:
@@ -75,30 +98,6 @@ class Monitor(AgentBase):
                         else:
                             mainLog.debug('got nothing in FIFO')
                 mainLog.debug('ended run with FIFO')
-
-            # run with workers from DB
-            if time.time() >= last_time_run_with_DB + harvester_config.monitor.sleepTime:
-                mainLog.debug('starting run with DB')
-                mainLog.debug('getting workers to monitor')
-                workSpecsPerQueue = self.dbProxy.get_workers_to_update(harvester_config.monitor.maxWorkers,
-                                                                       harvester_config.monitor.checkInterval,
-                                                                       harvester_config.monitor.lockInterval,
-                                                                       lockedBy)
-                mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
-                # loop over all workers
-                for queueName, workSpecsList in iteritems(workSpecsPerQueue):
-                    workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
-                    if harvester_config.monitor.fifoEnable:
-                        if workSpecsToEnqueue:
-                            mainLog.debug('putting workers to FIFO')
-                            try:
-                                monitor_fifo.put((queueName, workSpecsToEnqueue))
-                            except Exception as errStr:
-                                mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
-                        else:
-                            mainLog.debug('nothing to put to FIFO')
-                last_time_run_with_DB = time.time()
-                mainLog.debug('ended run with DB')
 
             if sw.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
                 mainLog.warning('a single cycle was longer than lockInterval ' + sw.get_elapsed_time())
@@ -208,16 +207,23 @@ class Monitor(AgentBase):
                             jobSpec.subStatus,
                             jobSpec.get_job_status_from_attributes()))
                 # update local database
+                temRetLockWorker = None
+                if from_fifo:
+                    # lock workers
+                    worker_id_list = map(lambda x: x.workerID, workSpecs)
+                    temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
+                                            harvester_config.monitor.lockInterval, lockedBy)
+                    if temRetLockWorker:
+                        for workSpec in workSpecs:
+                            workSpec.lockedBy = lockedBy
+                            workSpec.force_update('lockedBy')
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:
                     for workSpec in workSpecs:
                         tmpLog = self.make_logger(_logger,
                                                   'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                                   method_name='run')
-                        if from_fifo:
-                            tmpLog.info('workers still locked. DB not updated')
-                        else:
-                            tmpLog.error('failed to update the DB. lockInterval may be too short')
+                        tmpLog.error('failed to update the DB. lockInterval may be too short')
                         sendWarning = True
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
@@ -230,18 +236,13 @@ class Monitor(AgentBase):
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
                         and workSpec.workAttributes is not None:
                         forceEnqueueInterval = datetime.timedelta(seconds=harvester_config.monitor.fifoForceEnqueueInterval)
-                        if from_fifo:
-                            # workSpec.pandaid_list = []
-                            # for key in workSpec.workAttributes.keys():
-                            #     if key not in ['batchLog', 'stdOut', 'stdErr']:
-                            #         workSpec.pandaid_list.append(key)
-                            # workSpec.force_update('pandaid_list')
-                            workSpec.modificationTime = datetime.datetime.utcnow()
+                        timeNow = datetime.datetime.utcnow()
+                        if (from_fifo and tmpRet) \
+                            or (not from_fifo and timeNow - forceEnqueueInterval > workSpec.modificationTime):
+                            workSpec.modificationTime = timeNow
+                            workSpec.lockedBy = None
                             workSpec.force_update('modificationTime')
-                            workSpecsToEnqueue.append(workSpecs)
-                        elif tmpRet and datetime.datetime.utcnow() - forceEnqueueInterval > workSpec.modificationTime:
-                            workSpec.modificationTime = datetime.datetime.utcnow()
-                            workSpec.force_update('modificationTime')
+                            workSpec.force_update('lockedBy')
                             workSpecsToEnqueue.append(workSpecs)
         else:
             tmpQueLog.error('failed to check workers')

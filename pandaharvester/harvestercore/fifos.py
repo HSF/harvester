@@ -37,6 +37,7 @@ class FIFOBase:
         self.fifoName = '{0}_fifo'.format(self.agentName)
         self.config = getattr(harvester_config, self.agentName)
         pluginConf = vars(self.config).copy()
+        pluginConf.update( {'agentName': self.agentName} )
         if hasattr(self.config, 'fifoModule') and hasattr(self.config, 'fifoClass'):
             pluginConf.update( {'module': self.config.fifoModule,
                                 'name': self.config.fifoClass,} )

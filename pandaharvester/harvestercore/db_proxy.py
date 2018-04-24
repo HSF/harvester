@@ -4042,3 +4042,42 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # lock workers for specific thread
+    def lock_workers(self, worker_id_list, lock_interval, locked_by):
+        try:
+            timeNow = datetime.datetime.utcnow()
+            lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
+            retVal = True
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='lock_worker')
+            tmpLog.debug('start')
+            # sql to lock worker
+            sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID AND (lockedBy IS NULL "
+            sqlL += "OR (modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL)) "
+            # loop
+            for worker_id in worker_id_list:
+                # lock worker
+                varMap = dict()
+                varMap[':workerID'] = worker_id
+                varMap[':lockedBy'] = locked_by
+                varMap[':timeNow'] = timeNow
+                varMap[':lockTimeLimit'] = lockTimeLimit
+                self.execute(sqlL, varMap)
+                nRow = self.cur.rowcount
+                tmpLog.debug('done with {0}'.format(nRow))
+                # false if failed to lock
+                if nRow == 0:
+                    retVal = False
+                # commit
+                self.commit()
+            # return
+            return retVal
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}

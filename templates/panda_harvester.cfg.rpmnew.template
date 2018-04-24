@@ -68,7 +68,7 @@ port = 	3306
 fifoModule = pandaharvester.harvesterfifo.sqlite_queue
 fifoClass = SqliteQueue
 
-# database filename for sqlite.
+# database filename for sqlite fifo plugin
 # must be different from main Harvester DB and other fifo DBs if using sqlite
 # different db filenames for fifos of of different agents
 # placeholder $(AGENT) should be used in filename; it will then be changed to the agent name
@@ -309,16 +309,11 @@ sleepTime = 600
 # whether to use fifo
 fifoEnable = False
 
-# module and class names to provide the fifo queue
-fifoModule = pandaharvester.harvesterfifo.sqlite_queue
-fifoClass = SqliteQueue
-
-# database filename for sqlite.
-# must be different from main Harvester DB and other fifo DBs if using sqlite
-database_filename = /dev/shm/monitor_fifo.db
-
 # sleep interval in sec using fifo
 fifoSleepTime = 60
+
+# interval of force enqueue in sec
+fifoForceEnqueueInterval = 1500
 
 # max number of workers to be populated into the fifo queue
 fifoMaxWorkersToPopulate = 10000
@@ -326,8 +321,6 @@ fifoMaxWorkersToPopulate = 10000
 # max number of workers in a chunk to enqueue
 fifoMaxWorkersPerChunk = 500
 
-# interval of force enqueue in sec
-fifoForceEnqueueInterval = 1500
 
 
 
