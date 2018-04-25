@@ -1545,7 +1545,8 @@ class DBProxy:
             sqlW += "FOR UPDATE "
             # sql to lock worker
             sqlL = "UPDATE {0} SET lastUpdate=:timeNow ".format(workTableName)
-            sqlL += "WHERE workerID=:workerID "
+            sqlL += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
+            sqlL += "AND workerID=:workerID "
             # sql to get associated PandaIDs
             sqlA = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
             sqlA += "WHERE workerID=:workerID "
@@ -1553,9 +1554,10 @@ class DBProxy:
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "
             timeNow = datetime.datetime.utcnow()
+            timeLimit = timeNow - datetime.timedelta(seconds=check_interval)
             # get workerIDs
             varMap = dict()
-            varMap[':checkTimeLimit'] = timeNow - datetime.timedelta(seconds=check_interval)
+            varMap[':checkTimeLimit'] = timeLimit
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             tmpWorkers = set()
@@ -1563,27 +1565,30 @@ class DBProxy:
                 tmpWorkers.add(workerID)
             retVal = []
             for workerID in tmpWorkers:
-                # get worker
+                # lock worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
-                self.execute(sqlG, varMap)
-                resG = self.cur.fetchone()
-                workSpec = WorkSpec()
-                workSpec.pack(resG)
-                retVal.append(workSpec)
-                # lock worker with N sec offset for time-based locking
-                varMap = dict()
-                varMap[':workerID'] = workerID
-                varMap[':timeNow'] = timeNow + datetime.timedelta(seconds=5)
+                varMap[':timeNow'] = timeNow
+                varMap[':checkTimeLimit'] = timeLimit
                 self.execute(sqlL, varMap)
-                # get associated PandaIDs
-                varMap = dict()
-                varMap[':workerID'] = workerID
-                self.execute(sqlA, varMap)
-                resA = self.cur.fetchall()
-                workSpec.pandaid_list = []
-                for pandaID, in resA:
-                    workSpec.pandaid_list.append(pandaID)
+                nRow = self.cur.rowcount
+                if nRow > 0:
+                    # get worker
+                    varMap = dict()
+                    varMap[':workerID'] = workerID
+                    self.execute(sqlG, varMap)
+                    resG = self.cur.fetchone()
+                    workSpec = WorkSpec()
+                    workSpec.pack(resG)
+                    retVal.append(workSpec)
+                    # get associated PandaIDs
+                    varMap = dict()
+                    varMap[':workerID'] = workerID
+                    self.execute(sqlA, varMap)
+                    resA = self.cur.fetchall()
+                    workSpec.pandaid_list = []
+                    for pandaID, in resA:
+                        workSpec.pandaid_list.append(pandaID)
             # commit
             self.commit()
             tmpLog.debug('got {0} workers'.format(len(retVal)))
