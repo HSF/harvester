@@ -42,8 +42,6 @@ class FIFOBase:
             pluginConf.update( {'module': self.config.fifoModule,
                                 'name': self.config.fifoClass,} )
         else:
-            if not hasattr(harvester_config, 'fifo'):
-                return
             pluginConf.update( {'module': harvester_config.fifo.fifoModule,
                                 'name': harvester_config.fifo.fifoClass,} )
         pluginFactory = PluginFactory()
@@ -60,6 +58,13 @@ class FIFOBase:
     def put(self, obj):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
         retVal = self.fifo.put(obj)
+        mainLog.debug('called')
+        return retVal
+
+    # enqueue to be first
+    def putfirst(self, obj):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='putfirst')
+        retVal = self.fifo.putfirst(obj)
         mainLog.debug('called')
         return retVal
 

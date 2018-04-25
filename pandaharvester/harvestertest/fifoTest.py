@@ -44,6 +44,11 @@ def single_thread_test(nObjects=3):
     print('peek')
     print(mq.peek())
 
+    print('putfirst')
+    mq.putfirst('PutFirst!')
+    print('peek')
+    print(mq.peek())
+
     time_point = time.time()
     for i in range(nObjects):
         # print('get')

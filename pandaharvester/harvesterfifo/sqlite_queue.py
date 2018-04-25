@@ -29,7 +29,7 @@ class SqliteQueue(PluginBase):
     _create_sql = (
             'CREATE TABLE IF NOT EXISTS queue_table '
             '('
-            '  id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            '  id INTEGER PRIMARY KEY,'
             '  item BLOB'
             ')'
             )
@@ -37,7 +37,8 @@ class SqliteQueue(PluginBase):
     _iterate_sql = 'SELECT id, item FROM queue_table'
     _write_lock_sql = 'BEGIN IMMEDIATE'
     _exclusive_lock_sql = 'BEGIN EXCLUSIVE'
-    _rpush_sql = 'INSERT INTO queue_table (item) VALUES (?)'
+    _push_sql = 'INSERT INTO queue_table (item) VALUES (?)'
+    _push_with_id_sql = 'INSERT INTO queue_table (id,item) VALUES (?,?)'
     _lpop_get_sql = (
             'SELECT id, item FROM queue_table '
             'ORDER BY id LIMIT 1'
@@ -51,6 +52,10 @@ class SqliteQueue(PluginBase):
     _clear_zero_id_sql = 'DELETE FROM sqlite_sequence WHERE name = "queue_table"'
     _peek_sql = (
             'SELECT item FROM queue_table '
+            'ORDER BY id LIMIT 1'
+            )
+    _peek_id_sql = (
+            'SELECT id FROM queue_table '
             'ORDER BY id LIMIT 1'
             )
 
@@ -87,6 +92,21 @@ class SqliteQueue(PluginBase):
         with self._get_conn() as conn:
             conn.execute(push_sql, (obj_buf,))
 
+    def _push_right(self, obj):
+        obj_buf = memoryviewOrBuffer(pickle.dumps(obj, -1))
+        with self._get_conn() as conn:
+            conn.execute(self._write_lock_sql)
+            cursor = conn.execute(self._peek_id_sql)
+            first_id = None
+            try:
+                first_id, = next(cursor)
+            except StopIteration:
+                pass
+            finally:
+                id = (first_id - 1) if first_id else 0
+                conn.execute(self._push_with_id_sql, (id, obj_buf))
+            conn.commit()
+
     def _pop(self, get_sql, timeout=None):
         keep_polling = True
         wait = 0.1
@@ -121,9 +141,13 @@ class SqliteQueue(PluginBase):
     def size(self):
         return len(self)
 
-    # enqueue
+    # enqueue to be the last
     def put(self, obj):
-        self._push(obj, push_sql=self._rpush_sql)
+        self._push(obj, push_sql=self._push_sql)
+
+    # enqueue to be the first
+    def putfirst(self, obj):
+        self._push_right(obj)
 
     # dequeue the first object
     def get(self, timeout=None):
