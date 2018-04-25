@@ -84,10 +84,12 @@ class Monitor(AgentBase):
                             for workSpecs in workSpecsList:
                                 for workSpec in workSpecs:
                                     if workSpec.pandaid_list is None:
-                                        workSpec.pandaid_list = []
-                                        for key in workSpec.workAttributes.keys():
-                                            if key not in ['batchLog', 'stdOut', 'stdErr']:
-                                                workSpec.pandaid_list.append(key)
+                                        _jobspec_list = workSpec.get_jobspec_list()
+                                        if _jobspec_list is not None:
+                                            workSpec.pandaid_list = list(map(lambda x: x.PandaID,
+                                                                        workSpec.get_jobspec_list()))
+                                        else:
+                                            workSpec.pandaid_list = []
                                         workSpec.force_update('pandaid_list')
                             workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
                             if workSpecsToEnqueue:
