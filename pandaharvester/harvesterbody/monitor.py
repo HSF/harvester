@@ -267,7 +267,7 @@ class Monitor(AgentBase):
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
                             if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
-                                tmpQueLog.debug('nextLookup {0}'.format(int(workSpec.nextLookup)))
+                                tmpQueLog.debug('workerID={0} , nextLookup {1}'.format(workSpec.workerID, int(workSpec.nextLookup)))
                                 if int(workSpec.nextLookup) < 5:
                                     workSpec.nextLookup = int(workSpec.nextLookup) + 1
                                     workSpecsToEnqueueToHead.append(workSpecs)
