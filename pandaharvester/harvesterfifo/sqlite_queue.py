@@ -95,7 +95,7 @@ class SqliteQueue(PluginBase):
     def _push_right(self, obj):
         obj_buf = memoryviewOrBuffer(pickle.dumps(obj, -1))
         with self._get_conn() as conn:
-            conn.execute(self._write_lock_sql)
+            conn.execute(self._exclusive_lock_sql)
             cursor = conn.execute(self._peek_id_sql)
             first_id = None
             try:
@@ -103,7 +103,7 @@ class SqliteQueue(PluginBase):
             except StopIteration:
                 pass
             finally:
-                id = (first_id - 1) if first_id else 0
+                id = (first_id - 1) if first_id is not None else 0
                 conn.execute(self._push_with_id_sql, (id, obj_buf))
             conn.commit()
 
@@ -131,7 +131,7 @@ class SqliteQueue(PluginBase):
                     tries += 1
                     time.sleep(wait)
                     wait = min(max_wait, tries/10.0 + wait)
-            if id:
+            if id is not None:
                 conn.execute(self._pop_del_sql, (id,))
                 conn.commit()
                 return pickle.loads(bytes(obj_buf))
