@@ -245,7 +245,10 @@ class Monitor(AgentBase):
                         tmpLog = self.make_logger(_logger,
                                                   'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                                   method_name='run')
-                        tmpLog.error('failed to update the DB. lockInterval may be too short')
+                        if from_fifo:
+                            tmpLog.info('failed to update the DB. Maybe locked by other thread running with DB')
+                        else:
+                            tmpLog.error('failed to update the DB. lockInterval may be too short')
                         sendWarning = True
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
@@ -267,12 +270,18 @@ class Monitor(AgentBase):
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
                             if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
-                                tmpQueLog.debug('workerID={0} , nextLookup {1}'.format(workSpec.workerID, int(workSpec.nextLookup)))
-                                if int(workSpec.nextLookup) < 5:
-                                    workSpec.nextLookup = int(workSpec.nextLookup) + 1
+                                if not workSpec.has_work_params('nPreemption'):
+                                    workSpec.set_work_params({'nPreemption': 0})
+                                _bool, nPreemption = workSpec.get_work_params('nPreemption')
+                                if not _bool or nPreemption is None:
+                                    nPreemption = 0
+                                tmpQueLog.debug('workerID={0} , nPreemption in fifo: {1}'.format(workSpec.workerID, nPreemption))
+                                if nPreemption < 5:
+                                    nPreemption += 1
+                                    workSpec.set_work_params({'nPreemption': nPreemption})
                                     workSpecsToEnqueueToHead.append(workSpecs)
                                 else:
-                                    workSpec.nextLookup = 1
+                                    workSpec.set_work_params({'nPreemption': 1})
                                     workSpec.modificationTime = timeNow
                                     workSpec.force_update('modificationTime')
                                     workSpecsToEnqueue.append(workSpecs)
