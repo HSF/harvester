@@ -1,4 +1,5 @@
 import arc
+import json
 import urllib
 
 from pandaharvester.harvestercore import core_utils
@@ -65,7 +66,9 @@ class ACTSubmitter(PluginBase):
                 desc['siteName'] = jobSpec.computingSite
                 desc['proxyid'] = self.proxymap['pilot' if jobSpec.jobParams['prodSourceLabel'] == 'user' else 'production']
                 desc['sendhb'] = 0
-                desc['harvesteraccesspoint'] = workSpec.get_access_point()
+                metadata = {'harvesteraccesspoint': workSpec.get_access_point(),
+                            'schedulerid': 'harvester-{}'.format(harvester_config.master.harvester_id)}
+                desc['metadata'] = json.dumps(metadata)
 
                 # aCT takes the url-encoded job description (like it gets from panda server)
                 actjobdesc = urllib.urlencode(jobSpec.jobParams)
