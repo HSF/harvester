@@ -235,10 +235,12 @@ class Monitor(AgentBase):
                     worker_id_list = map(lambda x: x.workerID, workSpecs)
                     temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
                                             harvester_config.monitor.lockInterval, lockedBy)
-                    if temRetLockWorker:
-                        for workSpec in workSpecs:
-                            workSpec.lockedBy = lockedBy
-                            workSpec.force_update('lockedBy')
+                    # skip if not locked
+                    if not temRetLockWorker:
+                        continue
+                    for workSpec in workSpecs:
+                        workSpec.lockedBy = lockedBy
+                        workSpec.force_update('lockedBy')
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:
                     for workSpec in workSpecs:
