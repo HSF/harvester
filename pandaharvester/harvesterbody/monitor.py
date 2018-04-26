@@ -53,7 +53,7 @@ class Monitor(AgentBase):
                 mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
                 # loop over all workers
                 for queueName, workSpecsList in iteritems(workSpecsPerQueue):
-                    workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                    workSpecsToEnqueue, workSpecsToEnqueueToHead = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
                     if self.monitor_fifo_enabled:
                         if workSpecsToEnqueue:
                             mainLog.debug('putting workers to FIFO')
@@ -63,6 +63,14 @@ class Monitor(AgentBase):
                                 mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                         else:
                             mainLog.debug('nothing to put to FIFO')
+                        if workSpecsToEnqueueToHead:
+                            mainLog.debug('putting workers to FIFO head')
+                            try:
+                                monitor_fifo.putfirst((queueName, workSpecsToEnqueueToHead))
+                            except Exception as errStr:
+                                mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
+                        else:
+                            mainLog.debug('nothing to put to FIFO head')
                 last_time_run_with_DB = time.time()
                 mainLog.debug('ended run with DB')
             elif self.monitor_fifo_enabled:
@@ -84,12 +92,14 @@ class Monitor(AgentBase):
                             for workSpecs in workSpecsList:
                                 for workSpec in workSpecs:
                                     if workSpec.pandaid_list is None:
-                                        workSpec.pandaid_list = []
-                                        for key in workSpec.workAttributes.keys():
-                                            if key not in ['batchLog', 'stdOut', 'stdErr']:
-                                                workSpec.pandaid_list.append(key)
+                                        _jobspec_list = workSpec.get_jobspec_list()
+                                        if _jobspec_list is not None:
+                                            workSpec.pandaid_list = list(map(lambda x: x.PandaID,
+                                                                        workSpec.get_jobspec_list()))
+                                        else:
+                                            workSpec.pandaid_list = []
                                         workSpec.force_update('pandaid_list')
-                            workSpecsToEnqueue = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
+                            workSpecsToEnqueue, workSpecsToEnqueueToHead = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
                             if workSpecsToEnqueue:
                                 mainLog.debug('putting workers to FIFO')
                                 try:
@@ -98,6 +108,14 @@ class Monitor(AgentBase):
                                     mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                             else:
                                 mainLog.debug('nothing to put to FIFO')
+                            if workSpecsToEnqueueToHead:
+                                mainLog.debug('putting workers to FIFO head')
+                                try:
+                                    monitor_fifo.putfirst((queueName, workSpecsToEnqueueToHead))
+                                except Exception as errStr:
+                                    mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
+                            else:
+                                mainLog.debug('nothing to put to FIFO head')
                         else:
                             mainLog.debug('got nothing in FIFO')
                 mainLog.debug('ended run with FIFO')
@@ -129,6 +147,7 @@ class Monitor(AgentBase):
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
         # workspec chunk of active workers
         workSpecsToEnqueue = []
+        workSpecsToEnqueueToHead = []
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
@@ -226,7 +245,10 @@ class Monitor(AgentBase):
                         tmpLog = self.make_logger(_logger,
                                                   'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                                   method_name='run')
-                        tmpLog.error('failed to update the DB. lockInterval may be too short')
+                        if from_fifo:
+                            tmpLog.info('failed to update the DB. Maybe locked by other thread running with DB')
+                        else:
+                            tmpLog.error('failed to update the DB. lockInterval may be too short')
                         sendWarning = True
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
@@ -235,21 +257,41 @@ class Monitor(AgentBase):
                 # active workers for fifo
                 if self.monitor_fifo_enabled and workSpecs:
                     workSpec = workSpecs[0]
-                    if workSpec.status in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
+                    tmpOut = tmpRetMap[workSpec.workerID]
+                    newStatus = tmpOut['newStatus']
+                    monStatus = tmpOut['monStatus']
+                    if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
                         and workSpec.workAttributes is not None:
                         forceEnqueueInterval = datetime.timedelta(seconds=harvester_config.monitor.fifoForceEnqueueInterval)
                         timeNow = datetime.datetime.utcnow()
                         if (from_fifo and tmpRet) \
                             or (not from_fifo and timeNow - forceEnqueueInterval > workSpec.modificationTime):
-                            workSpec.modificationTime = timeNow
                             workSpec.lockedBy = None
-                            workSpec.force_update('modificationTime')
                             workSpec.force_update('lockedBy')
-                            workSpecsToEnqueue.append(workSpecs)
+                            if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                                if not workSpec.has_work_params('nPreemption'):
+                                    workSpec.set_work_params({'nPreemption': 0})
+                                _bool, nPreemption = workSpec.get_work_params('nPreemption')
+                                if not _bool or nPreemption is None:
+                                    nPreemption = 0
+                                tmpQueLog.debug('workerID={0} , nPreemption in fifo: {1}'.format(workSpec.workerID, nPreemption))
+                                if nPreemption < 5:
+                                    nPreemption += 1
+                                    workSpec.set_work_params({'nPreemption': nPreemption})
+                                    workSpecsToEnqueueToHead.append(workSpecs)
+                                else:
+                                    workSpec.set_work_params({'nPreemption': 1})
+                                    workSpec.modificationTime = timeNow
+                                    workSpec.force_update('modificationTime')
+                                    workSpecsToEnqueue.append(workSpecs)
+                            else:
+                                workSpec.modificationTime = timeNow
+                                workSpec.force_update('modificationTime')
+                                workSpecsToEnqueue.append(workSpecs)
         else:
             tmpQueLog.error('failed to check workers')
-        retVal = workSpecsToEnqueue
+        retVal = (workSpecsToEnqueue, workSpecsToEnqueueToHead)
         tmpQueLog.debug('done')
         return retVal
 

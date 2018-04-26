@@ -63,6 +63,13 @@ class FIFOBase:
         mainLog.debug('called')
         return retVal
 
+    # enqueue to be first
+    def putfirst(self, obj):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='putfirst')
+        retVal = self.fifo.putfirst(obj)
+        mainLog.debug('called')
+        return retVal
+
     # dequeue
     def get(self, timeout=None):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='get')

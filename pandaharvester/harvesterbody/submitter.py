@@ -308,7 +308,6 @@ class Submitter(AgentBase):
                                     # enqueue to monitor fifo
                                     if self.monitor_fifo_enabled \
                                         and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
-                                        workSpecsToEnqueue = []
                                         workSpecsToEnqueue = list(map(lambda x: [x], workSpecList))
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')
