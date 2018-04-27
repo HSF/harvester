@@ -226,6 +226,15 @@ class JobSpec(SpecBase):
                         objstoreID += "/{0}".format(zipFileSpec.pathConvention)
                     tmpData['zipFile'] = {'lfn': zipFileSpec.lfn,
                                           'objstoreID': objstoreID}
+                    if zipFileSpec.fsize not in [None, 0]:
+                        tmpData['zipFile']['fsize'] = zipFileSpec.fsize
+                    if zipFileSpec.chksum is not None:
+                        if zipFileSpec.chksum.startswith('md:'):
+                            tmpData['zipFile']['md5'] = zipFileSpec.chksum.split(':')[-1]
+                        elif zipFileSpec.chksum.startswith('ad:'):
+                            tmpData['zipFile']['adler32'] = zipFileSpec.chksum.split(':')[-1]
+                        else:
+                            tmpData['zipFile']['adler32'] = zipFileSpec.chksum
             data.append(tmpData)
         return data, eventSpecs
 
