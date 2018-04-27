@@ -270,17 +270,32 @@ class Communicator:
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']),
                                             method_name='get_event_ranges')
             tmpLog.debug('start')
-            tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
-            if tmpStat is False:
-                core_utils.dump_error_message(tmpLog, tmpRes)
+            if 'nRanges' in data:
+                nRanges = data['nRanges']
             else:
-                try:
-                    tmpDict = tmpRes.json()
-                    if tmpDict['StatusCode'] == 0:
-                        retStat = True
-                        retVal[data['pandaID']] = tmpDict['eventRanges']
-                except:
+                nRanges = 1
+            while nRanges > 0:
+                # use a small chunk size to avoid timeout
+                chunkSize = min(256, nRanges)
+                data['nRanges'] = chunkSize
+                tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
+                if tmpStat is False:
                     core_utils.dump_error_message(tmpLog, tmpRes)
+                else:
+                    try:
+                        tmpDict = tmpRes.json()
+                        if tmpDict['StatusCode'] == 0:
+                            retStat = True
+                            if data['pandaID'] not in retVal:
+                                retVal[data['pandaID']] = []
+                            retVal[data['pandaID']] += tmpDict['eventRanges']
+                            # got empty
+                            if len(tmpDict['eventRanges']) == 0:
+                                break
+                    except Exception:
+                        core_utils.dump_error_message(tmpLog, tmpRes)
+                        break
+                nRanges -= chunkSize
             tmpLog.debug('done with {0}'.format(str(retVal)))
         return retStat, retVal
 
