@@ -1,8 +1,8 @@
 import datetime
 import uuid
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from .base_stager import BaseStager
 
 # dummy transfer identifier
 dummy_transfer_id = 'dummy_id_for_out'
@@ -13,10 +13,10 @@ baseLogger = core_utils.setup_logger('dummy_bulk_stager')
 
 # dummy plugin for stager with bulk transfers. For JobSpec and DBInterface methods, see
 # https://github.com/PanDAWMS/panda-harvester/wiki/Utilities#file-grouping-for-file-transfers
-class DummyBulkStager(PluginBase):
+class DummyBulkStager(BaseStager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseStager.__init__(self, **kwarg)
 
     # check status
     def check_status(self, jobspec):
@@ -86,16 +86,6 @@ class DummyBulkStager(PluginBase):
 
     # zip output files
     def zip_output(self, jobspec):
-        """Zip output files. This method loops over jobspec.outFiles to make a zip file
-        for each outFileSpec from FileSpec.associatedFiles which is a list of toZipFileSpec to be zipped.
-        The file path is available in toZipFileSpec. One zip files are made, their toZipFileSpec.path and
-        toZipFileSpec.fsize need to be set.
-
-        :param jobspec: job specifications
-        :type jobspec: JobSpec
-        :return: A tuple of return code (True for success, False otherwise) and error dialog
-        :rtype: (bool, string)
-        """
-        for fileSpec in jobspec.get_output_file_specs(skip_done=False):
-            fileSpec.path = '/path/to/zip'
-        return True, ''
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='zip_output')
+        return self.simple_zip_output(jobspec, tmpLog)

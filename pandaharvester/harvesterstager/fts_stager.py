@@ -1,7 +1,4 @@
-import os
 import sys
-import os.path
-import zipfile
 import hashlib
 import requests
 
@@ -12,7 +9,7 @@ try:
 except:
     pass
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_stager import BaseStager
 from pandaharvester.harvesterconfig import harvester_config
 
 # logger
@@ -20,10 +17,10 @@ baseLogger = core_utils.setup_logger('fts_stager')
 
 
 # plugin for stager with FTS
-class FtsStager(PluginBase):
+class FtsStager(BaseStager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseStager.__init__(self, **kwarg)
 
     # check status
     def check_status(self, jobspec):
@@ -178,31 +175,4 @@ class FtsStager(PluginBase):
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='zip_output')
-        tmpLog.debug('start')
-        try:
-            for fileSpec in jobspec.outFiles:
-                if self.zipDir == "${SRCDIR}":
-                    # the same directory as src
-                    zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
-                else:
-                    zipDir = self.zipDir
-                zipPath = os.path.join(zipDir, fileSpec.lfn)
-                # remove zip file just in case
-                try:
-                    os.remove(zipPath)
-                except:
-                    pass
-                # make zip file
-                with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
-                    for assFileSpec in fileSpec.associatedFiles:
-                        zf.write(assFileSpec.path, os.path.basename(assFileSpec.path))
-                # set path
-                fileSpec.path = zipPath
-                # get size
-                statInfo = os.stat(zipPath)
-                fileSpec.fsize = statInfo.st_size
-        except:
-            errMsg = core_utils.dump_error_message(tmpLog)
-            return False, 'failed to zip with {0}'.format(errMsg)
-        tmpLog.debug('done')
-        return True, ''
+        return self.simple_zip_output(jobspec, tmpLog)
