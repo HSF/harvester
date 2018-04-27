@@ -466,8 +466,9 @@ class GlobusBulkStager(PluginBase):
                 # get size
                 statInfo = os.stat(zipPath)
                 fileSpec.fsize = statInfo.st_size
-                msgStr = 'fileSpec.path - {0}, fileSpec.fsize - {1}'\
-                    .format(fileSpec.path,fileSpec.fsize)
+                fileSpec.chksum = core_utils.calc_adler32(zipPath)
+                msgStr = 'fileSpec.path - {0}, fileSpec.fsize - {1}, fileSpec.chksum(adler32) - {2}'\
+                    .format(fileSpec.path,fileSpec.fsize,fileSpec.chksum)
                 tmpLog.debug(msgStr)
         except:
             errMsg = core_utils.dump_error_message(tmpLog)
