@@ -36,10 +36,11 @@ class Submitter(AgentBase):
     # main loop
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.ident)
+        if self.monitor_fifo_enabled:
+            monitor_fifo = MonitorFIFO()
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
-            monitor_fifo = MonitorFIFO()
 
             # get queues associated to a site to submit workers
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
