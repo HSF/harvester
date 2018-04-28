@@ -100,7 +100,7 @@ class Monitor(AgentBase):
                                         else:
                                             workSpec.pandaid_list = []
                                         workSpec.force_update('pandaid_list')
-                            retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                            retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
                             if retVal is not None:
                                 workSpecsToEnqueue, workSpecsToEnqueueToHead = retVal
                                 if workSpecsToEnqueue:
