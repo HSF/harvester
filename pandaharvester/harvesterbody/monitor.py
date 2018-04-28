@@ -53,8 +53,9 @@ class Monitor(AgentBase):
                 mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
                 # loop over all workers
                 for queueName, workSpecsList in iteritems(workSpecsPerQueue):
-                    workSpecsToEnqueue, workSpecsToEnqueueToHead = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
-                    if self.monitor_fifo_enabled:
+                    retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                    if self.monitor_fifo_enabled and retVal is not None:
+                        workSpecsToEnqueue, workSpecsToEnqueueToHead = retVal
                         if workSpecsToEnqueue:
                             mainLog.debug('putting workers to FIFO')
                             try:
@@ -99,23 +100,27 @@ class Monitor(AgentBase):
                                         else:
                                             workSpec.pandaid_list = []
                                         workSpec.force_update('pandaid_list')
-                            workSpecsToEnqueue, workSpecsToEnqueueToHead = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
-                            if workSpecsToEnqueue:
-                                mainLog.debug('putting workers to FIFO')
-                                try:
-                                    monitor_fifo.put((queueName, workSpecsToEnqueue))
-                                except Exception as errStr:
-                                    mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
+                            retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
+                            if retVal is not None:
+                                workSpecsToEnqueue, workSpecsToEnqueueToHead = retVal
+                                if workSpecsToEnqueue:
+                                    mainLog.debug('putting workers to FIFO')
+                                    try:
+                                        monitor_fifo.put((queueName, workSpecsToEnqueue))
+                                    except Exception as errStr:
+                                        mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
+                                else:
+                                    mainLog.debug('nothing to put to FIFO')
+                                if workSpecsToEnqueueToHead:
+                                    mainLog.debug('putting workers to FIFO head')
+                                    try:
+                                        monitor_fifo.putfirst((queueName, workSpecsToEnqueueToHead))
+                                    except Exception as errStr:
+                                        mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
+                                else:
+                                    mainLog.debug('nothing to put to FIFO head')
                             else:
-                                mainLog.debug('nothing to put to FIFO')
-                            if workSpecsToEnqueueToHead:
-                                mainLog.debug('putting workers to FIFO head')
-                                try:
-                                    monitor_fifo.putfirst((queueName, workSpecsToEnqueueToHead))
-                                except Exception as errStr:
-                                    mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
-                            else:
-                                mainLog.debug('nothing to put to FIFO head')
+                                mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
                         else:
                             mainLog.debug('got nothing in FIFO')
                 mainLog.debug('ended run with FIFO')
