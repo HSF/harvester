@@ -83,7 +83,8 @@ class WorkSpec(SpecBase):
                            'nativeExitCode:integer',
                            'nativeStatus:text',
                            'diagMessage:varchar(500)',
-                           'nJobs:integer'
+                           'nJobs:integer',
+                           'submissionHost:text'
                            )
 
     # constructor
