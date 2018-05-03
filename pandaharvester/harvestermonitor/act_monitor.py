@@ -1,9 +1,3 @@
-import re
-try:
-    import subprocess32 as subprocess
-except:
-    import subprocess
-
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
