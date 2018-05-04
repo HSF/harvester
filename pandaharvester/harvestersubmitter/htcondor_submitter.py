@@ -88,16 +88,23 @@ def submit_a_worker(data):
     workspec = data['workspec']
     ce_info_dict = data['ce_info_dict']
     batch_log_dict = data['batch_log_dict']
+    condor_schedd = data['condor_schedd']
+    condor_pool = data['condor_pool']
     workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
     # make batch script
     batchFile = make_batch_script(**data)
+    # make condor remote options
+    name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
+    pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
     # command
-    comStr = 'condor_submit {0}'.format(batchFile)
+    comStr = 'condor_submit {name_opt} {pool_opt} {sdf_file}'.format(sdf_file=batchFile,
+                                                                        name_opt=name_opt,
+                                                                        pool_opt=pool_opt)
     # submit
-    tmpLog.debug('submit with {0}'.format(batchFile))
+    tmpLog.debug('submit with command: {0}'.format(comStr))
     try:
         p = subprocess.Popen(comStr.split(),
                              shell=False,
@@ -122,6 +129,11 @@ def submit_a_worker(data):
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
             tmpLog.debug('batchID={0}'.format(workspec.batchID))
+            # set submissionHost
+            if not condor_schedd and not condor_pool:
+                workspec.submissionHost = None
+            else:
+                workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
             # set computingElement
             workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
             # set log
@@ -155,7 +167,7 @@ def submit_a_worker(data):
 
 # make batch script
 def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy,
-                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None, is_unified_queue=False):
+                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None, is_unified_queue=False, **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
@@ -287,6 +299,15 @@ class HTCondorSubmitter(PluginBase):
             self.CEtemplateDir
         except AttributeError:
             self.CEtemplateDir = ''
+        # remote condor schedd and pool name (collector)
+        try:
+            self.condorSchedd
+        except AttributeError:
+            self.condorSchedd = None
+        try:
+            self.condorPool
+        except AttributeError:
+            self.condorPool = None
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -431,6 +452,8 @@ class HTCondorSubmitter(PluginBase):
                     'special_par': special_par,
                     'harvester_queue_config': harvester_queue_config,
                     'is_unified_queue': is_unified_queue,
+                    'condor_schedd': self.condorSchedd,
+                    'condor_pool': self.condorPool,
                     }
 
             return data
