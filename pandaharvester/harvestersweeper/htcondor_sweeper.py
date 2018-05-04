@@ -46,15 +46,33 @@ class HTCondorSweeper(PluginBase):
         tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                   method_name='kill_worker')
 
+        ## Parse condor remote options
+        name_opt, pool_opt = '', ''
+        if workspec.submissionHost:
+            try:
+                condor_schedd, condor_pool = workspec.submissionHost.split(',')[0:2]
+            except ValueError:
+                errStr = 'Invalid submissionHost: {0} . Skipped'.format(workspec.submissionHost)
+                tmpLog.error(errStr)
+                return False, errStr
+            name_opt = '-name {0}'.format(condor_schedd) if condor_schedd
+            pool_opt = '-pool {0}'.format(condor_pool) if condor_pool
+
         ## Kill command
-        comStr = 'condor_rm {0}'.format(workspec.batchID)
+        comStr = 'condor_rm {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
+                                                                    pool_opt=pool_opt,
+                                                                    batchID=workspec.batchID)
         (retCode, stdOut, stdErr) = _runShell(comStr)
         if retCode != 0:
-            comStr = 'condor_q -l {0}'.format(workspec.batchID)
+            comStr = 'condor_q -l {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
+                                                                        pool_opt=pool_opt,
+                                                                        batchID=workspec.batchID)
             (retCode, stdOut, stdErr) = _runShell(comStr)
             if str(workspec.batchID) in str(stdOut) or retCode != 0:
                 ## Force to cancel if batch job not terminated first time
-                comStr = 'condor_rm -forcex {0}'.format(workspec.batchID)
+                comStr = 'condor_rm -forcex {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
+                                                                            pool_opt=pool_opt,
+                                                                            batchID=workspec.batchID)
                 (retCode, stdOut, stdErr) = _runShell(comStr)
             if str(workspec.batchID) in str(stdOut) or retCode != 0:
                 ## Command failed to kill
