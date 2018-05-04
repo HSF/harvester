@@ -204,8 +204,8 @@ class HTCondorMonitor (PluginBase):
                         except ValueError:
                             tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(submissionHost))
                             continue
-                        name_opt = '-name {0}'.format(condor_schedd) if condor_schedd
-                        pool_opt = '-pool {0}'.format(condor_pool) if condor_pool
+                        name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
+                        pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
                     comStr = '{cmd} {name_opt} {pool_opt} {ids}'.format(cmd=orig_comStr,
                                                                         name_opt=name_opt,
                                                                         pool_opt=pool_opt,

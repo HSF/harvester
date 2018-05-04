@@ -55,8 +55,8 @@ class HTCondorSweeper(PluginBase):
                 errStr = 'Invalid submissionHost: {0} . Skipped'.format(workspec.submissionHost)
                 tmpLog.error(errStr)
                 return False, errStr
-            name_opt = '-name {0}'.format(condor_schedd) if condor_schedd
-            pool_opt = '-pool {0}'.format(condor_pool) if condor_pool
+            name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
+            pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
 
         ## Kill command
         comStr = 'condor_rm {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
