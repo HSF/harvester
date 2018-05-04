@@ -167,7 +167,7 @@ def submit_a_worker(data):
 
 # make batch script
 def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy,
-                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None, is_unified_queue=False):
+                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None, is_unified_queue=False, **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
