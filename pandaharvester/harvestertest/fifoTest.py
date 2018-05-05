@@ -36,7 +36,7 @@ def single_thread_test(nObjects=3):
         workspec.workAttributes = data
 
         # print('put')
-        mq.put(workspec)
+        mq.put(workspec, time.time())
         # print('size', mq.size())
     time_consumed = time.time() - time_point
     print('Time consumed: {0} sec ; Avg: {1} obj/sec '.format(time_consumed, nObjects/time_consumed))
@@ -45,7 +45,7 @@ def single_thread_test(nObjects=3):
     print(mq.peek())
 
     print('putfirst')
-    mq.putfirst('PutFirst!')
+    mq.putfirst('PutFirst!', time.time())
     print('peek')
     print(mq.peek())
 

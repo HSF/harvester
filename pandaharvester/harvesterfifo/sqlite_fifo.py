@@ -23,7 +23,7 @@ except NameError:
     memoryviewOrBuffer = memoryview
 
 
-class SqliteQueue(PluginBase):
+class SqliteFIFO(PluginBase):
 
     # template of SQL commands
     _create_sql = (

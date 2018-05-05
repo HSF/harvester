@@ -1,3 +1,5 @@
+import time
+import calendar.timegm
 import datetime
 from future.utils import iteritems
 
@@ -16,8 +18,6 @@ _logger = core_utils.setup_logger('fifos')
 
 # base class of fifo message queue
 class FIFOBase:
-    _attrs_from_plugin = ('size', 'put', 'get', 'getlast', 'peek', 'clear')
-
     # constructor
     def __init__(self, **kwarg):
         for tmpKey, tmpVal in iteritems(kwarg):
@@ -57,16 +57,9 @@ class FIFOBase:
         return retVal
 
     # enqueue
-    def put(self, obj):
+    def put(self, obj, score):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
-        retVal = self.fifo.put(obj)
-        mainLog.debug('called')
-        return retVal
-
-    # enqueue to be first
-    def putfirst(self, obj):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='putfirst')
-        retVal = self.fifo.putfirst(obj)
+        retVal = self.fifo.put(obj, score)
         mainLog.debug('called')
         return retVal
 
@@ -77,7 +70,7 @@ class FIFOBase:
         mainLog.debug('called')
         return retVal
 
-    # get without dequeuing
+    # get tuple of object and its score without dequeuing
     def peek(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='peek')
         retVal = self.fifo.peek()
@@ -105,21 +98,30 @@ class MonitorFIFO(FIFOBase):
         workspec_iterator = self.dbProxy.get_active_workers(n_workers, seconds_ago)
         last_queueName = None
         workspec_chunk = []
+        score = time.time()
         for workspec in workspec_iterator:
             if last_queueName == None:
+                try:
+                    score = timegm(workspec.modificationTime.utctimetuple())
+                except Exception:
+                    pass
                 workspec_chunk = [[workspec]]
                 last_queueName = workspec.computingSite
             elif workspec.computingSite == last_queueName \
                 and len(workspec_chunk) < self.config.fifoMaxWorkersPerChunk:
                 workspec_chunk.append([workspec])
             else:
-                self.fifo.put((last_queueName, workspec_chunk))
+                self.fifo.put((last_queueName, workspec_chunk, score))
+                try:
+                    score = timegm(workspec.modificationTime.utctimetuple())
+                except Exception:
+                    pass
                 workspec_chunk = [[workspec]]
                 last_queueName = workspec.computingSite
         if len(workspec_chunk) > 0:
-            self.fifo.put((last_queueName, workspec_chunk))
+            self.fifo.put((last_queueName, workspec_chunk, score))
 
-    def to_check_workers(self):
+    def to_check_workers(self, check_interval=harvester_config.monitor.checkInterval):
         """
         Justify whether to check any worker by the modificationTime of the first worker in fifo
         Return True if OK to dequeue to check;
@@ -127,17 +129,17 @@ class MonitorFIFO(FIFOBase):
         """
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='to_check_worker')
         retVal = False
-        timeNow = datetime.datetime.utcnow()
-        obj_peeked = self.peek()
-        if obj_peeked is not None:
-            queueName, workSpecsList = obj_peeked
-            _workspec = workSpecsList[0][0]
-            _check_interval = harvester_config.monitor.checkInterval
-            if timeNow - datetime.timedelta(seconds=_check_interval) > _workspec.modificationTime:
+        timeNow_timestamp = time.time()
+        peeked_tuple = self.peek()
+        if peeked_tuple is not None:
+            queueName, workSpecsList = peeked_tuple[0]
+            score = peeked_tuple[1]
+            check_interval = harvester_config.monitor.checkInterval
+            if timeNow_timestamp - check_interval > score:
                 retVal = True
                 mainLog.debug('True')
             else:
-                mainLog.debug('False. Workers younger than {0} seconds ago to check'.format(_check_interval))
+                mainLog.debug('False. Workers younger than {0} seconds ago to check'.format(check_interval))
         else:
             mainLog.debug('False. No workers in FIFO')
         return retVal
