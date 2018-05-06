@@ -34,25 +34,21 @@ def single_thread_test(nObjects=3):
         workspec.workerID = i
         data = {'random': [random.random(), random.random()]}
         workspec.workAttributes = data
-
         # print('put')
-        mq.put(workspec, time.time())
+        mq.put(workspec)
         # print('size', mq.size())
     time_consumed = time.time() - time_point
     print('Time consumed: {0} sec ; Avg: {1} obj/sec '.format(time_consumed, nObjects/time_consumed))
 
-    print('peek')
-    print(mq.peek())
+    print('size', mq.size())
 
-    print('putfirst')
-    mq.putfirst('PutFirst!', time.time())
     print('peek')
     print(mq.peek())
 
     time_point = time.time()
     for i in range(nObjects):
         # print('get')
-        obj = mq.get()
+        obj = mq.get(timeout=3)
         # print(obj)
         # print('size', mq.size())
     time_consumed = time.time() - time_point

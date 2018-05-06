@@ -29,7 +29,7 @@ class RedisFIFO(PluginBase):
             _redis_conn_opt_dict['password'] = self.redisPassword
         elif hasattr(harvester_config.fifo, 'redisPassword'):
             _redis_conn_opt_dict['password'] = harvester_config.fifo.redisPassword
-        self.qname = '{0}-fifo'.formant(self.agentName)
+        self.qname = '{0}-fifo'.format(self.agentName)
         self.qconn = redis.StrictRedis(**_redis_conn_opt_dict)
 
     def __len__(self):
@@ -45,7 +45,7 @@ class RedisFIFO(PluginBase):
         keep_polling = True
         wait = 0.1
         max_wait = 2
-        tries = 0
+        tries = 1
         last_attempt_timestamp = time.time()
         obj = None
         while keep_polling:
@@ -53,16 +53,14 @@ class RedisFIFO(PluginBase):
                 obj = peek_method()
                 ret_pop = self.qconn.zrem(self.qname, obj)
                 if ret_pop == 1:
-                    keep_polling = False
-                    continue
+                    break
             except IndexError:
                 time.sleep(wait)
                 wait = min(max_wait, tries/10.0 + wait)
             tries += 1
             now_timestamp = time.time()
-            if (now_timestamp - last_attempt_timestamp) >= timeout:
-                keep_polling = False
-                continue
+            if timeout is not None and (now_timestamp - last_attempt_timestamp) >= timeout:
+                break
         return obj
 
     # number of objects in queue
@@ -86,7 +84,7 @@ class RedisFIFO(PluginBase):
         try:
             return self._peek(withscores=True)
         except IndexError:
-            return None
+            return None, None
 
     # drop all objects in queue
     def clear(self):

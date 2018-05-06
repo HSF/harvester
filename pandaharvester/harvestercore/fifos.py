@@ -1,7 +1,13 @@
 import time
-import calendar.timegm
 import datetime
+from calendar import timegm
 from future.utils import iteritems
+
+import json
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 try:
     from threading import get_ident
@@ -13,8 +19,39 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
+
 # logger
 _logger = core_utils.setup_logger('fifos')
+
+
+# # unicode, str, bytes of python 2 and 3
+# try:
+#     unicodeOrStr = unicode
+# except NameError:
+#     unicodeOrStr = str
+# try:
+#     strOrBytes = bytes
+# except NameError:
+#     strOrBytes = str
+#
+#
+# # encoder for non-native json objects
+# class PythonObjectEncoder(json.JSONEncoder):
+#     def default(self, obj):
+#         if isinstance(obj, (list, dict, unicodeOrStr, str, int, float, bool, type(None))):
+#             return json.JSONEncoder.default(self, obj)
+#         elif isinstance(obj, (bytearray, strOrBytes)):
+#             return json.JSONEncoder.default(self, obj.decode('ascii'))
+#         else:
+#             return {'_non_json_object': str(pickle.dumps(obj, 0))}
+#
+#
+# # hook for decoder
+# def as_python_object(dct):
+#     if '_non_json_object' in dct:
+#         return pickle.loads(str(dct['_non_json_object']).encode('ascii'))
+#     return dct
+
 
 # base class of fifo message queue
 class FIFOBase:
@@ -57,23 +94,29 @@ class FIFOBase:
         return retVal
 
     # enqueue
-    def put(self, obj, score):
+    def put(self, obj, score=time.time()):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
-        retVal = self.fifo.put(obj, score)
+        # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
+        obj_serialized = pickle.dumps(obj, -1)
+        retVal = self.fifo.put(obj_serialized, score)
         mainLog.debug('called')
         return retVal
 
     # dequeue
     def get(self, timeout=None):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='get')
-        retVal = self.fifo.get(timeout)
+        obj_serialized = self.fifo.get(timeout)
+        # retVal = json.loads(obj_serialized, object_hook=as_python_object)
+        retVal = pickle.loads(obj_serialized)
         mainLog.debug('called')
         return retVal
 
     # get tuple of object and its score without dequeuing
     def peek(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='peek')
-        retVal = self.fifo.peek()
+        obj_serialized, score = self.fifo.peek()
+        # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
+        retVal = (pickle.loads(obj_serialized), score)
         mainLog.debug('called')
         return retVal
 
@@ -111,7 +154,7 @@ class MonitorFIFO(FIFOBase):
                 and len(workspec_chunk) < self.config.fifoMaxWorkersPerChunk:
                 workspec_chunk.append([workspec])
             else:
-                self.fifo.put((last_queueName, workspec_chunk, score))
+                self.put((last_queueName, workspec_chunk), score)
                 try:
                     score = timegm(workspec.modificationTime.utctimetuple())
                 except Exception:
@@ -119,7 +162,7 @@ class MonitorFIFO(FIFOBase):
                 workspec_chunk = [[workspec]]
                 last_queueName = workspec.computingSite
         if len(workspec_chunk) > 0:
-            self.fifo.put((last_queueName, workspec_chunk, score))
+            self.put((last_queueName, workspec_chunk), score)
 
     def to_check_workers(self, check_interval=harvester_config.monitor.checkInterval):
         """
@@ -131,7 +174,7 @@ class MonitorFIFO(FIFOBase):
         retVal = False
         timeNow_timestamp = time.time()
         peeked_tuple = self.peek()
-        if peeked_tuple is not None:
+        if peeked_tuple[0] is not None:
             queueName, workSpecsList = peeked_tuple[0]
             score = peeked_tuple[1]
             check_interval = harvester_config.monitor.checkInterval

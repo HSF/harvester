@@ -315,11 +315,14 @@ fifoSleepTime = 15
 # interval of force enqueue in sec
 fifoForceEnqueueInterval = 1500
 
-# max number of workers to be populated into the fifo queue
+# max number of workers to be populated into the fifo
 fifoMaxWorkersToPopulate = 10000
 
 # max number of workers in a chunk to enqueue
 fifoMaxWorkersPerChunk = 500
+
+# max interval in sec a post-processing worker can preempt in fifo
+fifoMaxPreemptInterval = 60
 
 
 
