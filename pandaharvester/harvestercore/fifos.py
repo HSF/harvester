@@ -107,7 +107,10 @@ class FIFOBase:
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='get')
         obj_serialized = self.fifo.get(timeout)
         # retVal = json.loads(obj_serialized, object_hook=as_python_object)
-        retVal = pickle.loads(obj_serialized)
+        if obj_serialized is None:
+            retVal = None
+        else:
+            retVal = pickle.loads(obj_serialized)
         mainLog.debug('called')
         return retVal
 
@@ -116,7 +119,10 @@ class FIFOBase:
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='peek')
         obj_serialized, score = self.fifo.peek()
         # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
-        retVal = (pickle.loads(obj_serialized), score)
+        if obj_serialized is None and score is None:
+            retVal = None, None
+        else:
+            retVal = (pickle.loads(obj_serialized), score)
         mainLog.debug('called')
         return retVal
 
@@ -141,8 +147,10 @@ class MonitorFIFO(FIFOBase):
         workspec_iterator = self.dbProxy.get_active_workers(n_workers, seconds_ago)
         last_queueName = None
         workspec_chunk = []
-        score = time.time()
+        timeNow_timestamp = time.time()
+        score = timeNow_timestamp
         for workspec in workspec_iterator:
+            workspec.set_work_params({'lastCheckAt': timeNow_timestamp})
             if last_queueName == None:
                 try:
                     score = timegm(workspec.modificationTime.utctimetuple())

@@ -309,8 +309,8 @@ sleepTime = 600
 # whether to use fifo
 fifoEnable = False
 
-# sleep interval in sec using fifo
-fifoSleepTime = 15
+# sleep interval in millisecond using fifo
+fifoSleepTimeMilli = 15000
 
 # interval of force enqueue in sec
 fifoForceEnqueueInterval = 1500
