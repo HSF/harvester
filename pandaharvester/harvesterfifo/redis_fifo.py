@@ -8,7 +8,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 
 
-class RedisFIFO(PluginBase):
+class RedisFifo(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)

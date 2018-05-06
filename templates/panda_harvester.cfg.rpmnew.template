@@ -66,7 +66,7 @@ port = 	3306
 [fifo]
 # module and class names to provide the fifo queue
 fifoModule = pandaharvester.harvesterfifo.sqlite_fifo
-fifoClass = SqliteFIFO
+fifoClass = SqliteFifo
 
 # database filename for sqlite fifo plugin
 # must be different from main Harvester DB and other fifo DBs if using sqlite
