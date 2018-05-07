@@ -185,7 +185,7 @@ class MonitorFIFO(FIFOBase):
         if peeked_tuple[0] is not None:
             queueName, workSpecsList = peeked_tuple[0]
             score = peeked_tuple[1]
-            if timeNow_timestamp - > score:
+            if timeNow_timestamp > score:
                 retVal = True
                 mainLog.debug('True')
             else:
