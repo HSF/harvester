@@ -55,19 +55,23 @@ class Monitor(AgentBase):
                 for queueName, workSpecsList in iteritems(workSpecsPerQueue):
                     retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
                     if self.monitor_fifo_enabled and retVal is not None:
-                        workSpecsToEnqueue, workSpecsToEnqueueToHead = retVal
+                        workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                         if workSpecsToEnqueue:
                             mainLog.debug('putting workers to FIFO')
                             try:
-                                monitor_fifo.put((queueName, workSpecsToEnqueue))
+                                score = fifoCheckInterval + timeNow_timestamp
+                                monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                             except Exception as errStr:
                                 mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                         else:
-                            mainLog.debug('nothing to put to FIFO')
+                            mainLog.debug('nothing to put to FIFO head')
                         if workSpecsToEnqueueToHead:
                             mainLog.debug('putting workers to FIFO head')
                             try:
-                                monitor_fifo.putfirst((queueName, workSpecsToEnqueueToHead))
+                                score = fifoCheckInterval - timeNow_timestamp
+                                monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                             except Exception as errStr:
                                 mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                         else:
@@ -95,18 +99,19 @@ class Monitor(AgentBase):
                                     if workSpec.pandaid_list is None:
                                         _jobspec_list = workSpec.get_jobspec_list()
                                         if _jobspec_list is not None:
-                                            workSpec.pandaid_list = list(map(lambda x: x.PandaID,
-                                                                        workSpec.get_jobspec_list()))
+                                            workSpec.pandaid_list = [j.PandaID for j in workSpec.get_jobspec_list()]
                                         else:
                                             workSpec.pandaid_list = []
                                         workSpec.force_update('pandaid_list')
                             retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
                             if retVal is not None:
-                                workSpecsToEnqueue, workSpecsToEnqueueToHead = retVal
+                                workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                                 if workSpecsToEnqueue:
                                     mainLog.debug('putting workers to FIFO')
                                     try:
-                                        monitor_fifo.put((queueName, workSpecsToEnqueue))
+                                        score = fifoCheckInterval + timeNow_timestamp
+                                        monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                        mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                                     except Exception as errStr:
                                         mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                                 else:
@@ -114,7 +119,9 @@ class Monitor(AgentBase):
                                 if workSpecsToEnqueueToHead:
                                     mainLog.debug('putting workers to FIFO head')
                                     try:
-                                        monitor_fifo.putfirst((queueName, workSpecsToEnqueueToHead))
+                                        score = fifoCheckInterval - timeNow_timestamp
+                                        monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                        mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                                     except Exception as errStr:
                                         mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                                 else:
@@ -131,7 +138,8 @@ class Monitor(AgentBase):
                 mainLog.debug('done' + sw.get_elapsed_time())
 
             # check if being terminated
-            sleepTime = harvester_config.monitor.fifoSleepTime if self.monitor_fifo_enabled else harvester_config.monitor.sleepTime
+            sleepTime = (harvester_config.monitor.fifoSleepTimeMilli / 1000.0) \
+                            if self.monitor_fifo_enabled else harvester_config.monitor.sleepTime
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
@@ -153,6 +161,12 @@ class Monitor(AgentBase):
         # workspec chunk of active workers
         workSpecsToEnqueue = []
         workSpecsToEnqueueToHead = []
+        timeNow_timestamp = time.time()
+        # get fifoCheckInterval for PQ
+        try:
+            fifoCheckInterval = monCore.fifoCheckInterval
+        except:
+            fifoCheckInterval = harvester_config.monitor.checkInterval
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
@@ -168,6 +182,17 @@ class Monitor(AgentBase):
                 eventsToUpdateList = []
                 filesToStageOutList = []
                 mapType = workSpecs[0].mapType
+                # lock workers for fifo
+                temRetLockWorker = None
+                if from_fifo:
+                    # lock workers
+                    worker_id_list = [w.workerID for w in workSpecs]
+                    temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
+                                            harvester_config.monitor.lockInterval, lockedBy)
+                    # skip if not locked
+                    if not temRetLockWorker:
+                        continue
+                # loop over workSpecs
                 for workSpec in workSpecs:
                     tmpLog = self.make_logger(_logger,
                                               'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
@@ -188,6 +213,9 @@ class Monitor(AgentBase):
                                                workSpec.is_post_processed(),
                                                str(filesToStageOut)))
                     iWorker += 1
+                    if from_fifo:
+                        workSpec.lockedBy = lockedBy
+                        workSpec.force_update('lockedBy')
                     # check status
                     if newStatus not in WorkSpec.ST_LIST:
                         tmpLog.error('unknown status={0}'.format(newStatus))
@@ -234,18 +262,6 @@ class Monitor(AgentBase):
                             jobSpec.subStatus,
                             jobSpec.get_job_status_from_attributes()))
                 # update local database
-                temRetLockWorker = None
-                if from_fifo:
-                    # lock workers
-                    worker_id_list = map(lambda x: x.workerID, workSpecs)
-                    temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
-                                            harvester_config.monitor.lockInterval, lockedBy)
-                    # skip if not locked
-                    if not temRetLockWorker:
-                        continue
-                    for workSpec in workSpecs:
-                        workSpec.lockedBy = lockedBy
-                        workSpec.force_update('lockedBy')
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:
                     for workSpec in workSpecs:
@@ -270,25 +286,27 @@ class Monitor(AgentBase):
                     if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
                         and workSpec.workAttributes is not None:
-                        forceEnqueueInterval = datetime.timedelta(seconds=harvester_config.monitor.fifoForceEnqueueInterval)
+                        forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
                         timeNow = datetime.datetime.utcnow()
+                        timeNow_timestamp = time.time()
+                        _bool, lastCheckAt = workSpec.get_work_params('lastCheckAt')
+                        if not _bool or lastCheckAt is None:
+                            lastCheckAt = 0
                         if (from_fifo and tmpRet) \
-                            or (not from_fifo and timeNow - forceEnqueueInterval > workSpec.modificationTime):
+                            or (not from_fifo and timeNow_timestamp - forceEnqueueInterval > lastCheckAt):
+                            workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
                             if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
-                                if not workSpec.has_work_params('nPreemption'):
-                                    workSpec.set_work_params({'nPreemption': 0})
-                                _bool, nPreemption = workSpec.get_work_params('nPreemption')
-                                if not _bool or nPreemption is None:
-                                    nPreemption = 0
-                                tmpQueLog.debug('workerID={0} , nPreemption in fifo: {1}'.format(workSpec.workerID, nPreemption))
-                                if nPreemption < 5:
-                                    nPreemption += 1
-                                    workSpec.set_work_params({'nPreemption': nPreemption})
+                                _bool, startFifoPreemptAt = workSpec.get_work_params('startFifoPreemptAt')
+                                if not _bool or startFifoPreemptAt is None:
+                                    startFifoPreemptAt = timeNow_timestamp
+                                    workSpec.set_work_params({'startFifoPreemptAt': startFifoPreemptAt})
+                                tmpQueLog.debug('workerID={0} , startFifoPreemptAt: {1}'.format(workSpec.workerID, startFifoPreemptAt))
+                                if timeNow_timestamp - startFifoPreemptAt < harvester_config.monitor.fifoMaxPreemptInterval:
                                     workSpecsToEnqueueToHead.append(workSpecs)
                                 else:
-                                    workSpec.set_work_params({'nPreemption': 1})
+                                    workSpec.set_work_params({'startFifoPreemptAt': timeNow_timestamp})
                                     workSpec.modificationTime = timeNow
                                     workSpec.force_update('modificationTime')
                                     workSpecsToEnqueue.append(workSpecs)
@@ -298,7 +316,7 @@ class Monitor(AgentBase):
                                 workSpecsToEnqueue.append(workSpecs)
         else:
             tmpQueLog.error('failed to check workers')
-        retVal = (workSpecsToEnqueue, workSpecsToEnqueueToHead)
+        retVal = workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval
         tmpQueLog.debug('done')
         return retVal
 

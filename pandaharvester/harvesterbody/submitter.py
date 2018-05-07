@@ -1,5 +1,6 @@
 import math
 import datetime
+import time
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -155,6 +156,7 @@ class Submitter(AgentBase):
                                     tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks),
                                                                                                      len(ngChunks)))
                                 timeNow = datetime.datetime.utcnow()
+                                timeNow_timestamp = time.time()
                                 # NG (=not good)
                                 for ngJobs in ngChunks:
                                     for jobSpec in ngJobs:
@@ -271,6 +273,8 @@ class Submitter(AgentBase):
                                             workSpec.set_status(WorkSpec.ST_submitted)
                                         workSpec.submitTime = timeNow
                                         workSpec.modificationTime = timeNow
+                                        if self.monitor_fifo_enabled:
+                                            workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                                         # prefetch events
                                         if tmpRet and workSpec.hasJob == 1 and \
                                                 workSpec.eventsRequest == WorkSpec.EV_useEvents and \
@@ -309,7 +313,7 @@ class Submitter(AgentBase):
                                     # enqueue to monitor fifo
                                     if self.monitor_fifo_enabled \
                                         and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
-                                        workSpecsToEnqueue = list(map(lambda x: [x], workSpecList))
+                                        workSpecsToEnqueue = [[w] for w in workSpecList]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')
                                 # release jobs
