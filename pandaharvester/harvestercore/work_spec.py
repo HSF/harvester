@@ -82,8 +82,9 @@ class WorkSpec(SpecBase):
                            'resourceType:text',
                            'nativeExitCode:integer',
                            'nativeStatus:text',
-                           'diagMessage:text',
-                           'nJobs:integer'
+                           'diagMessage:varchar(500)',
+                           'nJobs:integer',
+                           'submissionHost:text'
                            )
 
     # constructor
@@ -227,6 +228,29 @@ class WorkSpec(SpecBase):
         if self.endTime is None or force is True:
             self.endTime = datetime.datetime.utcnow()
 
+    # set work params
+    def set_work_params(self, data):
+        if data is None:
+            return
+        if self.workParams is None and data is not None:
+            self.workParams = dict()
+        for key, val in iteritems(data):
+            if key not in self.workParams or self.workParams[key] != val:
+                self.workParams[key] = val
+                self.force_update('workParams')
+
+    # get work params
+    def get_work_params(self, name):
+        if self.workParams is None or name not in self.workParams:
+            return False, None
+        return True, self.workParams[name]
+
+    # check if has work params
+    def has_work_params(self, name):
+        if self.workParams is None or name not in self.workParams:
+            return False
+        return True
+
     # set work attributes
     def set_work_attributes(self, data):
         if data is None:
@@ -303,6 +327,8 @@ class WorkSpec(SpecBase):
 
     # set dialog message
     def set_dialog_message(self, msg):
+        if msg is not None:
+            msg = msg[:500]
         self.diagMessage = msg
 
     # set pilot error

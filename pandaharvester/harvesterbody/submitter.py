@@ -1,3 +1,4 @@
+import math
 import datetime
 from future.utils import iteritems
 
@@ -11,6 +12,7 @@ from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
+from pandaharvester.harvestercore.fifos import MonitorFIFO
 
 # logger
 _logger = core_utils.setup_logger('submitter')
@@ -18,6 +20,9 @@ _logger = core_utils.setup_logger('submitter')
 
 # class to submit workers
 class Submitter(AgentBase):
+    # Whether fifos enabled
+    monitor_fifo_enabled = hasattr(harvester_config.monitor, 'fifoEnable') and harvester_config.monitor.fifoEnable
+
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
@@ -31,6 +36,8 @@ class Submitter(AgentBase):
     # main loop
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.ident)
+        if self.monitor_fifo_enabled:
+            monitor_fifo = MonitorFIFO()
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
@@ -275,7 +282,8 @@ class Submitter(AgentBase):
                                                     {'pandaID': jobSpec.PandaID,
                                                      'taskID': jobSpec.taskID,
                                                      'jobsetID': jobSpec.jobParams['jobsetID'],
-                                                     'nRanges': jobSpec.jobParams['coreCount'],
+                                                     'nRanges': max(int(math.ceil(workSpec.nCore / len(jobList))),
+                                                                    jobSpec.jobParams['coreCount']),
                                                      }
                                             workSpec.eventsRequestParams = eventsRequestParams
                                         # register worker
@@ -298,6 +306,12 @@ class Submitter(AgentBase):
                                                     tmpStr = \
                                                         'failed to register a worker for PandaID={0} with batchID={1}'
                                                     tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
+                                    # enqueue to monitor fifo
+                                    if self.monitor_fifo_enabled \
+                                        and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
+                                        workSpecsToEnqueue = list(map(lambda x: [x], workSpecList))
+                                        monitor_fifo.put((queueName, workSpecsToEnqueue))
+                                        mainLog.debug('put workers to monitor FIFO')
                                 # release jobs
                                 self.dbProxy.release_jobs(pandaIDs, lockedBy)
                                 tmpLog.info('done')

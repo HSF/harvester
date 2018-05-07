@@ -11,6 +11,7 @@ import datetime
 # logger
 _logger = core_utils.setup_logger('simple_worker_maker')
 
+
 class SimpleWorkerMaker(PluginBase):
     # constructor
     def __init__(self, **kwarg):

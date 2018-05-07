@@ -26,6 +26,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestermisc import globus_utils
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 
 # Define dummy transfer identifier
@@ -58,13 +59,17 @@ class GlobusBulkStager(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # make logger
-        tmpLog = self.make_logger(_logger, method_name='GlobusBulkStager __init__ ')
+        tmpLog = self.make_logger(_logger, 'ThreadID={0}'.format(threading.current_thread().ident),
+                                  method_name='GlobusBulkStager __init__ ')
         tmpLog.debug('start')
+        self.Yodajob = False 
+        self.pathConvention = None
         self.id = GlobusBulkStager.next_id
         GlobusBulkStager.next_id += 1
         with uLock:
             global uID
-            self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base,self.id,int(round(time.time() * 1000)))
+            #self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base,self.id,int(round(time.time() * 1000)))
+            self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base, 'XXXX')
             uID += 1
             uID %= harvester_config.stager.nThreads
         # create Globus Transfer Client
@@ -97,6 +102,17 @@ class GlobusBulkStager(PluginBase):
     def get_dummy_transfer_id(self):
         return self.dummy_transfer_id
 
+    # set dummy_transfer_id for testing
+    def set_dummy_transfer_id_testing(self,dummy_transfer_id):
+        self.dummy_transfer_id = dummy_transfer_id
+
+    # set FileSpec.objstoreID 
+    def set_FileSpec_objstoreID(self,jobspec, objstoreID, pathConvention):
+        # loop over all output files
+        for fileSpec in jobspec.outFiles:
+            fileSpec.objstoreID = objstoreID
+            fileSpec.pathConvention = pathConvention
+
     # set FileSpec.status 
     def set_FileSpec_status(self,jobspec,status):
         # loop over all output files
@@ -106,9 +122,16 @@ class GlobusBulkStager(PluginBase):
     # check status
     def check_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+        tmpLog = self.make_logger(_logger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='check_status')
         tmpLog.debug('start')
+        # show the dummy transfer id and set to a value with the PandaID if needed.
+        tmpLog.debug('self.dummy_transfer_id = {}'.format(self.dummy_transfer_id))
+        if self.dummy_transfer_id == '{0}_{1}'.format(dummy_transfer_id_base,'XXXX') :
+            old_dummy_transfer_id = self.dummy_transfer_id
+            self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base,jobspec.PandaID)
+            tmpLog.debug('Change self.dummy_transfer_id  from {0} to {1}'.format(old_dummy_transfer_id,self.dummy_transfer_id))
+ 
         # default return
         tmpRetVal = (True, '')
         # set flag if have db lock
@@ -120,6 +143,22 @@ class GlobusBulkStager(PluginBase):
             return False, 'jobspec.computingSite is not defined'
         else:
             tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
+        # get the queueConfig and corresponding objStoreID_ES
+        queueConfigMapper = QueueConfigMapper()
+        queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
+        # check queueConfig stager section to see if jobtype is set
+        if 'jobtype' in queueConfig.stager:
+            if queueConfig.stager['jobtype'] == "Yoda" :
+                self.Yodajob = True
+        # set the location of the files in fileSpec.objstoreID
+        # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
+        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
+        if self.Yodajob :
+            self.pathConvention = int(queueConfig.stager['pathConvention'])
+            tmpLog.debug('Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}'.format(jobspec.PandaID,self.objstoreID,self.pathConvention))
+        else:
+            self.pathConvention = None
+            tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
         # test we have a Globus Transfer Client
         if not self.tc :
             errStr = 'failed to get Globus Transfer Client'
@@ -163,9 +202,6 @@ class GlobusBulkStager(PluginBase):
                     tmpLog.debug('prepare to transfer files')
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually  
-                    from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-                    queueConfigMapper = QueueConfigMapper()
-                    queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
                     #self.Globus_srcPath = queueConfig.stager['Globus_srcPath']
                     self.srcEndpoint = queueConfig.stager['srcEndpoint']
                     self.Globus_srcPath = self.basePath
@@ -195,6 +231,7 @@ class GlobusBulkStager(PluginBase):
                             tmpRetVal = (None,errMsg)
                             return tmpRetVal
                         # both endpoints activated now prepare to transfer data
+                        tdata = None
                         tdata = TransferData(self.tc,
                                              self.srcEndpoint,
                                              self.dstEndpoint,
@@ -212,30 +249,19 @@ class GlobusBulkStager(PluginBase):
                     # loop over all files
                     ifile = 0
                     for fileSpec in fileSpecs:
-                        attrs = jobspec.get_output_file_attributes()
+                        scope ='panda'
+                        if fileSpec.scope is not None :
+                            scope = fileSpec.scope
+                        # for Yoda job set the scope to transient 
+                        if self.Yodajob :
+                            scope = 'transient'
                         # only print to log file first 25 files
                         if ifile < 25 :
-                            msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(len(attrs),type(attrs))
-                            tmpLog.debug(msgStr)
-                            # print out to debug log at most 10 file attributes
-                            counter = 10
-                            for key, value in attrs.iteritems():
-                                msgStr = "output file attributes - {0} {1}".format(key,value)
-                                tmpLog.debug(msgStr)
-                                counter -= 1
-                                if counter < 0: 
-                                    msgStr = "Only printing first 10 file attributes"
-                                    tmpLog.debug(msgStr)
-                                    break
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
                         if ifile == 25 :
                             msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
-                        # end debug log file test
-                        scope ='panda'
-                        if fileSpec.scope is not None :
-                            scope = fileSpec.scope
                         hash = hashlib.md5()
                         hash.update('%s:%s' % (scope, fileSpec.lfn))
                         hash_hex = hash.hexdigest()
@@ -246,7 +272,8 @@ class GlobusBulkStager(PluginBase):
                                                                                    hash1=hash_hex[0:2],
                                                                                    hash2=hash_hex[2:4],
                                                                                    lfn=fileSpec.lfn)
-                        tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
+                        if ifile < 25 :
+                            tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
                         # add files to transfer object - tdata
                         if os.access(srcURL, os.R_OK):
                             if ifile < 25 :
@@ -264,6 +291,7 @@ class GlobusBulkStager(PluginBase):
                             return tmpRetVal
                         ifile += 1
                     # submit transfer 
+                    tmpLog.debug('Number of files to transfer - {}'.format(len(tdata['DATA'])))
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)
                         # check status code and message
@@ -322,14 +350,15 @@ class GlobusBulkStager(PluginBase):
                     return None, msgStr
         # check transfer with real transfer IDs
         # get transfer groups 
-        #groups = jobspec.get_groups_of_output_files(skip_ready=True)            
-        tmpLog.debug("groups = jobspec.get_groups_of_output_files(skip_ready=True)")
-        groups = jobspec.get_groups_of_output_files(skip_ready=True)
-        tmpLog.debug('Number of transfer groups (skip_ready)- {0}'.format(len(groups)))
-        tmpLog.debug('transfer groups any state (skip_ready)- {0}'.format(groups))
+        tmpLog.debug("groups = jobspec.get_groups_of_output_files()")
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('Number of transfer groups - {0}'.format(len(groups)))
         tmpLog.debug('transfer groups any state - {0}'.format(groups))
+        if len(groups) == 0:
+            tmpLog.debug("jobspec.get_groups_of_output_files(skip_done=True) returned no files ")
+            tmpLog.debug("check_status return status - True ")
+            return True,''
+
         for transferID in groups:
             # allow only valid UUID
             if validate_transferid(transferID) :
@@ -348,6 +377,7 @@ class GlobusBulkStager(PluginBase):
                 # succeeded in finding a transfer task by tranferID
                 if transferTasks[transferID]['status'] == 'SUCCEEDED':
                     tmpLog.debug('transfer task {} succeeded'.format(transferID))
+                    self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
                     self.set_FileSpec_status(jobspec,'finished')
                     return True, ''
                 # failed
@@ -367,9 +397,10 @@ class GlobusBulkStager(PluginBase):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+        tmpLog = self.make_logger(_logger, 'PandaID={0}  ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='trigger_stage_out')
         tmpLog.debug('start')
+
         # default return
         tmpRetVal = (True, '')
         # check that jobspec.computingSite is defined
@@ -384,6 +415,12 @@ class GlobusBulkStager(PluginBase):
             errStr = 'failed to get Globus Transfer Client'
             tmpLog.error(errStr)
             return False, errStr
+        # show the dummy transfer id and set to a value with the PandaID if needed.
+        tmpLog.debug('self.dummy_transfer_id = {}'.format(self.dummy_transfer_id))
+        if self.dummy_transfer_id == '{0}_{1}'.format(dummy_transfer_id_base,'XXXX') :
+            old_dummy_transfer_id = self.dummy_transfer_id
+            self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base,jobspec.PandaID)
+            tmpLog.debug('Change self.dummy_transfer_id  from {0} to {1}'.format(old_dummy_transfer_id,self.dummy_transfer_id))
         # set the dummy transfer ID which will be replaced with a real ID in check_status()
         lfns = []
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
@@ -399,7 +436,7 @@ class GlobusBulkStager(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+        tmpLog = self.make_logger(_logger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='zip_output')
         tmpLog.debug('start')
         try:
@@ -423,14 +460,15 @@ class GlobusBulkStager(PluginBase):
                 # make zip file
                 with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
                     for assFileSpec in fileSpec.associatedFiles:
-                        zf.write(assFileSpec.path)
+                        zf.write(assFileSpec.path,os.path.basename(assFileSpec.path))
                 # set path
                 fileSpec.path = zipPath
                 # get size
                 statInfo = os.stat(zipPath)
                 fileSpec.fsize = statInfo.st_size
-                msgStr = 'fileSpec.path - {0}, fileSpec.fsize - {1}'\
-                    .format(fileSpec.path,fileSpec.fsize)
+                fileSpec.chksum = core_utils.calc_adler32(zipPath)
+                msgStr = 'fileSpec.path - {0}, fileSpec.fsize - {1}, fileSpec.chksum(adler32) - {2}'\
+                    .format(fileSpec.path,fileSpec.fsize,fileSpec.chksum)
                 tmpLog.debug(msgStr)
         except:
             errMsg = core_utils.dump_error_message(tmpLog)

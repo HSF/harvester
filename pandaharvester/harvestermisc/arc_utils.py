@@ -162,7 +162,7 @@ def arcjob2workspec(arcjob, workspec):
         elif attrtype == arc.StringStringMap:
             ssm = getattr(arcjob, attr)
             tmpdict = dict(zip(ssm.keys(), ssm.values()))
-            jobattrs[attr] = str(tmpdict)
+            jobattrs[attr] = json.dumps(tmpdict)
         elif attrtype == arc.Period:
             jobattrs[attr] = getattr(arcjob, attr).GetPeriod()
         elif attrtype == arc.Time:
