@@ -55,11 +55,13 @@ class Monitor(AgentBase):
                 for queueName, workSpecsList in iteritems(workSpecsPerQueue):
                     retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
                     if self.monitor_fifo_enabled and retVal is not None:
-                        workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp = retVal
+                        workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                         if workSpecsToEnqueue:
                             mainLog.debug('putting workers to FIFO')
                             try:
-                                monitor_fifo.put((queueName, workSpecsToEnqueue), timeNow_timestamp)
+                                score = fifoCheckInterval + timeNow_timestamp
+                                monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                             except Exception as errStr:
                                 mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                         else:
@@ -67,7 +69,9 @@ class Monitor(AgentBase):
                         if workSpecsToEnqueueToHead:
                             mainLog.debug('putting workers to FIFO head')
                             try:
-                                monitor_fifo.put((queueName, workSpecsToEnqueueToHead), - timeNow_timestamp)
+                                score = fifoCheckInterval - timeNow_timestamp
+                                monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                             except Exception as errStr:
                                 mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                         else:
@@ -101,11 +105,13 @@ class Monitor(AgentBase):
                                         workSpec.force_update('pandaid_list')
                             retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
                             if retVal is not None:
-                                workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp = retVal
+                                workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                                 if workSpecsToEnqueue:
                                     mainLog.debug('putting workers to FIFO')
                                     try:
-                                        monitor_fifo.put((queueName, workSpecsToEnqueue), timeNow_timestamp)
+                                        score = fifoCheckInterval + timeNow_timestamp
+                                        monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                        mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                                     except Exception as errStr:
                                         mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                                 else:
@@ -113,7 +119,9 @@ class Monitor(AgentBase):
                                 if workSpecsToEnqueueToHead:
                                     mainLog.debug('putting workers to FIFO head')
                                     try:
-                                        monitor_fifo.put((queueName, workSpecsToEnqueueToHead), - timeNow_timestamp)
+                                        score = fifoCheckInterval - timeNow_timestamp
+                                        monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                        mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                                     except Exception as errStr:
                                         mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                                 else:
@@ -154,6 +162,11 @@ class Monitor(AgentBase):
         workSpecsToEnqueue = []
         workSpecsToEnqueueToHead = []
         timeNow_timestamp = time.time()
+        # get fifoCheckInterval for PQ
+        try:
+            fifoCheckInterval = monCore.fifoCheckInterval
+        except:
+            fifoCheckInterval = harvester_config.monitor.checkInterval
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
@@ -303,7 +316,7 @@ class Monitor(AgentBase):
                                 workSpecsToEnqueue.append(workSpecs)
         else:
             tmpQueLog.error('failed to check workers')
-        retVal = workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp
+        retVal = workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval
         tmpQueLog.debug('done')
         return retVal
 

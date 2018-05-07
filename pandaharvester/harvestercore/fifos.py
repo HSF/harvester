@@ -99,7 +99,7 @@ class FIFOBase:
         # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
         obj_serialized = pickle.dumps(obj, -1)
         retVal = self.fifo.put(obj_serialized, score)
-        mainLog.debug('called')
+        mainLog.debug('score={0}'.format(score))
         return retVal
 
     # dequeue
@@ -123,7 +123,7 @@ class FIFOBase:
             retVal = None, None
         else:
             retVal = (pickle.loads(obj_serialized), score)
-        mainLog.debug('called')
+        mainLog.debug('score={0}'.format(score))
         return retVal
 
 
