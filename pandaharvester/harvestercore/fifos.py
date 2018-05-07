@@ -185,12 +185,11 @@ class MonitorFIFO(FIFOBase):
         if peeked_tuple[0] is not None:
             queueName, workSpecsList = peeked_tuple[0]
             score = peeked_tuple[1]
-            check_interval = harvester_config.monitor.checkInterval
-            if timeNow_timestamp - check_interval > score:
+            if timeNow_timestamp - > score:
                 retVal = True
                 mainLog.debug('True')
             else:
-                mainLog.debug('False. Workers younger than {0} seconds ago to check'.format(check_interval))
+                mainLog.debug('False. Workers too young to check')
         else:
             mainLog.debug('False. No workers in FIFO')
         return retVal
