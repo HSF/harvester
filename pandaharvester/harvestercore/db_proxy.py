@@ -1692,10 +1692,11 @@ class DBProxy:
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
             sqlFU += "WHERE fileID=:fileID "
             # sql to check event
-            sqlEC = "SELECT 1 c FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(eventTableName)
+            sqlEC = "SELECT eventRangeID FROM {0} ".format(eventTableName)
+            sqlEC += "WHERE PandaID=:PandaID AND eventRangeID IS NOT NULL "
             # sql to check associated file
-            sqlEF = "SELECT status FROM {0} ".format(fileTableName)
-            sqlEF += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
+            sqlEF = "SELECT eventRangeID,status FROM {0} ".format(fileTableName)
+            sqlEF += "WHERE PandaID=:PandaID AND eventRangeID IS NOT NULL "
             # sql to insert event
             sqlEI = "INSERT INTO {0} ({1}) ".format(eventTableName, EventSpec.column_names())
             sqlEI += EventSpec.bind_values_expression()
@@ -1827,6 +1828,24 @@ class DBProxy:
                             # set zip output flag
                             if len(zippedFileIDs) > 0:
                                 jobSpec.hasOutFile = JobSpec.HO_hasZipOutput
+                        # get event ranges and file stat
+                        eventFileStat = dict()
+                        eventRangesSet = set()
+                        if len(jobSpec.events) > 0:
+                            # get event ranges
+                            varMap = dict()
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            self.execute(sqlEC, varMap)
+                            resEC = self.cur.fetchall()
+                            for tmpEventRangeID, in resEC:
+                                eventRangesSet.add(tmpEventRangeID)
+                            # check associated file
+                            varMap = dict()
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            self.execute(sqlEF, varMap)
+                            resEF = self.cur.fetchall()
+                            for tmpEventRangeID, tmpStat in resEF:
+                                eventFileStat[tmpEventRangeID] = tmpStat
                         # insert or update events
                         varMapsEI = []
                         varMapsEU = []
@@ -1834,14 +1853,10 @@ class DBProxy:
                             # set subStatus
                             if eventSpec.eventStatus == 'finished':
                                 # check associated file
-                                varMap = dict()
-                                varMap[':PandaID'] = jobSpec.PandaID
-                                varMap[':eventRangeID'] = eventSpec.eventRangeID
-                                self.execute(sqlEF, varMap)
-                                resEF = self.cur.fetchone()
-                                if resEF is None or resEF[0] == 'finished':
+                                if eventSpec.eventRangeID not in eventFileStat or \
+                                        eventFileStat[eventSpec.eventRangeID] == 'finished':
                                     eventSpec.subStatus = 'finished'
-                                elif resEF[0] == 'failed':
+                                elif eventFileStat[eventSpec.eventRangeID] == 'failed':
                                     eventSpec.eventStatus = 'failed'
                                     eventSpec.subStatus = 'failed'
                                 else:
@@ -1851,14 +1866,8 @@ class DBProxy:
                             # set fileID
                             if eventSpec.eventRangeID in fileIdMap:
                                 eventSpec.fileID = fileIdMap[eventSpec.eventRangeID]
-                            # check event
-                            varMap = dict()
-                            varMap[':PandaID'] = jobSpec.PandaID
-                            varMap[':eventRangeID'] = eventSpec.eventRangeID
-                            self.execute(sqlEC, varMap)
-                            resEC = self.cur.fetchone()
                             # insert or update event
-                            if resEC is None:
+                            if eventSpec.eventRangeID not in eventRangesSet:
                                 varMap = eventSpec.values_list()
                                 varMapsEI.append(varMap)
                             else:
@@ -2963,9 +2972,9 @@ class DBProxy:
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID "
-            # sql to check if the file is ready to delete
-            sqlD = "SELECT 1 c FROM {0} ".format(fileTableName)
-            sqlD += "WHERE lfn=:lfn AND todelete=:to_delete "
+            # sql to get files not to be deleted. b.todelete is not used to use index on b.lfn
+            sqlD = "SELECT b.lfn,b.todelete  FROM {0} a, {0} b ".format(fileTableName)
+            sqlD += "WHERE a.PandaID=:PandaID AND a.fileType=:fileType AND b.lfn=a.lfn "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
             self.execute(sqlW, varMap)
@@ -2979,6 +2988,8 @@ class DBProxy:
                 varMap[':setTime'] = timeNow
                 varMap[':timeLimit'] = modTimeLimit
                 self.execute(sqlL, varMap)
+                # commit
+                self.commit()
                 if self.cur.rowcount == 0:
                     continue
                 # check associated jobs
@@ -3002,6 +3013,7 @@ class DBProxy:
                     # get jobs
                     jobSpecs = []
                     checkedLFNs = set()
+                    keepLFNs = set()
                     varMap = dict()
                     varMap[':workerID'] = workerID
                     self.execute(sqlP, varMap)
@@ -3014,6 +3026,15 @@ class DBProxy:
                         jobSpec = JobSpec()
                         jobSpec.pack(resJ)
                         jobSpecs.append(jobSpec)
+                        # get LFNs not to be deleted
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        varMap[':fileType'] = 'input'
+                        self.execute(sqlD, varMap)
+                        resDs = self.cur.fetchall()
+                        for tmpLFN, tmpTodelete in resDs:
+                            if tmpTodelete == 0:
+                                keepLFNs.add(tmpLFN)
                         # get files to be deleted
                         varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
@@ -3025,19 +3046,12 @@ class DBProxy:
                             # skip if already checked
                             if fileSpec.lfn in checkedLFNs:
                                 continue
-                            # check if it is ready to delete
                             checkedLFNs.add(fileSpec.lfn)
-                            varMap = dict()
-                            varMap[':lfn'] = fileSpec.lfn
-                            varMap[':to_delete'] = 0
-                            self.execute(sqlD, varMap)
-                            resD = self.cur.fetchone()
-                            if resD is None:
+                            # check if it is ready to delete
+                            if fileSpec.lfn not in keepLFNs:
                                 jobSpec.add_file(fileSpec)
                     workSpec.set_jobspec_list(jobSpecs)
                     iWorkers += 1
-            # commit
-            self.commit()
             tmpLog.debug('got {0} workers'.format(iWorkers))
             return retVal
         except:
