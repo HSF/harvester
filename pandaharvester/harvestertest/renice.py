@@ -18,5 +18,5 @@ for line in stdoutList:
                                           shell=True,
                                           stdout=subprocess.PIPE,
                                           )
-    except:
+    except Exception:
         pass
