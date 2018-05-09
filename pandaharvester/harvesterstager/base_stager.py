@@ -1,5 +1,5 @@
 import os
-import zipfile
+import tarfile
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -33,10 +33,10 @@ class BaseStager(PluginBase):
                     tmp_log.debug(msgStr)
                 except Exception:
                     pass
-                # make zip file
-                with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
+                # make tar file
+                with tarfile.open(zipPath, "w") as zf:
                     for assFileSpec in fileSpec.associatedFiles:
-                        zf.write(assFileSpec.path, os.path.basename(assFileSpec.path))
+                        zf.add(assFileSpec.path, os.path.basename(assFileSpec.path))
                 # set path
                 fileSpec.path = zipPath
                 # get size
