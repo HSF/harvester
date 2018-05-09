@@ -5,7 +5,7 @@ import os
 import sys
 import os.path
 import threading
-import zipfile
+import tarfile
 import hashlib
 import string
 from future.utils import iteritems
@@ -433,7 +433,7 @@ class GlobusBulkStager(PluginBase):
         tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),self.dummy_transfer_id,pending)')
         return True, ''
 
-    # zip output files
+    # use tar despite name for  output files
     def zip_output(self, jobspec):
         # make logger
         tmpLog = self.make_logger(_logger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
@@ -457,10 +457,10 @@ class GlobusBulkStager(PluginBase):
                     tmpLog.debug(msgStr)
                 except:
                     pass
-                # make zip file
-                with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
+                # make tar file
+                with tarfile.open(zipPath,"w") as zf:
                     for assFileSpec in fileSpec.associatedFiles:
-                        zf.write(assFileSpec.path,os.path.basename(assFileSpec.path))
+                        zf.add(assFileSpec.path,os.path.basename(assFileSpec.path))
                 # set path
                 fileSpec.path = zipPath
                 # get size
