@@ -108,7 +108,7 @@ class SharedFileMessenger(PluginBase):
             retDict = dict()
             if not os.path.exists(jsonFilePath):
                 # not found
-                tmpLog.debug('not found')
+                tmpLog.debug('not found attributes file')
             else:
                 try:
                     with open(jsonFilePath) as jsonFile:
@@ -121,7 +121,7 @@ class SharedFileMessenger(PluginBase):
             cr_start = time.time()
             if not os.path.exists(jsonFilePath):
                 # not found
-                tmpLog.debug('not found')
+                tmpLog.debug('not found job report file')
             else:
                 try:
                     read_start = time.time()

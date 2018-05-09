@@ -13,6 +13,8 @@ from subprocess import call
 from datetime import datetime
 from mpi4py import MPI
 from pilot.util.filehandling import get_json_dictionary as read_json
+#from pilot.util.filehandling import read_json
+
 from pilot.jobdescription import JobDescription  #temporary hack
 #from pilot.control.payload import parse_jobreport_data  # failed with third party import "import _ssl"
 
@@ -77,6 +79,16 @@ def parse_jobreport_data(job_report):
     dq.get("resource/dbDataTotal", work_attributes, "dbData")
     dq.get("exitCode", work_attributes, "transExitCode")
     dq.get("exitMsg", work_attributes, "exeErrorDiag")
+    dq.get("files/output",work_attributes,"outputfiles")
+
+    outputfiles_dict = {}
+    if 'outputfiles' in work_attributes.keys():
+        for ofs in work_attributes['outputfiles']:
+            for of in ofs['subFiles']:
+                outputfiles_dict[of['name']] = {'guid': of['file_guid'],
+                                                'nentries': of['nentries'],
+                                                'size': of['file_size']}
+    work_attributes['outputfiles'] = outputfiles_dict
 
     if 'resource' in job_report and 'executor' in job_report['resource']:
         j = job_report['resource']['executor']
@@ -156,6 +168,8 @@ def main_exit(exit_code, work_report=None, workerAttributesFile="worker_attribut
 def publish_work_report(work_report=None, workerAttributesFile="worker_attributes.json"):
     """Publishing of work report to file"""
     if work_report:
+        if work_report.has_key("outputfiles"):
+            del(work_report["outputfiles"])
         with open(workerAttributesFile, 'w') as outputfile:
             work_report['timestamp'] = timestamp()
             json.dump(work_report, outputfile)
@@ -164,7 +178,6 @@ def publish_work_report(work_report=None, workerAttributesFile="worker_attribute
 
 
 def main():
-
     workerAttributesFile = "worker_attributes.json"
     StageOutnFile = "event_status.dump.json"
     payload_report_file = 'jobReport.json'
@@ -211,7 +224,6 @@ def main():
     worker_communication_point = os.getcwd()
 
     work_report['workdir'] = worker_communication_point
-    workerAttributesFile = os.path.join(worker_communication_point, workerAttributesFile)
     workerAttributesFile = os.path.join(worker_communication_point, workerAttributesFile)
     trans_job_workdir = os.path.join(scratch_path, str(job_id))
 
@@ -272,6 +284,7 @@ def main():
     logger.info("Execution time: {0} sec.  JobID: {1}".format(exetime, job_id))
     logger.debug("Job report start time: {0}".format(job.startTime))
     logger.debug("Job report end time: {0}".format(job.endTime))
+
     if os.path.exists(payload_report_file):
         payload_report = parse_jobreport_data(read_json(payload_report_file))
         work_report.update(payload_report)
@@ -325,6 +338,8 @@ def main():
             file_desc['fsize'] = os.path.getsize(outfile)
             if 'guid' in job.output_files[outfile].keys():
                 file_desc['guid'] = job.output_files[outfile]['guid']
+            elif work_report['outputfiles'] and work_report['outputfiles'][outfile]:
+                file_desc['guid'] = work_report['outputfiles'][outfile]['guid']
             out_file_report[job.job_id].append(file_desc)
         else:
             logger.info("Expected output file {0} missed. Job {1} will be failed".format(outfile, job.job_id))
@@ -342,7 +357,6 @@ def main():
 
 
 def copy_jobreport(job_working_dir, worker_communication_point, payload_report_file, workerattributesfile):
-
     src_file = os.path.join(job_working_dir, payload_report_file)
     dst_file = os.path.join(worker_communication_point, payload_report_file)
 
@@ -371,7 +385,6 @@ def copy_jobreport(job_working_dir, worker_communication_point, payload_report_f
 
 
 def titan_command_fix(command, job_working_dir):
-
     subs_a = command.split()
     for i in range(len(subs_a)):
         if i > 0:
@@ -389,7 +402,6 @@ def titan_command_fix(command, job_working_dir):
 
 
 def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point,job, workerAttributesFile):
-
     #---------
     # Copy Poolcond files to scratch (RAMdisk, ssd, etc) to cope high IO. MOve execution to RAM disk
 
@@ -442,7 +454,6 @@ def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point
 
 
 def titan_postprocess_wd(jobdir):
-
     pseudo_dir = "poolcond"
     if os.path.exists(pseudo_dir):
         remove(os.path.join(jobdir, pseudo_dir))
@@ -643,7 +654,6 @@ def packlogs(wkdir, excludedfiles, logfile_name, attempt = 0):
     return 0
 
 def del_empty_dirs(src_dir):
-
     "Common function for removing of empty directories. Should migrate to Pilo2"
 
     for dirpath, subdirs, files in os.walk(src_dir, topdown=False):
