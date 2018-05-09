@@ -1,4 +1,6 @@
 import os
+import errno
+import datetime
 import tempfile
 try:
     import subprocess32 as subprocess
@@ -167,7 +169,8 @@ def submit_a_worker(data):
 
 # make batch script
 def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy,
-                        ce_info_dict=dict(), batch_log_dict=dict(), special_par='', harvester_queue_config=None, is_unified_queue=False, **kwarg):
+                        log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), special_par='',
+                        harvester_queue_config=None, is_unified_queue=False, **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
@@ -230,6 +233,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         ceQueueName=ce_info_dict.get('ce_queue_name', ''),
         ceVersion=ce_info_dict.get('ce_version', ''),
         logDir=log_dir,
+        logSubdir=log_subdir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=harvester_queue_config.get_source_label(),
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
@@ -315,6 +319,18 @@ class HTCondorSubmitter(PluginBase):
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
+
+        # get log subdirectory name from timestamp
+        timeNow = datetime.datetime.utcnow()
+        log_subdir = timeNow.strftime('%y-%m-%d_%H')
+        log_subdir_path = os.path.join(self.logDir, log_subdir)
+        try:
+            os.mkdir(log_subdir_path)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+            else:
+                pass
 
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
@@ -444,6 +460,7 @@ class HTCondorSubmitter(PluginBase):
             data = {'workspec': workspec,
                     'template': sdf_template,
                     'log_dir': self.logDir,
+                    'log_subdir': log_subdir,
                     'n_core_per_node': n_core_per_node,
                     'panda_queue_name': panda_queue_name,
                     'x509_user_proxy': self.x509UserProxy,
