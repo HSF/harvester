@@ -439,12 +439,12 @@ class HTCondorSubmitter(PluginBase):
                 else:
                     batchID = ''
                     guess = True
-                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=self.logDir, batchID=batchID, guess=guess)
-                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=self.logDir, batchID=batchID, guess=guess)
-                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=self.logDir, batchID=batchID, guess=guess)
-                batch_log = '{0}/{1}'.format(self.logBaseURL, batch_log_filename)
-                batch_stdout = '{0}/{1}'.format(self.logBaseURL, stdout_path_file_name)
-                batch_stderr = '{0}/{1}'.format(self.logBaseURL, stderr_path_filename)
+                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                batch_log = '{0}/{1}/{2}'.format(self.logBaseURL, log_subdir, batch_log_filename)
+                batch_stdout = '{0}/{1}/{2}'.format(self.logBaseURL, log_subdir, stdout_path_file_name)
+                batch_stderr = '{0}/{1}/{2}'.format(self.logBaseURL, log_subdir, stderr_path_filename)
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
                 workspec.set_log_file('stderr', batch_stderr)
