@@ -37,7 +37,8 @@ class ACTSweeper(PluginBase):
 
         jobSpecs = workspec.get_jobspec_list()
         if not jobSpecs:
-            return
+            # return true since there is nothing to kill
+            return True, ''
 
         for jobSpec in jobSpecs:
             try:
