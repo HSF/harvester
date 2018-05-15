@@ -26,6 +26,7 @@ class Monitor(AgentBase):
         self.queueConfigMapper = queue_config_mapper
         self.dbProxy = DBProxy()
         self.pluginFactory = PluginFactory()
+        self.startTimestamp = time.time()
 
     # main loop
     def run(self):
@@ -35,14 +36,14 @@ class Monitor(AgentBase):
             # just import for module initialization
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
-        last_time_run_with_DB = 0
+        last_DB_cycle_timestamp = 0
         if self.monitor_fifo_enabled:
             monitor_fifo = MonitorFIFO()
         while True:
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
 
-            if time.time() >= last_time_run_with_DB + harvester_config.monitor.sleepTime:
+            if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime:
                 # run with workers from DB
                 mainLog.debug('starting run with DB')
                 mainLog.debug('getting workers to monitor')
@@ -76,7 +77,7 @@ class Monitor(AgentBase):
                                 mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                         else:
                             mainLog.debug('nothing to put to FIFO head')
-                last_time_run_with_DB = time.time()
+                last_DB_cycle_timestamp = time.time()
                 mainLog.debug('ended run with DB')
             elif self.monitor_fifo_enabled:
                 # run with workers from FIFO
@@ -166,7 +167,10 @@ class Monitor(AgentBase):
         try:
             fifoCheckInterval = monCore.fifoCheckInterval
         except:
-            fifoCheckInterval = harvester_config.monitor.checkInterval
+            if hasattr(harvester_config.monitor, 'fifoCheckInterval'):
+                fifoCheckInterval = harvester_config.monitor.fifoCheckInterval
+            else:
+                fifoCheckInterval = harvester_config.monitor.checkInterval
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
@@ -293,7 +297,8 @@ class Monitor(AgentBase):
                         if not _bool or lastCheckAt is None:
                             lastCheckAt = 0
                         if (from_fifo and tmpRet) \
-                            or (not from_fifo and timeNow_timestamp - forceEnqueueInterval > lastCheckAt):
+                            or (not from_fifo and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
+                                and timeNow_timestamp - forceEnqueueInterval > lastCheckAt):
                             workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')

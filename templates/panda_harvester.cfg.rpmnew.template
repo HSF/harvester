@@ -301,7 +301,7 @@ maxWorkers = 500
 lockInterval = 600
 
 # check interval in sec
-checkInterval = 120
+checkInterval = 300
 
 # sleep interval in sec
 sleepTime = 600
@@ -312,10 +312,13 @@ fifoEnable = False
 # sleep interval in millisecond using fifo
 fifoSleepTimeMilli = 15000
 
+# check interval in fifo in sec
+fifoCheckInterval = 120
+
 # interval of force enqueue in sec
 fifoForceEnqueueInterval = 1500
 
-# max number of workers to be populated into the fifo
+# max number of workers to be populated into fifo
 fifoMaxWorkersToPopulate = 10000
 
 # max number of workers in a chunk to enqueue
