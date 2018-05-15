@@ -30,7 +30,8 @@ class FileSpec(SpecBase):
                            'attemptNr:integer',
                            'todelete:integer / index',
                            'scope:text',
-                           'pathConvention:integer'
+                           'pathConvention:integer',
+                           'provenanceID:text / index'
                            )
 
     # attributes initialized with 0

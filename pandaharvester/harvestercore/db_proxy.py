@@ -1685,8 +1685,9 @@ class DBProxy:
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlFI += FileSpec.bind_values_expression()
             # sql to get pending files
-            sqlFP = "SELECT fileID,fsize,lfn FROM {0} ".format(fileTableName)
+            sqlFP = "SELECT fileID,fsize,lfn,provenanceID FROM {0} ".format(fileTableName)
             sqlFP += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
+            sqlFP += "ORDER BY provenanceID "
             # sql to update pending files
             sqlFU = "UPDATE {0} ".format(fileTableName)
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
@@ -1792,12 +1793,15 @@ class DBProxy:
                             subTotalSize = 0
                             subFileIDs = []
                             zippedFileIDs = []
-                            for tmpFileID, tmpFsize, tmpLFN in resFP:
+                            prevProvenanceID = None
+                            for tmpFileID, tmpFsize, tmpLFN, tmpProvenanceID in resFP:
                                 if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
-                                        and subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024:
+                                        and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024
+                                             or tmpProvenanceID != prevProvenanceID):
                                     zippedFileIDs.append(subFileIDs)
                                     subFileIDs = []
                                     subTotalSize = 0
+                                prevProvenanceID = tmpProvenanceID
                                 subTotalSize += tmpFsize
                                 subFileIDs.append((tmpFileID, tmpLFN))
                             if (jobSpec.subStatus == 'to_transfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
