@@ -65,8 +65,6 @@ class Monitor(AgentBase):
                                 mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                             except Exception as errStr:
                                 mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
-                        else:
-                            mainLog.debug('nothing to put to FIFO head')
                         if workSpecsToEnqueueToHead:
                             mainLog.debug('putting workers to FIFO head')
                             try:
@@ -75,18 +73,15 @@ class Monitor(AgentBase):
                                 mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                             except Exception as errStr:
                                 mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
-                        else:
-                            mainLog.debug('nothing to put to FIFO head')
                 last_DB_cycle_timestamp = time.time()
                 mainLog.debug('ended run with DB')
             elif self.monitor_fifo_enabled:
                 # run with workers from FIFO
-                mainLog.debug('starting run with FIFO')
-                # check fifo size
-                fifo_size = monitor_fifo.size()
-                mainLog.debug('FIFO size is {0}'.format(fifo_size))
                 if monitor_fifo.to_check_workers():
-                    mainLog.debug('getting workers to monitor')
+                    # check fifo size
+                    fifo_size = monitor_fifo.size()
+                    mainLog.debug('FIFO size is {0}'.format(fifo_size))
+                    mainLog.debug('starting run with FIFO')
                     try:
                         obj_gotten = monitor_fifo.get(timeout=1)
                     except Exception as errStr:
@@ -115,8 +110,6 @@ class Monitor(AgentBase):
                                         mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                                     except Exception as errStr:
                                         mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
-                                else:
-                                    mainLog.debug('nothing to put to FIFO')
                                 if workSpecsToEnqueueToHead:
                                     mainLog.debug('putting workers to FIFO head')
                                     try:
@@ -125,13 +118,13 @@ class Monitor(AgentBase):
                                         mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
                                     except Exception as errStr:
                                         mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
-                                else:
-                                    mainLog.debug('nothing to put to FIFO head')
                             else:
                                 mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
                         else:
                             mainLog.debug('got nothing in FIFO')
-                mainLog.debug('ended run with FIFO')
+                    mainLog.debug('ended run with FIFO')
+                else:
+                    mainLog.debug('workers in FIFO too young to check. Skipped')
 
             if sw.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
                 mainLog.warning('a single cycle was longer than lockInterval ' + sw.get_elapsed_time())
@@ -294,11 +287,16 @@ class Monitor(AgentBase):
                         timeNow = datetime.datetime.utcnow()
                         timeNow_timestamp = time.time()
                         _bool, lastCheckAt = workSpec.get_work_params('lastCheckAt')
-                        if not _bool or lastCheckAt is None:
-                            lastCheckAt = 0
+                        try:
+                            last_check_period = timeNow_timestamp - lastCheckAt
+                        except TypeError:
+                            last_check_period = forceEnqueueInterval + 1.0
                         if (from_fifo and tmpRet) \
                             or (not from_fifo and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
-                                and timeNow_timestamp - forceEnqueueInterval > lastCheckAt):
+                                and last_check_period > forceEnqueueInterval):
+                            if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval:
+                                tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
+                                                    workSpec.workerID, last_check_period))
                             workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
