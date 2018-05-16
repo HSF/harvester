@@ -294,7 +294,8 @@ class Monitor(AgentBase):
                         if (from_fifo and tmpRet) \
                             or (not from_fifo and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
                                 and last_check_period > forceEnqueueInterval):
-                            if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval:
+                            if not from_fifo and _bool and lastCheckAt is not None \
+                                and last_check_period > harvester_config.monitor.checkInterval:
                                 tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
                                                     workSpec.workerID, last_check_period))
                             workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
