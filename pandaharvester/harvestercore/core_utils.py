@@ -254,7 +254,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                                     provenanceID = fileSpec.eventRangeID.split('-')[2]
                                 except Exception:
                                     provenanceID = None
-                                fileSpec.provenanceID = fileAtters['provenanceID']
+                                fileSpec.provenanceID = provenanceID
                             if lfn in outFileAttrs:
                                 fileSpec.scope = outFileAttrs[lfn]['scope']
                             jobSpec.add_out_file(fileSpec)
