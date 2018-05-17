@@ -130,6 +130,13 @@ class QueueConfigMapper:
                 resolver = pluginFactory.get_plugin(pluginConf)
             else:
                 resolver = None
+            # get queue names from resolver
+            getQueuesDynamic = False
+            queueTemplateMap = dict()
+            if resolver is not None and 'DYNAMIC' in harvester_config.qconf.queueList:
+                getQueuesDynamic = True
+                queueTemplateMap = resolver.get_all_queue_names()
+                queueNameList |= set(queueTemplateMap.keys())
             # set attributes
             for queueName in queueNameList:
                 for queueConfigJson in queueConfigJsonList:
@@ -143,6 +150,13 @@ class QueueConfigMapper:
                             templateQueueList.add(templateQueueName)
                             if templateQueueName in queueConfigJson:
                                 queueDictList.insert(0, queueConfigJson[templateQueueName])
+                    elif getQueuesDynamic:
+                        templateQueueName = queueTemplateMap[queueName]
+                        if templateQueueName not in queueConfigJson:
+                            templateQueueName = harvester_config.qconf.defaultTemplateQueueName
+                        templateQueueList.add(templateQueueName)
+                        if templateQueueName in queueConfigJson:
+                            queueDictList.insert(0, queueConfigJson[templateQueueName])
                     for queueDict in queueDictList:
                         if queueName in newQueueConfig:
                             queueConfig = newQueueConfig[queueName]
@@ -207,6 +221,7 @@ class QueueConfigMapper:
                 if queueConfig.queueStatus == 'offline':
                     continue
                 if 'ALL' not in harvester_config.qconf.queueList and \
+                        'DYNAMIC' not in harvester_config.qconf.queueList and \
                         queueName not in harvester_config.qconf.queueList:
                     continue
                 activeQueues[queueName] = queueConfig
