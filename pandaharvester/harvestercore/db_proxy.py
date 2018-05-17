@@ -1798,7 +1798,8 @@ class DBProxy:
                                 if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
                                         and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024
                                              or tmpProvenanceID != prevProvenanceID):
-                                    zippedFileIDs.append(subFileIDs)
+                                    if jobSpec.subStatus == 'to_transfer' or tmpProvenanceID == prevProvenanceID:
+                                        zippedFileIDs.append(subFileIDs)
                                     subFileIDs = []
                                     subTotalSize = 0
                                 prevProvenanceID = tmpProvenanceID
