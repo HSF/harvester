@@ -391,6 +391,15 @@ maxJobsToTrigger = 100
 # max number of jobs to zip in one cycle
 maxJobsToZip = 100
 
+# max number of files per job to check in one cycle : 0 to be unlimited
+maxFilesPerJobToCheck = 0
+
+# max number of files per job to transfer in one cycle : 0 to be unlimited
+maxFilesPerJobToTransfer = 0
+
+# max number of files per job to zip in one cycle : 0 to be unlimited
+maxFilesPerJobToZip = 0
+
 # lock interval in sec
 lockInterval = 600
 
@@ -399,6 +408,9 @@ checkInterval = 180
 
 # trigger interval in sec
 triggerInterval = 180
+
+# zip interval in sec
+zipInterval = 180
 
 # sleep interval in sec
 sleepTime = 60

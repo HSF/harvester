@@ -2109,7 +2109,8 @@ class DBProxy:
 
     # get jobs to trigger or check output transfer or zip output
     def get_jobs_for_stage_out(self, max_jobs, interval_without_lock, interval_with_lock, locked_by,
-                               sub_status, has_out_file_flag, bad_has_out_file_flag=None):
+                               sub_status, has_out_file_flag, bad_has_out_file_flag=None,
+                               max_files_per_job=None):
         try:
             # get logger
             msgPfx = 'thr={0}'.format(locked_by)
@@ -2143,6 +2144,8 @@ class DBProxy:
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
+            if max_files_per_job is not None and max_files_per_job > 0:
+                sqlF += "LIMIT {0} ".format(max_files_per_job)
             # sql to get associated files
             sqlAF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID AND fileType<>:type "
