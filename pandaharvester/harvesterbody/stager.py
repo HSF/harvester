@@ -28,11 +28,16 @@ class Stager(AgentBase):
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
+            try:
+                maxFilesPerJob = harvester_config.stager.maxFilesPerJobToCheck
+            except Exception:
+                maxFilesPerJob = None
             jobsToCheck = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToCheck,
                                                               harvester_config.stager.checkInterval,
                                                               harvester_config.stager.lockInterval,
                                                               lockedBy, 'transferring',
-                                                              JobSpec.HO_hasTransfer)
+                                                              JobSpec.HO_hasTransfer,
+                                                              max_files_per_job=maxFilesPerJob)
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
@@ -80,12 +85,17 @@ class Stager(AgentBase):
                 except:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to trigger stage-out
+            try:
+                maxFilesPerJob = harvester_config.stager.maxFilesPerJobToTrigger
+            except Exception:
+                maxFilesPerJob = None
             jobsToTrigger = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToTrigger,
                                                                 harvester_config.stager.triggerInterval,
                                                                 harvester_config.stager.lockInterval,
                                                                 lockedBy, 'to_transfer',
                                                                 JobSpec.HO_hasOutput,
-                                                                JobSpec.HO_hasZipOutput)
+                                                                JobSpec.HO_hasZipOutput,
+                                                                max_files_per_job=maxFilesPerJob)
             mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
             # loop over all jobs
             for jobSpec in jobsToTrigger:
@@ -135,12 +145,21 @@ class Stager(AgentBase):
                 except:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to zip output
+            try:
+                maxFilesPerJob = harvester_config.stager.maxFilesPerJobToZip
+            except Exception:
+                maxFilesPerJob = None
+            try:
+                zipInterval = harvester_config.stager.zipInterval
+            except Exception:
+                zipInterval = harvester_config.stager.triggerInterval
             jobsToZip = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToZip,
-                                                            harvester_config.stager.triggerInterval,
+                                                            zipInterval,
                                                             harvester_config.stager.lockInterval,
                                                             lockedBy, 'to_transfer',
                                                             JobSpec.HO_hasZipOutput,
-                                                            JobSpec.HO_hasOutput)
+                                                            JobSpec.HO_hasOutput,
+                                                            max_files_per_job=maxFilesPerJob)
             mainLog.debug('got {0} jobs to zip'.format(len(jobsToZip)))
             # loop over all jobs
             for jobSpec in jobsToZip:
