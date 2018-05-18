@@ -32,7 +32,8 @@ class SimpleWorkerMaker(PluginBase):
         panda_queues_dict = PandaQueuesDict()
         queue_dict = panda_queues_dict.get(queue_config.queueName, {})
 
-        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')
+        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')\
+                        or queue_dict.get('capability', '') == 'ucore'
         # case of traditional (non-unified) queue: look at the queue configuration
         if not unified_queue:
             workSpec.nCore = queue_dict.get('corecount', 1) or 1
