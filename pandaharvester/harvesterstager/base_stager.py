@@ -1,4 +1,5 @@
 import os
+import uuid
 import tarfile
 
 from pandaharvester.harvestercore import core_utils
@@ -26,17 +27,15 @@ class BaseStager(PluginBase):
                 msgStr = 'self.zipDir - {0} zipDir - {1} fileSpec.lfn - {2} zipPath - {3}' \
                     .format(self.zipDir, zipDir, fileSpec.lfn, zipPath)
                 tmp_log.debug(msgStr)
-                # remove zip file just in case
-                try:
-                    os.remove(zipPath)
-                    msgStr = 'removed file {}'.format(zipPath)
-                    tmp_log.debug(msgStr)
-                except Exception:
-                    pass
-                # make tar file
-                with tarfile.open(zipPath, "w") as zf:
-                    for assFileSpec in fileSpec.associatedFiles:
-                        zf.add(assFileSpec.path, os.path.basename(assFileSpec.path))
+                # make zip if doesn't exist
+                if not os.path.exists(zipPath):
+                    tmpZipPath = zipPath + '.' + str(uuid.uuid4())
+                    with tarfile.open(tmpZipPath, "w") as zf:
+                        for assFileSpec in fileSpec.associatedFiles:
+                            zf.add(assFileSpec.path, os.path.basename(assFileSpec.path))
+                    # avoid overwriting
+                    if not os.path.exists(zipPath):
+                        os.rename(tmpZipPath, zipPath)
                 # set path
                 fileSpec.path = zipPath
                 # get size
