@@ -27,7 +27,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestermisc import globus_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-
+from pandaharvester.harvesterstager.base_stager import BaseStager
 
 # Define dummy transfer identifier
 dummy_transfer_id_base = 'dummy_id_for_out'
@@ -53,7 +53,7 @@ def validate_transferid(transferid):
 
 # Globus plugin for stager with bulk transfers. For JobSpec and DBInterface methods, see
 # https://github.com/PanDAWMS/panda-harvester/wiki/Utilities#file-grouping-for-file-transfers
-class GlobusBulkStager(PluginBase):
+class GlobusBulkStager(BaseStager):
     next_id = 0
     # constructor
     def __init__(self, **kwarg):
@@ -438,43 +438,7 @@ class GlobusBulkStager(PluginBase):
         # make logger
         tmpLog = self.make_logger(_logger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='zip_output')
-        tmpLog.debug('start')
-        try:
-            for fileSpec in jobspec.outFiles:
-                if self.zipDir == "${SRCDIR}":
-                    # the same directory as src
-                    zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
-                else:
-                    zipDir = self.zipDir
-                zipPath = os.path.join(zipDir, fileSpec.lfn)
-                msgStr = 'self.zipDir - {0} zipDir - {1} fileSpec.lfn - {2} zipPath - {3}'\
-                    .format(self.zipDir,zipDir,fileSpec.lfn,zipPath)
-                tmpLog.debug(msgStr)
-                # remove zip file just in case
-                try:
-                    os.remove(zipPath)
-                    msgStr = 'removed file {}'.format(zipPath)
-                    tmpLog.debug(msgStr)
-                except:
-                    pass
-                # make tar file
-                with tarfile.open(zipPath,"w") as zf:
-                    for assFileSpec in fileSpec.associatedFiles:
-                        zf.add(assFileSpec.path,os.path.basename(assFileSpec.path))
-                # set path
-                fileSpec.path = zipPath
-                # get size
-                statInfo = os.stat(zipPath)
-                fileSpec.fsize = statInfo.st_size
-                fileSpec.chksum = core_utils.calc_adler32(zipPath)
-                msgStr = 'fileSpec.path - {0}, fileSpec.fsize - {1}, fileSpec.chksum(adler32) - {2}'\
-                    .format(fileSpec.path,fileSpec.fsize,fileSpec.chksum)
-                tmpLog.debug(msgStr)
-        except:
-            errMsg = core_utils.dump_error_message(tmpLog)
-            return False, 'failed to zip with {0}'.format(errMsg)
-        tmpLog.debug('done')
-        return True, ''
+        return self.simple_zip_output(jobspec, tmpLog)
 
     # make label for transfer task
     def make_label(self, jobspec):
