@@ -47,13 +47,14 @@ class WorkerMaker:
                 # set workerID
                 if workSpec.workerID is None:
                     workSpec.workerID = self.dbProxy.get_next_seq_number('SEQ_workerID')
+                    workSpec.configID = queue_config.configID
                     workSpec.isNew = True
                 okChunks.append((workSpec, jobChunk))
             # dump
             tmpLog.debug('made {0} workers while {1} chunks failed'.format(len(okChunks),
                                                                            len(ngChunks)))
             return okChunks, ngChunks
-        except:
+        except Exception:
             # dump error
             core_utils.dump_error_message(tmpLog)
             return [], jobchunk_list

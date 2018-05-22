@@ -12,6 +12,7 @@ from .panda_queue_spec import PandaQueueSpec
 from . import core_utils
 from .db_proxy_pool import DBProxyPool as DBProxy
 from .plugin_factory import PluginFactory
+from .queue_config_dump_spec import QueueConfigDumpSpec
 
 
 # class for queue config
@@ -40,6 +41,7 @@ class QueueConfig:
         self.queueStatus = None
         self.prefetchEvents = True
         self.uniqueName = None
+        self.configID = None
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -58,6 +60,11 @@ class QueueConfig:
     # set unique name
     def set_unique_name(self):
         self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType)
+
+    # update attributes
+    def update_attributes(self, data):
+        for k, v in iteritems(data):
+            setattr(self, k, v)
 
     # str
     def __str__(self):
@@ -207,6 +214,9 @@ class QueueConfigMapper:
             if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \
                     harvester_config.qconf.autoBlacklist:
                 autoBlacklist = True
+            # get queue dumps
+            dbProxy = DBProxy()
+            queueConfigDumps = dbProxy.get_queue_config_dumps()
             # get active queues
             activeQueues = dict()
             for queueName, queueConfig in iteritems(newQueueConfig):
@@ -217,6 +227,23 @@ class QueueConfigMapper:
                 if queueConfig.queueStatus is None:
                     queueConfig.queueStatus = 'online'
                 queueConfig.queueStatus = queueConfig.queueStatus.lower()
+                # look for configID
+                dumpSpec = QueueConfigDumpSpec()
+                dumpSpec.queueName = queueName
+                dumpSpec.set_data(vars(queueConfig))
+                if dumpSpec.dumpUniqueName in queueConfigDumps:
+                    dumpSpec = queueConfigDumps[dumpSpec.dumpUniqueName]
+                else:
+                    # add dump
+                    dumpSpec.creationTime = datetime.datetime.utcnow()
+                    dumpSpec.configID = dbProxy.get_next_seq_number('SEQ_configID')
+                    tmpStat = dbProxy.add_queue_config_dump(dumpSpec)
+                    if not tmpStat:
+                        dumpSpec.configID = dbProxy.get_config_id_dump(dumpSpec)
+                        if dumpSpec.configID is None:
+                            raise Exception('failed to get configID for {0}'.format(dumpSpec.dumpUniqueName))
+                    queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
+                queueConfig.configID = dumpSpec.configID
                 # ignore offline
                 if queueConfig.queueStatus == 'offline':
                     continue
@@ -227,23 +254,33 @@ class QueueConfigMapper:
                 activeQueues[queueName] = queueConfig
             self.queueConfig = newQueueConfig
             self.activeQueues = activeQueues
+            newQueueConfigWithID = dict()
+            for dumpSpec in queueConfigDumps.values():
+                queueConfig = QueueConfig(dumpSpec.queueName)
+                queueConfig.update_attributes(dumpSpec.data)
+                queueConfig.configID = dumpSpec.configID
+                newQueueConfigWithID[dumpSpec.configID] = queueConfig
+            self.queueConfigWithID = newQueueConfigWithID
             self.lastUpdate = datetime.datetime.utcnow()
         # update database
         dbProxy = DBProxy()
         dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self)
 
     # check if valid queue
-    def has_queue(self, queue_name):
+    def has_queue(self, queue_name, config_id=None):
         self.load_data()
+        if config_id is not None:
+            return config_id in self.queueConfigWithID
         return queue_name in self.queueConfig
 
     # get queue config
-    def get_queue(self, queue_name):
+    def get_queue(self, queue_name, config_id=None):
         self.load_data()
-        if queue_name not in self.queueConfig:
-            return None
-        else:
+        if config_id is not None and config_id in self.queueConfigWithID:
+            return self.queueConfigWithID[config_id]
+        if queue_name in self.queueConfig:
             return self.queueConfig[queue_name]
+        return None
 
     # all queue configs
     def get_all_queues(self):

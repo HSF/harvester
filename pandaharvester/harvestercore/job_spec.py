@@ -49,7 +49,8 @@ class JobSpec(SpecBase):
                            'nWorkersLimit:integer',
                            'submissionAttempts:integer',
                            'jobsetID:integer',
-                           'pilotClosed:integer'
+                           'pilotClosed:integer',
+                           'configID:integer / index'
                            )
 
     # attributes initialized with 0

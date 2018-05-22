@@ -23,6 +23,7 @@ from .panda_queue_spec import PandaQueueSpec
 from .job_worker_relation_spec import JobWorkerRelationSpec
 from .process_lock_spec import ProcessLockSpec
 from .diag_spec import DiagSpec
+from .queue_config_dump_spec import QueueConfigDumpSpec
 
 from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -42,6 +43,7 @@ pandaQueueTableName = 'pq_table'
 jobWorkerTableName = 'jw_table'
 processLockTableName = 'lock_table'
 diagTableName = 'diag_table'
+queueConfigDumpTableName = 'qcdump_table'
 
 # connection lock
 conLock = threading.Lock()
@@ -356,6 +358,7 @@ class DBProxy:
         outStrs += self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
         outStrs += self.make_table(ProcessLockSpec, processLockTableName)
         outStrs += self.make_table(DiagSpec, diagTableName)
+        outStrs += self.make_table(QueueConfigDumpSpec, queueConfigDumpTableName)
         # dump error messages
         if len(outStrs) > 0:
             errMsg = "ERROR : Definitions of some database tables are incorrect. "
@@ -366,10 +369,11 @@ class DBProxy:
             for outStr in outStrs:
                 print (outStr)
             sys.exit(1)
-        # fill PandaQueue table
-        queue_config_mapper.load_data()
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
+        self.add_seq_number('SEQ_configID', 1)
+        # fill PandaQueue table
+        queue_config_mapper.load_data()
         # delete process locks
         self.clean_process_locks()
 
@@ -4108,3 +4112,113 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # get queue config dumps
+    def get_queue_config_dumps(self):
+        try:
+            retVal = dict()
+            configIDs = set()
+            # time limit
+            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_queue_config_dumps')
+            tmpLog.debug('start')
+            # sql to get used IDs
+            sqlIJ = "SELECT DISTINCT configID FROM {0} ".format(jobTableName)
+            self.execute(sqlIJ)
+            resIJ = self.cur.fetchall()
+            for tmpID, in resIJ:
+                configIDs.add(tmpID)
+            sqlIW = "SELECT DISTINCT configID FROM {0} ".format(workTableName)
+            self.execute(sqlIW)
+            resIW = self.cur.fetchall()
+            for tmpID, in resIW:
+                configIDs.add(tmpID)
+            # sql to delete
+            sqlD = "DELETE FROM {0} WHERE configID=:configID ".format(queueConfigDumpTableName)
+            # sql to get config
+            sqlQ = "SELECT {0} FROM {1} ".format(QueueConfigDumpSpec.column_names(), queueConfigDumpTableName)
+            sqlQ += "FOR UPDATE "
+            self.execute(sqlQ)
+            resQs = self.cur.fetchall()
+            iDump = 0
+            iDel = 0
+            for resQ in resQs:
+                dumpSpec = QueueConfigDumpSpec()
+                dumpSpec.pack(resQ)
+                # delete if unused and too old
+                if dumpSpec.configID not in configIDs and dumpSpec.creationTime < timeLimit:
+                    varMap = dict()
+                    varMap[':configID'] = dumpSpec.configID
+                    self.execute(sqlD, varMap)
+                    iDel += 1
+                else:
+                    retVal[dumpSpec.dumpUniqueName] = dumpSpec
+                    iDump += 1
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} dumps and delete {1} dumps'.format(iDump, iDel))
+            # return
+            return retVal
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return {}
+
+    # add queue config dump
+    def add_queue_config_dump(self, dump_spec):
+        try:
+            # sql to insert a job
+            sqlJ = "INSERT INTO {0} ({1}) ".format(queueConfigDumpTableName, QueueConfigDumpSpec.column_names())
+            sqlJ += QueueConfigDumpSpec.bind_values_expression()
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='add_queue_config_dumps')
+            tmpLog.debug('start for {0}'.format(dump_spec.dumpUniqueName))
+            varMap = dump_spec.values_list()
+            # insert
+            self.execute(sqlJ, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            # return
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
+
+    # get configID for queue config dump
+    def get_config_id_dump(self, dump_spec):
+        try:
+            # sql to get configID
+            sqlJ = "SELECT configID FROM {0} ".format(queueConfigDumpTableName)
+            sqlJ += "WHERE queueName=:queueName AND dumpUniqueName=:dumpUniqueName "
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_config_id_for_dump')
+            tmpLog.debug('start for {0}:{1}'.format(dump_spec.queueName, dump_spec.dumpUniqueName))
+            # get
+            varMap = dict()
+            varMap[':queueName'] = dump_spec.queueName
+            varMap[':dumpUniqueName'] = dump_spec.dumpUniqueName
+            self.execute(sqlJ, varMap)
+            resJ = self.cur.fetchone()
+            if resJ is not None:
+                configID, = resJ
+            else:
+                configID = None
+            tmpLog.debug('got configID={0}'.format(configID))
+            # return
+            return configID
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return None

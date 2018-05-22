@@ -84,7 +84,8 @@ class WorkSpec(SpecBase):
                            'nativeStatus:text',
                            'diagMessage:varchar(500)',
                            'nJobs:integer',
-                           'submissionHost:text'
+                           'submissionHost:text',
+                           'configID:integer / index'
                            )
 
     # constructor
