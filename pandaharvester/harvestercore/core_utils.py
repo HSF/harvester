@@ -510,7 +510,7 @@ def set_file_permission(path):
         try:
             os.chmod(f, 0o666 - umask)
             os.chown(f, uid, gid)
-        except:
+        except Exception:
             pass
     os.umask(umask)
 
@@ -519,10 +519,18 @@ def set_file_permission(path):
 def get_queues_config_url():
     try:
         return os.environ['HARVESTER_QUEUE_CONFIG_URL']
-    except:
+    except Exception:
         return None
 
 
 # get unique queue name
 def get_unique_queue_name(queue_name, resource_type):
     return '{0}:{1}'.format(queue_name, resource_type)
+
+
+# capability to dynamically change plugins
+def dynamic_plugin_change():
+    try:
+        return harvester_config.master.dynamic_plugin_change
+    except Exception:
+        return False

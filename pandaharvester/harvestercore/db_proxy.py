@@ -1421,7 +1421,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_update')
             tmpLog.debug('start')
             # sql to get workers
-            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW = "SELECT workerID,configID FROM {0} ".format(workTableName)
             sqlW += "WHERE status IN (:st_submitted,:st_running) "
             sqlW += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlW += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
@@ -1455,11 +1455,14 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             tmpWorkers = set()
-            for workerID, in resW:
-                tmpWorkers.add(workerID)
+            for workerID, configID in resW:
+                # ignore configID
+                if not core_utils.dynamic_plugin_change():
+                    configID = None
+                tmpWorkers.add((workerID, configID))
             checkedIDs = set()
             retVal = {}
-            for workerID in tmpWorkers:
+            for workerID, configID in tmpWorkers:
                 # skip
                 if workerID in checkedIDs:
                     continue
@@ -1523,12 +1526,12 @@ class DBProxy:
                 self.commit()
                 # add
                 if queueName is not None:
-                    if queueName not in retVal:
-                        retVal[queueName] = []
-                    retVal[queueName].append(workersList)
+                    retVal.setdefault(queueName, dict())
+                    retVal[queueName].setdefault(configID, [])
+                    retVal[queueName][configID].append(workersList)
             tmpLog.debug('got {0}'.format(str(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2710,7 +2713,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_kill')
             tmpLog.debug('start')
             # sql to get worker IDs
-            sqlW = "SELECT workerID,status FROM {0} ".format(workTableName)
+            sqlW = "SELECT workerID,status,configID FROM {0} ".format(workTableName)
             sqlW += "WHERE killTime IS NOT NULL AND killTime<:checkTimeLimit "
             sqlW += "ORDER BY killTime LIMIT {0} ".format(max_workers)
             # sql to lock or release worker
@@ -2728,7 +2731,10 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             retVal = dict()
-            for workerID, workerStatus in resW:
+            for workerID, workerStatus, configID in resW:
+                # ignore configID
+                if not core_utils.dynamic_plugin_change():
+                    configID = None
                 # lock or release worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
@@ -2750,14 +2756,14 @@ class DBProxy:
                     workSpec = WorkSpec()
                     workSpec.pack(resG)
                     queueName = workSpec.computingSite
-                    if queueName not in retVal:
-                        retVal[queueName] = []
-                    retVal[queueName].append(workSpec)
+                    retVal.setdefault(queueName, dict())
+                    retVal[queueName].setdefault(configID, [])
+                    retVal[queueName][configID].append(workSpec)
                 # commit
                 self.commit()
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2953,7 +2959,7 @@ class DBProxy:
             modTimeLimit = timeNow - datetime.timedelta(minutes=60)
             varMap = dict()
             varMap[':timeLimit'] = modTimeLimit
-            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW = "SELECT workerID, configID FROM {0} ".format(workTableName)
             sqlW += "WHERE lastUpdate IS NULL AND ("
             for tmpStatus, tmpTimeout in iteritems(status_timeout_map):
                 tmpStatusKey = ':status_{0}'.format(tmpStatus)
@@ -2993,7 +2999,7 @@ class DBProxy:
             resW = self.cur.fetchall()
             retVal = dict()
             iWorkers = 0
-            for workerID, in resW:
+            for workerID, configID in resW:
                 # lock worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
@@ -3004,6 +3010,9 @@ class DBProxy:
                 self.commit()
                 if self.cur.rowcount == 0:
                     continue
+                # ignore configID
+                if not core_utils.dynamic_plugin_change():
+                    configID = None
                 # check associated jobs
                 varMap = dict()
                 varMap[':workerID'] = workerID
@@ -3019,9 +3028,9 @@ class DBProxy:
                     workSpec = WorkSpec()
                     workSpec.pack(resG)
                     queueName = workSpec.computingSite
-                    if queueName not in retVal:
-                        retVal[queueName] = []
-                    retVal[queueName].append(workSpec)
+                    retVal.setdefault(queueName, dict())
+                    retVal[queueName].setdefault(configID, [])
+                    retVal[queueName][configID].append(workSpec)
                     # get jobs
                     jobSpecs = []
                     checkedLFNs = set()

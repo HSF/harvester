@@ -45,11 +45,16 @@ class Stager(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('start checking')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     # get plugin
                     stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
                     if stagerCore is None:
@@ -82,7 +87,7 @@ class Stager(AgentBase):
                     else:
                         # on-going
                         tmpLog.debug('try to check later since {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to trigger stage-out
             try:
@@ -103,11 +108,16 @@ class Stager(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('try to trigger stage-out')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     # get plugin
                     stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
                     if stagerCore is None:
@@ -142,7 +152,7 @@ class Stager(AgentBase):
                     else:
                         # temporary error
                         tmpLog.debug('try to trigger later since {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to zip output
             try:
@@ -167,11 +177,16 @@ class Stager(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('try to zip output')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     # get plugin
                     stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
                     if stagerCore is None:
@@ -194,7 +209,7 @@ class Stager(AgentBase):
                     else:
                         # failed
                         tmpLog.debug('failed to zip with {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated

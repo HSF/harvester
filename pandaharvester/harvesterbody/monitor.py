@@ -53,26 +53,27 @@ class Monitor(AgentBase):
                                                                        lockedBy)
                 mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
                 # loop over all workers
-                for queueName, workSpecsList in iteritems(workSpecsPerQueue):
-                    retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList)
-                    if self.monitor_fifo_enabled and retVal is not None:
-                        workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
-                        if workSpecsToEnqueue:
-                            mainLog.debug('putting workers to FIFO')
-                            try:
-                                score = fifoCheckInterval + timeNow_timestamp
-                                monitor_fifo.put((queueName, workSpecsToEnqueue), score)
-                                mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
-                            except Exception as errStr:
-                                mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
-                        if workSpecsToEnqueueToHead:
-                            mainLog.debug('putting workers to FIFO head')
-                            try:
-                                score = fifoCheckInterval - timeNow_timestamp
-                                monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
-                                mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
-                            except Exception as errStr:
-                                mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
+                for queueName, configIdWorkSpecs in iteritems(workSpecsPerQueue):
+                    for configID, workSpecsList in iteritems(configIdWorkSpecs):
+                        retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID)
+                        if self.monitor_fifo_enabled and retVal is not None:
+                            workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
+                            if workSpecsToEnqueue:
+                                mainLog.debug('putting workers to FIFO')
+                                try:
+                                    score = fifoCheckInterval + timeNow_timestamp
+                                    monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                    mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
+                                except Exception as errStr:
+                                    mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
+                            if workSpecsToEnqueueToHead:
+                                mainLog.debug('putting workers to FIFO head')
+                                try:
+                                    score = fifoCheckInterval - timeNow_timestamp
+                                    monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                    mainLog.info('put workers of {0} to FIFO with score {1}'.format(queueName, score))
+                                except Exception as errStr:
+                                    mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                 last_DB_cycle_timestamp = time.time()
                 mainLog.debug('ended run with DB')
             elif self.monitor_fifo_enabled:
@@ -90,6 +91,7 @@ class Monitor(AgentBase):
                         if obj_gotten is not None:
                             queueName, workSpecsList = obj_gotten
                             mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
+                            configID = workSpecsList[0][0].configID
                             for workSpecs in workSpecsList:
                                 for workSpec in workSpecs:
                                     if workSpec.pandaid_list is None:
@@ -99,7 +101,8 @@ class Monitor(AgentBase):
                                         else:
                                             workSpec.pandaid_list = []
                                         workSpec.force_update('pandaid_list')
-                            retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True)
+                            retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
+                                                             config_id=configID)
                             if retVal is not None:
                                 workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                                 if workSpecsToEnqueue:
@@ -140,15 +143,15 @@ class Monitor(AgentBase):
 
 
     # core of monitor agent to check workers in workSpecsList of queueName
-    def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False):
+    def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False, config_id=None):
         tmpQueLog = self.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
                                      method_name='run')
         # check queue
-        if not self.queueConfigMapper.has_queue(queueName):
+        if not self.queueConfigMapper.has_queue(queueName, config_id):
             tmpQueLog.error('config not found')
             return
         # get queue
-        queueConfig = self.queueConfigMapper.get_queue(queueName)
+        queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
         # get plugins
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)

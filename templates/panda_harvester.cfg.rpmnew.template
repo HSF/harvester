@@ -20,6 +20,11 @@ harvester_id = FIXME
 # port number of debugger
 debugger_port = 19550
 
+# capability to dynamically change plugins
+dynamic_plugin_change = False
+
+
+
 
 ##########################
 #

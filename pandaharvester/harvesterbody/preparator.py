@@ -43,11 +43,16 @@ class Preparator(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('start checking')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, jobSpec.configID)
                     oldSubStatus = jobSpec.subStatus
                     # get plugin
                     preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
@@ -101,7 +106,7 @@ class Preparator(AgentBase):
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus})
                         tmpLog.error('failed with {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to trigger preparation
             mainLog.debug('try to get jobs to prepare')
@@ -120,11 +125,16 @@ class Preparator(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('try to trigger preparation')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     oldSubStatus = jobSpec.subStatus
                     # get plugin
                     preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
@@ -214,7 +224,7 @@ class Preparator(AgentBase):
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus})
                         tmpLog.debug('try to prepare later since {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated
