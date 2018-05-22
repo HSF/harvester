@@ -1,5 +1,6 @@
 import os
 import uuid
+import time
 import tarfile
 
 from pandaharvester.harvestercore import core_utils
@@ -34,8 +35,24 @@ class BaseStager(PluginBase):
                         for assFileSpec in fileSpec.associatedFiles:
                             zf.add(assFileSpec.path, os.path.basename(assFileSpec.path))
                     # avoid overwriting
+                    lockName = 'zip.lock.{0}'.format(fileSpec.lfn)
+                    lockInterval = 60
+                    tmpStat = False
+                    # get lock
+                    for i in range(lockInterval):
+                        tmpStat = self.dbInterface.get_object_lock(lockName, lock_interval=lockInterval)
+                        if tmpStat:
+                            break
+                        time.sleep(1)
+                    # failed to lock
+                    if not tmpStat:
+                        msgStr = 'failed to get zip lock for {0}'.format(fileSpec.lfn)
+                        tmp_log.error(msgStr)
+                        return None, msgStr
                     if not os.path.exists(zipPath):
                         os.rename(tmpZipPath, zipPath)
+                    # release lock
+                    self.dbInterface.release_object_lock(lockName)
                 # set path
                 fileSpec.path = zipPath
                 # get size
