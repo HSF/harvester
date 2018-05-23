@@ -3,9 +3,11 @@ interface to give limited database access to plugins
 """
 
 import os
+import logging
 import threading
 
 from .db_proxy_pool import DBProxyPool
+from pandaharvester.harvesterconfig import harvester_config
 
 
 class DBInterface:
@@ -62,4 +64,20 @@ class DBInterface:
 
     # add dialog message
     def add_dialog_message(self, message, level, module_name, identifier=None):
+        # set level
+        validLevels = ['DEBUG', 'INFO', 'ERROR', 'WARNING']
+        if level not in validLevels:
+            level = 'INFO'
+        levelNum = getattr(logging, level)
+        # get minimum level
+        try:
+            minLevel = harvester_config.propagator.minMessageLevel
+        except Exception:
+            minLevel = None
+        if minLevel not in validLevels:
+            minLevel = 'WARNING'
+        minLevelNum = getattr(logging, minLevel)
+        # check level to avoid redundant db lock
+        if levelNum < minLevelNum:
+            return True
         return self.dbProxy.add_dialog_message(message, level, module_name, identifier)

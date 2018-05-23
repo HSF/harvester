@@ -8,7 +8,6 @@ import sys
 import copy
 import inspect
 import datetime
-import logging
 import threading
 from future.utils import iteritems
 
@@ -845,8 +844,8 @@ class DBProxy:
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID AND fileID=:fileID "
             # sql to get fileID of zip
-            sqlZ = "SELECT zipFileID FROM {0} ".format(fileTableName)
-            sqlZ += "WHERE PandaID=:PandaID AND fileID=:fileID "
+            sqlZ = "SELECT e.fileID,f.zipFileID FROM {0} f, {1} e ".format(fileTableName, eventTableName)
+            sqlZ += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID AND e.subStatus<>:statusDone "
             # get jobs
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
@@ -875,6 +874,15 @@ class DBProxy:
                 if nRow > 0:
                     jobSpec.propagatorLock = locked_by
                     zipFiles = {}
+                    zipIdMap = dict()
+                    # get zipIDs
+                    varMap = dict()
+                    varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':statusDone'] = 'done'
+                    self.execute(sqlZ, varMap)
+                    resZ = self.cur.fetchall()
+                    for tmpFileID, tmpZipFileID in resZ:
+                        zipIdMap[tmpFileID] = tmpZipFileID
                     # read events
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
@@ -887,11 +895,7 @@ class DBProxy:
                         zipFileSpec = None
                         # get associated zip file if any
                         if eventSpec.fileID is not None:
-                            varMap = dict()
-                            varMap[':PandaID'] = jobSpec.PandaID
-                            varMap[':fileID'] = eventSpec.fileID
-                            self.execute(sqlZ, varMap)
-                            zipFileID, = self.cur.fetchone()
+                            zipFileID = zipIdMap[eventSpec.fileID]
                             if zipFileID is not None:
                                 if zipFileID not in zipFiles:
                                     varMap = dict()
@@ -2258,7 +2262,7 @@ class DBProxy:
             # sql to update event
             sqlEU = "UPDATE {0} ".format(eventTableName)
             sqlEU += "SET eventStatus=:eventStatus,subStatus=:subStatus "
-            sqlEU += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
+            sqlEU += "WHERE eventRangeID=:eventRangeID "
             sqlEU += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
             # get associated events
             sqlAE = "SELECT eventRangeID FROM {0} ".format(fileTableName)
@@ -2290,7 +2294,6 @@ class DBProxy:
                     varMaps = []
                     for eventRangeID in eventRangeIDs:
                         varMap = dict()
-                        varMap[':PandaID'] = fileSpec.PandaID
                         varMap[':eventRangeID'] = eventRangeID
                         varMap[':eventStatus'] = fileSpec.status
                         varMap[':subStatus'] = fileSpec.status
@@ -3887,22 +3890,6 @@ class DBProxy:
     # add dialog message
     def add_dialog_message(self, message, level, module_name, identifier=None):
         try:
-            validLevels = ['DEBUG', 'INFO', 'ERROR', 'WARNING']
-            # set level
-            if level not in validLevels:
-                level = 'INFO'
-            levelNum = getattr(logging, level)
-            # get minimum level
-            try:
-                minLevel = harvester_config.propagator.minMessageLevel
-            except:
-                minLevel = None
-            if minLevel not in validLevels:
-                minLevel = 'WARNING'
-            minLevelNum = getattr(logging, minLevel)
-            # check
-            if levelNum < minLevelNum:
-                return True
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='add_dialog_message')
             tmpLog.debug('start')
