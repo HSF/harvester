@@ -269,11 +269,11 @@ class Communicator:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']),
                                             method_name='get_event_ranges')
-            tmpLog.debug('start')
             if 'nRanges' in data:
                 nRanges = data['nRanges']
             else:
                 nRanges = 1
+            tmpLog.debug('start nRanges={0}'.format(nRanges))
             while nRanges > 0:
                 # use a small chunk size to avoid timeout
                 chunkSize = min(1024, nRanges)
