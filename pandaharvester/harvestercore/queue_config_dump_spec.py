@@ -33,7 +33,7 @@ class QueueConfigDumpSpec(SpecBase):
             pass
         # get checksum
         m = hashlib.md5()
-        m.update(json.dumps(self.data))
+        m.update(json.dumps(self.data).encode('utf-8'))
         self.checksum = m.hexdigest()
         # set unique name
         self.dumpUniqueName = '{0}_{1}'.format(self.queueName, self.checksum)
