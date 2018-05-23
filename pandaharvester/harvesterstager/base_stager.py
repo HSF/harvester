@@ -22,6 +22,10 @@ class BaseStager(PluginBase):
                 if self.zipDir == "${SRCDIR}":
                     # the same directory as src
                     zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
+                elif self.zipDir == "${WORKDIR}":
+                    # work dir
+                    workSpec = jobspec.get_workspec_list()[0]
+                    zipDir = workSpec.get_access_point()
                 else:
                     zipDir = self.zipDir
                 zipPath = os.path.join(zipDir, fileSpec.lfn)

@@ -3359,6 +3359,7 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get workerIDs
             sqlW = "SELECT workerID FROM {0} WHERE PandaID=:PandaID ".format(jobWorkerTableName)
+            sqlW += "ORDER BY workerID "
             # sql to get a worker
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "

@@ -66,7 +66,7 @@ class JobSpec(SpecBase):
         object.__setattr__(self, 'inFiles', set())
         object.__setattr__(self, 'outFiles', set())
         object.__setattr__(self, 'zipFileMap', {})
-        object.__setattr__(self, 'workspec_list', set())
+        object.__setattr__(self, 'workspec_list', [])
 
     # add file
     def add_file(self, filespec):
