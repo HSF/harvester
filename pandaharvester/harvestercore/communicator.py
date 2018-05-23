@@ -276,7 +276,7 @@ class Communicator:
                 nRanges = 1
             while nRanges > 0:
                 # use a small chunk size to avoid timeout
-                chunkSize = min(256, nRanges)
+                chunkSize = min(1024, nRanges)
                 data['nRanges'] = chunkSize
                 tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
                 if tmpStat is False:

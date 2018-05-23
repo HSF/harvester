@@ -1,6 +1,7 @@
 import os
 import threading
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.db_interface import DBInterface
 
 
 # base class for agents
@@ -12,6 +13,7 @@ class AgentBase(threading.Thread):
         self.singleMode = single_mode
         self.stopEvent = None
         self.os_pid = os.getpid()
+        self.dbInterface = DBInterface()
 
     # set stop event
     def set_stop_event(self, stop_event):
@@ -29,8 +31,8 @@ class AgentBase(threading.Thread):
 
     # make logger
     def make_logger(self, base_log, token=None, method_name=None, send_dialog=True):
-        if send_dialog and hasattr(self, 'dbProxy'):
-            hook = self.dbProxy
+        if send_dialog and hasattr(self, 'dbInterface'):
+            hook = self.dbInterface
         else:
             hook = None
         return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
