@@ -1727,7 +1727,7 @@ class DBProxy:
             # update job
             if jobspec_list is not None:
                 for jobSpec in jobspec_list:
-                    tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                    tmpLog = core_utils.make_logger(_logger, 'PandaID={0} by {1}'.format(jobSpec.PandaID, locked_by),
                                                     method_name='update_jobs_workers')
                     # check job
                     varMap = dict()
