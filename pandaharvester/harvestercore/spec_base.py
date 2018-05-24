@@ -83,11 +83,14 @@ class SpecBase(object):
             object.__setattr__(self, attr, val)
 
     # return column names for INSERT
-    def column_names(cls):
+    def column_names(cls, prefix=None):
         ret = ""
         for attr in cls.attributesWithTypes:
             attr = attr.split(':')[0]
-            ret += "{0},".format(attr)
+            if prefix is None:
+                ret += "{0},".format(attr)
+            else:
+                ret += "{0}.{1},".format(prefix, attr)
         ret = ret[:-1]
         return ret
 

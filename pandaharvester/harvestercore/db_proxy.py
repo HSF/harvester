@@ -320,10 +320,13 @@ class DBProxy:
                         # add column
                         sqlA = 'ALTER TABLE {0} ADD COLUMN '.format(table_name)
                         sqlA += '{0} {1}'.format(attrName, attrType)
-                        self.execute(sqlA)
-                        # commit
-                        self.commit()
-                        tmpLog.debug('added {0} to {1}'.format(attr, table_name))
+                        try:
+                            self.execute(sqlA)
+                            # commit
+                            self.commit()
+                            tmpLog.debug('added {0} to {1}'.format(attr, table_name))
+                        except Exception:
+                            core_utils.dump_error_message(tmpLog)
             # make indexes
             for index in indexes:
                 indexName = 'idx_{0}_{1}'.format(index, table_name)
@@ -332,11 +335,14 @@ class DBProxy:
                 else:
                     sqlI = "CREATE INDEX "
                 sqlI += "{0} ON {1}({2}) ".format(indexName, table_name, index)
-                self.execute(sqlI)
-                # commit
-                self.commit()
-                tmpLog.debug('added {0}'.format(indexName))
-        except:
+                try:
+                    self.execute(sqlI)
+                    # commit
+                    self.commit()
+                    tmpLog.debug('added {0}'.format(indexName))
+                except Exception:
+                    core_utils.dump_error_message(tmpLog)
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -841,8 +847,11 @@ class DBProxy:
             sqlE = "SELECT {0} FROM {1} ".format(EventSpec.column_names(), eventTableName)
             sqlE += "WHERE PandaID=:PandaID AND subStatus<>:statusDone "
             # sql to get file
-            sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlF += "WHERE PandaID=:PandaID AND fileID=:fileID "
+            sqlF = "SELECT DISTINCT {0} FROM {1} f, {2} e, {1} f2 ".format(FileSpec.column_names('f2'),
+                                                                           fileTableName,
+                                                                           eventTableName)
+            sqlF += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID AND e.subStatus<>:statusDone "
+            sqlF += "AND f2.fileID=f.zipFileID "
             # sql to get fileID of zip
             sqlZ = "SELECT e.fileID,f.zipFileID FROM {0} f, {1} e ".format(fileTableName, eventTableName)
             sqlZ += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID AND e.subStatus<>:statusDone "
@@ -883,6 +892,16 @@ class DBProxy:
                     resZ = self.cur.fetchall()
                     for tmpFileID, tmpZipFileID in resZ:
                         zipIdMap[tmpFileID] = tmpZipFileID
+                    # get zip files
+                    varMap = dict()
+                    varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':statusDone'] = 'done'
+                    self.execute(sqlF, varMap)
+                    resFs = self.cur.fetchall()
+                    for resF in resFs:
+                        fileSpec = FileSpec()
+                        fileSpec.pack(resF)
+                        zipFiles[fileSpec.fileID] = fileSpec
                     # read events
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
@@ -897,15 +916,6 @@ class DBProxy:
                         if eventSpec.fileID is not None:
                             zipFileID = zipIdMap[eventSpec.fileID]
                             if zipFileID is not None:
-                                if zipFileID not in zipFiles:
-                                    varMap = dict()
-                                    varMap[':PandaID'] = jobSpec.PandaID
-                                    varMap[':fileID'] = zipFileID
-                                    self.execute(sqlF, varMap)
-                                    resF = self.cur.fetchone()
-                                    fileSpec = FileSpec()
-                                    fileSpec.pack(resF)
-                                    zipFiles[zipFileID] = fileSpec
                                 zipFileSpec = zipFiles[zipFileID]
                         jobSpec.add_event(eventSpec, zipFileSpec)
                     jobSpecList.append(jobSpec)
