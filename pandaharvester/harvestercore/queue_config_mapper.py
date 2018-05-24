@@ -102,6 +102,7 @@ class QueueConfigMapper:
                 queueConfigJson = dbProxy.get_cache('queues_config_file')
                 if queueConfigJson is not None:
                     queueConfigJsonList.append(queueConfigJson.data)
+
             # define config file path
             if os.path.isabs(harvester_config.qconf.configFile):
                 confFilePath = harvester_config.qconf.configFile
@@ -118,6 +119,7 @@ class QueueConfigMapper:
                 if confFilePath is None:
                     confFilePath = os.path.join('/etc/panda',
                                                 harvester_config.qconf.configFile)
+
             # load config from local json file
             f = open(confFilePath)
             queueConfigJson = json.load(f)
@@ -137,6 +139,7 @@ class QueueConfigMapper:
                 resolver = pluginFactory.get_plugin(pluginConf)
             else:
                 resolver = None
+
             # get queue names from resolver
             getQueuesDynamic = False
             queueTemplateMap = dict()
@@ -144,6 +147,7 @@ class QueueConfigMapper:
                 getQueuesDynamic = True
                 queueTemplateMap = resolver.get_all_queue_names()
                 queueNameList |= set(queueTemplateMap.keys())
+
             # set attributes
             for queueName in queueNameList:
                 for queueConfigJson in queueConfigJsonList:
@@ -205,18 +209,22 @@ class QueueConfigMapper:
                         # set unique name
                         queueConfig.set_unique_name()
                         newQueueConfig[queueName] = queueConfig
+
             # delete templates
             for templateQueueName in templateQueueList:
                 if templateQueueName in newQueueConfig:
                     del newQueueConfig[templateQueueName]
+
             # auto blacklisting
             autoBlacklist = False
             if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \
                     harvester_config.qconf.autoBlacklist:
                 autoBlacklist = True
+
             # get queue dumps
             dbProxy = DBProxy()
             queueConfigDumps = dbProxy.get_queue_config_dumps()
+
             # get active queues
             activeQueues = dict()
             for queueName, queueConfig in iteritems(newQueueConfig):
@@ -244,6 +252,7 @@ class QueueConfigMapper:
                             raise Exception('failed to get configID for {0}'.format(dumpSpec.dumpUniqueName))
                     queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
                 queueConfig.configID = dumpSpec.configID
+
                 # ignore offline
                 if queueConfig.queueStatus == 'offline':
                     continue
@@ -252,6 +261,7 @@ class QueueConfigMapper:
                         queueName not in harvester_config.qconf.queueList:
                     continue
                 activeQueues[queueName] = queueConfig
+
             self.queueConfig = newQueueConfig
             self.activeQueues = activeQueues
             newQueueConfigWithID = dict()
@@ -262,6 +272,7 @@ class QueueConfigMapper:
                 newQueueConfigWithID[dumpSpec.configID] = queueConfig
             self.queueConfigWithID = newQueueConfigWithID
             self.lastUpdate = datetime.datetime.utcnow()
+
         # update database
         dbProxy = DBProxy()
         dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self)
@@ -291,3 +302,21 @@ class QueueConfigMapper:
     def get_active_queues(self):
         self.load_data()
         return self.activeQueues
+
+    def get_active_ups_queues(self):
+        """
+        Get active UPS candidates
+        :return:
+        """
+
+        active_ups_queues = []
+        active_queues = self.get_active_queues()
+        for queue_name, queue_attribs in active_queues.iteritems():
+            try:
+                if queue_attribs.runMode == 'slave' and queue_attribs.mapType == 'NoJob':
+                    active_ups_queues.append(queue_name)
+            except KeyError:
+                continue
+
+
+
