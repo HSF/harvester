@@ -23,7 +23,6 @@ from .job_worker_relation_spec import JobWorkerRelationSpec
 from .process_lock_spec import ProcessLockSpec
 from .diag_spec import DiagSpec
 from .queue_config_dump_spec import QueueConfigDumpSpec
-from .queue_config_mapper import QueueConfigMapper
 
 from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -53,7 +52,6 @@ conLock = threading.Lock()
 class DBProxy:
     # constructor
     def __init__(self, thr_name=None):
-
         if harvester_config.db.engine == 'mariadb':
             import mysql.connector
             if hasattr(harvester_config.db, 'host'):
@@ -88,19 +86,14 @@ class DBProxy:
             self.usingAppLock = False
         else:
             self.usingAppLock = True
-
         self.thrName = thr_name
         self.verbLog = None
-
         if harvester_config.db.verbose:
             self.verbLog = core_utils.make_logger(_logger, method_name='execute')
             if self.thrName is None:
                 currentThr = threading.current_thread()
                 if currentThr is not None:
                     self.thrName = currentThr.ident
-
-        self.queueConfigMapper = QueueConfigMapper()
-
 
     # convert param dict to list
     def convert_params(self, sql, varmap):
@@ -2880,17 +2873,10 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             for workerStatus, computingSite, resourceType, cnt in resW:
-                if resourceType and resourceType != 'ANY': # resourceType 'ANY' is not accepted by PanDA server
+                if resourceType and resourceType != 'ANY':
                     retMap.setdefault(computingSite, {})
                     retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
                     retMap[computingSite][resourceType][workerStatus] = cnt
-
-            # find active UPS queues that are not initialized. PanDA server needs to know they are being
-            # served by this harvester instance
-            ups_queues = self.queueConfigMapper.get_active_ups_queues()
-            for ups_queue in ups_queues:
-                if ups_queue not in retMap:
-                    retMap[ups_queue] = {'SCORE': {'running': 0, 'submitted': 0, 'to_submit': 0}}
 
             # commit
             self.commit()
