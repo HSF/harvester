@@ -1689,6 +1689,9 @@ class DBProxy:
             # sql to check file
             sqlFC = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlFC += "WHERE PandaID=:PandaID AND lfn=:lfn "
+            # sql to get all LFNs
+            sqlFL = "SELECT lfn FROM {0} ".format(fileTableName)
+            sqlFL += "WHERE PandaID=:PandaID AND fileType<>:type "
             # sql to check file with eventRangeID
             sqlFE = "SELECT 1 c FROM {0} ".format(fileTableName)
             sqlFE += "WHERE PandaID=:PandaID AND lfn=:lfn AND eventRangeID=:eventRangeID ".format(fileTableName)
@@ -1736,18 +1739,22 @@ class DBProxy:
                     if tmpJobStatus == ['cancelled']:
                         pass
                     else:
+                        # get all LFNs
+                        allLFNs = set()
+                        varMap = dict()
+                        varMap[':PandaID'] = jobSpec.PandaID
+                        varMap[':type'] = 'input'
+                        self.execute(sqlFL, varMap)
+                        resFL = self.cur.fetchall()
+                        for tmpLFN, in resFL:
+                            allLFNs.add(tmpLFN)
                         # insert files
                         nFiles = 0
                         fileIdMap = {}
+                        zipFileRes = dict()
                         for fileSpec in jobSpec.outFiles:
-                            # check file
-                            varMap = dict()
-                            varMap[':PandaID'] = fileSpec.PandaID
-                            varMap[':lfn'] = fileSpec.lfn
-                            self.execute(sqlFC, varMap)
-                            resFC = self.cur.fetchone()
                             # insert file
-                            if resFC is None:
+                            if fileSpec.lfn not in allLFNs:
                                 if jobSpec.zipPerMB is None or fileSpec.isZip in [0, 1]:
                                     fileSpec.status = 'defined'
                                     jobSpec.hasOutFile = JobSpec.HO_hasOutput
@@ -1767,8 +1774,8 @@ class DBProxy:
                                     varMap[':fileID'] = fileSpec.fileID
                                     varMap[':zipFileID'] = fileSpec.fileID
                                     self.execute(sqlFU, varMap)
-                            elif fileSpec.isZip == 1:
-                                # check file with eventRangeID
+                            elif fileSpec.isZip == 1 and fileSpec.eventRangeID is not None:
+                                # add a fake file with eventRangeID which has the same lfn/zipFileID as zip file
                                 varMap = dict()
                                 varMap[':PandaID'] = fileSpec.PandaID
                                 varMap[':lfn'] = fileSpec.lfn
@@ -1776,17 +1783,25 @@ class DBProxy:
                                 self.execute(sqlFE, varMap)
                                 resFE = self.cur.fetchone()
                                 if resFE is None:
+                                    if fileSpec.lfn not in zipFileRes:
+                                        # get file
+                                        varMap = dict()
+                                        varMap[':PandaID'] = fileSpec.PandaID
+                                        varMap[':lfn'] = fileSpec.lfn
+                                        self.execute(sqlFC, varMap)
+                                        resFC = self.cur.fetchone()
+                                        zipFileRes[fileSpec.lfn] = resFC
                                     # associate to existing zip
+                                    resFC = zipFileRes[fileSpec.lfn]
                                     zipFileSpec = FileSpec()
                                     zipFileSpec.pack(resFC)
                                     fileSpec.status = 'zipped'
-                                    fileSpec.zipFileID = zipFileSpec.fileID
+                                    fileSpec.zipFileID = zipFileSpec.zipFileID
                                     varMap = fileSpec.values_list()
                                     self.execute(sqlFI, varMap)
                                     nFiles += 1
                                     # mapping between event range ID and file ID
-                                    if fileSpec.eventRangeID is not None:
-                                        fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
+                                    fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
                         if nFiles > 0:
                             tmpLog.debug('inserted {0} files'.format(nFiles))
                         # check pending files
@@ -3401,7 +3416,6 @@ class DBProxy:
             sqlW = "DELETE FROM {0} ".format(processLockTableName)
             # get worker stats
             self.execute(sqlW)
-            resW = self.cur.fetchone()
             # commit
             self.commit()
             tmpLog.debug('done')
