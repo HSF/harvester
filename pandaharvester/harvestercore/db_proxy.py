@@ -2854,7 +2854,7 @@ class DBProxy:
             return {}
 
     # get worker stats
-    def get_worker_stats_bulk(self):
+    def get_worker_stats_bulk(self, active_ups_queues):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats_bulk')
@@ -2887,6 +2887,13 @@ class DBProxy:
                     retMap.setdefault(computingSite, {})
                     retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
                     retMap[computingSite][resourceType][workerStatus] = cnt
+
+            # if there are no jobs for an active UPS queue, it needs to be initialized so that the pilot streaming
+            # on panda server starts processing the queue
+            if active_ups_queues:
+                for ups_queue in active_ups_queues:
+                    if ups_queue not in retMap:
+                        retMap[ups_queue] = {'SCORE': {'running': 0, 'submitted': 0, 'to_submit': 0}}
 
             # commit
             self.commit()
