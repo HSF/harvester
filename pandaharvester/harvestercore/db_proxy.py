@@ -2892,7 +2892,7 @@ class DBProxy:
             # on panda server starts processing the queue
             if active_ups_queues:
                 for ups_queue in active_ups_queues:
-                    if ups_queue not in retMap:
+                    if ups_queue not in retMap or not retMap[ups_queue]:
                         retMap[ups_queue] = {'SCORE': {'running': 0, 'submitted': 0, 'to_submit': 0}}
 
             # commit
