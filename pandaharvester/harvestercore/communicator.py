@@ -185,7 +185,7 @@ class Communicator:
         for jobSpec in jobspec_list:
             eventRanges, eventSpecs = jobSpec.to_event_data(max_events=10000)
             if eventRanges != []:
-                tmpLogG.debug('update {0} events for PandaID={0}'.format(len(eventSpecs), jobSpec.PandaID))
+                tmpLogG.debug('update {0} events for PandaID={1}'.format(len(eventSpecs), jobSpec.PandaID))
                 tmpRet = self.update_event_ranges(eventRanges, tmpLogG)
                 if tmpRet['StatusCode'] == 0:
                     for eventSpec, retVal in zip(eventSpecs, tmpRet['Returns']):
