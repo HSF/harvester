@@ -79,6 +79,9 @@ class Propagator(AgentBase):
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'
+                        elif tmpJobSpec.is_final_status() and not tmpJobSpec.all_events_done():
+                            # trigger next propagation to update remaining events
+                            tmpJobSpec.trigger_propagation()
                         else:
                             # check event availability
                             if tmpJobSpec.status == 'starting' and 'eventService' in tmpJobSpec.jobParams and \

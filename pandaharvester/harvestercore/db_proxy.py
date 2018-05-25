@@ -865,7 +865,11 @@ class DBProxy:
             self.execute(sql, varMap)
             resList = self.cur.fetchall()
             jobSpecList = []
+            iEvents = 0
             for res in resList:
+                # avoid a bulk update for many jobs with too many events
+                if iEvents > 10000:
+                    break
                 # make job
                 jobSpec = JobSpec()
                 jobSpec.pack(res)
@@ -918,10 +922,11 @@ class DBProxy:
                             if zipFileID is not None:
                                 zipFileSpec = zipFiles[zipFileID]
                         jobSpec.add_event(eventSpec, zipFileSpec)
+                        iEvents += 1
                     jobSpecList.append(jobSpec)
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error

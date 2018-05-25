@@ -210,14 +210,18 @@ class JobSpec(SpecBase):
                 fileSpec.attemptNr = 0
 
     # convert to event data
-    def to_event_data(self):
+    def to_event_data(self, max_events=None):
         data = []
         eventSpecs = []
+        iEvents = 0
         for zipFileID, eventsData in iteritems(self.zipEventMap):
+            if max_events is not None and iEvents > max_events:
+                break
             eventRanges = []
             for eventSpec in eventsData['events']:
                 eventRanges.append(eventSpec.to_data())
                 eventSpecs.append(eventSpec)
+                iEvents += 1
             tmpData = {}
             tmpData['eventRanges'] = eventRanges
             if zipFileID is not None:
