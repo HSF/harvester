@@ -172,13 +172,13 @@ class Communicator:
                     else:
                         errStr = "StatusCode={0}".format(tmpDict['StatusCode'])
                 return [], errStr
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog, tmpRes)
         return [], errStr
 
     # update jobs
-    def update_jobs(self, jobspec_list):
-        tmpLogG = core_utils.make_logger(_logger, method_name='update_jobs')
+    def update_jobs(self, jobspec_list, id):
+        tmpLogG = core_utils.make_logger(_logger, 'id={0}'.format(id), method_name='update_jobs')
         tmpLogG.debug('update {0} jobs'.format(len(jobspec_list)))
         retList = []
         # update events
@@ -215,7 +215,7 @@ class Communicator:
                     data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
                 if jobSpec.endTime is not None and 'endTime' not in data:
                     data['endTime'] = jobSpec.endTime.strftime('%Y-%m-%d %H:%M:%S')
-                if jobSpec.nCore is not None:
+                if 'coreCount' not in data and jobSpec.nCore is not None:
                     data['coreCount'] = jobSpec.nCore
                 if jobSpec.is_final_status() and jobSpec.status == jobSpec.get_status():
                     if jobSpec.metaData is not None:
@@ -236,7 +236,7 @@ class Communicator:
                     if tmpStat is False:
                         tmpLogG.error('updateJobsInBulk failed with {0}'.format(retMaps))
                         retMaps = None
-                except:
+                except Exception:
                     errStr = core_utils.dump_error_message(tmpLogG)
             if retMaps is None:
                 retMap = {}
@@ -245,11 +245,11 @@ class Communicator:
                 retMap['content']['ErrorDiag'] = errStr
                 retMaps = [json.dumps(retMap)] * len(jobSpecSubList)
             for jobSpec, retMap, data in zip(jobSpecSubList, retMaps, dataList):
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                tmpLog = core_utils.make_logger(_logger, 'id={0} PandaID={1}'.format(id, jobSpec.PandaID),
                                                 method_name='update_jobs')
                 try:
                     retMap = json.loads(retMap['content'])
-                except:
+                except Exception:
                     errStr = 'falied to load json'
                     retMap = {}
                     retMap['StatusCode'] = 999

@@ -63,7 +63,7 @@ class Propagator(AgentBase):
                     else:
                         jobListToUpdate.append(tmpJobSpec)
                 retList += self.communicator.check_jobs(jobListToCheck)
-                retList += self.communicator.update_jobs(jobListToUpdate)
+                retList += self.communicator.update_jobs(jobListToUpdate, self.ident)
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
                     if tmpRet['StatusCode'] == 0:

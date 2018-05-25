@@ -181,7 +181,8 @@ class JobSpec(SpecBase):
     # get status
     def get_status(self):
         # don't report the final status while staging-out
-        if self.is_final_status() and (self.subStatus in ['to_transfer', 'transferring'] or not self.all_events_done()):
+        if self.is_final_status() and self.subStatus not in ['killed'] and \
+                (self.subStatus in ['to_transfer', 'transferring'] or not self.all_events_done()):
             return 'transferring'
         return self.status
 
