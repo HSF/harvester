@@ -3134,6 +3134,12 @@ class DBProxy:
             # sql to delete job
             sqlDJ = "DELETE FROM {0} ".format(jobTableName)
             sqlDJ += "WHERE PandaID=:PandaID "
+            # sql to delete files
+            sqlDF = "DELETE FROM {0} ".format(fileTableName)
+            sqlDF += "WHERE PandaID=:PandaID "
+            # sql to delete events
+            sqlDE = "DELETE FROM {0} ".format(eventTableName)
+            sqlDE += "WHERE PandaID=:PandaID "
             # sql to delete relations
             sqlDR = "DELETE FROM {0} ".format(jobWorkerTableName)
             sqlDR += "WHERE PandaID=:PandaID "
@@ -3150,6 +3156,10 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 # delete job
                 self.execute(sqlDJ, varMap)
+                # delete files
+                self.execute(sqlDF, varMap)
+                # delete events
+                self.execute(sqlDE, varMap)
                 # delete relations
                 self.execute(sqlDR, varMap)
             # delete worker
