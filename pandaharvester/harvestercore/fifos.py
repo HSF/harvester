@@ -44,7 +44,7 @@ class FIFOBase:
     def _initialize_fifo(self):
         self.fifoName = '{0}_fifo'.format(self.agentName)
         self.config = getattr(harvester_config, self.agentName)
-        if hasattr(harvester_config.monitor, 'fifoEnable') and harvester_config.monitor.fifoEnable:
+        if hasattr(self.config, 'fifoEnable') and self.config.fifoEnable:
             self.enabled = True
         else:
             self.enabled = False
