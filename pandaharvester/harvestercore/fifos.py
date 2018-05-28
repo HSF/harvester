@@ -113,7 +113,7 @@ class MonitorFIFO(FIFOBase):
 
     def populate(self, seconds_ago=0, clear_fifo=False):
         """
-        Populate monitor fifo with all active worker chunks from DB
+        Populate monitor fifo with all active worker chunks and timeNow as score from DB
         with modificationTime earlier than seconds_ago seconds ago
         object in fifo = [(queueName_1, [[worker_1_1], [worker_1_2], ...]), (queueName_2, ...)]
         """
