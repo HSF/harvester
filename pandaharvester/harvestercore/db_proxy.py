@@ -845,16 +845,18 @@ class DBProxy:
             sqlL += "OR (propagatorTime<:updateTimeLimit AND propagatorLock IS NULL)) "
             # sql to get events
             sqlE = "SELECT {0} FROM {1} ".format(EventSpec.column_names(), eventTableName)
-            sqlE += "WHERE PandaID=:PandaID AND subStatus<>:statusDone "
+            sqlE += "WHERE PandaID=:PandaID AND subStatus IN (:statusFinished,:statusFailed) "
             # sql to get file
             sqlF = "SELECT DISTINCT {0} FROM {1} f, {2} e, {1} f2 ".format(FileSpec.column_names('f2'),
                                                                            fileTableName,
                                                                            eventTableName)
-            sqlF += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID AND e.subStatus<>:statusDone "
+            sqlF += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID "
+            sqlF += "AND e.subStatus IN (:statusFinished,:statusFailed) "
             sqlF += "AND f2.fileID=f.zipFileID "
             # sql to get fileID of zip
             sqlZ = "SELECT e.fileID,f.zipFileID FROM {0} f, {1} e ".format(fileTableName, eventTableName)
-            sqlZ += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID AND e.subStatus<>:statusDone "
+            sqlZ += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID "
+            sqlZ += "AND e.subStatus IN (:statusFinished,:statusFailed) "
             # get jobs
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
@@ -891,7 +893,8 @@ class DBProxy:
                     # get zipIDs
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':statusDone'] = 'done'
+                    varMap[':statusFinished'] = 'finished'
+                    varMap[':statusFailed'] = 'failed'
                     self.execute(sqlZ, varMap)
                     resZ = self.cur.fetchall()
                     for tmpFileID, tmpZipFileID in resZ:
@@ -899,7 +902,8 @@ class DBProxy:
                     # get zip files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':statusDone'] = 'done'
+                    varMap[':statusFinished'] = 'finished'
+                    varMap[':statusFailed'] = 'failed'
                     self.execute(sqlF, varMap)
                     resFs = self.cur.fetchall()
                     for resF in resFs:
@@ -909,7 +913,8 @@ class DBProxy:
                     # read events
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':statusDone'] = 'done'
+                    varMap[':statusFinished'] = 'finished'
+                    varMap[':statusFailed'] = 'failed'
                     self.execute(sqlE, varMap)
                     resEs = self.cur.fetchall()
                     for resE in resEs:
