@@ -24,35 +24,6 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 _logger = core_utils.setup_logger('fifos')
 
 
-# # unicode, str, bytes of python 2 and 3
-# try:
-#     unicodeOrStr = unicode
-# except NameError:
-#     unicodeOrStr = str
-# try:
-#     strOrBytes = bytes
-# except NameError:
-#     strOrBytes = str
-#
-#
-# # encoder for non-native json objects
-# class PythonObjectEncoder(json.JSONEncoder):
-#     def default(self, obj):
-#         if isinstance(obj, (list, dict, unicodeOrStr, str, int, float, bool, type(None))):
-#             return json.JSONEncoder.default(self, obj)
-#         elif isinstance(obj, (bytearray, strOrBytes)):
-#             return json.JSONEncoder.default(self, obj.decode('ascii'))
-#         else:
-#             return {'_non_json_object': str(pickle.dumps(obj, 0))}
-#
-#
-# # hook for decoder
-# def as_python_object(dct):
-#     if '_non_json_object' in dct:
-#         return pickle.loads(str(dct['_non_json_object']).encode('ascii'))
-#     return dct
-
-
 # base class of fifo message queue
 class FIFOBase:
     # constructor
@@ -73,6 +44,11 @@ class FIFOBase:
     def _initialize_fifo(self):
         self.fifoName = '{0}_fifo'.format(self.agentName)
         self.config = getattr(harvester_config, self.agentName)
+        if hasattr(harvester_config.monitor, 'fifoEnable') and harvester_config.monitor.fifoEnable:
+            self.enabled = True
+        else:
+            self.enabled = False
+            return
         pluginConf = vars(self.config).copy()
         pluginConf.update( {'agentName': self.agentName} )
         if hasattr(self.config, 'fifoModule') and hasattr(self.config, 'fifoClass'):
