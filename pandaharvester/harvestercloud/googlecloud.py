@@ -19,9 +19,10 @@ compute = googleapiclient.discovery.build('compute', 'v1')
 
 class GoogleVM():
 
-    def __init__(self, work_spec):
+    def __init__(self, work_spec, queue_config):
         self.harvester_token = HarvesterToken()
         self.work_spec = work_spec
+        self.queue_config = queue_config
         self.name = '{0}-gce-{1}'.format(harvester_config.master.harvester_id, work_spec.workerID)
         self.name = self.name.replace('_', '-') # underscores in VM names are not allowed by GCE
         self.image = self.resolve_image_url()
@@ -63,9 +64,14 @@ class GoogleVM():
         # https://cloud.google.com/compute/docs/instances/creating-instance-with-custom-machine-type
         memory = cores * 2 * 1024
 
-        #instance_type = 'zones/{0}/machineTypes/n1-standard-{1}'.format(ZONE, cores)
+        try:
+            zone = self.queue_config.zone
+        except AttributeError:
+            zone = ZONE
+
+        #instance_type = 'zones/{0}/machineTypes/n1-standard-{1}'.format(zone, cores)
         # Use custom machine types to reduce cost
-        instance_type = 'zones/{0}/machineTypes/custom-{1}-{2}'.format(ZONE, cores, memory)
+        instance_type = 'zones/{0}/machineTypes/custom-{1}-{2}'.format(zone, cores, memory)
 
         return instance_type
 
@@ -82,9 +88,19 @@ class GoogleVM():
         with open(USER_DATA_PATH, 'r') as user_data_file:
             user_data = user_data_file.read()
 
+        try:
+            preemptible = self.queue_config.submitter['preemptible']
+        except KeyError:
+            preemptible = False
+
         config = {
          'name': self.name,
          'machineType': self.instance_type,
+
+         'scheduling':
+             {
+                 'preemptible': preemptible
+             },
 
          # Specify the boot disk and the image to use as a source.
          'disks':

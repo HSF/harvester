@@ -8,9 +8,11 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 # from requests.exceptions import SSLError
 from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # setup base logger
 base_logger = core_utils.setup_logger('google_submitter')
+
 
 def wait_for_operation(project, zone, operation_name):
     """
@@ -52,8 +54,11 @@ def create_vm(work_spec):
                                                                                       work_spec.minRamCount,
                                                                                       work_spec.maxDiskCount,
                                                                                       work_spec.maxWalltime))
+
     try:
-        vm = GoogleVM(work_spec)
+
+        queue_config = self.queue_config_mapper.get_queue(work_spec.computingSite)
+        vm = GoogleVM(work_spec, queue_config)
     except Exception as e:
         tmp_log.debug('VM preparation failed with: {0}'.format(e))
         # there was some problem preparing the VM, usually related to interaction with GCE
@@ -87,6 +92,8 @@ class GoogleSubmitter(PluginBase):
         self.logBaseURL = 'http://localhost/test'
         PluginBase.__init__(self, **kwarg)
 
+        self.queue_config_mapper = QueueConfigMapper()
+
     def submit_workers(self, work_spec_list):
         """
         :param work_spec_list: list of workers to submit
@@ -97,7 +104,7 @@ class GoogleSubmitter(PluginBase):
 
         # Create VMs in parallel
         # authentication issues when running the Cloud API in multiprocess
-        # pool_size = min(len(work_spec_list), 10) # TODO: think about the optimal pool size
+        # pool_size = min(len(work_spec_list), 10)
         # with Pool(pool_size) as pool:
         #    ret_val_list = pool.map(create_vm, work_spec_list, lock)
 
