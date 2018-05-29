@@ -38,7 +38,7 @@ def wait_for_operation(project, zone, operation_name):
         time.sleep(1)
 
 
-def create_vm(work_spec):
+def create_vm(work_spec, queue_config):
     """
     Boots up a VM in GCE based on the worker specifications
 
@@ -56,9 +56,13 @@ def create_vm(work_spec):
                                                                                       work_spec.maxWalltime))
 
     try:
-
-        queue_config = self.queue_config_mapper.get_queue(work_spec.computingSite)
         vm = GoogleVM(work_spec, queue_config)
+
+        try:
+            zone = queue_config.zone
+        except AttributeError:
+            zone = ZONE
+
     except Exception as e:
         tmp_log.debug('VM preparation failed with: {0}'.format(e))
         # there was some problem preparing the VM, usually related to interaction with GCE
@@ -68,7 +72,7 @@ def create_vm(work_spec):
     try:
         tmp_log.debug('Going to submit VM {0}'.format(vm.name))
         work_spec.batchID = vm.name
-        operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
+        operation = compute.instances().insert(project=PROJECT, zone=zone, body=vm.config).execute()
         # tmp_log.debug('Submitting VM {0}'.format(vm.name))
         # wait_for_operation(PROJECT, ZONE, operation['name'])
         tmp_log.debug('Submitted VM {0}'.format(vm.name))
@@ -99,8 +103,17 @@ class GoogleSubmitter(PluginBase):
         :param work_spec_list: list of workers to submit
         :return:
         """
+
         tmp_log = self.make_logger(base_logger, method_name='submit_workers')
         tmp_log.debug('start nWorkers={0}'.format(len(work_spec_list)))
+
+        ret_list = []
+        if not work_spec_list:
+            tmp_log.debug('empty work_spec_list')
+            return ret_list
+
+        # we assume all work_specs in the list belong to the same queue
+        queue_config = self.queue_config_mapper.get_queue(work_spec_list[0].computingSite)
 
         # Create VMs in parallel
         # authentication issues when running the Cloud API in multiprocess
@@ -110,10 +123,9 @@ class GoogleSubmitter(PluginBase):
 
         ret_val_list = []
         for work_spec in work_spec_list:
-             ret_val_list.append(create_vm(work_spec))
+            ret_val_list.append(create_vm(work_spec, queue_config))
 
         # Propagate changed attributes
-        ret_list = []
         for work_spec, tmp_val in zip(work_spec_list, ret_val_list):
             ret_val, tmp_dict = tmp_val
 

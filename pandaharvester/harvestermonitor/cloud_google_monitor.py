@@ -1,6 +1,7 @@
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercloud.googlecloud import compute, ZONE, PROJECT
 
 base_logger = core_utils.setup_logger('google_monitor')
@@ -8,6 +9,7 @@ base_logger = core_utils.setup_logger('google_monitor')
 class GoogleMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
+        self.queue_config_mapper = QueueConfigMapper()
 
         # States taken from: https://cloud.google.com/compute/docs/instances/checking-instance-status
         self.vm_to_worker_status = {
@@ -18,14 +20,14 @@ class GoogleMonitor(PluginBase):
                                      'STAGING': WorkSpec.ST_submitted
                                      }
 
-    def list_vms(self):
+    def list_vms(self, zone):
         """
         List the status of the running VMs
         :return:
         """
 
         try:
-            result = compute.instances().list(project=PROJECT, zone=ZONE).execute()
+            result = compute.instances().list(project=PROJECT, zone=zone).execute()
 
             try:
                 vm_instances = result['items']
@@ -46,14 +48,14 @@ class GoogleMonitor(PluginBase):
         except:
             return None, None
 
-    def kill_worker(self, vm_name):
+    def kill_worker(self, vm_name, zone):
         """
         Sends the command to Google to destroy a VM
         """
 
         try:
             base_logger.debug('Going to kill VM {0}'.format(vm_name))
-            compute.instances().delete(project=PROJECT, zone=ZONE, instance=vm_name).execute()
+            compute.instances().delete(project=PROJECT, zone=zone, instance=vm_name).execute()
             base_logger.debug('Killed VM {0}'.format(vm_name))
         except Exception as e:
             base_logger.error('Problems killing the VM: {0}'.format(e))
@@ -68,8 +70,19 @@ class GoogleMonitor(PluginBase):
         :rtype: (bool, [string,])
         """
 
+        if not workers:
+            return False, 'Empty workers list received'
+
+        # it assumes that all workers belong to the same queue, which is currently the case
+        # we assume all work_specs in the list belong to the same queue
+        queue_config = self.queue_config_mapper.get_queue(workers[0].computingSite)
+        try:
+            zone = queue_config.zone
+        except AttributeError:
+            zone = ZONE
+
         # running instances
-        vm_names, vm_name_to_status = self.list_vms()
+        vm_names, vm_name_to_status = self.list_vms(zone)
         if vm_names is None and vm_name_to_status is None:
             error_string = 'Could not list the VMs'
             base_logger.error(error_string)
@@ -94,7 +107,7 @@ class GoogleMonitor(PluginBase):
                     # Preemptible VMs: GCE terminates a VM, but a stopped VM with its disk is left and needs to be
                     # explicitly deleted
                     if vm_name_to_status[batch_ID] == 'TERMINATED':
-                        self.kill_worker(batch_ID)
+                        self.kill_worker(batch_ID, zone)
 
                 except KeyError:
                     new_status = WorkSpec.ST_missed
