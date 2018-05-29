@@ -66,6 +66,12 @@ class QueueConfig:
         for k, v in iteritems(data):
             setattr(self, k, v)
 
+    # get synchronization level between job and worker
+    def get_synchronization_level(self):
+        if self.mapType == WorkSpec.MT_NoJob or self.truePilot or self.is_no_heartbeat_status('finished'):
+            return 1
+        return None
+
     # str
     def __str__(self):
         tmpStr = ''
@@ -311,7 +317,6 @@ class QueueConfigMapper:
 
         active_ups_queues = []
         active_queues = self.get_active_queues()
-        print active_queues
         for queue_name, queue_attribs in active_queues.iteritems():
             try:
                 if queue_attribs.runMode == 'slave' and queue_attribs.mapType == 'NoJob':
