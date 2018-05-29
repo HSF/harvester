@@ -158,8 +158,13 @@ class Propagator(AgentBase):
                             mainLog.error('failed to update worker stats (command) for {0} err={1}'.format(siteName, tmpStr))
 
             if not self._last_stats_update or time.time() - self._last_stats_update > STATS_PERIOD:
+
+                # get active UPS queues. PanDA server needs to know about them and which harvester instance is taking
+                # care of them
+                active_ups_queues = self.queueConfigMapper.get_active_ups_queues()
+
                 # update worker stats for all sites
-                worker_stats_bulk = self.dbProxy.get_worker_stats_bulk()
+                worker_stats_bulk = self.dbProxy.get_worker_stats_bulk(active_ups_queues)
                 if not worker_stats_bulk:
                     mainLog.error('failed to get worker stats in bulk')
                 else:
