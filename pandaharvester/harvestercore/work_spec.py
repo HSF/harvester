@@ -85,7 +85,8 @@ class WorkSpec(SpecBase):
                            'diagMessage:varchar(500)',
                            'nJobs:integer',
                            'submissionHost:text',
-                           'configID:integer / index'
+                           'configID:integer / index',
+                           'syncLevel:integer'
                            )
 
     # constructor
@@ -201,7 +202,8 @@ class WorkSpec(SpecBase):
                      'nativeStatus',
                      'diagMessage',
                      'nJobs',
-                     'computingElement'
+                     'computingElement',
+                     'syncLevel'
                      ]:
             val = getattr(self, attr)
             if val is not None:

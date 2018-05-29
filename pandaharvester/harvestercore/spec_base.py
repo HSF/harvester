@@ -60,13 +60,9 @@ class SpecBase(object):
 
     # restore state from the unpickled state values
     def __setstate__(self, state):
+        self.__init__()
         for k, v in state.items():
             object.__setattr__(self, k, v)
-        for attr_and_type in self.attributesWithTypes:
-            attr, attrType = attr_and_type.split(':')
-            # schema evolution is supported only when adding attributes
-            if attr not in state:
-                object.__setattr__(self, attr, None)
 
     # reset changed attribute list
     def reset_changed_list(self):

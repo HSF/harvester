@@ -194,6 +194,8 @@ class Submitter(AgentBase):
                                         workSpec.computingSite = queueConfig.queueName
                                         # set access point
                                         workSpec.accessPoint = queueConfig.messenger['accessPoint']
+                                        # sync level
+                                        workSpec.syncLevel = queueConfig.get_synchronization_level()
                                         # events
                                         if len(okJobs) > 0 and \
                                                 ('eventService' in okJobs[0].jobParams or
