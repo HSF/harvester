@@ -130,12 +130,12 @@ def submit_a_worker(data):
                 break
         if job_id_match is not None:
             workspec.batchID = job_id_match.group(2)
-            tmpLog.debug('batchID={0}'.format(workspec.batchID))
             # set submissionHost
             if not condor_schedd and not condor_pool:
                 workspec.submissionHost = None
             else:
                 workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
+            tmpLog.debug('submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
             # set computingElement
             workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
             # set log
