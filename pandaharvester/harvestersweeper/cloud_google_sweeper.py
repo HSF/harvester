@@ -1,6 +1,7 @@
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercloud.googlecloud import compute, ZONE, PROJECT
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 import googleapiclient
 
 base_logger = core_utils.setup_logger('google_sweeper')
@@ -11,6 +12,7 @@ class GoogleSweeper(PluginBase):
     """
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
+        self.queue_config_mapper = QueueConfigMapper()
 
     def kill_worker(self, work_spec):
         """
@@ -24,8 +26,15 @@ class GoogleSweeper(PluginBase):
 
         try:
             vm_name = work_spec.batchID
+
+            queue_config = self.queue_config_mapper.get_queue(work_spec.computingSite)
+            try:
+                zone = queue_config.zone
+            except AttributeError:
+                zone = ZONE
+
             base_logger.debug('Going to kill VM {0}'.format(vm_name))
-            compute.instances().delete(project=PROJECT, zone=ZONE, instance=vm_name).execute()
+            compute.instances().delete(project=PROJECT, zone=zone, instance=vm_name).execute()
             base_logger.debug('Killed VM {0}'.format(vm_name))
             return True, ''
         except googleapiclient.errors.HttpError as e:
