@@ -74,7 +74,7 @@ def _check_one_worker(workspec, job_ads_all_dict):
             try:
                 batchStatus = job_ads_dict['JobStatus']
             except KeyError:
-                errStr = 'cannot get JobStatus of job batchID={0}. Regard the worker as canceled by default'.format(workspec.batchID)
+                errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled by default'.format(workspec.submissionHost, workspec.batchID)
                 tmpLog.error(errStr)
                 newStatus = WorkSpec.ST_cancelled
             else:
@@ -104,10 +104,10 @@ def _check_one_worker(workspec, job_ads_all_dict):
                                                                                         pool_opt=pool_opt,
                                                                                         ))
                         if retCode == 0:
-                            tmpLog.info('killed held job batchID={0}'.format(workspec.batchID))
+                            tmpLog.info('killed held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
                         else:
                             newStatus = WorkSpec.ST_cancelled
-                            tmpLog.error('cannot kill held job batchID={0}. Force worker to be in cancelled status'.format(workspec.batchID))
+                            tmpLog.error('cannot kill held job submissionHost={0} batchID={1}. Force worker to be in cancelled status'.format(workspec.submissionHost, workspec.batchID))
                         # Mark the PanDA job as closed instead of failed
                         workspec.set_pilot_closed()
                         tmpLog.debug('Called workspec set_pilot_closed')
@@ -118,7 +118,7 @@ def _check_one_worker(workspec, job_ads_all_dict):
                     try:
                         payloadExitCode = job_ads_dict['ExitCode']
                     except KeyError:
-                        errStr = 'cannot get ExitCode of job batchID={0}'.format(workspec.batchID)
+                        errStr = 'cannot get ExitCode of job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID)
                         tmpLog.error(errStr)
                         newStatus = WorkSpec.ST_failed
                     else:
@@ -135,16 +135,20 @@ def _check_one_worker(workspec, job_ads_all_dict):
 
                         tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
                 else:
-                    errStr = 'cannot get reasonable JobStatus of job batchID={0}. Regard the worker as failed by default'.format(workspec.batchID)
+                    errStr = 'cannot get reasonable JobStatus of job submissionHost={0} batchID={1}. Regard the worker as failed by default'.format(
+                                workspec.submissionHost, workspec.batchID)
                     tmpLog.error(errStr)
                     newStatus = WorkSpec.ST_failed
 
-                tmpLog.info('batchID={0} : batchStatus {1} -> workerStatus {2}'.format(workspec.batchID, batchStatus, newStatus))
+                tmpLog.info('submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}'.format(
+                                workspec.submissionHost, workspec.batchID, batchStatus, newStatus))
 
         else:
-            tmpLog.error('condor job batchID={0} not found. Regard the worker as canceled by default'.format(workspec.batchID))
+            tmpLog.error('condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default'.format(
+                            workspec.submissionHost, workspec.batchID))
             newStatus = WorkSpec.ST_cancelled
-            tmpLog.info('batchID={0}: batchStatus {1} -> workerStatus {2}'.format(workspec.batchID, batchStatus, newStatus))
+            tmpLog.info('submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}'.format(
+                            workspec.submissionHost, workspec.batchID, batchStatus, newStatus))
 
     ## Return
     return (newStatus, errStr)
@@ -262,7 +266,8 @@ class HTCondorMonitor (PluginBase):
                 ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
                 for batchid in batchIDs_list:
                     job_ads_all_dict[batchid] = dict()
-                tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs: {0}'.format( ' '.join(batchIDs_list) ) )
+                tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs of submissionHost={0}: {1}'.format(
+                                submissionHost, ' '.join(batchIDs_list) ) )
 
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:

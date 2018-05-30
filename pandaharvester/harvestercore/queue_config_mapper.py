@@ -317,7 +317,7 @@ class QueueConfigMapper:
 
         active_ups_queues = []
         active_queues = self.get_active_queues()
-        for queue_name, queue_attribs in active_queues.iteritems():
+        for queue_name, queue_attribs in iteritems(active_queues):
             try:
                 if queue_attribs.runMode == 'slave' and queue_attribs.mapType == 'NoJob':
                     active_ups_queues.append(queue_name)

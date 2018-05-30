@@ -81,9 +81,11 @@ class HTCondorSweeper(PluginBase):
                 return False, errStr
             else:
                 ## Found already killed
-                tmpLog.info('Found workerID={0} batchID={1} already killed'.format(workspec.workerID, workspec.batchID))
+                tmpLog.info('Found workerID={0} submissionHost={1} batchID={2} already killed'.format(
+                                workspec.workerID, workspec.submissionHost, workspec.batchID))
         else:
-            tmpLog.info('Succeeded to kill workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID))
+            tmpLog.info('Succeeded to kill workerID={0} submissionHost={1} batchID={2}'.format(
+                            workspec.workerID, workspec.submissionHost, workspec.batchID))
 
         ## Return
         return True, ''
