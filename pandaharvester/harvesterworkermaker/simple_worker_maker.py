@@ -44,12 +44,24 @@ class SimpleWorkerMaker(PluginBase):
             site_corecount = queue_dict.get('corecount', 1) or 1
             site_maxrss = queue_dict.get('maxrss', 1) or 1
 
+            # default values
+            workSpec.nCore = site_corecount
+            workSpec.minRamCount = site_maxrss
+
+            # some cases need to overwrite those values
             if 'SCORE' in resource_type:
+                # the usual pilot streaming use case
                 workSpec.nCore = 1
                 workSpec.minRamCount = site_maxrss / site_corecount
-            else:
-                workSpec.nCore = site_corecount
-                workSpec.minRamCount = site_maxrss
+            elif 'ANY' in resource_type and len(jobspec_list) == 1:
+                # special case for push model, where job has no memory requirements
+                try:
+                    jobSpec = jobspec_list[0]
+                    if jobSpec.jobParams['coreCount'] == 1 and jobSpec.jobParams['minRamCount'] in [0, None]:
+                        workSpec.nCore = 1
+                        workSpec.minRamCount = site_maxrss / site_corecount
+                except:
+                    pass
 
         # parameters that are independent on traditional vs unified
         workSpec.maxWalltime = queue_dict.get('maxtime', 1)
