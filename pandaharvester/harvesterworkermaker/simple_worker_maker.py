@@ -86,7 +86,7 @@ class SimpleWorkerMaker(PluginBase):
             maxWalltime = 0
             for jobSpec in jobspec_list:
 
-                job_memory, job_corecount = self.get_job_core_and_memory(queue_dict, jobSpec)
+                job_corecount, job_memory  = self.get_job_core_and_memory(queue_dict, jobSpec)
                 nCore += job_corecount
                 minRamCount += job_memory
 
