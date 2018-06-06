@@ -74,16 +74,23 @@ class QueueConfig:
 
     # str
     def __str__(self):
+        header = self.queueName + '\n' + '-' * len(self.queueName) + '\n'
         tmpStr = ''
         pluginStr = ''
-        for key, val in iteritems(self.__dict__):
+        keys = self.__dict__.keys()
+        keys.sort()
+        for key in keys:
+            val = self.__dict__[key]
             if isinstance(val, dict):
-                pluginStr += '{0} :\n'.format(key)
-                for pKey, pVal in iteritems(val):
+                pluginStr += ' {0} :\n'.format(key)
+                pKeys = val.keys()
+                pKeys.sort()
+                for pKey in pKeys:
+                    pVal = val[pKey]
                     pluginStr += '  {0} = {1}\n'.format(pKey, pVal)
             else:
-                tmpStr += '{0} = {1}\n'.format(key, val)
-        return tmpStr + pluginStr
+                tmpStr += ' {0} = {1}\n'.format(key, val)
+        return header + tmpStr + pluginStr
 
 
 # mapper
@@ -314,7 +321,6 @@ class QueueConfigMapper:
         Get active UPS candidates
         :return:
         """
-
         active_ups_queues = []
         active_queues = self.get_active_queues()
         for queue_name, queue_attribs in iteritems(active_queues):
@@ -323,5 +329,9 @@ class QueueConfigMapper:
                     active_ups_queues.append(queue_name)
             except KeyError:
                 continue
-
         return active_ups_queues
+
+    # all queues with config IDs
+    def get_all_queues_with_config_ids(self):
+        self.load_data()
+        return self.queueConfigWithID
