@@ -243,9 +243,15 @@ class QueueConfigMapper:
             # get active queues
             activeQueues = dict()
             for queueName, queueConfig in iteritems(newQueueConfig):
-                # get dynamic information
+                # get status
                 if queueConfig.queueStatus is None and autoBlacklist:
                     queueConfig.queueStatus = resolver.get_queue_status(queueName)
+                # get dynamic information
+                if 'DYNAMIC' in harvester_config.qconf.queueList:
+                    # UPS queue
+                    if resolver.is_ups_queue(queueName):
+                        queueConfig.runMode = 'slave'
+                        queueConfig.mapType = 'NoJob'
                 # set online if undefined
                 if queueConfig.queueStatus is None:
                     queueConfig.queueStatus = 'online'
