@@ -78,13 +78,13 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 
     def get_all(self, batchIDs_list=[], update_interval=300, lifetime=432000):
         if time.time() > self.updateTimestamp + update_interval:
-            if self.lock.acquire(timeout=2):
+            if self.lock.acquire(blocking=False):
                 self.cleanup(lifetime=lifetime)
                 self.update(batchIDs_list)
                 self.lock.release()
         for batchid in batchIDs_list:
             if batchid not in self.job_ads_all_dict:
-                if self.lock.acquire(timeout=2):
+                if self.lock.acquire(blocking=False):
                     self.update(batchIDs_list)
                     self.lock.release()
                 break
