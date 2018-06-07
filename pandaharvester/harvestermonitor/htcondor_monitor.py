@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 import time
 
-# from concurrent.futures import ProcessPoolExecutor as Pool
+import threading
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
@@ -71,17 +71,22 @@ class CondorJobQuery(object, metaclass=SingletonWithID):
 
     def __init__(self, *args, **kwargs):
         self.submissionHost = kwargs.get('id')
-        if not hasattr(self, 'job_ads_all_dict'):
-            self.job_ads_all_dict = {}
-        if not hasattr(self, 'updateTimestamp'):
-            self.updateTimestamp = 0
+        self.lock = threading.Lock()
+        self.job_ads_all_dict = {}
+        self.job_last_update_dict = {}
+        self.updateTimestamp = 0
 
-    def get_all(self, batchIDs_list=[], update_interval=300):
+    def get_all(self, batchIDs_list=[], update_interval=300, lifetime=432000):
         if time.time() > self.updateTimestamp + update_interval:
-            self.update(batchIDs_list)
+            if self.lock.acquire(timeout=2):
+                self.cleanup(lifetime=lifetime)
+                self.update(batchIDs_list)
+                self.lock.release()
         for batchid in batchIDs_list:
             if batchid not in self.job_ads_all_dict:
-                self.update(batchIDs_list)
+                if self.lock.acquire(timeout=2):
+                    self.update(batchIDs_list)
+                    self.lock.release()
                 break
         return self.job_ads_all_dict
 
@@ -113,7 +118,7 @@ class CondorJobQuery(object, metaclass=SingletonWithID):
                                                                     pool_opt=pool_opt,
                                                                     ids=ids)
             else:
-                tmpLog.debug('No batch job left to query in this cycle by this thread')
+                # tmpLog.debug('No batch job left to query in this cycle by this thread')
                 continue
 
             tmpLog.debug('check with {0}'.format(comStr))
@@ -158,8 +163,25 @@ class CondorJobQuery(object, metaclass=SingletonWithID):
                             self.submissionHost, ' '.join(batchIDs_list) ) )
         ## Size in cache
         tmpLog.debug('Job query cache id={0} , size={1}'.format(id(self.job_ads_all_dict), len(self.job_ads_all_dict)))
-        ## Update timestamp
+        ## Update timestamp and for all jobs
         self.updateTimestamp = time.time()
+        self.job_last_update_dict.update(dict.fromkeys(self.job_ads_all_dict.keys(), self.updateTimestamp))
+        ## Return
+        return
+
+    def cleanup(self, lifetime):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.cleanup')
+        # Start cleanup
+        now_timestamp = time.time()
+        job_last_update_dict_copy = self.job_last_update_dict.copy()
+        for batchid, last_update in job_last_update_dict_copy.items():
+            if now_timestamp > last_update + lifetime:
+                self.job_ads_all_dict.pop(batchid, None)
+                self.job_last_update_dict.pop(batchid, None)
+        # Size in cache
+        tmpLog.debug('Job query cache id={0} , size={1}'.format(id(self.job_ads_all_dict), len(self.job_ads_all_dict)))
+        # Return
         return
 
 
@@ -290,6 +312,10 @@ class HTCondorMonitor (PluginBase):
             self.cacheUpdateInterval
         except AttributeError:
             self.cacheUpdateInterval = 300
+        try:
+            self.cacheLifetime
+        except AttributeError:
+            self.cacheLifetime = 432000
 
     # check workers
     def check_workers(self, workspec_list):
@@ -309,7 +335,9 @@ class HTCondorMonitor (PluginBase):
         for submissionHost, batchIDs_list in s_b_dict.items():
             ## Record batch job query result to this dict, with key = batchID
             job_query = CondorJobQuery(id=submissionHost)
-            job_ads_all_dict = job_query.get_all(batchIDs_list=batchIDs_list, update_interval=self.cacheUpdateInterval)
+            job_ads_all_dict = job_query.get_all(batchIDs_list=batchIDs_list,
+                                                    update_interval=self.cacheUpdateInterval,
+                                                    lifetime=self.cacheLifetime)
 
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:
