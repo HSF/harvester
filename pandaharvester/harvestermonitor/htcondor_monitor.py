@@ -6,8 +6,10 @@ except:
 import xml.etree.ElementTree as ET
 
 import time
-
 import threading
+
+import six
+
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
@@ -52,9 +54,7 @@ class SingletonWithID(type):
 
 
 ## Condor job ads query
-class CondorJobQuery(object, metaclass=SingletonWithID):
-    ## Metaclass
-    __metaclass__ = SingletonWithID
+class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
     ## Query commands
     orig_comStr_list = [
         'condor_q -xml',
@@ -165,7 +165,7 @@ class CondorJobQuery(object, metaclass=SingletonWithID):
         tmpLog.debug('Job query cache id={0} , size={1}'.format(id(self.job_ads_all_dict), len(self.job_ads_all_dict)))
         ## Update timestamp and for all jobs
         self.updateTimestamp = time.time()
-        self.job_last_update_dict.update(dict.fromkeys(self.job_ads_all_dict.keys(), self.updateTimestamp))
+        self.job_last_update_dict.update(dict.fromkeys(six.iterkeys(self.job_ads_all_dict), self.updateTimestamp))
         ## Return
         return
 
@@ -175,7 +175,7 @@ class CondorJobQuery(object, metaclass=SingletonWithID):
         # Start cleanup
         now_timestamp = time.time()
         job_last_update_dict_copy = self.job_last_update_dict.copy()
-        for batchid, last_update in job_last_update_dict_copy.items():
+        for batchid, last_update in six.iteritems(job_last_update_dict_copy):
             if now_timestamp > last_update + lifetime:
                 self.job_ads_all_dict.pop(batchid, None)
                 self.job_last_update_dict.pop(batchid, None)
@@ -332,7 +332,7 @@ class HTCondorMonitor (PluginBase):
                 s_b_dict[_w.submissionHost] = [str(_w.batchID)]
 
         ## Loop over submissionHost
-        for submissionHost, batchIDs_list in s_b_dict.items():
+        for submissionHost, batchIDs_list in six.iteritems(s_b_dict):
             ## Record batch job query result to this dict, with key = batchID
             job_query = CondorJobQuery(id=submissionHost)
             job_ads_all_dict = job_query.get_all(batchIDs_list=batchIDs_list,
