@@ -39,6 +39,130 @@ CONDOR_JOB_STATUS_MAP = {
     }
 
 
+## Singleton distinguishable with ID
+class SingletonWithID(type):
+    def __init__(cls, *args,**kwargs):
+        cls.__instance = {}
+        super(SingletonWithID, cls).__init__(*args, **kwargs)
+    def __call__(cls, *args, **kwargs):
+        obj_id = str(kwargs.get('id', ''))
+        if obj_id not in cls.__instance:
+            cls.__instance[obj_id] = super(SingletonWithID, cls).__call__(*args, **kwargs)
+        return cls.__instance.get(obj_id)
+
+
+## Condor job ads query
+class CondorJobQuery(object, metaclass=SingletonWithID):
+    ## Metaclass
+    __metaclass__ = SingletonWithID
+    ## Query commands
+    orig_comStr_list = [
+        'condor_q -xml',
+        'condor_history -xml',
+    ]
+    # Bad text of redundant xml roots to eleminate from condor XML
+    badtext = """
+</classads>
+
+<?xml version="1.0"?>
+<!DOCTYPE classads SYSTEM "classads.dtd">
+<classads>
+"""
+
+    def __init__(self, *args, **kwargs):
+        self.submissionHost = kwargs.get('id')
+        if not hasattr(self, 'job_ads_all_dict'):
+            self.job_ads_all_dict = {}
+        if not hasattr(self, 'updateTimestamp'):
+            self.updateTimestamp = 0
+
+    def get_all(self, batchIDs_list=[], update_interval=300):
+        if time.time() > self.updateTimestamp + update_interval:
+            self.update(batchIDs_list)
+        for batchid in batchIDs_list:
+            if batchid not in self.job_ads_all_dict:
+                self.update(batchIDs_list)
+                break
+        return self.job_ads_all_dict
+
+    def update(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.update')
+        ## Start query
+        tmpLog.debug('Start update query')
+        batchIDs_list = list(batchIDs_list)
+        for orig_comStr in self.orig_comStr_list:
+            ## String of batchIDs
+            batchIDs_str = ' '.join(batchIDs_list)
+            ## Command
+            if 'condor_q' in orig_comStr or ('condor_history' in orig_comStr and batchIDs_list):
+                name_opt, pool_opt = '', ''
+                if self.submissionHost:
+                    try:
+                        condor_schedd, condor_pool = self.submissionHost.split(',')[0:2]
+                    except ValueError:
+                        tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
+                        continue
+                    name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
+                    pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
+                ids = ''
+                if 'condor_history' in orig_comStr:
+                    ids = batchIDs_str
+                comStr = '{cmd} {name_opt} {pool_opt} {ids}'.format(cmd=orig_comStr,
+                                                                    name_opt=name_opt,
+                                                                    pool_opt=pool_opt,
+                                                                    ids=ids)
+            else:
+                tmpLog.debug('No batch job left to query in this cycle by this thread')
+                continue
+
+            tmpLog.debug('check with {0}'.format(comStr))
+            (retCode, stdOut, stdErr) = _runShell(comStr)
+            if retCode == 0:
+                ## Command succeeded
+                job_ads_xml_str = '\n'.join(str(stdOut).split(self.badtext))
+                if '<c>' in job_ads_xml_str:
+                    ## Found at least one job
+                    ## XML parsing
+                    xml_root = ET.fromstring(job_ads_xml_str)
+                    def _getAttribute_tuple(attribute_xml_element):
+                        ## Attribute name
+                        _n = str(attribute_xml_element.get('n'))
+                        ## Attribute value text
+                        _t = ' '.join(attribute_xml_element.itertext())
+                        return (_n, _t)
+                    ## Every batch job
+                    for _c in xml_root.findall('c'):
+                        job_ads_dict = dict()
+                        ## Every attribute
+                        attribute_iter = map(_getAttribute_tuple, _c.findall('a'))
+                        job_ads_dict.update(attribute_iter)
+                        batchid = str(job_ads_dict['ClusterId'])
+                        self.job_ads_all_dict[batchid] = job_ads_dict
+                        ## Remove batch jobs already gotten from the list
+                        if batchid in batchIDs_list:
+                            batchIDs_list.remove(batchid)
+                else:
+                    ## Job not found
+                    tmpLog.debug('job not found with {0}'.format(comStr))
+                    continue
+            else:
+                ## Command failed
+                errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+                tmpLog.error(errStr)
+        if len(batchIDs_list) > 0:
+            ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
+            for batchid in batchIDs_list:
+                self.job_ads_all_dict[batchid] = dict()
+            tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs of submissionHost={0}: {1}'.format(
+                            self.submissionHost, ' '.join(batchIDs_list) ) )
+        ## Size in cache
+        tmpLog.debug('Job query cache id={0} , size={1}'.format(id(self.job_ads_all_dict), len(self.job_ads_all_dict)))
+        ## Update timestamp
+        self.updateTimestamp = time.time()
+        return
+
+
 ## Check one worker
 def _check_one_worker(workspec, job_ads_all_dict):
     # Make logger for one single worker
@@ -56,7 +180,6 @@ def _check_one_worker(workspec, job_ads_all_dict):
             pass
         name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
         pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
-
 
     try:
         job_ads_dict = job_ads_all_dict[str(workspec.batchID)]
@@ -159,28 +282,20 @@ class HTCondorMonitor (PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.nProcesses = 4
+        try:
+            self.nProcesses
+        except AttributeError:
+            self.nProcesses = 4
+        try:
+            self.cacheUpdateInterval
+        except AttributeError:
+            self.cacheUpdateInterval = 300
 
     # check workers
     def check_workers(self, workspec_list):
         ## Make logger for batch job query
         tmpLog = self.make_logger(baseLogger, '{0}'.format('batch job query'),
                                   method_name='check_workers')
-
-        ## Query commands
-        orig_comStr_list = [
-            'condor_q -xml',
-            'condor_history -xml',
-        ]
-
-        # Bad text of redundant xml roots to eleminate from condor XML
-        badtext = """
-</classads>
-
-<?xml version="1.0"?>
-<!DOCTYPE classads SYSTEM "classads.dtd">
-<classads>
-"""
 
         ## Initial a dictionary of submissionHost: list of batchIDs among workspec_list
         s_b_dict = {}
@@ -193,81 +308,8 @@ class HTCondorMonitor (PluginBase):
         ## Loop over submissionHost
         for submissionHost, batchIDs_list in s_b_dict.items():
             ## Record batch job query result to this dict, with key = batchID
-            job_ads_all_dict = dict()
-            ## Start query
-            for orig_comStr in orig_comStr_list:
-                ## String of batchIDs
-                batchIDs_str = ' '.join(batchIDs_list)
-
-                ## Command
-                if batchIDs_str:
-                    name_opt, pool_opt = '', ''
-                    if submissionHost:
-                        try:
-                            condor_schedd, condor_pool = submissionHost.split(',')[0:2]
-                        except ValueError:
-                            tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(submissionHost))
-                            continue
-                        name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
-                        pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
-                    comStr = '{cmd} {name_opt} {pool_opt} {ids}'.format(cmd=orig_comStr,
-                                                                        name_opt=name_opt,
-                                                                        pool_opt=pool_opt,
-                                                                        ids=batchIDs_str)
-                else:
-                    tmpLog.debug('No batch job left to query in this cycle by this thread')
-                    continue
-
-                tmpLog.debug('check with {0}'.format(comStr))
-                (retCode, stdOut, stdErr) = _runShell(comStr)
-
-                if retCode == 0:
-                    ## Command succeeded
-
-                    job_ads_xml_str = '\n'.join(str(stdOut).split(badtext))
-
-                    if '<c>' in job_ads_xml_str:
-                        ## Found at least one job
-
-                        ## XML parsing
-                        xml_root = ET.fromstring(job_ads_xml_str)
-
-                        def _getAttribute_tuple(attribute_xml_element):
-                            ## Attribute name
-                            _n = str(attribute_xml_element.get('n'))
-                            ## Attribute value text
-                            _t = ' '.join(attribute_xml_element.itertext())
-                            return (_n, _t)
-
-                        ## Every batch job
-                        for _c in xml_root.findall('c'):
-                            job_ads_dict = dict()
-                            ## Every attribute
-                            attribute_iter = map(_getAttribute_tuple, _c.findall('a'))
-                            job_ads_dict.update(attribute_iter)
-                            batchid = str(job_ads_dict['ClusterId'])
-                            job_ads_all_dict[batchid] = job_ads_dict
-                            ## Remove batch jobs already gotten from the list
-                            batchIDs_list.remove(batchid)
-
-                    else:
-                        ## Job not found
-                        tmpLog.debug('job not found with {0}'.format(comStr))
-                        continue
-
-                else:
-                    ## Command failed
-                    errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
-                    tmpLog.error(errStr)
-                    return False, errStr
-
-
-            if len(batchIDs_list) > 0:
-                ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
-                for batchid in batchIDs_list:
-                    job_ads_all_dict[batchid] = dict()
-                tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs of submissionHost={0}: {1}'.format(
-                                submissionHost, ' '.join(batchIDs_list) ) )
+            job_query = CondorJobQuery(id=submissionHost)
+            job_ads_all_dict = job_query.get_all(batchIDs_list=batchIDs_list, update_interval=self.cacheUpdateInterval)
 
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:
