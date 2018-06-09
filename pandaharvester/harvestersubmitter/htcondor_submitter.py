@@ -92,6 +92,7 @@ def submit_a_worker(data):
     batch_log_dict = data['batch_log_dict']
     condor_schedd = data['condor_schedd']
     condor_pool = data['condor_pool']
+    use_spool = data['use_spool']
     workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
@@ -101,10 +102,12 @@ def submit_a_worker(data):
     # make condor remote options
     name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
     pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
+    spool_opt = '-spool'.format(use_spool) if use_spool and condor_schedd else ''
     # command
-    comStr = 'condor_submit {name_opt} {pool_opt} {sdf_file}'.format(sdf_file=batchFile,
+    comStr = 'condor_submit {spool_opt} {name_opt} {pool_opt} {sdf_file}'.format(sdf_file=batchFile,
                                                                         name_opt=name_opt,
-                                                                        pool_opt=pool_opt)
+                                                                        pool_opt=pool_opt,
+                                                                        spool_opt=spool_opt)
     # submit
     tmpLog.debug('submit with command: {0}'.format(comStr))
     try:
@@ -303,7 +306,7 @@ class HTCondorSubmitter(PluginBase):
             self.CEtemplateDir
         except AttributeError:
             self.CEtemplateDir = ''
-        # remote condor schedd and pool name (collector)
+        # remote condor schedd and pool name (collector), and spool option
         try:
             self.condorSchedd
         except AttributeError:
@@ -312,6 +315,10 @@ class HTCondorSubmitter(PluginBase):
             self.condorPool
         except AttributeError:
             self.condorPool = None
+        try:
+            self.useSpool
+        except AttributeError:
+            self.useSpool = True
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -472,6 +479,7 @@ class HTCondorSubmitter(PluginBase):
                     'is_unified_queue': is_unified_queue,
                     'condor_schedd': self.condorSchedd,
                     'condor_pool': self.condorPool,
+                    'use_spool': self.useSpool,
                     }
 
             return data
