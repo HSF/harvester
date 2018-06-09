@@ -81,6 +81,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
     def __init__(self, *args, **kwargs):
         self.submissionHost = kwargs.get('id')
         self.lock = threading.Lock()
+        self.condor_api = CONDOR_API
         self.condor_schedd = None
         self.condor_pool = None
         self.schedd = None
@@ -89,15 +90,29 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
             except ValueError:
                 tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
-        if CONDOR_API == 'python':
-            self.collector = htcondor.Collector(self.condor_pool)
-            scheddAd = self.collector.locate(htcondor.DaemonTypes.Schedd, self.condor_schedd)
-            self.schedd = htcondor.Schedd(scheddAd)
+        if self.condor_api == 'python':
+            try:
+                if self.condor_pool:
+                    self.collector = htcondor.Collector(self.condor_pool)
+                else:
+                    self.collector = htcondor.Collector()
+                if self.condor_schedd:
+                    scheddAd = self.collector.locate(htcondor.DaemonTypes.Schedd, self.condor_schedd)
+                else:
+                    scheddAd = self.collector.locate(htcondor.DaemonTypes.Schedd)
+                self.schedd = htcondor.Schedd(scheddAd)
+            except ArgumentError as e:
+                self.condor_api = 'command'
+                tmpLog.warning('Using condor command instead due to ArgumentError from unsupported version of python api: {0}'.format(e))
 
     def get_all(self, batchIDs_list=[]):
         job_ads_all_dict = {}
-        if CONDOR_API == 'python':
-            job_ads_all_dict = self.query_with_python(batchIDs_list)
+        if self.condor_api == 'python':
+            try:
+                job_ads_all_dict = self.query_with_python(batchIDs_list)
+            except ArgumentError as e:
+                ttmpLog.warning('Using condor command instead due to ArgumentError from unsupported version of python api: {0}'.format(e))
+                job_ads_all_dict = self.query_with_command(batchIDs_list)
         else:
             job_ads_all_dict = self.query_with_command(batchIDs_list)
         return job_ads_all_dict
