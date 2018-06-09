@@ -84,26 +84,24 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.__init__')
         # Initialize
-        if self.lock.acquire(False):
-            tmpLog.debug('Start')
-            self.submissionHost = kwargs.get('id')
-            self.condor_api = CONDOR_API
-            self.condor_schedd = None
-            self.condor_pool = None
-            if self.submissionHost:
-                try:
-                    self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
-                except ValueError:
-                    tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
-            if self.condor_api == 'python':
-                try:
-                    self.secman = htcondor.SecMan()
-                    self.renew_session()
-                except Exception as e:
-                    self.condor_api = 'command'
-                    tmpLog.warning('Using condor command instead due to exception from unsupported version of python api: {0}'.format(e))
-            self.lock.release()
-            tmpLog.debug('Initialize done')
+        tmpLog.debug('Start')
+        self.submissionHost = kwargs.get('id')
+        self.condor_api = CONDOR_API
+        self.condor_schedd = None
+        self.condor_pool = None
+        if self.submissionHost:
+            try:
+                self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
+            except ValueError:
+                tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
+        if self.condor_api == 'python':
+            try:
+                self.secman = htcondor.SecMan()
+                self.renew_session()
+            except Exception as e:
+                self.condor_api = 'command'
+                tmpLog.warning('Using condor command instead due to exception from unsupported version of python api: {0}'.format(e))
+        tmpLog.debug('Initialize done')
 
 
     def get_all(self, batchIDs_list=[]):
