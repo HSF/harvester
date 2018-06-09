@@ -64,6 +64,8 @@ class SingletonWithID(type):
 
 ## Condor job ads query
 class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
+    ## class lock
+    lock = threading.Lock()
     ## Query commands
     orig_comStr_list = [
         'condor_q -xml',
@@ -79,39 +81,47 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 """
 
     def __init__(self, *args, **kwargs):
-        self.submissionHost = kwargs.get('id')
-        self.lock = threading.Lock()
-        self.condor_api = CONDOR_API
-        self.condor_schedd = None
-        self.condor_pool = None
-        self.schedd = None
-        if self.submissionHost:
-            try:
-                self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
-            except ValueError:
-                tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
-        if self.condor_api == 'python':
-            try:
-                if self.condor_pool:
-                    self.collector = htcondor.Collector(self.condor_pool)
-                else:
-                    self.collector = htcondor.Collector()
-                if self.condor_schedd:
-                    scheddAd = self.collector.locate(htcondor.DaemonTypes.Schedd, self.condor_schedd)
-                else:
-                    scheddAd = self.collector.locate(htcondor.DaemonTypes.Schedd)
-                self.schedd = htcondor.Schedd(scheddAd)
-            except ArgumentError as e:
-                self.condor_api = 'command'
-                tmpLog.warning('Using condor command instead due to ArgumentError from unsupported version of python api: {0}'.format(e))
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.__init__')
+        # Initialize
+        if self.lock.acquire(False):
+            tmpLog.debug('Start')
+            self.submissionHost = kwargs.get('id')
+            self.condor_api = CONDOR_API
+            self.condor_schedd = None
+            self.condor_pool = None
+            if self.submissionHost:
+                try:
+                    self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
+                except ValueError:
+                    tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
+            if self.condor_api == 'python':
+                try:
+                    self.secman = htcondor.SecMan()
+                    self.renew_session()
+                except Exception as e:
+                    self.condor_api = 'command'
+                    tmpLog.warning('Using condor command instead due to exception from unsupported version of python api: {0}'.format(e))
+            self.lock.release()
+            tmpLog.debug('Initialize done')
+
 
     def get_all(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.get_all')
+        # Get all
+        tmpLog.debug('Start')
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
                 job_ads_all_dict = self.query_with_python(batchIDs_list)
-            except ArgumentError as e:
-                ttmpLog.warning('Using condor command instead due to ArgumentError from unsupported version of python api: {0}'.format(e))
+            except RuntimeError as e:
+                tmpLog.error(e)
+                if self.lock.acquire(False):
+                    self.renew_session()
+                    self.lock.release()
+            except Exception as e:
+                tmpLog.warning('Using condor command instead due to exception from unsupported version of python api: {0}'.format(e))
                 job_ads_all_dict = self.query_with_command(batchIDs_list)
         else:
             job_ads_all_dict = self.query_with_command(batchIDs_list)
@@ -177,7 +187,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
             for batchid in batchIDs_list:
                 job_ads_all_dict[batchid] = dict()
-            tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs of submissionHost={0}: {1}'.format(
+            tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
                             self.submissionHost, ' '.join(batchIDs_list) ) )
         ## Return
         return job_ads_all_dict
@@ -196,35 +206,63 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             requirements = 'member(ClusterID, {{{0}}})'.format(batchIDs_str)
             tmpLog.debug('Query method: {0} ; requirements: "{1}"'.format(query_method.__name__, requirements))
             ## Query
-            try:
-                jobs_iter = query_method(requirements=requirements, projection=[])
-            except Exception as e:
-                errStr = e
-                tmpLog.error(errStr)
-            else:
-                for job in jobs_iter:
-                    job_ads_dict = dict(job)
-                    batchid = str(job_ads_dict['ClusterId'])
-                    job_ads_all_dict[batchid] = job_ads_dict
-                    ## Remove batch jobs already gotten from the list
-                    if batchid in batchIDs_list:
-                        batchIDs_list.remove(batchid)
-            finally:
-                if len(batchIDs_list) == 0:
-                    break
+            jobs_iter = query_method(requirements=requirements, projection=[])
+            for job in jobs_iter:
+                job_ads_dict = dict(job)
+                batchid = str(job_ads_dict['ClusterId'])
+                job_ads_all_dict[batchid] = job_ads_dict
+                ## Remove batch jobs already gotten from the list
+                if batchid in batchIDs_list:
+                    batchIDs_list.remove(batchid)
+            if len(batchIDs_list) == 0:
+                break
         ## Remaining
         if len(batchIDs_list) > 0:
             ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
             for batchid in batchIDs_list:
                 job_ads_all_dict[batchid] = dict()
-            tmpLog.info( 'Force batchStatus to be failed for unfound batch jobs of submissionHost={0}: {1}'.format(
+            tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
                             self.submissionHost, ' '.join(batchIDs_list) ) )
         ## Return
         return job_ads_all_dict
 
+    def renew_session(self, retry=3):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.renew_session')
+        # Clear security session
+        tmpLog.info('Renew condor session')
+        self.secman.invalidateAllSessions()
+        # Recreate collector and schedd object
+        i_try = 1
+        while i_try <= retry:
+            try:
+                tmpLog.info('Try {0}'.format(i_try))
+                if self.condor_pool:
+                    self.collector = htcondor.Collector(self.condor_pool)
+                else:
+                    self.collector = htcondor.Collector()
+                if self.condor_schedd:
+                    self.scheddAd = self.collector.locate(htcondor.DaemonTypes.Schedd, self.condor_schedd)
+                else:
+                    self.scheddAd = self.collector.locate(htcondor.DaemonTypes.Schedd)
+                self.schedd = htcondor.Schedd(self.scheddAd)
+                tmpLog.info('Success')
+                break
+            except Exception as e:
+                tmpLog.warning('Recreate condor collector and schedd failed: {0}'.format(e))
+                if i_try < retry:
+                    tmpLog.warning('Failed. Retry...')
+                else:
+                    tmpLog.warning('Retry {0} times. Still failed. Skipped'.format(i_try))
+                i_try += 1
+                self.secman.invalidateAllSessions()
+                time.sleep(3)
+        # Sleep
+        time.sleep(3)
+
 
 ## Check one worker
-def _check_one_worker(workspec, job_ads_all_dict):
+def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False):
     # Make logger for one single worker
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_check_one_worker')
 
@@ -257,9 +295,13 @@ def _check_one_worker(workspec, job_ads_all_dict):
             try:
                 batchStatus = str(job_ads_dict['JobStatus'])
             except KeyError:
-                errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled by default'.format(workspec.submissionHost, workspec.batchID)
-                tmpLog.error(errStr)
-                newStatus = WorkSpec.ST_cancelled
+                if cancel_unknown:
+                    newStatus = WorkSpec.ST_cancelled
+                    errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled by default'.format(workspec.submissionHost, workspec.batchID)
+                    tmpLog.error(errStr)
+                else:
+                    errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Skipped'.format(workspec.submissionHost, workspec.batchID)
+                    tmpLog.error(errStr)
             else:
                 # Propagate native condor job status
                 workspec.nativeStatus = CONDOR_JOB_STATUS_MAP.get(batchStatus, 'unexpected')
@@ -346,6 +388,10 @@ class HTCondorMonitor (PluginBase):
             self.nProcesses
         except AttributeError:
             self.nProcesses = 4
+        try:
+            self.cancelUnknown
+        except AttributeError:
+            self.cancelUnknown = False
 
     # check workers
     def check_workers(self, workspec_list):
@@ -369,7 +415,7 @@ class HTCondorMonitor (PluginBase):
 
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:
-            retIterator = _pool.map(lambda _x: _check_one_worker(_x, job_ads_all_dict), workspec_list)
+            retIterator = _pool.map(lambda _x: _check_one_worker(_x, job_ads_all_dict, cancel_unknown=self.cancelUnknown), workspec_list)
 
         retList = list(retIterator)
 
