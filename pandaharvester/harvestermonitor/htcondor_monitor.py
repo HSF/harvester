@@ -65,7 +65,7 @@ class SingletonWithID(type):
 ## Condor job ads query
 class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
     ## class lock
-    lock = threading.Lock()
+    classLock = threading.Lock()
     ## Query commands
     orig_comStr_list = [
         'condor_q -xml',
@@ -84,24 +84,26 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.__init__')
         # Initialize
-        tmpLog.debug('Start')
-        self.submissionHost = kwargs.get('id')
-        self.condor_api = CONDOR_API
-        self.condor_schedd = None
-        self.condor_pool = None
-        if self.submissionHost:
-            try:
-                self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
-            except ValueError:
-                tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
-        if self.condor_api == 'python':
-            try:
-                self.secman = htcondor.SecMan()
-                self.renew_session()
-            except Exception as e:
-                self.condor_api = 'command'
-                tmpLog.warning('Using condor command instead due to exception from unsupported version of python api: {0}'.format(e))
-        tmpLog.debug('Initialize done')
+        with self.classLock:
+            tmpLog.debug('Start')
+            self.submissionHost = str(kwargs.get('id'))
+            self.lock = threading.Lock()
+            self.condor_api = CONDOR_API
+            self.condor_schedd = None
+            self.condor_pool = None
+            if self.submissionHost:
+                try:
+                    self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
+                except ValueError:
+                    tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
+            if self.condor_api == 'python':
+                try:
+                    self.secman = htcondor.SecMan()
+                    self.renew_session()
+                except Exception as e:
+                    self.condor_api = 'command'
+                    tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api: {0}'.format(e))
+            tmpLog.debug('Initialize done')
 
 
     def get_all(self, batchIDs_list=[]):
@@ -119,7 +121,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                     self.renew_session()
                     self.lock.release()
             except Exception as e:
-                tmpLog.warning('Using condor command instead due to exception from unsupported version of python api: {0}'.format(e))
+                tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api: {0}'.format(e))
                 job_ads_all_dict = self.query_with_command(batchIDs_list)
         else:
             job_ads_all_dict = self.query_with_command(batchIDs_list)
