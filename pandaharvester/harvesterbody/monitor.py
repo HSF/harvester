@@ -293,12 +293,15 @@ class Monitor(AgentBase):
                             last_check_period = timeNow_timestamp - lastCheckAt
                         except TypeError:
                             last_check_period = forceEnqueueInterval + 1.0
-                        if (from_fifo and tmpRet) \
-                            or (not from_fifo and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
+                        if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval:
+                            tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
+                                                workSpec.workerID, last_check_period))
+                        if (from_fifo) \
+                            or (not from_fifo
+                                and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
                                 and last_check_period > forceEnqueueInterval):
-                            if not from_fifo and _bool and lastCheckAt is not None \
-                                and last_check_period > harvester_config.monitor.checkInterval:
-                                tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
+                            if not from_fifo:
+                                tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor forceEnqueueInterval. Enqueue the worker by force'.format(
                                                     workSpec.workerID, last_check_period))
                             workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                             workSpec.lockedBy = None

@@ -128,7 +128,7 @@ class SqliteFifo(PluginBase):
                     # unlock the database
                     conn.commit()
                     now_timestamp = time.time()
-                    if (now_timestamp - last_attempt_timestamp) >= timeout:
+                    if timeout is None or (now_timestamp - last_attempt_timestamp) >= timeout:
                         keep_polling = False
                         continue
                     tries += 1
