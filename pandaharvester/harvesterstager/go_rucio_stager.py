@@ -7,7 +7,7 @@ from pandaharvester.harvesterstager.go_bulk_stager import GlobusBulkStager
 
 # logger
 _logger = core_utils.setup_logger('go_rucio_stager')
-GlobusBulkStager.__logger = _logger
+GlobusBulkStager._logger = _logger
 
 
 # plugin with Globus + Rucio + bulk transfers
