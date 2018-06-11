@@ -29,6 +29,7 @@ fileSpec = FileSpec()
 fileSpec.fileType = 'output'
 fileSpec.lfn = file_prefix + uuid.uuid4().hex + '.gz'
 fileSpec.fileAttributes = {'guid': str(uuid.uuid4())}
+fileSpec.checksum = '0d439274'
 assFileSpec = FileSpec()
 assFileSpec.lfn = file_prefix + uuid.uuid4().hex
 assFileSpec.fileType = 'es_output'

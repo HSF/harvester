@@ -3734,6 +3734,36 @@ class DBProxy:
             # return
             return False
 
+    # get file group status
+    def get_file_group_status(self, group_id):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'groupID={0}'.format(group_id),
+                                            method_name='get_file_group_status')
+            tmpLog.debug('start')
+            # sql to get files
+            sqlF = "SELECT DISTINCT groupStatus {0} ".format(fileTableName)
+            sqlF += "WHERE groupID=:groupID "
+            # get files
+            varMap = dict()
+            varMap[':groupID'] = group_id
+            self.execute(sqlF, varMap)
+            res = self.cur.fetchall()
+            retVal = set()
+            for groupStatus, in res:
+                retVal.add(groupStatus)
+            # commit
+            self.commit()
+            tmpLog.debug('get {0}'.format(str(retVal)))
+            return retVal
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return []
+
     # lock job again
     def lock_job_again(self, panda_id, time_column, lock_column, locked_by):
         try:

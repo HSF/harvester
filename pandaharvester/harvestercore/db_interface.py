@@ -27,6 +27,10 @@ class DBInterface:
     def update_file_group_status(self, group_id, status_string):
         return self.dbProxy.update_file_group_status(group_id, status_string)
 
+    # get group status
+    def get_file_group_status(self, group_id):
+        return self.dbProxy.get_file_group_status(group_id)
+
     # get locker identifier
     def get_locked_by(self):
         currentThr = threading.current_thread()
