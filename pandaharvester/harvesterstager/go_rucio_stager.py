@@ -5,7 +5,6 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterstager import go_bulk_stager
 from pandaharvester.harvesterstager.go_bulk_stager import GlobusBulkStager
 
-
 # logger
 _logger = core_utils.setup_logger('go_rucio_stager')
 go_bulk_stager._logger = _logger
@@ -57,6 +56,7 @@ class GlobusRucioStager(GlobusBulkStager):
             # get transfer status
             groupStatus = self.dbInterface.get_file_group_status(transferID)
             if 'hopped' in groupStatus:
+                # already succeeded
                 pass
             elif 'failed' in groupStatus:
                 # transfer failure
@@ -76,7 +76,7 @@ class GlobusRucioStager(GlobusBulkStager):
                         if ruleStatus == 'OK':
                             break
                 except DataIdentifierNotFound:
-                    tmpLog.error('rule {0} not found'.format(transferID))
+                    tmpLog.error('dataset not found')
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
                     ruleStatus = None
@@ -87,7 +87,7 @@ class GlobusRucioStager(GlobusBulkStager):
                     # update file group status
                     self.dbInterface.update_file_group_status(transferID, 'failed')
                 elif ruleStatus == 'OK':
-                    # update file group status
+                    # update successful file group status
                     self.dbInterface.update_file_group_status(transferID, 'hopped')
                 else:
                     # replicating or temporary error
@@ -121,6 +121,7 @@ class GlobusRucioStager(GlobusBulkStager):
                                              rse=srcRSE
                                              )
                     except DataIdentifierAlreadyExists:
+                        # ignore even if the dataset already exists
                         pass
                     except Exception:
                         raise
@@ -133,6 +134,7 @@ class GlobusRucioStager(GlobusBulkStager):
                                                                lifetime=7 * 24 * 60 * 60)
                         ruleIDs = tmpRet[0]
                     except DuplicateRule:
+                        # ignore duplicated rule
                         pass
                     except Exception:
                         raise
@@ -142,6 +144,7 @@ class GlobusRucioStager(GlobusBulkStager):
                                                                                    str(ruleIDs)))
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
+                    # treat as a temporary error
                     tmpStat = None
                     tmpMsg = 'failed to add a rule for {0}:{1}'.format(datasetScope, datasetName)
             # release lock
