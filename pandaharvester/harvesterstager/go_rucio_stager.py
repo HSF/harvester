@@ -102,7 +102,7 @@ class GlobusRucioStager(GlobusBulkStager):
                     tmpFile['name'] = fileSpec.lfn
                     tmpFile['bytes'] = fileSpec.fsize
                     tmpFile['adler32'] = fileSpec.checksum
-                    tmpFile['meta'] = {'guid': fileSpec.guid}
+                    tmpFile['meta'] = {'guid': fileSpec.fileAttributes['guid']}
                     fileList.append(tmpFile)
                     # get source RSE
                     if srcRSE is None and fileSpec.objstoreID is not None:
