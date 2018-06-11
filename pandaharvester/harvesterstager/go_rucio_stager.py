@@ -26,7 +26,7 @@ class GlobusRucioStager(GlobusBulkStager):
                                   method_name='check_status')
         tmpLog.debug('executing base check_status')
         tmpStat, tmpMsg = GlobusBulkStager.check_status(self, jobspec)
-        tmpLog.debug('got {0} {1}'.format(tmpLog, tmpMsg))
+        tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
         if tmpStat is not True:
             return tmpStat, tmpMsg
         # get transfer groups
