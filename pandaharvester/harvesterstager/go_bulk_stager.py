@@ -65,6 +65,7 @@ class GlobusBulkStager(BaseStager):
         self.Yodajob = False 
         self.pathConvention = None
         self.id = GlobusBulkStager.next_id
+        self.changeFileStatusOnSuccess = True
         GlobusBulkStager.next_id += 1
         with uLock:
             global uID
@@ -378,7 +379,8 @@ class GlobusBulkStager(BaseStager):
                 if transferTasks[transferID]['status'] == 'SUCCEEDED':
                     tmpLog.debug('transfer task {} succeeded'.format(transferID))
                     self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
-                    self.set_FileSpec_status(jobspec,'finished')
+                    if self.changeFileStatusOnSuccess:
+                        self.set_FileSpec_status(jobspec, 'finished')
                     return True, ''
                 # failed
                 if transferTasks[transferID]['status'] == 'FAILED':
@@ -455,4 +457,3 @@ class GlobusBulkStager(BaseStager):
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ''
-
