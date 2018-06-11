@@ -2,12 +2,13 @@ from rucio.client import Client as RucioClient
 from rucio.common.exception import DataIdentifierNotFound, DuplicateRule, DataIdentifierAlreadyExists
 
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvesterstager import go_bulk_stager
 from pandaharvester.harvesterstager.go_bulk_stager import GlobusBulkStager
 
 
 # logger
 _logger = core_utils.setup_logger('go_rucio_stager')
-GlobusBulkStager._logger = _logger
+go_bulk_stager._logger = _logger
 
 
 # plugin with Globus + Rucio + bulk transfers
