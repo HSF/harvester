@@ -1,0 +1,43 @@
+{
+	"GOOGLE_TEMPLATE": {
+		"prodSourceLabel": "managed",
+		"nQueueLimitWorker": 15,
+        "nQueueLimitWorker": 1,
+		"runMode": "slave",
+		"mapType": "NoJob",
+		"preparator": {
+			"name": "DummyPreparator",
+			"module": "pandaharvester.harvesterpreparator.dummy_preparator"
+		},
+		"submitter": {
+			"name": "GoogleSubmitter",
+			"module": "pandaharvester.harvestersubmitter.cloud_google_submitter",
+			"logBaseURL": "https://aipanda011.cern.ch:25443/cache/"
+		},
+		"throttler": {
+			"name": "SimpleThrottler",
+			"module": "pandaharvester.harvesterthrottler.simple_throttler"
+		},
+		"workerMaker": {
+			"name": "SimpleWorkerMaker",
+			"module": "pandaharvester.harvesterworkermaker.simple_worker_maker"
+		},
+		"messenger": {
+			"name": "SharedFileMessenger",
+			"module": "pandaharvester.harvestermessenger.shared_file_messenger",
+			"accessPoint": "/data/atlpan/harvester_worker_dir/${workerID}"
+		},
+		"stager": {
+			"name": "DummyStager",
+			"module": "pandaharvester.harvesterstager.dummy_stager"
+		},
+		"monitor": {
+			"name": "GoogleMonitor",
+			"module": "pandaharvester.harvestermonitor.cloud_google_monitor"
+		},
+		"sweeper": {
+			"name": "GoogleSweeper",
+			"module": "pandaharvester.harvestersweeper.cloud_google_sweeper"
+		}
+	}
+}
