@@ -3714,7 +3714,7 @@ class DBProxy:
                                             method_name='update_file_group_status')
             tmpLog.debug('start')
             # sql to get files
-            sqlF = "UPDATE {0} set groupStatus=:groupStatus".format(fileTableName)
+            sqlF = "UPDATE {0} set groupStatus=:groupStatus ".format(fileTableName)
             sqlF += "WHERE groupID=:groupID "
             # get files
             varMap = dict()
@@ -3742,7 +3742,7 @@ class DBProxy:
                                             method_name='get_file_group_status')
             tmpLog.debug('start')
             # sql to get files
-            sqlF = "SELECT DISTINCT groupStatus {0} ".format(fileTableName)
+            sqlF = "SELECT DISTINCT groupStatus FROM {0} ".format(fileTableName)
             sqlF += "WHERE groupID=:groupID "
             # get files
             varMap = dict()

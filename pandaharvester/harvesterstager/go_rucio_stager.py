@@ -1,5 +1,6 @@
 from rucio.client import Client as RucioClient
-from rucio.common.exception import DataIdentifierNotFound, DuplicateRule, DataIdentifierAlreadyExists
+from rucio.common.exception import DataIdentifierNotFound, DuplicateRule, DataIdentifierAlreadyExists, \
+    FileAlreadyExists
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterstager import go_bulk_stager
@@ -46,12 +47,10 @@ class GlobusRucioStager(GlobusBulkStager):
             datasetScope = 'transient'
             srcRSE = None
             # lock
-            have_db_lock = self.dbInterface.get_object_lock(transferID)
+            have_db_lock = self.dbInterface.get_object_lock(transferID, lock_interval=120)
             if not have_db_lock:
                 msgStr = 'escape since {0} is locked by another thread'.format(transferID)
                 tmpLog.debug(msgStr)
-                # release lock
-                self.dbInterface.release_object_lock(transferID)
                 return None, msgStr
             # get transfer status
             groupStatus = self.dbInterface.get_file_group_status(transferID)
@@ -102,12 +101,12 @@ class GlobusRucioStager(GlobusBulkStager):
                     tmpFile['scope'] = datasetScope
                     tmpFile['name'] = fileSpec.lfn
                     tmpFile['bytes'] = fileSpec.fsize
-                    tmpFile['adler32'] = fileSpec.checksum
+                    tmpFile['adler32'] = fileSpec.chksum
                     tmpFile['meta'] = {'guid': fileSpec.fileAttributes['guid']}
                     fileList.append(tmpFile)
                     # get source RSE
                     if srcRSE is None and fileSpec.objstoreID is not None:
-                        ddm = self.dbInterface.get_cache('agis_ddmendpoints.json')
+                        ddm = self.dbInterface.get_cache('agis_ddmendpoints.json').data
                         srcRSE = [x for x in ddm if ddm[x]["id"] == fileSpec.objstoreID][0]
                 try:
                     # register dataset
@@ -117,11 +116,22 @@ class GlobusRucioStager(GlobusBulkStager):
                         rucioAPI.add_dataset(datasetScope, datasetName,
                                              meta={'hidden': True},
                                              lifetime=7 * 24 * 60 * 60,
-                                             files=fileList,
                                              rse=srcRSE
                                              )
                     except DataIdentifierAlreadyExists:
                         # ignore even if the dataset already exists
+                        pass
+                    except Exception:
+                        raise
+                    # add files
+                    try:
+                        rucioAPI.add_files_to_datasets([{'scope': datasetScope,
+                                                         'name': datasetName,
+                                                         'dids': fileList,
+                                                         'rse': srcRSE}],
+                                                       ignore_duplicate=True)
+                    except FileAlreadyExists:
+                        # ignore if files already exist
                         pass
                     except Exception:
                         raise
@@ -133,15 +143,15 @@ class GlobusRucioStager(GlobusBulkStager):
                         tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
                                                                lifetime=7 * 24 * 60 * 60)
                         ruleIDs = tmpRet[0]
+                        tmpLog.debug('registered dataset {0}:{1} with rule {2}'.format(datasetScope, datasetName,
+                                                                                       str(ruleIDs)))
                     except DuplicateRule:
                         # ignore duplicated rule
-                        pass
+                        tmpLog.debug('rule is already available')
                     except Exception:
                         raise
                     # update file group status
                     self.dbInterface.update_file_group_status(transferID, 'hopping')
-                    tmpLog.debug('registered dataset {0}:{1} with rule {2}'.format(datasetScope, datasetName,
-                                                                                   str(ruleIDs)))
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
                     # treat as a temporary error
