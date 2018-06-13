@@ -49,6 +49,13 @@ class WorkerAdjuster:
                     # get queue
                     queueConfig = self.queueConfigMapper.get_queue(queueName)
 
+                    # protection against not-up-to-date queue config
+                    if queueConfig is None:
+                        dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
+                        retMsg = 'set nNewWorkers=0 due to missing queueConfig'
+                        tmpLog.debug(retMsg)
+                        continue
+
                     # get throttler
                     if queueName not in self.throttlerMap:
                         if hasattr(queueConfig, 'throttler'):
