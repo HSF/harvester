@@ -90,8 +90,11 @@ class Monitor(AgentBase):
                 # run with workers from FIFO
                 n_loops = 0
                 last_fifo_cycle_timestamp = time.time()
+                to_break = False
                 obj_to_enqueue_dict = collections.defaultdict(lambda: [[], 0, 0])
                 obj_to_enqueue_to_head_dict = collections.defaultdict(lambda: [[], 0, 0])
+                remaining_obj_to_enqueue_dict = {}
+                remaining_obj_to_enqueue_to_head_dict = {}
                 while n_loops == 0 or time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
                     if monitor_fifo.to_check_workers():
                         # check fifo size
@@ -125,17 +128,27 @@ class Monitor(AgentBase):
                                             obj_to_enqueue_dict[queueName][0].extend(workSpecsToEnqueue)
                                             obj_to_enqueue_dict[queueName][1] = max(obj_to_enqueue_dict[queueName][1], timeNow_timestamp)
                                             obj_to_enqueue_dict[queueName][2] = max(obj_to_enqueue_dict[queueName][2], fifoCheckInterval)
+                                        else:
+                                            to_break = True
+                                            remaining_obj_to_enqueue_dict[queueName] = [workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval]
                                     except Exception as errStr:
                                         mainLog.error('failed to gather workers for FIFO: {0}'.format(errStr))
+                                        to_break = True
                                     try:
                                         if len(obj_to_enqueue_to_head_dict[queueName][0]) + len(workSpecsToEnqueueToHead) <= fifoMaxWorkersPerChunk:
                                             obj_to_enqueue_to_head_dict[queueName][0].extend(workSpecsToEnqueueToHead)
                                             obj_to_enqueue_to_head_dict[queueName][1] = max(obj_to_enqueue_to_head_dict[queueName][1], timeNow_timestamp)
                                             obj_to_enqueue_to_head_dict[queueName][2] = max(obj_to_enqueue_to_head_dict[queueName][2], fifoCheckInterval)
+                                        else:
+                                            to_break = True
+                                            remaining_obj_to_enqueue_to_head_dict[queueName] = [workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval]
                                     except Exception as errStr:
                                         mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
+                                        to_break = True
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
+                                if to_break:
+                                    break
                             else:
                                 mainLog.debug('got nothing in FIFO')
                     else:
@@ -144,27 +157,29 @@ class Monitor(AgentBase):
                     n_loops += 1
                 # enqueue to fifo
                 mainLog.debug('putting worker chunks to FIFO')
-                for queueName, obj_to_enqueue in iteritems(obj_to_enqueue_dict):
-                    try:
-                        workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue
-                        if workSpecsToEnqueue:
-                            score = fifoCheckInterval + timeNow_timestamp
-                            monitor_fifo.put((queueName, workSpecsToEnqueue), score)
-                            mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
-                                            len(workSpecsToEnqueue), queueName, score))
-                    except Exception as errStr:
-                        mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
+                for _dct in (obj_to_enqueue_dict, remaining_obj_to_enqueue_dict):
+                    for queueName, obj_to_enqueue in iteritems(_dct):
+                        try:
+                            workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue
+                            if workSpecsToEnqueue:
+                                score = fifoCheckInterval + timeNow_timestamp
+                                monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
+                                                len(workSpecsToEnqueue), queueName, score))
+                        except Exception as errStr:
+                            mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                 mainLog.debug('putting worker chunks to FIFO head')
-                for queueName, obj_to_enqueue_to_head in iteritems(obj_to_enqueue_to_head_dict):
-                    try:
-                        workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue_to_head
-                        if workSpecsToEnqueueToHead:
-                            score = fifoCheckInterval - timeNow_timestamp
-                            monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
-                            mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
-                                            len(workSpecsToEnqueueToHead), queueName, score))
-                    except Exception as errStr:
-                        mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
+                for _dct in (obj_to_enqueue_to_head_dict, remaining_obj_to_enqueue_to_head_dict):
+                    for queueName, obj_to_enqueue_to_head in iteritems(_dct):
+                        try:
+                            workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue_to_head
+                            if workSpecsToEnqueueToHead:
+                                score = fifoCheckInterval - timeNow_timestamp
+                                monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
+                                                len(workSpecsToEnqueueToHead), queueName, score))
+                        except Exception as errStr:
+                            mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                 mainLog.debug('ended run with FIFO')
 
             if sw.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
@@ -333,7 +348,8 @@ class Monitor(AgentBase):
                             last_check_period = timeNow_timestamp - lastCheckAt
                         except TypeError:
                             last_check_period = forceEnqueueInterval + 1.0
-                        if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval:
+                        if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval \
+                            and timeNow_timestamp - harvester_config.monitor.checkInterval > self.startTimestamp:
                             tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
                                                 workSpec.workerID, last_check_period))
                         if (from_fifo) \

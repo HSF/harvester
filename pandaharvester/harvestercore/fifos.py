@@ -163,7 +163,11 @@ class MonitorFIFO(FIFOBase):
             score = peeked_tuple[1]
             if timeNow_timestamp > score:
                 retVal = True
-                mainLog.debug('True')
+                if score < 0:
+                    mainLog.debug('True. Preempting')
+                else:
+                    mainLog.debug('True')
+                    mainLog.info('Overhead time is {0} sec'.format(timeNow_timestamp - score))
             else:
                 mainLog.debug('False. Workers too young to check')
         else:
