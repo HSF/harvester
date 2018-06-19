@@ -41,7 +41,7 @@ class DummyMonitor(PluginBase):
                     if newStatus == 'finished':
                         workSpec.nativeExitCode = 0
                         workSpec.nativeStatus = 'done'
-            except:
+            except Exception:
                 pass
             tmpLog.debug('newStatus={0}'.format(newStatus))
             retList.append((newStatus, 'dialog_message'))

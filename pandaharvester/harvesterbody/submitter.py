@@ -274,6 +274,7 @@ class Submitter(AgentBase):
                                             workSpec.set_status(WorkSpec.ST_submitted)
                                         workSpec.submitTime = timeNow
                                         workSpec.modificationTime = timeNow
+                                        workSpec.checkTime = timeNow
                                         if self.monitor_fifo.enabled:
                                             workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                                         # prefetch events
@@ -313,7 +314,7 @@ class Submitter(AgentBase):
                                                     tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
                                     # enqueue to monitor fifo
                                     if self.monitor_fifo.enabled \
-                                        and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
+                                            and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
                                         workSpecsToEnqueue = [[w] for w in workSpecList]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')

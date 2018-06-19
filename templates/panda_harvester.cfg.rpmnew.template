@@ -308,6 +308,9 @@ lockInterval = 600
 # check interval in sec
 checkInterval = 300
 
+# timeout in sec to give up checking if it keeps failing
+checkTimeout = 3600
+
 # sleep interval in sec
 sleepTime = 600
 

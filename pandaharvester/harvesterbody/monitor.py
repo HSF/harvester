@@ -206,6 +206,7 @@ class Monitor(AgentBase):
                     eventsRequestParams = tmpOut['eventsRequestParams']
                     nJobsToReFill = tmpOut['nJobsToReFill']
                     pandaIDs = tmpOut['pandaIDs']
+                    isChecked = tmpOut['isChecked']
                     tmpStr = 'newStatus={0} monitoredStatus={1} diag={2} '
                     tmpStr += 'postProcessed={3} files={4}'
                     tmpLog.debug(tmpStr.format(newStatus, monStatus, diagMessage,
@@ -223,6 +224,8 @@ class Monitor(AgentBase):
                     workSpec.set_status(newStatus)
                     workSpec.set_work_attributes(workAttributes)
                     workSpec.set_dialog_message(diagMessage)
+                    if isChecked:
+                        workSpec.checkTime = datetime.datetime.utcnow()
                     if monStatus == WorkSpec.ST_failed:
                         if not workSpec.has_pilot_error():
                             workSpec.set_pilot_error(PilotErrors.ERR_GENERALERROR, diagMessage)
@@ -332,6 +335,14 @@ class Monitor(AgentBase):
 
     # wrapper for checkWorkers
     def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log):
+        # check timeout value
+        try:
+            checkTimeout = mon_core.checkTimeout
+        except Exception:
+            try:
+                checkTimeout = harvester_config.monitor.checkTimeout
+            except Exception:
+                checkTimeout = None
         workersToCheck = []
         retMap = dict()
         for workSpec in all_workers:
@@ -368,7 +379,8 @@ class Monitor(AgentBase):
                                          'eventsToUpdate': eventsToUpdate,
                                          'diagMessage': '',
                                          'pandaIDs': pandaIDs,
-                                         'nJobsToReFill': nJobsToReFill}
+                                         'nJobsToReFill': nJobsToReFill,
+                                         'isChecked': True}
         # check workers
         tmp_log.debug('checking workers with plugin')
         try:
@@ -377,13 +389,31 @@ class Monitor(AgentBase):
                 tmp_log.error('failed to check workers with: {0}'.format(tmpOut))
             else:
                 tmp_log.debug('checked')
+                timeNow = datetime.datetime.utcnow()
                 for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
                     workerID = workSpec.workerID
                     tmp_log.debug('Going to check workerID={0}'.format(workerID))
                     pandaIDs = []
                     if workerID in retMap:
+                        # failed to check status
+                        if newStatus is None:
+                            tmp_log.error('Failed to check workerID={0} with {1}'.format(workerID, diagMessage))
+                            retMap[workerID]['isChecked'] = False
+                            # set status
+                            if workSpec.checkTime is not None and checkTimeout is not None and \
+                                    timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout):
+                                # kill due to timeout
+                                tmp_log.debug('kill workerID={0} due to continuous check failure'.format(workerID))
+                                self.dbProxy.kill_worker(workSpec.workerID)
+                                newStatus = WorkSpec.ST_cancelled
+                                diagMessage = 'killed due to continuous check failure. ' + diagMessage
+                                workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
+                            else:
+                                # use original status
+                                newStatus = workSpec.status
                         # request kill
                         if messenger.kill_requested(workSpec):
+                            tmp_log.debug('kill workerID={0} as requested'.format(workerID))
                             self.dbProxy.kill_worker(workSpec.workerID)
 
                         # expired heartbeat - only when requested in the configuration
