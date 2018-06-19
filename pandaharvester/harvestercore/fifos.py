@@ -70,10 +70,12 @@ class FIFOBase:
         return retVal
 
     # enqueue
-    def put(self, obj, score=time.time()):
+    def put(self, obj, score=None):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
         # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
         obj_serialized = pickle.dumps(obj, -1)
+        if score is None:
+            score = time.time()
         retVal = self.fifo.put(obj_serialized, score)
         mainLog.debug('score={0}'.format(score))
         return retVal
@@ -163,7 +165,11 @@ class MonitorFIFO(FIFOBase):
             score = peeked_tuple[1]
             if timeNow_timestamp > score:
                 retVal = True
-                mainLog.debug('True')
+                if score < 0:
+                    mainLog.debug('True. Preempting')
+                else:
+                    mainLog.debug('True')
+                    mainLog.info('Overhead time is {0} sec'.format(timeNow_timestamp - score))
             else:
                 mainLog.debug('False. Workers too young to check')
         else:

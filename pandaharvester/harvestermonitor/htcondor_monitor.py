@@ -184,7 +184,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
                 tmpLog.error(errStr)
         if len(batchIDs_list) > 0:
-            ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
+            ## Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_list:
                 job_ads_all_dict[batchid] = dict()
             tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
@@ -218,7 +218,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 break
         ## Remaining
         if len(batchIDs_list) > 0:
-            ## Job unfound via both condor_q or condor_history, marked as failed worker in harvester
+            ## Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_list:
                 job_ads_all_dict[batchid] = dict()
             tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
@@ -297,9 +297,10 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False):
             except KeyError:
                 if cancel_unknown:
                     newStatus = WorkSpec.ST_cancelled
-                    errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled by default'.format(workspec.submissionHost, workspec.batchID)
+                    errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled'.format(workspec.submissionHost, workspec.batchID)
                     tmpLog.error(errStr)
                 else:
+                    newStatus = None
                     errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Skipped'.format(workspec.submissionHost, workspec.batchID)
                     tmpLog.error(errStr)
             else:

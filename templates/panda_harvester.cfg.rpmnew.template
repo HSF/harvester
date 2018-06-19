@@ -323,6 +323,9 @@ fifoSleepTimeMilli = 15000
 # check interval in fifo in sec
 fifoCheckInterval = 120
 
+# check duration of a fifo cycle in sec
+fifoCheckDuration = 60
+
 # interval of force enqueue in sec
 fifoForceEnqueueInterval = 1500
 
