@@ -70,10 +70,12 @@ class FIFOBase:
         return retVal
 
     # enqueue
-    def put(self, obj, score=time.time()):
+    def put(self, obj, score=None):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
         # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
         obj_serialized = pickle.dumps(obj, -1)
+        if score is None:
+            score = time.time()
         retVal = self.fifo.put(obj_serialized, score)
         mainLog.debug('score={0}'.format(score))
         return retVal
