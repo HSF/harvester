@@ -63,7 +63,11 @@ class GoogleVM():
 
         # Calculate the memory: 2 GBs per core. It needs to be expressed in MB
         # https://cloud.google.com/compute/docs/instances/creating-instance-with-custom-machine-type
-        memory = cores * 2 * 1024
+        try:
+            ram_per_core = self.queue_config.submitter['ram_per_core']
+        except KeyError:
+            ram_per_core = 2
+        memory = cores * ram_per_core * 1024
 
         try:
             zone = self.queue_config.zone
@@ -93,6 +97,11 @@ class GoogleVM():
             preemptible = self.queue_config.submitter['preemptible']
         except KeyError:
             preemptible = False
+
+        try:
+            disk_size = self.queue_config.submitter['disk_size']
+        except KeyError:
+            disk_size = 50
 
         config = {
          'name': self.name,
