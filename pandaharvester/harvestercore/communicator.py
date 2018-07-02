@@ -393,6 +393,27 @@ class Communicator:
             tmpLog.debug('done with {0}'.format(str(retVal)))
         return retVal, retMsg
 
+    # get resource types
+    def get_resource_types(self):
+
+        tmpLog = core_utils.make_logger(_logger, method_name='get_resource_types')
+        tmpLog.debug('Start retrieving resource types')
+        data = {}
+        tmp_stat, tmp_res = self.post_ssl('getResourceTypes', data)
+        if tmp_stat is False:
+            core_utils.dump_error_message(_logger, tmp_res)
+        else:
+            try:
+                tmp_dict = tmp_res.json()
+                if tmp_dict['StatusCode'] == 0:
+                    tmpLog.debug('Resource types: {0}'.format(tmp_dict['ResourceTypes']))
+                    return tmp_dict['ResourceTypes']
+                return []
+            except KeyError:
+                core_utils.dump_error_message(tmpLog, tmp_res)
+        return []
+
+
     # update workers
     def update_workers(self, workspec_list):
         tmpLog = core_utils.make_logger(_logger, method_name='update_workers')
