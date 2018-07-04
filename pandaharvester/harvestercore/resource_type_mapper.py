@@ -82,7 +82,7 @@ class ResourceTypeMapper:
                 worker_memory = (site_maxrss / site_corecount) * worker_cores
 
         except KeyError:
-            continue
+            pass
 
         return worker_cores, worker_memory
 
