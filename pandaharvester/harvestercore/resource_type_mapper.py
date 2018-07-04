@@ -33,7 +33,7 @@ class ResourceTypeMapper:
 
             # check interval
             time_now = datetime.datetime.utcnow()
-            if self.lastUpdate is not None and time_now - self.lastUpdate < datetime.timedelta(minutes=10):
+            if self.last_update is not None and time_now - self.last_update < datetime.timedelta(minutes=10):
                 return
 
             db_proxy = DBProxy()
