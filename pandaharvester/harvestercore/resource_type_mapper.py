@@ -37,7 +37,7 @@ class ResourceTypeMapper:
                 return
 
             db_proxy = DBProxy()
-            resource_type_list = db_proxy.get_cache('resource_types')
+            resource_type_list = db_proxy.get_cache('resource_types.json')
 
             for resource_type_dict in resource_type_list:
                 try:
