@@ -408,7 +408,9 @@ class Communicator:
                 if tmp_dict['StatusCode'] == 0:
                     tmpLog.debug('Resource types: {0}'.format(tmp_dict['ResourceTypes']))
                     return tmp_dict['ResourceTypes']
-                return []
+                else:
+                    retMsg = tmpDict['errorDialog']
+                    core_utils.dump_error_message(tmpLog, retMsg)
             except KeyError:
                 core_utils.dump_error_message(tmpLog, tmp_res)
         return []
