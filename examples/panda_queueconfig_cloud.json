@@ -12,7 +12,10 @@
 		"submitter": {
 			"name": "GoogleSubmitter",
 			"module": "pandaharvester.harvestersubmitter.cloud_google_submitter",
-			"logBaseURL": "https://aipanda011.cern.ch:25443/cache/"
+			"logBaseURL": "https://aipanda011.cern.ch:25443/cache/",
+                        "ram_per_core": 4,
+                        "disk_size": 100,
+			"preemptible": true
 		},
 		"throttler": {
 			"name": "SimpleThrottler",
