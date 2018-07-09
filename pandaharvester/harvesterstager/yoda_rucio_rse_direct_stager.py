@@ -14,17 +14,23 @@ import errno
 
 from future.utils import iteritems
 
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
+
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvesterstager.base_stager import BaseStager
-
+from pandaharvester.harvestermisc import rucio_utils
 from .base_stager import BaseStager
 
 # logger
-baseLogger = core_utils.setup_logger('yoda_rse_direct_stager')
+baseLogger = core_utils.setup_logger('yoda_rucio_rse_direct_stager')
 
 class Error(EnvironmentError):
     pass
@@ -39,32 +45,110 @@ class ExecError(EnvironmentError):
 
 
 # stager plugin with RSE + local site move behaviour for Yoda zip files
-class YodaRseDirectStager(BaseStager):
+class YodaRucioRseDirectStager(BaseStager):
     """In the workflow for RseDirectStager, workers directly upload output files to RSE
     and thus there is no data motion in Harvester."""
     # constructor
     def __init__(self, **kwarg):
         BaseStager.__init__(self, **kwarg)
         tmpLog = self.make_logger(baseLogger, 'ThreadID={0}'.format(threading.current_thread().ident),
-                                  method_name='YodaRseDirectStager __init__ ')
+                                  method_name='YodaRucioRseDirectStager __init__ ')
         tmpLog.debug('start')
         self.Yodajob = False 
         self.pathConvention = None
         self.objstoreID = None
         tmpLog.debug('stop')
 
+    # set FileSpec.objstoreID 
+    def set_FileSpec_objstoreID(self,jobspec, objstoreID, pathConvention):
+        # loop over all output files
+        for fileSpec in jobspec.outFiles:
+            fileSpec.objstoreID = objstoreID
+            fileSpec.pathConvention = pathConvention
+
+    # set FileSpec.status 
+    def set_FileSpec_status(self,jobspec,status):
+        # loop over all output files
+        for fileSpec in jobspec.outFiles:
+            fileSpec.status = status
+
     # check status
     def check_status(self, jobspec):
+        tmpStat = True
+        tmpMsg = ''
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='check_status')
         tmpLog.debug('start')
-        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
-            fileSpec.objstoreID = self.objstoreID
-            fileSpec.pathConvention = self.pathConvention
-            fileSpec.status = 'finished'
+        # Get the files grouped by Rucio Rule ID 
+        groups = jobspec.get_groups_of_output_files()
+        if len(groups) == 0:
+            tmpLog.debug('No Rucio Rules')
+            return None,'No Rucio Rules'
+        tmpLog.debug('#Rucio Rules - {0} - Rules - {1}'.format(len(groups),groups)) 
+        
+        # loop over the Rucio rules 
+        for rucioRule in groups:
+            if rucioRule is None:
+                continue
+            # lock
+            have_db_lock = self.dbInterface.get_object_lock(rucioRule, lock_interval=120)
+            if not have_db_lock:
+                msgStr = 'escape since {0} is locked by another thread'.format(rucioRule)
+                tmpLog.debug(msgStr)
+                return None, msgStr
+            # get transfer status
+            groupStatus = self.dbInterface.get_file_group_status(rucioRule)
+            if 'transferred' in groupStatus :
+                # already succeeded
+                pass
+            elif 'failed' in groupStatus :
+                # transfer failure
+                tmpStat = False
+                tmpMsg = 'rucio rule for {0}:{1} already failed'.format(datasetScope, datasetName)
+            elif 'transferring' in groupStatus:
+                # transfer started in Rucio check status
+                try:
+                    tmpStat, tmpMsg = rucio_utils.rucio_rule_info(tmpLog,rucioRule)
+                    tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
+                    if tmpStat is not True:
+                        raise Exception(tmpMsg)
+                    result = tmpMsg
+                    if result == "OK" :
+                        # files transfered to nucleus
+                        tmpLog.debug('Files for Rucio Rule {0} successfully transferred'.format(rucioRule))
+                        self.dbInterface.update_file_group_status(rucioRule, 'transferred')
+                        # set the fileSpec status for these files 
+                        self.set_FileSpec_status(jobspec,'finished')
+                    elif result == "FAILED" :
+                        # failed Rucio Transfer
+                        tmpStat = False
+                        tmpMsg = 'Failed Rucio Transfer - Rucio Rule - {0}'.format(rucioRule)
+                        tmpLog.debug(tmpMsg)
+                        self.set_FileSpec_status(jobspec,'failed')
+                    elif result == 'STUCK' :
+                        tmpStat = None
+                        tmpMsg = 'Rucio Transfer Rule {0} Stuck'.format(rucioRule)
+                        tmpLog.debug(tmpMsg)
+                except:
+                        tmpStat = None
+                        tmpMsg = 'Could not get information or Rucio Rule {0}'.format(rucioRule)
+                        tmpLog.error(tmpMsg)
+                        pass
+            # release the lock
+            if have_db_lock:
+                tmpLog.debug('attempt to release DB lock for Rucio Rule {0}'.format(rucioRule))
+                release_db_lock = self.dbInterface.release_object_lock(rucioRule) 
+                if release_db_lock:
+                    tmpLog.debug('released DB lock for rucioRule - {0}'.format(rucioRule))
+                    have_db_lock = False 
+                else:
+                    msgStr = ' Could not release DB lock for {}'.format(rucioRule)
+                    tmpLog.error(msgStr)
+                    return None, msgStr
+
         tmpLog.debug('stop')
-        return True, ''
+        return  tmpStat, tmpMsg
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
@@ -72,6 +156,13 @@ class YodaRseDirectStager(BaseStager):
         tmpLog = self.make_logger(baseLogger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='trigger_stage_out')
         tmpLog.debug('start')
+        # initialize some values
+        tmpStat = None
+        tmpMsg = ''
+        srcRSE = None
+        dstRSE = None
+        datasetName = 'panda.harvester.{0}.{1}'.format(jobspec.PandaID,str(uuid.uuid4()))
+        datasetScope = 'transient'
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
             # not found
@@ -98,10 +189,31 @@ class YodaRseDirectStager(BaseStager):
             self.pathConvention = None
             tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
         self.RSE_dstpath = queueConfig.stager['RSE_dstPath']
+        # check queueConfig stager section to see if srcRSE is set
+        if 'srcRSE' in queueConfig.stager:
+            srcRSE = queueConfig.stager['srcRSE']
+        else:
+            tmpLog.debug('Warning srcRSE not defined in stager portion of queue config file')
+
+        # get destination endpoint
+        nucleus = jobspec.jobParams['nucleus']
+        agis = self.dbInterface.get_cache('panda_queues.json').data
+        dstRSE = [agis[x]["astorages"]['pr'][0] for x in agis if agis[x]["atlas_site"] == nucleus][0]
+        tmpLog.debug('srcRSE - {0} dstRSE - {1}'.format(srcRSE,dstRSE))
+            
         # loop over the output files and copy the files
         ifile = 0
         errors = []
-        for fileSpec in jobspec.get_output_file_specs(skip_done=True):
+        fileList = []
+        lfns = []
+        fileSpec_list = []
+        fileSpec_list = jobspec.get_output_file_specs(skip_done=False)
+        msgStr = '#(jobspec.get_output_file_specs(skip_done=False)) = {0}'\
+                 .format(len(fileSpec_list))
+        tmpLog.debug(msgStr)
+
+        #for fileSpec in jobspec.get_output_file_specs(skip_done=True):
+        for fileSpec in jobspec.get_output_file_specs(skip_done=False):
             scope ='panda'
             if fileSpec.scope is not None :
                 scope = fileSpec.scope
@@ -127,11 +239,27 @@ class YodaRseDirectStager(BaseStager):
                                                                        lfn=fileSpec.lfn)
             if ifile < 25 :
                 tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
+            tmpFile = dict()
             # copy the source file from source to destination skip over if file already exists
             if os.path.exists(dstURL):
                 tmpLog.debug('Already copied file {0}'.format(dstURL))
-                # Set the file spec status
-                fileSpec.status = 'finished'
+                # save for adding to rucio dataset
+                tmpFile['scope'] = datasetScope
+                tmpFile['name'] = fileSpec.lfn
+                tmpFile['bytes'] = fileSpec.fsize
+                tmpFile['adler32'] = fileSpec.chksum
+                if fileSpec.fileAttributes['guid'] is None:
+                    tmpLog.debug('File - {0} does not have a guid value'.format(fileSpec.lfn))
+                else :
+                    tmpFile['meta'] = {'guid': fileSpec.fileAttributes['guid']}
+                tmpLog.debug('Adding file {0} to fileList'.format(fileSpec.lfn))
+                fileList.append(tmpFile)
+                lfns.append(fileSpec.lfn)
+                # get source RSE
+                if srcRSE is None and fileSpec.objstoreID is not None:
+                    ddm = self.dbInterface.get_cache('agis_ddmendpoints.json').data
+                    srcRSE = [x for x in ddm if ddm[x]["id"] == fileSpec.objstoreID][0]
+                    tmpLog.debug('srcRSE - {0} defined from agis_ddmendpoints.json'.format(srcRSE))
             else :
                 if os.path.exists(srcURL) :
                     # check if destination directory exists if not create it
@@ -144,13 +272,82 @@ class YodaRseDirectStager(BaseStager):
                             os.chmod(dstDIR,mode)
                         # copy the source file to destination file
                         shutil.copy2(srcURL, dstURL)
-                        # Set the file spec status
-                        fileSpec.status = 'finished'
+                        # save for adding to rucio dataset
+                        tmpFile['scope'] = datasetScope
+                        tmpFile['name'] = fileSpec.lfn
+                        tmpFile['bytes'] = fileSpec.fsize
+                        tmpFile['adler32'] = fileSpec.chksum
+                        if fileSpec.fileAttributes['guid'] is None:
+                            tmpLog.debug('File - {0} does not have a guid value'.format(fileSpec.lfn))
+                        else :
+                            tmpFile['meta'] = {'guid': fileSpec.fileAttributes['guid']}
+                        tmpLog.debug('Adding file {0} to fileList'.format(fileSpec.lfn))
+                        fileList.append(tmpFile)
+                        lfns.append(fileSpec.lfn)
+                        # get source RSE if not already set
+                        if srcRSE is None and fileSpec.objstoreID is not None:
+                            ddm = self.dbInterface.get_cache('agis_ddmendpoints.json').data
+                            srcRSE = [x for x in ddm if ddm[x]["id"] == fileSpec.objstoreID][0]
+                            tmpLog.debug('srcRSE - {0} defined from agis_ddmendpoints.json'.format(srcRSE))
                     except (IOError, os.error) as why:
                         errors.append((srcURL, dstURL, str(why)))
                 else :
                     errors.append((srcURL, dstURL, 'Source file missing'))
             ifile += 1
+
+        # test that srcRSE and dstRSE are defined
+        tmpLog.debug('srcRSE - {0} dstRSE - {1}'.format(srcRSE,dstRSE))
+        errStr = '' 
+        if srcRSE is None:
+            errStr = 'Source RSE is not defined '
+        if dstRSE is None:
+            errStr = errStr + ' Desitination RSE is not defined'
+        if (srcRSE is None) or (dstRSE is None) :
+           tmpLog.error(errStr)
+           return None,errStr
+
+        # test to see if there are any files to add dataset
+        if len(fileList) == 0:
+            errStr = 'There are no files to add to database'
+            tmpLog.error(errStr)
+            return None,errStr
+        # print out the file list
+        tmpLog.debug('fileList - {0}'.format(fileList))
+
+        # create the dataset and add files to it and create a transfer rule
+        # create the dataset
+        tmpLog.debug('rucio_utils.rucio_create_dataset(tmpLog,datasetScope,datasetName)')
+        tmpStat, tmpMsg = rucio_utils.rucio_create_dataset(tmpLog,datasetScope,datasetName)
+        tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
+        if tmpStat is not True:
+            return tmpStat,tmpMsg
+        # add files to dataset
+        tmpLog.debug('rucio_utils.rucio_add_files_to_dataset(tmpLog,datasetScope,datasetName,fileList)')
+        tmpStat, tmpMsg = rucio_utils.rucio_add_files_to_dataset(tmpLog,datasetScope,datasetName,fileList)
+        tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
+        if tmpStat is not True:
+            return tmpStat,tmpMsg
+        # add add dataset to srcRSE 
+        # need to write code
+        # create transfer rule to destination RSE (nucleus)
+        tmpLog.debug('rucio_utils.rucio_add_rule(tmpLog,datasetScope,datasetName,dstRSE)')
+        tmpStat, tmpMsg = rucio_utils.rucio_add_rule(tmpLog,datasetScope,datasetName,dstRSE)
+        tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
+        if tmpStat is not True:
+            return tmpStat,tmpMsg
+        # tmpMsg is rucio rule
+        ruleIDs = tmpMsg
+        # group the output files together by the Rucio transfer rule
+        jobspec.set_groups_to_files({ruleIDs: {'lfns': lfns,'groupStatus': 'pending'}})
+        msgStr = 'jobspec.set_groups_to_files -Rucio rule - {0}, lfns - {1}, groupStatus - pending'.format(ruleIDs,lfns)
+        tmpLog.debug(msgStr)
+        tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,pending)')
+        tmpStat = self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,'pending')
+        tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,pending)')
+        tmpStat = True
+        tmpMsg = 'created Rucio rule successfully'
+        # update file group status
+        self.dbInterface.update_file_group_status(ruleIDs, 'transferring')
         #  Now test for any errors
         if errors:
             for error in errors:
@@ -158,7 +355,7 @@ class YodaRseDirectStager(BaseStager):
             raise Error(errors)
         # otherwise we are OK                            
         tmpLog.debug('stop')
-        return True, ''
+        return tmpStat,tmpMsg
 
     # zip output files
     def zip_output(self, jobspec):
