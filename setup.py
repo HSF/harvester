@@ -33,8 +33,9 @@ setup(
                       'panda-common-s >= 0.0.11',
                       'pyjwt',
                       'subprocess32; python_version == "2.*"',
-                      'trepan2; python_version == "2.*"',
-                      'trepan3k; python_version == "3.*"'
+                      'rpyc',
+                      'paramiko',
+                      'pexpect'
                       ],
     data_files=[
         # config and cron files
