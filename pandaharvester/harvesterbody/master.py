@@ -13,7 +13,7 @@ import atexit
 from future.utils import iteritems
 try:
     import pprofile
-except:
+except Exception:
     pass
 
 from pandalogger import logger_config

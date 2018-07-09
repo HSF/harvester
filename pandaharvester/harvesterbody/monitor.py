@@ -213,7 +213,7 @@ class Monitor(AgentBase):
         # get fifoCheckInterval for PQ
         try:
             fifoCheckInterval = monCore.fifoCheckInterval
-        except:
+        except Exception:
             if hasattr(harvester_config.monitor, 'fifoCheckInterval'):
                 fifoCheckInterval = harvester_config.monitor.fifoCheckInterval
             else:
@@ -330,7 +330,11 @@ class Monitor(AgentBase):
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                     for workSpec in workSpecs:
-                        messenger.acknowledge_events_files(workSpec)
+                        try:
+                            messenger.acknowledge_events_files(workSpec)
+                        except Exception:
+                            core_utils.dump_error_message(tmpQueLog)
+                            tmpQueLog.error('failed to send ACK to workerID={0}'.format(workSpec.workerID))
                 # active workers for fifo
                 if self.monitor_fifo.enabled and workSpecs:
                     workSpec = workSpecs[0]
@@ -528,6 +532,6 @@ class Monitor(AgentBase):
                     else:
                         tmp_log.debug('workerID={0} not in retMap'.format(workerID))
             return True, retMap
-        except:
+        except Exception:
             core_utils.dump_error_message(tmp_log)
             return False, None

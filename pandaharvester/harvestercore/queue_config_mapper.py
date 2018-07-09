@@ -199,6 +199,13 @@ class QueueConfigMapper:
                                     val['siteName'] = queueConfig.siteName
                                 if 'queueName' not in val:
                                     val['queueName'] = queueConfig.queueName
+                                # middleware
+                                if 'middleware' in val and val['middleware'] in queueDict:
+                                    # keep original config
+                                    val['original_config'] = copy.deepcopy(val)
+                                    # overwrite with middleware config
+                                    for m_key, m_val in iteritems(queueDict[val['middleware']]):
+                                        val[m_key] = m_val
                             setattr(queueConfig, key, val)
                         # get Panda Queue Name
                         if resolver is not None:

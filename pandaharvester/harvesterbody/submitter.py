@@ -321,7 +321,7 @@ class Submitter(AgentBase):
                                 # release jobs
                                 self.dbProxy.release_jobs(pandaIDs, lockedBy)
                                 tmpLog.info('done')
-                            except:
+                            except Exception:
                                 core_utils.dump_error_message(tmpLog)
             mainLog.debug('done')
             # define sleep interval
