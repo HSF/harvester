@@ -1,6 +1,6 @@
 import time
 import datetime
-import collection
+import collections
 from calendar import timegm
 from future.utils import iteritems
 
@@ -24,7 +24,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 _attribute_list = ['id', 'item', 'score']
 
 # fifo object spec
-FifoObject = collections.namedtuple('FifoObject', _attribute_list), verbose=False, rename=False)
+FifoObject = collections.namedtuple('FifoObject', _attribute_list, verbose=False, rename=False)
 
 # logger
 _logger = core_utils.setup_logger('fifos')
@@ -115,12 +115,14 @@ class FIFOBase:
     def release(self, ids):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='release')
         retVal = self.fifo.delete(ids)
+        mainLog.debug('released objects in {0}'.format(ids))
         return retVal
 
     # restore all objects from temporary space to fifo
     def restore(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='restore')
         retVal = self.fifo.restore()
+        mainLog.debug('called')
         return retVal
 
 # monitor fifo

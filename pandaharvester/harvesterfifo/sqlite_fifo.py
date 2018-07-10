@@ -161,11 +161,11 @@ class SqliteFifo(PluginBase):
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
-        return self._pop(get_sql=self._lpop_get_sql, timeout=None, protective=False)
+        return self._pop(get_sql=self._lpop_get_sql, timeout=timeout, protective=protective)
 
     # dequeue the last object
     def getlast(self, timeout=None, protective=False):
-        return self._pop(get_sql=self._rpop_get_sql, timeout=None, protective=False)
+        return self._pop(get_sql=self._rpop_get_sql, timeout=timeout, protective=protective)
 
     # get tuple of (id, item, score) of the first object without dequeuing it
     def peek(self):

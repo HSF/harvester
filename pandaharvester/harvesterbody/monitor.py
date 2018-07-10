@@ -55,7 +55,6 @@ class Monitor(AgentBase):
             fifoProtectiveDequeue = True
         if monitor_fifo.enabled:
             monitor_fifo.restore()
-
         while True:
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
@@ -191,7 +190,7 @@ class Monitor(AgentBase):
                         except Exception as errStr:
                             mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                 # release protective dequeued objects
-                if fifoProtectiveDequeue:
+                if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
                     monitor_fifo.release(ids=obj_dequeued_id_list)
                 mainLog.debug('ended run with FIFO')
 
