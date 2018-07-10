@@ -26,7 +26,8 @@ class SqliteFifo(PluginBase):
             '('
             '  id INTEGER PRIMARY KEY,'
             '  item BLOB,'
-            '  score REAL'
+            '  score REAL,'
+            '  temporary INTEGER DEFAULT 0 '
             ')'
             )
     _create_index_sql = (
@@ -41,23 +42,30 @@ class SqliteFifo(PluginBase):
     _push_with_id_sql = 'INSERT INTO queue_table (id,item,score) VALUES (?,?,?)'
     _lpop_get_sql = (
             'SELECT id, item, score FROM queue_table '
+            'WHERE temporary = 0 '
             'ORDER BY score LIMIT 1'
             )
     _rpop_get_sql = (
             'SELECT id, item, score FROM queue_table '
+            'WHERE temporary = 0 '
             'ORDER BY score DESC LIMIT 1'
             )
     _pop_del_sql = 'DELETE FROM queue_table WHERE id = ?'
+    _move_to_temp_sql = 'UPDATE queue_table SET temporary = 1 WHERE id = ?'
+    _del_sql_template = 'DELETE FROM queue_table WHERE id in ({0})'
     _clear_delete_table_sql = 'DELETE FROM queue_table'
     _clear_zero_id_sql = 'DELETE FROM sqlite_sequence WHERE name = "queue_table"'
     _peek_sql = (
             'SELECT item, score FROM queue_table '
+            'WHERE temporary = 0 '
             'ORDER BY score LIMIT 1'
             )
     _peek_id_sql = (
             'SELECT id FROM queue_table '
+            'WHERE temporary = 0 '
             'ORDER BY score LIMIT 1'
             )
+    _restore_sql = 'UPDATE queue_table SET temporary = 0 WHERE temporary != 0'
 
     # constructor
     def __init__(self, **kwarg):
@@ -110,7 +118,7 @@ class SqliteFifo(PluginBase):
     #             conn.execute(self._push_with_id_sql, (id, obj_buf, score))
     #         conn.commit()
 
-    def _pop(self, get_sql, timeout=None):
+    def _pop(self, get_sql, timeout=None, protective=False):
         keep_polling = True
         wait = 0.1
         max_wait = 2
@@ -135,9 +143,12 @@ class SqliteFifo(PluginBase):
                     time.sleep(wait)
                     wait = min(max_wait, tries/10.0 + wait)
             if id is not None:
-                conn.execute(self._pop_del_sql, (id,))
+                if protective:
+                    conn.execute(self._move_to_temp_sql, (id,))
+                else:
+                    conn.execute(self._pop_del_sql, (id,))
                 conn.commit()
-                return bytes(obj_buf)
+                return (id, bytes(obj_buf), score)
         return None
 
     # number of objects in queue
@@ -149,22 +160,22 @@ class SqliteFifo(PluginBase):
         self._push(obj, score, push_sql=self._push_sql)
 
     # dequeue the first object
-    def get(self, timeout=None):
-        return self._pop(get_sql=self._lpop_get_sql, timeout=None)
+    def get(self, timeout=None, protective=False):
+        return self._pop(get_sql=self._lpop_get_sql, timeout=None, protective=False)
 
     # dequeue the last object
-    def getlast(self, timeout=None):
-        return self._pop(get_sql=self._rpop_get_sql, timeout=None)
+    def getlast(self, timeout=None, protective=False):
+        return self._pop(get_sql=self._rpop_get_sql, timeout=None, protective=False)
 
-    # get tuple of (obj, score) of the first object without dequeuing it
+    # get tuple of (id, item, score) of the first object without dequeuing it
     def peek(self):
         with self._get_conn() as conn:
-            cursor = conn.execute(self._peek_sql)
+            cursor = conn.execute(self._lpop_get_sql)
             try:
-                obj_buf, score = next(cursor)
-                return bytes(obj_buf), score
+                id, obj_buf, score = next(cursor)
+                return id, bytes(obj_buf), score
             except StopIteration:
-                return None, None
+                return None, None, None
 
     # drop all objects in queue and index and reset primary key auto_increment
     def clear(self):
@@ -176,3 +187,19 @@ class SqliteFifo(PluginBase):
             except sqlite3.OperationalError:
                 pass
             conn.commit()
+
+    # delete an object by list of id
+    def delete(self, ids):
+        if isinstance(ids, (list, tuple)):
+            placeholders_str = ','.join('?' * len(ids))
+            with self._get_conn() as conn:
+                conn.execute(self._exclusive_lock_sql)
+                conn.execute(self._del_sql_template.format(placeholders_str), ids)
+        else:
+            raise TypeError('ids should be list or tuple')
+
+    # Move all object in temporary space to the queue
+    def restore(self):
+        with self._get_conn() as conn:
+            conn.execute(self._exclusive_lock_sql)
+            conn.execute(self._restore_sql)

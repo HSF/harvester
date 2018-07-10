@@ -29,8 +29,9 @@ class RedisFifo(PluginBase):
             _redis_conn_opt_dict['password'] = self.redisPassword
         elif hasattr(harvester_config.fifo, 'redisPassword'):
             _redis_conn_opt_dict['password'] = harvester_config.fifo.redisPassword
-        self.qname = '{0}-fifo'.format(self.agentName)
         self.qconn = redis.StrictRedis(**_redis_conn_opt_dict)
+        self.qname = '{0}-fifo'.format(self.agentName)
+        self.tname = '{0}-fifo_temp'.format(self.agentName)
 
     def __len__(self):
         return self.qconn.zcard(self.qname)
@@ -78,6 +79,10 @@ class RedisFifo(PluginBase):
     # dequeue the last object
     def getlast(self, timeout=None):
         return self._pop(self._peek_last, timeout)
+
+    # copy object to temp and then dequeue; return object and ID of object in temp
+    def conservative_get(self, timeout=None):
+        return self._pop(self._peek, timeout)
 
     # get tuple of (obj, score) of the first object without dequeuing it
     def peek(self):
