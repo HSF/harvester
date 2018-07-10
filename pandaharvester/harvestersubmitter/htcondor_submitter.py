@@ -410,6 +410,31 @@ class HTCondorSubmitter(PluginBase):
                 if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                     sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
                     self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
+            else:
+                try:
+                    # Manually define site condor schedd as ceHostname and central manager as ceEndpoint
+                    if self.ceHostname and isinstance(self.ceHostname, list) and len(self.ceHostname) > 0:
+                        if isinstance(self.ceEndpoint, list) and len(self.ceEndpoint) > 0:
+                            ce_info_dict['ce_hostname'], ce_info_dict['ce_endpoint'] = random.choice(zip(self.ceHostname, self.ceEndpoint))
+                        else:
+                            ce_info_dict['ce_hostname'] = random.choice(self.ceHostname)
+                            ce_info_dict['ce_endpoint'] = self.ceEndpoint
+                    else:
+                        ce_info_dict['ce_hostname'] = self.ceHostname
+                        ce_info_dict['ce_endpoint'] = self.ceEndpoint
+                except AttributeError:
+                    pass
+
+            # Choose from Condor schedd and central managers
+            if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
+                if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
+                    condor_schedd, condor_pool = random.choice(zip(self.condorSchedd, self.condorPool))
+                else:
+                    condor_schedd = random.choice(self.condorSchedd)
+                    condor_pool = self.condorPool
+            else:
+                condor_schedd = self.condorSchedd
+                condor_pool = self.condorPool
 
             # template for batch script
             tmpFile = open(self.templateFile)
@@ -477,8 +502,8 @@ class HTCondorSubmitter(PluginBase):
                     'special_par': special_par,
                     'harvester_queue_config': harvester_queue_config,
                     'is_unified_queue': is_unified_queue,
-                    'condor_schedd': self.condorSchedd,
-                    'condor_pool': self.condorPool,
+                    'condor_schedd': condor_schedd,
+                    'condor_pool': condor_pool,
                     'use_spool': self.useSpool,
                     }
 
