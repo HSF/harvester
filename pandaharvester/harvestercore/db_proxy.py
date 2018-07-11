@@ -1572,8 +1572,7 @@ class DBProxy:
             # sql to get worker IDs
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
-            sqlW += "ORDER BY lastUpdate LIMIT {0} ".format(max_workers)
-            sqlW += "FOR UPDATE "
+            sqlW += "ORDER BY lastUpdate "
             # sql to lock worker
             sqlL = "UPDATE {0} SET lastUpdate=:timeNow ".format(workTableName)
             sqlL += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
@@ -1595,6 +1594,7 @@ class DBProxy:
             for workerID, in resW:
                 tmpWorkers.add(workerID)
             retVal = []
+            nWorkers = 0
             for workerID in tmpWorkers:
                 # lock worker
                 varMap = dict()
@@ -1620,8 +1620,11 @@ class DBProxy:
                     workSpec.pandaid_list = []
                     for pandaID, in resA:
                         workSpec.pandaid_list.append(pandaID)
-            # commit
-            self.commit()
+                    nWorkers += 1
+                # commit
+                self.commit()
+                if nWorkers >= max_workers:
+                    break
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
         except:
