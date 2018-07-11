@@ -3976,13 +3976,20 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='add_dialog_message')
             tmpLog.debug('start')
             # delete old messages
-            sqlD = "DELETE FROM {0} ".format(diagTableName)
-            sqlD += "WHERE creationTime<:timeLimit "
+            sqlS = "SELECT diagID FROM {0} ".format(diagTableName)
+            sqlS += "WHERE creationTime<:timeLimit "
             varMap = dict()
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
-            self.execute(sqlD, varMap)
-            # commit
-            self.commit()
+            self.execute(sqlS, varMap)
+            resS = self.cur.fetchall()
+            sqlD = "DELETE FROM {0} ".format(diagTableName)
+            sqlD += "WHERE diagID=:diagID "
+            for diagID, in resS:
+                varMap = dict()
+                varMap[':diagID'] = diagID
+                self.execute(sqlD, varMap)
+                # commit
+                self.commit()
             # make spec
             diagSpec = DiagSpec()
             diagSpec.moduleName = module_name
@@ -3990,7 +3997,7 @@ class DBProxy:
             diagSpec.messageLevel = level
             try:
                 diagSpec.identifier = identifier[:100]
-            except:
+            except Exception:
                 pass
             diagSpec.diagMessage = message[:500]
             # insert

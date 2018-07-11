@@ -22,7 +22,7 @@ class Stager(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'stager-{0}'.format(self.ident)
+        lockedBy = 'stager-{0}'.format(self.get_pid())
         while True:
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')

@@ -45,7 +45,7 @@ class Watcher(AgentBase):
         if not self.singleMode and datetime.datetime.utcnow() - self.startTime \
                 < datetime.timedelta(seconds=harvester_config.watcher.checkInterval):
             return
-        mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.ident), method_name='execute')
+        mainLog = core_utils.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='execute')
         mainLog.debug('start')
         # get file lock
         try:

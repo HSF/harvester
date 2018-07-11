@@ -28,12 +28,12 @@ class Propagator(AgentBase):
     def run(self):
         while True:
             sw = core_utils.get_stopwatch()
-            mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='run')
             mainLog.debug('getting jobs to propagate')
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,
                                                           harvester_config.propagator.updateInterval,
-                                                          self.ident)
+                                                          self.get_pid())
             mainLog.debug('got {0} jobs'.format(len(jobSpecs)))
             # update jobs in central database
             iJobs = 0
@@ -64,7 +64,7 @@ class Propagator(AgentBase):
                     else:
                         jobListToUpdate.append(tmpJobSpec)
                 retList += self.communicator.check_jobs(jobListToCheck)
-                retList += self.communicator.update_jobs(jobListToUpdate, self.ident)
+                retList += self.communicator.update_jobs(jobListToUpdate, self.get_pid())
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
                     if tmpRet['StatusCode'] == 0:
@@ -102,7 +102,7 @@ class Propagator(AgentBase):
                                                                PilotErrors.pilotError[PilotErrors.ERR_PANDAKILL])
                                     tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
                                     tmpJobSpec.trigger_propagation()
-                        self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.ident})
+                        self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.get_pid()})
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))

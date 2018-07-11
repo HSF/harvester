@@ -36,7 +36,7 @@ class Submitter(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'submitter-{0}'.format(self.ident)
+        lockedBy = 'submitter-{0}'.format(self.get_pid())
         monitor_fifo = self.monitor_fifo
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')

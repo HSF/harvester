@@ -31,7 +31,7 @@ class Cacher(AgentBase):
 
     # main
     def execute(self, force_update=False, skip_lock=False):
-        mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='execute')
+        mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='execute')
         # get lock
         locked = self.dbProxy.get_process_lock('cacher', self.get_pid(), harvester_config.cacher.sleepTime)
         if locked or skip_lock:

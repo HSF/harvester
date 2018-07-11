@@ -21,7 +21,7 @@ class Sweeper(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'sweeper-{0}'.format(self.ident)
+        lockedBy = 'sweeper-{0}'.format(self.get_pid())
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get workers to kill')

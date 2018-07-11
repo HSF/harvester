@@ -26,7 +26,7 @@ class JobFetcher(AgentBase):
     # main loop
     def run(self):
         while True:
-            mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='run')
             mainLog.debug('getting number of jobs to be fetched')
             # get number of jobs to be fetched
             nJobsPerQueue = self.dbProxy.get_num_jobs_to_fetch(harvester_config.jobfetcher.nQueues,
