@@ -55,29 +55,30 @@ class RedisFifo(PluginBase):
         max_wait = 2
         tries = 1
         last_attempt_timestamp = time.time()
-        obj = None
+        item = None
         while keep_polling:
             try:
                 generate_id_attempt_timestamp = time.time()
                 while True:
                     id = random_id()
-                    resVal = self.sadd(self.idp, id)
+                    resVal = self.qconn.sadd(self.idp, id)
                     if resVal:
                         break
                     elif time.time() > generate_id_attempt_timestamp + 60:
                         raise Exception('Cannot generate unique id')
                         return
+                    time.sleep(0.0001)
                 if protective:
                     item, score = self.qconn.zrange(self.qname, 0, 0, withscores=True)[0]
                     with self.qconn.pipeline() as pipeline:
                         pipeline.hset(self.titem, id, item)
                         pipeline.hset(self.tscore, id, score)
-                        pipeline.zrem(self.qname, obj)
+                        pipeline.zrem(self.qname, item)
                         resVal = pipeline.execute()
                     ret_pop = resVal[-1]
                 else:
                     item, score = peek_method()
-                    ret_pop = self.qconn.zrem(self.qname, obj)
+                    ret_pop = self.qconn.zrem(self.qname, item)
                 if ret_pop == 1:
                     break
                 elif protective:
@@ -99,12 +100,12 @@ class RedisFifo(PluginBase):
         return len(self)
 
     # enqueue with priority score
-    def put(self, obj, score):
-        return self.qconn.zadd(self.qname, score, obj)
+    def put(self, item, score):
+        return self.qconn.zadd(self.qname, score, item)
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
-        return self._pop(self._peek, timeout)
+        return self._pop(self._peek, timeout, protective)
 
     # dequeue the last object
     def getlast(self, timeout=None):
@@ -130,9 +131,10 @@ class RedisFifo(PluginBase):
                     pipeline.delete(self.titem)
                     pipeline.delete(self.tscore)
                     pipeline.execute()
-                    break
                 except redis.WatchError:
                     continue
+                else:
+                    break
 
     # delete an object by list of id
     def delete(self, ids):
@@ -150,6 +152,8 @@ class RedisFifo(PluginBase):
                         pipeline.execute()
                     except redis.WatchError:
                         continue
+                    else:
+                        break
         else:
             raise TypeError('ids should be list or tuple')
 
@@ -160,15 +164,18 @@ class RedisFifo(PluginBase):
                 now_timestamp = time.time()
                 try:
                     pipeline.watch(self.qname, self.idp, self.titem, self.tscore)
-                    pipeline.multi()
                     temp_item_dict = pipeline.hgetall(self.titem)
                     temp_score_dict = pipeline.hgetall(self.tscore)
                     item_score_dict = { item: temp_score_dict.get(id, now_timestamp)
                                         for id, item in temp_item_dict.items() }
-                    pipeline.zadd(self.qname, **item_score_dict)
-                    pipeline.delete(self.titem)
-                    pipeline.delete(self.tscore)
-                    # pipeline.delete(self.idp)
-                    pipeline.execute()
+                    if len(item_score_dict) > 0:
+                        pipeline.multi()
+                        pipeline.zadd(self.qname, **item_score_dict)
+                        pipeline.delete(self.titem)
+                        pipeline.delete(self.tscore)
+                        pipeline.delete(self.idp)
+                        pipeline.execute()
                 except redis.WatchError:
                     continue
+                else:
+                    break

@@ -54,6 +54,7 @@ class SqliteFifo(PluginBase):
     _move_to_temp_sql = 'UPDATE queue_table SET temporary = 1 WHERE id = ?'
     _del_sql_template = 'DELETE FROM queue_table WHERE id in ({0})'
     _clear_delete_table_sql = 'DELETE FROM queue_table'
+    _clear_drop_table_sql = 'DROP TABLE IF EXISTS queue_table'
     _clear_zero_id_sql = 'DELETE FROM sqlite_sequence WHERE name = "queue_table"'
     _peek_sql = (
             'SELECT item, score FROM queue_table '
@@ -181,12 +182,13 @@ class SqliteFifo(PluginBase):
     def clear(self):
         with self._get_conn() as conn:
             conn.execute(self._exclusive_lock_sql)
-            conn.execute(self._clear_delete_table_sql)
+            conn.execute(self._clear_drop_table_sql)
             try:
                 conn.execute(self._clear_zero_id_sql)
             except sqlite3.OperationalError:
                 pass
             conn.commit()
+        self.__init__()
 
     # delete an object by list of id
     def delete(self, ids):
