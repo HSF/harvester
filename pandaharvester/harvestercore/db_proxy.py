@@ -1572,8 +1572,7 @@ class DBProxy:
             # sql to get worker IDs
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
-            sqlW += "ORDER BY lastUpdate LIMIT {0} ".format(max_workers)
-            sqlW += "FOR UPDATE "
+            sqlW += "ORDER BY lastUpdate "
             # sql to lock worker
             sqlL = "UPDATE {0} SET lastUpdate=:timeNow ".format(workTableName)
             sqlL += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
@@ -1595,6 +1594,7 @@ class DBProxy:
             for workerID, in resW:
                 tmpWorkers.add(workerID)
             retVal = []
+            nWorkers = 0
             for workerID in tmpWorkers:
                 # lock worker
                 varMap = dict()
@@ -1620,8 +1620,11 @@ class DBProxy:
                     workSpec.pandaid_list = []
                     for pandaID, in resA:
                         workSpec.pandaid_list.append(pandaID)
-            # commit
-            self.commit()
+                    nWorkers += 1
+                # commit
+                self.commit()
+                if nWorkers >= max_workers:
+                    break
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
         except:
@@ -3976,13 +3979,20 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='add_dialog_message')
             tmpLog.debug('start')
             # delete old messages
-            sqlD = "DELETE FROM {0} ".format(diagTableName)
-            sqlD += "WHERE creationTime<:timeLimit "
+            sqlS = "SELECT diagID FROM {0} ".format(diagTableName)
+            sqlS += "WHERE creationTime<:timeLimit "
             varMap = dict()
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
-            self.execute(sqlD, varMap)
-            # commit
-            self.commit()
+            self.execute(sqlS, varMap)
+            resS = self.cur.fetchall()
+            sqlD = "DELETE FROM {0} ".format(diagTableName)
+            sqlD += "WHERE diagID=:diagID "
+            for diagID, in resS:
+                varMap = dict()
+                varMap[':diagID'] = diagID
+                self.execute(sqlD, varMap)
+                # commit
+                self.commit()
             # make spec
             diagSpec = DiagSpec()
             diagSpec.moduleName = module_name
@@ -3990,7 +4000,7 @@ class DBProxy:
             diagSpec.messageLevel = level
             try:
                 diagSpec.identifier = identifier[:100]
-            except:
+            except Exception:
                 pass
             diagSpec.diagMessage = message[:500]
             # insert

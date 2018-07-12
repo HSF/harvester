@@ -23,7 +23,7 @@ class EventFeeder(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'eventfeeder-{0}'.format(self.ident)
+        lockedBy = 'eventfeeder-{0}'.format(self.get_pid())
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting workers to feed events')

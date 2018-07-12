@@ -31,7 +31,7 @@ class Monitor(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'monitor-{0}'.format(self.ident)
+        lockedBy = 'monitor-{0}'.format(self.get_pid())
         # init messengers
         for queueConfig in self.queueConfigMapper.get_all_queues().values():
             # just import for module initialization
