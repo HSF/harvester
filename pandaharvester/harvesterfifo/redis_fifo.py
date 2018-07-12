@@ -164,13 +164,13 @@ class RedisFifo(PluginBase):
                 now_timestamp = time.time()
                 try:
                     pipeline.watch(self.qname, self.idp, self.titem, self.tscore)
-                    temp_item_dict = pipeline.hgetall(self.titem)
                     temp_score_dict = pipeline.hgetall(self.tscore)
-                    item_score_dict = { item: temp_score_dict.get(id, now_timestamp)
-                                        for id, item in temp_item_dict.items() }
-                    if len(item_score_dict) > 0:
+                    item_score_list = []
+                    for id, item in pipeline.hscan_iter(self.titem):
+                        item_score_list.extend([float(temp_score_dict.get(id, now_timestamp)), item])
+                    if len(item_score_list) > 0:
                         pipeline.multi()
-                        pipeline.zadd(self.qname, **item_score_dict)
+                        pipeline.zadd(self.qname, *item_score_list)
                         pipeline.delete(self.titem)
                         pipeline.delete(self.tscore)
                         pipeline.delete(self.idp)
