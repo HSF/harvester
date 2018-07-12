@@ -102,12 +102,12 @@ class FIFOBase:
     # get tuple of object and its score without dequeuing
     def peek(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='peek')
-        id, obj_serialized, score = self.fifo.peek()
+        obj_serialized, score = self.fifo.peek()
         # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
         if obj_serialized is None and score is None:
             retVal = FifoObject(None, None, None)
         else:
-            retVal = FifoObject(id, pickle.loads(obj_serialized), score)
+            retVal = FifoObject(None, pickle.loads(obj_serialized), score)
         mainLog.debug('score={0}'.format(score))
         return retVal
 

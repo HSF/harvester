@@ -167,15 +167,15 @@ class SqliteFifo(PluginBase):
     def getlast(self, timeout=None, protective=False):
         return self._pop(get_sql=self._rpop_get_sql, timeout=timeout, protective=protective)
 
-    # get tuple of (id, item, score) of the first object without dequeuing it
+    # get tuple of (item, score) of the first object without dequeuing it
     def peek(self):
         with self._get_conn() as conn:
             cursor = conn.execute(self._lpop_get_sql)
             try:
                 id, obj_buf, score = next(cursor)
-                return id, bytes(obj_buf), score
+                return bytes(obj_buf), score
             except StopIteration:
-                return None, None, None
+                return None, None
 
     # drop all objects in queue and index and reset primary key auto_increment
     def clear(self):
