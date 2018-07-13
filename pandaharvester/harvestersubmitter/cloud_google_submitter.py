@@ -8,9 +8,11 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 # from requests.exceptions import SSLError
 from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # setup base logger
 base_logger = core_utils.setup_logger('google_submitter')
+
 
 def wait_for_operation(project, zone, operation_name):
     """
@@ -36,7 +38,7 @@ def wait_for_operation(project, zone, operation_name):
         time.sleep(1)
 
 
-def create_vm(work_spec):
+def create_vm(work_spec, queue_config):
     """
     Boots up a VM in GCE based on the worker specifications
 
@@ -52,8 +54,15 @@ def create_vm(work_spec):
                                                                                       work_spec.minRamCount,
                                                                                       work_spec.maxDiskCount,
                                                                                       work_spec.maxWalltime))
+
     try:
-        vm = GoogleVM(work_spec)
+        vm = GoogleVM(work_spec, queue_config)
+
+        try:
+            zone = queue_config.zone
+        except AttributeError:
+            zone = ZONE
+
     except Exception as e:
         tmp_log.debug('VM preparation failed with: {0}'.format(e))
         # there was some problem preparing the VM, usually related to interaction with GCE
@@ -63,7 +72,7 @@ def create_vm(work_spec):
     try:
         tmp_log.debug('Going to submit VM {0}'.format(vm.name))
         work_spec.batchID = vm.name
-        operation = compute.instances().insert(project=PROJECT, zone=ZONE, body=vm.config).execute()
+        operation = compute.instances().insert(project=PROJECT, zone=zone, body=vm.config).execute()
         # tmp_log.debug('Submitting VM {0}'.format(vm.name))
         # wait_for_operation(PROJECT, ZONE, operation['name'])
         tmp_log.debug('Submitted VM {0}'.format(vm.name))
@@ -87,26 +96,36 @@ class GoogleSubmitter(PluginBase):
         self.logBaseURL = 'http://localhost/test'
         PluginBase.__init__(self, **kwarg)
 
+        self.queue_config_mapper = QueueConfigMapper()
+
     def submit_workers(self, work_spec_list):
         """
         :param work_spec_list: list of workers to submit
         :return:
         """
+
         tmp_log = self.make_logger(base_logger, method_name='submit_workers')
         tmp_log.debug('start nWorkers={0}'.format(len(work_spec_list)))
 
+        ret_list = []
+        if not work_spec_list:
+            tmp_log.debug('empty work_spec_list')
+            return ret_list
+
+        # we assume all work_specs in the list belong to the same queue
+        queue_config = self.queue_config_mapper.get_queue(work_spec_list[0].computingSite)
+
         # Create VMs in parallel
         # authentication issues when running the Cloud API in multiprocess
-        # pool_size = min(len(work_spec_list), 10) # TODO: think about the optimal pool size
+        # pool_size = min(len(work_spec_list), 10)
         # with Pool(pool_size) as pool:
         #    ret_val_list = pool.map(create_vm, work_spec_list, lock)
 
         ret_val_list = []
         for work_spec in work_spec_list:
-             ret_val_list.append(create_vm(work_spec))
+            ret_val_list.append(create_vm(work_spec, queue_config))
 
         # Propagate changed attributes
-        ret_list = []
         for work_spec, tmp_val in zip(work_spec_list, ret_val_list):
             ret_val, tmp_dict = tmp_val
 

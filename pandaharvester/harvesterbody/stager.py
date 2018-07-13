@@ -22,17 +22,22 @@ class Stager(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'stager-{0}'.format(self.ident)
+        lockedBy = 'stager-{0}'.format(self.get_pid())
         while True:
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
+            try:
+                maxFilesPerJob = harvester_config.stager.maxFilesPerJobToCheck
+            except Exception:
+                maxFilesPerJob = None
             jobsToCheck = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToCheck,
                                                               harvester_config.stager.checkInterval,
                                                               harvester_config.stager.lockInterval,
                                                               lockedBy, 'transferring',
-                                                              JobSpec.HO_hasTransfer)
+                                                              JobSpec.HO_hasTransfer,
+                                                              max_files_per_job=maxFilesPerJob)
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
@@ -40,11 +45,16 @@ class Stager(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('start checking')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     # get plugin
                     stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
                     if stagerCore is None:
@@ -77,15 +87,20 @@ class Stager(AgentBase):
                     else:
                         # on-going
                         tmpLog.debug('try to check later since {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to trigger stage-out
+            try:
+                maxFilesPerJob = harvester_config.stager.maxFilesPerJobToTrigger
+            except Exception:
+                maxFilesPerJob = None
             jobsToTrigger = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToTrigger,
                                                                 harvester_config.stager.triggerInterval,
                                                                 harvester_config.stager.lockInterval,
                                                                 lockedBy, 'to_transfer',
                                                                 JobSpec.HO_hasOutput,
-                                                                JobSpec.HO_hasZipOutput)
+                                                                JobSpec.HO_hasZipOutput,
+                                                                max_files_per_job=maxFilesPerJob)
             mainLog.debug('got {0} jobs to trigger'.format(len(jobsToTrigger)))
             # loop over all jobs
             for jobSpec in jobsToTrigger:
@@ -93,11 +108,16 @@ class Stager(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('try to trigger stage-out')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     # get plugin
                     stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
                     if stagerCore is None:
@@ -132,15 +152,24 @@ class Stager(AgentBase):
                     else:
                         # temporary error
                         tmpLog.debug('try to trigger later since {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to zip output
+            try:
+                maxFilesPerJob = harvester_config.stager.maxFilesPerJobToZip
+            except Exception:
+                maxFilesPerJob = None
+            try:
+                zipInterval = harvester_config.stager.zipInterval
+            except Exception:
+                zipInterval = harvester_config.stager.triggerInterval
             jobsToZip = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToZip,
-                                                            harvester_config.stager.triggerInterval,
+                                                            zipInterval,
                                                             harvester_config.stager.lockInterval,
                                                             lockedBy, 'to_transfer',
                                                             JobSpec.HO_hasZipOutput,
-                                                            JobSpec.HO_hasOutput)
+                                                            JobSpec.HO_hasOutput,
+                                                            max_files_per_job=maxFilesPerJob)
             mainLog.debug('got {0} jobs to zip'.format(len(jobsToZip)))
             # loop over all jobs
             for jobSpec in jobsToZip:
@@ -148,11 +177,16 @@ class Stager(AgentBase):
                                           method_name='run')
                 try:
                     tmpLog.debug('try to zip output')
+                    # configID
+                    configID = jobSpec.configID
+                    if not core_utils.dynamic_plugin_change():
+                        configID = None
                     # get queue
-                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite):
-                        tmpLog.error('queue config for {0} not found'.format(jobSpec.computingSite))
+                    if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
+                        tmpLog.error('queue config for {0}/{1} not found'.format(jobSpec.computingSite,
+                                                                                 configID))
                         continue
-                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite)
+                    queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     # get plugin
                     stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
                     if stagerCore is None:
@@ -175,7 +209,7 @@ class Stager(AgentBase):
                     else:
                         # failed
                         tmpLog.debug('failed to zip with {0}'.format(tmpStr))
-                except:
+                except Exception:
                     core_utils.dump_error_message(tmpLog)
             mainLog.debug('done' + sw.get_elapsed_time())
             # check if being terminated

@@ -249,6 +249,12 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                                 fileSpec.chksum = fileAtters['chksum']
                             if 'eventRangeID' in fileAtters:
                                 fileSpec.eventRangeID = fileAtters['eventRangeID']
+                                # use input fileID as provenanceID
+                                try:
+                                    provenanceID = fileSpec.eventRangeID.split('-')[2]
+                                except Exception:
+                                    provenanceID = None
+                                fileSpec.provenanceID = provenanceID
                             if lfn in outFileAttrs:
                                 fileSpec.scope = outFileAttrs[lfn]['scope']
                             jobSpec.add_out_file(fileSpec)
@@ -504,7 +510,7 @@ def set_file_permission(path):
         try:
             os.chmod(f, 0o666 - umask)
             os.chown(f, uid, gid)
-        except:
+        except Exception:
             pass
     os.umask(umask)
 
@@ -513,10 +519,18 @@ def set_file_permission(path):
 def get_queues_config_url():
     try:
         return os.environ['HARVESTER_QUEUE_CONFIG_URL']
-    except:
+    except Exception:
         return None
 
 
 # get unique queue name
 def get_unique_queue_name(queue_name, resource_type):
     return '{0}:{1}'.format(queue_name, resource_type)
+
+
+# capability to dynamically change plugins
+def dynamic_plugin_change():
+    try:
+        return harvester_config.master.dynamic_plugin_change
+    except Exception:
+        return False

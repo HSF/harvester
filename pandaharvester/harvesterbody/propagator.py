@@ -28,13 +28,13 @@ class Propagator(AgentBase):
     def run(self):
         while True:
             sw = core_utils.get_stopwatch()
-            mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='run')
+            mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='run')
             mainLog.debug('getting jobs to propagate')
             getjobs_start = time.time()
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,
                                                           harvester_config.propagator.updateInterval,
-                                                          self.ident)
+                                                          self.get_pid())
             getjobs_time = time.time() - getjobs_start
             mainLog.debug('got {0} jobs in {1} sec.'.format(len(jobSpecs), getjobs_time))
             # update jobs in central database
@@ -51,7 +51,8 @@ class Propagator(AgentBase):
                 retList = []
                 for tmpJobSpec in jobList:
                     if tmpJobSpec.computingSite not in hbSuppressMap:
-                        queueConfig = self.queueConfigMapper.get_queue(tmpJobSpec.computingSite)
+                        queueConfig = self.queueConfigMapper.get_queue(tmpJobSpec.computingSite,
+                                                                       tmpJobSpec.configID)
                         hbSuppressMap[tmpJobSpec.computingSite] = queueConfig.get_no_heartbeat_status()
                     # heartbeat is suppressed
                     if tmpJobSpec.status in hbSuppressMap[tmpJobSpec.computingSite] and \
@@ -69,7 +70,7 @@ class Propagator(AgentBase):
                 time_checkjobs = time.time() - start_checkjobs
                 mainLog.debug('check_jobs for {0} jobs took {1} sec.'.format(len(jobListToCheck), time_checkjobs))
                 start_updatejobs = time.time()
-                retList += self.communicator.update_jobs(jobListToUpdate)
+                retList += self.communicator.update_jobs(jobListToUpdate, self.get_pid())
                 time_updatejobs = time.time() - start_updatejobs
                 mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate), time_updatejobs))
                 # logging
@@ -87,6 +88,9 @@ class Propagator(AgentBase):
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'
+                        elif tmpJobSpec.is_final_status() and not tmpJobSpec.all_events_done():
+                            # trigger next propagation to update remaining events
+                            tmpJobSpec.trigger_propagation()
                         else:
                             # check event availability
                             if tmpJobSpec.status == 'starting' and 'eventService' in tmpJobSpec.jobParams and \
@@ -106,7 +110,7 @@ class Propagator(AgentBase):
                                                                PilotErrors.pilotError[PilotErrors.ERR_PANDAKILL])
                                     tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
                                     tmpJobSpec.trigger_propagation()
-                        self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.ident})
+                        self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.get_pid()})
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))
@@ -163,8 +167,13 @@ class Propagator(AgentBase):
                             mainLog.error('failed to update worker stats (command) for {0} err={1}'.format(siteName, tmpStr))
 
             if not self._last_stats_update or time.time() - self._last_stats_update > STATS_PERIOD:
+
+                # get active UPS queues. PanDA server needs to know about them and which harvester instance is taking
+                # care of them
+                active_ups_queues = self.queueConfigMapper.get_active_ups_queues()
+
                 # update worker stats for all sites
-                worker_stats_bulk = self.dbProxy.get_worker_stats_bulk()
+                worker_stats_bulk = self.dbProxy.get_worker_stats_bulk(active_ups_queues)
                 if not worker_stats_bulk:
                     mainLog.error('failed to get worker stats in bulk')
                 else:

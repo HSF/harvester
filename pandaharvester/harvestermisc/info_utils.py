@@ -1,3 +1,5 @@
+from future.utils import iteritems
+
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.db_interface import DBInterface
 
@@ -47,6 +49,25 @@ class PandaQueuesDict(dict, PluginBase):
         if panda_queue_dict is None:
             return None
         # offline if not with harvester
-        if panda_queue_dict['pilot_manager'] not in ['Harvester', 'local']:
+        if panda_queue_dict['pilot_manager'] not in ['Harvester']:
             return 'offline'
         return panda_queue_dict['status']
+
+    # get all queue names
+    def get_all_queue_names(self):
+        names = dict()
+        for queue_name, queue_dict in iteritems(self):
+            if queue_dict['pilot_manager'] in ['Harvester']:
+                # FIXME once template name is available in AGIS
+                names[queue_name] = None
+        return names
+
+    # is UPS queue
+    def is_ups_queue(self, panda_resource):
+        panda_queue_dict = self.get(panda_resource)
+        if panda_queue_dict is None:
+            return False
+        if panda_queue_dict['capability'] == 'ucore' and \
+                'Pull' in panda_queue_dict['catchall'].split(','):
+            return True
+        return False

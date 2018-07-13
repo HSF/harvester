@@ -58,6 +58,12 @@ class SpecBase(object):
         if oldVal != newVal:
             self.changedAttrs[name] = value
 
+    # restore state from the unpickled state values
+    def __setstate__(self, state):
+        self.__init__()
+        for k, v in state.items():
+            object.__setattr__(self, k, v)
+
     # reset changed attribute list
     def reset_changed_list(self):
         object.__setattr__(self, 'changedAttrs', {})
@@ -83,11 +89,14 @@ class SpecBase(object):
             object.__setattr__(self, attr, val)
 
     # return column names for INSERT
-    def column_names(cls):
+    def column_names(cls, prefix=None):
         ret = ""
         for attr in cls.attributesWithTypes:
             attr = attr.split(':')[0]
-            ret += "{0},".format(attr)
+            if prefix is None:
+                ret += "{0},".format(attr)
+            else:
+                ret += "{0}.{1},".format(prefix, attr)
         ret = ret[:-1]
         return ret
 

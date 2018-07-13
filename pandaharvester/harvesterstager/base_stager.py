@@ -1,5 +1,7 @@
 import os
-import zipfile
+import uuid
+import time
+import tarfile
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -20,23 +22,41 @@ class BaseStager(PluginBase):
                 if self.zipDir == "${SRCDIR}":
                     # the same directory as src
                     zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
+                elif self.zipDir == "${WORKDIR}":
+                    # work dir
+                    workSpec = jobspec.get_workspec_list()[0]
+                    zipDir = workSpec.get_access_point()
                 else:
                     zipDir = self.zipDir
                 zipPath = os.path.join(zipDir, fileSpec.lfn)
                 msgStr = 'self.zipDir - {0} zipDir - {1} fileSpec.lfn - {2} zipPath - {3}' \
                     .format(self.zipDir, zipDir, fileSpec.lfn, zipPath)
                 tmp_log.debug(msgStr)
-                # remove zip file just in case
-                try:
-                    os.remove(zipPath)
-                    msgStr = 'removed file {}'.format(zipPath)
-                    tmp_log.debug(msgStr)
-                except Exception:
-                    pass
-                # make zip file
-                with zipfile.ZipFile(zipPath, "w", zipfile.ZIP_STORED) as zf:
-                    for assFileSpec in fileSpec.associatedFiles:
-                        zf.write(assFileSpec.path, os.path.basename(assFileSpec.path))
+                # make zip if doesn't exist
+                if not os.path.exists(zipPath):
+                    tmpZipPath = zipPath + '.' + str(uuid.uuid4())
+                    with tarfile.open(tmpZipPath, "w") as zf:
+                        for assFileSpec in fileSpec.associatedFiles:
+                            zf.add(assFileSpec.path, os.path.basename(assFileSpec.path))
+                    # avoid overwriting
+                    lockName = 'zip.lock.{0}'.format(fileSpec.lfn)
+                    lockInterval = 60
+                    tmpStat = False
+                    # get lock
+                    for i in range(lockInterval):
+                        tmpStat = self.dbInterface.get_object_lock(lockName, lock_interval=lockInterval)
+                        if tmpStat:
+                            break
+                        time.sleep(1)
+                    # failed to lock
+                    if not tmpStat:
+                        msgStr = 'failed to get zip lock for {0}'.format(fileSpec.lfn)
+                        tmp_log.error(msgStr)
+                        return None, msgStr
+                    if not os.path.exists(zipPath):
+                        os.rename(tmpZipPath, zipPath)
+                    # release lock
+                    self.dbInterface.release_object_lock(lockName)
                 # set path
                 fileSpec.path = zipPath
                 # get size

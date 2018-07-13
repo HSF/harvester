@@ -1,5 +1,6 @@
 import math
 import datetime
+import time
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -20,8 +21,8 @@ _logger = core_utils.setup_logger('submitter')
 
 # class to submit workers
 class Submitter(AgentBase):
-    # Whether fifos enabled
-    monitor_fifo_enabled = hasattr(harvester_config.monitor, 'fifoEnable') and harvester_config.monitor.fifoEnable
+    # fifos
+    monitor_fifo = MonitorFIFO()
 
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
@@ -35,9 +36,8 @@ class Submitter(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'submitter-{0}'.format(self.ident)
-        if self.monitor_fifo_enabled:
-            monitor_fifo = MonitorFIFO()
+        lockedBy = 'submitter-{0}'.format(self.get_pid())
+        monitor_fifo = self.monitor_fifo
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
@@ -155,6 +155,7 @@ class Submitter(AgentBase):
                                     tmpLog.debug('made {0} workers, while {1} workers failed'.format(len(okChunks),
                                                                                                      len(ngChunks)))
                                 timeNow = datetime.datetime.utcnow()
+                                timeNow_timestamp = time.time()
                                 # NG (=not good)
                                 for ngJobs in ngChunks:
                                     for jobSpec in ngJobs:
@@ -193,6 +194,8 @@ class Submitter(AgentBase):
                                         workSpec.computingSite = queueConfig.queueName
                                         # set access point
                                         workSpec.accessPoint = queueConfig.messenger['accessPoint']
+                                        # sync level
+                                        workSpec.syncLevel = queueConfig.get_synchronization_level()
                                         # events
                                         if len(okJobs) > 0 and \
                                                 ('eventService' in okJobs[0].jobParams or
@@ -271,6 +274,9 @@ class Submitter(AgentBase):
                                             workSpec.set_status(WorkSpec.ST_submitted)
                                         workSpec.submitTime = timeNow
                                         workSpec.modificationTime = timeNow
+                                        workSpec.checkTime = timeNow
+                                        if self.monitor_fifo.enabled:
+                                            workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                                         # prefetch events
                                         if tmpRet and workSpec.hasJob == 1 and \
                                                 workSpec.eventsRequest == WorkSpec.EV_useEvents and \
@@ -307,15 +313,15 @@ class Submitter(AgentBase):
                                                         'failed to register a worker for PandaID={0} with batchID={1}'
                                                     tmpLog.error(tmpStr.format(jobSpec.PandaID, workSpec.batchID))
                                     # enqueue to monitor fifo
-                                    if self.monitor_fifo_enabled \
-                                        and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
-                                        workSpecsToEnqueue = list(map(lambda x: [x], workSpecList))
+                                    if self.monitor_fifo.enabled \
+                                            and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
+                                        workSpecsToEnqueue = [[w] for w in workSpecList]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')
                                 # release jobs
                                 self.dbProxy.release_jobs(pandaIDs, lockedBy)
                                 tmpLog.info('done')
-                            except:
+                            except Exception:
                                 core_utils.dump_error_message(tmpLog)
             mainLog.debug('done')
             # define sleep interval

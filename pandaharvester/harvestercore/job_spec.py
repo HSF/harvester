@@ -49,7 +49,8 @@ class JobSpec(SpecBase):
                            'nWorkersLimit:integer',
                            'submissionAttempts:integer',
                            'jobsetID:integer',
-                           'pilotClosed:integer'
+                           'pilotClosed:integer',
+                           'configID:integer / index'
                            )
 
     # attributes initialized with 0
@@ -65,7 +66,7 @@ class JobSpec(SpecBase):
         object.__setattr__(self, 'inFiles', set())
         object.__setattr__(self, 'outFiles', set())
         object.__setattr__(self, 'zipFileMap', {})
-        object.__setattr__(self, 'workspec_list', set())
+        object.__setattr__(self, 'workspec_list', [])
 
     # add file
     def add_file(self, filespec):
@@ -180,7 +181,8 @@ class JobSpec(SpecBase):
     # get status
     def get_status(self):
         # don't report the final status while staging-out
-        if self.is_final_status() and (self.subStatus in ['to_transfer', 'transferring'] or not self.all_events_done()):
+        if self.is_final_status() and self.subStatus not in ['killed'] and \
+                (self.subStatus in ['to_transfer', 'transferring'] or not self.all_events_done()):
             return 'transferring'
         return self.status
 
@@ -208,14 +210,18 @@ class JobSpec(SpecBase):
                 fileSpec.attemptNr = 0
 
     # convert to event data
-    def to_event_data(self):
+    def to_event_data(self, max_events=None):
         data = []
         eventSpecs = []
+        iEvents = 0
         for zipFileID, eventsData in iteritems(self.zipEventMap):
+            if max_events is not None and iEvents > max_events:
+                break
             eventRanges = []
             for eventSpec in eventsData['events']:
                 eventRanges.append(eventSpec.to_data())
                 eventSpecs.append(eventSpec)
+                iEvents += 1
             tmpData = {}
             tmpData['eventRanges'] = eventRanges
             if zipFileID is not None:

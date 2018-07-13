@@ -35,7 +35,12 @@ class ACTSweeper(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='kill_worker')
 
-        for jobSpec in workspec.get_jobspec_list():
+        jobSpecs = workspec.get_jobspec_list()
+        if not jobSpecs:
+            # return true since there is nothing to kill
+            return True, ''
+
+        for jobSpec in jobSpecs:
             try:
                 self.actDB.updateJob(jobSpec.PandaID, {'actpandastatus': 'tobekilled'})
             except Exception as e:

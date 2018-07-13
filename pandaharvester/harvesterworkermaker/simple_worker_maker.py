@@ -18,6 +18,25 @@ class SimpleWorkerMaker(PluginBase):
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime']
         PluginBase.__init__(self, **kwarg)
 
+    def get_job_core_and_memory(self, queue_dict, job_spec):
+
+        job_memory = job_spec.jobParams.get('minRamCount', 0) or 0
+        job_corecount = job_spec.jobParams.get('coreCount', 1) or 1
+
+        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '') \
+                        or queue_dict.get('capability', '') == 'ucore'
+
+        if not job_memory and unified_queue:
+            site_maxrss = queue_dict.get('maxrss', 0) or 0
+            site_corecount = queue_dict.get('corecount', 1) or 1
+
+            if job_corecount == 1:
+                job_memory = site_maxrss / site_corecount
+            else:
+                job_memory = site_maxrss
+
+        return job_corecount, job_memory
+
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, resource_type):
         tmpLog = self.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
@@ -32,7 +51,8 @@ class SimpleWorkerMaker(PluginBase):
         panda_queues_dict = PandaQueuesDict()
         queue_dict = panda_queues_dict.get(queue_config.queueName, {})
 
-        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')
+        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')\
+                        or queue_dict.get('capability', '') == 'ucore'
         # case of traditional (non-unified) queue: look at the queue configuration
         if not unified_queue:
             workSpec.nCore = queue_dict.get('corecount', 1) or 1
@@ -43,12 +63,16 @@ class SimpleWorkerMaker(PluginBase):
             site_corecount = queue_dict.get('corecount', 1) or 1
             site_maxrss = queue_dict.get('maxrss', 1) or 1
 
+            # some cases need to overwrite those values
             if 'SCORE' in resource_type:
+                # the usual pilot streaming use case
                 workSpec.nCore = 1
                 workSpec.minRamCount = site_maxrss / site_corecount
             else:
+                # default values
                 workSpec.nCore = site_corecount
                 workSpec.minRamCount = site_maxrss
+
 
         # parameters that are independent on traditional vs unified
         workSpec.maxWalltime = queue_dict.get('maxtime', 1)
@@ -61,18 +85,16 @@ class SimpleWorkerMaker(PluginBase):
             maxDiskCount = 0
             maxWalltime = 0
             for jobSpec in jobspec_list:
-                try:
-                    nCore += jobSpec.jobParams['coreCount']
-                except:
-                    nCore += 1
-                try:
-                    minRamCount += jobSpec.jobParams['minRamCount']
-                except:
-                    pass
+
+                job_corecount, job_memory  = self.get_job_core_and_memory(queue_dict, jobSpec)
+                nCore += job_corecount
+                minRamCount += job_memory
+
                 try:
                     maxDiskCount += jobSpec.jobParams['maxDiskCount']
                 except:
                     pass
+
                 try:
                     if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
                         if hasattr(queue_config, 'maxWalltime'):

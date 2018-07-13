@@ -21,7 +21,7 @@ class Sweeper(AgentBase):
 
     # main loop
     def run(self):
-        lockedBy = 'sweeper-{0}'.format(self.ident)
+        lockedBy = 'sweeper-{0}'.format(self.get_pid())
         while True:
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get workers to kill')
@@ -30,27 +30,28 @@ class Sweeper(AgentBase):
                                                              harvester_config.sweeper.checkInterval)
             mainLog.debug('got {0} queues to kill workers'.format(len(workersToKill)))
             # loop over all workers
-            for queueName, workSpecs in iteritems(workersToKill):
-                # get sweeper
-                if not self.queueConfigMapper.has_queue(queueName):
-                    mainLog.error('queue config for {0} not found'.format(queueName))
-                    continue
-                queueConfig = self.queueConfigMapper.get_queue(queueName)
-                sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
-                for workSpec in workSpecs:
-                    tmpLog = self.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
-                                              method_name='run')
-                    try:
-                        tmpLog.debug('start killing')
-                        tmpStat, tmpOut = sweeperCore.kill_worker(workSpec)
-                        tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
-                    except:
-                        core_utils.dump_error_message(tmpLog)
+            for queueName, configIdWorkSpecs in iteritems(workersToKill):
+                for configID, workSpecs in iteritems(configIdWorkSpecs):
+                    # get sweeper
+                    if not self.queueConfigMapper.has_queue(queueName, configID):
+                        mainLog.error('queue config for {0}/{1} not found'.format(queueName, configID))
+                        continue
+                    queueConfig = self.queueConfigMapper.get_queue(queueName, configID)
+                    sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
+                    for workSpec in workSpecs:
+                        tmpLog = self.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                  method_name='run')
+                        try:
+                            tmpLog.debug('start killing')
+                            tmpStat, tmpOut = sweeperCore.kill_worker(workSpec)
+                            tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
+                        except Exception:
+                            core_utils.dump_error_message(tmpLog)
             mainLog.debug('done kill')
             # timeout for missed
             try:
                 keepMissed = harvester_config.sweeper.keepMissed
-            except:
+            except Exception:
                 keepMissed = 24
             # get workers for cleanup
             statusTimeoutMap = {'finished': harvester_config.sweeper.keepFinished,
@@ -61,25 +62,26 @@ class Sweeper(AgentBase):
             workersForCleanup = self.dbProxy.get_workers_for_cleanup(harvester_config.sweeper.maxWorkers,
                                                                      statusTimeoutMap)
             mainLog.debug('got {0} queues for workers cleanup'.format(len(workersForCleanup)))
-            for queueName, workSpecs in iteritems(workersForCleanup):
-                # get sweeper
-                if not self.queueConfigMapper.has_queue(queueName):
-                    mainLog.error('queue config for {0} not found'.format(queueName))
-                    continue
-                queueConfig = self.queueConfigMapper.get_queue(queueName)
-                sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
-                for workSpec in workSpecs:
-                    tmpLog = self.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
-                                              method_name='run')
-                    try:
-                        tmpLog.debug('start cleanup')
-                        tmpStat, tmpOut = sweeperCore.sweep_worker(workSpec)
-                        tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
-                        if tmpStat:
-                            # delete from DB
-                            self.dbProxy.delete_worker(workSpec.workerID)
-                    except:
-                        core_utils.dump_error_message(tmpLog)
+            for queueName, configIdWorkSpecs in iteritems(workersForCleanup):
+                for configID, workSpecs in iteritems(configIdWorkSpecs):
+                    # get sweeper
+                    if not self.queueConfigMapper.has_queue(queueName, configID):
+                        mainLog.error('queue config for {0}/{1} not found'.format(queueName, configID))
+                        continue
+                    queueConfig = self.queueConfigMapper.get_queue(queueName, configID)
+                    sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
+                    for workSpec in workSpecs:
+                        tmpLog = self.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
+                                                  method_name='run')
+                        try:
+                            tmpLog.debug('start cleanup')
+                            tmpStat, tmpOut = sweeperCore.sweep_worker(workSpec)
+                            tmpLog.debug('done with status={0} diag={1}'.format(tmpStat, tmpOut))
+                            if tmpStat:
+                                # delete from DB
+                                self.dbProxy.delete_worker(workSpec.workerID)
+                        except Exception:
+                            core_utils.dump_error_message(tmpLog)
             # delete old jobs
             mainLog.debug('delete old jobs')
             jobTimeout = max(statusTimeoutMap.values()) + 1

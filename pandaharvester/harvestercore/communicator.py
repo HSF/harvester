@@ -3,7 +3,6 @@ Connection to the PanDA server
 
 """
 import ssl
-
 try:
     # disable SNI for TLSV1_UNRECOGNIZED_NAME before importing requests
     ssl.HAS_SNI = False
@@ -19,7 +18,6 @@ import traceback
 from future.utils import iteritems
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
-
 try:
     requests.packages.urllib3.disable_warnings()
 except:
@@ -179,21 +177,21 @@ class Communicator:
                     else:
                         errStr = "StatusCode={0}".format(tmpDict['StatusCode'])
                 return [], errStr
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog, tmpRes)
         return [], errStr
 
     # update jobs
-    def update_jobs(self, jobspec_list):
+    def update_jobs(self, jobspec_list, id):
         sw = core_utils.get_stopwatch()
-        tmpLogG = core_utils.make_logger(_logger, method_name='update_jobs')
+        tmpLogG = core_utils.make_logger(_logger, 'id={0}'.format(id), method_name='update_jobs')
         tmpLogG.debug('update {0} jobs'.format(len(jobspec_list)))
         retList = []
         # update events
         for jobSpec in jobspec_list:
-            eventRanges, eventSpecs = jobSpec.to_event_data()
+            eventRanges, eventSpecs = jobSpec.to_event_data(max_events=10000)
             if eventRanges != []:
-                tmpLogG.debug('update events for PandaID={0}'.format(jobSpec.PandaID))
+                tmpLogG.debug('update {0} events for PandaID={1}'.format(len(eventSpecs), jobSpec.PandaID))
                 tmpRet = self.update_event_ranges(eventRanges, tmpLogG)
                 if tmpRet['StatusCode'] == 0:
                     for eventSpec, retVal in zip(eventSpecs, tmpRet['Returns']):
@@ -204,7 +202,7 @@ class Communicator:
         iLookup = 0
         while iLookup < len(jobspec_list):
             dataList = []
-            jobSpecSubList = jobspec_list[iLookup:iLookup + nLookup]
+            jobSpecSubList = jobspec_list[iLookup:iLookup+nLookup]
             for jobSpec in jobSpecSubList:
                 data = jobSpec.get_job_attributes_for_panda()
                 data['jobId'] = jobSpec.PandaID
@@ -223,7 +221,7 @@ class Communicator:
                     data['startTime'] = jobSpec.startTime.strftime('%Y-%m-%d %H:%M:%S')
                 if jobSpec.endTime is not None and 'endTime' not in data:
                     data['endTime'] = jobSpec.endTime.strftime('%Y-%m-%d %H:%M:%S')
-                if jobSpec.nCore is not None:
+                if 'coreCount' not in data and jobSpec.nCore is not None:
                     data['coreCount'] = jobSpec.nCore
                 if jobSpec.is_final_status() and jobSpec.status == jobSpec.get_status():
                     if jobSpec.metaData is not None:
@@ -244,7 +242,7 @@ class Communicator:
                     if tmpStat is False:
                         tmpLogG.error('updateJobsInBulk failed with {0}'.format(retMaps))
                         retMaps = None
-                except:
+                except Exception:
                     errStr = core_utils.dump_error_message(tmpLogG)
             if retMaps is None:
                 retMap = {}
@@ -253,11 +251,11 @@ class Communicator:
                 retMap['content']['ErrorDiag'] = errStr
                 retMaps = [json.dumps(retMap)] * len(jobSpecSubList)
             for jobSpec, retMap, data in zip(jobSpecSubList, retMaps, dataList):
-                tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                tmpLog = core_utils.make_logger(_logger, 'id={0} PandaID={1}'.format(id, jobSpec.PandaID),
                                                 method_name='update_jobs')
                 try:
                     retMap = json.loads(retMap['content'])
-                except:
+                except Exception:
                     errStr = 'falied to load json'
                     retMap = {}
                     retMap['StatusCode'] = 999
@@ -277,14 +275,14 @@ class Communicator:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']),
                                             method_name='get_event_ranges')
-            tmpLog.debug('start')
             if 'nRanges' in data:
                 nRanges = data['nRanges']
             else:
                 nRanges = 1
+            tmpLog.debug('start nRanges={0}'.format(nRanges))
             while nRanges > 0:
                 # use a small chunk size to avoid timeout
-                chunkSize = min(256, nRanges)
+                chunkSize = min(1024, nRanges)
                 data['nRanges'] = chunkSize
                 tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
                 if tmpStat is False:
@@ -496,7 +494,7 @@ class Communicator:
         iLookup = 0
         while iLookup < len(jobspec_list):
             ids = []
-            for jobSpec in jobspec_list[iLookup:iLookup + nLookup]:
+            for jobSpec in jobspec_list[iLookup:iLookup+nLookup]:
                 ids.append(str(jobSpec.PandaID))
             iLookup += nLookup
             data = dict()

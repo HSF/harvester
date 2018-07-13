@@ -31,7 +31,7 @@ class Cacher(AgentBase):
 
     # main
     def execute(self, force_update=False, skip_lock=False):
-        mainLog = self.make_logger(_logger, 'id={0}'.format(self.ident), method_name='execute')
+        mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='execute')
         # get lock
         locked = self.dbProxy.get_process_lock('cacher', self.get_pid(), harvester_config.cacher.sleepTime)
         if locked or skip_lock:
@@ -81,9 +81,9 @@ class Cacher(AgentBase):
                     retVal = infoFile.read()
                     try:
                         retVal = json.loads(retVal)
-                    except:
+                    except Exception:
                         pass
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('http'):
             try:
@@ -91,14 +91,15 @@ class Cacher(AgentBase):
                 if res.status_code == 200:
                     try:
                         retVal = res.json()
-                    except:
-                        retVal = res.text
+                    except Exception:
+                        errMsg = 'corrupted json from {0} : {1}'.format(info_url, res.text)
+                        tmp_log.error(errMsg)
                 else:
-                    errMsg = 'failed with StatusCode={0} {1}'.format(res.status_code, res.text)
+                    errMsg = 'failed to get {0} with StatusCode={1} {2}'.format(info_url, res.status_code, res.text)
                     tmp_log.error(errMsg)
             except requests.exceptions.ReadTimeout:
                 tmp_log.error('read timeout when getting data from {0}'.format(info_url))
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('panda_cache:'):
             try:
@@ -106,7 +107,7 @@ class Cacher(AgentBase):
                 retVal, outStr = self.communicator.get_key_pair(publicKey, privateKey)
                 if retVal is None:
                     tmp_log.error(outStr)
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmp_log)
         else:
             errMsg = 'unsupported protocol for {0}'.format(info_url)

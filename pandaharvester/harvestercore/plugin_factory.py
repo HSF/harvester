@@ -10,8 +10,9 @@ _logger = core_utils.setup_logger('plugin_factory')
 # plugin factory
 class PluginFactory:
     # constructor
-    def __init__(self):
+    def __init__(self, no_db=False):
         self.classMap = {}
+        self.noDB = no_db
 
     # get plugin
     def get_plugin(self, plugin_conf):
@@ -41,7 +42,8 @@ class PluginFactory:
                 continue
             args[tmpKey] = tmpVal
         # add database interface
-        args['dbInterface'] = DBInterface()
+        if not self.noDB:
+            args['dbInterface'] = DBInterface()
         # instantiate
         cls = self.classMap[pluginKey]
         impl = cls(**args)

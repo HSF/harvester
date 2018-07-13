@@ -8,7 +8,6 @@ import sys
 import copy
 import inspect
 import datetime
-import logging
 import threading
 from future.utils import iteritems
 
@@ -23,6 +22,7 @@ from .panda_queue_spec import PandaQueueSpec
 from .job_worker_relation_spec import JobWorkerRelationSpec
 from .process_lock_spec import ProcessLockSpec
 from .diag_spec import DiagSpec
+from .queue_config_dump_spec import QueueConfigDumpSpec
 
 from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -42,6 +42,7 @@ pandaQueueTableName = 'pq_table'
 jobWorkerTableName = 'jw_table'
 processLockTableName = 'lock_table'
 diagTableName = 'diag_table'
+queueConfigDumpTableName = 'qcdump_table'
 
 # connection lock
 conLock = threading.Lock()
@@ -322,10 +323,13 @@ class DBProxy:
                         # add column
                         sqlA = 'ALTER TABLE {0} ADD COLUMN '.format(table_name)
                         sqlA += '{0} {1}'.format(attrName, attrType)
-                        self.execute(sqlA)
-                        # commit
-                        self.commit()
-                        tmpLog.debug('added {0} to {1}'.format(attr, table_name))
+                        try:
+                            self.execute(sqlA)
+                            # commit
+                            self.commit()
+                            tmpLog.debug('added {0} to {1}'.format(attr, table_name))
+                        except Exception:
+                            core_utils.dump_error_message(tmpLog)
             # make indexes
             for index in indexes:
                 indexName = 'idx_{0}_{1}'.format(index, table_name)
@@ -334,11 +338,14 @@ class DBProxy:
                 else:
                     sqlI = "CREATE INDEX "
                 sqlI += "{0} ON {1}({2}) ".format(indexName, table_name, index)
-                self.execute(sqlI)
-                # commit
-                self.commit()
-                tmpLog.debug('added {0}'.format(indexName))
-        except:
+                try:
+                    self.execute(sqlI)
+                    # commit
+                    self.commit()
+                    tmpLog.debug('added {0}'.format(indexName))
+                except Exception:
+                    core_utils.dump_error_message(tmpLog)
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -359,6 +366,7 @@ class DBProxy:
         outStrs += self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
         outStrs += self.make_table(ProcessLockSpec, processLockTableName)
         outStrs += self.make_table(DiagSpec, diagTableName)
+        outStrs += self.make_table(QueueConfigDumpSpec, queueConfigDumpTableName)
         # dump error messages
         if len(outStrs) > 0:
             errMsg = "ERROR : Definitions of some database tables are incorrect. "
@@ -369,10 +377,11 @@ class DBProxy:
             for outStr in outStrs:
                 print (outStr)
             sys.exit(1)
-        # fill PandaQueue table
-        queue_config_mapper.load_data()
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
+        self.add_seq_number('SEQ_configID', 1)
+        # fill PandaQueue table
+        queue_config_mapper.load_data()
         # delete process locks
         self.clean_process_locks()
 
@@ -839,13 +848,18 @@ class DBProxy:
             sqlL += "OR (propagatorTime<:updateTimeLimit AND propagatorLock IS NULL)) "
             # sql to get events
             sqlE = "SELECT {0} FROM {1} ".format(EventSpec.column_names(), eventTableName)
-            sqlE += "WHERE PandaID=:PandaID AND subStatus<>:statusDone "
+            sqlE += "WHERE PandaID=:PandaID AND subStatus IN (:statusFinished,:statusFailed) "
             # sql to get file
-            sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlF += "WHERE PandaID=:PandaID AND fileID=:fileID "
+            sqlF = "SELECT DISTINCT {0} FROM {1} f, {2} e, {1} f2 ".format(FileSpec.column_names('f2'),
+                                                                           fileTableName,
+                                                                           eventTableName)
+            sqlF += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID "
+            sqlF += "AND e.subStatus IN (:statusFinished,:statusFailed) "
+            sqlF += "AND f2.fileID=f.zipFileID "
             # sql to get fileID of zip
-            sqlZ = "SELECT zipFileID FROM {0} ".format(fileTableName)
-            sqlZ += "WHERE PandaID=:PandaID AND fileID=:fileID "
+            sqlZ = "SELECT e.fileID,f.zipFileID FROM {0} f, {1} e ".format(fileTableName, eventTableName)
+            sqlZ += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID "
+            sqlZ += "AND e.subStatus IN (:statusFinished,:statusFailed) "
             # get jobs
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
@@ -856,7 +870,11 @@ class DBProxy:
             self.execute(sql, varMap)
             resList = self.cur.fetchall()
             jobSpecList = []
+            iEvents = 0
             for res in resList:
+                # avoid a bulk update for many jobs with too many events
+                if iEvents > 10000:
+                    break
                 # make job
                 jobSpec = JobSpec()
                 jobSpec.pack(res)
@@ -874,10 +892,32 @@ class DBProxy:
                 if nRow > 0:
                     jobSpec.propagatorLock = locked_by
                     zipFiles = {}
+                    zipIdMap = dict()
+                    # get zipIDs
+                    varMap = dict()
+                    varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':statusFinished'] = 'finished'
+                    varMap[':statusFailed'] = 'failed'
+                    self.execute(sqlZ, varMap)
+                    resZ = self.cur.fetchall()
+                    for tmpFileID, tmpZipFileID in resZ:
+                        zipIdMap[tmpFileID] = tmpZipFileID
+                    # get zip files
+                    varMap = dict()
+                    varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':statusFinished'] = 'finished'
+                    varMap[':statusFailed'] = 'failed'
+                    self.execute(sqlF, varMap)
+                    resFs = self.cur.fetchall()
+                    for resF in resFs:
+                        fileSpec = FileSpec()
+                        fileSpec.pack(resF)
+                        zipFiles[fileSpec.fileID] = fileSpec
                     # read events
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':statusDone'] = 'done'
+                    varMap[':statusFinished'] = 'finished'
+                    varMap[':statusFailed'] = 'failed'
                     self.execute(sqlE, varMap)
                     resEs = self.cur.fetchall()
                     for resE in resEs:
@@ -886,27 +926,15 @@ class DBProxy:
                         zipFileSpec = None
                         # get associated zip file if any
                         if eventSpec.fileID is not None:
-                            varMap = dict()
-                            varMap[':PandaID'] = jobSpec.PandaID
-                            varMap[':fileID'] = eventSpec.fileID
-                            self.execute(sqlZ, varMap)
-                            zipFileID, = self.cur.fetchone()
+                            zipFileID = zipIdMap[eventSpec.fileID]
                             if zipFileID is not None:
-                                if zipFileID not in zipFiles:
-                                    varMap = dict()
-                                    varMap[':PandaID'] = jobSpec.PandaID
-                                    varMap[':fileID'] = zipFileID
-                                    self.execute(sqlF, varMap)
-                                    resF = self.cur.fetchone()
-                                    fileSpec = FileSpec()
-                                    fileSpec.pack(resF)
-                                    zipFiles[zipFileID] = fileSpec
                                 zipFileSpec = zipFiles[zipFileID]
                         jobSpec.add_event(eventSpec, zipFileSpec)
+                        iEvents += 1
                     jobSpecList.append(jobSpec)
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -1420,7 +1448,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_update')
             tmpLog.debug('start')
             # sql to get workers
-            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW = "SELECT workerID,configID FROM {0} ".format(workTableName)
             sqlW += "WHERE status IN (:st_submitted,:st_running) "
             sqlW += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlW += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
@@ -1454,11 +1482,14 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             tmpWorkers = set()
-            for workerID, in resW:
-                tmpWorkers.add(workerID)
+            for workerID, configID in resW:
+                # ignore configID
+                if not core_utils.dynamic_plugin_change():
+                    configID = None
+                tmpWorkers.add((workerID, configID))
             checkedIDs = set()
             retVal = {}
-            for workerID in tmpWorkers:
+            for workerID, configID in tmpWorkers:
                 # skip
                 if workerID in checkedIDs:
                     continue
@@ -1522,12 +1553,12 @@ class DBProxy:
                 self.commit()
                 # add
                 if queueName is not None:
-                    if queueName not in retVal:
-                        retVal[queueName] = []
-                    retVal[queueName].append(workersList)
+                    retVal.setdefault(queueName, dict())
+                    retVal[queueName].setdefault(configID, [])
+                    retVal[queueName][configID].append(workersList)
             tmpLog.debug('got {0}'.format(str(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -1544,8 +1575,7 @@ class DBProxy:
             # sql to get worker IDs
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
-            sqlW += "ORDER BY lastUpdate LIMIT {0} ".format(max_workers)
-            sqlW += "FOR UPDATE "
+            sqlW += "ORDER BY lastUpdate "
             # sql to lock worker
             sqlL = "UPDATE {0} SET lastUpdate=:timeNow ".format(workTableName)
             sqlL += "WHERE lastUpdate IS NOT NULL AND lastUpdate<:checkTimeLimit "
@@ -1567,6 +1597,7 @@ class DBProxy:
             for workerID, in resW:
                 tmpWorkers.add(workerID)
             retVal = []
+            nWorkers = 0
             for workerID in tmpWorkers:
                 # lock worker
                 varMap = dict()
@@ -1592,8 +1623,11 @@ class DBProxy:
                     workSpec.pandaid_list = []
                     for pandaID, in resA:
                         workSpec.pandaid_list.append(pandaID)
-            # commit
-            self.commit()
+                    nWorkers += 1
+                # commit
+                self.commit()
+                if nWorkers >= max_workers:
+                    break
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
         except:
@@ -1681,6 +1715,9 @@ class DBProxy:
             # sql to check file
             sqlFC = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlFC += "WHERE PandaID=:PandaID AND lfn=:lfn "
+            # sql to get all LFNs
+            sqlFL = "SELECT lfn FROM {0} ".format(fileTableName)
+            sqlFL += "WHERE PandaID=:PandaID AND fileType<>:type "
             # sql to check file with eventRangeID
             sqlFE = "SELECT 1 c FROM {0} ".format(fileTableName)
             sqlFE += "WHERE PandaID=:PandaID AND lfn=:lfn AND eventRangeID=:eventRangeID ".format(fileTableName)
@@ -1688,17 +1725,19 @@ class DBProxy:
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlFI += FileSpec.bind_values_expression()
             # sql to get pending files
-            sqlFP = "SELECT fileID,fsize,lfn FROM {0} ".format(fileTableName)
+            sqlFP = "SELECT fileID,fsize,lfn,provenanceID FROM {0} ".format(fileTableName)
             sqlFP += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
+            sqlFP += "ORDER BY provenanceID "
             # sql to update pending files
             sqlFU = "UPDATE {0} ".format(fileTableName)
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
             sqlFU += "WHERE fileID=:fileID "
             # sql to check event
-            sqlEC = "SELECT 1 c FROM {0} WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID ".format(eventTableName)
+            sqlEC = "SELECT eventRangeID FROM {0} ".format(eventTableName)
+            sqlEC += "WHERE PandaID=:PandaID AND eventRangeID IS NOT NULL "
             # sql to check associated file
-            sqlEF = "SELECT status FROM {0} ".format(fileTableName)
-            sqlEF += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
+            sqlEF = "SELECT eventRangeID,status FROM {0} ".format(fileTableName)
+            sqlEF += "WHERE PandaID=:PandaID AND eventRangeID IS NOT NULL "
             # sql to insert event
             sqlEI = "INSERT INTO {0} ({1}) ".format(eventTableName, EventSpec.column_names())
             sqlEI += EventSpec.bind_values_expression()
@@ -1714,7 +1753,7 @@ class DBProxy:
             # update job
             if jobspec_list is not None:
                 for jobSpec in jobspec_list:
-                    tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobSpec.PandaID),
+                    tmpLog = core_utils.make_logger(_logger, 'PandaID={0} by {1}'.format(jobSpec.PandaID, locked_by),
                                                     method_name='update_jobs_workers')
                     # check job
                     varMap = dict()
@@ -1726,18 +1765,22 @@ class DBProxy:
                     if tmpJobStatus == ['cancelled']:
                         pass
                     else:
+                        # get all LFNs
+                        allLFNs = set()
+                        varMap = dict()
+                        varMap[':PandaID'] = jobSpec.PandaID
+                        varMap[':type'] = 'input'
+                        self.execute(sqlFL, varMap)
+                        resFL = self.cur.fetchall()
+                        for tmpLFN, in resFL:
+                            allLFNs.add(tmpLFN)
                         # insert files
                         nFiles = 0
                         fileIdMap = {}
+                        zipFileRes = dict()
                         for fileSpec in jobSpec.outFiles:
-                            # check file
-                            varMap = dict()
-                            varMap[':PandaID'] = fileSpec.PandaID
-                            varMap[':lfn'] = fileSpec.lfn
-                            self.execute(sqlFC, varMap)
-                            resFC = self.cur.fetchone()
                             # insert file
-                            if resFC is None:
+                            if fileSpec.lfn not in allLFNs:
                                 if jobSpec.zipPerMB is None or fileSpec.isZip in [0, 1]:
                                     fileSpec.status = 'defined'
                                     jobSpec.hasOutFile = JobSpec.HO_hasOutput
@@ -1757,8 +1800,8 @@ class DBProxy:
                                     varMap[':fileID'] = fileSpec.fileID
                                     varMap[':zipFileID'] = fileSpec.fileID
                                     self.execute(sqlFU, varMap)
-                            elif fileSpec.isZip == 1:
-                                # check file with eventRangeID
+                            elif fileSpec.isZip == 1 and fileSpec.eventRangeID is not None:
+                                # add a fake file with eventRangeID which has the same lfn/zipFileID as zip file
                                 varMap = dict()
                                 varMap[':PandaID'] = fileSpec.PandaID
                                 varMap[':lfn'] = fileSpec.lfn
@@ -1766,17 +1809,25 @@ class DBProxy:
                                 self.execute(sqlFE, varMap)
                                 resFE = self.cur.fetchone()
                                 if resFE is None:
+                                    if fileSpec.lfn not in zipFileRes:
+                                        # get file
+                                        varMap = dict()
+                                        varMap[':PandaID'] = fileSpec.PandaID
+                                        varMap[':lfn'] = fileSpec.lfn
+                                        self.execute(sqlFC, varMap)
+                                        resFC = self.cur.fetchone()
+                                        zipFileRes[fileSpec.lfn] = resFC
                                     # associate to existing zip
+                                    resFC = zipFileRes[fileSpec.lfn]
                                     zipFileSpec = FileSpec()
                                     zipFileSpec.pack(resFC)
                                     fileSpec.status = 'zipped'
-                                    fileSpec.zipFileID = zipFileSpec.fileID
+                                    fileSpec.zipFileID = zipFileSpec.zipFileID
                                     varMap = fileSpec.values_list()
                                     self.execute(sqlFI, varMap)
                                     nFiles += 1
                                     # mapping between event range ID and file ID
-                                    if fileSpec.eventRangeID is not None:
-                                        fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
+                                    fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
                         if nFiles > 0:
                             tmpLog.debug('inserted {0} files'.format(nFiles))
                         # check pending files
@@ -1794,12 +1845,16 @@ class DBProxy:
                             subTotalSize = 0
                             subFileIDs = []
                             zippedFileIDs = []
-                            for tmpFileID, tmpFsize, tmpLFN in resFP:
+                            prevProvenanceID = None
+                            for tmpFileID, tmpFsize, tmpLFN, tmpProvenanceID in resFP:
                                 if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
-                                        and subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024:
-                                    zippedFileIDs.append(subFileIDs)
+                                        and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024
+                                             or tmpProvenanceID != prevProvenanceID):
+                                    if jobSpec.subStatus == 'to_transfer' or tmpProvenanceID == prevProvenanceID:
+                                        zippedFileIDs.append(subFileIDs)
                                     subFileIDs = []
                                     subTotalSize = 0
+                                prevProvenanceID = tmpProvenanceID
                                 subTotalSize += tmpFsize
                                 subFileIDs.append((tmpFileID, tmpLFN))
                             if (jobSpec.subStatus == 'to_transfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
@@ -1830,6 +1885,24 @@ class DBProxy:
                             # set zip output flag
                             if len(zippedFileIDs) > 0:
                                 jobSpec.hasOutFile = JobSpec.HO_hasZipOutput
+                        # get event ranges and file stat
+                        eventFileStat = dict()
+                        eventRangesSet = set()
+                        if len(jobSpec.events) > 0:
+                            # get event ranges
+                            varMap = dict()
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            self.execute(sqlEC, varMap)
+                            resEC = self.cur.fetchall()
+                            for tmpEventRangeID, in resEC:
+                                eventRangesSet.add(tmpEventRangeID)
+                            # check associated file
+                            varMap = dict()
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            self.execute(sqlEF, varMap)
+                            resEF = self.cur.fetchall()
+                            for tmpEventRangeID, tmpStat in resEF:
+                                eventFileStat[tmpEventRangeID] = tmpStat
                         # insert or update events
                         varMapsEI = []
                         varMapsEU = []
@@ -1837,14 +1910,10 @@ class DBProxy:
                             # set subStatus
                             if eventSpec.eventStatus == 'finished':
                                 # check associated file
-                                varMap = dict()
-                                varMap[':PandaID'] = jobSpec.PandaID
-                                varMap[':eventRangeID'] = eventSpec.eventRangeID
-                                self.execute(sqlEF, varMap)
-                                resEF = self.cur.fetchone()
-                                if resEF is None or resEF[0] == 'finished':
+                                if eventSpec.eventRangeID not in eventFileStat or \
+                                        eventFileStat[eventSpec.eventRangeID] == 'finished':
                                     eventSpec.subStatus = 'finished'
-                                elif resEF[0] == 'failed':
+                                elif eventFileStat[eventSpec.eventRangeID] == 'failed':
                                     eventSpec.eventStatus = 'failed'
                                     eventSpec.subStatus = 'failed'
                                 else:
@@ -1854,14 +1923,8 @@ class DBProxy:
                             # set fileID
                             if eventSpec.eventRangeID in fileIdMap:
                                 eventSpec.fileID = fileIdMap[eventSpec.eventRangeID]
-                            # check event
-                            varMap = dict()
-                            varMap[':PandaID'] = jobSpec.PandaID
-                            varMap[':eventRangeID'] = eventSpec.eventRangeID
-                            self.execute(sqlEC, varMap)
-                            resEC = self.cur.fetchone()
                             # insert or update event
-                            if resEC is None:
+                            if eventSpec.eventRangeID not in eventRangesSet:
                                 varMap = eventSpec.values_list()
                                 varMapsEI.append(varMap)
                             else:
@@ -2098,7 +2161,8 @@ class DBProxy:
 
     # get jobs to trigger or check output transfer or zip output
     def get_jobs_for_stage_out(self, max_jobs, interval_without_lock, interval_with_lock, locked_by,
-                               sub_status, has_out_file_flag, bad_has_out_file_flag=None):
+                               sub_status, has_out_file_flag, bad_has_out_file_flag=None,
+                               max_files_per_job=None):
         try:
             # get logger
             msgPfx = 'thr={0}'.format(locked_by)
@@ -2132,6 +2196,8 @@ class DBProxy:
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
+            if max_files_per_job is not None and max_files_per_job > 0:
+                sqlF += "LIMIT {0} ".format(max_files_per_job)
             # sql to get associated files
             sqlAF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID AND fileType<>:type "
@@ -2237,7 +2303,7 @@ class DBProxy:
             # sql to update event
             sqlEU = "UPDATE {0} ".format(eventTableName)
             sqlEU += "SET eventStatus=:eventStatus,subStatus=:subStatus "
-            sqlEU += "WHERE PandaID=:PandaID AND eventRangeID=:eventRangeID "
+            sqlEU += "WHERE eventRangeID=:eventRangeID "
             sqlEU += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
             # get associated events
             sqlAE = "SELECT eventRangeID FROM {0} ".format(fileTableName)
@@ -2269,7 +2335,6 @@ class DBProxy:
                     varMaps = []
                     for eventRangeID in eventRangeIDs:
                         varMap = dict()
-                        varMap[':PandaID'] = fileSpec.PandaID
                         varMap[':eventRangeID'] = eventRangeID
                         varMap[':eventStatus'] = fileSpec.status
                         varMap[':subStatus'] = fileSpec.status
@@ -2692,7 +2757,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_kill')
             tmpLog.debug('start')
             # sql to get worker IDs
-            sqlW = "SELECT workerID,status FROM {0} ".format(workTableName)
+            sqlW = "SELECT workerID,status,configID FROM {0} ".format(workTableName)
             sqlW += "WHERE killTime IS NOT NULL AND killTime<:checkTimeLimit "
             sqlW += "ORDER BY killTime LIMIT {0} ".format(max_workers)
             # sql to lock or release worker
@@ -2710,7 +2775,10 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             retVal = dict()
-            for workerID, workerStatus in resW:
+            for workerID, workerStatus, configID in resW:
+                # ignore configID
+                if not core_utils.dynamic_plugin_change():
+                    configID = None
                 # lock or release worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
@@ -2732,14 +2800,14 @@ class DBProxy:
                     workSpec = WorkSpec()
                     workSpec.pack(resG)
                     queueName = workSpec.computingSite
-                    if queueName not in retVal:
-                        retVal[queueName] = []
-                    retVal[queueName].append(workSpec)
+                    retVal.setdefault(queueName, dict())
+                    retVal[queueName].setdefault(configID, [])
+                    retVal[queueName][configID].append(workSpec)
                 # commit
                 self.commit()
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2802,7 +2870,7 @@ class DBProxy:
             return {}
 
     # get worker stats
-    def get_worker_stats_bulk(self):
+    def get_worker_stats_bulk(self, active_ups_queues):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats_bulk')
@@ -2835,6 +2903,13 @@ class DBProxy:
                     retMap.setdefault(computingSite, {})
                     retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
                     retMap[computingSite][resourceType][workerStatus] = cnt
+
+            # if there are no jobs for an active UPS queue, it needs to be initialized so that the pilot streaming
+            # on panda server starts processing the queue
+            if active_ups_queues:
+                for ups_queue in active_ups_queues:
+                    if ups_queue not in retMap or not retMap[ups_queue]:
+                        retMap[ups_queue] = {'SCORE': {'running': 0, 'submitted': 0, 'to_submit': 0}}
 
             # commit
             self.commit()
@@ -2935,7 +3010,7 @@ class DBProxy:
             modTimeLimit = timeNow - datetime.timedelta(minutes=60)
             varMap = dict()
             varMap[':timeLimit'] = modTimeLimit
-            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW = "SELECT workerID, configID FROM {0} ".format(workTableName)
             sqlW += "WHERE lastUpdate IS NULL AND ("
             for tmpStatus, tmpTimeout in iteritems(status_timeout_map):
                 tmpStatusKey = ':status_{0}'.format(tmpStatus)
@@ -2966,24 +3041,29 @@ class DBProxy:
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID "
-            # sql to check if the file is ready to delete
-            sqlD = "SELECT 1 c FROM {0} ".format(fileTableName)
-            sqlD += "WHERE lfn=:lfn AND todelete=:to_delete "
+            # sql to get files not to be deleted. b.todelete is not used to use index on b.lfn
+            sqlD = "SELECT b.lfn,b.todelete  FROM {0} a, {0} b ".format(fileTableName)
+            sqlD += "WHERE a.PandaID=:PandaID AND a.fileType=:fileType AND b.lfn=a.lfn "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             retVal = dict()
             iWorkers = 0
-            for workerID, in resW:
+            for workerID, configID in resW:
                 # lock worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
                 varMap[':setTime'] = timeNow
                 varMap[':timeLimit'] = modTimeLimit
                 self.execute(sqlL, varMap)
+                # commit
+                self.commit()
                 if self.cur.rowcount == 0:
                     continue
+                # ignore configID
+                if not core_utils.dynamic_plugin_change():
+                    configID = None
                 # check associated jobs
                 varMap = dict()
                 varMap[':workerID'] = workerID
@@ -2999,12 +3079,13 @@ class DBProxy:
                     workSpec = WorkSpec()
                     workSpec.pack(resG)
                     queueName = workSpec.computingSite
-                    if queueName not in retVal:
-                        retVal[queueName] = []
-                    retVal[queueName].append(workSpec)
+                    retVal.setdefault(queueName, dict())
+                    retVal[queueName].setdefault(configID, [])
+                    retVal[queueName][configID].append(workSpec)
                     # get jobs
                     jobSpecs = []
                     checkedLFNs = set()
+                    keepLFNs = set()
                     varMap = dict()
                     varMap[':workerID'] = workerID
                     self.execute(sqlP, varMap)
@@ -3017,6 +3098,15 @@ class DBProxy:
                         jobSpec = JobSpec()
                         jobSpec.pack(resJ)
                         jobSpecs.append(jobSpec)
+                        # get LFNs not to be deleted
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        varMap[':fileType'] = 'input'
+                        self.execute(sqlD, varMap)
+                        resDs = self.cur.fetchall()
+                        for tmpLFN, tmpTodelete in resDs:
+                            if tmpTodelete == 0:
+                                keepLFNs.add(tmpLFN)
                         # get files to be deleted
                         varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
@@ -3028,19 +3118,12 @@ class DBProxy:
                             # skip if already checked
                             if fileSpec.lfn in checkedLFNs:
                                 continue
-                            # check if it is ready to delete
                             checkedLFNs.add(fileSpec.lfn)
-                            varMap = dict()
-                            varMap[':lfn'] = fileSpec.lfn
-                            varMap[':to_delete'] = 0
-                            self.execute(sqlD, varMap)
-                            resD = self.cur.fetchone()
-                            if resD is None:
+                            # check if it is ready to delete
+                            if fileSpec.lfn not in keepLFNs:
                                 jobSpec.add_file(fileSpec)
                     workSpec.set_jobspec_list(jobSpecs)
                     iWorkers += 1
-            # commit
-            self.commit()
             tmpLog.debug('got {0} workers'.format(iWorkers))
             return retVal
         except:
@@ -3064,6 +3147,12 @@ class DBProxy:
             # sql to delete job
             sqlDJ = "DELETE FROM {0} ".format(jobTableName)
             sqlDJ += "WHERE PandaID=:PandaID "
+            # sql to delete files
+            sqlDF = "DELETE FROM {0} ".format(fileTableName)
+            sqlDF += "WHERE PandaID=:PandaID "
+            # sql to delete events
+            sqlDE = "DELETE FROM {0} ".format(eventTableName)
+            sqlDE += "WHERE PandaID=:PandaID "
             # sql to delete relations
             sqlDR = "DELETE FROM {0} ".format(jobWorkerTableName)
             sqlDR += "WHERE PandaID=:PandaID "
@@ -3080,6 +3169,10 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 # delete job
                 self.execute(sqlDJ, varMap)
+                # delete files
+                self.execute(sqlDF, varMap)
+                # delete events
+                self.execute(sqlDE, varMap)
                 # delete relations
                 self.execute(sqlDR, varMap)
             # delete worker
@@ -3324,6 +3417,7 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get workerIDs
             sqlW = "SELECT workerID FROM {0} WHERE PandaID=:PandaID ".format(jobWorkerTableName)
+            sqlW += "ORDER BY workerID "
             # sql to get a worker
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "
@@ -3365,7 +3459,6 @@ class DBProxy:
             sqlW = "DELETE FROM {0} ".format(processLockTableName)
             # get worker stats
             self.execute(sqlW)
-            resW = self.cur.fetchone()
             # commit
             self.commit()
             tmpLog.debug('done')
@@ -3627,7 +3720,7 @@ class DBProxy:
                                             method_name='update_file_group_status')
             tmpLog.debug('start')
             # sql to get files
-            sqlF = "UPDATE {0} set groupStatus=:groupStatus".format(fileTableName)
+            sqlF = "UPDATE {0} set groupStatus=:groupStatus ".format(fileTableName)
             sqlF += "WHERE groupID=:groupID "
             # get files
             varMap = dict()
@@ -3646,6 +3739,36 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return False
+
+    # get file group status
+    def get_file_group_status(self, group_id):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'groupID={0}'.format(group_id),
+                                            method_name='get_file_group_status')
+            tmpLog.debug('start')
+            # sql to get files
+            sqlF = "SELECT DISTINCT groupStatus FROM {0} ".format(fileTableName)
+            sqlF += "WHERE groupID=:groupID "
+            # get files
+            varMap = dict()
+            varMap[':groupID'] = group_id
+            self.execute(sqlF, varMap)
+            res = self.cur.fetchall()
+            retVal = set()
+            for groupStatus, in res:
+                retVal.add(groupStatus)
+            # commit
+            self.commit()
+            tmpLog.debug('get {0}'.format(str(retVal)))
+            return retVal
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return []
 
     # lock job again
     def lock_job_again(self, panda_id, time_column, lock_column, locked_by):
@@ -3855,33 +3978,24 @@ class DBProxy:
     # add dialog message
     def add_dialog_message(self, message, level, module_name, identifier=None):
         try:
-            validLevels = ['DEBUG', 'INFO', 'ERROR', 'WARNING']
-            # set level
-            if level not in validLevels:
-                level = 'INFO'
-            levelNum = getattr(logging, level)
-            # get minimum level
-            try:
-                minLevel = harvester_config.propagator.minMessageLevel
-            except:
-                minLevel = None
-            if minLevel not in validLevels:
-                minLevel = 'WARNING'
-            minLevelNum = getattr(logging, minLevel)
-            # check
-            if levelNum < minLevelNum:
-                return True
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='add_dialog_message')
             tmpLog.debug('start')
             # delete old messages
-            sqlD = "DELETE FROM {0} ".format(diagTableName)
-            sqlD += "WHERE creationTime<:timeLimit "
+            sqlS = "SELECT diagID FROM {0} ".format(diagTableName)
+            sqlS += "WHERE creationTime<:timeLimit "
             varMap = dict()
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
-            self.execute(sqlD, varMap)
-            # commit
-            self.commit()
+            self.execute(sqlS, varMap)
+            resS = self.cur.fetchall()
+            sqlD = "DELETE FROM {0} ".format(diagTableName)
+            sqlD += "WHERE diagID=:diagID "
+            for diagID, in resS:
+                varMap = dict()
+                varMap[':diagID'] = diagID
+                self.execute(sqlD, varMap)
+                # commit
+                self.commit()
             # make spec
             diagSpec = DiagSpec()
             diagSpec.moduleName = module_name
@@ -3889,7 +4003,7 @@ class DBProxy:
             diagSpec.messageLevel = level
             try:
                 diagSpec.identifier = identifier[:100]
-            except:
+            except Exception:
                 pass
             diagSpec.diagMessage = message[:500]
             # insert
@@ -4089,3 +4203,113 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # get queue config dumps
+    def get_queue_config_dumps(self):
+        try:
+            retVal = dict()
+            configIDs = set()
+            # time limit
+            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_queue_config_dumps')
+            tmpLog.debug('start')
+            # sql to get used IDs
+            sqlIJ = "SELECT DISTINCT configID FROM {0} ".format(jobTableName)
+            self.execute(sqlIJ)
+            resIJ = self.cur.fetchall()
+            for tmpID, in resIJ:
+                configIDs.add(tmpID)
+            sqlIW = "SELECT DISTINCT configID FROM {0} ".format(workTableName)
+            self.execute(sqlIW)
+            resIW = self.cur.fetchall()
+            for tmpID, in resIW:
+                configIDs.add(tmpID)
+            # sql to delete
+            sqlD = "DELETE FROM {0} WHERE configID=:configID ".format(queueConfigDumpTableName)
+            # sql to get config
+            sqlQ = "SELECT {0} FROM {1} ".format(QueueConfigDumpSpec.column_names(), queueConfigDumpTableName)
+            sqlQ += "FOR UPDATE "
+            self.execute(sqlQ)
+            resQs = self.cur.fetchall()
+            iDump = 0
+            iDel = 0
+            for resQ in resQs:
+                dumpSpec = QueueConfigDumpSpec()
+                dumpSpec.pack(resQ)
+                # delete if unused and too old
+                if dumpSpec.configID not in configIDs and dumpSpec.creationTime < timeLimit:
+                    varMap = dict()
+                    varMap[':configID'] = dumpSpec.configID
+                    self.execute(sqlD, varMap)
+                    iDel += 1
+                else:
+                    retVal[dumpSpec.dumpUniqueName] = dumpSpec
+                    iDump += 1
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} dumps and delete {1} dumps'.format(iDump, iDel))
+            # return
+            return retVal
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return {}
+
+    # add queue config dump
+    def add_queue_config_dump(self, dump_spec):
+        try:
+            # sql to insert a job
+            sqlJ = "INSERT INTO {0} ({1}) ".format(queueConfigDumpTableName, QueueConfigDumpSpec.column_names())
+            sqlJ += QueueConfigDumpSpec.bind_values_expression()
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='add_queue_config_dumps')
+            tmpLog.debug('start for {0}'.format(dump_spec.dumpUniqueName))
+            varMap = dump_spec.values_list()
+            # insert
+            self.execute(sqlJ, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            # return
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
+
+    # get configID for queue config dump
+    def get_config_id_dump(self, dump_spec):
+        try:
+            # sql to get configID
+            sqlJ = "SELECT configID FROM {0} ".format(queueConfigDumpTableName)
+            sqlJ += "WHERE queueName=:queueName AND dumpUniqueName=:dumpUniqueName "
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_config_id_for_dump')
+            tmpLog.debug('start for {0}:{1}'.format(dump_spec.queueName, dump_spec.dumpUniqueName))
+            # get
+            varMap = dict()
+            varMap[':queueName'] = dump_spec.queueName
+            varMap[':dumpUniqueName'] = dump_spec.dumpUniqueName
+            self.execute(sqlJ, varMap)
+            resJ = self.cur.fetchone()
+            if resJ is not None:
+                configID, = resJ
+            else:
+                configID = None
+            tmpLog.debug('got configID={0}'.format(configID))
+            # return
+            return configID
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return None
