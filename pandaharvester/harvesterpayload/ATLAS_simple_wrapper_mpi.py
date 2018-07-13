@@ -313,7 +313,7 @@ def main():
         main_exit(0, work_report, workerAttributesFile)
 
     # Copy of output to shared FS for stageout
-    if not  job_working_dir == worker_communication_point:
+    if not job_working_dir == worker_communication_point:
         cp_start = time.time()
         for outfile in job.output_files.keys():
             if os.path.exists(outfile):

@@ -1,6 +1,7 @@
 import radical.utils
 import saga
 import os
+import random
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec as ws
@@ -74,9 +75,10 @@ class SAGASubmitter (PluginBase):
         #sagadateformat_str = 'Tue Nov  7 11:31:10 2017'
         #sagadateformat_str = '%a %b %d %H:%M:%S %Y'
         try:
+            os.chdir(work_spec.accessPoint)
             jd = saga.job.Description()
             if self.projectname:
-                jd.project = self.projectname  # an association with HPC allocation needful for bookkeeping system for Titan jd.project = "CSC108"
+                jd.project = self.projectname
             # launching job at HPC
 
             jd.wall_time_limit = work_spec.maxWalltime / 60  # minutes
@@ -89,8 +91,11 @@ class SAGASubmitter (PluginBase):
             jd.queue = self.localqueue
             tmpLog.debug("Worker directory: {0}".format(work_spec.accessPoint))
             jd.working_directory = work_spec.accessPoint  # working directory of task
-            jd.output = os.path.join(work_spec.accessPoint, 'MPI_pilot_stdout') #  file for stdout of payload
-            jd.error = os.path.join(work_spec.accessPoint, 'MPI_pilot_stderr')  #  file for stderr of payload
+            uq_prefix = '{0:07}'.format(random.randint(0, 10000000))
+            jd.output = os.path.join(work_spec.accessPoint, 'MPI_pilot_stdout_{0}'.format(uq_prefix))
+            jd.error = os.path.join(work_spec.accessPoint, 'MPI_pilot_stderr_{0}'.format(uq_prefix))
+            work_spec.set_log_file('stdout', jd.output)
+            work_spec.set_log_file('stderr', jd.error)
 
             # Create a new job from the job description. The initial state of
             # the job is 'New'.
