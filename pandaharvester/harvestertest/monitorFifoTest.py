@@ -20,7 +20,7 @@ mq = MonitorFIFO()
 
 print('sleepTime', mq.config.sleepTime)
 
-def single_thread_test(nObjects=3):
+def single_thread_test(nObjects=3, protective=False):
     time_point = time.time()
     print('clear')
     mq.fifo.clear()
@@ -48,14 +48,19 @@ def single_thread_test(nObjects=3):
     time_point = time.time()
     for i in range(nObjects):
         # print('get')
-        obj = mq.get(timeout=3)
+        obj = mq.get(timeout=3, protective=protective)
         # print(obj)
         # print('size', mq.size())
     time_consumed = time.time() - time_point
     print('Time consumed: {0} sec ; Avg: {1} obj/sec '.format(time_consumed, nObjects/time_consumed))
 
 
+print('Normal test')
 single_thread_test(nObjects=1000)
+print('Protective test')
+single_thread_test(nObjects=1000, protective=True)
+
+mq.fifo.clear()
 
 time_point = time.time()
 print('MonitorFIFO.populate')

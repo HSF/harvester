@@ -1,5 +1,7 @@
+import os
 import time
 import datetime
+import collections
 from calendar import timegm
 from future.utils import iteritems
 
@@ -19,10 +21,18 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
+# attribute list
+_attribute_list = ['id', 'item', 'score']
+
+# fifo object spec
+FifoObject = collections.namedtuple('FifoObject', _attribute_list, verbose=False, rename=False)
 
 # logger
 _logger = core_utils.setup_logger('fifos')
 
+# get process identifier
+def get_pid():
+    return '{0}-{1}'.format(os.getpid(), get_ident())
 
 # base class of fifo message queue
 class FIFOBase:
@@ -64,14 +74,14 @@ class FIFOBase:
 
     # size of queue
     def size(self):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='size')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='size')
         retVal = self.fifo.size()
         mainLog.debug('size={0}'.format(retVal))
         return retVal
 
     # enqueue
     def put(self, obj, score=None):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='put')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='put')
         # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
         obj_serialized = pickle.dumps(obj, -1)
         if score is None:
@@ -80,30 +90,44 @@ class FIFOBase:
         mainLog.debug('score={0}'.format(score))
         return retVal
 
-    # dequeue
-    def get(self, timeout=None):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='get')
-        obj_serialized = self.fifo.get(timeout)
+    # dequeue to get the fifo object
+    def get(self, timeout=None, protective=False):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='get')
+        object_tuple = self.fifo.get(timeout, protective)
         # retVal = json.loads(obj_serialized, object_hook=as_python_object)
-        if obj_serialized is None:
+        if object_tuple is None:
             retVal = None
         else:
-            retVal = pickle.loads(obj_serialized)
-        mainLog.debug('called')
+            id, obj_serialized, score = object_tuple
+            retVal = FifoObject(id, pickle.loads(obj_serialized), score)
+        mainLog.debug('called. protective={0}'.format(protective))
         return retVal
 
     # get tuple of object and its score without dequeuing
     def peek(self):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='peek')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='peek')
         obj_serialized, score = self.fifo.peek()
         # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
         if obj_serialized is None and score is None:
-            retVal = None, None
+            retVal = FifoObject(None, None, None)
         else:
-            retVal = (pickle.loads(obj_serialized), score)
+            retVal = FifoObject(None, pickle.loads(obj_serialized), score)
         mainLog.debug('score={0}'.format(score))
         return retVal
 
+    # remove objects by list of ids from temporary space
+    def release(self, ids):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='release')
+        retVal = self.fifo.delete(ids)
+        mainLog.debug('released objects in {0}'.format(ids))
+        return retVal
+
+    # restore all objects from temporary space to fifo
+    def restore(self):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='restore')
+        retVal = self.fifo.restore()
+        mainLog.debug('called')
+        return retVal
 
 # monitor fifo
 class MonitorFIFO(FIFOBase):
@@ -156,13 +180,13 @@ class MonitorFIFO(FIFOBase):
         Return True if OK to dequeue to check;
         Return False otherwise.
         """
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_ident()), method_name='to_check_worker')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='to_check_worker')
         retVal = False
         timeNow_timestamp = time.time()
         peeked_tuple = self.peek()
-        if peeked_tuple[0] is not None:
-            queueName, workSpecsList = peeked_tuple[0]
-            score = peeked_tuple[1]
+        if peeked_tuple.item is not None:
+            queueName, workSpecsList = peeked_tuple.item
+            score = peeked_tuple.score
             if timeNow_timestamp > score:
                 retVal = True
                 if score < 0:

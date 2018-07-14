@@ -49,6 +49,12 @@ class Monitor(AgentBase):
             fifoMaxWorkersPerChunk = harvester_config.monitor.fifoMaxWorkersPerChunk
         except AttributeError:
             fifoMaxWorkersPerChunk = 500
+        try:
+            fifoProtectiveDequeue = harvester_config.monitor.fifoProtectiveDequeue
+        except AttributeError:
+            fifoProtectiveDequeue = True
+        if monitor_fifo.enabled:
+            monitor_fifo.restore()
         while True:
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
@@ -66,7 +72,7 @@ class Monitor(AgentBase):
                 for queueName, configIdWorkSpecs in iteritems(workSpecsPerQueue):
                     for configID, workSpecsList in iteritems(configIdWorkSpecs):
                         retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID)
-                        if self.monitor_fifo.enabled and retVal is not None:
+                        if monitor_fifo.enabled and retVal is not None:
                             workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                             if workSpecsToEnqueue:
                                 mainLog.debug('putting workers to FIFO')
@@ -86,11 +92,12 @@ class Monitor(AgentBase):
                                     mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                 last_DB_cycle_timestamp = time.time()
                 mainLog.debug('ended run with DB')
-            elif self.monitor_fifo.enabled:
+            elif monitor_fifo.enabled:
                 # run with workers from FIFO
                 n_loops = 0
                 last_fifo_cycle_timestamp = time.time()
                 to_break = False
+                obj_dequeued_id_list = []
                 obj_to_enqueue_dict = collections.defaultdict(lambda: [[], 0, 0])
                 obj_to_enqueue_to_head_dict = collections.defaultdict(lambda: [[], 0, 0])
                 remaining_obj_to_enqueue_dict = {}
@@ -102,12 +109,14 @@ class Monitor(AgentBase):
                         mainLog.debug('FIFO size is {0}'.format(fifo_size))
                         mainLog.debug('starting run with FIFO')
                         try:
-                            obj_gotten = monitor_fifo.get(timeout=1)
+                            obj_gotten = monitor_fifo.get(timeout=1, protective=fifoProtectiveDequeue)
                         except Exception as errStr:
                             mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
                         else:
                             if obj_gotten is not None:
-                                queueName, workSpecsList = obj_gotten
+                                if fifoProtectiveDequeue:
+                                    obj_dequeued_id_list.append(obj_gotten.id)
+                                queueName, workSpecsList = obj_gotten.item
                                 mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
                                 configID = workSpecsList[0][0].configID
                                 for workSpecs in workSpecsList:
@@ -180,6 +189,9 @@ class Monitor(AgentBase):
                                                 len(workSpecsToEnqueueToHead), queueName, score))
                         except Exception as errStr:
                             mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
+                # release protective dequeued objects
+                if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
+                    monitor_fifo.release(ids=obj_dequeued_id_list)
                 mainLog.debug('ended run with FIFO')
 
             if sw.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
