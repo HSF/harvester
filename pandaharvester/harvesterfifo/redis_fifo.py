@@ -57,19 +57,23 @@ class RedisFifo(PluginBase):
         last_attempt_timestamp = time.time()
         item = None
         while keep_polling:
+            generate_id_attempt_timestamp = time.time()
+            while True:
+                id = random_id()
+                resVal = self.qconn.sadd(self.idp, id)
+                if resVal:
+                    break
+                elif time.time() > generate_id_attempt_timestamp + 60:
+                    raise Exception('Cannot generate unique id')
+                    return
+                time.sleep(0.0001)
             try:
-                generate_id_attempt_timestamp = time.time()
-                while True:
-                    id = random_id()
-                    resVal = self.qconn.sadd(self.idp, id)
-                    if resVal:
-                        break
-                    elif time.time() > generate_id_attempt_timestamp + 60:
-                        raise Exception('Cannot generate unique id')
-                        return
-                    time.sleep(0.0001)
+                item, score = peek_method()
+            except IndexError:
+                time.sleep(wait)
+                wait = min(max_wait, tries/10.0 + wait)
+            else:
                 if protective:
-                    item, score = self.qconn.zrange(self.qname, 0, 0, withscores=True)[0]
                     with self.qconn.pipeline() as pipeline:
                         pipeline.hset(self.titem, id, item)
                         pipeline.hset(self.tscore, id, score)
@@ -77,7 +81,6 @@ class RedisFifo(PluginBase):
                         resVal = pipeline.execute()
                     ret_pop = resVal[-1]
                 else:
-                    item, score = peek_method()
                     ret_pop = self.qconn.zrem(self.qname, item)
                 if ret_pop == 1:
                     break
@@ -85,10 +88,8 @@ class RedisFifo(PluginBase):
                     with self.qconn.pipeline() as pipeline:
                         pipeline.hdel(self.titem, id)
                         pipeline.hdel(self.tscore, id)
+                        pipeline.srem(self.idp, id)
                         resVal = pipeline.execute()
-            except IndexError:
-                time.sleep(wait)
-                wait = min(max_wait, tries/10.0 + wait)
             tries += 1
             now_timestamp = time.time()
             if timeout is not None and (now_timestamp - last_attempt_timestamp) >= timeout:
