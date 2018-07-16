@@ -977,8 +977,8 @@ class DBProxy:
                                                                                            new_sub_status))
                     return []
                 max_jobs -= nProcessing
-            # sql to get jobs
-            sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            # sql to get job IDs
+            sql = "SELECT PandaID FROM {0} ".format(jobTableName)
             sql += "WHERE subStatus=:subStatus "
             if time_column is not None:
                 sql += "AND ({0} IS NULL ".format(time_column)
@@ -988,11 +988,19 @@ class DBProxy:
                     sql += "OR ({0}<:updateTimeLimit AND {1} IS NULL) ".format(time_column, lock_column)
                 sql += ') '
                 sql += "ORDER BY {0} ".format(time_column)
-            sql += "LIMIT {0} ".format(max_jobs)
-            sql += "FOR UPDATE "
             # sql to lock job
             sqlL = "UPDATE {0} SET {1}=:timeNow,{2}=:lockedBy ".format(jobTableName, time_column, lock_column)
             sqlL += "WHERE PandaID=:PandaID "
+            if time_column is not None:
+                sqlL += "AND ({0} IS NULL ".format(time_column)
+                if interval_with_lock is not None:
+                    sqlL += "OR ({0}<:lockTimeLimit AND {1} IS NOT NULL) ".format(time_column, lock_column)
+                if interval_without_lock is not None:
+                    sqlL += "OR ({0}<:updateTimeLimit AND {1} IS NULL) ".format(time_column, lock_column)
+                sqlL += ') '
+            # sql to get jobs
+            sqlGJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sqlGJ += "WHERE PandaID=:PandaID "
             # sql to get file
             sqlGF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlGF += "WHERE PandaID=:PandaID AND fileType=:type "
@@ -1006,23 +1014,36 @@ class DBProxy:
             self.execute(sql, varMap)
             resList = self.cur.fetchall()
             jobSpecList = []
-            for res in resList:
-                # make job
-                jobSpec = JobSpec()
-                jobSpec.pack(res)
+            for pandaID, in resList:
                 # lock job
                 if locked_by is not None:
                     varMap = dict()
-                    varMap[':PandaID'] = jobSpec.PandaID
+                    varMap[':PandaID'] = pandaID
                     varMap[':timeNow'] = timeNow
                     varMap[':lockedBy'] = locked_by
+                    varMap[':subStatus'] = sub_status
+                    if interval_with_lock is not None:
+                        varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=interval_with_lock)
+                    if interval_without_lock is not None:
+                        varMap[':updateTimeLimit'] = timeNow - datetime.timedelta(seconds=interval_without_lock)
                     self.execute(sqlL, varMap)
                     nRow = self.cur.rowcount
-                    jobSpec.lockedBy = locked_by
-                    setattr(jobSpec, time_column, timeNow)
+                    # commit
+                    self.commit()
                 else:
                     nRow = 1
                 if nRow > 0:
+                    # get job
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    self.execute(sqlGJ, varMap)
+                    resGJ = self.cur.fetchone()
+                    # make job
+                    jobSpec = JobSpec()
+                    jobSpec.pack(resGJ)
+                    if locked_by is not None:
+                        jobSpec.lockedBy = locked_by
+                        setattr(jobSpec, time_column, timeNow)
                     # get files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
@@ -1035,8 +1056,9 @@ class DBProxy:
                         jobSpec.add_in_file(fileSpec)
                     # append
                     jobSpecList.append(jobSpec)
-            # commit
-            self.commit()
+                    # enough jobs
+                    if len(jobSpecList) >= max_jobs:
+                        break
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
         except:
@@ -1145,7 +1167,7 @@ class DBProxy:
             self.commit()
             # return
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -1630,7 +1652,7 @@ class DBProxy:
                     break
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -1698,7 +1720,7 @@ class DBProxy:
                 retVal[workSpec.computingSite].append(workSpec)
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
