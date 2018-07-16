@@ -79,7 +79,7 @@ class Communicator:
             if cert is None:
                 cert = (harvester_config.pandacon.cert_file,
                         harvester_config.pandacon.key_file)
-            req_time_start = time.time()
+            sw = core_utils.get_stopwatch()
             res = requests.post(url,
                                 data=data,
                                 headers={"Accept": "application/json",
@@ -87,9 +87,8 @@ class Communicator:
                                 timeout=harvester_config.pandacon.timeout,
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=cert)
-            req_time = time.time() - req_time_start
             if self.verbose:
-                tmpLog.debug('exec={0} code={1} took={3} sec. return={2}'.format(tmpExec, res.status_code, res.text, req_time))
+                tmpLog.debug('exec={0} code={1} {3}. return={2}'.format(tmpExec, res.status_code, res.text, sw.get_elapsed_time()))
             if res.status_code == 200:
                 return True, res
             else:
@@ -157,9 +156,9 @@ class Communicator:
         if additional_criteria is not None:
             for tmpKey, tmpVal in additional_criteria:
                 data[tmpKey] = tmpVal
-        sw_getjobs = core_utils.get_stopwatch()
+        sw = core_utils.get_stopwatch()
         tmpStat, tmpRes = self.post_ssl('getJob', data)
-        tmpLog.debug('getJob for {0} jobs {1} '.format(n_jobs,sw_getjobs.get_elapsed_time()))
+        tmpLog.debug('getJob for {0} jobs {1}'.format(n_jobs, sw.get_elapsed_time()))
         errStr = 'OK'
         if tmpStat is False:
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)
