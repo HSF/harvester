@@ -23,6 +23,7 @@ class JobFetcher(AgentBase):
         self.nodeName = socket.gethostname()
         self.queueConfigMapper = queue_config_mapper
 
+
     # main loop
     def run(self):
         while True:
@@ -57,7 +58,7 @@ class JobFetcher(AgentBase):
                 if len(jobs) > 0:
                     jobSpecs = []
                     fileStatMap = dict()
-                    start_convert = time.time()
+                    sw_startconvert = core_utils.get_stopwatch()
                     for job in jobs:
                         timeNow = datetime.datetime.utcnow()
                         jobSpec = JobSpec()
@@ -99,12 +100,10 @@ class JobFetcher(AgentBase):
                         jobSpec.trigger_propagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB
-                    time_convert = time.time() - start_convert
-                    tmpLog.debug("Converting of {0} jobs took {1} sec.".format(len(jobs),time_convert))
-                    strart_insertdb = time.time()
+                    tmpLog.debug("Converting of {0} jobs {1}".format(len(jobs),sw_startconvert.get_elapsed_time()))
+                    sw_insertdb =core_utils.get_stopwatch()
                     self.dbProxy.insert_jobs(jobSpecs)
-                    time_insertdb = time.time() - strart_insertdb
-                    tmpLog.debug('Insert of {0} jobs took {1} sec.'.format(len(jobSpecs), time_insertdb))
+                    tmpLog.debug('Insert of {0} jobs '.format(len(jobSpecs), sw_insertdb.get_elapsed_time()))
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.jobfetcher.sleepTime):

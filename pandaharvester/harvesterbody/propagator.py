@@ -30,13 +30,12 @@ class Propagator(AgentBase):
             sw = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='run')
             mainLog.debug('getting jobs to propagate')
-            getjobs_start = time.time()
+            sw_getjobs = core_utils.get_stopwatch()
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,
                                                           harvester_config.propagator.updateInterval,
                                                           self.get_pid())
-            getjobs_time = time.time() - getjobs_start
-            mainLog.debug('got {0} jobs in {1} sec.'.format(len(jobSpecs), getjobs_time))
+            mainLog.debug('got {0} jobs {1}'.format(len(jobSpecs), sw_getjobs.get_elapsed_time()))
             # update jobs in central database
             iJobs = 0
             nJobs = harvester_config.propagator.nJobsInBulk
@@ -65,14 +64,12 @@ class Propagator(AgentBase):
                             retList.append({'StatusCode': 0, 'command': None})
                     else:
                         jobListToUpdate.append(tmpJobSpec)
-                start_checkjobs = time.time()
+                sw_checkjobs = core_utils.get_stopwatch()
                 retList += self.communicator.check_jobs(jobListToCheck)
-                time_checkjobs = time.time() - start_checkjobs
-                mainLog.debug('check_jobs for {0} jobs took {1} sec.'.format(len(jobListToCheck), time_checkjobs))
-                start_updatejobs = time.time()
+                mainLog.debug('check_jobs for {0} jobs {1}'.format(len(jobListToCheck), sw_checkjobs.get_elapsed_time()))
+                sq_updatejobs = core_utils.get_stopwatch()
                 retList += self.communicator.update_jobs(jobListToUpdate, self.get_pid())
-                time_updatejobs = time.time() - start_updatejobs
-                mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate), time_updatejobs))
+                mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate), sq_updatejobs.get_elapsed_time()))
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
                     if tmpRet['StatusCode'] == 0:
