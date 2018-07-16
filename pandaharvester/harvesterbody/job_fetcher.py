@@ -1,5 +1,5 @@
 import socket
-import datetime, time
+import datetime
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -22,7 +22,6 @@ class JobFetcher(AgentBase):
         self.communicator = communicator
         self.nodeName = socket.gethostname()
         self.queueConfigMapper = queue_config_mapper
-
 
     # main loop
     def run(self):
@@ -103,7 +102,7 @@ class JobFetcher(AgentBase):
                     tmpLog.debug("Converting of {0} jobs {1}".format(len(jobs),sw_startconvert.get_elapsed_time()))
                     sw_insertdb =core_utils.get_stopwatch()
                     self.dbProxy.insert_jobs(jobSpecs)
-                    tmpLog.debug('Insert of {0} jobs '.format(len(jobSpecs), sw_insertdb.get_elapsed_time()))
+                    tmpLog.debug('Insert of {0} jobs {1}'.format(len(jobSpecs), sw_insertdb.get_elapsed_time()))
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.jobfetcher.sleepTime):
