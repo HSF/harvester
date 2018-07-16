@@ -157,10 +157,9 @@ class Communicator:
         if additional_criteria is not None:
             for tmpKey, tmpVal in additional_criteria:
                 data[tmpKey] = tmpVal
-        start_getjobs = time.time()
+        sw_getjobs = core_utils.get_stopwatch()
         tmpStat, tmpRes = self.post_ssl('getJob', data)
-        time_getjobs = time.time() - start_getjobs
-        tmpLog.debug('getJob for {0} jobs took {1} sec.'.format(n_jobs,time_getjobs))
+        tmpLog.debug('getJob for {0} jobs {1} '.format(n_jobs,sw_getjobs.get_elapsed_time()))
         errStr = 'OK'
         if tmpStat is False:
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)
