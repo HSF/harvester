@@ -96,6 +96,8 @@ class SharedFileMessenger(PluginBase):
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='get_work_attributes')
         allRetDict = dict()
+        numofreads = 0
+        sw_readreports = core_utils.get_stopwatch()
         for pandaID in workspec.pandaid_list:
             # look for the json just under the access point
             accessPoint = self.get_access_point(workspec, pandaID)
@@ -104,7 +106,7 @@ class SharedFileMessenger(PluginBase):
             retDict = dict()
             if not os.path.exists(jsonFilePath):
                 # not found
-                tmpLog.debug('not found')
+                tmpLog.debug('not found attributes file')
             else:
                 try:
                     with open(jsonFilePath) as jsonFile:
@@ -114,18 +116,25 @@ class SharedFileMessenger(PluginBase):
             # look for job report
             jsonFilePath = os.path.join(accessPoint, jsonJobReport)
             tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
+            sw_checkjobrep = core_utils.get_stopwatch()
             if not os.path.exists(jsonFilePath):
                 # not found
-                tmpLog.debug('not found')
+                tmpLog.debug('not found job report file')
             else:
                 try:
+                    sw_readrep = core_utils.get_stopwatch()
                     with open(jsonFilePath) as jsonFile:
                         tmpDict = json.load(jsonFile)
-                        retDict['metaData'] = tmpDict
-                    tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
+                    retDict['metaData'] = tmpDict
+                    tmpLog.debug('got {0} kB of job report. {1} sec.'.format(os.stat(jsonFilePath).st_size / 1024,
+                                                                             sw_readrep.get_elapsed_time()))
+                    numofreads += 1
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
+            tmpLog.debug("Check file and read file time: {0} sec.".format(sw_checkjobrep.get_elapsed_time()))
             allRetDict[pandaID] = retDict
+
+        tmpLog.debug("Reading {0} job report files {1}".format(numofreads, sw_readreports.get_elapsed_time()))
         return allRetDict
 
     # get files to stage-out.

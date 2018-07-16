@@ -12,7 +12,7 @@ import sys
 import json
 import zlib
 import inspect
-import datetime
+import datetime, time
 import requests
 import traceback
 from future.utils import iteritems
@@ -79,6 +79,7 @@ class Communicator:
             if cert is None:
                 cert = (harvester_config.pandacon.cert_file,
                         harvester_config.pandacon.key_file)
+            sw = core_utils.get_stopwatch()
             res = requests.post(url,
                                 data=data,
                                 headers={"Accept": "application/json",
@@ -87,7 +88,7 @@ class Communicator:
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=cert)
             if self.verbose:
-                tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
+                tmpLog.debug('exec={0} code={1} {3}. return={2}'.format(tmpExec, res.status_code, res.text, sw.get_elapsed_time()))
             if res.status_code == 200:
                 return True, res
             else:
@@ -155,7 +156,9 @@ class Communicator:
         if additional_criteria is not None:
             for tmpKey, tmpVal in additional_criteria:
                 data[tmpKey] = tmpVal
+        sw = core_utils.get_stopwatch()
         tmpStat, tmpRes = self.post_ssl('getJob', data)
+        tmpLog.debug('getJob for {0} jobs {1}'.format(n_jobs, sw.get_elapsed_time()))
         errStr = 'OK'
         if tmpStat is False:
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)
@@ -178,6 +181,7 @@ class Communicator:
 
     # update jobs
     def update_jobs(self, jobspec_list, id):
+        sw = core_utils.get_stopwatch()
         tmpLogG = core_utils.make_logger(_logger, 'id={0}'.format(id), method_name='update_jobs')
         tmpLogG.debug('update {0} jobs'.format(len(jobspec_list)))
         retList = []
@@ -258,7 +262,7 @@ class Communicator:
                 tmpLog.debug('done with {0}'.format(str(retMap)))
                 retList.append(retMap)
             iLookup += nLookup
-        tmpLogG.debug('done')
+        tmpLogG.debug('done' + sw.get_elapsed_time())
         return retList
 
     # get events
@@ -365,7 +369,7 @@ class Communicator:
             except KeyError:
                 core_utils.dump_error_message(_logger, tmp_res)
         return False
-    
+
     # get proxy
     def get_proxy(self, voms_role, cert=None):
         retVal = None

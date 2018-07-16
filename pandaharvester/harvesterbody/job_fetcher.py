@@ -46,16 +46,18 @@ class JobFetcher(AgentBase):
                     nJobs = harvester_config.jobfetcher.maxJobs
                 # get jobs
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
+                sw = core_utils.get_stopwatch()
                 siteName = queueConfig.siteName
                 jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
                                                           queueConfig.get_source_label(),
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
-                tmpLog.info('got {0} jobs with {1}'.format(len(jobs), errStr))
+                tmpLog.info('got {0} jobs with {1} {2}'.format(len(jobs), errStr, sw.get_elapsed_time()))
                 # convert to JobSpec
                 if len(jobs) > 0:
                     jobSpecs = []
                     fileStatMap = dict()
+                    sw_startconvert = core_utils.get_stopwatch()
                     for job in jobs:
                         timeNow = datetime.datetime.utcnow()
                         jobSpec = JobSpec()
@@ -97,7 +99,10 @@ class JobFetcher(AgentBase):
                         jobSpec.trigger_propagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB
+                    tmpLog.debug("Converting of {0} jobs {1}".format(len(jobs),sw_startconvert.get_elapsed_time()))
+                    sw_insertdb =core_utils.get_stopwatch()
                     self.dbProxy.insert_jobs(jobSpecs)
+                    tmpLog.debug('Insert of {0} jobs {1}'.format(len(jobSpecs), sw_insertdb.get_elapsed_time()))
             mainLog.debug('done')
             # check if being terminated
             if self.terminated(harvester_config.jobfetcher.sleepTime):

@@ -1,10 +1,10 @@
+import radical.utils
 import saga
 import os
-
+import random
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec as ws
-#from datetime import datetime
 
 
 # setup base logger
@@ -73,11 +73,12 @@ class SAGASubmitter (PluginBase):
         job_service = saga.job.Service(self.adaptor)
 
         #sagadateformat_str = 'Tue Nov  7 11:31:10 2017'
-        sagadateformat_str = '%a %b %d %H:%M:%S %Y'
+        #sagadateformat_str = '%a %b %d %H:%M:%S %Y'
         try:
+            os.chdir(work_spec.accessPoint)
             jd = saga.job.Description()
             if self.projectname:
-                jd.project = self.projectname  # an association with HPC allocation needful for bookkeeping system for Titan jd.project = "CSC108"
+                jd.project = self.projectname
             # launching job at HPC
 
             jd.wall_time_limit = work_spec.maxWalltime / 60  # minutes
@@ -90,8 +91,11 @@ class SAGASubmitter (PluginBase):
             jd.queue = self.localqueue
             tmpLog.debug("Worker directory: {0}".format(work_spec.accessPoint))
             jd.working_directory = work_spec.accessPoint  # working directory of task
-            jd.output = os.path.join(work_spec.accessPoint, 'MPI_pilot_stdout') #  file for stdout of payload
-            jd.error = os.path.join(work_spec.accessPoint, 'MPI_pilot_stderr')  #  file for stderr of payload
+            uq_prefix = '{0:07}'.format(random.randint(0, 10000000))
+            jd.output = os.path.join(work_spec.accessPoint, 'MPI_pilot_stdout_{0}'.format(uq_prefix))
+            jd.error = os.path.join(work_spec.accessPoint, 'MPI_pilot_stderr_{0}'.format(uq_prefix))
+            work_spec.set_log_file('stdout', jd.output)
+            work_spec.set_log_file('stderr', jd.error)
 
             # Create a new job from the job description. The initial state of
             # the job is 'New'.
@@ -102,14 +106,15 @@ class SAGASubmitter (PluginBase):
             task.run()
             work_spec.batchID = task.id.split('-')[1][1:-1] #SAGA have own representation, but real batch id easy to extract
             tmpLog.info("Worker ID={0} with BatchID={1} submitted".format(work_spec.workerID, work_spec.batchID))
-
+            tmpLog.debug("SAGA status: {0}".format(task.state))
             #task.wait()  # waiting till payload will be compleated.
             #tmpLog.info('Worker with BatchID={0} completed with exit code {1}'.format(work_spec.batchID, task.exit_code))
             #tmpLog.info('Started: [{0}] finished: [{1}]'.format(task.started, task.finished))
-            work_spec.status = self.status_translator(task.state)
+            #work_spec.status = self.status_translator(task.state)
+
             # for compatibility with dummy monitor
             f = open(os.path.join(work_spec.accessPoint, 'status.txt'), 'w')
-            f.write(work_spec.status)
+            f.write(self.status_translator(task.state))
             f.close()
 
             #work_spec.submitTime = datetime.strptime(task.created, sagadateformat_str)

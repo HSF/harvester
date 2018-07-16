@@ -56,7 +56,7 @@ class PilotmoverPreparator(PluginBase):
             files.append({'scope': inFile['scope'],
                           'name': inLFN,
                           'destination': dstpath})
-        tmpLog.debug('files[] {0}'.format(files))
+        tmpLog.debug('files {0}'.format(files))
         data_client = data.StageInClient(site=jobspec.computingSite)
         allChecked = True
         ErrMsg = 'These files failed to download : '
