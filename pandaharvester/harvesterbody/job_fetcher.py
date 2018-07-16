@@ -46,14 +46,13 @@ class JobFetcher(AgentBase):
                     nJobs = harvester_config.jobfetcher.maxJobs
                 # get jobs
                 tmpLog.debug('getting {0} jobs'.format(nJobs))
-                start_getJobs = time.time()
+                sw = core_utils.get_stopwatch()
                 siteName = queueConfig.siteName
                 jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
                                                           queueConfig.get_source_label(),
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
-                time_getJobs = time.time() - start_getJobs
-                tmpLog.info('got {0} jobs with {1} took {2} sec.'.format(len(jobs), errStr, time_getJobs))
+                tmpLog.info('got {0} jobs with {1} {2}'.format(len(jobs), errStr, sw.get_elapsed_time()))
                 # convert to JobSpec
                 if len(jobs) > 0:
                     jobSpecs = []
