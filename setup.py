@@ -56,6 +56,10 @@ setup(
                              'templates/init.d/panda_harvester-uwsgi.rpmnew.template',
                              ]
          ),
+        # admin tool
+        ('local/bin', ['templates/harvester-admin',
+                 ]
+         ),
         ],
     scripts=['templates/panda_jedi-renice']
     )
