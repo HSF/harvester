@@ -331,13 +331,14 @@ class HTCondorSubmitter(PluginBase):
         timeNow = datetime.datetime.utcnow()
         log_subdir = timeNow.strftime('%y-%m-%d_%H')
         log_subdir_path = os.path.join(self.logDir, log_subdir)
-        try:
-            os.mkdir(log_subdir_path)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-            else:
-                pass
+        if self.condorSchedd is None:
+            try:
+                os.mkdir(log_subdir_path)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
+                else:
+                    pass
 
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
