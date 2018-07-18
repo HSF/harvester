@@ -4345,7 +4345,7 @@ class DBProxy:
                                             method_name='purge_pq')
             tmpLog.debug('start')
             # sql to get jobs
-            sqlJ = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
+            sqlJ = "SELECT PandaID FROM {0} ".format(jobTableName)
             sqlJ += "WHERE computingSite=:computingSite "
             # sql to get workers
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)

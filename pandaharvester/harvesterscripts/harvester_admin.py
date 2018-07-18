@@ -110,7 +110,8 @@ def qconf_dump(arguments):
     if arguments.json:
         json_print(resObj)
 
-def qconf_purge(queueName):
+def qconf_purge(arguments):
+    queueName = arguments.queue
     dbProxy = DBProxy()
     retVal = dbProxy.purge_pq(queueName)
     if retVal:
@@ -135,7 +136,7 @@ commandMap = {
 
 def main():
     # main parser
-    oparser = argparse.ArgumentParser(prog='harvester_admin', add_help=True)
+    oparser = argparse.ArgumentParser(prog='harvester-admin', add_help=True)
     subparsers = oparser.add_subparsers()
     oparser.add_argument('-v', '--verbose', '--debug', default=False, action='store_true', dest='debug', help="Print more verbose output. (Debug mode !)")
     # test command
@@ -165,7 +166,7 @@ def main():
     # qconf purge command
     qconf_purge_parser = qconf_subparsers.add_parser('purge', help='Purge the queue thoroughly from harvester DB (Be careful !!)')
     qconf_purge_parser.set_defaults(which='qconf_purge')
-    qconf_purge_parser.add_argument('queue', nargs=1, type=str, action='store', metavar='<queue_name>', help='Name of panda queue to purge')
+    qconf_purge_parser.add_argument('queue', type=str, action='store', metavar='<queue_name>', help='Name of panda queue to purge')
 
 
     # start parsing
