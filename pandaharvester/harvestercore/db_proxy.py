@@ -4336,3 +4336,97 @@ class DBProxy:
             core_utils.dump_error_message(tmpLog)
             # return
             return None
+
+    # purge a panda queue
+    def purge_pq(self, queueName):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'queueName={0}'.format(queueName),
+                                            method_name='purge_pq')
+            tmpLog.debug('start')
+            # sql to get jobs
+            sqlJ = "SELECT PandaID FROM {0} ".format(jobTableName)
+            sqlJ += "WHERE computingSite=:computingSite "
+            # sql to get workers
+            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW += "WHERE computingSite=:computingSite "
+            # sql to get queue configs
+            sqlQ = "SELECT configID FROM {0} ".format(queueConfigDumpTableName)
+            sqlQ += "WHERE queueName=:queueName "
+            # sql to delete job
+            sqlDJ = "DELETE FROM {0} ".format(jobTableName)
+            sqlDJ += "WHERE PandaID=:PandaID "
+            # sql to delete files
+            sqlDF = "DELETE FROM {0} ".format(fileTableName)
+            sqlDF += "WHERE PandaID=:PandaID "
+            # sql to delete events
+            sqlDE = "DELETE FROM {0} ".format(eventTableName)
+            sqlDE += "WHERE PandaID=:PandaID "
+            # sql to delete relations by job
+            sqlDRJ = "DELETE FROM {0} ".format(jobWorkerTableName)
+            sqlDRJ += "WHERE PandaID=:PandaID "
+            # sql to delete worker
+            sqlDW = "DELETE FROM {0} ".format(workTableName)
+            sqlDW += "WHERE workerID=:workerID "
+            # sql to delete relations by worker
+            sqlDRW = "DELETE FROM {0} ".format(jobWorkerTableName)
+            sqlDRW += "WHERE workerID=:workerID "
+            # sql to delete queue config
+            sqlDQ = "DELETE FROM {0} ".format(queueConfigDumpTableName)
+            sqlDQ += "WHERE configID=:configID "
+            # sql to delete panda queue
+            sqlDP = "DELETE FROM {0} ".format(pandaQueueTableName)
+            sqlDP += "WHERE queueName=:queueName "
+            # get jobs
+            varMap = dict()
+            varMap[':computingSite'] = queueName
+            self.execute(sqlJ, varMap)
+            resJ = self.cur.fetchall()
+            for pandaID, in resJ:
+                varMap = dict()
+                varMap[':PandaID'] = pandaID
+                # delete job
+                self.execute(sqlDJ, varMap)
+                # delete files
+                self.execute(sqlDF, varMap)
+                # delete events
+                self.execute(sqlDE, varMap)
+                # delete relations
+                self.execute(sqlDRJ, varMap)
+            # get workers
+            varMap = dict()
+            varMap[':computingSite'] = queueName
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            for workerID, in resW:
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                # delete workers
+                self.execute(sqlDW, varMap)
+                # delete relations
+                self.execute(sqlDRW, varMap)
+            # get queue configs
+            varMap = dict()
+            varMap[':queueName'] = queueName
+            self.execute(sqlQ, varMap)
+            resQ = self.cur.fetchall()
+            for configID, in resQ:
+                varMap = dict()
+                varMap[':configID'] = configID
+                # delete queue configs
+                self.execute(sqlDQ, varMap)
+            # delete panda queue
+            varMap = dict()
+            varMap[':queueName'] = queueName
+            self.execute(sqlDP, varMap)
+            # commit
+            self.commit()
+            tmpLog.debug('done')
+            return True
+        except:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False

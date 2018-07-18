@@ -6,7 +6,7 @@
 userName="#FIXME"
 
 # setup python and virtual env
-VIRTUAL_ENV=/#FIXME
+VIRTUAL_ENV="/#FIXME"
 
 #======= END CONFIGURATION SECTION ============================
 

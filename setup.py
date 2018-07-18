@@ -57,7 +57,7 @@ setup(
                              ]
          ),
         # admin tool
-        ('local/bin', ['templates/harvester-admin',
+        ('local/bin', ['templates/harvester-admin.rpmnew.template',
                  ]
          ),
         ],
