@@ -8,6 +8,7 @@ import logging
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import fifos as harvesterFifos
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
 #=== Logger ===================================================
 
@@ -109,6 +110,13 @@ def qconf_dump(arguments):
     if arguments.json:
         json_print(resObj)
 
+def qconf_purge(queueName):
+    dbProxy = DBProxy()
+    retVal = dbProxy.purge_pq(queueName)
+    if retVal:
+        print('Purged {0} from harvester DB'.format(queueName))
+    else:
+        mainLogger.critical('Failed to purge {0} . See panda-db_proxy.log'.format(queueName))
 
 #=== Command map =======================================================
 
@@ -120,6 +128,7 @@ commandMap = {
             # qconf commands
             'qconf_list': qconf_list,
             'qconf_dump': qconf_dump,
+            'qconf_purge': qconf_purge,
             }
 
 #=== Main ======================================================
@@ -153,6 +162,10 @@ def main():
     qconf_dump_parser.add_argument('-a', '--all', dest='all', action='store_true', help='Dump configuration of all active queues')
     qconf_dump_parser.add_argument('queue_list', nargs='*', type=str, action='store', metavar='<queue_name>', help='Name of active queue')
     qconf_dump_parser.add_argument('-i', '--id', dest='id_list', nargs='+', type=int, action='store', metavar='<configID>', help='Dump configuration of queue with configID')
+    # qconf purge command
+    qconf_purge_parser = qconf_subparsers.add_parser('purge', help='Purge the queue thoroughly from harvester DB (Be careful !!)')
+    qconf_purge_parser.set_defaults(which='qconf_purge')
+    qconf_purge_parser.add_argument('queue', nargs=1, type=str, action='store', metavar='<queue_name>', help='Name of panda queue to purge')
 
 
     # start parsing
