@@ -6,13 +6,13 @@ import ssl
 try:
     # disable SNI for TLSV1_UNRECOGNIZED_NAME before importing requests
     ssl.HAS_SNI = False
-except:
+except Exception:
     pass
 import sys
 import json
 import zlib
 import inspect
-import datetime, time
+import datetime
 import requests
 import traceback
 from future.utils import iteritems
@@ -20,7 +20,7 @@ from future.utils import iteritems
 import requests.packages.urllib3
 try:
     requests.packages.urllib3.disable_warnings()
-except:
+except Exception:
     pass
 from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -60,7 +60,7 @@ class Communicator:
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
-        except:
+        except Exception:
             errType, errValue = sys.exc_info()[:2]
             errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
             errMsg += traceback.format_exc()
@@ -88,7 +88,8 @@ class Communicator:
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=cert)
             if self.verbose:
-                tmpLog.debug('exec={0} code={1} {3}. return={2}'.format(tmpExec, res.status_code, res.text, sw.get_elapsed_time()))
+                tmpLog.debug('exec={0} code={1} {3}. return={2}'.format(tmpExec, res.status_code, res.text,
+                                                                        sw.get_elapsed_time()))
             if res.status_code == 200:
                 return True, res
             else:
