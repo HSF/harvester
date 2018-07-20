@@ -119,10 +119,11 @@ class Propagator(AgentBase):
                                                               harvester_config.propagator.updateInterval)
             mainLog.debug('got {0} workers {1}'.format(len(workSpecs), sw.get_elapsed_time()))
             # update workers in central database
+            sw.reset()
             iWorkers = 0
             nWorkers = harvester_config.propagator.nWorkersInBulk
             while iWorkers < len(workSpecs):
-                workList = workSpecs[iWorkers:iWorkers + nJobs]
+                workList = workSpecs[iWorkers:iWorkers + nWorkers]
                 iWorkers += nWorkers
                 retList, tmpErrStr = self.communicator.update_workers(workList)
                 # logging
@@ -148,6 +149,8 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update workerID={0} status={1}'.format(tmpWorkSpec.workerID,
                                                                                             tmpWorkSpec.status))
+            mainLog.debug('update_workers for {0} workers took {1} sec.'.format(iWorkers,
+                                                                      sw.get_elapsed_time()))
             mainLog.debug('getting commands')
             commandSpecs = self.dbProxy.get_commands_for_receiver('propagator')
             mainLog.debug('got {0} commands'.format(len(commandSpecs)))
