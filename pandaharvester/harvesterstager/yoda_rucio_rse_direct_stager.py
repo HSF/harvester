@@ -14,10 +14,9 @@ import errno
 
 from future.utils import iteritems
 
-try:
-    import subprocess32 as subprocess
-except:
-    import subprocess
+from rucio.client import Client as RucioClient
+from rucio.common.exception import DataIdentifierNotFound, DuplicateRule, DataIdentifierAlreadyExists, \
+    FileAlreadyExists
 
 
 from pandaharvester.harvestercore import core_utils
@@ -26,8 +25,15 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvesterstager.base_stager import BaseStager
-from pandaharvester.harvestermisc import rucio_utils
+
 from .base_stager import BaseStager
+
+def dump(tmpLog,obj):
+   for attr in dir(obj):
+       if hasattr( obj, attr ):
+           tmpLog.debug( "obj.%s = %s" % (attr, getattr(obj, attr)))
+
+
 
 # logger
 baseLogger = core_utils.setup_logger('yoda_rucio_rse_direct_stager')
@@ -87,6 +93,12 @@ class YodaRucioRseDirectStager(BaseStager):
             return None,'No Rucio Rules'
         tmpLog.debug('#Rucio Rules - {0} - Rules - {1}'.format(len(groups),groups)) 
         
+        try:
+            rucioAPI = RucioClient()
+        except:
+            tmpLog.error('failure to get Rucio Client try again later')
+            return None,'failure to get Rucio Client try again later'
+
         # loop over the Rucio rules 
         for rucioRule in groups:
             if rucioRule is None:
@@ -99,34 +111,31 @@ class YodaRucioRseDirectStager(BaseStager):
                 return None, msgStr
             # get transfer status
             groupStatus = self.dbInterface.get_file_group_status(rucioRule)
-            if 'transferred' in groupStatus :
+            tmpLog.debug('rucioRule - {0} - groupStatus - {1}'.format(rucioRule,groupStatus))
+            if 'transferred' in groupStatus:
                 # already succeeded
                 pass
             elif 'failed' in groupStatus :
                 # transfer failure
                 tmpStat = False
                 tmpMsg = 'rucio rule for {0}:{1} already failed'.format(datasetScope, datasetName)
-            elif 'transferring' in groupStatus:
+            elif 'transferring' in groupStatus or 'pending' in groupStatus:
                 # transfer started in Rucio check status
                 try:
-                    tmpStat, tmpMsg = rucio_utils.rucio_rule_info(tmpLog,rucioRule)
-                    tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
-                    if tmpStat is not True:
-                        raise Exception(tmpMsg)
-                    result = tmpMsg
-                    if result == "OK" :
+                    result = rucioAPI.get_replication_rule(rucioRule,False)
+                    if result['state'] == "OK" :
                         # files transfered to nucleus
                         tmpLog.debug('Files for Rucio Rule {0} successfully transferred'.format(rucioRule))
                         self.dbInterface.update_file_group_status(rucioRule, 'transferred')
                         # set the fileSpec status for these files 
                         self.set_FileSpec_status(jobspec,'finished')
-                    elif result == "FAILED" :
+                    elif result['state'] == "FAILED" :
                         # failed Rucio Transfer
                         tmpStat = False
                         tmpMsg = 'Failed Rucio Transfer - Rucio Rule - {0}'.format(rucioRule)
                         tmpLog.debug(tmpMsg)
                         self.set_FileSpec_status(jobspec,'failed')
-                    elif result == 'STUCK' :
+                    elif result['state'] == 'STUCK' :
                         tmpStat = None
                         tmpMsg = 'Rucio Transfer Rule {0} Stuck'.format(rucioRule)
                         tmpLog.debug(tmpMsg)
@@ -211,6 +220,13 @@ class YodaRucioRseDirectStager(BaseStager):
         msgStr = '#(jobspec.get_output_file_specs(skip_done=False)) = {0}'\
                  .format(len(fileSpec_list))
         tmpLog.debug(msgStr)
+        for fileSpec in fileSpec_list:
+           msgstr = 'fileSpec: dataset scope - {0} file name - {1} size(Bytes) - {2} adler32 - {3}'\
+              .format(datasetScope,fileSpec.lfn,fileSpec.fsize,fileSpec.chksum)
+           if fileSpec.fileAttributes is not None and 'guid' in fileSpec.fileAttributes:
+              msgstr += ' guid - {0}'.format(fileSpec.fileAttributes['guid'])
+           tmpLog.debug(msgstr)
+
 
         #for fileSpec in jobspec.get_output_file_specs(skip_done=True):
         for fileSpec in jobspec.get_output_file_specs(skip_done=False):
@@ -248,10 +264,10 @@ class YodaRucioRseDirectStager(BaseStager):
                 tmpFile['name'] = fileSpec.lfn
                 tmpFile['bytes'] = fileSpec.fsize
                 tmpFile['adler32'] = fileSpec.chksum
-                if fileSpec.fileAttributes['guid'] is None:
-                    tmpLog.debug('File - {0} does not have a guid value'.format(fileSpec.lfn))
-                else :
+                if fileSpec.fileAttributes is not None and 'guid' in fileSpec.fileAttributes:
                     tmpFile['meta'] = {'guid': fileSpec.fileAttributes['guid']}
+                else :
+                    tmpLog.debug('File - {0} does not have a guid value'.format(fileSpec.lfn))
                 tmpLog.debug('Adding file {0} to fileList'.format(fileSpec.lfn))
                 fileList.append(tmpFile)
                 lfns.append(fileSpec.lfn)
@@ -277,10 +293,10 @@ class YodaRucioRseDirectStager(BaseStager):
                         tmpFile['name'] = fileSpec.lfn
                         tmpFile['bytes'] = fileSpec.fsize
                         tmpFile['adler32'] = fileSpec.chksum
-                        if fileSpec.fileAttributes['guid'] is None:
-                            tmpLog.debug('File - {0} does not have a guid value'.format(fileSpec.lfn))
-                        else :
+                        if fileSpec.fileAttributes is not None and 'guid' in fileSpec.fileAttributes:
                             tmpFile['meta'] = {'guid': fileSpec.fileAttributes['guid']}
+                        else :
+                            tmpLog.debug('File - {0} does not have a guid value'.format(fileSpec.lfn))
                         tmpLog.debug('Adding file {0} to fileList'.format(fileSpec.lfn))
                         fileList.append(tmpFile)
                         lfns.append(fileSpec.lfn)
@@ -313,41 +329,82 @@ class YodaRucioRseDirectStager(BaseStager):
             return None,errStr
         # print out the file list
         tmpLog.debug('fileList - {0}'.format(fileList))
-
+        
         # create the dataset and add files to it and create a transfer rule
-        # create the dataset
-        tmpLog.debug('rucio_utils.rucio_create_dataset(tmpLog,datasetScope,datasetName)')
-        tmpStat, tmpMsg = rucio_utils.rucio_create_dataset(tmpLog,datasetScope,datasetName)
-        tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
-        if tmpStat is not True:
-            return tmpStat,tmpMsg
-        # add files to dataset
-        tmpLog.debug('rucio_utils.rucio_add_files_to_dataset(tmpLog,datasetScope,datasetName,fileList)')
-        tmpStat, tmpMsg = rucio_utils.rucio_add_files_to_dataset(tmpLog,datasetScope,datasetName,fileList)
-        tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
-        if tmpStat is not True:
-            return tmpStat,tmpMsg
-        # add add dataset to srcRSE 
-        # need to write code
-        # create transfer rule to destination RSE (nucleus)
-        tmpLog.debug('rucio_utils.rucio_add_rule(tmpLog,datasetScope,datasetName,dstRSE)')
-        tmpStat, tmpMsg = rucio_utils.rucio_add_rule(tmpLog,datasetScope,datasetName,dstRSE)
-        tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
-        if tmpStat is not True:
-            return tmpStat,tmpMsg
-        # tmpMsg is rucio rule
-        ruleIDs = tmpMsg
-        # group the output files together by the Rucio transfer rule
-        jobspec.set_groups_to_files({ruleIDs: {'lfns': lfns,'groupStatus': 'pending'}})
-        msgStr = 'jobspec.set_groups_to_files -Rucio rule - {0}, lfns - {1}, groupStatus - pending'.format(ruleIDs,lfns)
-        tmpLog.debug(msgStr)
-        tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,pending)')
-        tmpStat = self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,'pending')
-        tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,pending)')
-        tmpStat = True
-        tmpMsg = 'created Rucio rule successfully'
-        # update file group status
-        self.dbInterface.update_file_group_status(ruleIDs, 'transferring')
+        try:
+            # register dataset
+            rucioAPI = RucioClient()
+            tmpLog.debug('register {0}:{1} rse = {2} meta=(hidden: True) lifetime = {3}'
+                         .format(datasetScope, datasetName,srcRSE,(7*24*60*60)))
+            try:
+                rucioAPI.add_dataset(datasetScope, datasetName,
+                                     meta={'hidden': True},
+                                     lifetime=7 * 24 * 60 * 60,
+                                     rse=srcRSE
+                                     )
+            except DataIdentifierAlreadyExists:
+                # ignore even if the dataset already exists
+                pass
+            except Exception:
+                errMsg = 'Could not create dataset {0}:{1} srcRSE - {2}'.format(datasetScope,
+                                                                                datasetName,
+                                                                                srcRSE)
+                core_utils.dump_error_message(tmpLog)
+                tmpLog.error(errMsg)
+                return None,errMsg
+            # add files to dataset
+            try:
+                rucioAPI.add_files_to_datasets([{'scope': datasetScope,
+                                                 'name': datasetName,
+                                                 'dids': fileList,
+                                                 'rse': srcRSE}],
+                                               ignore_duplicate=True)
+            except FileAlreadyExists:
+                # ignore if files already exist
+                pass
+            except Exception:
+                errMsg = 'Could not add files to DS - {0}:{1}  rse - {2} files - {3}'.format(datasetScope,
+                                                                                             datasetName,
+                                                                                             srcRSE,
+                                                                                             fileList)
+                core_utils.dump_error_message(tmpLog)
+                tmpLog.error(errMsg)
+                return None,errMsg
+            # add rule
+            try:
+                tmpDID = dict()
+                tmpDID['scope'] = datasetScope
+                tmpDID['name'] = datasetName
+                tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
+                                                       lifetime=7 * 24 * 60 * 60)
+                ruleIDs = tmpRet[0]
+                tmpLog.debug('registered dataset {0}:{1} with rule {2}'.format(datasetScope, datasetName,
+                                                                               str(ruleIDs)))
+                # group the output files together by the Rucio transfer rule
+                jobspec.set_groups_to_files({ruleIDs: {'lfns': lfns,'groupStatus': 'pending'}})
+                msgStr = 'jobspec.set_groups_to_files -Rucio rule - {0}, lfns - {1}, groupStatus - pending'.format(ruleIDs,lfns)
+                tmpLog.debug(msgStr)
+                tmpLog.debug('call self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,pending)')
+                tmpStat = self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,'transferring')
+                tmpLog.debug('called self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,transferring)')
+                tmpStat = True
+                tmpMsg = 'created Rucio rule successfully'
+            except DuplicateRule:
+                # ignore duplicated rule
+                tmpLog.debug('rule is already available')
+            except Exception:
+                errMsg = 'Error creating rule for dataset {0}:{1}'.format(datasetScope, datasetName)
+                core_utils.dump_error_message(tmpLog)
+                tmpLog.debug(errMsg)
+                return None,errMsg
+            # update file group status
+            self.dbInterface.update_file_group_status(ruleIDs, 'transferring')
+        except Exception:
+                core_utils.dump_error_message(tmpLog)
+                # treat as a temporary error
+                tmpStat = None
+                tmpMsg = 'failed to add a rule for {0}:{1}'.format(datasetScope, datasetName)
+
         #  Now test for any errors
         if errors:
             for error in errors:
