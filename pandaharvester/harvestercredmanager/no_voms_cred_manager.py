@@ -1,6 +1,6 @@
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -29,7 +29,7 @@ class NoVomsCredManager(PluginBase):
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-        except:
+        except Exception:
             core_utils.dump_error_message(mainLog)
             return False
         mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
@@ -51,7 +51,7 @@ class NoVomsCredManager(PluginBase):
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
             mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
-        except:
+        except Exception:
             stdOut = ''
             stdErr = core_utils.dump_error_message(mainLog)
             retCode = -1

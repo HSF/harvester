@@ -138,7 +138,7 @@ class WorkerAdjuster:
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))
             return dyn_num_workers
-        except:
+        except Exception:
             # dump error
             errMsg = core_utils.dump_error_message(tmpLog)
             return None

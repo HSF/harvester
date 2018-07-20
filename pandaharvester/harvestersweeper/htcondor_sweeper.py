@@ -8,7 +8,7 @@ import os
 import shutil
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 
 #==============================================================

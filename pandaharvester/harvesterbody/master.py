@@ -312,7 +312,7 @@ def main(daemon_mode=True):
         def delete_pid(pid):
             try:
                 os.remove(pid)
-            except:
+            except Exception:
                 pass
 
         # signal handlers
@@ -321,14 +321,14 @@ def main(daemon_mode=True):
             _logger.info('got signal={0} to be killed'.format(sig))
             try:
                 os.remove(options.pid)
-            except:
+            except Exception:
                 pass
             try:
                 if os.getppid() == 1:
                     os.killpg(os.getpgrp(), signal.SIGKILL)
                 else:
                     os.kill(os.getpid(), signal.SIGKILL)
-            except:
+            except Exception:
                 core_utils.dump_error_message(_logger)
                 _logger.error('failed to be killed')
 
@@ -349,7 +349,7 @@ def main(daemon_mode=True):
             from trepan.api import debug
             try:
                 portNum = harvester_config.master.debugger_port
-            except:
+            except Exception:
                 portNum = 19550
             connection_opts = {'IO': 'TCP', 'PORT': portNum}
             interface = server.ServerInterface(connection_opts=connection_opts)

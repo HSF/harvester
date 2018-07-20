@@ -210,7 +210,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             # delete job metadata from worker attributes
             try:
                 del workSpec.workAttributes[jobSpec.PandaID]['metaData']
-            except:
+            except Exception:
                 pass
             # set start and end times
             if workSpec.status in [WorkSpec.ST_running]:
@@ -223,7 +223,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                     jobSpec.nCore = int(workSpec.nCore / len(jobspec_list))
                     if jobSpec.nCore == 0:
                         jobSpec.nCore = 1
-                except:
+                except Exception:
                     pass
             # batch ID
             if not jobSpec.has_attribute('batchID'):
@@ -452,7 +452,7 @@ def get_file_lock(file_name, lock_interval):
                 pTime = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S.%f")
                 if timeNow - pTime < datetime.timedelta(seconds=lock_interval):
                     toSkip = True
-            except:
+            except Exception:
                 pass
             # skip if still in locked interval
             if toSkip:

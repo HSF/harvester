@@ -95,7 +95,7 @@ class Communicator:
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
-        except:
+        except Exception:
             errType, errValue = sys.exc_info()[:2]
             errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
             errMsg += traceback.format_exc()
@@ -127,7 +127,7 @@ class Communicator:
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
-        except:
+        except Exception:
             errType, errValue = sys.exc_info()[:2]
             errMsg = "failed to put with {0}:{1} ".format(errType, errValue)
             errMsg += traceback.format_exc()
@@ -318,7 +318,7 @@ class Communicator:
         else:
             try:
                 retMap = tmpRes.json()
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmp_log)
         if retMap is None:
             retMap = {}
@@ -391,7 +391,7 @@ class Communicator:
                     retMsg = tmpDict['errorDialog']
                     core_utils.dump_error_message(tmpLog, retMsg)
                     tmpStat = False
-            except:
+            except Exception:
                 retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
                 tmpStat = False
         if tmpStat:
@@ -421,7 +421,7 @@ class Communicator:
                     errStr = core_utils.dump_error_message(tmpLog, retList)
                     retList = None
                     tmpStat = False
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
                 tmpStat = False
@@ -449,7 +449,7 @@ class Communicator:
         else:
             try:
                 retCode, tmpStr = tmpRes.json()
-            except:
+            except Exception:
                 tmpStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
                 tmpStat = False
@@ -476,7 +476,7 @@ class Communicator:
                 if not retCode:
                     tmpStat = False
                     errStr = core_utils.dump_error_message(tmpLog, retMsg)
-            except:
+            except Exception:
                 tmpStat = False
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
@@ -506,7 +506,7 @@ class Communicator:
             else:
                 try:
                     tmpRes = tmpRes.json()
-                except:
+                except Exception:
                     tmpRes = None
                     errStr = core_utils.dump_error_message(tmpLog)
             for idx, pandaID in enumerate(ids):
@@ -544,7 +544,7 @@ class Communicator:
                     retMap = None
                 else:
                     tmpLog.debug('got {0} with'.format(str(retMap), errStr))
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
         return retMap, errStr
 
@@ -586,7 +586,7 @@ class Communicator:
                 if tmpDict['StatusCode'] == 0:
                     retStat = True
                     retVal = tmpDict['nEventRanges']
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmpLog, tmpRes)
         tmpLog.debug('done with {0}'.format(retVal))
         return retStat, retVal
@@ -612,7 +612,7 @@ class Communicator:
                 if not retCode:
                     errStr = core_utils.dump_error_message(tmpLog, tmpStr)
                     tmpStat = False
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
                 tmpStat = False

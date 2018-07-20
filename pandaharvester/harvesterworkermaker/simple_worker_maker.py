@@ -92,7 +92,7 @@ class SimpleWorkerMaker(PluginBase):
 
                 try:
                     maxDiskCount += jobSpec.jobParams['maxDiskCount']
-                except:
+                except Exception:
                     pass
 
                 try:
@@ -103,7 +103,7 @@ class SimpleWorkerMaker(PluginBase):
                             maxWalltime = jobSpec.jobParams['maxWalltime']
                     else:
                         maxWalltime = queue_config.walltimeLimit
-                except:
+                except Exception:
                     pass
             if nCore > 0 and 'nCore' in self.jobAttributesToUse:
                 workSpec.nCore = nCore
@@ -130,12 +130,12 @@ class SimpleWorkerMaker(PluginBase):
     def get_num_jobs_per_worker(self, n_workers):
         try:
             return self.nJobsPerWorker
-        except:
+        except Exception:
             return 1
 
     # get number of workers per job
     def get_num_workers_per_job(self, n_workers):
         try:
             return self.nWorkersPerJob
-        except:
+        except Exception:
             return 1

@@ -4,7 +4,7 @@ import datetime
 import tempfile
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 import random
 
@@ -119,7 +119,7 @@ def submit_a_worker(data):
         # check return code
         stdOut, stdErr = p.communicate()
         retCode = p.returncode
-    except:
+    except Exception:
         stdOut = ''
         stdErr = core_utils.dump_error_message(tmpLog, no_message=True)
         retCode = 1
@@ -331,7 +331,7 @@ class HTCondorSubmitter(PluginBase):
         timeNow = datetime.datetime.utcnow()
         log_subdir = timeNow.strftime('%y-%m-%d_%H')
         log_subdir_path = os.path.join(self.logDir, log_subdir)
-        if self.condorSchedd is None:
+        if self.condorSchedd is None or not self.useSpool:
             try:
                 os.mkdir(log_subdir_path)
             except OSError as e:

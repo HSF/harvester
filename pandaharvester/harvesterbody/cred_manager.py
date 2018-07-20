@@ -91,6 +91,6 @@ class CredManager(AgentBase):
                     if not tmpStat:
                         mainLog.error('failed : {0}'.format(tmpOut))
                         continue
-            except:
+            except Exception:
                 core_utils.dump_error_message(mainLog)
             mainLog.debug('done')
