@@ -331,7 +331,7 @@ class HTCondorSubmitter(PluginBase):
         timeNow = datetime.datetime.utcnow()
         log_subdir = timeNow.strftime('%y-%m-%d_%H')
         log_subdir_path = os.path.join(self.logDir, log_subdir)
-        if self.condorSchedd is None:
+        if self.condorSchedd is None or not self.useSpool:
             try:
                 os.mkdir(log_subdir_path)
             except OSError as e:
