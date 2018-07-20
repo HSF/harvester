@@ -445,7 +445,7 @@ class DBProxy:
             self.commit()
             # return
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -489,7 +489,7 @@ class DBProxy:
             tmpLog.debug('done')
             # return
             return jobSpec
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -521,7 +521,7 @@ class DBProxy:
             tmpLog.debug('done')
             # return
             return jobSpecList
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -593,7 +593,7 @@ class DBProxy:
             tmpLog.debug('done with {0}'.format(nRow))
             # return
             return nRow
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -622,7 +622,7 @@ class DBProxy:
             self.commit()
             # return
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -660,7 +660,7 @@ class DBProxy:
                 tmpLog.debug('skip since no updated attributes')
             # return
             return nRow
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -737,7 +737,7 @@ class DBProxy:
             tmpLog.debug('done')
             # return
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -798,13 +798,13 @@ class DBProxy:
                 # get num of queued jobs
                 try:
                     nQueue = nsMap['starting']
-                except:
+                except Exception:
                     nQueue = 0
                 # dynamic nQueueLimitJob
                 if nQueueLimitJobRatio is not None and nQueueLimitJobRatio > 0:
                     try:
                         nRunning = nsMap['running']
-                    except:
+                    except Exception:
                         nRunning = 0
                     nQueueLimitJob = int(nRunning * nQueueLimitJobRatio / 100)
                     if nQueueLimitJobMax is not None:
@@ -821,7 +821,7 @@ class DBProxy:
                     break
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -1199,7 +1199,7 @@ class DBProxy:
             self.commit()
             # return
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -1328,7 +1328,7 @@ class DBProxy:
             tmpLog.debug('got siteName {0}'.format(str(siteName)))
             tmpLog.debug('got resourceMap {0}'.format(str(resourceMap)))
             return retMap, siteName, resourceMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2067,7 +2067,7 @@ class DBProxy:
                 self.commit()
             # return
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2136,7 +2136,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0} job chunks'.format(len(jobChunkList)))
             return jobChunkList
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2182,7 +2182,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2211,7 +2211,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got')
             return workSpec
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2344,7 +2344,7 @@ class DBProxy:
                 self.commit()
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2465,7 +2465,7 @@ class DBProxy:
             tmpLog.debug('done')
             # return
             return jobspec.subStatus
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2496,7 +2496,7 @@ class DBProxy:
             # commit
             self.commit()
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2525,7 +2525,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(retVal))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2554,7 +2554,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(retVal))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2608,7 +2608,7 @@ class DBProxy:
             globalDict.release()
             tmpLog.debug('refreshed')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2664,7 +2664,7 @@ class DBProxy:
             tmpLog.debug('done')
             # return
             return cacheSpec
-        except:
+        except Exception:
             if useDB:
                 # roll back
                 self.rollback()
@@ -2695,7 +2695,7 @@ class DBProxy:
             self.commit()
             # return
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2741,7 +2741,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0} commands'.format(len(commandSpecList)))
             return commandSpecList
-        except:
+        except Exception:
             # dump error
             core_utils.dump_error_message(_logger)
             # return
@@ -2763,7 +2763,7 @@ class DBProxy:
             command_ids = [row[0] for row in self.cur.fetchall()]
             tmpLog.debug('command_ids {0}'.format(command_ids))
             return command_ids
-        except:
+        except Exception:
             # dump error
             core_utils.dump_error_message(_logger)
             # return
@@ -2786,7 +2786,7 @@ class DBProxy:
                 self.execute(sql, var_map)
             self.commit()
             return True
-        except:
+        except Exception:
             self.rollback()
             core_utils.dump_error_message(tmpLog)
             return False
@@ -2805,7 +2805,7 @@ class DBProxy:
             self.execute(sql)
             self.commit()
             return True
-        except:
+        except Exception:
             self.rollback()
             core_utils.dump_error_message(tmpLog)
             return False
@@ -2921,7 +2921,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -2975,7 +2975,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3018,7 +3018,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('set killTime to {0} workers'.format(nRow))
             return nRow
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3051,7 +3051,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('set killTime with {0}'.format(nRow))
             return nRow
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3186,7 +3186,7 @@ class DBProxy:
                     iWorkers += 1
             tmpLog.debug('got {0} workers'.format(iWorkers))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3243,7 +3243,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3273,7 +3273,7 @@ class DBProxy:
             tmpLog.debug('released {0} jobs'.format(nJobs))
             # return
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3321,7 +3321,7 @@ class DBProxy:
                 tmpLog.debug("Failed to clone the queue")
             self.commit()
             return True
-        except:
+        except Exception:
             self.rollback()
             core_utils.dump_error_message(_logger)
             return False
@@ -3418,7 +3418,7 @@ class DBProxy:
             tmpLog.debug('updated {0} queues'.format(nUp))
 
             return retMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3460,7 +3460,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got nMissed={0} for {1}'.format(nMissed, str(criteria)))
             return nMissed
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3500,7 +3500,7 @@ class DBProxy:
                 self.commit()
             tmpLog.debug('got {0} workers'.format(len(retList)))
             return retList
-        except:
+        except Exception:
             # roll back
             if use_commit:
                 self.rollback()
@@ -3523,7 +3523,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3585,7 +3585,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done with {0}'.format(retVal))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3611,7 +3611,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3648,7 +3648,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3691,7 +3691,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3733,7 +3733,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(retVal)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3764,7 +3764,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0} files'.format(len(retList)))
             return retList
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3792,7 +3792,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('updated {0} files'.format(nRow))
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3864,7 +3864,7 @@ class DBProxy:
             tmpLog.debug('done with {0}'.format(retVal))
             # return
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3896,7 +3896,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3930,7 +3930,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3956,7 +3956,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -3988,7 +3988,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -4027,7 +4027,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
             return retMap
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -4075,7 +4075,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -4129,7 +4129,7 @@ class DBProxy:
                 self.commit()
             tmpLog.debug('got {0} messages'.format(len(diagList)))
             return diagList
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -4155,7 +4155,7 @@ class DBProxy:
                 self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -4246,7 +4246,7 @@ class DBProxy:
             retVal = map(_get_workspec_from_record, resW)
             tmpLog.debug('got {0} workers'.format(len(resW)))
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -4285,7 +4285,7 @@ class DBProxy:
                 self.commit()
             # return
             return retVal
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error
@@ -4489,7 +4489,7 @@ class DBProxy:
             self.commit()
             tmpLog.debug('done')
             return True
-        except:
+        except Exception:
             # roll back
             self.rollback()
             # dump error

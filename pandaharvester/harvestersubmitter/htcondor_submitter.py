@@ -4,7 +4,7 @@ import datetime
 import tempfile
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 import random
 
@@ -119,7 +119,7 @@ def submit_a_worker(data):
         # check return code
         stdOut, stdErr = p.communicate()
         retCode = p.returncode
-    except:
+    except Exception:
         stdOut = ''
         stdErr = core_utils.dump_error_message(tmpLog, no_message=True)
         retCode = 1

@@ -72,7 +72,7 @@ class DBProxyPool(object):
     def __getattribute__(self, name):
         try:
             return object.__getattribute__(self, name)
-        except:
+        except Exception:
             pass
         # method object
         tmpO = DBProxyMethod(name, self.pool)

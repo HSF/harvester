@@ -1,7 +1,7 @@
 import re
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 import xml.etree.ElementTree as ET
 

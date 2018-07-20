@@ -57,7 +57,7 @@ class HttpHandler(BaseHTTPRequestHandler):
         # parse the form data posted
         try:
             form = self.get_form()
-        except:
+        except Exception:
             message = 'corrupted json'
             toSkip = True
         # check parameters
@@ -162,7 +162,7 @@ class HttpHandler(BaseHTTPRequestHandler):
                             else:
                                 message = 'previous request is not yet processed'
                                 self.send_response(503)
-            except:
+            except Exception:
                 self.send_response(500)
                 message = core_utils.dump_error_message(_logger)
         if harvester_config.frontend.verbose:

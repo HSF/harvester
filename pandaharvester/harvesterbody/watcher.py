@@ -6,7 +6,7 @@ import smtplib
 import datetime
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 from email.mime.text import MIMEText
 
@@ -59,7 +59,7 @@ class Watcher(AgentBase):
                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                         line = p.stdout.readline()
                         lastTime = datetime.datetime.strptime(line[:23], "%Y-%m-%d %H:%M:%S,%f")
-                    except:
+                    except Exception:
                         lastTime = None
                     # get processing time for last 1000 queries
                     logDuration = None
@@ -71,7 +71,7 @@ class Watcher(AgentBase):
                         firstTime = datetime.datetime.strptime(line[:23], "%Y-%m-%d %H:%M:%S,%f")
                         if lastTime is not None:
                             logDuration = lastTime - firstTime
-                    except:
+                    except Exception:
                         pass
                     tmpMsg = 'last log message at {0}. '.format(lastTime)
                     if logDuration is not None:
@@ -142,6 +142,6 @@ class Watcher(AgentBase):
                     mainLog.debug('skip as {0} is missing'.format(logFileName))
         except IOError:
             mainLog.debug('skip as locked by another thread or too early to check')
-        except:
+        except Exception:
             core_utils.dump_error_message(mainLog)
         mainLog.debug('done')

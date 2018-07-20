@@ -22,22 +22,22 @@ class DummyDynamicWorkerMaker(PluginBase):
             for jobSpec in jobspec_list:
                 try:
                     workSpec.nCore += jobSpec.jobParams['coreCount']
-                except:
+                except Exception:
                     workSpec.nCore += 1
                 try:
                     workSpec.minRamCount += jobSpec.jobParams['minRamCount']
-                except:
+                except Exception:
                     pass
                 try:
                     workSpec.maxDiskCount += jobSpec.jobParams['maxDiskCount']
-                except:
+                except Exception:
                     pass
                 try:
                     if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
                         workSpec.maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams['maxWalltime'])
                     else:
                         workSpec.maxWalltime = queue_config.walltimeLimit
-                except:
+                except Exception:
                     pass
         return workSpec
 
