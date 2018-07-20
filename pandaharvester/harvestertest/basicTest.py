@@ -10,7 +10,7 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 try:
     os.remove(harvester_config.db.database_filename)
-except:
+except Exception:
     pass
 
 for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
