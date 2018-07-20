@@ -374,7 +374,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False):
                         workspec.submissionHost, workspec.batchID))
         newStatus = WorkSpec.ST_cancelled
         tmpLog.info('submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}'.format(
-                        workspec.submissionHost, workspec.batchID, batchStatus, newStatus))
+                        workspec.submissionHost, workspec.batchID, '3', newStatus))
 
     ## Return
     return (newStatus, errStr)
