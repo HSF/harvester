@@ -40,6 +40,8 @@ class ResourceTypeMapper:
             resource_type_cache = db_proxy.get_cache('resource_types.json')
             if resource_type_cache:
                 resource_type_list = resource_type_cache.data
+            else:
+                resource_type_list = []
 
             for resource_type_dict in resource_type_list:
                 try:
