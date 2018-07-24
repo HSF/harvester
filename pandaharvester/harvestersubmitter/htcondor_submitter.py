@@ -416,7 +416,7 @@ class HTCondorSubmitter(PluginBase):
                     # Manually define site condor schedd as ceHostname and central manager as ceEndpoint
                     if self.ceHostname and isinstance(self.ceHostname, list) and len(self.ceHostname) > 0:
                         if isinstance(self.ceEndpoint, list) and len(self.ceEndpoint) > 0:
-                            ce_info_dict['ce_hostname'], ce_info_dict['ce_endpoint'] = random.choice(zip(self.ceHostname, self.ceEndpoint))
+                            ce_info_dict['ce_hostname'], ce_info_dict['ce_endpoint'] = random.choice(list(zip(self.ceHostname, self.ceEndpoint)))
                         else:
                             ce_info_dict['ce_hostname'] = random.choice(self.ceHostname)
                             ce_info_dict['ce_endpoint'] = self.ceEndpoint
@@ -429,13 +429,22 @@ class HTCondorSubmitter(PluginBase):
             # Choose from Condor schedd and central managers
             if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
                 if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
-                    condor_schedd, condor_pool = random.choice(zip(self.condorSchedd, self.condorPool))
+                    condor_schedd, condor_pool = random.choice(list(zip(self.condorSchedd, self.condorPool)))
                 else:
                     condor_schedd = random.choice(self.condorSchedd)
                     condor_pool = self.condorPool
             else:
                 condor_schedd = self.condorSchedd
                 condor_pool = self.condorPool
+
+            # Log Base URL
+            if self.logBaseURL and '[ScheddHostname]' in self.logBaseURL:
+                schedd_hostname = re.sub(r'(?:[a-zA-Z0-9_.\-]*@)?([a-zA-Z0-9.\-]+)(?::[0-9]+)?',
+                                            lambda matchobj: matchobj.group(1) if matchobj.group(1) else '',
+                                            condor_schedd)
+                log_base_url = re.sub(r'\[ScheddHostname\]', schedd_hostname, self.logBaseURL)
+            else:
+                log_base_url = self.logBaseURL
 
             # template for batch script
             tmpFile = open(self.templateFile)
@@ -466,7 +475,7 @@ class HTCondorSubmitter(PluginBase):
                 n_core_per_node = n_core_per_node_from_queue
 
             # URLs for log files
-            if not (self.logBaseURL is None):
+            if not (log_base_url is None):
                 if workspec.batchID:
                     batchID = workspec.batchID
                     guess = False
@@ -476,9 +485,9 @@ class HTCondorSubmitter(PluginBase):
                 batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
                 stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
                 stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                batch_log = '{0}/{1}/{2}'.format(self.logBaseURL, log_subdir, batch_log_filename)
-                batch_stdout = '{0}/{1}/{2}'.format(self.logBaseURL, log_subdir, stdout_path_file_name)
-                batch_stderr = '{0}/{1}/{2}'.format(self.logBaseURL, log_subdir, stderr_path_filename)
+                batch_log = '{0}/{1}/{2}'.format(log_base_url, log_subdir, batch_log_filename)
+                batch_stdout = '{0}/{1}/{2}'.format(log_base_url, log_subdir, stdout_path_file_name)
+                batch_stderr = '{0}/{1}/{2}'.format(log_base_url, log_subdir, stderr_path_filename)
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
                 workspec.set_log_file('stderr', batch_stderr)
