@@ -128,6 +128,7 @@ class YodaRucioRseDirectStager(BaseStager):
                         tmpLog.debug('Files for Rucio Rule {0} successfully transferred'.format(rucioRule))
                         self.dbInterface.update_file_group_status(rucioRule, 'transferred')
                         # set the fileSpec status for these files 
+                        self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
                         self.set_FileSpec_status(jobspec,'finished')
                     elif result['state'] == "FAILED" :
                         # failed Rucio Transfer
