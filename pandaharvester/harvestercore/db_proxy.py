@@ -162,7 +162,8 @@ class DBProxy:
                 conLock.release()
         # return
         if harvester_config.db.verbose:
-            self.verbLog.debug('thr={0}  {1}  sql=[{2}]'.format(self.thrName, sw.get_elapsed_time(), newSQL.replace('\n', ' ').strip()))
+            self.verbLog.debug('thr={0}  {1}  sql=[{2}]'.format(self.thrName, sw.get_elapsed_time(),
+                                                                newSQL.replace('\n', ' ').strip()))
         return retVal
 
     # wrapper for executemany
@@ -4404,10 +4405,10 @@ class DBProxy:
             return None
 
     # purge a panda queue
-    def purge_pq(self, queueName):
+    def purge_pq(self, queue_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'queueName={0}'.format(queueName),
+            tmpLog = core_utils.make_logger(_logger, 'queueName={0}'.format(queue_name),
                                             method_name='purge_pq')
             tmpLog.debug('start')
             # sql to get jobs
@@ -4445,7 +4446,7 @@ class DBProxy:
             sqlDP += "WHERE queueName=:queueName "
             # get jobs
             varMap = dict()
-            varMap[':computingSite'] = queueName
+            varMap[':computingSite'] = queue_name
             self.execute(sqlJ, varMap)
             resJ = self.cur.fetchall()
             for pandaID, in resJ:
@@ -4461,7 +4462,7 @@ class DBProxy:
                 self.execute(sqlDRJ, varMap)
             # get workers
             varMap = dict()
-            varMap[':computingSite'] = queueName
+            varMap[':computingSite'] = queue_name
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             for workerID, in resW:
@@ -4473,7 +4474,7 @@ class DBProxy:
                 self.execute(sqlDRW, varMap)
             # get queue configs
             varMap = dict()
-            varMap[':queueName'] = queueName
+            varMap[':queueName'] = queue_name
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             for configID, in resQ:
@@ -4483,7 +4484,7 @@ class DBProxy:
                 self.execute(sqlDQ, varMap)
             # delete panda queue
             varMap = dict()
-            varMap[':queueName'] = queueName
+            varMap[':queueName'] = queue_name
             self.execute(sqlDP, varMap)
             # commit
             self.commit()
