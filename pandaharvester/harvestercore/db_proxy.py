@@ -1713,7 +1713,6 @@ class DBProxy:
                     workSpec.pandaid_list = []
                     for pandaID, in resA:
                         workSpec.pandaid_list.append(pandaID)
-                    nWorkers += 1
                 # commit
                 self.commit()
             tmpLog.debug('got {0} workers'.format(len(retVal)))
