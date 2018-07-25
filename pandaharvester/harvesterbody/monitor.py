@@ -119,7 +119,8 @@ class Monitor(AgentBase):
                                 if fifoProtectiveDequeue:
                                     obj_dequeued_id_list.append(obj_gotten.id)
                                 queueName, workSpecsList = obj_gotten.item
-                                mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
+                                mainLog.debug('got a chunk of {0} workers of {1} from FIFO'.format(len(workSpecsList), queueName) + sw.get_elapsed_time())
+                                sw.reset()
                                 configID = workSpecsList[0][0].configID
                                 for workSpecs in workSpecsList:
                                     for workSpec in workSpecs:
@@ -156,7 +157,7 @@ class Monitor(AgentBase):
                                     except Exception as errStr:
                                         mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
                                         to_break = True
-                                    mainLog.debug('check {0} workers from FIFO'.format(len(workSpecsToEnqueue)) + sw.get_elapsed_time())
+                                    mainLog.debug('check {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
                                     n_loops += 1
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
