@@ -2,7 +2,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
-
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 import datetime
 
 
@@ -17,6 +17,8 @@ class SimpleWorkerMaker(PluginBase):
     def __init__(self, **kwarg):
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime']
         PluginBase.__init__(self, **kwarg)
+
+        self.rt_mapper = ResourceTypeMapper()
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
@@ -60,6 +62,9 @@ class SimpleWorkerMaker(PluginBase):
 
         # case of unified queue: look at the resource type and queue configuration
         else:
+            workSpec.nCore, workSpec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
+
+            """
             site_corecount = queue_dict.get('corecount', 1) or 1
             site_maxrss = queue_dict.get('maxrss', 1) or 1
 
@@ -72,6 +77,7 @@ class SimpleWorkerMaker(PluginBase):
                 # default values
                 workSpec.nCore = site_corecount
                 workSpec.minRamCount = site_maxrss
+            """
 
 
         # parameters that are independent on traditional vs unified

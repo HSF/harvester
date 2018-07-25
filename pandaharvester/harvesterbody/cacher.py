@@ -109,6 +109,13 @@ class Cacher(AgentBase):
                     tmp_log.error(outStr)
             except Exception:
                 core_utils.dump_error_message(tmp_log)
+        elif info_url.startswith('panda_server:'):
+            try:
+                retVal, outStr = self.communicator.get_resource_types()
+                if not retVal:
+                    tmp_log.error(outStr)
+            except Exception:
+                core_utils.dump_error_message(tmp_log)
         else:
             errMsg = 'unsupported protocol for {0}'.format(info_url)
             tmp_log.error(errMsg)

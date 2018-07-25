@@ -86,6 +86,31 @@ class YodaRucioRseDirectStager(BaseStager):
         tmpLog = self.make_logger(baseLogger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
                                   method_name='check_status')
         tmpLog.debug('start')
+        # check that jobspec.computingSite is defined
+        if jobspec.computingSite is None:
+            # not found
+            tmpLog.error('jobspec.computingSite is not defined')
+            return False, 'jobspec.computingSite is not defined'
+        else:
+            tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
+        # get the queueConfig and corresponding objStoreID_ES
+        queueConfigMapper = QueueConfigMapper()
+        queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
+        # write to debug log queueConfig.stager
+        tmpLog.debug('jobspec.computingSite - {0} queueConfig.stager {1}'.format(jobspec.computingSite,queueConfig.stager))
+        # check queueConfig stager section to see if jobtype is set
+        if 'jobtype' in queueConfig.stager:
+            if queueConfig.stager['jobtype'] == "Yoda" :
+                self.Yodajob = True
+        # set the location of the files in fileSpec.objstoreID
+        # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
+        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
+        if self.Yodajob :
+            self.pathConvention = int(queueConfig.stager['pathConvention'])
+            tmpLog.debug('Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}'.format(jobspec.PandaID,self.objstoreID,self.pathConvention))
+        else:
+            self.pathConvention = None
+            tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
         # Get the files grouped by Rucio Rule ID 
         groups = jobspec.get_groups_of_output_files()
         if len(groups) == 0:
@@ -113,7 +138,8 @@ class YodaRucioRseDirectStager(BaseStager):
             groupStatus = self.dbInterface.get_file_group_status(rucioRule)
             tmpLog.debug('rucioRule - {0} - groupStatus - {1}'.format(rucioRule,groupStatus))
             if 'transferred' in groupStatus:
-                # already succeeded
+                # already succeeded - set the fileSpec status for these files 
+                self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
                 pass
             elif 'failed' in groupStatus :
                 # transfer failure
@@ -128,6 +154,7 @@ class YodaRucioRseDirectStager(BaseStager):
                         tmpLog.debug('Files for Rucio Rule {0} successfully transferred'.format(rucioRule))
                         self.dbInterface.update_file_group_status(rucioRule, 'transferred')
                         # set the fileSpec status for these files 
+                        self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
                         self.set_FileSpec_status(jobspec,'finished')
                     elif result['state'] == "FAILED" :
                         # failed Rucio Transfer
