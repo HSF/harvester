@@ -56,7 +56,7 @@ class Monitor(AgentBase):
         if monitor_fifo.enabled:
             monitor_fifo.restore()
         while True:
-            sw = core_utils.get_stopwatch()
+            sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
 
             if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime:
@@ -94,6 +94,7 @@ class Monitor(AgentBase):
                 mainLog.debug('ended run with DB')
             elif monitor_fifo.enabled:
                 # run with workers from FIFO
+                sw = core_utils.get_stopwatch()
                 n_loops = 0
                 last_fifo_cycle_timestamp = time.time()
                 to_break = False
@@ -103,6 +104,7 @@ class Monitor(AgentBase):
                 remaining_obj_to_enqueue_dict = {}
                 remaining_obj_to_enqueue_to_head_dict = {}
                 while n_loops == 0 or time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
+                    sw.reset()
                     if monitor_fifo.to_check_workers():
                         # check fifo size
                         fifo_size = monitor_fifo.size()
@@ -154,6 +156,8 @@ class Monitor(AgentBase):
                                     except Exception as errStr:
                                         mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
                                         to_break = True
+                                    mainLog.debug('check {0} workers from FIFO'.format(len(workSpecsToEnqueue)) + sw.get_elapsed_time())
+                                    n_loops += 1
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
                                 if to_break:
@@ -163,8 +167,10 @@ class Monitor(AgentBase):
                     else:
                         mainLog.debug('workers in FIFO too young to check. Skipped')
                         time.sleep(sleepTime)
-                    n_loops += 1
+
                 # enqueue to fifo
+                sw.reset()
+                n_chunk_put = 0
                 mainLog.debug('putting worker chunks to FIFO')
                 for _dct in (obj_to_enqueue_dict, remaining_obj_to_enqueue_dict):
                     for queueName, obj_to_enqueue in iteritems(_dct):
@@ -173,6 +179,7 @@ class Monitor(AgentBase):
                             if workSpecsToEnqueue:
                                 score = fifoCheckInterval + timeNow_timestamp
                                 monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                n_chunk_put += 1
                                 mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
                                                 len(workSpecsToEnqueue), queueName, score))
                         except Exception as errStr:
@@ -185,6 +192,7 @@ class Monitor(AgentBase):
                             if workSpecsToEnqueueToHead:
                                 score = fifoCheckInterval - timeNow_timestamp
                                 monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                n_chunk_put += 1
                                 mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
                                                 len(workSpecsToEnqueueToHead), queueName, score))
                         except Exception as errStr:
@@ -192,12 +200,13 @@ class Monitor(AgentBase):
                 # release protective dequeued objects
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
                     monitor_fifo.release(ids=obj_dequeued_id_list)
+                mainLog.debug('put {0} worker chunks into FIFO'.format(n_chunk_put) + sw.get_elapsed_time())
                 mainLog.debug('ended run with FIFO')
 
-            if sw.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
-                mainLog.warning('a single cycle was longer than lockInterval ' + sw.get_elapsed_time())
+            if sw_main.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
+                mainLog.warning('a single cycle was longer than lockInterval ' + sw_main.get_elapsed_time())
             else:
-                mainLog.debug('done' + sw.get_elapsed_time())
+                mainLog.debug('done' + sw_main.get_elapsed_time())
 
             # check if being terminated
             if self.terminated(sleepTime):
