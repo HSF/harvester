@@ -6,6 +6,7 @@ database connection
 import re
 import sys
 import copy
+import random
 import inspect
 import datetime
 import threading
@@ -838,11 +839,14 @@ class DBProxy:
                                             method_name='get_jobs_to_propagate')
             tmpLog.debug('start')
             # sql to get jobs
-            sql = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sql = "SELECT PandaID FROM {0} ".format(jobTableName)
             sql += "WHERE propagatorTime IS NOT NULL "
             sql += "AND ((propagatorTime<:lockTimeLimit AND propagatorLock IS NOT NULL) "
             sql += "OR (propagatorTime<:updateTimeLimit AND propagatorLock IS NULL)) "
             sql += "ORDER BY propagatorTime LIMIT {0} ".format(max_jobs)
+            # sql to get jobs
+            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sqlJ += "WHERE PandaID=:PandaID "
             # sql to lock job
             sqlL = "UPDATE {0} SET propagatorTime=:timeNow,propagatorLock=:lockedBy ".format(jobTableName)
             sqlL += "WHERE PandaID=:PandaID "
@@ -871,18 +875,24 @@ class DBProxy:
             varMap[':updateTimeLimit'] = updateTimeLimit
             self.execute(sql, varMap)
             resList = self.cur.fetchall()
+            pandaIDs = []
+            for pandaID, in resList:
+                pandaIDs.append(pandaID)
+            # partially randomise to increase success rate for lock
+            nJobs = int(max_jobs * 0.2)
+            subPandaIDs = list(pandaIDs[nJobs:])
+            random.shuffle(subPandaIDs)
+            pandaIDs = pandaIDs[:nJobs] + subPandaIDs
+            pandaIDs = pandaIDs[:max_jobs]
             jobSpecList = []
             iEvents = 0
-            for res in resList:
+            for pandaID in pandaIDs:
                 # avoid a bulk update for many jobs with too many events
                 if iEvents > 10000:
                     break
-                # make job
-                jobSpec = JobSpec()
-                jobSpec.pack(res)
                 # lock job
                 varMap = dict()
-                varMap[':PandaID'] = jobSpec.PandaID
+                varMap[':PandaID'] = pandaID
                 varMap[':timeNow'] = timeNow
                 varMap[':lockedBy'] = locked_by
                 varMap[':lockTimeLimit'] = lockTimeLimit
@@ -892,6 +902,14 @@ class DBProxy:
                 # commit
                 self.commit()
                 if nRow > 0:
+                    # read job
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    self.execute(sqlJ, varMap)
+                    res = self.cur.fetchone()
+                    # make job
+                    jobSpec = JobSpec()
+                    jobSpec.pack(res)
                     jobSpec.propagatorLock = locked_by
                     zipFiles = {}
                     zipIdMap = dict()
@@ -1015,8 +1033,17 @@ class DBProxy:
                 varMap[':updateTimeLimit'] = timeNow - datetime.timedelta(seconds=interval_without_lock)
             self.execute(sql, varMap)
             resList = self.cur.fetchall()
-            jobSpecList = []
+            pandaIDs = []
             for pandaID, in resList:
+                pandaIDs.append(pandaID)
+            # partially randomise to increase success rate for lock
+            nJobs = int(max_jobs * 0.2)
+            subPandaIDs = list(pandaIDs[nJobs:])
+            random.shuffle(subPandaIDs)
+            pandaIDs = pandaIDs[:nJobs] + subPandaIDs
+            pandaIDs = pandaIDs[:max_jobs]
+            jobSpecList = []
+            for pandaID in pandaIDs:
                 # lock job
                 if locked_by is not None:
                     varMap = dict()
@@ -1058,9 +1085,6 @@ class DBProxy:
                         jobSpec.add_in_file(fileSpec)
                     # append
                     jobSpecList.append(jobSpec)
-                    # enough jobs
-                    if len(jobSpecList) >= max_jobs:
-                        break
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
         except Exception:
@@ -1654,11 +1678,16 @@ class DBProxy:
             varMap[':checkTimeLimit'] = timeLimit
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
-            tmpWorkers = set()
+            tmpWorkers = []
             for workerID, in resW:
-                tmpWorkers.add(workerID)
+                tmpWorkers.append(workerID)
+            # partially randomize to increase hit rate
+            nWorkers = int(max_workers * 0.2)
+            subTmpWorkers = list(tmpWorkers[nWorkers:])
+            random.shuffle(subTmpWorkers)
+            tmpWorkers = tmpWorkers[:nWorkers] + subTmpWorkers
+            tmpWorkers = tmpWorkers[:max_workers]
             retVal = []
-            nWorkers = 0
             for workerID in tmpWorkers:
                 # lock worker
                 varMap = dict()
@@ -1687,8 +1716,6 @@ class DBProxy:
                     nWorkers += 1
                 # commit
                 self.commit()
-                if nWorkers >= max_workers:
-                    break
             tmpLog.debug('got {0} workers'.format(len(retVal)))
             return retVal
         except Exception:

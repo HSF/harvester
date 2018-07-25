@@ -84,6 +84,10 @@ class SpecBase(object):
         if name in self.changedAttrs:
             del self.changedAttrs[name]
 
+    # check if attributes are updated
+    def has_updated_attributes(self):
+        return len(self.changedAttrs) > 0
+
     # pack into attributes
     def pack(self, values):
         if hasattr(values, '_asdict'):
