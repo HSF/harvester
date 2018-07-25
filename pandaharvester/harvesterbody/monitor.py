@@ -354,6 +354,7 @@ class Monitor(AgentBase):
                     newStatus = tmpOut['newStatus']
                     monStatus = tmpOut['monStatus']
                     if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
+                        and monStatus not in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled, WorkSpec.ST_missed] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
                         and workSpec.workAttributes is not None:
                         forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
