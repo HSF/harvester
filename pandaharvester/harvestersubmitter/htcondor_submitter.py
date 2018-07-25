@@ -88,6 +88,7 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
 # submit a worker
 def submit_a_worker(data):
     workspec = data['workspec']
+    to_submit = data['to_submit']
     ce_info_dict = data['ce_info_dict']
     batch_log_dict = data['batch_log_dict']
     condor_schedd = data['condor_schedd']
@@ -97,6 +98,12 @@ def submit_a_worker(data):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
+    # no need to submit bad workers
+    if not to_submit:
+        errStr = 'Not submitted, due to incomplete data of the worker'
+        tmpLog.warning(errStr)
+        tmpRetVal = (None, errStr)
+        return tmpRetVal, workspec.get_changed_attributes()
     # make batch script
     batchFile = make_batch_script(**data)
     # make condor remote options
@@ -361,6 +368,7 @@ class HTCondorSubmitter(PluginBase):
                                             method_name='_handle_one_worker')
 
             # get default information from queue info
+            to_submit = True
             n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
             is_unified_queue = 'unifiedPandaQueue' in this_panda_queue_dict.get('catchall', '').split(',') \
                                or this_panda_queue_dict.get('capability', '') == 'ucore'
@@ -398,19 +406,25 @@ class HTCondorSubmitter(PluginBase):
                     good_ce_weighted_list.extend([_ce_endpoint] * ce_weight_dict.get(_ce_endpoint, 0))
                 tmpLog.debug('queue_status_dict: {0} ; worker_ce_stats_dict: {1} ; ce_weight_dict: {2}'.format(
                         queue_status_dict, worker_ce_stats_dict, ce_weight_dict))
-                if len(good_ce_weighted_list) > 0:
-                    ce_info_dict = ce_auxilary_dict[random.choice(good_ce_weighted_list)].copy()
+                try:
+                    if len(good_ce_weighted_list) > 0:
+                            ce_info_dict = ce_auxilary_dict[random.choice(good_ce_weighted_list)].copy()
+                    else:
+                        tmpLog.info('No good CE endpoint left. Choose an arbitrary CE endpoint')
+                        ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
+                except IndexError:
+                    tmpLog.error('No valid CE endpoint found')
+                    ce_info_dict = {}
+                    to_submit = False
                 else:
-                    tmpLog.info('No good CE endpoint left. Choose an arbitrary CE endpoint')
-                    ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
-                ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
-                ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
-                ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
-                if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
-                    sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
-                    self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
+                    ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
+                    ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
+                    ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                    ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
+                    tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
+                    if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                        sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
+                        self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
             else:
                 try:
                     # Manually define site condor schedd as ceHostname and central manager as ceEndpoint
@@ -501,6 +515,7 @@ class HTCondorSubmitter(PluginBase):
 
             # set data dict
             data = {'workspec': workspec,
+                    'to_submit': to_submit,
                     'template': sdf_template,
                     'log_dir': self.logDir,
                     'log_subdir': log_subdir,
