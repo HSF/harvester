@@ -1634,6 +1634,7 @@ class DBProxy:
                     varMap[':timeNow'] = timeNow
                     self.execute(sqlL, varMap)
                     workSpec.lockedBy = locked_by
+                    workSpec.force_not_update('lockedBy')
                 # commit
                 self.commit()
                 # add
@@ -2050,10 +2051,6 @@ class DBProxy:
                                                 method_name='update_jobs_workers')
                 tmpLog.debug('update')
                 workSpec.lockedBy = None
-                if not workSpec.nextLookup:
-                    workSpec.modificationTime = timeNow
-                else:
-                    workSpec.nextLookup = False
                 if workSpec.status == WorkSpec.ST_running and workSpec.startTime is None:
                     workSpec.startTime = timeNow
                 elif workSpec.is_final_status():
@@ -2061,6 +2058,11 @@ class DBProxy:
                         workSpec.startTime = timeNow
                     if workSpec.endTime is None:
                         workSpec.endTime = timeNow
+                if not workSpec.nextLookup:
+                    if workSpec.has_updated_attributes():
+                        workSpec.modificationTime = timeNow
+                else:
+                    workSpec.nextLookup = False
                 # sql to update worker
                 sqlW = "UPDATE {0} SET {1} ".format(workTableName, workSpec.bind_update_changes_expression())
                 sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
@@ -4282,7 +4284,7 @@ class DBProxy:
             return {}
 
     # lock workers for specific thread
-    def lock_workers(self, worker_id_list, lock_interval, locked_by):
+    def lock_workers(self, worker_id_list, lock_interval):
         try:
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
@@ -4290,18 +4292,24 @@ class DBProxy:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='lock_worker')
             tmpLog.debug('start')
-            # sql to lock worker
-            sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
-            sqlL += "WHERE workerID=:workerID AND (lockedBy IS NULL "
-            sqlL += "OR (modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL)) "
             # loop
-            for worker_id in worker_id_list:
-                # lock worker
+            for worker_id, attrs in iteritems(worker_id_list):
                 varMap = dict()
                 varMap[':workerID'] = worker_id
-                varMap[':lockedBy'] = locked_by
                 varMap[':timeNow'] = timeNow
                 varMap[':lockTimeLimit'] = lockTimeLimit
+                # extract lockedBy
+                varMap[':lockedBy'] = attrs['lockedBy']
+                if attrs['lockedBy'] is None:
+                    del attrs['lockedBy']
+                # sql to lock worker
+                sqlL = "UPDATE {0} SET modificationTime=:timeNow".format(workTableName)
+                for attrKey, attrVal in iteritems(attrs):
+                    sqlL += ',{0}=:{0}'.format(attrKey)
+                    varMap[':{0}'.format(attrKey)] = attrVal
+                sqlL += " WHERE workerID=:workerID AND (lockedBy IS NULL "
+                sqlL += "OR (modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL)) "
+                # lock worker
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
                 tmpLog.debug('done with {0}'.format(nRow))
@@ -4318,7 +4326,7 @@ class DBProxy:
             # dump error
             core_utils.dump_error_message(_logger)
             # return
-            return {}
+            return False
 
     # get queue config dumps
     def get_queue_config_dumps(self):

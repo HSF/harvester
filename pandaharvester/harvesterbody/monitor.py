@@ -58,8 +58,10 @@ class Monitor(AgentBase):
         while True:
             sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
+            mainLog.debug('start a cycle')
 
-            if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime:
+            if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and \
+                    not (monitor_fifo.enabled and self.singleMode):
                 # run with workers from DB
                 mainLog.debug('starting run with DB')
                 mainLog.debug('getting workers to monitor')
@@ -157,7 +159,7 @@ class Monitor(AgentBase):
                                     except Exception as errStr:
                                         mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
                                         to_break = True
-                                    mainLog.debug('check {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
+                                    mainLog.debug('checked {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
                                     n_loops += 1
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
@@ -167,6 +169,8 @@ class Monitor(AgentBase):
                                 mainLog.debug('got nothing in FIFO')
                     else:
                         mainLog.debug('workers in FIFO too young to check. Skipped')
+                        if self.singleMode:
+                            break
                         time.sleep(sleepTime)
 
                 # enqueue to fifo
@@ -207,7 +211,7 @@ class Monitor(AgentBase):
             if sw_main.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
                 mainLog.warning('a single cycle was longer than lockInterval ' + sw_main.get_elapsed_time())
             else:
-                mainLog.debug('done' + sw_main.get_elapsed_time())
+                mainLog.debug('done a cycle' + sw_main.get_elapsed_time())
 
             # check if being terminated
             if self.terminated(sleepTime):
@@ -254,17 +258,8 @@ class Monitor(AgentBase):
                 pandaIDsList = []
                 eventsToUpdateList = []
                 filesToStageOutList = []
+                isCheckedList = []
                 mapType = workSpecs[0].mapType
-                # lock workers for fifo
-                temRetLockWorker = None
-                if from_fifo:
-                    # lock workers
-                    worker_id_list = [w.workerID for w in workSpecs]
-                    temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
-                                            harvester_config.monitor.lockInterval, lockedBy)
-                    # skip if not locked
-                    if not temRetLockWorker:
-                        continue
                 # loop over workSpecs
                 for workSpec in workSpecs:
                     tmpLog = self.make_logger(_logger,
@@ -287,9 +282,6 @@ class Monitor(AgentBase):
                                                workSpec.is_post_processed(),
                                                str(filesToStageOut)))
                     iWorker += 1
-                    if from_fifo:
-                        workSpec.lockedBy = lockedBy
-                        workSpec.force_update('lockedBy')
                     # check status
                     if newStatus not in WorkSpec.ST_LIST:
                         tmpLog.error('unknown status={0}'.format(newStatus))
@@ -300,6 +292,7 @@ class Monitor(AgentBase):
                     workSpec.set_dialog_message(diagMessage)
                     if isChecked:
                         workSpec.checkTime = datetime.datetime.utcnow()
+                    isCheckedList.append(isChecked)
                     if monStatus == WorkSpec.ST_failed:
                         if not workSpec.has_pilot_error():
                             workSpec.set_pilot_error(PilotErrors.ERR_GENERALERROR, diagMessage)
@@ -324,19 +317,32 @@ class Monitor(AgentBase):
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
                         filesToStageOutList.append(filesToStageOut)
+                # lock workers for fifo
+                if from_fifo:
+                    # collect some attributes to be updated when wokers are locked
+                    worker_id_list = dict()
+                    for workSpec, isChecked in zip(workSpecs, isCheckedList):
+                        attrs = dict()
+                        if isChecked:
+                            attrs['checkTime'] = workSpec.checkTime
+                            workSpec.force_not_update('checkTime')
+                        if workSpec.has_updated_attributes():
+                            attrs['lockedBy'] = lockedBy
+                            workSpec.lockedBy = lockedBy
+                            workSpec.force_not_update('lockedBy')
+                        else:
+                            attrs['lockedBy'] = None
+                        worker_id_list[workSpec.workerID] = attrs
+                    temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
+                                                                 harvester_config.monitor.lockInterval)
+                    # skip if not locked
+                    if not temRetLockWorker:
+                        continue
                 # update jobs and workers
                 if jobSpecs is not None:
                     tmpQueLog.debug('updating {0} jobs with {1} workers'.format(len(jobSpecs), len(workSpecs)))
                     core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs,
                                                                   filesToStageOutList, eventsToUpdateList)
-                    for jobSpec in jobSpecs:
-                        tmpLog = self.make_logger(_logger,
-                                                  'id={0} PandaID={1}'.format(lockedBy, jobSpec.PandaID),
-                                                  method_name='run')
-                        tmpLog.debug('new status={0} subStatus={1} status_in_metadata={2}'.format(
-                            jobSpec.status,
-                            jobSpec.subStatus,
-                            jobSpec.get_job_status_from_attributes()))
                 # update local database
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:
@@ -348,7 +354,16 @@ class Monitor(AgentBase):
                             tmpLog.info('failed to update the DB. Maybe locked by other thread running with DB')
                         else:
                             tmpLog.error('failed to update the DB. lockInterval may be too short')
-                        sendWarning = True
+                else:
+                    if jobSpecs is not None:
+                        for jobSpec in jobSpecs:
+                            tmpLog = self.make_logger(_logger,
+                                                      'id={0} PandaID={1}'.format(lockedBy, jobSpec.PandaID),
+                                                      method_name='run')
+                            tmpLog.debug('new status={0} subStatus={1} status_in_metadata={2}'.format(
+                                jobSpec.status,
+                                jobSpec.subStatus,
+                                jobSpec.get_job_status_from_attributes()))
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                     for workSpec in workSpecs:

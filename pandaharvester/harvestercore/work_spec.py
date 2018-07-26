@@ -100,6 +100,13 @@ class WorkSpec(SpecBase):
         object.__setattr__(self, 'new_status', False)
         object.__setattr__(self, 'pilot_closed', False)
 
+    # keep state for pickle
+    def __getstate__(self):
+        odict = SpecBase.__getstate__(self)
+        del odict['isNew']
+        del odict['new_status']
+        return odict
+
     # set status
     def set_status(self, value):
         if self.status != value:
