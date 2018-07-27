@@ -50,6 +50,11 @@ CONDOR_JOB_STATUS_MAP = {
     }
 
 
+## generate condor job id with schedd host from workspec
+def condor_job_id_from_workspec(workspec):
+    return '{0}#{1}'.format(workspec.submissionHost, workspec.batchID)
+
+
 ## Singleton distinguishable with ID
 class SingletonWithID(type):
     def __init__(cls, *args,**kwargs):
@@ -171,7 +176,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                         attribute_iter = map(_getAttribute_tuple, _c.findall('a'))
                         job_ads_dict.update(attribute_iter)
                         batchid = str(job_ads_dict['ClusterId'])
-                        job_ads_all_dict[batchid] = job_ads_dict
+                        condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                        job_ads_all_dict[condor_job_id] = job_ads_dict
                         ## Remove batch jobs already gotten from the list
                         if batchid in batchIDs_list:
                             batchIDs_list.remove(batchid)
@@ -186,7 +192,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         if len(batchIDs_list) > 0:
             ## Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_list:
-                job_ads_all_dict[batchid] = dict()
+                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                job_ads_all_dict[condor_job_id] = dict()
             tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
                             self.submissionHost, ' '.join(batchIDs_list) ) )
         ## Return
@@ -210,7 +217,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             for job in jobs_iter:
                 job_ads_dict = dict(job)
                 batchid = str(job_ads_dict['ClusterId'])
-                job_ads_all_dict[batchid] = job_ads_dict
+                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                job_ads_all_dict[condor_job_id] = job_ads_dict
                 ## Remove batch jobs already gotten from the list
                 if batchid in batchIDs_list:
                     batchIDs_list.remove(batchid)
@@ -220,7 +228,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         if len(batchIDs_list) > 0:
             ## Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_list:
-                job_ads_all_dict[batchid] = dict()
+                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                job_ads_all_dict[condor_job_id] = dict()
             tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
                             self.submissionHost, ' '.join(batchIDs_list) ) )
         ## Return
@@ -280,7 +289,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False):
         pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
 
     try:
-        job_ads_dict = job_ads_all_dict[str(workspec.batchID)]
+        job_ads_dict = job_ads_all_dict[condor_job_id_from_workspec(workspec)]
     except KeyError:
         got_job_ads = False
     except Exception as e:
@@ -370,11 +379,16 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False):
                             workspec.submissionHost, workspec.batchID, batchStatus, newStatus))
 
     else:
-        tmpLog.error('condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default'.format(
-                        workspec.submissionHost, workspec.batchID))
-        newStatus = WorkSpec.ST_cancelled
-        tmpLog.info('submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}'.format(
-                        workspec.submissionHost, workspec.batchID, '3', newStatus))
+        if cancel_unknown:
+            tmpLog.error('condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default'.format(
+                            workspec.submissionHost, workspec.batchID))
+            newStatus = WorkSpec.ST_cancelled
+            tmpLog.info('submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}'.format(
+                            workspec.submissionHost, workspec.batchID, '3', newStatus))
+        else:
+            tmpLog.error('condor job submissionHost={0} batchID={1} not found. Skipped'.format(
+                            workspec.submissionHost, workspec.batchID))
+            newStatus = None
 
     ## Return
     return (newStatus, errStr)
@@ -412,10 +426,11 @@ class HTCondorMonitor (PluginBase):
                 s_b_dict[_w.submissionHost] = [str(_w.batchID)]
 
         ## Loop over submissionHost
+        job_ads_all_dict = {}
         for submissionHost, batchIDs_list in six.iteritems(s_b_dict):
             ## Record batch job query result to this dict, with key = batchID
             job_query = CondorJobQuery(id=submissionHost)
-            job_ads_all_dict = job_query.get_all(batchIDs_list=batchIDs_list)
+            job_ads_all_dict.update(job_query.get_all(batchIDs_list=batchIDs_list))
 
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:
