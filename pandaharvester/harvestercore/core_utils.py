@@ -87,7 +87,7 @@ def dump_error_message(tmp_log, err_str=None, no_message=False):
 # sleep for random duration and return True if no more sleep is needed
 def sleep(interval, stop_event, randomize=True):
     if randomize and interval > 0:
-        randInterval = random.randint(int(interval * 0.8), int(interval * 1.2))
+        randInterval = random.randint(int(interval * 0.4), int(interval * 1.4))
     else:
         randInterval = interval
     if stop_event is None:

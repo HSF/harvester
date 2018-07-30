@@ -123,8 +123,10 @@ class Monitor(AgentBase):
                                 queueName, workSpecsList = obj_gotten.item
                                 mainLog.debug('got a chunk of {0} workers of {1} from FIFO'.format(len(workSpecsList), queueName) + sw.get_elapsed_time())
                                 sw.reset()
-                                configID = workSpecsList[0][0].configID
+                                configID = None
                                 for workSpecs in workSpecsList:
+                                    if configID is None and len(workSpecs) > 0:
+                                        configID = workSpecs[0].configID
                                     for workSpec in workSpecs:
                                         if workSpec.pandaid_list is None:
                                             _jobspec_list = workSpec.get_jobspec_list()
@@ -226,7 +228,7 @@ class Monitor(AgentBase):
         # check queue
         if not self.queueConfigMapper.has_queue(queueName, config_id):
             tmpQueLog.error('config not found')
-            return
+            return None
         # get queue
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
         # get plugins
