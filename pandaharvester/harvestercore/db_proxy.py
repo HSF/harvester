@@ -2066,10 +2066,15 @@ class DBProxy:
                 # sql to update worker
                 sqlW = "UPDATE {0} SET {1} ".format(workTableName, workSpec.bind_update_changes_expression())
                 sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
+                sqlW += "AND (status NOT IN (:st1,:st2,:st3,:st4)) "
                 varMap = workSpec.values_map(only_changed=True)
                 if len(varMap) > 0:
                     varMap[':workerID'] = workSpec.workerID
                     varMap[':cr_lockedBy'] = locked_by
+                    varMap[':st1'] = WorkSpec.ST_cancelled
+                    varMap[':st2'] = WorkSpec.ST_finished
+                    varMap[':st3'] = WorkSpec.ST_failed
+                    varMap[':st4'] = WorkSpec.ST_missed
                     self.execute(sqlW, varMap)
                     nRow = self.cur.rowcount
                     tmpLog.debug('done with {0}'.format(nRow))
@@ -4298,6 +4303,10 @@ class DBProxy:
                 varMap[':workerID'] = worker_id
                 varMap[':timeNow'] = timeNow
                 varMap[':lockTimeLimit'] = lockTimeLimit
+                varMap[':st1'] = WorkSpec.ST_cancelled
+                varMap[':st2'] = WorkSpec.ST_finished
+                varMap[':st3'] = WorkSpec.ST_failed
+                varMap[':st4'] = WorkSpec.ST_missed
                 # extract lockedBy
                 varMap[':lockedBy'] = attrs['lockedBy']
                 if attrs['lockedBy'] is None:
@@ -4309,6 +4318,7 @@ class DBProxy:
                     varMap[':{0}'.format(attrKey)] = attrVal
                 sqlL += " WHERE workerID=:workerID AND (lockedBy IS NULL "
                 sqlL += "OR (modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL)) "
+                sqlL += "AND (status NOT IN (:st1,:st2,:st3,:st4)) "
                 # lock worker
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
