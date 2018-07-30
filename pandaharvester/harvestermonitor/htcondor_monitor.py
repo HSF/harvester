@@ -271,7 +271,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 
 
 ## Check one worker
-def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False):
+def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_timeout=3600):
     # Make logger for one single worker
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='_check_one_worker')
 
@@ -330,7 +330,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False):
                 # 5 held
                 if (
                     job_ads_dict.get('HoldReason') == 'Job not found'
-                    or int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > 7200
+                    or int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > held_timeout
                     ):
                     # Kill the job if held too long or other reasons
                     (retCode, stdOut, stdErr) = _runShell('condor_rm {name_opt} {pool_opt} {batchID}'.format(
@@ -409,6 +409,10 @@ class HTCondorMonitor (PluginBase):
             self.cancelUnknown = False
         else:
             self.cancelUnknown = bool(self.cancelUnknown)
+        try:
+            self.heldTimeout
+        except AttributeError:
+            self.heldTimeout = 3600
 
     # check workers
     def check_workers(self, workspec_list):
@@ -434,7 +438,10 @@ class HTCondorMonitor (PluginBase):
 
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:
-            retIterator = _pool.map(lambda _x: _check_one_worker(_x, job_ads_all_dict, cancel_unknown=self.cancelUnknown), workspec_list)
+            retIterator = _pool.map(lambda _x: _check_one_worker(_x, job_ads_all_dict,
+                                                                    cancel_unknown=self.cancelUnknown,
+                                                                    held_timeout=self.heldTimeout),
+                                    workspec_list)
 
         retList = list(retIterator)
 
