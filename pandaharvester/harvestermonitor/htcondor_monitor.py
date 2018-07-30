@@ -439,8 +439,8 @@ class HTCondorMonitor (PluginBase):
         ## Check for all workers
         with Pool(self.nProcesses) as _pool:
             retIterator = _pool.map(lambda _x: _check_one_worker(_x, job_ads_all_dict,
-                                                                    cancel_unknown=self.cancelUnknown
-                                                                    held_timeout=self.heldTimeout), 
+                                                                    cancel_unknown=self.cancelUnknown,
+                                                                    held_timeout=self.heldTimeout),
                                     workspec_list)
 
         retList = list(retIterator)
