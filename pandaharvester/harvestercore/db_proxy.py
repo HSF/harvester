@@ -1010,7 +1010,7 @@ class DBProxy:
                 sql += "ORDER BY {0} ".format(time_column)
             # sql to lock job
             sqlL = "UPDATE {0} SET {1}=:timeNow,{2}=:lockedBy ".format(jobTableName, time_column, lock_column)
-            sqlL += "WHERE PandaID=:PandaID "
+            sqlL += "WHERE PandaID=:PandaID AND subStatus=:subStatus "
             if time_column is not None:
                 sqlL += "AND ({0} IS NULL ".format(time_column)
                 if interval_with_lock is not None:
@@ -1534,7 +1534,7 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get workers
             sqlW = "SELECT workerID,configID FROM {0} ".format(workTableName)
-            sqlW += "WHERE status IN (:st_submitted,:st_running) "
+            sqlW += "WHERE status IN (:st_submitted,:st_running,:st_idle) "
             sqlW += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlW += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
             sqlW += "ORDER BY modificationTime LIMIT {0} ".format(max_workers)
@@ -1547,8 +1547,9 @@ class DBProxy:
             sqlLT += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlLT += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
             # sql to get associated workerIDs
-            sqlA = "SELECT t.workerID FROM {0} t, {0} s ".format(jobWorkerTableName)
+            sqlA = "SELECT t.workerID FROM {0} t, {0} s, {1} w ".format(jobWorkerTableName, workTableName)
             sqlA += "WHERE s.PandaID=t.PandaID AND s.workerID=:workerID "
+            sqlA += "AND w.workerID=s.workerID AND w.status IN (:st_submitted,:st_running,:st_idle) "
             # sql to get associated workers
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "
@@ -1562,6 +1563,7 @@ class DBProxy:
             varMap = dict()
             varMap[':st_submitted'] = WorkSpec.ST_submitted
             varMap[':st_running'] = WorkSpec.ST_running
+            varMap[':st_idle'] = WorkSpec.ST_idle
             varMap[':lockTimeLimit'] = lockTimeLimit
             varMap[':checkTimeLimit'] = checkTimeLimit
             self.execute(sqlW, varMap)
@@ -1595,6 +1597,9 @@ class DBProxy:
                 # get associated workerIDs
                 varMap = dict()
                 varMap[':workerID'] = workerID
+                varMap[':st_submitted'] = WorkSpec.ST_submitted
+                varMap[':st_running'] = WorkSpec.ST_running
+                varMap[':st_idle'] = WorkSpec.ST_idle
                 self.execute(sqlA, varMap)
                 resA = self.cur.fetchall()
                 # get workers

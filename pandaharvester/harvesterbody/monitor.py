@@ -249,7 +249,7 @@ class Monitor(AgentBase):
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
-        tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog)
+        tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog, from_fifo)
         if tmpStat:
             # loop over all worker chunks
             tmpQueLog.debug('update jobs and workers')
@@ -431,7 +431,7 @@ class Monitor(AgentBase):
 
 
     # wrapper for checkWorkers
-    def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log):
+    def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log, from_fifo):
         # check timeout value
         try:
             checkTimeout = mon_core.checkTimeout
@@ -566,7 +566,8 @@ class Monitor(AgentBase):
                                 workSpec.post_processed()
                                 newStatus = WorkSpec.ST_running
                             # reset modification time to immediately trigger subsequent lookup
-                            workSpec.trigger_next_lookup()
+                            if not from_fifo:
+                                workSpec.trigger_next_lookup()
                         retMap[workerID]['newStatus'] = newStatus
                         retMap[workerID]['diagMessage'] = diagMessage
                     else:
