@@ -1,4 +1,5 @@
 import json
+import shutil
 import datetime
 import requests
 import requests.exceptions
@@ -40,10 +41,13 @@ class Cacher(AgentBase):
                 datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
             itemsList = []
             keysForceUpdate = []
+            nItems = 4
             for tmpStr in harvester_config.cacher.data:
                 tmpItems = tmpStr.split('|')
-                if len(tmpItems) != 3:
+                if len(tmpItems) < 3:
                     continue
+                tmpItems += [None] * (nItems - len(tmpItems))
+                tmpItems = tmpItems[:nItems]
                 itemsList.append(tmpItems)
             # add queues_config
             if core_utils.get_queues_config_url() is not None:
@@ -51,7 +55,7 @@ class Cacher(AgentBase):
                 itemsList.append((tmpKey, None, core_utils.get_queues_config_url()))
                 keysForceUpdate.append(tmpKey)
             # loop over all items
-            for mainKey, subKey, infoURL in itemsList:
+            for mainKey, subKey, infoURL, dumpFile in itemsList:
                 if subKey == '':
                     subKey = None
                 # check last update time
@@ -68,6 +72,16 @@ class Cacher(AgentBase):
                 tmpStat = self.dbProxy.refresh_cache(mainKey, subKey, newInfo)
                 if tmpStat:
                     mainLog.debug('refreshed key={0} subKey={1}'.format(mainKey, subKey))
+                    if dumpFile is not None:
+                        try:
+                            tmpFileName = dumpFile + '.tmp'
+                            with open(tmpFileName, 'w') as tmpFile:
+                                json.dump(newInfo, tmpFile)
+                            shutil.move(tmpFileName, dumpFile)
+                        except Exception:
+                            core_utils.dump_error_message(mainLog)
+                else:
+                    mainLog.error('failed to refresh key={0} subKey={1} due to a DB error'.format(mainKey, subKey))
             mainLog.debug('done')
 
 
