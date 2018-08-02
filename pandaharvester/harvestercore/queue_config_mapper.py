@@ -236,7 +236,12 @@ class QueueConfigMapper:
             for templateQueueName in templateQueueList:
                 if templateQueueName in newQueueConfig:
                     del newQueueConfig[templateQueueName]
-
+            for queueName in newQueueConfig.keys():
+                if queueName.endswith('_TEMPLATE'):
+                    del newQueueConfig[queueName]
+                elif hasattr(newQueueConfig[queueName], 'isTemplateQueue') and \
+                        getattr(newQueueConfig[queueName], 'isTemplateQueue') is True:
+                    del newQueueConfig[queueName]
             # auto blacklisting
             autoBlacklist = False
             if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \
