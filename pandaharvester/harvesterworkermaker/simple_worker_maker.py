@@ -62,23 +62,24 @@ class SimpleWorkerMaker(PluginBase):
 
         # case of unified queue: look at the resource type and queue configuration
         else:
-            workSpec.nCore, workSpec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
 
-            """
-            site_corecount = queue_dict.get('corecount', 1) or 1
-            site_maxrss = queue_dict.get('maxrss', 1) or 1
+            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified'):
+                # temporary hack to debug killed workers in Taiwan queues
+                site_corecount = queue_dict.get('corecount', 1) or 1
+                site_maxrss = queue_dict.get('maxrss', 1) or 1
 
-            # some cases need to overwrite those values
-            if 'SCORE' in resource_type:
-                # the usual pilot streaming use case
-                workSpec.nCore = 1
-                workSpec.minRamCount = site_maxrss / site_corecount
+                # some cases need to overwrite those values
+                if 'SCORE' in resource_type:
+                    # the usual pilot streaming use case
+                    workSpec.nCore = 1
+                    workSpec.minRamCount = site_maxrss / site_corecount
+                else:
+                    # default values
+                    workSpec.nCore = site_corecount
+                    workSpec.minRamCount = site_maxrss
             else:
-                # default values
-                workSpec.nCore = site_corecount
-                workSpec.minRamCount = site_maxrss
-            """
-
+                workSpec.nCore, workSpec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type,
+                                                                                                    queue_dict)
 
         # parameters that are independent on traditional vs unified
         workSpec.maxWalltime = queue_dict.get('maxtime', 1)
