@@ -1,6 +1,7 @@
 import time
 import datetime
 import collections
+import random
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -41,6 +42,7 @@ class Monitor(AgentBase):
         monitor_fifo = self.monitor_fifo
         sleepTime = (harvester_config.monitor.fifoSleepTimeMilli / 1000.0) \
                         if monitor_fifo.enabled else harvester_config.monitor.sleepTime
+        adjusted_sleepTime = sleepTime
         try:
             fifoCheckDuration = harvester_config.monitor.fifoCheckDuration
         except AttributeError:
@@ -59,7 +61,6 @@ class Monitor(AgentBase):
             sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('start a cycle')
-
             if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and \
                     not (monitor_fifo.enabled and self.singleMode):
                 # run with workers from DB
@@ -105,9 +106,14 @@ class Monitor(AgentBase):
                 obj_to_enqueue_to_head_dict = collections.defaultdict(lambda: [[], 0, 0])
                 remaining_obj_to_enqueue_dict = {}
                 remaining_obj_to_enqueue_to_head_dict = {}
+                n_chunk_peeked_stat, sum_overhead_time_stat = 0, 0.0
                 while n_loops == 0 or time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
                     sw.reset()
-                    if monitor_fifo.to_check_workers():
+                    retVal, overhead_time = monitor_fifo.to_check_workers()
+                    if overhead_time is not None:
+                        n_chunk_peeked_stat += 1
+                        sum_overhead_time_stat += overhead_time
+                    if retVal:
                         # check fifo size
                         fifo_size = monitor_fifo.size()
                         mainLog.debug('FIFO size is {0}'.format(fifo_size))
@@ -173,7 +179,10 @@ class Monitor(AgentBase):
                         mainLog.debug('workers in FIFO too young to check. Skipped')
                         if self.singleMode:
                             break
-                        time.sleep(sleepTime)
+                        if overhead_time is not None:
+                            time.sleep(max(-overhead_time*random.uniform(0.1, 1), adjusted_sleepTime))
+                        else:
+                            time.sleep(max(fifoCheckDuration*random.uniform(0.1, 1), adjusted_sleepTime))
 
                 # enqueue to fifo
                 sw.reset()
@@ -208,6 +217,15 @@ class Monitor(AgentBase):
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
                     monitor_fifo.release(ids=obj_dequeued_id_list)
                 mainLog.debug('put {0} worker chunks into FIFO'.format(n_chunk_put) + sw.get_elapsed_time())
+                # adjust adjusted_sleepTime
+                if n_chunk_peeked_stat > 0 and sum_overhead_time_stat > sleepTime:
+                    speedup_factor = (sum_overhead_time_stat - sleepTime) / (n_chunk_peeked_stat * harvester_config.monitor.checkInterval)
+                    speedup_factor = max(speedup_factor, 0)
+                    adjusted_sleepTime = adjusted_sleepTime / (1. + speedup_factor)
+                else:
+                    adjusted_sleepTime = (sleepTime + adjusted_sleepTime)/2
+                mainLog.debug('adjusted_sleepTime changed to be {0:.3f} sec'.format(adjusted_sleepTime))
+                # end run with fifo
                 mainLog.debug('ended run with FIFO')
 
             if sw_main.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
@@ -216,7 +234,7 @@ class Monitor(AgentBase):
                 mainLog.debug('done a cycle' + sw_main.get_elapsed_time())
 
             # check if being terminated
-            if self.terminated(sleepTime):
+            if self.terminated(adjusted_sleepTime):
                 mainLog.debug('terminated')
                 return
 
@@ -355,7 +373,10 @@ class Monitor(AgentBase):
                         if from_fifo:
                             tmpLog.info('failed to update the DB. Maybe locked by other thread running with DB')
                         else:
-                            tmpLog.error('failed to update the DB. lockInterval may be too short')
+                            if workSpec.status in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled, WorkSpec.ST_missed]:
+                                tmpLog.info('worker already in final status. Skipped')
+                            else:
+                                tmpLog.error('failed to update the DB. lockInterval may be too short')
                 else:
                     if jobSpecs is not None:
                         for jobSpec in jobSpecs:
@@ -566,7 +587,7 @@ class Monitor(AgentBase):
                                 workSpec.post_processed()
                                 newStatus = WorkSpec.ST_running
                             # reset modification time to immediately trigger subsequent lookup
-                            if not from_fifo:
+                            if not self.monitor_fifo.enabled:
                                 workSpec.trigger_next_lookup()
                         retMap[workerID]['newStatus'] = newStatus
                         retMap[workerID]['diagMessage'] = diagMessage
