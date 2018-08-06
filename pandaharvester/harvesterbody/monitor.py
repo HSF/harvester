@@ -355,7 +355,10 @@ class Monitor(AgentBase):
                         if from_fifo:
                             tmpLog.info('failed to update the DB. Maybe locked by other thread running with DB')
                         else:
-                            tmpLog.error('failed to update the DB. lockInterval may be too short')
+                            if workSpec.status in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled, WorkSpec.ST_missed]:
+                                tmpLog.info('worker already in final status. Skipped')
+                            else:
+                                tmpLog.error('failed to update the DB. lockInterval may be too short')
                 else:
                     if jobSpecs is not None:
                         for jobSpec in jobSpecs:
@@ -566,7 +569,7 @@ class Monitor(AgentBase):
                                 workSpec.post_processed()
                                 newStatus = WorkSpec.ST_running
                             # reset modification time to immediately trigger subsequent lookup
-                            if not from_fifo:
+                            if not self.monitor_fifo.enabled:
                                 workSpec.trigger_next_lookup()
                         retMap[workerID]['newStatus'] = newStatus
                         retMap[workerID]['diagMessage'] = diagMessage

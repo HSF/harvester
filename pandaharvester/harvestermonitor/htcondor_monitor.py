@@ -311,7 +311,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             else:
                 newStatus = None
                 errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Skipped'.format(workspec.submissionHost, workspec.batchID)
-                tmpLog.error(errStr)
+                tmpLog.warning(errStr)
         else:
             # Propagate native condor job status
             workspec.nativeStatus = CONDOR_JOB_STATUS_MAP.get(batchStatus, 'unexpected')
@@ -380,14 +380,16 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
 
     else:
         if cancel_unknown:
-            tmpLog.error('condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default'.format(
-                            workspec.submissionHost, workspec.batchID))
+            errStr = 'condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default'.format(
+                            workspec.submissionHost, workspec.batchID)
+            tmpLog.error(errStr)
             newStatus = WorkSpec.ST_cancelled
             tmpLog.info('submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}'.format(
                             workspec.submissionHost, workspec.batchID, '3', newStatus))
         else:
-            tmpLog.error('condor job submissionHost={0} batchID={1} not found. Skipped'.format(
-                            workspec.submissionHost, workspec.batchID))
+            errStr = 'condor job submissionHost={0} batchID={1} not found. Skipped'.format(
+                            workspec.submissionHost, workspec.batchID)
+            tmpLog.warning(errStr)
             newStatus = None
 
     ## Return
