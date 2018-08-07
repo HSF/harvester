@@ -222,9 +222,9 @@ class Monitor(AgentBase):
                     speedup_factor = (sum_overhead_time_stat - sleepTime) / (n_chunk_peeked_stat * harvester_config.monitor.checkInterval)
                     speedup_factor = max(speedup_factor, 0)
                     adjusted_sleepTime = adjusted_sleepTime / (1. + speedup_factor)
-                else:
+                elif n_chunk_peeked_stat == 0 or sum_overhead_time_stat < 0:
                     adjusted_sleepTime = (sleepTime + adjusted_sleepTime)/2
-                mainLog.debug('adjusted_sleepTime changed to be {0:.3f} sec'.format(adjusted_sleepTime))
+                mainLog.debug('adjusted_sleepTime becomes {0:.3f} sec'.format(adjusted_sleepTime))
                 # end run with fifo
                 mainLog.debug('ended run with FIFO')
 
@@ -401,7 +401,7 @@ class Monitor(AgentBase):
                     tmpOut = tmpRetMap[workSpec.workerID]
                     newStatus = tmpOut['newStatus']
                     monStatus = tmpOut['monStatus']
-                    if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
+                    if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running, WorkSpec.ST_idle] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
                         and workSpec.workAttributes is not None:
                         forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
@@ -570,11 +570,14 @@ class Monitor(AgentBase):
                         retMap[workerID]['pandaIDs'] = pandaIDs
                         # keep original new status
                         retMap[workerID]['monStatus'] = newStatus
-                        # set running while there are events to update or files to stage out
+                        # set running or idle while there are events to update or files to stage out
                         if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
                             if len(retMap[workerID]['filesToStageOut']) > 0 or \
                                             len(retMap[workerID]['eventsToUpdate']) > 0:
-                                newStatus = WorkSpec.ST_running
+                                if workSpec.status == WorkSpec.ST_running:
+                                    newStatus = WorkSpec.ST_running
+                                else:
+                                    newStatus = WorkSpec.ST_idle
                             elif not workSpec.is_post_processed():
                                 if not queue_config.is_no_heartbeat_status(newStatus):
                                     # post processing unless heartbeat is suppressed
@@ -584,7 +587,10 @@ class Monitor(AgentBase):
                                     # post processing
                                     messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
                                 workSpec.post_processed()
-                                newStatus = WorkSpec.ST_running
+                                if workSpec.status == WorkSpec.ST_running:
+                                    newStatus = WorkSpec.ST_running
+                                else:
+                                    newStatus = WorkSpec.ST_idle
                             # reset modification time to immediately trigger subsequent lookup
                             if not self.monitor_fifo.enabled:
                                 workSpec.trigger_next_lookup()

@@ -89,21 +89,29 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
 def submit_a_worker(data):
     workspec = data['workspec']
     to_submit = data['to_submit']
-    ce_info_dict = data['ce_info_dict']
-    batch_log_dict = data['batch_log_dict']
-    condor_schedd = data['condor_schedd']
-    condor_pool = data['condor_pool']
-    use_spool = data['use_spool']
-    workspec.reset_changed_list()
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='submit_a_worker')
-    # no need to submit bad workers
+    # no need to submit bad worker
     if not to_submit:
         errStr = 'Not submitted, due to incomplete data of the worker'
         tmpLog.warning(errStr)
         tmpRetVal = (None, errStr)
         return tmpRetVal, workspec.get_changed_attributes()
+    # attributes
+    try:
+        ce_info_dict = data['ce_info_dict']
+        batch_log_dict = data['batch_log_dict']
+        condor_schedd = data['condor_schedd']
+        condor_pool = data['condor_pool']
+        use_spool = data['use_spool']
+    except KeyError:
+        errStr = 'Not submitted, due to incomplete data of the worker'
+        tmpLog.warning(errStr)
+        tmpRetVal = (None, errStr)
+        return tmpRetVal, workspec.get_changed_attributes()
+    else:
+        workspec.reset_changed_list()
     # make batch script
     batchFile = make_batch_script(**data)
     # make condor remote options
@@ -375,6 +383,8 @@ class HTCondorSubmitter(PluginBase):
             ce_info_dict = dict()
             batch_log_dict = dict()
             special_par = ''
+            data = {'workspec': workspec,
+                    'to_submit': to_submit,}
 
             if self.useAtlasGridCE:
                 # If ATLAS Grid CE mode used
@@ -461,76 +471,81 @@ class HTCondorSubmitter(PluginBase):
                 log_base_url = self.logBaseURL
 
             # template for batch script
-            tmpFile = open(self.templateFile)
-            sdf_template = tmpFile.read()
-            tmpFile.close()
-
-            # get batch_log, stdout, stderr filename
-            for _line in sdf_template.split('\n'):
-                if _line.startswith('#'):
-                    continue
-                _match_batch_log = re.match('log = (.+)', _line)
-                _match_stdout = re.match('output = (.+)', _line)
-                _match_stderr = re.match('error = (.+)', _line)
-                if _match_batch_log:
-                    batch_log_value = _match_batch_log.group(1)
-                    continue
-                if _match_stdout:
-                    stdout_value = _match_stdout.group(1)
-                    continue
-                if _match_stderr:
-                    stderr_value = _match_stderr.group(1)
-                    continue
-
-            # get override requirements from queue configured
             try:
-                n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
+                tmpFile = open(self.templateFile)
+                sdf_template = tmpFile.read()
+                tmpFile.close()
             except AttributeError:
-                n_core_per_node = n_core_per_node_from_queue
+                tmpLog.error('No valid templateFile found. Maybe templateFile, CEtemplateDir invalid, or no valid CE found')
+                to_submit = False
+            else:
+                # get batch_log, stdout, stderr filename
+                for _line in sdf_template.split('\n'):
+                    if _line.startswith('#'):
+                        continue
+                    _match_batch_log = re.match('log = (.+)', _line)
+                    _match_stdout = re.match('output = (.+)', _line)
+                    _match_stderr = re.match('error = (.+)', _line)
+                    if _match_batch_log:
+                        batch_log_value = _match_batch_log.group(1)
+                        continue
+                    if _match_stdout:
+                        stdout_value = _match_stdout.group(1)
+                        continue
+                    if _match_stderr:
+                        stderr_value = _match_stderr.group(1)
+                        continue
 
-            # URLs for log files
-            if not (log_base_url is None):
-                if workspec.batchID:
-                    batchID = workspec.batchID
-                    guess = False
-                else:
-                    batchID = ''
-                    guess = True
-                batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                batch_log = '{0}/{1}/{2}'.format(log_base_url, log_subdir, batch_log_filename)
-                batch_stdout = '{0}/{1}/{2}'.format(log_base_url, log_subdir, stdout_path_file_name)
-                batch_stderr = '{0}/{1}/{2}'.format(log_base_url, log_subdir, stderr_path_filename)
-                workspec.set_log_file('batch_log', batch_log)
-                workspec.set_log_file('stdout', batch_stdout)
-                workspec.set_log_file('stderr', batch_stderr)
-                batch_log_dict['batch_log'] = batch_log
-                batch_log_dict['batch_stdout'] = batch_stdout
-                batch_log_dict['batch_stderr'] = batch_stderr
-                batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
-                tmpLog.debug('Done set_log_file before submission')
+                # get override requirements from queue configured
+                try:
+                    n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
+                except AttributeError:
+                    n_core_per_node = n_core_per_node_from_queue
 
-            tmpLog.debug('Done jobspec attribute setting')
+                # URLs for log files
+                if not (log_base_url is None):
+                    if workspec.batchID:
+                        batchID = workspec.batchID
+                        guess = False
+                    else:
+                        batchID = ''
+                        guess = True
+                    batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                    stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                    stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                    batch_log = '{0}/{1}/{2}'.format(log_base_url, log_subdir, batch_log_filename)
+                    batch_stdout = '{0}/{1}/{2}'.format(log_base_url, log_subdir, stdout_path_file_name)
+                    batch_stderr = '{0}/{1}/{2}'.format(log_base_url, log_subdir, stderr_path_filename)
+                    workspec.set_log_file('batch_log', batch_log)
+                    workspec.set_log_file('stdout', batch_stdout)
+                    workspec.set_log_file('stderr', batch_stderr)
+                    batch_log_dict['batch_log'] = batch_log
+                    batch_log_dict['batch_stdout'] = batch_stdout
+                    batch_log_dict['batch_stderr'] = batch_stderr
+                    batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
+                    tmpLog.debug('Done set_log_file before submission')
 
-            # set data dict
-            data = {'workspec': workspec,
-                    'to_submit': to_submit,
-                    'template': sdf_template,
-                    'log_dir': self.logDir,
-                    'log_subdir': log_subdir,
-                    'n_core_per_node': n_core_per_node,
-                    'panda_queue_name': panda_queue_name,
-                    'x509_user_proxy': self.x509UserProxy,
-                    'ce_info_dict': ce_info_dict,
-                    'batch_log_dict': batch_log_dict,
-                    'special_par': special_par,
-                    'harvester_queue_config': harvester_queue_config,
-                    'is_unified_queue': is_unified_queue,
-                    'condor_schedd': condor_schedd,
-                    'condor_pool': condor_pool,
-                    'use_spool': self.useSpool,
-                    }
+                tmpLog.debug('Done jobspec attribute setting')
+
+                # set data dict
+                data.update({
+                        'workspec': workspec,
+                        'to_submit': to_submit,
+                        'template': sdf_template,
+                        'log_dir': self.logDir,
+                        'log_subdir': log_subdir,
+                        'n_core_per_node': n_core_per_node,
+                        'panda_queue_name': panda_queue_name,
+                        'x509_user_proxy': self.x509UserProxy,
+                        'ce_info_dict': ce_info_dict,
+                        'batch_log_dict': batch_log_dict,
+                        'special_par': special_par,
+                        'harvester_queue_config': harvester_queue_config,
+                        'is_unified_queue': is_unified_queue,
+                        'condor_schedd': condor_schedd,
+                        'condor_pool': condor_pool,
+                        'use_spool': self.useSpool,
+                        })
 
             return data
 
