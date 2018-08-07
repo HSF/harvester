@@ -1544,6 +1544,7 @@ class DBProxy:
             # sql to lock worker with time check
             sqlLT = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
             sqlLT += "WHERE workerID=:workerID "
+            sqlLT += "AND status IN (:st_submitted,:st_running,:st_idle) "
             sqlLT += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlLT += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
             # sql to get associated workerIDs
@@ -1585,6 +1586,9 @@ class DBProxy:
                 varMap[':workerID'] = workerID
                 varMap[':lockedBy'] = locked_by
                 varMap[':timeNow'] = timeNow
+                varMap[':st_submitted'] = WorkSpec.ST_submitted
+                varMap[':st_running'] = WorkSpec.ST_running
+                varMap[':st_idle'] = WorkSpec.ST_idle
                 varMap[':lockTimeLimit'] = lockTimeLimit
                 varMap[':checkTimeLimit'] = checkTimeLimit
                 self.execute(sqlLT, varMap)
@@ -1633,11 +1637,12 @@ class DBProxy:
                     if len(workSpec.pandaid_list) > 0:
                         workSpec.nJobs = len(workSpec.pandaid_list)
                     # lock worker
-                    varMap = dict()
-                    varMap[':workerID'] = tmpWorkID
-                    varMap[':lockedBy'] = locked_by
-                    varMap[':timeNow'] = timeNow
-                    self.execute(sqlL, varMap)
+                    if tmpWorkID != workerID:
+                        varMap = dict()
+                        varMap[':workerID'] = tmpWorkID
+                        varMap[':lockedBy'] = locked_by
+                        varMap[':timeNow'] = timeNow
+                        self.execute(sqlL, varMap)
                     workSpec.lockedBy = locked_by
                     workSpec.force_not_update('lockedBy')
                 # commit

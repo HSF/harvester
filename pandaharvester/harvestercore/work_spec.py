@@ -109,6 +109,9 @@ class WorkSpec(SpecBase):
 
     # set status
     def set_status(self, value):
+        # prevent reverse transition
+        if value == self.ST_submitted and self.status in [self.ST_running, self.ST_idle]:
+            return
         if self.status != value:
             self.trigger_propagation()
             self.new_status = True
