@@ -222,9 +222,9 @@ class Monitor(AgentBase):
                     speedup_factor = (sum_overhead_time_stat - sleepTime) / (n_chunk_peeked_stat * harvester_config.monitor.checkInterval)
                     speedup_factor = max(speedup_factor, 0)
                     adjusted_sleepTime = adjusted_sleepTime / (1. + speedup_factor)
-                else:
+                elif n_chunk_peeked_stat == 0 or sum_overhead_time_stat < 0:
                     adjusted_sleepTime = (sleepTime + adjusted_sleepTime)/2
-                mainLog.debug('adjusted_sleepTime changed to be {0:.3f} sec'.format(adjusted_sleepTime))
+                mainLog.debug('adjusted_sleepTime becomes {0:.3f} sec'.format(adjusted_sleepTime))
                 # end run with fifo
                 mainLog.debug('ended run with FIFO')
 
