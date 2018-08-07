@@ -4273,13 +4273,14 @@ class DBProxy:
             tmpLog.debug('start')
             # sql to get workers
             sqlW = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
-            sqlW += "WHERE status IN (:st_submitted,:st_running) "
+            sqlW += "WHERE status IN (:st_submitted,:st_running,:st_idle) "
             sqlW += "AND modificationTime<:timeLimit "
             sqlW += "ORDER BY modificationTime,computingSite LIMIT {0} ".format(n_workers)
             varMap = dict()
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(seconds=seconds_ago)
             varMap[':st_submitted'] = WorkSpec.ST_submitted
             varMap[':st_running'] = WorkSpec.ST_running
+            varMap[':st_idle'] = WorkSpec.ST_idle
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             def _get_workspec_from_record(rec):

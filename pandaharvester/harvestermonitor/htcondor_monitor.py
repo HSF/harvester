@@ -320,7 +320,10 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                 newStatus = WorkSpec.ST_running
             elif batchStatus in ['1', '7']:
                 # 1 idle, 7 suspended
-                newStatus = WorkSpec.ST_submitted
+                if job_ads_dict.get('JobStartDate'):
+                    newStatus = WorkSpec.ST_idle
+                else:
+                    newStatus = WorkSpec.ST_submitted
             elif batchStatus in ['3']:
                 # 3 removed
                 errStr = 'Condor HoldReason: {0} ; Condor RemoveReason: {1} '.format(
@@ -347,7 +350,10 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     workspec.set_pilot_closed()
                     tmpLog.debug('Called workspec set_pilot_closed')
                 else:
-                    newStatus = WorkSpec.ST_submitted
+                    if job_ads_dict.get('JobStartDate'):
+                        newStatus = WorkSpec.ST_idle
+                    else:
+                        newStatus = WorkSpec.ST_submitted
             elif batchStatus in ['4']:
                 # 4 completed
                 try:

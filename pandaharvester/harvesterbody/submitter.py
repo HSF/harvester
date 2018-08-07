@@ -318,7 +318,7 @@ class Submitter(AgentBase):
                                             and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
                                         workSpecsToEnqueue = \
                                             [[w] for w in workSpecList if w.status
-                                             in (WorkSpec.ST_submitted, WorkSpec.ST_running)]
+                                             in (WorkSpec.ST_submitted, WorkSpec.ST_running, WorkSpec.ST_idle)]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')
                                 # release jobs
@@ -345,7 +345,7 @@ class Submitter(AgentBase):
         newSpecList = []
         workersToSubmit = []
         for workSpec in workspec_list:
-            if workSpec.status in [WorkSpec.ST_ready, WorkSpec.ST_running]:
+            if workSpec.status in [WorkSpec.ST_ready, WorkSpec.ST_running, WorkSpec.ST_idle]:
                 newSpecList.append(workSpec)
                 retList.append(True)
                 strList.append('')
