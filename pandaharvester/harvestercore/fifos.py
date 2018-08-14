@@ -34,6 +34,7 @@ _logger = core_utils.setup_logger('fifos')
 def get_pid():
     return '{0}-{1}'.format(os.getpid(), get_ident())
 
+
 # base class of fifo message queue
 class FIFOBase:
     # constructor
@@ -128,6 +129,16 @@ class FIFOBase:
         retVal = self.fifo.restore()
         mainLog.debug('called')
         return retVal
+
+
+# Benchmark fifo
+class BenchmarkFIFO(FIFOBase):
+    # constructor
+    def __init__(self, **kwarg):
+        FIFOBase.__init__(self, **kwarg)
+        self.agentName = 'benchmark'
+        self._initialize_fifo()
+
 
 # monitor fifo
 class MonitorFIFO(FIFOBase):
