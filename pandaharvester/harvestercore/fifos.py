@@ -162,8 +162,15 @@ class MonitorFIFO(FIFOBase):
         """
         if clear_fifo:
             self.fifo.clear()
-        n_workers = self.config.fifoMaxWorkersToPopulate
-        workspec_iterator = self.dbProxy.get_active_workers(n_workers, seconds_ago)
+        try:
+            fifoMaxWorkersToPopulate = self.config.fifoMaxWorkersToPopulate
+        except AttributeError:
+            fifoMaxWorkersToPopulate = 2**32
+        try:
+            fifoMaxWorkersPerChunk = self.config.fifoMaxWorkersPerChunk
+        except AttributeError:
+            fifoMaxWorkersPerChunk = 500
+        workspec_iterator = self.dbProxy.get_active_workers(fifoMaxWorkersToPopulate, seconds_ago)
         last_queueName = None
         workspec_chunk = []
         timeNow_timestamp = time.time()
