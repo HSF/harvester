@@ -137,7 +137,13 @@ class BenchmarkFIFO(FIFOBase):
     def __init__(self, **kwarg):
         FIFOBase.__init__(self, **kwarg)
         self.agentName = 'benchmark'
-        self._initialize_fifo()
+        self.fifoName = '{0}_fifo'.format(self.agentName)
+        pluginConf = {}
+        pluginConf.update( {'agentName': self.agentName} )
+        pluginConf.update( {'module': harvester_config.fifo.fifoModule,
+                            'name': harvester_config.fifo.fifoClass,} )
+        pluginFactory = PluginFactory()
+        self.fifo = pluginFactory.get_plugin(pluginConf)
 
 
 # monitor fifo

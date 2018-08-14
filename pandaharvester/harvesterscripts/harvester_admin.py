@@ -89,6 +89,14 @@ def fifo_benchmark(arguments):
     n_object = arguments.n_object
     n_thread = arguments.n_thread
     mq = harvesterFifos.BenchmarkFIFO()
+    sw = core_utils.get_stopwatch()
+    sum_dict = {
+                'put_n' : 0,
+                'put_time' : 0.0,
+                'get_time' : 0.0,
+                'get_protective_time' : 0.0,
+                'clear_time' : 0.0,
+                }
     def _put_object(i_index):
         workspec = WorkSpec()
         workspec.workerID = i_index
@@ -99,32 +107,51 @@ def fifo_benchmark(arguments):
         return mq.get(timeout=3, protective=False)
     def _get_object_protective(i_index):
         return mq.get(timeout=3, protective=True)
+    def put_test():
+        sw.reset()
+        multithread_executer(_put_object, n_object, n_thread)
+        sum_dict['put_time'] += sw.get_elapsed_time_in_sec(True)
+        sum_dict['put_n'] += 1
+        print('Put {0} objects by {1} threads'.format(n_object, n_thread) + sw.get_elapsed_time())
+        print('Now fifo size is {0}'.format(mq.size()))
+    def get_test():
+        sw.reset()
+        multithread_executer(_get_object, n_object, n_thread)
+        sum_dict['get_time'] = sw.get_elapsed_time_in_sec(True)
+        print('Get {0} objects by {1} threads'.format(n_object, n_thread) + sw.get_elapsed_time())
+        print('Now fifo size is {0}'.format(mq.size()))
+    def get_protective_test():
+        sw.reset()
+        multithread_executer(_get_object_protective, n_object, n_thread)
+        sum_dict['get_protective_time'] = sw.get_elapsed_time_in_sec(True)
+        print('Get {0} objects protective dequeue by {1} threads'.format(n_object, n_thread) + sw.get_elapsed_time())
+        print('Now fifo size is {0}'.format(mq.size()))
+    def clear_test():
+        sw.reset()
+        mq.fifo.clear()
+        sum_dict['clear_time'] = sw.get_elapsed_time_in_sec(True)
+        print('Cleared fifo' + sw.get_elapsed_time())
+        print('Now fifo size is {0}'.format(mq.size()))
     # Benchmark
     print('Start fifo benchmark ...')
-    sw = core_utils.get_stopwatch()
     mq.fifo.clear()
     print('Cleared fifo')
-    sw.reset()
-    multithread_executer(_put_object, n_object, n_thread)
-    print('Put {0} objects by {1} threads'.format(n_object, n_thread) + sw.get_elapsed_time())
-    print('Now fifo size is {0}'.format(mq.size()))
-    sw.reset()
-    multithread_executer(_get_object, n_object, n_thread)
-    print('Get {0} objects by {1} threads'.format(n_object, n_thread) + sw.get_elapsed_time())
-    print('Now fifo size is {0}'.format(mq.size()))
-    sw.reset()
-    multithread_executer(_put_object, n_object, n_thread)
-    print('Put {0} objects again by {1} threads'.format(n_object, n_thread) + sw.get_elapsed_time())
-    print('Now fifo size is {0}'.format(mq.size()))
-    sw.reset()
-    multithread_executer(_get_object_protective, n_object, n_thread)
-    print('Get {0} objects protective dequeue by {1} threads'.format(n_object, n_thread) + sw.get_elapsed_time())
-    print('Now fifo size is {0}'.format(mq.size()))
-    sw.reset()
-    mq.fifo.clear()
-    print('Cleared fifo' + sw.get_elapsed_time())
-    print('Now fifo size is {0}'.format(mq.size()))
-    print('Finished fifo benchmark ...')
+    put_test()
+    get_test()
+    put_test()
+    get_protective_test()
+    put_test()
+    clear_test()
+    print('Finished fifo benchmark')
+    # summary
+    print('Summary:')
+    print('FIFO plugin is: {0}'.format(mq.fifo.__class__.__name__))
+    print('Benchmark with {0} objects by {1} threads'.format(n_object, n_thread))
+    print('Put            : {0:.3f} ms / obj'.format(1000. * sum_dict['put_time']/(sum_dict['put_n']*n_object)))
+    print('Get            : {0:.3f} ms / obj'.format(1000. * sum_dict['get_time']/n_object))
+    print('Get protective : {0:.3f} ms / obj'.format(1000. * sum_dict['get_protective_time']/n_object))
+    print('Clear          : {0:.3f} ms / obj'.format(1000. * sum_dict['clear_time']/n_object))
+
 
 def fifo_repopulate(arguments):
     if 'ALL' in arguments.name_list:
@@ -176,6 +203,7 @@ commandMap = {
             # test commands
             'test': test,
             # fifo commands
+            'fifo_benchmark': fifo_benchmark,
             'fifo_repopulate': fifo_repopulate,
             # qconf commands
             'qconf_list': qconf_list,
@@ -199,7 +227,7 @@ def main():
     # fifo benchmark command
     fifo_benchmark_parser = fifo_subparsers.add_parser('benchmark', help='benchmark fifo backend')
     fifo_benchmark_parser.set_defaults(which='fifo_benchmark')
-    fifo_benchmark_parser.add_argument('-n', type=int, dest='n_object', action='store', default=100, metavar='<N>', help='Benchmark with N objects')
+    fifo_benchmark_parser.add_argument('-n', type=int, dest='n_object', action='store', default=500, metavar='<N>', help='Benchmark with N objects')
     fifo_benchmark_parser.add_argument('-t', type=int, dest='n_thread', action='store', default=1, metavar='<N>', help='Benchmark with N threads')
     # fifo repopuate command
     fifo_repopulate_parser = fifo_subparsers.add_parser('repopulate', help='Repopulate agent fifo')
