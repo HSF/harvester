@@ -34,6 +34,7 @@ _logger = core_utils.setup_logger('fifos')
 def get_pid():
     return '{0}-{1}'.format(os.getpid(), get_ident())
 
+
 # base class of fifo message queue
 class FIFOBase:
     # constructor
@@ -129,6 +130,22 @@ class FIFOBase:
         mainLog.debug('called')
         return retVal
 
+
+# Benchmark fifo
+class BenchmarkFIFO(FIFOBase):
+    # constructor
+    def __init__(self, **kwarg):
+        FIFOBase.__init__(self, **kwarg)
+        self.agentName = 'benchmark'
+        self.fifoName = '{0}_fifo'.format(self.agentName)
+        pluginConf = {}
+        pluginConf.update( {'agentName': self.agentName} )
+        pluginConf.update( {'module': harvester_config.fifo.fifoModule,
+                            'name': harvester_config.fifo.fifoClass,} )
+        pluginFactory = PluginFactory()
+        self.fifo = pluginFactory.get_plugin(pluginConf)
+
+
 # monitor fifo
 class MonitorFIFO(FIFOBase):
     # constructor
@@ -145,8 +162,15 @@ class MonitorFIFO(FIFOBase):
         """
         if clear_fifo:
             self.fifo.clear()
-        n_workers = self.config.fifoMaxWorkersToPopulate
-        workspec_iterator = self.dbProxy.get_active_workers(n_workers, seconds_ago)
+        try:
+            fifoMaxWorkersToPopulate = self.config.fifoMaxWorkersToPopulate
+        except AttributeError:
+            fifoMaxWorkersToPopulate = 2**32
+        try:
+            fifoMaxWorkersPerChunk = self.config.fifoMaxWorkersPerChunk
+        except AttributeError:
+            fifoMaxWorkersPerChunk = 500
+        workspec_iterator = self.dbProxy.get_active_workers(fifoMaxWorkersToPopulate, seconds_ago)
         last_queueName = None
         workspec_chunk = []
         timeNow_timestamp = time.time()
