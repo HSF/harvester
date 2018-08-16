@@ -1,5 +1,6 @@
 import arc
 import json
+import time
 import urllib
 
 from pandaharvester.harvestercore import core_utils
@@ -72,15 +73,21 @@ class ACTSubmitter(PluginBase):
 
                 # aCT takes the url-encoded job description (like it gets from panda server)
                 actjobdesc = urllib.urlencode(jobSpec.jobParams)
+                tmpLog.info("Inserting job {0} into aCT DB: {1}".format(jobSpec.PandaID, str(desc)))
                 try:
-                    tmpLog.info("Inserting job {0} into aCT DB: {1}".format(jobSpec.PandaID, str(desc)))
                     batchid = self.actDB.insertJob(jobSpec.PandaID, actjobdesc, desc)['LAST_INSERT_ID()']
-                    tmpLog.info("aCT batch id {0}".format(batchid))
-                    workSpec.batchID = str(batchid)
-                    result = (True, '')
                 except Exception as e:
                     result = (False, "Failed to insert job into aCT DB: {0}".format(str(e)))
-
+                else:
+                    tmpLog.info("aCT batch id {0}".format(batchid))
+                    workSpec.batchID = str(batchid)
+                    # Set log files in workSpec
+                    today = time.strftime('%Y-%m-%d', time.gmtime())
+                    logurl = '/'.join(queueconfig.submitter.get('logBaseURL'), today, jobSpec.computingSite, jobSpec.PandaID)
+                    workSpec.set_log_file('batch_log', '{0}.log'.format(logurl))
+                    workSpec.set_log_file('stdout', '{0}.out'.format(logurl))
+                    workSpec.set_log_file('stderr', '{0}.err'.format(logurl))
+                    result = (True, '')
                 retList.append(result)
 
         return retList
