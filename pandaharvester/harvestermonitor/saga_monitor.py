@@ -61,6 +61,7 @@ class SAGAMonitor(PluginBase):
                         workSpec.endTime = datetime.strptime(worker.finished, sagadateformat_str)
 
                     if workSpec.is_final_status():
+                        workSpec.nativeExitCode = worker.exit_code
                         tmpLog.info('Worker {2} with BatchID={0} completed with exit code {1}'.format(workSpec.batchID,
                                                                                                   worker.exit_code,
                                                                                                   workSpec.workerID))
