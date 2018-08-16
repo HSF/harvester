@@ -34,6 +34,7 @@ _logger = core_utils.setup_logger('fifos')
 def get_pid():
     return '{0}-{1}'.format(os.getpid(), get_ident())
 
+
 # base class of fifo message queue
 class FIFOBase:
     # constructor
@@ -129,6 +130,22 @@ class FIFOBase:
         mainLog.debug('called')
         return retVal
 
+
+# Benchmark fifo
+class BenchmarkFIFO(FIFOBase):
+    # constructor
+    def __init__(self, **kwarg):
+        FIFOBase.__init__(self, **kwarg)
+        self.agentName = 'benchmark'
+        self.fifoName = '{0}_fifo'.format(self.agentName)
+        pluginConf = {}
+        pluginConf.update( {'agentName': self.agentName} )
+        pluginConf.update( {'module': harvester_config.fifo.fifoModule,
+                            'name': harvester_config.fifo.fifoClass,} )
+        pluginFactory = PluginFactory()
+        self.fifo = pluginFactory.get_plugin(pluginConf)
+
+
 # monitor fifo
 class MonitorFIFO(FIFOBase):
     # constructor
@@ -145,8 +162,15 @@ class MonitorFIFO(FIFOBase):
         """
         if clear_fifo:
             self.fifo.clear()
-        n_workers = self.config.fifoMaxWorkersToPopulate
-        workspec_iterator = self.dbProxy.get_active_workers(n_workers, seconds_ago)
+        try:
+            fifoMaxWorkersToPopulate = self.config.fifoMaxWorkersToPopulate
+        except AttributeError:
+            fifoMaxWorkersToPopulate = 2**32
+        try:
+            fifoMaxWorkersPerChunk = self.config.fifoMaxWorkersPerChunk
+        except AttributeError:
+            fifoMaxWorkersPerChunk = 500
+        workspec_iterator = self.dbProxy.get_active_workers(fifoMaxWorkersToPopulate, seconds_ago)
         last_queueName = None
         workspec_chunk = []
         timeNow_timestamp = time.time()
@@ -177,25 +201,30 @@ class MonitorFIFO(FIFOBase):
     def to_check_workers(self, check_interval=harvester_config.monitor.checkInterval):
         """
         Justify whether to check any worker by the modificationTime of the first worker in fifo
-        Return True if OK to dequeue to check;
-        Return False otherwise.
+        retVal True if OK to dequeue to check;
+        retVal False otherwise.
+        Return retVal, overhead_time
         """
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='to_check_worker')
         retVal = False
+        overhead_time = None
         timeNow_timestamp = time.time()
         peeked_tuple = self.peek()
         if peeked_tuple.item is not None:
             queueName, workSpecsList = peeked_tuple.item
             score = peeked_tuple.score
-            if timeNow_timestamp > score:
+            overhead_time = timeNow_timestamp - score
+            if overhead_time > 0:
                 retVal = True
                 if score < 0:
                     mainLog.debug('True. Preempting')
+                    overhead_time = None
                 else:
                     mainLog.debug('True')
-                    mainLog.info('Overhead time is {0} sec'.format(timeNow_timestamp - score))
+                    mainLog.info('Overhead time is {0} sec'.format(overhead_time))
             else:
                 mainLog.debug('False. Workers too young to check')
+                mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
         else:
             mainLog.debug('False. No workers in FIFO')
-        return retVal
+        return retVal, overhead_time

@@ -53,11 +53,13 @@ class Sweeper(AgentBase):
                 keepMissed = harvester_config.sweeper.keepMissed
             except Exception:
                 keepMissed = 24
+            keepPending = 24
             # get workers for cleanup
             statusTimeoutMap = {'finished': harvester_config.sweeper.keepFinished,
                                 'failed': harvester_config.sweeper.keepFailed,
                                 'cancelled': harvester_config.sweeper.keepCancelled,
-                                'missed': keepMissed
+                                'missed': keepMissed,
+                                'pending': keepPending
                                 }
             workersForCleanup = self.dbProxy.get_workers_for_cleanup(harvester_config.sweeper.maxWorkers,
                                                                      statusTimeoutMap)

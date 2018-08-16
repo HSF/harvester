@@ -53,13 +53,13 @@ pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
 # json to kill worker itself
 try:
     killWorkerFile = harvester_config.payload_interaction.killWorkerFile
-except:
+except Exception:
     killWorkerFile = 'kill_worker.json'
 
 # json for heartbeats from the worker
 try:
     heartbeatFile = harvester_config.payload_interaction.heartbeatFile
-except:
+except Exception:
     heartbeatFile = 'worker_heartbeat.json'
 
 # suffix to read json
@@ -111,7 +111,7 @@ class SharedFileMessenger(PluginBase):
                 try:
                     with open(jsonFilePath) as jsonFile:
                         retDict = json.load(jsonFile)
-                except:
+                except Exception:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             # look for job report
             jsonFilePath = os.path.join(accessPoint, jsonJobReport)
@@ -129,7 +129,7 @@ class SharedFileMessenger(PluginBase):
                     tmpLog.debug('got {0} kB of job report. {1} sec.'.format(os.stat(jsonFilePath).st_size / 1024,
                                                                              sw_readrep.get_elapsed_time()))
                     numofreads += 1
-                except:
+                except Exception:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             tmpLog.debug("Check file and read file time: {0} sec.".format(sw_checkjobrep.get_elapsed_time()))
             allRetDict[pandaID] = retDict
@@ -164,7 +164,7 @@ class SharedFileMessenger(PluginBase):
                     tmpLog.debug('found')
                     # rename to prevent from being overwritten
                     os.rename(jsonFilePath, readJsonPath)
-                except:
+                except Exception:
                     tmpLog.error('failed to rename json')
                     continue
             # load json
@@ -173,7 +173,7 @@ class SharedFileMessenger(PluginBase):
             try:
                 with open(readJsonPath) as jsonFile:
                     loadDict = json.load(jsonFile)
-            except:
+            except Exception:
                 tmpLog.error('failed to load json')
                 toSkip = True
             # test validity of data format (ie it should be a Dictionary)
@@ -245,7 +245,7 @@ class SharedFileMessenger(PluginBase):
                                 eventsList[tmpPandaID] = list()
                             eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
                                                            'eventStatus': tmpEventInfo['eventStatus']})
-                        except:
+                        except Exception:
                             core_utils.dump_error_message(tmpLog)
                 # dump events
                 if not toSkip:
@@ -260,7 +260,7 @@ class SharedFileMessenger(PluginBase):
             if toSkip or nData == 0:
                 try:
                     os.remove(readJsonPath)
-                except:
+                except Exception:
                     pass
             tmpLog.debug('got {0} files for PandaID={1}'.format(nData, pandaID))
         return fileDict
@@ -283,7 +283,7 @@ class SharedFileMessenger(PluginBase):
             with open(jsonFilePath) as jsonFile:
                 tmpDict = json.load(jsonFile)
                 nJobs = tmpDict['nJobs']
-        except:
+        except Exception:
             # request 1 job by default
             nJobs = 1
         tmpLog.debug('requesting {0} jobs'.format(nJobs))
@@ -325,7 +325,7 @@ class SharedFileMessenger(PluginBase):
                             tmpLog.debug("removing existing symlink %s" % dstPath)
                         os.symlink(inFile['path'], dstPath)
                 pandaIDs.append(jobSpec.PandaID)
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmpLog)
                 retVal = False
         # put PandaIDs file
@@ -333,14 +333,14 @@ class SharedFileMessenger(PluginBase):
             jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
             with open(jsonFilePath, 'w') as jsonPandaIDsFile:
                 json.dump(pandaIDs, jsonPandaIDsFile)
-        except:
+        except Exception:
             core_utils.dump_error_message(tmpLog)
             retVal = False
         # remove request file
         try:
             reqFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
             os.remove(reqFilePath)
-        except:
+        except Exception:
             pass
         tmpLog.debug('done')
         return retVal
@@ -361,7 +361,7 @@ class SharedFileMessenger(PluginBase):
         try:
             with open(jsonFilePath) as jsonFile:
                 retDict = json.load(jsonFile)
-        except:
+        except Exception:
             tmpLog.debug('failed to load json')
             return {}
         tmpLog.debug('found')
@@ -381,7 +381,7 @@ class SharedFileMessenger(PluginBase):
             try:
                 with open(jsonFilePath, 'w') as jsonFile:
                     json.dump(events_dict, jsonFile)
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmpLog)
                 retVal = False
         elif workspec.mapType == WorkSpec.MT_MultiJobs:
@@ -391,7 +391,7 @@ class SharedFileMessenger(PluginBase):
         try:
             jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsRequestFileName)
             os.remove(jsonFilePath)
-        except:
+        except Exception:
             pass
         tmpLog.debug('done')
         return retVal
@@ -423,7 +423,7 @@ class SharedFileMessenger(PluginBase):
                 try:
                     # rename to prevent from being overwritten
                     os.rename(jsonFilePath, readJsonPath)
-                except:
+                except Exception:
                     tmpLog.error('failed to rename json')
                     continue
             # load json
@@ -437,13 +437,13 @@ class SharedFileMessenger(PluginBase):
                         tmpPandaID = long(tmpPandaID)
                         retDict[tmpPandaID] = tmpDict
                         nData += 1
-            except:
+            except Exception:
                 tmpLog.error('failed to load json')
             # delete empty file
             if nData == 0:
                 try:
                     os.remove(readJsonPath)
-                except:
+                except Exception:
                     pass
             tmpLog.debug('got {0} events for PandaID={1}'.format(nData, pandaID))
         return retDict
@@ -461,13 +461,13 @@ class SharedFileMessenger(PluginBase):
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
                 os.remove(jsonFilePath)
-            except:
+            except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
                 os.remove(jsonFilePath)
-            except:
+            except Exception:
                 pass
         tmpLog.debug('done')
         return
@@ -488,7 +488,7 @@ class SharedFileMessenger(PluginBase):
                             if not os.path.exists(subAccessPoint):
                                 os.mkdir(subAccessPoint)
             return True
-        except:
+        except Exception:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='setup_access_points')
             core_utils.dump_error_message(tmpLog)
@@ -537,7 +537,7 @@ class SharedFileMessenger(PluginBase):
                 with open(jsonFilePath, 'w') as jsonFile:
                     json.dump(fileDict, jsonFile)
             return True
-        except:
+        except Exception:
             core_utils.dump_error_message(tmpLog)
             return False
 
@@ -557,7 +557,7 @@ class SharedFileMessenger(PluginBase):
         try:
             with open(jsonFilePath) as jsonFile:
                 retVal = json.load(jsonFile)
-        except:
+        except Exception:
             tmpLog.debug('failed to load json')
             return retVal
         tmpLog.debug('found')
@@ -608,6 +608,6 @@ class SharedFileMessenger(PluginBase):
                 return False
             tmpLog.debug('OK')
             return True
-        except:
+        except Exception:
             tmpLog.debug('failed to get mtime')
             return None

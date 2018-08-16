@@ -87,7 +87,7 @@ def dump_error_message(tmp_log, err_str=None, no_message=False):
 # sleep for random duration and return True if no more sleep is needed
 def sleep(interval, stop_event, randomize=True):
     if randomize and interval > 0:
-        randInterval = random.randint(int(interval * 0.8), int(interval * 1.2))
+        randInterval = random.randint(int(interval * 0.4), int(interval * 1.4))
     else:
         randInterval = interval
     if stop_event is None:
@@ -210,7 +210,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             # delete job metadata from worker attributes
             try:
                 del workSpec.workAttributes[jobSpec.PandaID]['metaData']
-            except:
+            except Exception:
                 pass
             # set start and end times
             if workSpec.status in [WorkSpec.ST_running]:
@@ -223,7 +223,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                     jobSpec.nCore = int(workSpec.nCore / len(jobspec_list))
                     if jobSpec.nCore == 0:
                         jobSpec.nCore = 1
-                except:
+                except Exception:
                     pass
             # batch ID
             if not jobSpec.has_attribute('batchID'):
@@ -381,9 +381,12 @@ class StopWatch(object):
                                                diff.microseconds // 1000)
 
     # get elapsed time in seconds
-    def get_elapsed_time_in_sec(self):
+    def get_elapsed_time_in_sec(self, precise=False):
         diff = datetime.datetime.utcnow() - self.startTime
-        return diff.seconds + diff.days * 24 * 3600
+        if precise:
+            return diff.seconds + diff.days * 24 * 3600 + diff.microseconds * 1e-6
+        else:
+            return diff.seconds + diff.days * 24 * 3600
 
     # reset
     def reset(self):
@@ -452,7 +455,7 @@ def get_file_lock(file_name, lock_interval):
                 pTime = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S.%f")
                 if timeNow - pTime < datetime.timedelta(seconds=lock_interval):
                     toSkip = True
-            except:
+            except Exception:
                 pass
             # skip if still in locked interval
             if toSkip:

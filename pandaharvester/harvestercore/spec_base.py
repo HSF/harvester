@@ -58,6 +58,12 @@ class SpecBase(object):
         if oldVal != newVal:
             self.changedAttrs[name] = value
 
+    # keep state for pickle
+    def __getstate__(self):
+        odict = self.__dict__.copy()
+        del odict['changedAttrs']
+        return odict
+
     # restore state from the unpickled state values
     def __setstate__(self, state):
         self.__init__()
@@ -77,6 +83,10 @@ class SpecBase(object):
     def force_not_update(self, name):
         if name in self.changedAttrs:
             del self.changedAttrs[name]
+
+    # check if attributes are updated
+    def has_updated_attributes(self):
+        return len(self.changedAttrs) > 0
 
     # pack into attributes
     def pack(self, values):

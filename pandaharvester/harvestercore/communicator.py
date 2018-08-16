@@ -6,13 +6,13 @@ import ssl
 try:
     # disable SNI for TLSV1_UNRECOGNIZED_NAME before importing requests
     ssl.HAS_SNI = False
-except:
+except Exception:
     pass
 import sys
 import json
 import zlib
 import inspect
-import datetime, time
+import datetime
 import requests
 import traceback
 from future.utils import iteritems
@@ -20,7 +20,7 @@ from future.utils import iteritems
 import requests.packages.urllib3
 try:
     requests.packages.urllib3.disable_warnings()
-except:
+except Exception:
     pass
 from . import core_utils
 from pandaharvester.harvesterconfig import harvester_config
@@ -60,7 +60,7 @@ class Communicator:
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
-        except:
+        except Exception:
             errType, errValue = sys.exc_info()[:2]
             errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
             errMsg += traceback.format_exc()
@@ -88,13 +88,14 @@ class Communicator:
                                 verify=harvester_config.pandacon.ca_cert,
                                 cert=cert)
             if self.verbose:
-                tmpLog.debug('exec={0} code={1} {3}. return={2}'.format(tmpExec, res.status_code, res.text, sw.get_elapsed_time()))
+                tmpLog.debug('exec={0} code={1} {3}. return={2}'.format(tmpExec, res.status_code, res.text,
+                                                                        sw.get_elapsed_time()))
             if res.status_code == 200:
                 return True, res
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
-        except:
+        except Exception:
             errType, errValue = sys.exc_info()[:2]
             errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
             errMsg += traceback.format_exc()
@@ -126,7 +127,7 @@ class Communicator:
             else:
                 errMsg = 'StatusCode={0} {1}'.format(res.status_code,
                                                      res.text)
-        except:
+        except Exception:
             errType, errValue = sys.exc_info()[:2]
             errMsg = "failed to put with {0}:{1} ".format(errType, errValue)
             errMsg += traceback.format_exc()
@@ -317,7 +318,7 @@ class Communicator:
         else:
             try:
                 retMap = tmpRes.json()
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmp_log)
         if retMap is None:
             retMap = {}
@@ -390,12 +391,38 @@ class Communicator:
                     retMsg = tmpDict['errorDialog']
                     core_utils.dump_error_message(tmpLog, retMsg)
                     tmpStat = False
-            except:
+            except Exception:
                 retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
                 tmpStat = False
         if tmpStat:
             tmpLog.debug('done with {0}'.format(str(retVal)))
         return retVal, retMsg
+
+    # get resource types
+    def get_resource_types(self):
+
+        tmp_log = core_utils.make_logger(_logger, method_name='get_resource_types')
+        tmp_log.debug('Start retrieving resource types')
+        data = {}
+        ret_msg = ''
+        ret_val = None
+        tmp_stat, tmp_res = self.post_ssl('getResourceTypes', data)
+        if tmp_stat is False:
+            core_utils.dump_error_message(_logger, tmp_res)
+        else:
+            try:
+                tmp_dict = tmp_res.json()
+                if tmp_dict['StatusCode'] == 0:
+                    ret_val = tmp_dict['ResourceTypes']
+                    tmp_log.debug('Resource types: {0}'.format(ret_val))
+                else:
+                    ret_msg = tmp_dict['errorDialog']
+                    core_utils.dump_error_message(tmp_log, ret_msg)
+            except:
+                core_utils.dump_error_message(tmp_log, tmp_res)
+
+        return ret_val, ret_msg
+
 
     # update workers
     def update_workers(self, workspec_list):
@@ -420,7 +447,7 @@ class Communicator:
                     errStr = core_utils.dump_error_message(tmpLog, retList)
                     retList = None
                     tmpStat = False
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
                 tmpStat = False
@@ -448,7 +475,7 @@ class Communicator:
         else:
             try:
                 retCode, tmpStr = tmpRes.json()
-            except:
+            except Exception:
                 tmpStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
                 tmpStat = False
@@ -475,7 +502,7 @@ class Communicator:
                 if not retCode:
                     tmpStat = False
                     errStr = core_utils.dump_error_message(tmpLog, retMsg)
-            except:
+            except Exception:
                 tmpStat = False
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
@@ -505,7 +532,7 @@ class Communicator:
             else:
                 try:
                     tmpRes = tmpRes.json()
-                except:
+                except Exception:
                     tmpRes = None
                     errStr = core_utils.dump_error_message(tmpLog)
             for idx, pandaID in enumerate(ids):
@@ -543,7 +570,7 @@ class Communicator:
                     retMap = None
                 else:
                     tmpLog.debug('got {0} with'.format(str(retMap), errStr))
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
         return retMap, errStr
 
@@ -585,7 +612,7 @@ class Communicator:
                 if tmpDict['StatusCode'] == 0:
                     retStat = True
                     retVal = tmpDict['nEventRanges']
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmpLog, tmpRes)
         tmpLog.debug('done with {0}'.format(retVal))
         return retStat, retVal
@@ -611,7 +638,7 @@ class Communicator:
                 if not retCode:
                     errStr = core_utils.dump_error_message(tmpLog, tmpStr)
                     tmpStat = False
-            except:
+            except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
                 tmpLog.error('conversion failure from {0}'.format(tmpRes.text))
                 tmpStat = False

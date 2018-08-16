@@ -8,7 +8,7 @@ import os
 import shutil
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 
 #==============================================================
@@ -68,25 +68,24 @@ class HTCondorSweeper(PluginBase):
                                                                         pool_opt=pool_opt,
                                                                         batchID=workspec.batchID)
             (retCode, stdOut, stdErr) = _runShell(comStr)
-            if str(workspec.batchID) in str(stdOut) or retCode != 0:
+            if ('ClusterId = {0}'.format(workspec.batchID) in str(stdOut) \
+                and 'JobStatus = 3' not in str(stdOut)) or retCode != 0:
                 ## Force to cancel if batch job not terminated first time
                 comStr = 'condor_rm -forcex {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
                                                                             pool_opt=pool_opt,
                                                                             batchID=workspec.batchID)
                 (retCode, stdOut, stdErr) = _runShell(comStr)
-            if str(workspec.batchID) in str(stdOut) or retCode != 0:
-                ## Command failed to kill
-                errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
-                tmpLog.error(errStr)
-                return False, errStr
-            else:
-                ## Found already killed
-                tmpLog.info('Found workerID={0} submissionHost={1} batchID={2} already killed'.format(
-                                workspec.workerID, workspec.submissionHost, workspec.batchID))
+                if retCode != 0:
+                    ## Command failed to kill
+                    errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+                    tmpLog.error(errStr)
+                    return False, errStr
+            ## Found already killed
+            tmpLog.info('Found workerID={0} submissionHost={1} batchID={2} already killed'.format(
+                            workspec.workerID, workspec.submissionHost, workspec.batchID))
         else:
             tmpLog.info('Succeeded to kill workerID={0} submissionHost={1} batchID={2}'.format(
                             workspec.workerID, workspec.submissionHost, workspec.batchID))
-
         ## Return
         return True, ''
 

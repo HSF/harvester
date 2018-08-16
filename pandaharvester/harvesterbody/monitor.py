@@ -1,6 +1,7 @@
 import time
 import datetime
 import collections
+import random
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -37,14 +38,14 @@ class Monitor(AgentBase):
             # just import for module initialization
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
-        last_DB_cycle_timestamp = 0
-        monitor_fifo = self.monitor_fifo
-        sleepTime = (harvester_config.monitor.fifoSleepTimeMilli / 1000.0) \
-                        if monitor_fifo.enabled else harvester_config.monitor.sleepTime
+        try:
+            fifoSleepTimeMilli = harvester_config.monitor.fifoSleepTimeMilli
+        except AttributeError:
+            fifoSleepTimeMilli = 5000
         try:
             fifoCheckDuration = harvester_config.monitor.fifoCheckDuration
         except AttributeError:
-            fifoCheckDuration = 0
+            fifoCheckDuration = 30
         try:
             fifoMaxWorkersPerChunk = harvester_config.monitor.fifoMaxWorkersPerChunk
         except AttributeError:
@@ -53,13 +54,19 @@ class Monitor(AgentBase):
             fifoProtectiveDequeue = harvester_config.monitor.fifoProtectiveDequeue
         except AttributeError:
             fifoProtectiveDequeue = True
+        last_DB_cycle_timestamp = 0
+        monitor_fifo = self.monitor_fifo
+        sleepTime = (fifoSleepTimeMilli / 1000.0) \
+                        if monitor_fifo.enabled else harvester_config.monitor.sleepTime
+        adjusted_sleepTime = sleepTime
         if monitor_fifo.enabled:
             monitor_fifo.restore()
         while True:
-            sw = core_utils.get_stopwatch()
+            sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
-
-            if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime:
+            mainLog.debug('start a cycle')
+            if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and \
+                    not (monitor_fifo.enabled and self.singleMode):
                 # run with workers from DB
                 mainLog.debug('starting run with DB')
                 mainLog.debug('getting workers to monitor')
@@ -94,6 +101,7 @@ class Monitor(AgentBase):
                 mainLog.debug('ended run with DB')
             elif monitor_fifo.enabled:
                 # run with workers from FIFO
+                sw = core_utils.get_stopwatch()
                 n_loops = 0
                 last_fifo_cycle_timestamp = time.time()
                 to_break = False
@@ -102,8 +110,14 @@ class Monitor(AgentBase):
                 obj_to_enqueue_to_head_dict = collections.defaultdict(lambda: [[], 0, 0])
                 remaining_obj_to_enqueue_dict = {}
                 remaining_obj_to_enqueue_to_head_dict = {}
+                n_chunk_peeked_stat, sum_overhead_time_stat = 0, 0.0
                 while n_loops == 0 or time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
-                    if monitor_fifo.to_check_workers():
+                    sw.reset()
+                    retVal, overhead_time = monitor_fifo.to_check_workers()
+                    if overhead_time is not None:
+                        n_chunk_peeked_stat += 1
+                        sum_overhead_time_stat += overhead_time
+                    if retVal:
                         # check fifo size
                         fifo_size = monitor_fifo.size()
                         mainLog.debug('FIFO size is {0}'.format(fifo_size))
@@ -117,9 +131,12 @@ class Monitor(AgentBase):
                                 if fifoProtectiveDequeue:
                                     obj_dequeued_id_list.append(obj_gotten.id)
                                 queueName, workSpecsList = obj_gotten.item
-                                mainLog.debug('got {0} workers of {1}'.format(len(workSpecsList), queueName))
-                                configID = workSpecsList[0][0].configID
+                                mainLog.debug('got a chunk of {0} workers of {1} from FIFO'.format(len(workSpecsList), queueName) + sw.get_elapsed_time())
+                                sw.reset()
+                                configID = None
                                 for workSpecs in workSpecsList:
+                                    if configID is None and len(workSpecs) > 0:
+                                        configID = workSpecs[0].configID
                                     for workSpec in workSpecs:
                                         if workSpec.pandaid_list is None:
                                             _jobspec_list = workSpec.get_jobspec_list()
@@ -154,6 +171,8 @@ class Monitor(AgentBase):
                                     except Exception as errStr:
                                         mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
                                         to_break = True
+                                    mainLog.debug('checked {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
+                                    n_loops += 1
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
                                 if to_break:
@@ -162,9 +181,16 @@ class Monitor(AgentBase):
                                 mainLog.debug('got nothing in FIFO')
                     else:
                         mainLog.debug('workers in FIFO too young to check. Skipped')
-                        time.sleep(sleepTime)
-                    n_loops += 1
+                        if self.singleMode:
+                            break
+                        if overhead_time is not None:
+                            time.sleep(max(-overhead_time*random.uniform(0.1, 1), adjusted_sleepTime))
+                        else:
+                            time.sleep(max(fifoCheckDuration*random.uniform(0.1, 1), adjusted_sleepTime))
+
                 # enqueue to fifo
+                sw.reset()
+                n_chunk_put = 0
                 mainLog.debug('putting worker chunks to FIFO')
                 for _dct in (obj_to_enqueue_dict, remaining_obj_to_enqueue_dict):
                     for queueName, obj_to_enqueue in iteritems(_dct):
@@ -173,6 +199,7 @@ class Monitor(AgentBase):
                             if workSpecsToEnqueue:
                                 score = fifoCheckInterval + timeNow_timestamp
                                 monitor_fifo.put((queueName, workSpecsToEnqueue), score)
+                                n_chunk_put += 1
                                 mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
                                                 len(workSpecsToEnqueue), queueName, score))
                         except Exception as errStr:
@@ -185,6 +212,7 @@ class Monitor(AgentBase):
                             if workSpecsToEnqueueToHead:
                                 score = fifoCheckInterval - timeNow_timestamp
                                 monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
+                                n_chunk_put += 1
                                 mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
                                                 len(workSpecsToEnqueueToHead), queueName, score))
                         except Exception as errStr:
@@ -192,15 +220,25 @@ class Monitor(AgentBase):
                 # release protective dequeued objects
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
                     monitor_fifo.release(ids=obj_dequeued_id_list)
+                mainLog.debug('put {0} worker chunks into FIFO'.format(n_chunk_put) + sw.get_elapsed_time())
+                # adjust adjusted_sleepTime
+                if n_chunk_peeked_stat > 0 and sum_overhead_time_stat > sleepTime:
+                    speedup_factor = (sum_overhead_time_stat - sleepTime) / (n_chunk_peeked_stat * harvester_config.monitor.checkInterval)
+                    speedup_factor = max(speedup_factor, 0)
+                    adjusted_sleepTime = adjusted_sleepTime / (1. + speedup_factor)
+                elif n_chunk_peeked_stat == 0 or sum_overhead_time_stat < 0:
+                    adjusted_sleepTime = (sleepTime + adjusted_sleepTime)/2
+                mainLog.debug('adjusted_sleepTime becomes {0:.3f} sec'.format(adjusted_sleepTime))
+                # end run with fifo
                 mainLog.debug('ended run with FIFO')
 
-            if sw.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
-                mainLog.warning('a single cycle was longer than lockInterval ' + sw.get_elapsed_time())
+            if sw_main.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
+                mainLog.warning('a single cycle was longer than lockInterval ' + sw_main.get_elapsed_time())
             else:
-                mainLog.debug('done' + sw.get_elapsed_time())
+                mainLog.debug('done a cycle' + sw_main.get_elapsed_time())
 
             # check if being terminated
-            if self.terminated(sleepTime):
+            if self.terminated(adjusted_sleepTime):
                 mainLog.debug('terminated')
                 return
 
@@ -212,7 +250,7 @@ class Monitor(AgentBase):
         # check queue
         if not self.queueConfigMapper.has_queue(queueName, config_id):
             tmpQueLog.error('config not found')
-            return
+            return None
         # get queue
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
         # get plugins
@@ -222,7 +260,7 @@ class Monitor(AgentBase):
         workSpecsToEnqueue = []
         workSpecsToEnqueueToHead = []
         timeNow_timestamp = time.time()
-        # get fifoCheckInterval for PQ
+        # get fifoCheckInterval for PQ and other fifo attributes
         try:
             fifoCheckInterval = monCore.fifoCheckInterval
         except Exception:
@@ -230,10 +268,18 @@ class Monitor(AgentBase):
                 fifoCheckInterval = harvester_config.monitor.fifoCheckInterval
             else:
                 fifoCheckInterval = harvester_config.monitor.checkInterval
+        try:
+            forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
+        except AttributeError:
+            forceEnqueueInterval = 3600
+        try:
+            fifoMaxPreemptInterval = harvester_config.monitor.fifoMaxPreemptInterval
+        except AttributeError:
+            fifoMaxPreemptInterval = 60
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
-        tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog)
+        tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog, from_fifo)
         if tmpStat:
             # loop over all worker chunks
             tmpQueLog.debug('update jobs and workers')
@@ -244,17 +290,8 @@ class Monitor(AgentBase):
                 pandaIDsList = []
                 eventsToUpdateList = []
                 filesToStageOutList = []
+                isCheckedList = []
                 mapType = workSpecs[0].mapType
-                # lock workers for fifo
-                temRetLockWorker = None
-                if from_fifo:
-                    # lock workers
-                    worker_id_list = [w.workerID for w in workSpecs]
-                    temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
-                                            harvester_config.monitor.lockInterval, lockedBy)
-                    # skip if not locked
-                    if not temRetLockWorker:
-                        continue
                 # loop over workSpecs
                 for workSpec in workSpecs:
                     tmpLog = self.make_logger(_logger,
@@ -277,9 +314,6 @@ class Monitor(AgentBase):
                                                workSpec.is_post_processed(),
                                                str(filesToStageOut)))
                     iWorker += 1
-                    if from_fifo:
-                        workSpec.lockedBy = lockedBy
-                        workSpec.force_update('lockedBy')
                     # check status
                     if newStatus not in WorkSpec.ST_LIST:
                         tmpLog.error('unknown status={0}'.format(newStatus))
@@ -290,6 +324,7 @@ class Monitor(AgentBase):
                     workSpec.set_dialog_message(diagMessage)
                     if isChecked:
                         workSpec.checkTime = datetime.datetime.utcnow()
+                    isCheckedList.append(isChecked)
                     if monStatus == WorkSpec.ST_failed:
                         if not workSpec.has_pilot_error():
                             workSpec.set_pilot_error(PilotErrors.ERR_GENERALERROR, diagMessage)
@@ -314,19 +349,32 @@ class Monitor(AgentBase):
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
                         filesToStageOutList.append(filesToStageOut)
+                # lock workers for fifo
+                if from_fifo:
+                    # collect some attributes to be updated when wokers are locked
+                    worker_id_list = dict()
+                    for workSpec, isChecked in zip(workSpecs, isCheckedList):
+                        attrs = dict()
+                        if isChecked:
+                            attrs['checkTime'] = workSpec.checkTime
+                            workSpec.force_not_update('checkTime')
+                        if workSpec.has_updated_attributes():
+                            attrs['lockedBy'] = lockedBy
+                            workSpec.lockedBy = lockedBy
+                            workSpec.force_not_update('lockedBy')
+                        else:
+                            attrs['lockedBy'] = None
+                        worker_id_list[workSpec.workerID] = attrs
+                    temRetLockWorker = self.dbProxy.lock_workers(worker_id_list,
+                                                                 harvester_config.monitor.lockInterval)
+                    # skip if not locked
+                    if not temRetLockWorker:
+                        continue
                 # update jobs and workers
                 if jobSpecs is not None:
                     tmpQueLog.debug('updating {0} jobs with {1} workers'.format(len(jobSpecs), len(workSpecs)))
                     core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs,
                                                                   filesToStageOutList, eventsToUpdateList)
-                    for jobSpec in jobSpecs:
-                        tmpLog = self.make_logger(_logger,
-                                                  'id={0} PandaID={1}'.format(lockedBy, jobSpec.PandaID),
-                                                  method_name='run')
-                        tmpLog.debug('new status={0} subStatus={1} status_in_metadata={2}'.format(
-                            jobSpec.status,
-                            jobSpec.subStatus,
-                            jobSpec.get_job_status_from_attributes()))
                 # update local database
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:
@@ -337,8 +385,20 @@ class Monitor(AgentBase):
                         if from_fifo:
                             tmpLog.info('failed to update the DB. Maybe locked by other thread running with DB')
                         else:
-                            tmpLog.error('failed to update the DB. lockInterval may be too short')
-                        sendWarning = True
+                            if workSpec.status in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled, WorkSpec.ST_missed]:
+                                tmpLog.info('worker already in final status. Skipped')
+                            else:
+                                tmpLog.error('failed to update the DB. lockInterval may be too short')
+                else:
+                    if jobSpecs is not None:
+                        for jobSpec in jobSpecs:
+                            tmpLog = self.make_logger(_logger,
+                                                      'id={0} PandaID={1}'.format(lockedBy, jobSpec.PandaID),
+                                                      method_name='run')
+                            tmpLog.debug('new status={0} subStatus={1} status_in_metadata={2}'.format(
+                                jobSpec.status,
+                                jobSpec.subStatus,
+                                jobSpec.get_job_status_from_attributes()))
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                     for workSpec in workSpecs:
@@ -353,10 +413,9 @@ class Monitor(AgentBase):
                     tmpOut = tmpRetMap[workSpec.workerID]
                     newStatus = tmpOut['newStatus']
                     monStatus = tmpOut['monStatus']
-                    if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running] \
+                    if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running, WorkSpec.ST_idle] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
                         and workSpec.workAttributes is not None:
-                        forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
                         timeNow = datetime.datetime.utcnow()
                         timeNow_timestamp = time.time()
                         _bool, lastCheckAt = workSpec.get_work_params('lastCheckAt')
@@ -384,7 +443,7 @@ class Monitor(AgentBase):
                                     startFifoPreemptAt = timeNow_timestamp
                                     workSpec.set_work_params({'startFifoPreemptAt': startFifoPreemptAt})
                                 tmpQueLog.debug('workerID={0} , startFifoPreemptAt: {1}'.format(workSpec.workerID, startFifoPreemptAt))
-                                if timeNow_timestamp - startFifoPreemptAt < harvester_config.monitor.fifoMaxPreemptInterval:
+                                if timeNow_timestamp - startFifoPreemptAt < fifoMaxPreemptInterval:
                                     workSpecsToEnqueueToHead.append(workSpecs)
                                 else:
                                     workSpec.set_work_params({'startFifoPreemptAt': timeNow_timestamp})
@@ -403,7 +462,7 @@ class Monitor(AgentBase):
 
 
     # wrapper for checkWorkers
-    def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log):
+    def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log, from_fifo):
         # check timeout value
         try:
             checkTimeout = mon_core.checkTimeout
@@ -522,11 +581,14 @@ class Monitor(AgentBase):
                         retMap[workerID]['pandaIDs'] = pandaIDs
                         # keep original new status
                         retMap[workerID]['monStatus'] = newStatus
-                        # set running while there are events to update or files to stage out
+                        # set running or idle while there are events to update or files to stage out
                         if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
                             if len(retMap[workerID]['filesToStageOut']) > 0 or \
                                             len(retMap[workerID]['eventsToUpdate']) > 0:
-                                newStatus = WorkSpec.ST_running
+                                if workSpec.status == WorkSpec.ST_running:
+                                    newStatus = WorkSpec.ST_running
+                                else:
+                                    newStatus = WorkSpec.ST_idle
                             elif not workSpec.is_post_processed():
                                 if not queue_config.is_no_heartbeat_status(newStatus):
                                     # post processing unless heartbeat is suppressed
@@ -536,9 +598,13 @@ class Monitor(AgentBase):
                                     # post processing
                                     messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
                                 workSpec.post_processed()
-                                newStatus = WorkSpec.ST_running
+                                if workSpec.status == WorkSpec.ST_running:
+                                    newStatus = WorkSpec.ST_running
+                                else:
+                                    newStatus = WorkSpec.ST_idle
                             # reset modification time to immediately trigger subsequent lookup
-                            workSpec.trigger_next_lookup()
+                            if not self.monitor_fifo.enabled:
+                                workSpec.trigger_next_lookup()
                         retMap[workerID]['newStatus'] = newStatus
                         retMap[workerID]['diagMessage'] = diagMessage
                     else:

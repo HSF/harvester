@@ -2,7 +2,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
-
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 import datetime
 
 
@@ -17,6 +17,8 @@ class SimpleWorkerMaker(PluginBase):
     def __init__(self, **kwarg):
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime']
         PluginBase.__init__(self, **kwarg)
+
+        self.rt_mapper = ResourceTypeMapper()
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
@@ -60,19 +62,24 @@ class SimpleWorkerMaker(PluginBase):
 
         # case of unified queue: look at the resource type and queue configuration
         else:
-            site_corecount = queue_dict.get('corecount', 1) or 1
-            site_maxrss = queue_dict.get('maxrss', 1) or 1
 
-            # some cases need to overwrite those values
-            if 'SCORE' in resource_type:
-                # the usual pilot streaming use case
-                workSpec.nCore = 1
-                workSpec.minRamCount = site_maxrss / site_corecount
+            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified'):
+                # temporary hack to debug killed workers in Taiwan queues
+                site_corecount = queue_dict.get('corecount', 1) or 1
+                site_maxrss = queue_dict.get('maxrss', 1) or 1
+
+                # some cases need to overwrite those values
+                if 'SCORE' in resource_type:
+                    # the usual pilot streaming use case
+                    workSpec.nCore = 1
+                    workSpec.minRamCount = site_maxrss / site_corecount
+                else:
+                    # default values
+                    workSpec.nCore = site_corecount
+                    workSpec.minRamCount = site_maxrss
             else:
-                # default values
-                workSpec.nCore = site_corecount
-                workSpec.minRamCount = site_maxrss
-
+                workSpec.nCore, workSpec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type,
+                                                                                                    queue_dict)
 
         # parameters that are independent on traditional vs unified
         workSpec.maxWalltime = queue_dict.get('maxtime', 1)
@@ -92,7 +99,7 @@ class SimpleWorkerMaker(PluginBase):
 
                 try:
                     maxDiskCount += jobSpec.jobParams['maxDiskCount']
-                except:
+                except Exception:
                     pass
 
                 try:
@@ -103,7 +110,7 @@ class SimpleWorkerMaker(PluginBase):
                             maxWalltime = jobSpec.jobParams['maxWalltime']
                     else:
                         maxWalltime = queue_config.walltimeLimit
-                except:
+                except Exception:
                     pass
             if nCore > 0 and 'nCore' in self.jobAttributesToUse:
                 workSpec.nCore = nCore
@@ -130,12 +137,12 @@ class SimpleWorkerMaker(PluginBase):
     def get_num_jobs_per_worker(self, n_workers):
         try:
             return self.nJobsPerWorker
-        except:
+        except Exception:
             return 1
 
     # get number of workers per job
     def get_num_workers_per_job(self, n_workers):
         try:
             return self.nWorkersPerJob
-        except:
+        except Exception:
             return 1

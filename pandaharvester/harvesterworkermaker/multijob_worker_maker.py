@@ -35,7 +35,7 @@ class MultiJobWorkerMaker(PluginBase):
                 exe_str = self.executor + " " + self.pilot
             if self.pilot_params:
                 exe_str = " ".join([exe_str, self.pilot_params])
-        except:
+        except Exception:
             tmpLog.error("Unable to build executor command check configuration")
             exe_str = ""
 
@@ -62,16 +62,16 @@ class MultiJobWorkerMaker(PluginBase):
             for jobSpec in jobspec_list:
                 try:
                     workSpec.minRamCount = max(workSpec.minRamCount, jobSpec.jobParams['minRamCount'])
-                except:
+                except Exception:
                     pass
                 try:
                     workSpec.maxDiskCount += jobSpec.jobParams['maxDiskCount']
-                except:
+                except Exception:
                     pass
                 #try:  we should not relay on job parameters yet (not relaible)
                 #    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
                 #        workSpec.maxWalltime = max(workSpec.maxWalltime, jobSpec.jobParams['maxWalltime'])
-                #except:
+                #except Exception:
                 #    pass
 
             workSpec.workParams = self._get_executable(queue_config)
@@ -82,12 +82,12 @@ class MultiJobWorkerMaker(PluginBase):
     def get_num_jobs_per_worker(self, n_workers):
         try:
             return self.nJobsPerWorker
-        except:
+        except Exception:
             return 1
 
     # get number of workers per job
     def get_num_workers_per_job(self, n_workers):
         try:
             return self.nWorkersPerJob
-        except:
+        except Exception:
             return 1

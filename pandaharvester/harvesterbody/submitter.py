@@ -259,7 +259,8 @@ class Submitter(AgentBase):
                                                     jobSpec.submissionAttempts += 1
                                                     # max attempt or permanent error
                                                     if tmpRet is False or \
-                                                            jobSpec.submissionAttempts >= queueConfig.maxSubmissionAttempts:
+                                                            jobSpec.submissionAttempts >= \
+                                                            queueConfig.maxSubmissionAttempts:
                                                         newJobList.append(jobSpec)
                                                     else:
                                                         self.dbProxy.increment_submission_attempt(
@@ -315,7 +316,9 @@ class Submitter(AgentBase):
                                     # enqueue to monitor fifo
                                     if self.monitor_fifo.enabled \
                                             and queueConfig.mapType != WorkSpec.MT_MultiWorkers:
-                                        workSpecsToEnqueue = [[w] for w in workSpecList]
+                                        workSpecsToEnqueue = \
+                                            [[w] for w in workSpecList if w.status
+                                             in (WorkSpec.ST_submitted, WorkSpec.ST_running)]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')
                                 # release jobs

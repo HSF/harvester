@@ -77,13 +77,13 @@ class QueueConfig:
         header = self.queueName + '\n' + '-' * len(self.queueName) + '\n'
         tmpStr = ''
         pluginStr = ''
-        keys = self.__dict__.keys()
+        keys = list(self.__dict__.keys())
         keys.sort()
         for key in keys:
             val = self.__dict__[key]
             if isinstance(val, dict):
                 pluginStr += ' {0} :\n'.format(key)
-                pKeys = val.keys()
+                pKeys = list(val.keys())
                 pKeys.sort()
                 for pKey in pKeys:
                     pVal = val[pKey]
@@ -236,7 +236,12 @@ class QueueConfigMapper:
             for templateQueueName in templateQueueList:
                 if templateQueueName in newQueueConfig:
                     del newQueueConfig[templateQueueName]
-
+            for queueName in newQueueConfig.keys():
+                if queueName.endswith('_TEMPLATE'):
+                    del newQueueConfig[queueName]
+                elif hasattr(newQueueConfig[queueName], 'isTemplateQueue') and \
+                        getattr(newQueueConfig[queueName], 'isTemplateQueue') is True:
+                    del newQueueConfig[queueName]
             # auto blacklisting
             autoBlacklist = False
             if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \

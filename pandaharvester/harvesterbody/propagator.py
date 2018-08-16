@@ -27,15 +27,15 @@ class Propagator(AgentBase):
     # main loop
     def run(self):
         while True:
-            sw = core_utils.get_stopwatch()
+            sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='run')
             mainLog.debug('getting jobs to propagate')
-            sw_getjobs = core_utils.get_stopwatch()
+            sw = core_utils.get_stopwatch()
             jobSpecs = self.dbProxy.get_jobs_to_propagate(harvester_config.propagator.maxJobs,
                                                           harvester_config.propagator.lockInterval,
                                                           harvester_config.propagator.updateInterval,
                                                           self.get_pid())
-            mainLog.debug('got {0} jobs {1}'.format(len(jobSpecs), sw_getjobs.get_elapsed_time()))
+            mainLog.debug('got {0} jobs {1}'.format(len(jobSpecs), sw.get_elapsed_time()))
             # update jobs in central database
             iJobs = 0
             nJobs = harvester_config.propagator.nJobsInBulk
@@ -64,12 +64,13 @@ class Propagator(AgentBase):
                             retList.append({'StatusCode': 0, 'command': None})
                     else:
                         jobListToUpdate.append(tmpJobSpec)
-                sw_checkjobs = core_utils.get_stopwatch()
+                sw.reset()
                 retList += self.communicator.check_jobs(jobListToCheck)
-                mainLog.debug('check_jobs for {0} jobs {1}'.format(len(jobListToCheck), sw_checkjobs.get_elapsed_time()))
-                sq_updatejobs = core_utils.get_stopwatch()
+                mainLog.debug('check_jobs for {0} jobs {1}'.format(len(jobListToCheck), sw.get_elapsed_time()))
+                sw.reset()
                 retList += self.communicator.update_jobs(jobListToUpdate, self.get_pid())
-                mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate), sq_updatejobs.get_elapsed_time()))
+                mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate),
+                                                                              sw.get_elapsed_time()))
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
                     if tmpRet['StatusCode'] == 0:
@@ -85,6 +86,7 @@ class Propagator(AgentBase):
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = 'done'
+                            tmpJobSpec.modificationTime = datetime.datetime.utcnow()
                         elif tmpJobSpec.is_final_status() and not tmpJobSpec.all_events_done():
                             # trigger next propagation to update remaining events
                             tmpJobSpec.trigger_propagation()
@@ -112,14 +114,16 @@ class Propagator(AgentBase):
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))
             mainLog.debug('getting workers to propagate')
+            sw.reset()
             workSpecs = self.dbProxy.get_workers_to_propagate(harvester_config.propagator.maxWorkers,
                                                               harvester_config.propagator.updateInterval)
-            mainLog.debug('got {0} workers'.format(len(workSpecs)))
+            mainLog.debug('got {0} workers {1}'.format(len(workSpecs), sw.get_elapsed_time()))
             # update workers in central database
+            sw.reset()
             iWorkers = 0
             nWorkers = harvester_config.propagator.nWorkersInBulk
             while iWorkers < len(workSpecs):
-                workList = workSpecs[iWorkers:iWorkers + nJobs]
+                workList = workSpecs[iWorkers:iWorkers + nWorkers]
                 iWorkers += nWorkers
                 retList, tmpErrStr = self.communicator.update_workers(workList)
                 # logging
@@ -145,6 +149,8 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update workerID={0} status={1}'.format(tmpWorkSpec.workerID,
                                                                                             tmpWorkSpec.status))
+            mainLog.debug('update_workers for {0} workers took {1} sec.'.format(iWorkers,
+                                                                      sw.get_elapsed_time()))
             mainLog.debug('getting commands')
             commandSpecs = self.dbProxy.get_commands_for_receiver('propagator')
             mainLog.debug('got {0} commands'.format(len(commandSpecs)))
@@ -161,7 +167,8 @@ class Propagator(AgentBase):
                         if tmpRet:
                             mainLog.debug('updated worker stats (command) for {0}'.format(siteName))
                         else:
-                            mainLog.error('failed to update worker stats (command) for {0} err={1}'.format(siteName, tmpStr))
+                            mainLog.error('failed to update worker stats (command) for {0} err={1}'.format(siteName,
+                                                                                                           tmpStr))
 
             if not self._last_stats_update or time.time() - self._last_stats_update > STATS_PERIOD:
 
@@ -175,17 +182,19 @@ class Propagator(AgentBase):
                     mainLog.error('failed to get worker stats in bulk')
                 else:
                     for site_name in worker_stats_bulk:
-                        tmp_ret, tmp_str = self.communicator.update_worker_stats(site_name, worker_stats_bulk[site_name])
+                        tmp_ret, tmp_str = self.communicator.update_worker_stats(site_name,
+                                                                                 worker_stats_bulk[site_name])
                         if tmp_ret:
                             mainLog.debug('update of worker stats (bulk) for {0}'.format(site_name))
                             self._last_stats_update = time.time()
                         else:
-                            mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name, tmp_str))
+                            mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name,
+                                                                                                        tmp_str))
             # send dialog messages
             mainLog.debug('getting dialog messages to propagate')
             try:
                 maxDialogs = harvester_config.propagator.maxDialogs
-            except:
+            except Exception:
                 maxDialogs = 50
             diagSpecs = self.dbProxy.get_dialog_messages_to_send(maxDialogs,
                                                                  harvester_config.propagator.lockInterval)
@@ -199,10 +208,10 @@ class Propagator(AgentBase):
 
                 else:
                     mainLog.error('failed to send dialogs err={0}'.format(tmpStr))
-            if sw.get_elapsed_time_in_sec() > harvester_config.propagator.lockInterval:
-                mainLog.warning('a single cycle was longer than lockInterval. done' + sw.get_elapsed_time())
+            if sw_main.get_elapsed_time_in_sec() > harvester_config.propagator.lockInterval:
+                mainLog.warning('a single cycle was longer than lockInterval. done' + sw_main.get_elapsed_time())
             else:
-                mainLog.debug('done' + sw.get_elapsed_time())
+                mainLog.debug('done' + sw_main.get_elapsed_time())
             # check if being terminated
             if self.terminated(harvester_config.propagator.sleepTime):
                 mainLog.debug('terminated')

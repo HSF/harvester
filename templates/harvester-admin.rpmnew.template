@@ -1,0 +1,32 @@
+#!/bin/bash
+
+#======= START CONFIGURATION SECTION ==========================
+
+# user to run harvester-admin
+userName="#FIXME"
+
+# setup python and virtual env
+VIRTUAL_ENV="/#FIXME"
+
+#======= END CONFIGURATION SECTION ============================
+
+# load module python
+if [ -r ${VIRTUAL_ENV}/bin/activate ]; then
+    . ${VIRTUAL_ENV}/bin/activate
+fi
+
+# source harvester env variables
+if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
+    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
+fi
+
+# path
+HARVESTER_ADMIN_PY="${SITE_PACKAGES_PATH}/pandaharvester/harvesterscripts/harvester_admin.py"
+
+# vars
+if [ "x${userName}y" == "xy" -o "x${userName}y" == "x#FIXMEy" ]; then
+    userName=`whoami`
+fi
+
+# run
+sudo -u ${userName} -s -E PATH=$PATH PYTHONPATH=$PYTHONPATH python ${HARVESTER_ADMIN_PY} "$@"

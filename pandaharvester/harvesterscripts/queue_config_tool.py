@@ -8,7 +8,7 @@ qcm.load_data()
 def list_active_queues():
     """list all active queue names"""
     qs = qcm.get_active_queues()
-    ks = qs.keys()
+    ks = list(qs.keys())
     ks.sort()
     for k in ks:
         print (k)
@@ -17,7 +17,7 @@ def list_active_queues():
 def list_config_ids():
     """list all configIDs and queue names"""
     qs = qcm.get_all_queues_with_config_ids()
-    ks = qs.keys()
+    ks = list(qs.keys())
     ks.sort()
     print ('configID : queue name')
     print ('--------- ------------')
@@ -25,31 +25,39 @@ def list_config_ids():
         print ('{0:8} : {1}'.format(k, qs[k].queueName))
 
 
-def dump_active_queue(name):
+def dump_active_queue(name, to_print=True):
     """dump configuration of an active queue with name"""
     if not qcm.has_queue(name):
         print ("ERROR : {0} is not available".format(name))
         return
     q = qcm.get_queue(name)
-    print (q)
+    if to_print:
+        print (q)
+    else:
+        return q
 
-
-def dump_all_active_queues():
+def dump_all_active_queues(to_print=True):
     """dump configuration of all active queues"""
     qs = qcm.get_active_queues()
-    ks = qs.keys()
-    ks.sort()
-    for k in ks:
-        print (qs[k])
+    if to_print:
+        ks = list(qs.keys())
+        ks.sort()
+        for k in ks:
+            print (qs[k])
+    else:
+        return list(qs.values())
 
 
-def dump_queue_with_config_id(config_id):
+def dump_queue_with_config_id(config_id, to_print=True):
     """dump configuration of a queue with configID"""
     if not qcm.has_queue(None, config_id):
         print ("ERROR : configID={0} is not available".format(config_id))
         return
     q = qcm.get_queue(None, config_id)
-    print (q)
+    if to_print:
+        print (q)
+    else:
+        return q
 
 
 def help(o=None):

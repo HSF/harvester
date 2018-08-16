@@ -248,10 +248,12 @@ class JobSpec(SpecBase):
     def get_input_file_attributes(self, skip_ready=False):
         lfnToSkip = set()
         attemptNrMap = dict()
+        pathMap = dict()
         for fileSpec in self.inFiles:
             if skip_ready and fileSpec.status == 'ready':
                 lfnToSkip.add(fileSpec.lfn)
             attemptNrMap[fileSpec.lfn] = fileSpec.attemptNr
+            pathMap[fileSpec.lfn] = fileSpec.path
         inFiles = {}
         lfns = self.jobParams['inFiles'].split(',')
         guids = self.jobParams['GUID'].split(',')
@@ -264,7 +266,7 @@ class JobSpec(SpecBase):
                 zip(lfns, guids, fsizes, chksums, scopes, datasets, endpoints):
             try:
                 fsize = long(fsize)
-            except:
+            except Exception:
                 fsize = None
             if lfn in lfnToSkip:
                 continue
@@ -281,11 +283,10 @@ class JobSpec(SpecBase):
                             'attemptNr': attemptNr}
         # add path
         if 'inFilePaths' in self.jobParams:
-            paths = self.jobParams['inFilePaths'].split(',')
-            for lfn, path in zip(lfns, paths):
-                if lfn in lfnToSkip:
+            for lfn in lfns:
+                if lfn not in inFiles or lfn not in pathMap:
                     continue
-                inFiles[lfn]['path'] = path
+                inFiles[lfn]['path'] = pathMap[lfn]
         # delete empty file
         if '' in inFiles:
             del inFiles['']
