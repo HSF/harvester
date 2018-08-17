@@ -14,8 +14,10 @@ class k8s_Client:
 
     def __init__(self):
         config.load_kube_config()
+        self.corev1 = client.CoreV1Api()
+        self.batchv1 = client.BatchV1Api()
 
-    def create_job_from_yaml(self, batchv1, yaml_file, workerID, cert):
+    def create_job_from_yaml(self, yaml_file, workerID, cert):
         with open(os.path.join(os.path.dirname(__file__), yaml_file)) as f:
             job = yaml.load(f)
         currenttime = datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')
@@ -30,13 +32,13 @@ class k8s_Client:
                 if item['name'] == 'workerID':
                     item['value'] = workerID
 
-        rsp = batchv1.create_namespaced_job(body=job, namespace=NAMESPACE)
+        rsp = self.batchv1.create_namespaced_job(body=job, namespace=NAMESPACE)
         return job_name
 
-    def list_pods_name(self, corev1):
+    def list_pods_info(self):
         pods_list = []
         pods = {}
-        ret = corev1.list_namespaced_pod(namespace=NAMESPACE)
+        ret = self.corev1.list_namespaced_pod(namespace=NAMESPACE)
         for i in ret.items:
             pods['name'] = i.metadata.name
             pods['status'] = i.status.phase
@@ -45,16 +47,16 @@ class k8s_Client:
             pods_list.append(pods)
         return pods_list
 
-    def list_job_name(self, batchv1):
+    def list_jobs_name(self):
         jobs_name = []
-        ret = batchv1.list_namespaced_job(namespace=NAMESPACE)
+        ret = self.batchv1.list_namespaced_job(namespace=NAMESPACE)
         for i in ret.items:
             jobs_name.append(i.metadata.name)
         return jobs_name
 
-    def delete_job(self, batchv1, job_name):
+    def delete_job(self, job_name):
         try:
-            batchv1.delete_namespaced_job(name=job_name, namespace=NAMESPACE, body=client.V1DeleteOptions(), grace_period_seconds=0)
+            self.batchv1.delete_namespaced_job(name=job_name, namespace=NAMESPACE, body=client.V1DeleteOptions(), grace_period_seconds=0)
         except ApiException as _e:
             print("%s" % _e)
 
@@ -63,4 +65,3 @@ class k8s_Client:
             content = f.read()
         content = content.replace("\n", ",")
         return content
-
