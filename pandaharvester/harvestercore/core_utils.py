@@ -381,9 +381,12 @@ class StopWatch(object):
                                                diff.microseconds // 1000)
 
     # get elapsed time in seconds
-    def get_elapsed_time_in_sec(self):
+    def get_elapsed_time_in_sec(self, precise=False):
         diff = datetime.datetime.utcnow() - self.startTime
-        return diff.seconds + diff.days * 24 * 3600
+        if precise:
+            return diff.seconds + diff.days * 24 * 3600 + diff.microseconds * 1e-6
+        else:
+            return diff.seconds + diff.days * 24 * 3600
 
     # reset
     def reset(self):

@@ -38,15 +38,14 @@ class Monitor(AgentBase):
             # just import for module initialization
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
-        last_DB_cycle_timestamp = 0
-        monitor_fifo = self.monitor_fifo
-        sleepTime = (harvester_config.monitor.fifoSleepTimeMilli / 1000.0) \
-                        if monitor_fifo.enabled else harvester_config.monitor.sleepTime
-        adjusted_sleepTime = sleepTime
+        try:
+            fifoSleepTimeMilli = harvester_config.monitor.fifoSleepTimeMilli
+        except AttributeError:
+            fifoSleepTimeMilli = 5000
         try:
             fifoCheckDuration = harvester_config.monitor.fifoCheckDuration
         except AttributeError:
-            fifoCheckDuration = 0
+            fifoCheckDuration = 30
         try:
             fifoMaxWorkersPerChunk = harvester_config.monitor.fifoMaxWorkersPerChunk
         except AttributeError:
@@ -55,6 +54,11 @@ class Monitor(AgentBase):
             fifoProtectiveDequeue = harvester_config.monitor.fifoProtectiveDequeue
         except AttributeError:
             fifoProtectiveDequeue = True
+        last_DB_cycle_timestamp = 0
+        monitor_fifo = self.monitor_fifo
+        sleepTime = (fifoSleepTimeMilli / 1000.0) \
+                        if monitor_fifo.enabled else harvester_config.monitor.sleepTime
+        adjusted_sleepTime = sleepTime
         if monitor_fifo.enabled:
             monitor_fifo.restore()
         while True:
@@ -256,7 +260,7 @@ class Monitor(AgentBase):
         workSpecsToEnqueue = []
         workSpecsToEnqueueToHead = []
         timeNow_timestamp = time.time()
-        # get fifoCheckInterval for PQ
+        # get fifoCheckInterval for PQ and other fifo attributes
         try:
             fifoCheckInterval = monCore.fifoCheckInterval
         except Exception:
@@ -264,6 +268,14 @@ class Monitor(AgentBase):
                 fifoCheckInterval = harvester_config.monitor.fifoCheckInterval
             else:
                 fifoCheckInterval = harvester_config.monitor.checkInterval
+        try:
+            forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
+        except AttributeError:
+            forceEnqueueInterval = 3600
+        try:
+            fifoMaxPreemptInterval = harvester_config.monitor.fifoMaxPreemptInterval
+        except AttributeError:
+            fifoMaxPreemptInterval = 60
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug('checking {0} workers'.format(len(allWorkers)))
@@ -404,7 +416,6 @@ class Monitor(AgentBase):
                     if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running, WorkSpec.ST_idle] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
                         and workSpec.workAttributes is not None:
-                        forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
                         timeNow = datetime.datetime.utcnow()
                         timeNow_timestamp = time.time()
                         _bool, lastCheckAt = workSpec.get_work_params('lastCheckAt')
@@ -432,7 +443,7 @@ class Monitor(AgentBase):
                                     startFifoPreemptAt = timeNow_timestamp
                                     workSpec.set_work_params({'startFifoPreemptAt': startFifoPreemptAt})
                                 tmpQueLog.debug('workerID={0} , startFifoPreemptAt: {1}'.format(workSpec.workerID, startFifoPreemptAt))
-                                if timeNow_timestamp - startFifoPreemptAt < harvester_config.monitor.fifoMaxPreemptInterval:
+                                if timeNow_timestamp - startFifoPreemptAt < fifoMaxPreemptInterval:
                                     workSpecsToEnqueueToHead.append(workSpecs)
                                 else:
                                     workSpec.set_work_params({'startFifoPreemptAt': timeNow_timestamp})
