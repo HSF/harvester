@@ -112,9 +112,11 @@ class SimpleWorkerMaker(PluginBase):
                         maxWalltime = queue_config.walltimeLimit
                 except Exception:
                     pass
-            if nCore > 0 and 'nCore' in self.jobAttributesToUse:
+            if (nCore > 0 and 'nCore' in self.jobAttributesToUse) \
+                or unified_queue:
                 workSpec.nCore = nCore
-            if minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse:
+            if (minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse) \
+                or unified_queue:
                 workSpec.minRamCount = minRamCount
             if maxDiskCount > 0 and 'maxDiskCount' in self.jobAttributesToUse:
                 workSpec.maxDiskCount = maxDiskCount
