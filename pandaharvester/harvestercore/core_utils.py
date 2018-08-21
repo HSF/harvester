@@ -542,4 +542,4 @@ def dynamic_plugin_change():
     try:
         return harvester_config.master.dynamic_plugin_change
     except Exception:
-        return False
+        return True
