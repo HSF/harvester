@@ -721,18 +721,16 @@ class DBProxy:
                         # insert queue
                         varMap = dict()
                         varMap[':queueName'] = queueName
-                        sqlP = "INSERT IGNORE INTO {0} (".format(pandaQueueTableName)
-                        sqlS = "VALUES ("
+                        attrName_list = []
+                        tmpKey_list = []
                         for attrName in PandaQueueSpec.column_names().split(','):
                             if hasattr(queueConfig, attrName):
                                 tmpKey = ':{0}'.format(attrName)
-                                sqlP += '{0},'.format(attrName)
-                                sqlS += '{0},'.format(tmpKey)
+                                attrName_list.append(attrName)
+                                tmpKey_list.append(tmpKey)
                                 varMap[tmpKey] = getattr(queueConfig, attrName)
-                        sqlP = sqlP[:-1]
-                        sqlS = sqlS[:-1]
-                        sqlP += ') '
-                        sqlS += ') '
+                        sqlP = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
+                        sqlS = "VALUES ({0}) ".format(','.join(tmpKey_list))
                         self.execute(sqlP + sqlS, varMap)
                     # commit
                     self.commit()
@@ -3343,8 +3341,8 @@ class DBProxy:
 
             if queue: # a queue to clone was found
                 var_map = {}
-                sql_insert = "INSERT IGNORE INTO {0} (".format(pandaQueueTableName)
-                sql_values = "VALUES ("
+                attribute_list = []
+                attr_binding_list = []
                 for attribute, value in zip(PandaQueueSpec.column_names().split(','), queue):
                     attr_binding = ':{0}'.format(attribute)
                     if attribute == 'resourceType':
@@ -3355,10 +3353,10 @@ class DBProxy:
                         var_map[attr_binding] = core_utils.get_unique_queue_name(queue_name, resource_type)
                     else:
                         var_map[attr_binding] = value
-                    sql_insert += '{0},'.format(attribute)
-                    sql_values += '{0},'.format(attr_binding)
-                sql_insert = sql_insert[:-1] + ') '
-                sql_values = sql_values[:-1] + ') '
+                    attribute_list.append(attribute)
+                    attr_binding_list.append(attr_binding)
+                sql_insert = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attribute_list))
+                sql_values = "VALUES ({0}) ".format(','.join(attr_binding_list))
 
                 self.execute(sql_insert + sql_values, var_map)
             else:
