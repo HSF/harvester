@@ -31,14 +31,14 @@ class K8sSweeper(PluginBase):
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)
 
-        pod_info = self.k8s_client.get_pod_info_from_job(job_id)
+        pod_name = workspec.get_work_params("pod_name")
         job_info = self.k8s_client.get_job_info(job_id)
 
-        if not job_info and pod_info['status'] != 'Terminating':
+        if not job_info:
             try:
-                self.k8s_client.delete_pod(pod_info['name'])
+                self.k8s_client.delete_pod(pod_name)
             except Exception as _e:
-                errStr = 'Failed to delete a POD with id={0} ; {1}'.format(pod_info['name'], _e)
+                errStr = 'Failed to delete a POD with id={0} ; {1}'.format(pod_name, _e)
                 tmpLog.error(errStr)
                 tmpRetVal = (False, errStr)
             else:
