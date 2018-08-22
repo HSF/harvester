@@ -102,15 +102,22 @@ class YodaRucioRseDirectStager(BaseStager):
         if 'jobtype' in queueConfig.stager:
             if queueConfig.stager['jobtype'] == "Yoda" :
                 self.Yodajob = True
+        # get destination endpoint
+        nucleus = jobspec.jobParams['nucleus']
+        agis = self.dbInterface.get_cache('panda_queues.json').data
+        dstRSE = [agis[x]["astorages"]['pr'][0] for x in agis if agis[x]["atlas_site"] == nucleus][0]
         # set the location of the files in fileSpec.objstoreID
         # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
-        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
+        ddm = self.dbInterface.get_cache('agis_ddmendpoints.json').data
+        self.objstoreID = ddm[dstRSE]['id']
         if self.Yodajob :
             self.pathConvention = int(queueConfig.stager['pathConvention'])
             tmpLog.debug('Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}'.format(jobspec.PandaID,self.objstoreID,self.pathConvention))
         else:
             self.pathConvention = None
             tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
+        # set the location of the files in fileSpec.objstoreID
+        self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
         # Get the files grouped by Rucio Rule ID 
         groups = jobspec.get_groups_of_output_files()
         if len(groups) == 0:
@@ -215,26 +222,27 @@ class YodaRucioRseDirectStager(BaseStager):
         if 'jobtype' in queueConfig.stager:
             if queueConfig.stager['jobtype'] == "Yoda" :
                 self.Yodajob = True
-        # set the location of the files in fileSpec.objstoreID
+        # get destination endpoint
+        nucleus = jobspec.jobParams['nucleus']
+        agis = self.dbInterface.get_cache('panda_queues.json').data
+        dstRSE = [agis[x]["astorages"]['pr'][0] for x in agis if agis[x]["atlas_site"] == nucleus][0]
         # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
-        self.objstoreID = int(queueConfig.stager['objStoreID_ES'])
+        ddm = self.dbInterface.get_cache('agis_ddmendpoints.json').data
+        self.objstoreID = ddm[dstRSE]['id']
         if self.Yodajob :
             self.pathConvention = int(queueConfig.stager['pathConvention'])
             tmpLog.debug('Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}'.format(jobspec.PandaID,self.objstoreID,self.pathConvention))
         else:
             self.pathConvention = None
             tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
+        # set the location of the files in fileSpec.objstoreID
+        self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
         self.RSE_dstpath = queueConfig.stager['RSE_dstPath']
         # check queueConfig stager section to see if srcRSE is set
         if 'srcRSE' in queueConfig.stager:
             srcRSE = queueConfig.stager['srcRSE']
         else:
             tmpLog.debug('Warning srcRSE not defined in stager portion of queue config file')
-
-        # get destination endpoint
-        nucleus = jobspec.jobParams['nucleus']
-        agis = self.dbInterface.get_cache('panda_queues.json').data
-        dstRSE = [agis[x]["astorages"]['pr'][0] for x in agis if agis[x]["atlas_site"] == nucleus][0]
         tmpLog.debug('srcRSE - {0} dstRSE - {1}'.format(srcRSE,dstRSE))
             
         # loop over the output files and copy the files
