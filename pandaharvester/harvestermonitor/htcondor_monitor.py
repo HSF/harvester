@@ -14,6 +14,7 @@ import six
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
@@ -53,18 +54,6 @@ CONDOR_JOB_STATUS_MAP = {
 ## generate condor job id with schedd host from workspec
 def condor_job_id_from_workspec(workspec):
     return '{0}#{1}'.format(workspec.submissionHost, workspec.batchID)
-
-
-## Singleton distinguishable with ID
-class SingletonWithID(type):
-    def __init__(cls, *args,**kwargs):
-        cls.__instance = {}
-        super(SingletonWithID, cls).__init__(*args, **kwargs)
-    def __call__(cls, *args, **kwargs):
-        obj_id = str(kwargs.get('id', ''))
-        if obj_id not in cls.__instance:
-            cls.__instance[obj_id] = super(SingletonWithID, cls).__call__(*args, **kwargs)
-        return cls.__instance.get(obj_id)
 
 
 ## Condor job ads query

@@ -3,14 +3,16 @@ utilities routines associated with Kubernetes python client
 
 """
 import os
+import six
 import yaml
 from datetime import datetime
+from pandaharvester.harvestercore.core_utils import SingletonWithID
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 NAMESPACE = "default"
 
-class k8s_Client:
+class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
     def __init__(self):
         config.load_kube_config()
