@@ -5,7 +5,6 @@ utilities routines associated with Kubernetes python client
 import os
 import six
 import yaml
-from datetime import datetime
 from pandaharvester.harvestercore.core_utils import SingletonWithID
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -23,8 +22,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
     def create_job_from_yaml(self, yaml_file, workerID, cert):
         with open(os.path.join(os.path.dirname(__file__), yaml_file)) as f:
             job = yaml.load(f)
-        currenttime = datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')
-        job['metadata']['name'] = job['metadata']['name'] + "-" + currenttime
+        job['metadata']['name'] = job['metadata']['name'] + "-" + workerID
         job_name = job['metadata']['name']
 
         for i in range(len(job['spec']['template']['spec']['containers'])):

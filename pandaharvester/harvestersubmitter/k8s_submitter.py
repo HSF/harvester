@@ -1,11 +1,8 @@
 import os
-import datetime
-import re
 
 from concurrent.futures import ThreadPoolExecutor
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
@@ -21,6 +18,9 @@ class K8sSubmitter(PluginBase):
     def __init__(self, **kwarg):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
+
+        self.k8s_client = k8s_Client()
+
         # number of processes
         try:
             self.nProcesses
@@ -42,8 +42,13 @@ class K8sSubmitter(PluginBase):
         nWorkers = len(workspec_list)
         tmpLog.debug('start, nWorkers={0}'.format(nWorkers))
 
-        #FIXME
         retList = list()
+        if not workspec_list:
+            tmp_log.debug('empty workspec_list')
+            return retList
+
+        for work_spec in workspec_list:
+            retList.append(self.k8s_client.create_job_from_yaml(harvester_config.k8s.YAMLFile, work_spec, self.x509UserProxy))
 
         tmpLog.debug('done')
 
