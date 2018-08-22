@@ -37,7 +37,10 @@ class BaseStager(PluginBase):
                     tmpZipPath = zipPath + '.' + str(uuid.uuid4())
                     with tarfile.open(tmpZipPath, "w") as zf:
                         for assFileSpec in fileSpec.associatedFiles:
-                            zf.add(assFileSpec.path, os.path.basename(assFileSpec.path))
+                            if os.path.exists(assFileSpec.path):
+                                zf.add(assFileSpec.path, os.path.basename(assFileSpec.path))
+                            else:
+                                assFileSpec.status = 'failed'
                     # avoid overwriting
                     lockName = 'zip.lock.{0}'.format(fileSpec.lfn)
                     lockInterval = 60

@@ -460,13 +460,15 @@ class SharedFileMessenger(PluginBase):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                os.remove(jsonFilePath)
+                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                os.remove(jsonFilePath)
+                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
         tmpLog.debug('done')
