@@ -25,8 +25,8 @@ class PBSSubmitter(PluginBase):
         tmpFile = open(self.templateFile)
         self.template = tmpFile.read()
         tmpFile.close()
-        if not hasattr(self, 'infinityToSeconds'):
-            self.infinityToSeconds = self.defaultDurationSeconds
+        if not hasattr(self, 'maxDurationSeconds'):
+            self.maxDurationSeconds = self.defaultDurationSeconds
 
     # adjust cores based on available events
     def adjust_needed_resource(self, workspec):
@@ -130,7 +130,7 @@ class PBSSubmitter(PluginBase):
 
         resources = {}
         # command
-        comStr = "showbf -p {0}".format(self.partition)
+        comStr = "showbf -p {0} --blocking".format(self.partition)
         # get backfill resources
         tmpLog.debug('Get backfill resources with {0}'.format(comStr))
         p = subprocess.Popen(comStr.split(),
@@ -155,12 +155,14 @@ class PBSSubmitter(PluginBase):
                             continue
                         duration = items[3]
                         if duration == 'INFINITY':
-                            duration = self.infinityToSeconds
+                            duration = self.maxDurationSeconds
                         else:
                             h, m, s = duration.split(':')
                             duration = int(h) * 3600 + int(m) * 60 + int(s)
                             if duration < self.minDurationSeconds:
                                 continue
+                            if duration > self.maxDurationSeconds:
+                                duration = self.maxDurationSeconds
                         key = nodes * duration
                         if key not in resources:
                             resources[key] = []
