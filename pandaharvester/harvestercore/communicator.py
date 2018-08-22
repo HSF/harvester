@@ -229,8 +229,8 @@ class Communicator:
                         data['xml'] = jobSpec.outputFilesToReport
                 dataList.append(data)
             harvester_id = harvester_config.master.harvester_id
-            tmpStat, tmpRes = self.post_ssl('updateJobsInBulk', {'jobList': json.dumps(dataList),
-                                                                 'harvester_id': harvester_id})
+            tmpData = {'jobList': json.dumps(dataList), 'harvester_id': harvester_id}
+            tmpStat, tmpRes = self.post_ssl('updateJobsInBulk', tmpData)
             retMaps = None
             errStr = ''
             if tmpStat is False:

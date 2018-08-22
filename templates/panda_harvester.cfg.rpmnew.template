@@ -204,13 +204,13 @@ nThreads = 3
 maxJobs = 100
 
 # number of jobs in bulk update
-nJobsInBulk = 10
+nJobsInBulk = 100
 
 # max number of workers to update in one cycle
 maxWorkers = 100
 
 # number of workers in bulk update
-nWorkersInBulk = 10
+nWorkersInBulk = 100
 
 # number of dialog message to send
 maxDialogs = 50

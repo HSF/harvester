@@ -336,6 +336,12 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                             fileSpec.chksum = fileAtters['chksum']
                         if 'eventRangeID' in fileAtters:
                             fileSpec.eventRangeID = fileAtters['eventRangeID']
+                            # use input fileID as provenanceID
+                            try:
+                                provenanceID = fileSpec.eventRangeID.split('-')[2]
+                            except Exception:
+                                provenanceID = None
+                            fileSpec.provenanceID = provenanceID
                         if lfn in outFileAttrs:
                             fileSpec.scope = outFileAttrs[lfn]['scope']
                         jobSpec.add_out_file(fileSpec)
@@ -536,4 +542,4 @@ def dynamic_plugin_change():
     try:
         return harvester_config.master.dynamic_plugin_change
     except Exception:
-        return False
+        return True
