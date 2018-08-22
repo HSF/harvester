@@ -33,6 +33,70 @@ from pandaharvester.harvesterconfig import harvester_config
 with_memory_profile = False
 
 
+# stopwatch class
+class StopWatch(object):
+    # constructor
+    def __init__(self):
+        self.startTime = datetime.datetime.utcnow()
+
+    # get elapsed time
+    def get_elapsed_time(self):
+        diff = datetime.datetime.utcnow() - self.startTime
+        return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600,
+                                               diff.microseconds // 1000)
+
+    # get elapsed time in seconds
+    def get_elapsed_time_in_sec(self, precise=False):
+        diff = datetime.datetime.utcnow() - self.startTime
+        if precise:
+            return diff.seconds + diff.days * 24 * 3600 + diff.microseconds * 1e-6
+        else:
+            return diff.seconds + diff.days * 24 * 3600
+
+    # reset
+    def reset(self):
+        self.startTime = datetime.datetime.utcnow()
+
+
+# map with lock
+class MapWithLock:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.dataMap = dict()
+
+    def __getitem__(self, item):
+        ret = self.dataMap.__getitem__(item)
+        return ret
+
+    def __setitem__(self, item, value):
+        self.dataMap.__setitem__(item, value)
+
+    def __contains__(self, item):
+        ret = self.dataMap.__contains__(item)
+        return ret
+
+    def acquire(self):
+        self.lock.acquire()
+
+    def release(self):
+        self.lock.release()
+
+    def iteritems(self):
+        return iteritems(self.dataMap)
+
+
+# singleton distinguishable with id
+class SingletonWithID(type):
+    def __init__(cls, *args,**kwargs):
+        cls.__instance = {}
+        super(SingletonWithID, cls).__init__(*args, **kwargs)
+    def __call__(cls, *args, **kwargs):
+        obj_id = str(kwargs.get('id', ''))
+        if obj_id not in cls.__instance:
+            cls.__instance[obj_id] = super(SingletonWithID, cls).__call__(*args, **kwargs)
+        return cls.__instance.get(obj_id)
+
+
 # enable memory profiling
 def enable_memory_profiling():
     global with_memory_profile
@@ -374,61 +438,9 @@ def do_log_rollover():
     PandaLogger.doRollOver()
 
 
-# stopwatch class
-class StopWatch(object):
-    # constructor
-    def __init__(self):
-        self.startTime = datetime.datetime.utcnow()
-
-    # get elapsed time
-    def get_elapsed_time(self):
-        diff = datetime.datetime.utcnow() - self.startTime
-        return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600,
-                                               diff.microseconds // 1000)
-
-    # get elapsed time in seconds
-    def get_elapsed_time_in_sec(self, precise=False):
-        diff = datetime.datetime.utcnow() - self.startTime
-        if precise:
-            return diff.seconds + diff.days * 24 * 3600 + diff.microseconds * 1e-6
-        else:
-            return diff.seconds + diff.days * 24 * 3600
-
-    # reset
-    def reset(self):
-        self.startTime = datetime.datetime.utcnow()
-
-
 # get stopwatch
 def get_stopwatch():
     return StopWatch()
-
-
-# map with lock
-class MapWithLock:
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.dataMap = dict()
-
-    def __getitem__(self, item):
-        ret = self.dataMap.__getitem__(item)
-        return ret
-
-    def __setitem__(self, item, value):
-        self.dataMap.__setitem__(item, value)
-
-    def __contains__(self, item):
-        ret = self.dataMap.__contains__(item)
-        return ret
-
-    def acquire(self):
-        self.lock.acquire()
-
-    def release(self):
-        self.lock.release()
-
-    def iteritems(self):
-        return iteritems(self.dataMap)
 
 
 # global dict for all threads
