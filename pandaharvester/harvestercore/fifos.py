@@ -112,6 +112,8 @@ class FIFOBase:
         if obj_serialized is None and score is None:
             retVal = FifoObject(None, None, None)
         else:
+            if score is None:
+                score = time.time()
             retVal = FifoObject(None, obj_serialized, score)
         mainLog.debug('score={0}'.format(score))
         return retVal

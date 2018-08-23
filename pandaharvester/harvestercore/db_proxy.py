@@ -8,6 +8,7 @@ import sys
 import copy
 import random
 import inspect
+import time
 import datetime
 import threading
 from future.utils import iteritems
@@ -53,6 +54,14 @@ conLock = threading.Lock()
 class DBProxy:
     # constructor
     def __init__(self, thr_name=None):
+        self.thrName = thr_name
+        self.verbLog = None
+        if harvester_config.db.verbose:
+            self.verbLog = core_utils.make_logger(_logger, method_name='execute')
+            if self.thrName is None:
+                currentThr = threading.current_thread()
+                if currentThr is not None:
+                    self.thrName = currentThr.ident
         if harvester_config.db.engine == 'mariadb':
             import mysql.connector
             if hasattr(harvester_config.db, 'host'):
@@ -87,14 +96,24 @@ class DBProxy:
             self.usingAppLock = False
         else:
             self.usingAppLock = True
-        self.thrName = thr_name
-        self.verbLog = None
-        if harvester_config.db.verbose:
-            self.verbLog = core_utils.make_logger(_logger, method_name='execute')
-            if self.thrName is None:
-                currentThr = threading.current_thread()
-                if currentThr is not None:
-                    self.thrName = currentThr.ident
+
+    # exception handler for type of DBs
+    def _handle_exception(self, exc, retry_time=30):
+        tmpLog = core_utils.make_logger(_logger, 'thr={0}'.format(self.thrName), method_name='_handle_exception')
+        if harvester_config.db.engine == 'mariadb':
+            import mysql.connector
+            tmpLog.warning('exception of mysql {0} occurred'.format(exc.__class__.__name__))
+            # Case to try renew connection
+            if isinstance(exc, mysql.connector.errors.OperationalError):
+                try_timestamp = time.time()
+                while time.time() - try_timestamp < retry_time:
+                    try:
+                        self.__init__()
+                        tmpLog.info('renewed connection')
+                        break
+                    except Exception as e:
+                        tmpLog.error('failed to renew connection; {0}'.format(e))
+                        time.sleep(1)
 
     # convert param dict to list
     def convert_params(self, sql, varmap):
@@ -205,8 +224,10 @@ class DBProxy:
     def commit(self):
         try:
             self.con.commit()
-        except Exception:
-            self.verbLog.debug('thr={0} exception during commit'.format(self.thrName))
+        except Exception as e:
+            self._handle_exception(e)
+            if harvester_config.db.verbose:
+                self.verbLog.debug('thr={0} exception during commit'.format(self.thrName))
             raise
         if self.usingAppLock and self.lockDB:
             if harvester_config.db.verbose:
@@ -218,8 +239,10 @@ class DBProxy:
     def rollback(self):
         try:
             self.con.rollback()
-        except Exception:
-            self.verbLog.debug('thr={0} exception during rollback'.format(self.thrName))
+        except Exception as e:
+            self._handle_exception(e)
+            if harvester_config.db.verbose:
+                self.verbLog.debug('thr={0} exception during rollback'.format(self.thrName))
         finally:
             if self.usingAppLock and self.lockDB:
                 if harvester_config.db.verbose:
