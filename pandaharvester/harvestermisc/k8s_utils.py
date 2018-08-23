@@ -36,49 +36,41 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         rsp = self.batchv1.create_namespaced_job(body=job, namespace=NAMESPACE)
         return job_name
 
-    def get_pod_info_from_job(self, job_name):
-        pod_info = {}
-        ret = self.corev1.list_namespaced_pod(namespace=NAMESPACE)
-        for i in ret.items:
-            if i.metadata.labels['job-name'] == job_name:
-                pod_info['name'] = i.metadata.name
-                pod_info['status'] = i.status.phase
-                pod_info['status_reason'] = i.status.conditions[0].reason
-                pod_info['status_message'] = i.status.conditions[0].message
-        return pod_info
+    def get_pods_info(self, job_name=None):
+        pods_list = list()
 
-    def get_job_info(self, job_name):
-        job_info = {}
-        field_selector = 'metadata.name=' + job_name
-        ret = self.batchv1.list_namespaced_job(namespace=NAMESPACE, field_selector=field_selector)
+        ret = self.corev1.list_namespaced_pod(namespace=NAMESPACE)
+
         for i in ret.items:
+            pod_info = {}
+            pod_info['name'] = i.metadata.name
+            pod_info['status'] = i.status.phase
+            pod_info['status_reason'] = i.status.conditions[0].reason
+            pod_info['status_message'] = i.status.conditions[0].message
+            pod_info['job_name'] = i.metadata.labels['job-name']
+            pods_list.append(pod_info)
+        if job_name:
+            pods_list = [ i for i in pods_list if i['job_name'] == job_name]
+        return pods_list
+
+    def get_jobs_info(self, job_name=None):
+        jobs_list = list()
+
+        field_selector = 'metadata.name=' + job_name if job_name else ''
+        ret = self.batchv1.list_namespaced_job(namespace=NAMESPACE, field_selector=field_selector)
+
+        for i in ret.items:
+            job_info = {}
             job_info['name'] = i.metadata.name
             job_info['status'] = i.status.conditions[0].type
             job_info['status_reason'] = i.status.conditions[0].reason
             job_info['status_message'] = i.status.conditions[0].message
-        return job_info
+            jobs_list.append(job_info)
+        return jobs_list
 
-    def list_pods_info(self):
-        pods_list = []
-        pods = {}
-        ret = self.corev1.list_namespaced_pod(namespace=NAMESPACE)
-        for i in ret.items:
-            pods['name'] = i.metadata.name
-            pods['status'] = i.status.phase
-            pods['status_reason'] = i.status.conditions[0].reason
-            pods['status_message'] = i.status.conditions[0].message
-            pods_list.append(pods)
-        return pods_list
-
-    def list_jobs_name(self):
-        jobs_name = []
-        ret = self.batchv1.list_namespaced_job(namespace=NAMESPACE)
-        for i in ret.items:
-            jobs_name.append(i.metadata.name)
-        return jobs_name
-
-    def delete_pod(self, pod_name):
-         self.corev1.delete_namespaced_pod(name=pod_name, namespace=NAMESPACE, body=self.deletev1, grace_period_seconds=0)
+    def delete_pod(self, pod_name_list):
+         for pod_name in pod_name_list:
+             self.corev1.delete_namespaced_pod(name=pod_name, namespace=NAMESPACE, body=self.deletev1, grace_period_seconds=0)
 
     def delete_job(self, job_name):
          self.batchv1.delete_namespaced_job(name=job_name, namespace=NAMESPACE, body=self.deletev1, grace_period_seconds=0)
