@@ -63,7 +63,6 @@ class DBProxy:
                 if currentThr is not None:
                     self.thrName = currentThr.ident
         if harvester_config.db.engine == 'mariadb':
-            import mysql.connector
             if hasattr(harvester_config.db, 'host'):
                 host = harvester_config.db.host
             else:
@@ -72,9 +71,40 @@ class DBProxy:
                 port = harvester_config.db.port
             else:
                 port = 3306
-            self.con = mysql.connector.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
-                                               db=harvester_config.db.schema, host=host, port=port)
-            self.cur = self.con.cursor(named_tuple=True, buffered=True)
+            if hasattr(harvester_config.db, 'useMySQLdb') and harvester_config.db.useMySQLdb is True:
+                import MySQLdb
+                import MySQLdb.cursors
+
+                class MyCursor (MySQLdb.cursors.Cursor):
+                    def fetchone(self):
+                        tmpRet = MySQLdb.cursors.Cursor.fetchone(self)
+                        if tmpRet is None:
+                            return None
+                        tmpRet = core_utils.DictTupleHybrid(tmpRet)
+                        tmpRet.set_attributes([d[0] for d in self.description])
+                        return tmpRet
+
+                    def fetchall(self):
+                        tmpRets = MySQLdb.cursors.Cursor.fetchall(self)
+                        if len(tmpRets) == 0:
+                            return tmpRets
+                        newTmpRets = []
+                        attributes = [d[0] for d in self.description]
+                        for tmpRet in tmpRets:
+                            tmpRet = core_utils.DictTupleHybrid(tmpRet)
+                            tmpRet.set_attributes(attributes)
+                            newTmpRets.append(tmpRet)
+                        return newTmpRets
+
+                self.con = MySQLdb.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
+                                           db=harvester_config.db.schema, host=host, port=port,
+                                           cursorclass=MyCursor)
+                self.cur = self.con.cursor()
+            else:
+                import mysql.connector
+                self.con = mysql.connector.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
+                                                   db=harvester_config.db.schema, host=host, port=port)
+                self.cur = self.con.cursor(named_tuple=True, buffered=True)
         else:
             import sqlite3
             self.con = sqlite3.connect(harvester_config.db.database_filename,
@@ -101,10 +131,18 @@ class DBProxy:
     def _handle_exception(self, exc, retry_time=30):
         tmpLog = core_utils.make_logger(_logger, 'thr={0}'.format(self.thrName), method_name='_handle_exception')
         if harvester_config.db.engine == 'mariadb':
-            import mysql.connector
             tmpLog.warning('exception of mysql {0} occurred'.format(exc.__class__.__name__))
             # Case to try renew connection
-            if isinstance(exc, mysql.connector.errors.OperationalError):
+            isOperationalError = False
+            if hasattr(harvester_config.db, 'useMySQLdb') and harvester_config.db.useMySQLdb is True:
+                import MySQLdb
+                if isinstance(exc, MySQLdb.OperationalError):
+                    isOperationalError = True
+            else:
+                import mysql.connector
+                if isinstance(exc, mysql.connector.errors.OperationalError):
+                    isOperationalError = True
+            if isOperationalError:
                 try_timestamp = time.time()
                 while time.time() - try_timestamp < retry_time:
                     try:
@@ -167,9 +205,12 @@ class DBProxy:
         try:
             # verbose
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap),
-                                                                             inspect.stack()[1][3],
-                                                                             self.thrName))
+                if not hasattr(harvester_config.db, 'useInspect') or harvester_config.db.useInspect is False:
+                    self.verbLog.debug('thr={2} sql={0} var={1}'.format(sql, str(varmap), self.thrName))
+                else:
+                    self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap),
+                                                                                 inspect.stack()[1][3],
+                                                                                 self.thrName))
             # convert param dict
             newSQL, params = self.convert_params(sql, varmap)
             # execute
@@ -198,9 +239,12 @@ class DBProxy:
         try:
             # verbose
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap_list),
-                                                                             inspect.stack()[1][3],
-                                                                             self.thrName))
+                if not hasattr(harvester_config.db, 'useInspect') or harvester_config.db.useInspect is False:
+                    self.verbLog.debug('thr={2} sql={0} var={1}'.format(sql, str(varmap_list), self.thrName))
+                else:
+                    self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap_list),
+                                                                                 inspect.stack()[1][3],
+                                                                                 self.thrName))
             # convert param dict
             paramList = []
             newSQL = sql
@@ -425,7 +469,9 @@ class DBProxy:
         colMap = dict()
         for tmpItem in resC:
             if harvester_config.db.engine == 'mariadb':
-                columnName, columnType = tmpItem.column_name, tmpItem.column_type
+                if hasattr(tmpItem, '_asdict'):
+                    tmpItem = tmpItem._asdict()
+                columnName, columnType = tmpItem['column_name'], tmpItem['column_type']
             else:
                 columnName, columnType = tmpItem[1], tmpItem[2]
             colMap[columnName] = columnType

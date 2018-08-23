@@ -555,3 +555,12 @@ def dynamic_plugin_change():
         return harvester_config.master.dynamic_plugin_change
     except Exception:
         return True
+
+
+# replacement for slow native named tuple in python 2
+class DictTupleHybrid(tuple):
+    def set_attributes(self, attributes):
+        self.attributes = attributes
+
+    def _asdict(self):
+        return dict(zip(self.attributes, self))
