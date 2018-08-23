@@ -56,12 +56,15 @@ class DBProxy:
     def __init__(self, thr_name=None):
         self.thrName = thr_name
         self.verbLog = None
+        self.useInspect = False
         if harvester_config.db.verbose:
             self.verbLog = core_utils.make_logger(_logger, method_name='execute')
             if self.thrName is None:
                 currentThr = threading.current_thread()
                 if currentThr is not None:
                     self.thrName = currentThr.ident
+            if hasattr(harvester_config.db, 'useInspect') and harvester_config.db.useInspect is True:
+                self.useInspect = True
         if harvester_config.db.engine == 'mariadb':
             if hasattr(harvester_config.db, 'host'):
                 host = harvester_config.db.host
@@ -205,7 +208,7 @@ class DBProxy:
         try:
             # verbose
             if harvester_config.db.verbose:
-                if not hasattr(harvester_config.db, 'useInspect') or harvester_config.db.useInspect is False:
+                if not self.useInspect:
                     self.verbLog.debug('thr={2} sql={0} var={1}'.format(sql, str(varmap), self.thrName))
                 else:
                     self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap),
@@ -239,7 +242,7 @@ class DBProxy:
         try:
             # verbose
             if harvester_config.db.verbose:
-                if not hasattr(harvester_config.db, 'useInspect') or harvester_config.db.useInspect is False:
+                if not self.useInspect:
                     self.verbLog.debug('thr={2} sql={0} var={1}'.format(sql, str(varmap_list), self.thrName))
                 else:
                     self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap_list),

@@ -128,6 +128,9 @@ pandaCacheURL_R = https://aipanda011.cern.ch:25443/cache
 # verbose
 verbose = False
 
+# use inspect for decorator of verbose messages
+useInspect = False
+
 
 
 
