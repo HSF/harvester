@@ -3,6 +3,7 @@ import json
 import copy
 import datetime
 import threading
+import six
 from future.utils import iteritems
 
 
@@ -10,6 +11,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from .work_spec import WorkSpec
 from .panda_queue_spec import PandaQueueSpec
 from . import core_utils
+from .core_utils import SingletonWithID
 from .db_proxy_pool import DBProxyPool as DBProxy
 from .plugin_factory import PluginFactory
 from .queue_config_dump_spec import QueueConfigDumpSpec
@@ -94,7 +96,7 @@ class QueueConfig:
 
 
 # mapper
-class QueueConfigMapper:
+class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
     # constructor
     def __init__(self):
         self.lock = threading.Lock()
