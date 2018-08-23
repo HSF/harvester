@@ -95,9 +95,12 @@ class Propagator(AgentBase):
                             if tmpJobSpec.status == 'starting' and 'eventService' in tmpJobSpec.jobParams and \
                                     tmpJobSpec.subStatus != 'submitted':
                                 tmpEvStat, tmpEvRet = self.communicator.check_event_availability(tmpJobSpec)
-                                if tmpEvStat and tmpEvRet == 0:
-                                    mainLog.debug('kill PandaID={0} due to no event'.format(tmpJobSpec.PandaID))
-                                    tmpRet['command'] = 'tobekilled'
+                                if tmpEvStat:
+                                    if tmpEvRet is not None:
+                                        tmpJobSpec.nRemainingEvents = tmpEvRet
+                                    if tmpEvRet == 0:
+                                        mainLog.debug('kill PandaID={0} due to no event'.format(tmpJobSpec.PandaID))
+                                        tmpRet['command'] = 'tobekilled'
                             # got kill command
                             if 'command' in tmpRet and tmpRet['command'] in ['tobekilled']:
                                 nWorkers = self.dbProxy.kill_workers_with_job(tmpJobSpec.PandaID)

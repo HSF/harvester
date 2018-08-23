@@ -371,7 +371,7 @@ class Monitor(AgentBase):
                     if not temRetLockWorker:
                         continue
                 # update jobs and workers
-                if jobSpecs is not None:
+                if jobSpecs is not None and len(jobSpecs) > 0:
                     tmpQueLog.debug('updating {0} jobs with {1} workers'.format(len(jobSpecs), len(workSpecs)))
                     core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs,
                                                                   filesToStageOutList, eventsToUpdateList)
