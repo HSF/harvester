@@ -51,6 +51,7 @@ class YodaRseDirectStager(BaseStager):
         self.Yodajob = False 
         self.pathConvention = None
         self.objstoreID = None
+        self.changeFileStatusOnSuccess = True
         tmpLog.debug('stop')
 
     # check status
@@ -145,7 +146,8 @@ class YodaRseDirectStager(BaseStager):
                         # copy the source file to destination file
                         shutil.copy2(srcURL, dstURL)
                         # Set the file spec status
-                        fileSpec.status = 'finished'
+                        if self.changeFileStatusOnSuccess:
+                            self.set_FileSpec_status(jobspec, 'finished')
                     except (IOError, os.error) as why:
                         errors.append((srcURL, dstURL, str(why)))
                 else :
