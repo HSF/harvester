@@ -50,7 +50,8 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             pod_info['job_name'] = i.metadata.labels['job-name']
             pods_list.append(pod_info)
         if job_name:
-            pods_list = [ i for i in pods_list if i['job_name'] == job_name]
+            tmp_list = [ i for i in pods_list if i['job_name'] == job_name]
+            pods_list = tmp_list
         return pods_list
 
     def get_jobs_info(self, job_name=None):
