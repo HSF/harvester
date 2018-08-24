@@ -64,6 +64,22 @@ class GlobusRucioStager(GlobusBulkStager):
         if (srcRSE is None) or (dstRSE is None) :
            tmpLog.error(errStr)
            return None,errStr
+        # check queueConfig stager section to see if jobtype is set
+        if 'jobtype' in queueConfig.stager:
+            if queueConfig.stager['jobtype'] == "Yoda" :
+                self.Yodajob = True
+        # set the location of the files in fileSpec.objstoreID
+        # see file /cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json 
+        ddm = self.dbInterface.get_cache('agis_ddmendpoints.json').data
+        self.objstoreID = ddm[dstRSE]['id']
+        if self.Yodajob :
+            self.pathConvention = int(queueConfig.stager['pathConvention'])
+            tmpLog.debug('Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}'.format(jobspec.PandaID,self.objstoreID,self.pathConvention))
+        else:
+            self.pathConvention = None
+            tmpLog.debug('PandaID = {0} objstoreID = {1}'.format(jobspec.PandaID,self.objstoreID))
+        # set the location of the files in fileSpec.objstoreID
+        self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
         # create the Rucio Client
         try:
             # register dataset

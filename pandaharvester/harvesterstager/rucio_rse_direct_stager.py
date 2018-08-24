@@ -47,7 +47,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
         if len(groups) == 0:
             tmpLog.debug('No Rucio Rules')
             return None,'No Rucio Rules'
-        tmpLog.debug('#Rucio Rules - {0} - Rules - {1}'.format(len(groups),groups) 
+        tmpLog.debug('#Rucio Rules - {0} - Rules - {1}'.format(len(groups),groups))
         
         try:
             rucioAPI = RucioClient()

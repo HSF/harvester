@@ -8,6 +8,7 @@ import sys
 import copy
 import random
 import inspect
+import time
 import datetime
 import threading
 from future.utils import iteritems
@@ -53,8 +54,18 @@ conLock = threading.Lock()
 class DBProxy:
     # constructor
     def __init__(self, thr_name=None):
+        self.thrName = thr_name
+        self.verbLog = None
+        self.useInspect = False
+        if harvester_config.db.verbose:
+            self.verbLog = core_utils.make_logger(_logger, method_name='execute')
+            if self.thrName is None:
+                currentThr = threading.current_thread()
+                if currentThr is not None:
+                    self.thrName = currentThr.ident
+            if hasattr(harvester_config.db, 'useInspect') and harvester_config.db.useInspect is True:
+                self.useInspect = True
         if harvester_config.db.engine == 'mariadb':
-            import mysql.connector
             if hasattr(harvester_config.db, 'host'):
                 host = harvester_config.db.host
             else:
@@ -63,9 +74,40 @@ class DBProxy:
                 port = harvester_config.db.port
             else:
                 port = 3306
-            self.con = mysql.connector.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
-                                               db=harvester_config.db.schema, host=host, port=port)
-            self.cur = self.con.cursor(named_tuple=True, buffered=True)
+            if hasattr(harvester_config.db, 'useMySQLdb') and harvester_config.db.useMySQLdb is True:
+                import MySQLdb
+                import MySQLdb.cursors
+
+                class MyCursor (MySQLdb.cursors.Cursor):
+                    def fetchone(self):
+                        tmpRet = MySQLdb.cursors.Cursor.fetchone(self)
+                        if tmpRet is None:
+                            return None
+                        tmpRet = core_utils.DictTupleHybrid(tmpRet)
+                        tmpRet.set_attributes([d[0] for d in self.description])
+                        return tmpRet
+
+                    def fetchall(self):
+                        tmpRets = MySQLdb.cursors.Cursor.fetchall(self)
+                        if len(tmpRets) == 0:
+                            return tmpRets
+                        newTmpRets = []
+                        attributes = [d[0] for d in self.description]
+                        for tmpRet in tmpRets:
+                            tmpRet = core_utils.DictTupleHybrid(tmpRet)
+                            tmpRet.set_attributes(attributes)
+                            newTmpRets.append(tmpRet)
+                        return newTmpRets
+
+                self.con = MySQLdb.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
+                                           db=harvester_config.db.schema, host=host, port=port,
+                                           cursorclass=MyCursor)
+                self.cur = self.con.cursor()
+            else:
+                import mysql.connector
+                self.con = mysql.connector.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
+                                                   db=harvester_config.db.schema, host=host, port=port)
+                self.cur = self.con.cursor(named_tuple=True, buffered=True)
         else:
             import sqlite3
             self.con = sqlite3.connect(harvester_config.db.database_filename,
@@ -87,14 +129,32 @@ class DBProxy:
             self.usingAppLock = False
         else:
             self.usingAppLock = True
-        self.thrName = thr_name
-        self.verbLog = None
-        if harvester_config.db.verbose:
-            self.verbLog = core_utils.make_logger(_logger, method_name='execute')
-            if self.thrName is None:
-                currentThr = threading.current_thread()
-                if currentThr is not None:
-                    self.thrName = currentThr.ident
+
+    # exception handler for type of DBs
+    def _handle_exception(self, exc, retry_time=30):
+        tmpLog = core_utils.make_logger(_logger, 'thr={0}'.format(self.thrName), method_name='_handle_exception')
+        if harvester_config.db.engine == 'mariadb':
+            tmpLog.warning('exception of mysql {0} occurred'.format(exc.__class__.__name__))
+            # Case to try renew connection
+            isOperationalError = False
+            if hasattr(harvester_config.db, 'useMySQLdb') and harvester_config.db.useMySQLdb is True:
+                import MySQLdb
+                if isinstance(exc, MySQLdb.OperationalError):
+                    isOperationalError = True
+            else:
+                import mysql.connector
+                if isinstance(exc, mysql.connector.errors.OperationalError):
+                    isOperationalError = True
+            if isOperationalError:
+                try_timestamp = time.time()
+                while time.time() - try_timestamp < retry_time:
+                    try:
+                        self.__init__()
+                        tmpLog.info('renewed connection')
+                        break
+                    except Exception as e:
+                        tmpLog.error('failed to renew connection; {0}'.format(e))
+                        time.sleep(1)
 
     # convert param dict to list
     def convert_params(self, sql, varmap):
@@ -148,9 +208,12 @@ class DBProxy:
         try:
             # verbose
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap),
-                                                                             inspect.stack()[1][3],
-                                                                             self.thrName))
+                if not self.useInspect:
+                    self.verbLog.debug('thr={2} sql={0} var={1}'.format(sql, str(varmap), self.thrName))
+                else:
+                    self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap),
+                                                                                 inspect.stack()[1][3],
+                                                                                 self.thrName))
             # convert param dict
             newSQL, params = self.convert_params(sql, varmap)
             # execute
@@ -179,9 +242,12 @@ class DBProxy:
         try:
             # verbose
             if harvester_config.db.verbose:
-                self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap_list),
-                                                                             inspect.stack()[1][3],
-                                                                             self.thrName))
+                if not self.useInspect:
+                    self.verbLog.debug('thr={2} sql={0} var={1}'.format(sql, str(varmap_list), self.thrName))
+                else:
+                    self.verbLog.debug('thr={3} sql={0} var={1} exec={2}'.format(sql, str(varmap_list),
+                                                                                 inspect.stack()[1][3],
+                                                                                 self.thrName))
             # convert param dict
             paramList = []
             newSQL = sql
@@ -205,8 +271,10 @@ class DBProxy:
     def commit(self):
         try:
             self.con.commit()
-        except Exception:
-            self.verbLog.debug('thr={0} exception during commit'.format(self.thrName))
+        except Exception as e:
+            self._handle_exception(e)
+            if harvester_config.db.verbose:
+                self.verbLog.debug('thr={0} exception during commit'.format(self.thrName))
             raise
         if self.usingAppLock and self.lockDB:
             if harvester_config.db.verbose:
@@ -218,8 +286,10 @@ class DBProxy:
     def rollback(self):
         try:
             self.con.rollback()
-        except Exception:
-            self.verbLog.debug('thr={0} exception during rollback'.format(self.thrName))
+        except Exception as e:
+            self._handle_exception(e)
+            if harvester_config.db.verbose:
+                self.verbLog.debug('thr={0} exception during rollback'.format(self.thrName))
         finally:
             if self.usingAppLock and self.lockDB:
                 if harvester_config.db.verbose:
@@ -402,7 +472,9 @@ class DBProxy:
         colMap = dict()
         for tmpItem in resC:
             if harvester_config.db.engine == 'mariadb':
-                columnName, columnType = tmpItem.column_name, tmpItem.column_type
+                if hasattr(tmpItem, '_asdict'):
+                    tmpItem = tmpItem._asdict()
+                columnName, columnType = tmpItem['column_name'], tmpItem['column_type']
             else:
                 columnName, columnType = tmpItem[1], tmpItem[2]
             colMap[columnName] = columnType
@@ -721,18 +793,16 @@ class DBProxy:
                         # insert queue
                         varMap = dict()
                         varMap[':queueName'] = queueName
-                        sqlP = "INSERT IGNORE INTO {0} (".format(pandaQueueTableName)
-                        sqlS = "VALUES ("
+                        attrName_list = []
+                        tmpKey_list = []
                         for attrName in PandaQueueSpec.column_names().split(','):
                             if hasattr(queueConfig, attrName):
                                 tmpKey = ':{0}'.format(attrName)
-                                sqlP += '{0},'.format(attrName)
-                                sqlS += '{0},'.format(tmpKey)
+                                attrName_list.append(attrName)
+                                tmpKey_list.append(tmpKey)
                                 varMap[tmpKey] = getattr(queueConfig, attrName)
-                        sqlP = sqlP[:-1]
-                        sqlS = sqlS[:-1]
-                        sqlP += ') '
-                        sqlS += ') '
+                        sqlP = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
+                        sqlS = "VALUES ({0}) ".format(','.join(tmpKey_list))
                         self.execute(sqlP + sqlS, varMap)
                     # commit
                     self.commit()
@@ -3343,8 +3413,8 @@ class DBProxy:
 
             if queue: # a queue to clone was found
                 var_map = {}
-                sql_insert = "INSERT IGNORE INTO {0} (".format(pandaQueueTableName)
-                sql_values = "VALUES ("
+                attribute_list = []
+                attr_binding_list = []
                 for attribute, value in zip(PandaQueueSpec.column_names().split(','), queue):
                     attr_binding = ':{0}'.format(attribute)
                     if attribute == 'resourceType':
@@ -3355,10 +3425,10 @@ class DBProxy:
                         var_map[attr_binding] = core_utils.get_unique_queue_name(queue_name, resource_type)
                     else:
                         var_map[attr_binding] = value
-                    sql_insert += '{0},'.format(attribute)
-                    sql_values += '{0},'.format(attr_binding)
-                sql_insert = sql_insert[:-1] + ') '
-                sql_values = sql_values[:-1] + ') '
+                    attribute_list.append(attribute)
+                    attr_binding_list.append(attr_binding)
+                sql_insert = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attribute_list))
+                sql_values = "VALUES ({0}) ".format(','.join(attr_binding_list))
 
                 self.execute(sql_insert + sql_values, var_map)
             else:

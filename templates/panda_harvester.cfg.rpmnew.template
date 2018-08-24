@@ -39,11 +39,17 @@ database_filename = FIXME
 # verbose
 verbose = False
 
+# use inspect for decorator of verbose messages
+useInspect = False
+
 # number of database connections in each process
 nConnections = 10
 
 # database engine : sqlite or mariadb
 engine = sqlite
+
+# use MySQLdb for mariadb access
+useMySQLdb = False
 
 # user name for MariaDB. N/A for sqlite
 user = harvester
@@ -121,6 +127,9 @@ pandaCacheURL_R = https://aipanda011.cern.ch:25443/cache
 
 # verbose
 verbose = False
+
+# use inspect for decorator of verbose messages
+useInspect = False
 
 
 
@@ -204,13 +213,13 @@ nThreads = 3
 maxJobs = 100
 
 # number of jobs in bulk update
-nJobsInBulk = 10
+nJobsInBulk = 100
 
 # max number of workers to update in one cycle
 maxWorkers = 100
 
 # number of workers in bulk update
-nWorkersInBulk = 10
+nWorkersInBulk = 100
 
 # number of dialog message to send
 maxDialogs = 50

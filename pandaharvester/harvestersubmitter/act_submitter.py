@@ -1,9 +1,11 @@
 import arc
 import json
+import time
 import urllib
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvesterconfig import harvester_config
 
 from act.common.aCTConfig import aCTConfigARC
@@ -56,31 +58,51 @@ class ACTSubmitter(PluginBase):
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                             method_name='submit_workers')
 
-            # Assume for aCT that jobs are always pre-fetched (no late-binding)
-            for jobSpec in workSpec.get_jobspec_list():
+            queueconfigmapper = QueueConfigMapper()
+            queueconfig = queueconfigmapper.get_queue(workSpec.computingSite)
+            prodSourceLabel = queueconfig.get_source_label()
 
+            # If jobSpec is defined we are in push mode, if not pull mode
+            # Both assume one to one worker to job mapping
+            jobSpec = workSpec.get_jobspec_list()
+            if jobSpec:
+                jobSpec = jobSpec[0]
                 tmpLog.debug("JobSpec: {0}".format(jobSpec.values_map()))
-                desc = {}
-                desc['pandastatus'] = 'sent'
-                desc['actpandastatus'] = 'sent'
-                desc['siteName'] = jobSpec.computingSite
-                desc['proxyid'] = self.proxymap['pilot' if jobSpec.jobParams['prodSourceLabel'] == 'user' else 'production']
-                desc['sendhb'] = 0
-                metadata = {'harvesteraccesspoint': workSpec.get_access_point(),
-                            'schedulerid': 'harvester-{}'.format(harvester_config.master.harvester_id)}
-                desc['metadata'] = json.dumps(metadata)
 
-                # aCT takes the url-encoded job description (like it gets from panda server)
+            desc = {}
+            desc['pandastatus'] = 'sent'
+            desc['actpandastatus'] = 'sent'
+            desc['siteName'] = workSpec.computingSite
+            desc['proxyid'] = self.proxymap['pilot' if prodSourceLabel == 'user' else 'production']
+            desc['sendhb'] = 0
+            metadata = {'harvesteraccesspoint': workSpec.get_access_point(),
+                        'schedulerid': 'harvester-{}'.format(harvester_config.master.harvester_id)}
+            desc['metadata'] = json.dumps(metadata)
+
+            if jobSpec:
+                # push mode: aCT takes the url-encoded job description (like it gets from panda server)
+                pandaid = jobSpec.PandaID
                 actjobdesc = urllib.urlencode(jobSpec.jobParams)
-                try:
-                    tmpLog.info("Inserting job {0} into aCT DB: {1}".format(jobSpec.PandaID, str(desc)))
-                    batchid = self.actDB.insertJob(jobSpec.PandaID, actjobdesc, desc)['LAST_INSERT_ID()']
-                    tmpLog.info("aCT batch id {0}".format(batchid))
-                    workSpec.batchID = str(batchid)
-                    result = (True, '')
-                except Exception as e:
-                    result = (False, "Failed to insert job into aCT DB: {0}".format(str(e)))
+            else:
+                # pull mode: just set pandaid (to workerid) and prodsourcelabel
+                pandaid = workSpec.workerID
+                actjobdesc = 'PandaID=%d&prodSourceLabel=%s' % (pandaid, prodSourceLabel)
 
-                retList.append(result)
+            tmpLog.info("Inserting job {0} into aCT DB: {1}".format(pandaid, str(desc)))
+            try:
+                batchid = self.actDB.insertJob(pandaid, actjobdesc, desc)['LAST_INSERT_ID()']
+            except Exception as e:
+                result = (False, "Failed to insert job into aCT DB: {0}".format(str(e)))
+            else:
+                tmpLog.info("aCT batch id {0}".format(batchid))
+                workSpec.batchID = str(batchid)
+                # Set log files in workSpec
+                today = time.strftime('%Y-%m-%d', time.gmtime())
+                logurl = '/'.join([queueconfig.submitter.get('logBaseURL'), today, workSpec.computingSite, str(pandaid)])
+                workSpec.set_log_file('batch_log', '{0}.log'.format(logurl))
+                workSpec.set_log_file('stdout', '{0}.out'.format(logurl))
+                workSpec.set_log_file('stderr', '{0}.err'.format(logurl))
+                result = (True, '')
+            retList.append(result)
 
         return retList

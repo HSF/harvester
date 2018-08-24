@@ -11,6 +11,7 @@ except Exception:
 import sys
 import json
 import zlib
+import uuid
 import inspect
 import datetime
 import requests
@@ -33,8 +34,11 @@ _logger = core_utils.setup_logger('communicator')
 class Communicator:
     # constructor
     def __init__(self):
+        self.useInspect = False
         if hasattr(harvester_config.pandacon, 'verbose') and harvester_config.pandacon.verbose:
             self.verbose = True
+            if hasattr(harvester_config.pandacon, 'useInspect') and harvester_config.pandacon.useInspect is True:
+                self.useInspect = True
         else:
             self.verbose = False
 
@@ -44,7 +48,10 @@ class Communicator:
             tmpLog = None
             if self.verbose:
                 tmpLog = core_utils.make_logger(_logger, method_name='post')
-                tmpExec = inspect.stack()[1][3]
+                if self.useInspect:
+                    tmpExec = inspect.stack()[1][3]
+                    tmpExec += '/'
+                tmpExec = str(uuid.uuid4())
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURL, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
@@ -72,7 +79,10 @@ class Communicator:
             tmpLog = None
             if self.verbose:
                 tmpLog = core_utils.make_logger(_logger, method_name='post_ssl')
-                tmpExec = inspect.stack()[1][3]
+                if self.useInspect:
+                    tmpExec = inspect.stack()[1][3]
+                    tmpExec += '/'
+                tmpExec = str(uuid.uuid4())
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
@@ -108,7 +118,10 @@ class Communicator:
             tmpExec = None
             if self.verbose:
                 tmpLog = core_utils.make_logger(_logger, method_name='put_ssl')
-                tmpExec = inspect.stack()[1][3]
+                if self.useInspect:
+                    tmpExec = inspect.stack()[1][3]
+                    tmpExec += '/'
+                tmpExec = str(uuid.uuid4())
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} files={2}'.format(tmpExec, url, files['file'][0]))
@@ -229,8 +242,8 @@ class Communicator:
                         data['xml'] = jobSpec.outputFilesToReport
                 dataList.append(data)
             harvester_id = harvester_config.master.harvester_id
-            tmpStat, tmpRes = self.post_ssl('updateJobsInBulk', {'jobList': json.dumps(dataList),
-                                                                 'harvester_id': harvester_id})
+            tmpData = {'jobList': json.dumps(dataList), 'harvester_id': harvester_id}
+            tmpStat, tmpRes = self.post_ssl('updateJobsInBulk', tmpData)
             retMaps = None
             errStr = ''
             if tmpStat is False:

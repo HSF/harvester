@@ -112,7 +112,9 @@ class FIFOBase:
         if obj_serialized is None and score is None:
             retVal = FifoObject(None, None, None)
         else:
-            retVal = FifoObject(None, pickle.loads(obj_serialized), score)
+            if score is None:
+                score = time.time()
+            retVal = FifoObject(None, obj_serialized, score)
         mainLog.debug('score={0}'.format(score))
         return retVal
 
@@ -210,21 +212,17 @@ class MonitorFIFO(FIFOBase):
         overhead_time = None
         timeNow_timestamp = time.time()
         peeked_tuple = self.peek()
-        if peeked_tuple.item is not None:
-            queueName, workSpecsList = peeked_tuple.item
-            score = peeked_tuple.score
-            overhead_time = timeNow_timestamp - score
-            if overhead_time > 0:
-                retVal = True
-                if score < 0:
-                    mainLog.debug('True. Preempting')
-                    overhead_time = None
-                else:
-                    mainLog.debug('True')
-                    mainLog.info('Overhead time is {0} sec'.format(overhead_time))
+        score = peeked_tuple.score
+        overhead_time = timeNow_timestamp - score
+        if overhead_time > 0:
+            retVal = True
+            if score < 0:
+                mainLog.debug('True. Preempting')
+                overhead_time = None
             else:
-                mainLog.debug('False. Workers too young to check')
-                mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
+                mainLog.debug('True')
+                mainLog.info('Overhead time is {0} sec'.format(overhead_time))
         else:
-            mainLog.debug('False. No workers in FIFO')
+            mainLog.debug('False. Workers too young to check')
+            mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
         return retVal, overhead_time
