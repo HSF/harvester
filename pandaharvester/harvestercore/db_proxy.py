@@ -1172,7 +1172,7 @@ class DBProxy:
         try:
             tmpLog.debug('start')
             # sql to check if exists
-            sqlE = "SELECT 1 c FROM {0} WHERE workerID=:workerID FOR UPDATE ".format(workTableName)
+            sqlE = "SELECT 1 c FROM {0} WHERE workerID=:workerID ".format(workTableName)
             # sql to insert job and worker relationship
             sqlR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlR += JobWorkerRelationSpec.bind_values_expression()

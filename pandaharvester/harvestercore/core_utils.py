@@ -557,7 +557,7 @@ def dynamic_plugin_change():
         return True
 
 
-# replacement for slow native named tuple in python 2
+# replacement for slow namedtuple in python 2
 class DictTupleHybrid(tuple):
     def set_attributes(self, attributes):
         self.attributes = attributes
