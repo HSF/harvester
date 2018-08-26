@@ -20,6 +20,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.db_interface import DBInterface
 
 # attribute list
 _attribute_list = ['id', 'item', 'score']
@@ -42,6 +43,7 @@ class FIFOBase:
         for tmpKey, tmpVal in iteritems(kwarg):
             setattr(self, tmpKey, tmpVal)
         self.dbProxy = DBProxy()
+        self.dbInterface = DBInterface()
 
     # make logger
     def make_logger(self, base_log, token=None, method_name=None, send_dialog=True):
