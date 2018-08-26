@@ -97,7 +97,7 @@ class SpecBase(object):
             if attr in self.serializedAttrs and val is not None:
                 try:
                     val = json.loads(val, object_hook=as_python_object)
-                except json.JSONDecodeError:
+                except (json.JSONDecodeError, json.decoder.JSONDecodeError):
                     pass
             object.__setattr__(self, attr, val)
 

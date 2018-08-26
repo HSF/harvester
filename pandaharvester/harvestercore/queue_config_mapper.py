@@ -255,7 +255,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         for key, val in iteritems(queueDict):
                             if isinstance(val, dict) and 'module' in val and 'name' in val:
                                 val = copy.copy(val)
-                                # check modue and name
+                                # check module and class name
                                 try:
                                     _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val['module'])
                                     _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val['name'])
