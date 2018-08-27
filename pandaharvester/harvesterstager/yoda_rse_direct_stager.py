@@ -132,7 +132,8 @@ class YodaRseDirectStager(BaseStager):
             if os.path.exists(dstURL):
                 tmpLog.debug('Already copied file {0}'.format(dstURL))
                 # Set the file spec status
-                fileSpec.status = 'finished'
+                if self.changeFileStatusOnSuccess:
+                    fileSpec.status = 'finished'
             else :
                 if os.path.exists(srcURL) :
                     # check if destination directory exists if not create it
