@@ -37,20 +37,20 @@ class DummyPreparator(PluginBase):
         tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='trigger_preparation')
         tmpLog.debug('start')
-        # Here is an example to access cached data
-        c_data = self.dbInterface.get_cache('panda_queues.json')
-        tmpLog.debug(len(c_data.data))
-        # Here is an example with file grouping :
-        # get input files while skipping files already in ready state
-        inFiles = jobspec.get_input_file_attributes(skip_ready=True)
-        tmpLog.debug('inputs={0}'.format(str(inFiles)))
-        lfns = []
-        for inLFN in inFiles.keys():
-            lfns.append(inLFN)
-        # one transfer ID for all input files
-        transferID = str(uuid.uuid4())
-        # set transfer ID which are used for later lookup
-        jobspec.set_groups_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
+        # # Here is an example to access cached data
+        # c_data = self.dbInterface.get_cache('panda_queues.json')
+        # tmpLog.debug(len(c_data.data))
+        # # Here is an example with file grouping :
+        # # get input files while skipping files already in ready state
+        # inFiles = jobspec.get_input_file_attributes(skip_ready=True)
+        # tmpLog.debug('inputs={0}'.format(str(inFiles)))
+        # lfns = []
+        # for inLFN in inFiles.keys():
+        #     lfns.append(inLFN)
+        # # one transfer ID for all input files
+        # transferID = str(uuid.uuid4())
+        # # set transfer ID which are used for later lookup
+        # jobspec.set_groups_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
         tmpLog.debug('done')
         return True, ''
 
@@ -69,13 +69,13 @@ class DummyPreparator(PluginBase):
                  None: on-going or temporary failure) and error dialog
         :rtype: (bool, string)
         """
-        #
-        # Here is an example with file grouping :
-        # get groups of input files except ones already in ready state
-        transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
-        # update transfer status
-        for transferID, transferInfo in iteritems(transferGroups):
-            jobspec.update_group_status_in_files(transferID, 'done')
+        # #
+        # # Here is an example with file grouping :
+        # # get groups of input files except ones already in ready state
+        # transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
+        # # update transfer status
+        # for transferID, transferInfo in iteritems(transferGroups):
+        #     jobspec.update_group_status_in_files(transferID, 'done')
         return True, ''
 
     # resolve input file paths
@@ -89,11 +89,11 @@ class DummyPreparator(PluginBase):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        # get input files
-        inFiles = jobspec.get_input_file_attributes()
-        # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
-            inFile['path'] = 'dummypath/{0}'.format(inLFN)
-        # set
-        jobspec.set_input_file_paths(inFiles)
+        # # get input files
+        # inFiles = jobspec.get_input_file_attributes()
+        # # set path to each file
+        # for inLFN, inFile in iteritems(inFiles):
+        #     inFile['path'] = 'dummypath/{0}'.format(inLFN)
+        # # set
+        # jobspec.set_input_file_paths(inFiles)
         return True, ''
