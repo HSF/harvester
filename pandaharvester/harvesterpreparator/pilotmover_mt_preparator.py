@@ -35,23 +35,6 @@ class PilotmoverMTPreparator(PluginBase):
     def check_status(self, jobspec):
         return True, ''
 
-
-    def calculate_adler32_checksum(self, filename):
-        asum = 1  # default adler32 starting value
-        blocksize = 64 * 1024 * 1024  # read buffer size, 64 Mb
-
-        with open(filename, 'rb') as f:
-            while True:
-                data = f.read(blocksize)
-                if not data:
-                    break
-                asum = zlib.adler32(data, asum)
-                if asum < 0:
-                    asum += 2**32
-
-        # convert to hex
-        return "{0:08x}".format(asum)
-
     def stage_in(self, tmpLog, jobspec, files):
         tmpLog.debug('To stagein files[] {0}'.format(files))
         data_client = data.StageInClient(site=jobspec.computingSite)
@@ -98,7 +81,7 @@ class PilotmoverMTPreparator(PluginBase):
             inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
             tmpLog.debug('To check file: %s' % inFile)
             if os.path.exists(inFile['path']):
-                checksum = self.calculate_adler32_checksum(inFile['path'])
+                checksum = core_utils.calc_adler32(inFile['path'])
                 checksum = 'ad:%s' % checksum
                 tmpLog.debug('checksum for file %s is %s' % (inFile['path'], checksum))
                 if 'checksum' in inFile and inFile['checksum'] and inFile['checksum'] == checksum:
