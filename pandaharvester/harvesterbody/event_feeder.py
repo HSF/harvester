@@ -57,6 +57,14 @@ class EventFeeder(AgentBase):
                     if tmpStat is False:
                         tmpLog.error('failed to feed events')
                         continue
+                    # disable multi workers
+                    if workSpec.mapType == WorkSpec.MT_MultiWorkers:
+                        for pandaID, eventList in iteritems(events):
+                            if len(eventList) == 0:
+                                tmpStat = self.dbProxy.disable_multi_workers(pandaID)
+                                if tmpStat == 1:
+                                    tmpLog.debug('disabled MultiWorkers for PandaID={0} due to no events'.format(
+                                        pandaID))
                     # update worker
                     workSpec.eventsRequest = WorkSpec.EV_useEvents
                     workSpec.eventsRequestParams = None

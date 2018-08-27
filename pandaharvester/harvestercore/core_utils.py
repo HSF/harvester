@@ -374,6 +374,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 if total_time > 0:
                     jobSpec.nCore = float(nCoreTime) / float(total_time)
                     jobSpec.nCore = int(math.ceil(jobSpec.nCore))
+            # disable to get more workers
+            jobSpec.moreWorkers = 0
         else:
             # live core count
             jobSpec.nCore = nCore

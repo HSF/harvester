@@ -1177,7 +1177,9 @@ class DBProxy:
             sqlR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlR += JobWorkerRelationSpec.bind_values_expression()
             # sql to get number of workers
-            sqlNW = "SELECT DISTINCT workerID FROM {0} WHERE PandaID=:pandaID ".format(jobWorkerTableName)
+            sqlNW = "SELECT DISTINCT t.workerID FROM {0} t, {1} w ".format(jobWorkerTableName, workTableName)
+            sqlNW += "WHERE t.PandaID=:pandaID AND w.workerID=t.workerID "
+            sqlNW += "AND w.status IN (:st_submitted,:st_running,:st_idle) "
             # sql to decrement nNewWorkers
             sqlDN = "UPDATE {0} ".format(pandaQueueTableName)
             sqlDN += "SET nNewWorkers=nNewWorkers-1 "
@@ -1217,6 +1219,9 @@ class DBProxy:
                     # get number of workers for the job
                     varMap = dict()
                     varMap[':pandaID'] = jobSpec.PandaID
+                    varMap[':st_submitted'] = WorkSpec.ST_submitted
+                    varMap[':st_running'] = WorkSpec.ST_running
+                    varMap[':st_idle'] = WorkSpec.ST_idle
                     self.execute(sqlNW, varMap)
                     resNW = self.cur.fetchall()
                     workerIDs = set()
@@ -1449,7 +1454,8 @@ class DBProxy:
             # core part of sql
             # submitted and running are for multi-workers
             sqlCore = "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
-            sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit)) "
+            sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit "
+            sqlCore += "AND moreWorkers IS NULL)) "
             sqlCore += "AND (submitterTime IS NULL "
             sqlCore += "OR (submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlCore += "OR (submitterTime<:checkTimeLimit AND lockedBy IS NULL)) "
@@ -1603,7 +1609,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_update')
             tmpLog.debug('start')
             # sql to get workers
-            sqlW = "SELECT workerID,configID FROM {0} ".format(workTableName)
+            sqlW = "SELECT workerID,configID,mapType FROM {0} ".format(workTableName)
             sqlW += "WHERE status IN (:st_submitted,:st_running,:st_idle) "
             sqlW += "AND ((modificationTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlW += "OR (modificationTime<:checkTimeLimit AND lockedBy IS NULL)) "
@@ -1620,7 +1626,7 @@ class DBProxy:
             # sql to get associated workerIDs
             sqlA = "SELECT t.workerID FROM {0} t, {0} s, {1} w ".format(jobWorkerTableName, workTableName)
             sqlA += "WHERE s.PandaID=t.PandaID AND s.workerID=:workerID "
-            sqlA += "AND w.workerID=s.workerID AND w.status IN (:st_submitted,:st_running,:st_idle) "
+            sqlA += "AND w.workerID=t.workerID AND w.status IN (:st_submitted,:st_running,:st_idle) "
             # sql to get associated workers
             sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
             sqlG += "WHERE workerID=:workerID "
@@ -1640,17 +1646,34 @@ class DBProxy:
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             tmpWorkers = set()
-            for workerID, configID in resW:
+            for workerID, configID, mapType in resW:
                 # ignore configID
                 if not core_utils.dynamic_plugin_change():
                     configID = None
-                tmpWorkers.add((workerID, configID))
+                tmpWorkers.add((workerID, configID, mapType))
             checkedIDs = set()
             retVal = {}
-            for workerID, configID in tmpWorkers:
+            for workerID, configID, mapType in tmpWorkers:
                 # skip
                 if workerID in checkedIDs:
                     continue
+                # get associated workerIDs
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':st_submitted'] = WorkSpec.ST_submitted
+                varMap[':st_running'] = WorkSpec.ST_running
+                varMap[':st_idle'] = WorkSpec.ST_idle
+                self.execute(sqlA, varMap)
+                resA = self.cur.fetchall()
+                workerIDtoScan = set()
+                for tmpWorkID, in resA:
+                    workerIDtoScan.add(tmpWorkID)
+                # add original ID just in case since no relation when job is not yet bound
+                workerIDtoScan.add(workerID)
+                # use only the largest worker to avoid updating the same worker set concurrently
+                if mapType == WorkSpec.MT_MultiWorkers:
+                    if workerID != min(workerIDtoScan):
+                        continue
                 # lock worker
                 varMap = dict()
                 varMap[':workerID'] = workerID
@@ -1668,22 +1691,9 @@ class DBProxy:
                 # skip if not locked
                 if nRow == 0:
                     continue
-                # get associated workerIDs
-                varMap = dict()
-                varMap[':workerID'] = workerID
-                varMap[':st_submitted'] = WorkSpec.ST_submitted
-                varMap[':st_running'] = WorkSpec.ST_running
-                varMap[':st_idle'] = WorkSpec.ST_idle
-                self.execute(sqlA, varMap)
-                resA = self.cur.fetchall()
                 # get workers
                 queueName = None
                 workersList = []
-                workerIDtoScan = set()
-                for tmpWorkID, in resA:
-                    workerIDtoScan.add(tmpWorkID)
-                # add original ID just in case since no relation when job is not yet bound
-                workerIDtoScan.add(workerID)
                 for tmpWorkID in workerIDtoScan:
                     checkedIDs.add(tmpWorkID)
                     # get worker
@@ -1918,8 +1928,18 @@ class DBProxy:
             # sql to insert job and worker relationship
             sqlIR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlIR += JobWorkerRelationSpec.bind_values_expression()
+            # count number of workers
+            sqlNW = "SELECT COUNT(*) cnt FROM ("
+            sqlNW += "SELECT DISTINCT t.workerID FROM {0} t, {1} w ".format(jobWorkerTableName, workTableName)
+            sqlNW += "WHERE t.PandaID=:PandaID AND w.workerID=t.workerID "
+            sqlNW += "AND w.status IN (:st_submitted,:st_running,:st_idle) "
+            sqlNW += ") "
             # update job
             if jobspec_list is not None:
+                if len(workspec_list) > 0 and workspec_list[0].mapType == WorkSpec.MT_MultiWorkers:
+                    isMultiWorkers = True
+                else:
+                    isMultiWorkers = False
                 for jobSpec in jobspec_list:
                     tmpLog = core_utils.make_logger(_logger, 'PandaID={0} by {1}'.format(jobSpec.PandaID, locked_by),
                                                     method_name='update_jobs_workers')
@@ -2108,6 +2128,17 @@ class DBProxy:
                         if len(varMapsEU) > 0:
                             self.executemany(sqlEU, varMapsEU)
                             tmpLog.debug('updated {0} event'.format(len(varMapsEU)))
+                        # get nWorkers
+                        if isMultiWorkers:
+                            varMap = dict()
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            varMap[':st_submitted'] = WorkSpec.ST_submitted
+                            varMap[':st_running'] = WorkSpec.ST_running
+                            varMap[':st_idle'] = WorkSpec.ST_idle
+                            self.execute(sqlNW, varMap)
+                            resNW = self.cur.fetchone()
+                            if resNW is not None:
+                                jobSpec.nWorkers, = resNW
                         # update job
                         varMap = jobSpec.values_map(only_changed=True)
                         if len(varMap) > 0:
@@ -4622,3 +4653,33 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return False
+
+    # disable multi workers
+    def disable_multi_workers(self, panda_id):
+        tmpLog = None
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id),
+                                            method_name='disable_multi_workers')
+            tmpLog.debug('start')
+            # sql to update flag
+            sqlJ = "UPDATE {0} SET moreWorkers=0 ".format(jobTableName)
+            sqlJ += "WHERE PandaID=:pandaID AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL "
+            sqlJ += "AND nWorkers>0 "
+            # set flag
+            varMap = dict()
+            varMap[':pandaID'] = panda_id
+            self.execute(sqlJ, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('done with {0}'.format(nRow))
+            # return
+            return nRow
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return None
