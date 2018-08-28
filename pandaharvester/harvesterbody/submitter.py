@@ -132,6 +132,7 @@ class Submitter(AgentBase):
                                     nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig,
                                                                                               nWorkers,
                                                                                               resource_type)
+                                    tmpLog.debug('nWorkersPerJob={0}'.format(nWorkersPerJob))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
                                         nWorkers, nReady, None, nWorkersPerJob,

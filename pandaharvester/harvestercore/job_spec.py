@@ -51,7 +51,8 @@ class JobSpec(SpecBase):
                            'jobsetID:integer',
                            'pilotClosed:integer',
                            'configID:integer / index',
-                           'nRemainingEvents:integer / index'
+                           'nRemainingEvents:integer',
+                           'moreWorkers:integer'
                            )
 
     # attributes initialized with 0
