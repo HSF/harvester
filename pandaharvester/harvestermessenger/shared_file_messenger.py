@@ -318,7 +318,7 @@ class SharedFileMessenger(PluginBase):
                 inFiles = jobSpec.get_input_file_attributes()
                 for inLFN, inFile in iteritems(inFiles):
                     dstPath = os.path.join(accessPoint, inLFN)
-                    if inFile['path'] != dstPath:
+                    if 'path' in inFile and inFile['path'] != dstPath:
                         # test if symlink exists if so remove it
                         if os.path.exists(dstPath):
                             os.unlink(dstPath)
