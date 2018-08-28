@@ -91,3 +91,7 @@ class MultiJobWorkerMaker(PluginBase):
             return self.nWorkersPerJob
         except Exception:
             return 1
+
+    # check if resource is ready
+    def is_resource_ready(self):
+        return True
