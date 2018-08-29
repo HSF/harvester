@@ -33,7 +33,6 @@ class Submitter(AgentBase):
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
 
-
     # main loop
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.get_pid())
@@ -357,7 +356,6 @@ class Submitter(AgentBase):
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
-
 
     # wrapper for submitWorkers to skip ready workers
     def submit_workers(self, submitter_core, workspec_list):
