@@ -149,6 +149,9 @@ class SimpleWorkerMaker(PluginBase):
         except Exception:
             return 1
 
-    # check if resource is ready
-    def is_resource_ready(self):
-        return True
+    # check number of ready resources
+    def num_ready_resources(self):
+        try:
+            return self.nReadyResources
+        except Exception:
+            return 1

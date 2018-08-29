@@ -2,7 +2,6 @@ import os.path
 import os
 import threading
 import time
-import zlib
 from future.utils import iteritems
 
 from pandaharvester.harvestercore import core_utils
@@ -20,9 +19,8 @@ baseLogger = core_utils.setup_logger('pilotmover_mt_preparator')
 
 class PilotmoverMTPreparator(PluginBase):
     """
-    Praparator bring files from remote ATLAS/Rucio storage to local facility. 
+    Praparator bring files from remote ATLAS/Rucio storage to local facility.
     """
-
 
     # constructor
     def __init__(self, **kwarg):
@@ -43,7 +41,7 @@ class PilotmoverMTPreparator(PluginBase):
         if len(files) > 0:
             result = data_client.transfer(files)
             tmpLog.debug('pilot.api data.StageInClient.transfer(files) result: {0}'.format(result))
-        
+
             # loop over each file check result all must be true for entire result to be true
             if result:
                 for answer in result:
@@ -64,8 +62,8 @@ class PilotmoverMTPreparator(PluginBase):
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='trigger_preparation')
-        tmpLog.debug('start')        
-       
+        tmpLog.debug('start')
+
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
             # not found
@@ -100,7 +98,7 @@ class PilotmoverMTPreparator(PluginBase):
         ErrMsg = 'These files failed to download : '
         if files:
             threads = []
-            n_files_per_thread = (len(files)+ self.n_threads - 1)/self.n_threads
+            n_files_per_thread = (len(files) + self.n_threads - 1) / self.n_threads
             tmpLog.debug('num files per thread: %s' % n_files_per_thread)
             for i in range(0, len(files), n_files_per_thread):
                 sub_files = files[i:i + n_files_per_thread]

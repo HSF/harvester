@@ -100,10 +100,12 @@ class Submitter(AgentBase):
                                 workerMakerCore = self.workerMaker.get_plugin(queueConfig)
                                 # check if resource is ready
                                 if hasattr(workerMakerCore, 'dynamicSizing') and workerMakerCore.dynamicSizing is True:
-                                    isReady = self.workerMaker.is_resource_ready(queueConfig, resource_type)
-                                    if not isReady:
-                                        tmpLog.debug('skip since resource is not ready')
+                                    numReadyResources = self.workerMaker.num_ready_resources(queueConfig, resource_type)
+                                    if not numReadyResources:
+                                        tmpLog.debug('skip since no resources are ready')
                                         continue
+                                    else:
+                                        nWorkers = max(nWorkers, numReadyResources)
                                 # post action of worker maker
                                 if hasattr(workerMakerCore, 'skipOnFail') and workerMakerCore.skipOnFail is True:
                                     skipOnFail = True
