@@ -357,3 +357,12 @@ class WorkSpec(SpecBase):
     # set pilot_closed
     def set_pilot_closed(self):
         self.pilot_closed = True
+
+    # get num of remaining events
+    def get_num_remaining_events(self):
+        nRemainingEvents = 0
+        if self.jobspec_list:
+            for jobspec in self.jobspec_list:
+                if jobspec.nRemainingEvents:
+                    nRemainingEvents += jobspec.nRemainingEvents
+        return nRemainingEvents
