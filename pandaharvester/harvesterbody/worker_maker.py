@@ -13,14 +13,19 @@ class WorkerMaker:
         self.pluginFactory = PluginFactory()
         self.dbProxy = DBProxy()
 
+    # get plugin
+    def get_plugin(self, queue_config):
+        return self.pluginFactory.get_plugin(queue_config.workerMaker)
+
     # make workers
-    def make_workers(self, jobchunk_list, queue_config, n_ready, resource_type):
+    def make_workers(self, jobchunk_list, queue_config, n_ready, resource_type, maker=None):
         tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
                                         method_name='make_workers')
         tmpLog.debug('start')
         try:
             # get plugin
-            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+            if maker is None:
+                maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
             if maker is None:
                 # not found
                 tmpLog.error('plugin for {0} not found'.format(queue_config.queueName))
@@ -60,13 +65,22 @@ class WorkerMaker:
             return [], jobchunk_list
 
     # get number of jobs per worker
-    def get_num_jobs_per_worker(self, queue_config, n_workers, resource_type):
+    def get_num_jobs_per_worker(self, queue_config, n_workers, resource_type, maker=None):
         # get plugin
-        maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+        if maker is None:
+            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.get_num_jobs_per_worker(n_workers)
 
     # get number of workers per job
-    def get_num_workers_per_job(self, queue_config, n_workers, resource_type):
+    def get_num_workers_per_job(self, queue_config, n_workers, resource_type, maker=None):
         # get plugin
-        maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+        if maker is None:
+            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.get_num_workers_per_job(n_workers)
+
+    # check if resource is ready
+    def is_resource_ready(self, queue_config, resource_type, maker=None):
+        # get plugin
+        if maker is None:
+            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+        return maker.is_resource_ready()

@@ -51,3 +51,7 @@ class DummyDynamicWorkerMaker(PluginBase):
     def get_num_workers_per_job(self, n_workers):
         # dummy. should use batch system info, etc
         return random.randint(self.minWorkersPerJob, self.maxWorkersPerJob)
+
+    # check if resource is ready
+    def is_resource_ready(self):
+        return True

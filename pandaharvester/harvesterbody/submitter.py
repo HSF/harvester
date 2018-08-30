@@ -97,7 +97,18 @@ class Submitter(AgentBase):
                                     continue
                                 # get queue
                                 queueConfig = self.queueConfigMapper.get_queue(queueName)
-
+                                workerMakerCore = self.workerMaker.get_plugin(queueConfig)
+                                # check if resource is ready
+                                if hasattr(workerMakerCore, 'dynamicSizing') and workerMakerCore.dynamicSizing is True:
+                                    isReady = self.workerMaker.is_resource_ready(queueConfig, resource_type)
+                                    if not isReady:
+                                        tmpLog.debug('skip since resource is not ready')
+                                        continue
+                                # post action of worker maker
+                                if hasattr(workerMakerCore, 'skipOnFail') and workerMakerCore.skipOnFail is True:
+                                    skipOnFail = True
+                                else:
+                                    skipOnFail = False
                                 # actions based on mapping type
                                 if queueConfig.mapType == WorkSpec.MT_NoJob:
                                     # workers without jobs
@@ -117,7 +128,8 @@ class Submitter(AgentBase):
                                     # one worker for multiple jobs
                                     nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig,
                                                                                               nWorkers,
-                                                                                              resource_type)
+                                                                                              resource_type,
+                                                                                              maker=workerMakerCore)
                                     tmpLog.debug('nJobsPerWorker={0}'.format(nJobsPerWorker))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
@@ -131,7 +143,9 @@ class Submitter(AgentBase):
                                     # multiple workers for one job
                                     nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig,
                                                                                               nWorkers,
-                                                                                              resource_type)
+                                                                                              resource_type,
+                                                                                              maker=workerMakerCore)
+                                    tmpLog.debug('nWorkersPerJob={0}'.format(nWorkersPerJob))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
                                         nWorkers, nReady, None, nWorkersPerJob,
@@ -148,7 +162,8 @@ class Submitter(AgentBase):
                                     continue
                                 # make workers
                                 okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queueConfig,
-                                                                                   nReady, resource_type)
+                                                                                   nReady, resource_type,
+                                                                                   maker=workerMakerCore)
                                 if len(ngChunks) == 0:
                                     tmpLog.debug('successfully made {0} workers'.format(len(okChunks)))
                                 else:
@@ -156,20 +171,24 @@ class Submitter(AgentBase):
                                                                                                      len(ngChunks)))
                                 timeNow = datetime.datetime.utcnow()
                                 timeNow_timestamp = time.time()
+                                pandaIDs = set()
                                 # NG (=not good)
                                 for ngJobs in ngChunks:
                                     for jobSpec in ngJobs:
-                                        jobSpec.status = 'failed'
-                                        jobSpec.subStatus = 'failed_to_make'
-                                        jobSpec.stateChangeTime = timeNow
-                                        jobSpec.lockedBy = None
-                                        errStr = 'failed to make a worker'
-                                        jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
-                                        jobSpec.trigger_propagation()
-                                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                                          'subStatus': 'prepared'})
+                                        if skipOnFail:
+                                            # release jobs when workers are not made
+                                            pandaIDs.add(jobSpec.PandaID)
+                                        else:
+                                            jobSpec.status = 'failed'
+                                            jobSpec.subStatus = 'failed_to_make'
+                                            jobSpec.stateChangeTime = timeNow
+                                            jobSpec.lockedBy = None
+                                            errStr = 'failed to make a worker'
+                                            jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                            jobSpec.trigger_propagation()
+                                            self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                                              'subStatus': 'prepared'})
                                 # OK
-                                pandaIDs = set()
                                 workSpecList = []
                                 if len(okChunks) > 0:
                                     for workSpec, okJobs in okChunks:
