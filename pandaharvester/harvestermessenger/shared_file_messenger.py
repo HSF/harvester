@@ -1,17 +1,25 @@
 import json
 import os
-import re
 import datetime
 try:
     from urllib.parse import urlencode
 except ImportError:
     from urllib import urlencode
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    import subprocess
+
 import uuid
 import os.path
-import tarfile
 import fnmatch
+import distutils.spawn
+import multiprocessing
 from future.utils import iteritems
 from past.builtins import long
+from concurrent.futures import ThreadPoolExecutor as Pool
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -72,6 +80,41 @@ _logger = core_utils.setup_logger('shared_file_messenger')
 def set_logger(master_logger):
     global _logger
     _logger = master_logger
+
+
+# filter for log.tgz
+def filter_log_tgz(extra=None):
+    patt = ['*.log', '*.txt', '*.xml', '*.json', 'log*']
+    if extra is not None:
+        patt += extra
+    return '-o '.join(['-name "{0}" '.format(i) for i in patt])
+
+
+# tar a single directory
+def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None):
+    if tar_name is None:
+        tarFilePath = os.path.join(os.path.dirname(dir_name), '{0}.subdir.tar.gz'.format(os.path.basename(dir_name)))
+    else:
+        tarFilePath = tar_name
+    com = 'cd {0}; '.format(dir_name)
+    com += 'find . '
+    if max_depth is not None:
+        com += '-maxdepth {0} '.format(max_depth)
+    com += r'-type f \( ' + filter_log_tgz(extra_files) + r'\) -print0 '
+    com += '| '
+    com += 'tar '
+    if distutils.spawn.find_executable('pigz') is None:
+        com += '-z '
+    else:
+        com += '-I pigz '
+    com += '-c -f {0} --null -T -'.format(tarFilePath)
+    p = subprocess.Popen(com,
+                         shell=True,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    stdOut, stdErr = p.communicate()
+    retCode = p.returncode
+    return com, retCode, stdOut, stdErr
 
 
 # messenger with shared file system
@@ -522,13 +565,23 @@ class SharedFileMessenger(PluginBase):
                     # append suffix
                     logFilePath += '.{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
-                with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                    for path, dirs, files in os.walk(accessPoint):
-                        for filename in files:
-                            if self.filter_log_tgz(filename):
-                                tmpFullPath = os.path.join(path, filename)
-                                tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
-                                tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+                dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
+                        if os.path.isdir(os.path.join(accessPoint, name))]
+                # tar sub dirs
+                tmpLog.debug('tar for {0} sub dirs'.format(len(dirs)))
+                with Pool(max_workers=multiprocessing.cpu_count()) as pool:
+                    retValList = pool.map(tar_directory, dirs)
+                    for dirName, (comStr, retCode, stdOut, stdErr) in zip(dirs, retValList):
+                        if retCode != 0:
+                            tmpLog.warning('failed to sub-tar {0} with {1} -> {2}:{3}'.format(
+                                dirName, comStr, stdOut, stdErr))
+                # tar main dir
+                tmpLog.debug('tar for main dir')
+                comStr, retCode, stdOut, stdErr = tar_directory(accessPoint, logFilePath, 1, ["*.subdir.tar.gz"])
+                tmpLog.debug('used command : ' + comStr)
+                if retCode != 0:
+                    tmpLog.warning('failed to tar {0} with {1} -> {2}:{3}'.format(
+                        accessPoint, comStr, stdOut, stdErr))
                 # make json to stage-out the log file
                 fileDict = dict()
                 fileDict[jobSpec.PandaID] = []
@@ -538,6 +591,7 @@ class SharedFileMessenger(PluginBase):
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 with open(jsonFilePath, 'w') as jsonFile:
                     json.dump(fileDict, jsonFile)
+                tmpLog.debug('done')
             return True
         except Exception:
             core_utils.dump_error_message(tmpLog)
