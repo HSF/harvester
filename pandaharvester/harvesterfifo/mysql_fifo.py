@@ -15,7 +15,7 @@ class MysqlFifo(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.tableName = '{agent}-fifo'.format(agent=self.agentName)
+        self.tableName = '{agent}_FIFO'.format(agent=self.agentName)
         # DB access attribues
         if hasattr(self, 'db_host'):
             db_host = self.db_host
@@ -58,8 +58,18 @@ class MysqlFifo(PluginBase):
                 self.cur = self.con.cursor(buffered=True)
                 self.OperationalError = mysql.connector.errors.OperationalError
         else:
+            class MyCursor (MySQLdb.cursors.Cursor):
+                def fetchone(self):
+                    tmpRet = MySQLdb.cursors.Cursor.fetchone(self)
+                    if tmpRet is None:
+                        return None
+                    return tmpRet
+                def fetchall(self):
+                    tmpRets = MySQLdb.cursors.Cursor.fetchall(self)
+                    return tmpRets
             self.con = MySQLdb.connect(user=db_user, passwd=db_password,
-                                        db=db_schema, host=db_host, port=db_port)
+                                        db=db_schema, host=db_host, port=db_port,
+                                        cursorclass=MyCursor)
             self.cur = self.con.cursor()
             self.OperationalError = MySQLdb.OperationalError
         # create table for fifo
@@ -69,8 +79,7 @@ class MysqlFifo(PluginBase):
             self.commit()
         except Exception as _e:
             self.rollback()
-            # raise _e
-
+            raise _e
 
     # exception handler for type of DBs
     def _handle_exception(self, exc, retry_time=30):
@@ -92,19 +101,12 @@ class MysqlFifo(PluginBase):
 
     # wrapper for execute
     def execute(self, sql, params=None):
-        try:
-            # execute
-            retVal = self.cur.execute(sql, params)
-        # return
+        retVal = self.cur.execute(sql, params)
         return retVal
 
     # wrapper for executemany
     def executemany(self, sql, params_list):
-        # get lock
-        try:
-            # execute
-            retVal = self.cur.executemany(sql, params_list)
-        # return
+        retVal = self.cur.executemany(sql, params_list)
         return retVal
 
     # commit
@@ -126,10 +128,11 @@ class MysqlFifo(PluginBase):
         sql_make_table = (
                 'CREATE TABLE IF NOT EXISTS {table_name} '
                 '('
-                '  id BIGINT PRIMARY KEY,'
+                '  id BIGINT NOT NULL AUTO_INCREMENT,'
                 '  item BLOB,'
-                '  score FLOAT,'
-                '  temporary TINYINT DEFAULT 0 '
+                '  score DOUBLE,'
+                '  temporary TINYINT DEFAULT 0,'
+                '  PRIMARY KEY (id) '
                 ')'
                 ).format(table_name=self.tableName)
         self.execute(sql_make_table)
@@ -143,13 +146,10 @@ class MysqlFifo(PluginBase):
         self.execute(sql_make_index)
 
     def _push(self, obj, score):
-        # obj_buf = memoryviewOrBuffer(obj)
-        # with self._get_conn() as conn:
-        #     conn.execute(push_sql, (obj_buf, score))
         sql_push = (
                 'INSERT INTO {table_name} '
                 '(item, score) '
-                'VALUES (%s, %f) '
+                'VALUES (%s, %s) '
             ).format(table_name=self.tableName)
         params = (obj, score)
         self.execute(sql_push, params)
@@ -161,10 +161,10 @@ class MysqlFifo(PluginBase):
                 'ORDER BY score LIMIT 1 '
             ).format(table_name=self.tableName)
         sql_pop_to_temp = (
-                'UPDATE {table_name} SET temporary = 1 WHERE id = %d'
+                'UPDATE {table_name} SET temporary = 1 WHERE id = %s'
             ).format(table_name=self.tableName)
         sql_pop_del = (
-                'DELETE FROM {table_name} WHERE id = %d'
+                'DELETE FROM {table_name} WHERE id = %s'
             ).format(table_name=self.tableName)
         keep_polling = True
         wait = 0.1
@@ -175,9 +175,9 @@ class MysqlFifo(PluginBase):
         while keep_polling:
             try:
                 self.execute(sql_pop_get)
-                res = self.cur.fetchone()
-                if res is not None:
-                    id, obj, score = res
+                res = self.cur.fetchall()
+                if len(res) > 0:
+                    id, obj, score = res[0]
                     params = (id,)
                     if protective:
                         self.execute(sql_pop_to_temp, params)
@@ -189,8 +189,8 @@ class MysqlFifo(PluginBase):
                 now_timestamp = time.time()
                 if timeout is None or (now_timestamp - last_attempt_timestamp) >= timeout:
                     keep_polling = False
-                    # raise _e
-                    # continue
+                    raise _e
+                    continue
             else:
                 keep_polling = False
                 return (id, obj, score)
@@ -204,9 +204,10 @@ class MysqlFifo(PluginBase):
         sql_size = (
                 'SELECT COUNT(id) FROM {table_name}'
             ).format(table_name=self.tableName)
-        res = self.cur.fetchone()
-        if res is not None:
-            return res[0]
+        self.execute(sql_size)
+        res = self.cur.fetchall()
+        if len(res) > 0:
+            return res[0][0]
         return None
 
     # enqueue with priority score
@@ -216,7 +217,7 @@ class MysqlFifo(PluginBase):
             self.commit()
         except Exception as _e:
             self.rollback()
-            # raise _e
+            raise _e
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
@@ -229,30 +230,34 @@ class MysqlFifo(PluginBase):
                 'WHERE temporary = 0 '
                 'ORDER BY score LIMIT 1 '
             ).format(table_name=self.tableName)
-        self.execute(sql_pop_get)
-        res = self.cur.fetchone()
-        if res is not None:
-            id, obj, score = res
+        self.execute(sql_peek)
+        res = self.cur.fetchall()
+        self.commit()
+        if len(res) > 0:
+            id, obj, score = res[0]
             return (obj, score)
         else:
             return (None, None)
 
     # drop all objects in queue and index and reset the table
     def clear(self):
-        sql_clear = (
+        sql_clear_index = (
+        'DROP INDEX IF EXISTS score_index ON {table_name} '
+        ).format(table_name=self.tableName)
+        sql_clear_table = (
                 'DROP TABLE IF EXISTS {table_name} '
             ).format(table_name=self.tableName)
-        self.execute(sql_clear)
+        self.execute(sql_clear_index)
+        self.execute(sql_clear_table)
         self.__init__()
 
     # delete an object by list of id
     def delete(self, ids):
-        sql_delete_template = (
-                'DELETE FROM {table_name} WHERE id in ({0} ) '
-            ).format(table_name=self.tableName)
+        sql_delete_template = 'DELETE FROM {table_name} WHERE id in ({placeholders} ) '
         if isinstance(ids, (list, tuple)):
-            placeholders_str = ','.join(' %d' * len(ids))
-            sql_delete = sql_delete_template.format(placeholders_str)
+            placeholders_str = ','.join([' %s'] * len(ids))
+            sql_delete = sql_delete_template.format(
+                    table_name=self.tableName, placeholders=placeholders_str)
             self.execute(sql_delete, ids)
             self.commit()
         else:
@@ -268,4 +273,4 @@ class MysqlFifo(PluginBase):
             self.commit()
         except Exception as _e:
             self.rollback()
-            # raise _e
+            raise _e

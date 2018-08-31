@@ -21,9 +21,6 @@ _logger = core_utils.setup_logger('submitter')
 
 # class to submit workers
 class Submitter(AgentBase):
-    # fifos
-    monitor_fifo = MonitorFIFO()
-
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
@@ -32,6 +29,7 @@ class Submitter(AgentBase):
         self.workerMaker = WorkerMaker()
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
+        self.monitor_fifo = MonitorFIFO()
 
 
     # main loop

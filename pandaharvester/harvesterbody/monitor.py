@@ -19,9 +19,6 @@ _logger = core_utils.setup_logger('monitor')
 
 # propagate important checkpoints to panda
 class Monitor(AgentBase):
-    # fifos
-    monitor_fifo = MonitorFIFO()
-
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
@@ -29,6 +26,7 @@ class Monitor(AgentBase):
         self.dbProxy = DBProxy()
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
+        self.monitor_fifo = MonitorFIFO()
 
     # main loop
     def run(self):
