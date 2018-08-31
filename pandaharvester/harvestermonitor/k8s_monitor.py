@@ -94,7 +94,7 @@ class K8sMonitor(PluginBase):
         retList = list()
         if not workspec_list:
             errStr = 'empty workspec_list'
-            tmp_log.debug(errStr)
+            tmpLog.debug(errStr)
             retList.append(('', errStr))
             return False, retList
 
