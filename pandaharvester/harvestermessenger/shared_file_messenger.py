@@ -563,7 +563,7 @@ class SharedFileMessenger(PluginBase):
                 logFilePath = os.path.join(accessPoint, logFileInfo['lfn'])
                 if map_type == WorkSpec.MT_MultiWorkers:
                     # append suffix
-                    logFilePath += '.{0}'.format(workspec.workerID)
+                    logFilePath += '._{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
                 dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
                         if os.path.isdir(os.path.join(accessPoint, name))]

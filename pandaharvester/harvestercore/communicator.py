@@ -433,7 +433,7 @@ class Communicator:
                 else:
                     ret_msg = tmp_dict['errorDialog']
                     core_utils.dump_error_message(tmp_log, ret_msg)
-            except:
+            except Exception:
                 core_utils.dump_error_message(tmp_log, tmp_res)
 
         return ret_val, ret_msg
