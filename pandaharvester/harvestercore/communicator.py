@@ -280,7 +280,7 @@ class Communicator:
         return retList
 
     # get events
-    def get_event_ranges(self, data_map):
+    def get_event_ranges(self, data_map, scattered):
         retStat = False
         retVal = dict()
         for pandaID, data in iteritems(data_map):
@@ -291,6 +291,8 @@ class Communicator:
                 nRanges = data['nRanges']
             else:
                 nRanges = 1
+            if scattered:
+                data['scattered'] = True
             tmpLog.debug('start nRanges={0}'.format(nRanges))
             while nRanges > 0:
                 # use a small chunk size to avoid timeout
