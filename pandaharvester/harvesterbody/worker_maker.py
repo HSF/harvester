@@ -84,3 +84,10 @@ class WorkerMaker:
         if maker is None:
             maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.is_resource_ready()
+
+    # check number of ready resources
+    def num_ready_resources(self, queue_config, resource_type, maker=None):
+        # get plugin
+        if maker is None:
+            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+        return maker.num_ready_resources()

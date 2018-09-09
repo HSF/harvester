@@ -99,12 +99,12 @@ class Submitter(AgentBase):
                                 workerMakerCore = self.workerMaker.get_plugin(queueConfig)
                                 # check if resource is ready
                                 if hasattr(workerMakerCore, 'dynamicSizing') and workerMakerCore.dynamicSizing is True:
-                                    numReadyResources = self.workerMaker.num_ready_resources(queueConfig, resource_type)
+                                    numReadyResources = self.workerMaker.num_ready_resources(queueConfig, resource_type, workerMakerCore)
                                     if not numReadyResources:
                                         tmpLog.debug('skip since no resources are ready')
                                         continue
                                     else:
-                                        nWorkers = max(nWorkers, numReadyResources)
+                                        nWorkers = min(nWorkers, numReadyResources)
                                 # post action of worker maker
                                 if hasattr(workerMakerCore, 'skipOnFail') and workerMakerCore.skipOnFail is True:
                                     skipOnFail = True
@@ -351,7 +351,10 @@ class Submitter(AgentBase):
             if siteName is None:
                 sleepTime = harvester_config.submitter.sleepTime
             else:
-                sleepTime = 0
+                if hasattr(harvester_config.submitter, 'sleepTimeForce'):
+                    sleepTime = harvester_config.submitter.sleepTimeForce
+                else:
+                    sleepTime = 0
             # check if being terminated
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
