@@ -9,6 +9,7 @@ try:
 except ImportError:
     import subprocess
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
@@ -50,7 +51,11 @@ class BaseStager(PluginBase):
                         assFileSpec.status = 'failed'
                 argDictList.append(argDict)
             # parallel execution
-            with Pool(max_workers=multiprocessing.cpu_count()) as pool:
+            try:
+                nThreadsForZip = harvester_config.stager.nThreadsForZip
+            except Exception:
+                nThreadsForZip = multiprocessing.cpu_count()
+            with Pool(max_workers=nThreadsForZip) as pool:
                 retValList = pool.map(self.make_one_zip, argDictList)
                 # check returns
                 for fileSpec, retVal in zip(jobspec.outFiles, retValList):

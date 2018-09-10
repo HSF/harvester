@@ -432,6 +432,9 @@ triggerInterval = 180
 # zip interval in sec
 zipInterval = 180
 
+# number of threads for zip making
+nThreadsForZip = 4
+
 # sleep interval in sec
 sleepTime = 60
 
