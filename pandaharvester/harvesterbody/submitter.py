@@ -82,6 +82,7 @@ class Submitter(AgentBase):
                                                       method_name='run')
                             try:
                                 tmpLog.debug('start')
+                                tmpLog.debug('workers status: %s' % tmpVal)
                                 nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                                 nReady = tmpVal['nReady']
 
@@ -100,9 +101,20 @@ class Submitter(AgentBase):
                                 # check if resource is ready
                                 if hasattr(workerMakerCore, 'dynamicSizing') and workerMakerCore.dynamicSizing is True:
                                     numReadyResources = self.workerMaker.num_ready_resources(queueConfig, resource_type, workerMakerCore)
+                                    tmpLog.debug('numReadyResources: %s' % numReadyResources)
                                     if not numReadyResources:
-                                        tmpLog.debug('skip since no resources are ready')
-                                        continue
+                                        if hasattr(workerMakerCore, 'staticWorkers'):
+                                            nQRWorkers = tmpVal['nQueue'] + tmpVal['nRunning']
+                                            tmpLog.debug('staticWorkers: %s, nQRWorkers(Queue+Running): %s' % (workerMakerCore.staticWorkers, nQRWorkers))
+                                            if nQRWorkers >= workerMakerCore.staticWorkers:
+                                                tmpLog.debug('No left static workers, skip')
+                                                continue
+                                            else:
+                                                nWorkers = min(workerMakerCore.staticWorkers - nQRWorkers, nWorkers)
+                                                tmpLog.debug('staticWorkers: %s, nWorkers: %s' % (workerMakerCore.staticWorkers, nWorkers))
+                                        else:
+                                            tmpLog.debug('skip since no resources are ready')
+                                            continue
                                     else:
                                         nWorkers = min(nWorkers, numReadyResources)
                                 # post action of worker maker
