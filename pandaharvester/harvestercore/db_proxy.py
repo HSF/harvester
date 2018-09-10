@@ -1679,6 +1679,7 @@ class DBProxy:
                         # update modification time
                         varMap = dict()
                         varMap[':workerID'] = workerID
+                        varMap[':timeNow'] = timeNow
                         self.execute(sqlLM, varMap)
                         # commit
                         self.commit()
