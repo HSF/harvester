@@ -1617,6 +1617,9 @@ class DBProxy:
             # sql to lock worker without time check
             sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
             sqlL += "WHERE workerID=:workerID "
+            # sql to update modificationTime
+            sqlLM = "UPDATE {0} SET modificationTime=:timeNow ".format(workTableName)
+            sqlLM += "WHERE workerID=:workerID "
             # sql to lock worker with time check
             sqlLT = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
             sqlLT += "WHERE workerID=:workerID "
@@ -1673,6 +1676,12 @@ class DBProxy:
                 # use only the largest worker to avoid updating the same worker set concurrently
                 if mapType == WorkSpec.MT_MultiWorkers:
                     if workerID != min(workerIDtoScan):
+                        # update modification time
+                        varMap = dict()
+                        varMap[':workerID'] = workerID
+                        self.execute(sqlLM, varMap)
+                        # commit
+                        self.commit()
                         continue
                 # lock worker
                 varMap = dict()
