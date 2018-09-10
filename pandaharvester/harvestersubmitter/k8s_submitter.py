@@ -35,6 +35,21 @@ class K8sSubmitter(PluginBase):
         except AttributeError:
             self.x509UserProxy = os.getenv('X509_USER_PROXY')
 
+    def submit_a_job(self, work_spec):
+        tmpRetVal = (None, 'Nothing done')
+
+        try:
+            job_id = self.k8s_client.create_job_from_yaml(harvester_config.k8s.YAMLFile, str(work_spec.workerID), self.x509UserProxy)
+        except Exception as _e:
+            errStr = 'Failed to create a JOB; {0}'.format(_e)
+            tmpRetVal = (False, errStr)
+        else:
+            work_spec.batchID = job_id
+            tmpRetVal = (True, '')
+
+        return tmpRetVal
+
+
     # submit workers
     def submit_workers(self, workspec_list):
         tmpLog = self.make_logger(baseLogger, method_name='submit_workers')
@@ -47,16 +62,11 @@ class K8sSubmitter(PluginBase):
             tmpLog.debug('empty workspec_list')
             return retList
 
-        for work_spec in workspec_list:
-            try:
-                job_id = self.k8s_client.create_job_from_yaml(harvester_config.k8s.YAMLFile, str(work_spec.workerID), self.x509UserProxy)
-            except Exception as _e:
-                errStr = 'Failed to create a JOB; {0}'.format(_e)
-                retList.append((False, errStr))
-            else:
-                work_spec.batchID = job_id
-                retList.append((True, ''))
+        with ThreadPoolExecutor(self.nProcesses) as thread_pool:
+            retValList = thread_pool.map(self.submit_a_job, workspec_list)  
         tmpLog.debug('{0} workers submitted'.format(nWorkers))
+
+        retList = list(retValList)
 
         tmpLog.debug('done')
 

@@ -98,8 +98,10 @@ class K8sMonitor(PluginBase):
             retList.append(('', errStr))
             return False, retList
 
-        for work_spec in workspec_list:
-            retList.append(self.check_a_job(work_spec))
+        with ThreadPoolExecutor(self.nProcesses) as thread_pool:
+            retIterator = thread_pool.map(self.check_a_job, workspec_list)
+
+        retList = list(retIterator)
 
         tmpLog.debug('done')
 
