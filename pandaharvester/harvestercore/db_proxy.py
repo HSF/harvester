@@ -2524,15 +2524,18 @@ class DBProxy:
             sqlAE = "SELECT eventRangeID FROM {0} ".format(fileTableName)
             sqlAE += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
             # update files
+            tmpLog.debug('update {0} files'.format(len(jobspec.outFiles)))
             for fileSpec in jobspec.outFiles:
                 # sql to update file
                 sqlF = "UPDATE {0} SET {1} ".format(fileTableName, fileSpec.bind_update_changes_expression())
                 sqlF += "WHERE PandaID=:PandaID AND fileID=:fileID "
                 varMap = fileSpec.values_map(only_changed=True)
+                updated = False
                 if len(varMap) > 0:
                     varMap[':PandaID'] = fileSpec.PandaID
                     varMap[':fileID'] = fileSpec.fileID
                     self.execute(sqlF, varMap)
+                    updated = True
                 # update event status
                 if update_event_status:
                     eventRangeIDs = set()
@@ -2557,6 +2560,10 @@ class DBProxy:
                         varMap[':statusDone'] = 'done'
                         varMaps.append(varMap)
                     self.executemany(sqlEU, varMaps)
+                    updated = True
+                if updated:
+                    # commit
+                    self.commit()
             # count files
             sqlC = "SELECT COUNT(*) cnt,status FROM {0} ".format(fileTableName)
             sqlC += "WHERE PandaID=:PandaID GROUP BY status "
