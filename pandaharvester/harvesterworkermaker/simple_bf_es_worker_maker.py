@@ -241,7 +241,10 @@ class SimpleBackfillESWorkerMaker(PluginBase):
                 return x['solutionNodes'] - y['solutionNodes']
         solutions.sort(cmp=solution_compare, reverse=True)
         tmpLog.info("Available solutions: %s" % solutions)
-        return solutions[0]['solutionNodes'], solutions[0]['solutionWalltime'] if solutions else None
+        if solutions:
+            return solutions[0]['solutionNodes'], solutions[0]['solutionWalltime']
+        else:
+            None
 
     # calculate needed cores and maxwalltime
     def calculate_worker_requirements(self, nRemainingEvents):
