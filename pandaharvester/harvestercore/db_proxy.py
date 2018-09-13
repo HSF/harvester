@@ -2508,11 +2508,13 @@ class DBProxy:
             return []
 
     # update job for stage-out
-    def update_job_for_stage_out(self, jobspec, update_event_status):
+    def update_job_for_stage_out(self, jobspec, update_event_status, locked_by):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0} subStatus={1}'.format(jobspec.PandaID,
-                                                                                        jobspec.subStatus),
+            tmpLog = core_utils.make_logger(_logger,
+                                            'PandaID={0} subStatus={1} thr={2}'.format(jobspec.PandaID,
+                                                                                       jobspec.subStatus,
+                                                                                       locked_by),
                                             method_name='update_job_for_stage_out')
             tmpLog.debug('start')
             # sql to update event
@@ -2523,6 +2525,20 @@ class DBProxy:
             # get associated events
             sqlAE = "SELECT eventRangeID FROM {0} ".format(fileTableName)
             sqlAE += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
+            # sql to lock job again
+            sqlLJ = "UPDATE {0} SET stagerTime=:timeNow ".format(jobTableName)
+            sqlLJ += "WHERE PandaID=:PandaID AND stagerLock=:lockedBy "
+            varMap = dict()
+            varMap[':PandaID'] = jobspec.PandaID
+            varMap[':lockedBy'] = locked_by
+            varMap[':timeNow'] = datetime.datetime.utcnow()
+            self.execute(sqlLJ, varMap)
+            # commit
+            self.commit()
+            nRow = self.cur.rowcount
+            if nRow == 0:
+                tmpLog.debug('skip since locked by another')
+                return None
             # update files
             tmpLog.debug('update {0} files'.format(len(jobspec.outFiles)))
             for fileSpec in jobspec.outFiles:
@@ -2562,8 +2578,18 @@ class DBProxy:
                     self.executemany(sqlEU, varMaps)
                     updated = True
                 if updated:
+                    # lock job again
+                    varMap = dict()
+                    varMap[':PandaID'] = jobspec.PandaID
+                    varMap[':lockedBy'] = locked_by
+                    varMap[':timeNow'] = datetime.datetime.utcnow()
+                    self.execute(sqlLJ, varMap)
                     # commit
                     self.commit()
+                    nRow = self.cur.rowcount
+                    if nRow == 0:
+                        tmpLog.debug('skip since locked by another')
+                        return None
             # count files
             sqlC = "SELECT COUNT(*) cnt,status FROM {0} ".format(fileTableName)
             sqlC += "WHERE PandaID=:PandaID GROUP BY status "
@@ -2617,10 +2643,11 @@ class DBProxy:
                         jobspec.outputFilesToReport = core_utils.get_output_file_report(jobspec)
             # sql to update job
             sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobspec.bind_update_changes_expression())
-            sqlJ += "WHERE PandaID=:PandaID "
+            sqlJ += "WHERE PandaID=:PandaID AND stagerLock=:lockedBy "
             # update job
             varMap = jobspec.values_map(only_changed=True)
             varMap[':PandaID'] = jobspec.PandaID
+            varMap[':lockedBy'] = locked_by
             self.execute(sqlJ, varMap)
             # commit
             self.commit()
