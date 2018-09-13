@@ -47,7 +47,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             pod_info['status'] = i.status.phase
             pod_info['status_reason'] = i.status.conditions[0].reason if i.status.conditions else None
             pod_info['status_message'] = i.status.conditions[0].message if i.status.conditions else None
-            pod_info['job_name'] = i.metadata.labels['job-name'] if 'job-name' in i.metadata.labels else None
+            pod_info['job_name'] = i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None
             pods_list.append(pod_info)
         if job_name:
             tmp_list = [ i for i in pods_list if i['job_name'] == job_name]
