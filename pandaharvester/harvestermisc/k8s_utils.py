@@ -5,11 +5,12 @@ utilities routines associated with Kubernetes python client
 import os
 import six
 import yaml
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.core_utils import SingletonWithID
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-NAMESPACE = "default"
+NAMESPACE = harvester_config.k8s.NAMESPACE
 
 class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
@@ -27,11 +28,11 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
         for i in range(len(job['spec']['template']['spec']['containers'])):
             proxy_var = job['spec']['template']['spec']['containers'][i]['env']
-            for item in proxy_var:
-                if item['name'] == 'proxyContent':
-                    item['value'] = self.set_proxy(cert)
-                if item['name'] == 'workerID':
-                    item['value'] = workerID
+            proxy_var.append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
+            proxy_var.append({'name': 'workerID', 'value': workerID})
+            proxy_var.append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
+            proxy_var.append({'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R})
+
 
         rsp = self.batchv1.create_namespaced_job(body=job, namespace=NAMESPACE)
         return job_name
