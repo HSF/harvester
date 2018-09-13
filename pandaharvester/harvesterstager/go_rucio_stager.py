@@ -203,7 +203,7 @@ class GlobusRucioStager(GlobusBulkStager):
                                                              'dids': fileList[start:stop],
                                                              'rse': srcRSE}],
                                                            ignore_duplicate=True)
-                           start = stop
+                            start = stop
                         except FileAlreadyExists:
                             # ignore if files already exist
                             pass
