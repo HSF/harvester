@@ -75,6 +75,7 @@ port = 	3306
 #
 
 [fifo]
+
 # module and class names to provide the fifo queue
 fifoModule = pandaharvester.harvesterfifo.sqlite_fifo
 fifoClass = SqliteFifo
@@ -92,6 +93,8 @@ database_filename = /dev/shm/$(AGENT)_fifo.db
 #
 # Communicator parameters
 #
+
+[communicator]
 
 # module name of Communicator
 moduleName = pandaharvester.harvestercommunicator.panda_communicator
