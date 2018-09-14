@@ -90,13 +90,28 @@ database_filename = /dev/shm/$(AGENT)_fifo.db
 
 ##########################
 #
-# Panda Connection parameters
+# Communicator parameters
 #
 
-[pandacon]
+# module name of Communicator
+moduleName = pandaharvester.harvestercommunicator.panda_communicator
+
+# class name of Communicator
+className = PandaCommunicator
 
 # number of connections
 nConnections = 5
+
+
+
+
+##########################
+#
+# Panda Connection parameters
+# (required only when PandaCommunicator is used to communicate with WMS)
+#
+
+[pandacon]
 
 # timeout
 timeout = 180

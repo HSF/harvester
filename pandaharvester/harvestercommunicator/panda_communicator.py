@@ -23,17 +23,17 @@ try:
     requests.packages.urllib3.disable_warnings()
 except Exception:
     pass
-from . import core_utils
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 
-# logger
-_logger = core_utils.setup_logger('communicator')
+from .base_communicator import BaseCommunicator
 
 
 # connection class
-class Communicator:
+class PandaCommunicator(BaseCommunicator):
     # constructor
     def __init__(self):
+        BaseCommunicator.__init__(self)
         self.useInspect = False
         if hasattr(harvester_config.pandacon, 'verbose') and harvester_config.pandacon.verbose:
             self.verbose = True
@@ -47,7 +47,7 @@ class Communicator:
         try:
             tmpLog = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger, method_name='post')
+                tmpLog = self.make_logger(method_name='post')
                 if self.useInspect:
                     tmpExec = inspect.stack()[1][3]
                     tmpExec += '/'
@@ -78,7 +78,7 @@ class Communicator:
         try:
             tmpLog = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger, method_name='post_ssl')
+                tmpLog = self.make_logger(method_name='post_ssl')
                 if self.useInspect:
                     tmpExec = inspect.stack()[1][3]
                     tmpExec += '/'
@@ -117,7 +117,7 @@ class Communicator:
             tmpLog = None
             tmpExec = None
             if self.verbose:
-                tmpLog = core_utils.make_logger(_logger, method_name='put_ssl')
+                tmpLog = self.make_logger(method_name='put_ssl')
                 if self.useInspect:
                     tmpExec = inspect.stack()[1][3]
                     tmpExec += '/'
@@ -158,7 +158,7 @@ class Communicator:
     def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs,
                  additional_criteria):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'siteName={0}'.format(site_name), method_name='get_jobs')
+        tmpLog = self.make_logger('siteName={0}'.format(site_name), method_name='get_jobs')
         tmpLog.debug('try to get {0} jobs'.format(n_jobs))
         data = {}
         data['siteName'] = site_name
@@ -196,7 +196,7 @@ class Communicator:
     # update jobs
     def update_jobs(self, jobspec_list, id):
         sw = core_utils.get_stopwatch()
-        tmpLogG = core_utils.make_logger(_logger, 'id={0}'.format(id), method_name='update_jobs')
+        tmpLogG = self.make_logger('id={0}'.format(id), method_name='update_jobs')
         tmpLogG.debug('update {0} jobs'.format(len(jobspec_list)))
         retList = []
         # update events
@@ -263,8 +263,8 @@ class Communicator:
                 retMap['content']['ErrorDiag'] = errStr
                 retMaps = [json.dumps(retMap)] * len(jobSpecSubList)
             for jobSpec, retMap, data in zip(jobSpecSubList, retMaps, dataList):
-                tmpLog = core_utils.make_logger(_logger, 'id={0} PandaID={1}'.format(id, jobSpec.PandaID),
-                                                method_name='update_jobs')
+                tmpLog = self.make_logger('id={0} PandaID={1}'.format(id, jobSpec.PandaID),
+                                          method_name='update_jobs')
                 try:
                     retMap = json.loads(retMap['content'])
                 except Exception:
@@ -285,8 +285,8 @@ class Communicator:
         retVal = dict()
         for pandaID, data in iteritems(data_map):
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(data['pandaID']),
-                                            method_name='get_event_ranges')
+            tmpLog = self.make_logger('PandaID={0}'.format(data['pandaID']),
+                                      method_name='get_event_ranges')
             if 'nRanges' in data:
                 nRanges = data['nRanges']
             else:
@@ -344,15 +344,15 @@ class Communicator:
     # get commands
     def get_commands(self, n_commands):
         harvester_id = harvester_config.master.harvester_id
-        tmpLog = core_utils.make_logger(_logger, 'harvesterID={0}'.format(harvester_id),
-                                        method_name='get_commands')
+        tmpLog = self.make_logger('harvesterID={0}'.format(harvester_id),
+                                  method_name='get_commands')
         tmpLog.debug('Start retrieving {0} commands'.format(n_commands))
         data = {}
         data['harvester_id'] = harvester_id
         data['n_commands'] = n_commands
         tmp_stat, tmp_res = self.post_ssl('getCommands', data)
         if tmp_stat is False:
-            core_utils.dump_error_message(_logger, tmp_res)
+            core_utils.dump_error_message(tmpLog, tmp_res)
         else:
             try:
                 tmp_dict = tmp_res.json()
@@ -367,8 +367,8 @@ class Communicator:
     # send ACKs
     def ack_commands(self, command_ids):
         harvester_id = harvester_config.master.harvester_id
-        tmpLog = core_utils.make_logger(_logger, 'harvesterID={0}'.format(harvester_id),
-                                        method_name='ack_commands')
+        tmpLog = self.make_logger('harvesterID={0}'.format(harvester_id),
+                                  method_name='ack_commands')
         tmpLog.debug('Start acknowledging {0} commands (command_ids={1})'.format(len(command_ids), command_ids))
         data = {}
         data['command_ids'] = json.dumps(command_ids)
@@ -383,7 +383,7 @@ class Communicator:
                     return True
                 return False
             except KeyError:
-                core_utils.dump_error_message(_logger, tmp_res)
+                core_utils.dump_error_message(tmpLog, tmp_res)
         return False
 
     # get proxy
@@ -391,7 +391,7 @@ class Communicator:
         retVal = None
         retMsg = ''
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name='get_proxy')
+        tmpLog = self.make_logger(method_name='get_proxy')
         tmpLog.debug('start')
         data = {'role': voms_role}
         tmpStat, tmpRes = self.post_ssl('getProxy', data, cert)
@@ -415,15 +415,14 @@ class Communicator:
 
     # get resource types
     def get_resource_types(self):
-
-        tmp_log = core_utils.make_logger(_logger, method_name='get_resource_types')
+        tmp_log = self.make_logger(method_name='get_resource_types')
         tmp_log.debug('Start retrieving resource types')
         data = {}
         ret_msg = ''
         ret_val = None
         tmp_stat, tmp_res = self.post_ssl('getResourceTypes', data)
         if tmp_stat is False:
-            core_utils.dump_error_message(_logger, tmp_res)
+            core_utils.dump_error_message(tmp_log, tmp_res)
         else:
             try:
                 tmp_dict = tmp_res.json()
@@ -441,7 +440,7 @@ class Communicator:
 
     # update workers
     def update_workers(self, workspec_list):
-        tmpLog = core_utils.make_logger(_logger, method_name='update_workers')
+        tmpLog = self.make_logger(method_name='update_workers')
         tmpLog.debug('start')
         dataList = []
         for workSpec in workspec_list:
@@ -472,7 +471,7 @@ class Communicator:
 
     # send heartbeat of harvester instance
     def is_alive(self, key_values):
-        tmpLog = core_utils.make_logger(_logger, method_name='is_alive')
+        tmpLog = self.make_logger(method_name='is_alive')
         tmpLog.debug('start')
         # convert datetime
         for tmpKey, tmpVal in iteritems(key_values):
@@ -500,7 +499,7 @@ class Communicator:
 
     # update worker stats
     def update_worker_stats(self, site_name, stats):
-        tmpLog = core_utils.make_logger(_logger, method_name='update_worker_stats')
+        tmpLog = self.make_logger(method_name='update_worker_stats')
         tmpLog.debug('start')
         data = dict()
         data['harvesterID'] = harvester_config.master.harvester_id
@@ -527,7 +526,7 @@ class Communicator:
 
     # check jobs
     def check_jobs(self, jobspec_list):
-        tmpLog = core_utils.make_logger(_logger, method_name='check_jobs')
+        tmpLog = self.make_logger(method_name='check_jobs')
         tmpLog.debug('start')
         retList = []
         nLookup = 100
@@ -565,7 +564,7 @@ class Communicator:
 
     # get key pair
     def get_key_pair(self, public_key_name, private_key_name):
-        tmpLog = core_utils.make_logger(_logger, method_name='get_key_pair')
+        tmpLog = self.make_logger(method_name='get_key_pair')
         tmpLog.debug('start for {0}:{1}'.format(public_key_name, private_key_name))
         data = dict()
         data['publicKeyName'] = public_key_name
@@ -591,7 +590,7 @@ class Communicator:
 
     # upload file
     def upload_file(self, file_name, file_object, offset, read_bytes):
-        tmpLog = core_utils.make_logger(_logger, method_name='upload_file')
+        tmpLog = self.make_logger(method_name='upload_file')
         tmpLog.debug('start for {0} {1}:{2}'.format(file_name, offset, read_bytes))
         file_object.seek(offset)
         files = {'file': (file_name, zlib.compress(file_object.read(read_bytes)))}
@@ -608,8 +607,8 @@ class Communicator:
     def check_event_availability(self, jobspec):
         retStat = False
         retVal = None
-        tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                        method_name='check_event_availability')
+        tmpLog = self.make_logger('PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_event_availability')
         tmpLog.debug('start')
         data = dict()
         data['taskID'] = jobspec.taskID
@@ -634,7 +633,7 @@ class Communicator:
 
     # send dialog messages
     def send_dialog_messages(self, dialog_list):
-        tmpLog = core_utils.make_logger(_logger, method_name='send_dialog_messages')
+        tmpLog = self.make_logger(method_name='send_dialog_messages')
         tmpLog.debug('start')
         dataList = []
         for diagSpec in dialog_list:
