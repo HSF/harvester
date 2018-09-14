@@ -1,3 +1,4 @@
+import datetime
 import tempfile
 try:
     import subprocess32 as subprocess
@@ -26,13 +27,10 @@ class PBSSubmitter(PluginBase):
     # submit workers
     def submit_workers(self, workspec_list):
         retList = []
-        retStrList = []
         for workSpec in workspec_list:
             # make logger
             tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                       method_name='submit_workers')
-            # set nCore
-            workSpec.nCore = self.nCore
             # make batch script
             batchFile = self.make_batch_script(workSpec)
             # command
@@ -73,12 +71,18 @@ class PBSSubmitter(PluginBase):
 
     # make batch script
     def make_batch_script(self, workspec):
+        if hasattr(self, 'dynamicSizing') and self.dynamicSizing is True:
+            maxWalltime = str(datetime.timedelta(seconds=workspec.maxWalltime))
+        else:
+            workspec.nCore = self.nCore
+            maxWalltime = str(datetime.timedelta(seconds=self.maxWalltime))
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            localQueue=self.localQueue,
                                            projectName=self.projectName,
                                            nNode=workspec.nCore / self.nCorePerNode,
                                            accessPoint=workspec.accessPoint,
+                                           walltime=maxWalltime,
                                            workerID=workspec.workerID)
                       )
         tmpFile.close()

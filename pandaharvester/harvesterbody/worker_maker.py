@@ -78,9 +78,9 @@ class WorkerMaker:
             maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.get_num_workers_per_job(n_workers)
 
-    # check if resource is ready
-    def is_resource_ready(self, queue_config, resource_type, maker=None):
+    # check number of ready resources
+    def num_ready_resources(self, queue_config, resource_type, maker=None):
         # get plugin
         if maker is None:
             maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.is_resource_ready()
+        return maker.num_ready_resources()

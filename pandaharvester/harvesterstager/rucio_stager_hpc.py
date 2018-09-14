@@ -18,6 +18,10 @@ class RucioStagerHPC(BaseStager):
         BaseStager.__init__(self, **kwarg)
         if not hasattr(self, 'scopeForTmp'):
             self.scopeForTmp = 'panda'
+        if not hasattr(self, 'pathConvention'):
+            self.pathConvention = None
+        if not hasattr(self, 'objstoreID'):
+            self.objstoreID = None
 
     # check status
     def check_status(self, jobspec):
@@ -25,7 +29,7 @@ class RucioStagerHPC(BaseStager):
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='check_status')
         tmpLog.debug('start')
-        return (True,'')
+        return (True, '')
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
@@ -34,17 +38,19 @@ class RucioStagerHPC(BaseStager):
                                   method_name='trigger_stage_out')
         tmpLog.debug('start')
         # loop over all files
-        lifetime = 7*24*60*60
         allChecked = True
         ErrMsg = 'These files failed to upload : '
         zip_datasetName = 'harvester_stage_out.{0}'.format(str(uuid.uuid4()))
         fileAttrs = jobspec.get_output_file_attributes()
         for fileSpec in jobspec.outFiles:
-            fileSpec.fileAttributes['transferID'] = None #synchronius transfer
+            # fileSpec.fileAttributes['transferID'] = None  # synchronius transfer
             # skip already done
-            tmpLog.debug(' file: %s status: %s' % (fileSpec.lfn,fileSpec.status))                                                                                                                                             
+            tmpLog.debug('file: %s status: %s' % (fileSpec.lfn, fileSpec.status))
             if fileSpec.status in ['finished', 'failed']:
                 continue
+
+            fileSpec.pathConvention = self.pathConvention
+            fileSpec.objstoreID = self.objstoreID
             # set destination RSE
             if fileSpec.fileType in ['es_output', 'zip_output', 'output']:
                 dstRSE = self.dstRSE_Out
@@ -57,9 +63,17 @@ class RucioStagerHPC(BaseStager):
             # skip if destination is None
             if dstRSE is None:
                 continue
-            
+
             # get/set scope and dataset name
-            if fileSpec.fileType != 'zip_output':
+            if fileSpec.fileType == 'log':
+                if fileSpec.lfn in fileAttrs:
+                    scope = fileAttrs[fileSpec.lfn]['scope']
+                    datasetName = fileAttrs[fileSpec.lfn]['dataset']
+                else:
+                    lfnWithoutWorkerID = ".".join(fileSpec.lfn.split('.')[:-1])
+                    scope = fileAttrs[lfnWithoutWorkerID]['scope']
+                    datasetName = fileAttrs[lfnWithoutWorkerID]['dataset']
+            elif fileSpec.fileType != 'zip_output' and fileSpec.lfn in fileAttrs:
                 scope = fileAttrs[fileSpec.lfn]['scope']
                 datasetName = fileAttrs[fileSpec.lfn]['dataset']
             else:
@@ -67,21 +81,20 @@ class RucioStagerHPC(BaseStager):
                 scope = self.scopeForTmp
                 datasetName = zip_datasetName
 
-
             # for now mimic behaviour and code of pilot v2 rucio copy tool (rucio download) change when needed
 
             executable = ['/usr/bin/env',
                           'rucio', '-v', 'upload']
-            executable += [ '--no-register' ]
-            executable += [ '--lifetime',('%d' %lifetime)]
-            executable += [ '--rse',dstRSE]
-            executable += [ '--scope',scope]
-            if fileSpec.fileAttributes is not None and 'guid' in fileSpec.fileAttributes:
-                executable += [ '--guid',fileSpec.fileAttributes['guid']]
-            executable += [('%s:%s' %(scope,datasetName))]
-            executable += [('%s' %fileSpec.path)]
+            executable += ['--no-register']
+            if hasattr(self, 'lifetime'):
+                executable += ['--lifetime', ('%d' % self.lifetime)]
+                if fileSpec.fileAttributes is not None and 'guid' in fileSpec.fileAttributes:
+                    executable += ['--guid', fileSpec.fileAttributes['guid']]
 
-            #print executable 
+            executable += ['--rse', dstRSE]
+            executable += ['--scope', scope]
+            executable += [('%s:%s' % (scope, datasetName))]
+            executable += [('%s' % fileSpec.path)]
 
             tmpLog.debug('rucio upload command: {0} '.format(executable))
             tmpLog.debug('rucio upload command (for human): %s ' % ' '.join(executable))
@@ -90,48 +103,46 @@ class RucioStagerHPC(BaseStager):
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT)
 
-            stdout,stderr = process.communicate()
-            
+            stdout, stderr = process.communicate()
             if process.returncode == 0:
-               fileSpec.status = 'finished'
-               tmpLog.debug(stdout)
+                fileSpec.status = 'finished'
+                tmpLog.debug(stdout)
             else:
-               # check what failed
-               file_exists = False
-               rucio_sessions_limit_error = False
-               for line in stdout.split('\n'):
-                  if 'File name in specified scope already exists' in line:
-                     file_exists = True
-                     break
-                  elif 'exceeded simultaneous SESSIONS_PER_USER limit' in line:
-                     rucio_sessions_limit_error = True
-               if file_exists:
-                  tmpLog.debug('file exists, marking transfer as finished')
-                  fileSpec.status = 'finished'
-               elif rucio_sessions_limit_error:
-                  # do nothing
-                  tmpLog.warning('rucio returned error, will retry: stdout: %s' % stdout)
-                  # do not change fileSpec.status and Harvester will retry if this function returns False
-                  allChecked = False
-                  continue
-               else:
-                  fileSpec.status = 'failed'
-                  tmpLog.error('rucio upload failed with stdout: %s' % stdout)
-                  ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn,stdout)
-                  allChecked = False
+                # check what failed
+                file_exists = False
+                rucio_sessions_limit_error = False
+                for line in stdout.split('\n'):
+                    if 'File name in specified scope already exists' in line:
+                        file_exists = True
+                        break
+                    elif 'exceeded simultaneous SESSIONS_PER_USER limit' in line:
+                        rucio_sessions_limit_error = True
+                if file_exists:
+                    tmpLog.debug('file exists, marking transfer as finished')
+                    fileSpec.status = 'finished'
+                elif rucio_sessions_limit_error:
+                    # do nothing
+                    tmpLog.warning('rucio returned error, will retry: stdout: %s' % stdout)
+                    # do not change fileSpec.status and Harvester will retry if this function returns False
+                    allChecked = False
+                    continue
+                else:
+                    fileSpec.status = 'failed'
+                    tmpLog.error('rucio upload failed with stdout: %s' % stdout)
+                    ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn, stdout)
+                    allChecked = False
 
             # force update
             fileSpec.force_update('status')
 
-            tmpLog.debug('file: %s status: %s' % (fileSpec.lfn,fileSpec.status))                                      
-            
+            tmpLog.debug('file: %s status: %s' % (fileSpec.lfn, fileSpec.status))
+
         # return
         tmpLog.debug('done')
         if allChecked:
             return True, ''
         else:
             return False, ErrMsg
-
 
     # zip output files
     def zip_output(self, jobspec):

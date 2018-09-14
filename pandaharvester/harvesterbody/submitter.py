@@ -33,7 +33,6 @@ class Submitter(AgentBase):
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
 
-
     # main loop
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.get_pid())
@@ -83,6 +82,7 @@ class Submitter(AgentBase):
                                                       method_name='run')
                             try:
                                 tmpLog.debug('start')
+                                tmpLog.debug('workers status: %s' % tmpVal)
                                 nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                                 nReady = tmpVal['nReady']
 
@@ -100,10 +100,23 @@ class Submitter(AgentBase):
                                 workerMakerCore = self.workerMaker.get_plugin(queueConfig)
                                 # check if resource is ready
                                 if hasattr(workerMakerCore, 'dynamicSizing') and workerMakerCore.dynamicSizing is True:
-                                    isReady = self.workerMaker.is_resource_ready(queueConfig, resource_type)
-                                    if not isReady:
-                                        tmpLog.debug('skip since resource is not ready')
-                                        continue
+                                    numReadyResources = self.workerMaker.num_ready_resources(queueConfig, resource_type, workerMakerCore)
+                                    tmpLog.debug('numReadyResources: %s' % numReadyResources)
+                                    if not numReadyResources:
+                                        if hasattr(workerMakerCore, 'staticWorkers'):
+                                            nQRWorkers = tmpVal['nQueue'] + tmpVal['nRunning']
+                                            tmpLog.debug('staticWorkers: %s, nQRWorkers(Queue+Running): %s' % (workerMakerCore.staticWorkers, nQRWorkers))
+                                            if nQRWorkers >= workerMakerCore.staticWorkers:
+                                                tmpLog.debug('No left static workers, skip')
+                                                continue
+                                            else:
+                                                nWorkers = min(workerMakerCore.staticWorkers - nQRWorkers, nWorkers)
+                                                tmpLog.debug('staticWorkers: %s, nWorkers: %s' % (workerMakerCore.staticWorkers, nWorkers))
+                                        else:
+                                            tmpLog.debug('skip since no resources are ready')
+                                            continue
+                                    else:
+                                        nWorkers = min(nWorkers, numReadyResources)
                                 # post action of worker maker
                                 if hasattr(workerMakerCore, 'skipOnFail') and workerMakerCore.skipOnFail is True:
                                     skipOnFail = True
@@ -350,12 +363,14 @@ class Submitter(AgentBase):
             if siteName is None:
                 sleepTime = harvester_config.submitter.sleepTime
             else:
-                sleepTime = 0
+                if hasattr(harvester_config.submitter, 'sleepTimeForce'):
+                    sleepTime = harvester_config.submitter.sleepTimeForce
+                else:
+                    sleepTime = 0
             # check if being terminated
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
-
 
     # wrapper for submitWorkers to skip ready workers
     def submit_workers(self, submitter_core, workspec_list):
