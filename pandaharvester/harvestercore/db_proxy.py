@@ -2522,9 +2522,13 @@ class DBProxy:
             sqlEU += "SET eventStatus=:eventStatus,subStatus=:subStatus "
             sqlEU += "WHERE eventRangeID=:eventRangeID "
             sqlEU += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
-            # get associated events
-            sqlAE = "SELECT eventRangeID FROM {0} ".format(fileTableName)
-            sqlAE += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
+            # sql to update associated events
+            sqlAE = "UPDATE {0} ".format(eventTableName)
+            sqlAE += "SET eventStatus=:eventStatus,subStatus=:subStatus "
+            sqlAE += "WHERE eventRangeID IN "
+            sqlAE += "(SELECT eventRangeID FROM {0} ".format(fileTableName)
+            sqlAE += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID) "
+            sqlAE += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
             # sql to lock job again
             sqlLJ = "UPDATE {0} SET stagerTime=:timeNow ".format(jobTableName)
             sqlLJ += "WHERE PandaID=:PandaID AND stagerLock=:lockedBy "
@@ -2554,29 +2558,28 @@ class DBProxy:
                     updated = True
                 # update event status
                 if update_event_status:
-                    eventRangeIDs = set()
                     if fileSpec.eventRangeID is not None:
-                        eventRangeIDs.add(fileSpec.eventRangeID)
-                    if fileSpec.isZip == 1:
-                        # get files associated with zip file
                         varMap = dict()
-                        varMap[':PandaID'] = fileSpec.PandaID
-                        varMap[':zipFileID'] = fileSpec.fileID
-                        self.execute(sqlAE, varMap)
-                        resAE = self.cur.fetchall()
-                        for eventRangeID, in resAE:
-                            eventRangeIDs.add(eventRangeID)
-                    varMaps = []
-                    for eventRangeID in eventRangeIDs:
-                        varMap = dict()
-                        varMap[':eventRangeID'] = eventRangeID
+                        varMap[':eventRangeID'] = fileSpec.eventRangeID
                         varMap[':eventStatus'] = fileSpec.status
                         varMap[':subStatus'] = fileSpec.status
                         varMap[':statusFailed'] = 'failed'
                         varMap[':statusDone'] = 'done'
-                        varMaps.append(varMap)
-                    self.executemany(sqlEU, varMaps)
-                    updated = True
+                        self.execute(sqlEU, varMap)
+                        updated = True
+                    if fileSpec.isZip == 1:
+                        # update files associated with zip file
+                        varMap = dict()
+                        varMap[':PandaID'] = fileSpec.PandaID
+                        varMap[':zipFileID'] = fileSpec.fileID
+                        varMap[':eventStatus'] = fileSpec.status
+                        varMap[':subStatus'] = fileSpec.status
+                        varMap[':statusFailed'] = 'failed'
+                        varMap[':statusDone'] = 'done'
+                        self.execute(sqlAE, varMap)
+                        updated = True
+                        nRow = self.cur.rowcount
+                        tmpLog.debug('updated {0} events'.format(nRow))
                 if updated:
                     # lock job again
                     varMap = dict()
