@@ -4731,3 +4731,38 @@ class DBProxy:
             core_utils.dump_error_message(tmpLog)
             # return
             return None
+
+    # update PQ table
+    def update_panda_queue_attribute(self, key, value, site_name=None, queue_name=None):
+        tmpLog = None
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'site={0} queue={1}'.format(site_name, queue_name),
+                                            method_name='update_panda_queue')
+            tmpLog.debug('start key={0}'.format(key))
+            # sql to update
+            sqlJ = "UPDATE {0} SET {1}=:{1} ".format(pandaQueueTableName, key)
+            sqlJ += "WHERE "
+            varMap = dict()
+            varMap[':{0}'.format(key)] = value
+            if site_name is not None:
+                sqlJ += "siteName=:siteName "
+                varMap[':siteName'] = site_name
+            else:
+                sqlJ += "queueName=:queueName "
+                varMap[':queueName'] = queue_name
+            # update
+            self.execute(sqlJ, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('done with {0}'.format(nRow))
+            # return
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False

@@ -310,6 +310,9 @@ lockInterval = 600
 # check interval in sec
 checkInterval = 60
 
+# minimum interval in sec between submissions to the same queue
+minSubmissionInterval = 0
+
 # sleep interval in sec
 sleepTime = 60
 
