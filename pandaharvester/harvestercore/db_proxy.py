@@ -1247,13 +1247,14 @@ class DBProxy:
                         else:
                             jobSpec.subStatus = 'queued'
                     # sql to update job
-                    sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
-                    sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
-                    # update job
-                    varMap = jobSpec.values_map(only_changed=True)
-                    varMap[':cr_PandaID'] = jobSpec.PandaID
-                    varMap[':cr_lockedBy'] = locked_by
-                    self.execute(sqlJ, varMap)
+                    if len(jobSpec.values_map(only_changed=True)) > 0:
+                        sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
+                        sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
+                        # update job
+                        varMap = jobSpec.values_map(only_changed=True)
+                        varMap[':cr_PandaID'] = jobSpec.PandaID
+                        varMap[':cr_lockedBy'] = locked_by
+                        self.execute(sqlJ, varMap)
                     if jobSpec.subStatus == 'submitted':
                         # values for job/worker mapping
                         jwRelation = JobWorkerRelationSpec()
