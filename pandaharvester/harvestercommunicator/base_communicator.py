@@ -1,5 +1,5 @@
 """
-Connection to the PanDA server
+Base class to communicate with WMS
 
 """
 
