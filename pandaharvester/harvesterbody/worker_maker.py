@@ -84,3 +84,10 @@ class WorkerMaker:
         if maker is None:
             maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.num_ready_resources()
+
+    # get upper limit on the cumulative total of workers per job
+    def get_max_workers_per_job_in_total(self, queue_config, resource_type, maker=None):
+        # get plugin
+        if maker is None:
+            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+        return maker.get_max_workers_per_job_in_total()

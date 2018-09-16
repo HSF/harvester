@@ -163,6 +163,8 @@ class Submitter(AgentBase):
                                                                                               nWorkers,
                                                                                               resource_type,
                                                                                               maker=workerMakerCore)
+                                    maxWorkersPerJob = self.workerMaker.get_max_workers_per_job_in_total(
+                                        queueConfig, resource_type, maker=workerMakerCore)
                                     tmpLog.debug('nWorkersPerJob={0}'.format(nWorkersPerJob))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
@@ -170,7 +172,7 @@ class Submitter(AgentBase):
                                         queueConfig.useJobLateBinding,
                                         harvester_config.submitter.checkInterval,
                                         harvester_config.submitter.lockInterval,
-                                        lockedBy)
+                                        lockedBy, max_workers_per_job_in_total=maxWorkersPerJob)
                                 else:
                                     tmpLog.error('unknown mapType={0}'.format(queueConfig.mapType))
                                     continue

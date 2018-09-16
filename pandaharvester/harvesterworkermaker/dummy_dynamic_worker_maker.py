@@ -1,14 +1,14 @@
 import random
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_worker_maker import BaseWorkerMaker
 
 
 # dummy worker maker
 
-class DummyDynamicWorkerMaker(PluginBase):
+class DummyDynamicWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseWorkerMaker.__init__(self, **kwarg)
 
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, resource_type):
@@ -51,10 +51,3 @@ class DummyDynamicWorkerMaker(PluginBase):
     def get_num_workers_per_job(self, n_workers):
         # dummy. should use batch system info, etc
         return random.randint(self.minWorkersPerJob, self.maxWorkersPerJob)
-
-    # check number of ready resources
-    def num_ready_resources(self):
-        try:
-            return self.nReadyResources
-        except Exception:
-            return 1

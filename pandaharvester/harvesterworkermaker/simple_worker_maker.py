@@ -1,24 +1,20 @@
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
+from .base_worker_maker import BaseWorkerMaker
 import datetime
-
-
-# simple maker
-
 
 # logger
 _logger = core_utils.setup_logger('simple_worker_maker')
 
 
-class SimpleWorkerMaker(PluginBase):
+# simple maker
+class SimpleWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
+        BaseWorkerMaker.__init__(self, **kwarg)
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime']
-        PluginBase.__init__(self, **kwarg)
-
         self.rt_mapper = ResourceTypeMapper()
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
@@ -133,25 +129,3 @@ class SimpleWorkerMaker(PluginBase):
             workSpec.resourceType = 'MCORE'
 
         return workSpec
-
-    # get number of jobs per worker.
-    # N.B. n_worker is the number of available slots which may be useful for some workflow
-    def get_num_jobs_per_worker(self, n_workers):
-        try:
-            return self.nJobsPerWorker
-        except Exception:
-            return 1
-
-    # get number of workers per job
-    def get_num_workers_per_job(self, n_workers):
-        try:
-            return self.nWorkersPerJob
-        except Exception:
-            return 1
-
-    # check number of ready resources
-    def num_ready_resources(self):
-        try:
-            return self.nReadyResources
-        except Exception:
-            return 1

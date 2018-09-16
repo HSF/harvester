@@ -1231,6 +1231,10 @@ class DBProxy:
                     # update attributes
                     if jobSpec.subStatus in ['submitted', 'running']:
                         jobSpec.nWorkers = len(workerIDs)
+                        try:
+                            jobSpec.nWorkersInTotal += 1
+                        except Exception:
+                            jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     elif workspec.hasJob == 1:
                         if workspec.status == WorkSpec.ST_missed:
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
@@ -1239,6 +1243,10 @@ class DBProxy:
                         else:
                             jobSpec.subStatus = 'submitted'
                         jobSpec.nWorkers = len(workerIDs)
+                        try:
+                            jobSpec.nWorkersInTotal += 1
+                        except Exception:
+                            jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     else:
                         if workspec.status == WorkSpec.ST_missed:
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
@@ -1255,7 +1263,7 @@ class DBProxy:
                         varMap[':cr_PandaID'] = jobSpec.PandaID
                         varMap[':cr_lockedBy'] = locked_by
                         self.execute(sqlJ, varMap)
-                    if jobSpec.subStatus == 'submitted':
+                    if jobSpec.subStatus in ['submitted', 'running']:
                         # values for job/worker mapping
                         jwRelation = JobWorkerRelationSpec()
                         jwRelation.PandaID = jobSpec.PandaID
@@ -1440,7 +1448,7 @@ class DBProxy:
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
                                    use_job_late_binding, check_interval, lock_interval, locked_by,
-                                   allow_job_mixture=False):
+                                   allow_job_mixture=False, max_workers_per_job_in_total=None):
         toCommit = False
         try:
             # get logger
@@ -1456,7 +1464,8 @@ class DBProxy:
             # submitted and running are for multi-workers
             sqlCore = "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
             sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit "
-            sqlCore += "AND moreWorkers IS NULL)) "
+            sqlCore += "AND moreWorkers IS NULL AND (maxWorkersInTotal IS NULL OR nWorkersInTotal IS NULL "
+            sqlCore += "OR nWorkersInTotal<maxWorkersInTotal))) "
             sqlCore += "AND (submitterTime IS NULL "
             sqlCore += "OR (submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlCore += "OR (submitterTime<:checkTimeLimit AND lockedBy IS NULL)) "
@@ -1578,6 +1587,8 @@ class DBProxy:
                             elif n_workers_per_job is not None:
                                 if jobSpec.nWorkersLimit is None:
                                     jobSpec.nWorkersLimit = n_workers_per_job
+                                if max_workers_per_job_in_total is not None:
+                                    jobSpec.maxWorkersInTotal = max_workers_per_job_in_total
                                 for i in range(jobSpec.nWorkersLimit - jobSpec.nWorkers):
                                     tmpLog.debug('new chunk with {0} jobs due to n_workers_per_job'.format(
                                         len(jobChunk)))

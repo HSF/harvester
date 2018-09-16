@@ -3,11 +3,11 @@ import math
 import traceback
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_worker_maker import BaseWorkerMaker
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
@@ -18,12 +18,12 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 _logger = core_utils.setup_logger('simple_bf_worker_maker')
 
 
-class SimpleBackfillESWorkerMaker(PluginBase):
+class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime']
         self.adjusters = None
-        PluginBase.__init__(self, **kwarg)
+        BaseWorkerMaker.__init__(self, **kwarg)
         self.init_adjusters_defaults()
         self.dyn_resources = None
 
@@ -64,14 +64,6 @@ class SimpleBackfillESWorkerMaker(PluginBase):
             workSpec.resourceType = 'MCORE'
 
         return workSpec
-
-    # get number of jobs per worker.
-    # N.B. n_worker is the number of available slots which may be useful for some workflow
-    def get_num_jobs_per_worker(self, n_workers):
-        try:
-            return self.nJobsPerWorker
-        except Exception:
-            return 1
 
     # get number of workers per job
     def get_num_workers_per_job(self, n_workers):
