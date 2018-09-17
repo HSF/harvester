@@ -189,7 +189,7 @@ class MonitorFIFO(FIFOBase):
                 workspec_chunk = [[workspec]]
                 last_queueName = workspec.computingSite
             elif workspec.computingSite == last_queueName \
-                and len(workspec_chunk) < self.config.fifoMaxWorkersPerChunk:
+                and len(workspec_chunk) < fifoMaxWorkersPerChunk:
                 workspec_chunk.append([workspec])
             else:
                 self.put((last_queueName, workspec_chunk), score)
@@ -214,17 +214,20 @@ class MonitorFIFO(FIFOBase):
         overhead_time = None
         timeNow_timestamp = time.time()
         peeked_tuple = self.peek()
-        score = peeked_tuple.score
-        overhead_time = timeNow_timestamp - score
-        if overhead_time > 0:
-            retVal = True
-            if score < 0:
-                mainLog.debug('True. Preempting')
-                overhead_time = None
+        if peeked_tuple.item is not None:
+            score = peeked_tuple.score
+            overhead_time = timeNow_timestamp - score
+            if overhead_time > 0:
+                retVal = True
+                if score < 0:
+                    mainLog.debug('True. Preempting')
+                    overhead_time = None
+                else:
+                    mainLog.debug('True')
+                    mainLog.info('Overhead time is {0} sec'.format(overhead_time))
             else:
-                mainLog.debug('True')
-                mainLog.info('Overhead time is {0} sec'.format(overhead_time))
+                mainLog.debug('False. Workers too young to check')
+                mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
         else:
-            mainLog.debug('False. Workers too young to check')
-            mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
+            mainLog.warning('Got a null object in FIFO. Skipped')
         return retVal, overhead_time
