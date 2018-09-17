@@ -149,6 +149,9 @@ verbose = False
 # use inspect for decorator of verbose messages
 useInspect = False
 
+# event size when getting events
+getEventsChunkSize = 5120
+
 
 
 

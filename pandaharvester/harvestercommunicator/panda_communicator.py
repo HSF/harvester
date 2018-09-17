@@ -283,6 +283,10 @@ class PandaCommunicator(BaseCommunicator):
     def get_event_ranges(self, data_map, scattered):
         retStat = False
         retVal = dict()
+        try:
+            getEventsChunkSize = harvester_config.pandacon.getEventsChunkSize
+        except Exception:
+            getEventsChunkSize = 5120
         for pandaID, data in iteritems(data_map):
             # get logger
             tmpLog = self.make_logger('PandaID={0}'.format(data['pandaID']),
@@ -296,7 +300,7 @@ class PandaCommunicator(BaseCommunicator):
             tmpLog.debug('start nRanges={0}'.format(nRanges))
             while nRanges > 0:
                 # use a small chunk size to avoid timeout
-                chunkSize = min(1024, nRanges)
+                chunkSize = min(getEventsChunkSize, nRanges)
                 data['nRanges'] = chunkSize
                 tmpStat, tmpRes = self.post_ssl('getEventRanges', data)
                 if tmpStat is False:
