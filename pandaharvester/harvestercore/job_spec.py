@@ -52,12 +52,15 @@ class JobSpec(SpecBase):
                            'pilotClosed:integer',
                            'configID:integer / index',
                            'nRemainingEvents:integer',
-                           'moreWorkers:integer'
+                           'moreWorkers:integer',
+                           'maxWorkersInTotal:integer',
+                           'nWorkersInTotal:integer'
                            )
 
     # attributes initialized with 0
     zeroAttrs = ('nWorkers',
-                 'submissionAttempts'
+                 'submissionAttempts',
+                 'nWorkersInTotal'
                  )
 
     # constructor

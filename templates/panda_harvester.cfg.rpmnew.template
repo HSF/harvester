@@ -75,6 +75,7 @@ port = 	3306
 #
 
 [fifo]
+
 # module and class names to provide the fifo queue
 fifoModule = pandaharvester.harvesterfifo.sqlite_fifo
 fifoClass = SqliteFifo
@@ -90,13 +91,30 @@ database_filename = /dev/shm/$(AGENT)_fifo.db
 
 ##########################
 #
-# Panda Connection parameters
+# Communicator parameters
 #
 
-[pandacon]
+[communicator]
+
+# module name of Communicator
+moduleName = pandaharvester.harvestercommunicator.panda_communicator
+
+# class name of Communicator
+className = PandaCommunicator
 
 # number of connections
 nConnections = 5
+
+
+
+
+##########################
+#
+# Panda Connection parameters
+# (required only when PandaCommunicator is used to communicate with WMS)
+#
+
+[pandacon]
 
 # timeout
 timeout = 180
@@ -292,6 +310,9 @@ lockInterval = 600
 # check interval in sec
 checkInterval = 60
 
+# minimum interval in sec between submissions to the same queue
+minSubmissionInterval = 0
+
 # sleep interval in sec
 sleepTime = 60
 
@@ -431,6 +452,9 @@ triggerInterval = 180
 
 # zip interval in sec
 zipInterval = 180
+
+# number of threads for zip making
+nThreadsForZip = 4
 
 # sleep interval in sec
 sleepTime = 60

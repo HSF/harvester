@@ -31,7 +31,6 @@ class Submitter(AgentBase):
         self.pluginFactory = PluginFactory()
         self.monitor_fifo = MonitorFIFO()
 
-
     # main loop
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.get_pid())
@@ -44,6 +43,7 @@ class Submitter(AgentBase):
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime,
                                                                              harvester_config.submitter.lockInterval)
+            submitted = False
             if siteName is not None:
                 mainLog.debug('got {0} queues for site {1}'.format(len(curWorkers), siteName))
 
@@ -81,6 +81,7 @@ class Submitter(AgentBase):
                                                       method_name='run')
                             try:
                                 tmpLog.debug('start')
+                                tmpLog.debug('workers status: %s' % tmpVal)
                                 nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                                 nReady = tmpVal['nReady']
 
@@ -98,10 +99,27 @@ class Submitter(AgentBase):
                                 workerMakerCore = self.workerMaker.get_plugin(queueConfig)
                                 # check if resource is ready
                                 if hasattr(workerMakerCore, 'dynamicSizing') and workerMakerCore.dynamicSizing is True:
-                                    isReady = self.workerMaker.is_resource_ready(queueConfig, resource_type)
-                                    if not isReady:
-                                        tmpLog.debug('skip since resource is not ready')
-                                        continue
+                                    numReadyResources = self.workerMaker.num_ready_resources(queueConfig,
+                                                                                             resource_type,
+                                                                                             workerMakerCore)
+                                    tmpLog.debug('numReadyResources: %s' % numReadyResources)
+                                    if not numReadyResources:
+                                        if hasattr(workerMakerCore, 'staticWorkers'):
+                                            nQRWorkers = tmpVal['nQueue'] + tmpVal['nRunning']
+                                            tmpLog.debug('staticWorkers: %s, nQRWorkers(Queue+Running): %s' %
+                                                         (workerMakerCore.staticWorkers, nQRWorkers))
+                                            if nQRWorkers >= workerMakerCore.staticWorkers:
+                                                tmpLog.debug('No left static workers, skip')
+                                                continue
+                                            else:
+                                                nWorkers = min(workerMakerCore.staticWorkers - nQRWorkers, nWorkers)
+                                                tmpLog.debug('staticWorkers: %s, nWorkers: %s' %
+                                                             (workerMakerCore.staticWorkers, nWorkers))
+                                        else:
+                                            tmpLog.debug('skip since no resources are ready')
+                                            continue
+                                    else:
+                                        nWorkers = min(nWorkers, numReadyResources)
                                 # post action of worker maker
                                 if hasattr(workerMakerCore, 'skipOnFail') and workerMakerCore.skipOnFail is True:
                                     skipOnFail = True
@@ -143,6 +161,8 @@ class Submitter(AgentBase):
                                                                                               nWorkers,
                                                                                               resource_type,
                                                                                               maker=workerMakerCore)
+                                    maxWorkersPerJob = self.workerMaker.get_max_workers_per_job_in_total(
+                                        queueConfig, resource_type, maker=workerMakerCore)
                                     tmpLog.debug('nWorkersPerJob={0}'.format(nWorkersPerJob))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
@@ -150,7 +170,7 @@ class Submitter(AgentBase):
                                         queueConfig.useJobLateBinding,
                                         harvester_config.submitter.checkInterval,
                                         harvester_config.submitter.lockInterval,
-                                        lockedBy)
+                                        lockedBy, max_workers_per_job_in_total=maxWorkersPerJob)
                                 else:
                                     tmpLog.error('unknown mapType={0}'.format(queueConfig.mapType))
                                     continue
@@ -338,6 +358,7 @@ class Submitter(AgentBase):
                                              in (WorkSpec.ST_submitted, WorkSpec.ST_running)]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')
+                                    submitted = True
                                 # release jobs
                                 self.dbProxy.release_jobs(pandaIDs, lockedBy)
                                 tmpLog.info('done')
@@ -349,11 +370,15 @@ class Submitter(AgentBase):
                 sleepTime = harvester_config.submitter.sleepTime
             else:
                 sleepTime = 0
+                if submitted and hasattr(harvester_config.submitter, 'minSubmissionInterval'):
+                    interval = harvester_config.submitter.minSubmissionInterval
+                    if interval > 0:
+                        newTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=interval)
+                        self.dbProxy.update_panda_queue_attribute('submitTime', newTime, site_name=siteName)
             # check if being terminated
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
-
 
     # wrapper for submitWorkers to skip ready workers
     def submit_workers(self, submitter_core, workspec_list):
