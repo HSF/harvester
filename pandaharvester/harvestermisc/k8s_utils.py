@@ -21,7 +21,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
 
     def create_job_from_yaml(self, yaml_file, workerID, cert):
-        with open(os.path.join(os.path.dirname(__file__), yaml_file)) as f:
+        with open(yaml_file) as f:
             job = yaml.load(f)
         job['metadata']['name'] = job['metadata']['name'] + "-" + workerID
         job_name = job['metadata']['name']
