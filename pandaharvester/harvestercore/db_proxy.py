@@ -4777,3 +4777,52 @@ class DBProxy:
             core_utils.dump_error_message(tmpLog)
             # return
             return False
+
+    # delete orphaned job info
+    def delete_orphaned_job_info(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger,
+                                            method_name='delete_orphaned_job_info')
+            tmpLog.debug('start')
+            # sql to get job info to be deleted
+            sqlGJ = "SELECT PandaID FROM {0} "
+            sqlGJ += "WHERE PandaID NOT IN ("
+            sqlGJ += "SELECT PandaID FROM {1}) "
+            # sql to delete job info
+            sqlDJ = "DELETE FROM {0} "
+            sqlDJ += "WHERE PandaID=:PandaID "
+            # sql to delete files
+            sqlDF = "DELETE FROM {0} ".format(fileTableName)
+            sqlDF += "WHERE PandaID=:PandaID "
+            # sql to delete events
+            sqlDE = "DELETE FROM {0} ".format(eventTableName)
+            sqlDE += "WHERE PandaID=:PandaID "
+            # sql to delete relations
+            sqlDR = "DELETE FROM {0} ".format(jobWorkerTableName)
+            sqlDR += "WHERE PandaID=:PandaID "
+            # loop over all tables
+            for tableName in [fileTableName, eventTableName, jobWorkerTableName]:
+                # get job info
+                self.execute(sqlGJ.format(tableName, jobTableName))
+                resGJ = self.cur.fetchall()
+                nDel = 0
+                for pandaID, in resGJ:
+                    # delete
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    self.execute(sqlDJ.format(tableName), varMap)
+                    iDel = self.cur.rowcount
+                    if iDel > 0:
+                        nDel += iDel
+                    # commit
+                    self.commit()
+                tmpLog.debug('deleted {0} records from {1}'.format(nDel, tableName))
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
