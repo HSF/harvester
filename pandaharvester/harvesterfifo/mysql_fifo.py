@@ -1,14 +1,12 @@
 import os
 import time
 import re
+import warnings
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 
-try:
-    memoryviewOrBuffer = buffer
-except NameError:
-    memoryviewOrBuffer = memoryview
+warnings.simplefilter("ignore")
 
 
 class MysqlFifo(PluginBase):
@@ -129,7 +127,7 @@ class MysqlFifo(PluginBase):
                 'CREATE TABLE IF NOT EXISTS {table_name} '
                 '('
                 '  id BIGINT NOT NULL AUTO_INCREMENT,'
-                '  item BLOB,'
+                '  item MEDIUMBLOB,'
                 '  score DOUBLE,'
                 '  temporary TINYINT DEFAULT 0,'
                 '  PRIMARY KEY (id) '

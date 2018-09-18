@@ -13,6 +13,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore import fifos as harvesterFifos
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
 
 #=== Logger ===================================================
 
@@ -56,6 +57,14 @@ def multithread_executer(func, n_object, n_thread):
     return retIterator
 
 
+def get_harvester_attributes():
+    attr_list = [
+        'harvesterID',
+        'version',
+        'commit_info',
+    ]
+    return attr_list
+
 def repopulate_fifos(*names):
     agent_fifo_class_name_map = {
             'monitor': 'MonitorFIFO',
@@ -73,6 +82,7 @@ def repopulate_fifos(*names):
         fifo.populate(clear_fifo=True)
         print('Repopulated {0} fifo'.format(fifo.agentName))
 
+
 # TODO
 
 #=== Command functions ========================================================
@@ -84,6 +94,20 @@ def test(arguments):
     mainLogger.info('Harvester Admin Tool: test INFO')
     mainLogger.debug('Harvester Admin Tool: test DEBUG')
     print('Harvester Admin Tool: test')
+
+def get(arguments):
+    attr = arguments.attribute
+    hpi = harvesterPackageInfo(None)
+    if attr not in get_harvester_attributes():
+        mainLogger.error('Invalid attribute: {0}'.format(attr))
+        return
+    elif attr == 'version':
+        print(hpi.version)
+    elif attr == 'commit_info':
+        print(hpi.commit_info)
+    elif attr == 'harvesterID':
+        print(harvester_config.master.harvester_id)
+
 
 def fifo_benchmark(arguments):
     n_object = arguments.n_object
@@ -202,6 +226,8 @@ def qconf_purge(arguments):
 commandMap = {
             # test commands
             'test': test,
+            # get commands
+            'get': get,
             # fifo commands
             'fifo_benchmark': fifo_benchmark,
             'fifo_repopulate': fifo_repopulate,
@@ -219,8 +245,12 @@ def main():
     subparsers = oparser.add_subparsers()
     oparser.add_argument('-v', '--verbose', '--debug', action='store_true', dest='debug', help="Print more verbose output. (Debug mode !)")
     # test command
-    test_parser = subparsers.add_parser('test', help='Test')
+    test_parser = subparsers.add_parser('test', help='for testing only')
     test_parser.set_defaults(which='test')
+    # get command
+    get_parser = subparsers.add_parser('get', help='get attributes of this harvester')
+    get_parser.set_defaults(which='get')
+    get_parser.add_argument('attribute', type=str, action='store', metavar='<attribute>', choices=get_harvester_attributes(), help='attribute')
     # fifo parser
     fifo_parser = subparsers.add_parser('fifo', help='fifo related')
     fifo_subparsers = fifo_parser.add_subparsers()
