@@ -79,7 +79,6 @@ class BaseStager(PluginBase):
 
     # make one zip file
     def make_one_zip(self, arg_dict):
-        self.zip_tmp_log.debug('start')
         try:
             zipPath = arg_dict['zipPath']
             lfn = os.path.basename(zipPath)
