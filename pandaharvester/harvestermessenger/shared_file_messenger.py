@@ -1,6 +1,8 @@
 import json
 import os
+import shutil
 import datetime
+
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -667,3 +669,29 @@ class SharedFileMessenger(PluginBase):
         except Exception:
             tmpLog.debug('failed to get mtime')
             return None
+
+    # clean up. Called by sweeper agent to clean up stuff made by messenger for the worker
+    # for shared_file_messenger, clean up worker the directory of access point
+    def clean_up(self, workspec):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='cleanup_accesspoint')
+        # Remove from top directory of access point of worker
+        errStr = ''
+        worker_accessPoint = workspec.get_access_point()
+        if os.path.isdir(worker_accessPoint):
+            try:
+                shutil.rmtree(worker_accessPoint)
+            except Exception as _e:
+                errStr = 'failed to remove directory {0} : {1}'.format(worker_accessPoint, _e)
+                tmpLog.error(errStr)
+            else:
+                tmpLog.debug('done')
+                return (True, errStr)
+        elif not os.path.exists(worker_accessPoint):
+            tmpLog.debug('accessPoint directory already gone. Skipped')
+            return (None, errStr)
+        else:
+            errStr = '{0} is not a directory'.format(worker_accessPoint)
+            tmpLog.error(errStr)
+        return (False, errStr)

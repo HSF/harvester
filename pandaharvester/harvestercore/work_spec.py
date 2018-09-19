@@ -125,12 +125,29 @@ class WorkSpec(SpecBase):
     def get_access_point(self):
         # replace placeholders
         if '$' in self.accessPoint:
-            patts = re.findall('\$\{([a-zA-Z\d]+)\}', self.accessPoint)
+            patts = re.findall('\$\{([a-zA-Z\d_.]+)\}', self.accessPoint)
             for patt in patts:
                 if hasattr(self, patt):
                     tmpVar = str(getattr(self, patt))
                     tmpKey = '${' + patt + '}'
                     self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
+                else:
+                    _match = re.search('^_workerID_((?:\d+.)*\d)$', patt)
+                    if _match:
+                        workerID_str = str(self.workerID)
+                        digit_list = _match.group(1).split('.')
+                        string_list = []
+                        for _d in digit_list:
+                            digit = int(_d)
+                            try:
+                                _n = workerID_str[(-1-digit)]
+                            except IndexError:
+                                string_list.append('0')
+                            else:
+                                string_list.append(_n)
+                        tmpVar = ''.join(string_list)
+                        tmpKey = '${' + patt + '}'
+                        self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
         return self.accessPoint
 
     # set job spec list
