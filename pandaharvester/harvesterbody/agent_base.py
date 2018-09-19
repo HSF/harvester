@@ -1,5 +1,6 @@
 import os
 import threading
+import socket
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_interface import DBInterface
 
@@ -12,6 +13,7 @@ class AgentBase(threading.Thread):
         threading.Thread.__init__(self)
         self.singleMode = single_mode
         self.stopEvent = None
+        self.hostname = socket.gethostname()
         self.os_pid = os.getpid()
         self.dbInterface = DBInterface()
 
@@ -27,7 +29,7 @@ class AgentBase(threading.Thread):
 
     # get process identifier
     def get_pid(self):
-        return '{0}-{1}'.format(self.os_pid, self.ident)
+        return '{0}_{1}-{2}'.format(self.hostname, self.os_pid, format(self.ident, 'x'))
 
     # make logger
     def make_logger(self, base_log, token=None, method_name=None, send_dialog=True):
