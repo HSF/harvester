@@ -46,7 +46,7 @@ CONDOR_JOB_STATUS_MAP = {
     '3': 'removed',
     '4': 'completed',
     '5': 'held',
-    '6': 'transferring output',
+    '6': 'transferring_output',
     '7': 'suspended',
     }
 
@@ -293,6 +293,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
         try:
             batchStatus = str(job_ads_dict['JobStatus'])
         except KeyError:
+            # Propagate native condor job status as unknown
+            workspec.nativeStatus = 'unknown'
             if cancel_unknown:
                 newStatus = WorkSpec.ST_cancelled
                 errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled'.format(workspec.submissionHost, workspec.batchID)
@@ -374,6 +376,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                             workspec.submissionHost, workspec.batchID, batchStatus, newStatus))
 
     else:
+        # Propagate native condor job status as unknown
+        workspec.nativeStatus = 'unknown'
         if cancel_unknown:
             errStr = 'condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default'.format(
                             workspec.submissionHost, workspec.batchID)
