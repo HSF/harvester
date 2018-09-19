@@ -46,6 +46,9 @@ class FIFOBase:
 
     # get process identifier
     def get_pid(self):
+        thread_id = get_ident()
+        if thread_id is None:
+            thread_id = 0
         return '{0}_{1}-{2}'.format(self.hostname, self.os_pid, format(get_ident(), 'x'))
 
     # make logger
