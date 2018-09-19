@@ -99,14 +99,14 @@ class HTCondorSweeper(PluginBase):
         ## Make sure batch job is terminated
         self.kill_worker(workspec)
 
-        ## Clean up worker directory
-        try:
-            shutil.rmtree(workspec.accessPoint)
-        except OSError as _err:
-            if 'No such file or directory' in _err.strerror:
-                tmpLog.debug('Found that {0} was already removed'.format(_err.filename))
-            pass
-        tmpLog.info('Succeeded to clean up worker directory: Removed {0}'.format(workspec.workerID, workspec.accessPoint))
+        # ## Clean up worker directory
+        # try:
+        #     shutil.rmtree(workspec.accessPoint)
+        # except OSError as _err:
+        #     if 'No such file or directory' in _err.strerror:
+        #         tmpLog.debug('Found that {0} was already removed'.format(_err.filename))
+        #     pass
+        # tmpLog.info('Succeeded to clean up worker directory: Removed {0}'.format(workspec.workerID, workspec.accessPoint))
 
         ## Clean up preparator base directory (staged-in files)
         try:
