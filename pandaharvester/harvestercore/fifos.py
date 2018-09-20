@@ -2,6 +2,7 @@ import os
 import time
 import datetime
 import collections
+import socket
 from calendar import timegm
 from future.utils import iteritems
 
@@ -31,10 +32,6 @@ FifoObject = collections.namedtuple('FifoObject', _attribute_list, verbose=False
 # logger
 _logger = core_utils.setup_logger('fifos')
 
-# get process identifier
-def get_pid():
-    return '{0}-{1}'.format(os.getpid(), get_ident())
-
 
 # base class of fifo message queue
 class FIFOBase:
@@ -42,8 +39,17 @@ class FIFOBase:
     def __init__(self, **kwarg):
         for tmpKey, tmpVal in iteritems(kwarg):
             setattr(self, tmpKey, tmpVal)
+        self.hostname = socket.gethostname()
+        self.os_pid = os.getpid()
         self.dbProxy = DBProxy()
         self.dbInterface = DBInterface()
+
+    # get process identifier
+    def get_pid(self):
+        thread_id = get_ident()
+        if thread_id is None:
+            thread_id = 0
+        return '{0}_{1}-{2}'.format(self.hostname, self.os_pid, format(get_ident(), 'x'))
 
     # make logger
     def make_logger(self, base_log, token=None, method_name=None, send_dialog=True):
@@ -77,14 +83,14 @@ class FIFOBase:
 
     # size of queue
     def size(self):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='size')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='size')
         retVal = self.fifo.size()
         mainLog.debug('size={0}'.format(retVal))
         return retVal
 
     # enqueue
     def put(self, obj, score=None):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='put')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='put')
         # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
         obj_serialized = pickle.dumps(obj, -1)
         if score is None:
@@ -95,7 +101,7 @@ class FIFOBase:
 
     # dequeue to get the fifo object
     def get(self, timeout=None, protective=False):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='get')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='get')
         object_tuple = self.fifo.get(timeout, protective)
         # retVal = json.loads(obj_serialized, object_hook=as_python_object)
         if object_tuple is None:
@@ -108,7 +114,7 @@ class FIFOBase:
 
     # get tuple of object and its score without dequeuing
     def peek(self):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='peek')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peek')
         obj_serialized, score = self.fifo.peek()
         # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
         if obj_serialized is None and score is None:
@@ -122,14 +128,14 @@ class FIFOBase:
 
     # remove objects by list of ids from temporary space
     def release(self, ids):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='release')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='release')
         retVal = self.fifo.delete(ids)
         mainLog.debug('released objects in {0}'.format(ids))
         return retVal
 
     # restore all objects from temporary space to fifo
     def restore(self):
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='restore')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='restore')
         retVal = self.fifo.restore()
         mainLog.debug('called')
         return retVal
@@ -209,7 +215,7 @@ class MonitorFIFO(FIFOBase):
         retVal False otherwise.
         Return retVal, overhead_time
         """
-        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, get_pid()), method_name='to_check_worker')
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='to_check_worker')
         retVal = False
         overhead_time = None
         timeNow_timestamp = time.time()

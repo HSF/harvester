@@ -24,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_messenger import BaseMessenger
 from pandaharvester.harvesterconfig import harvester_config
 
 # json for worker attributes
@@ -120,11 +120,11 @@ def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None):
 
 
 # messenger with shared file system
-class SharedFileMessenger(PluginBase):
+class SharedFileMessenger(BaseMessenger):
     # constructor
     def __init__(self, **kwarg):
         self.jobSpecFileFormat = 'json'
-        PluginBase.__init__(self, **kwarg)
+        BaseMessenger.__init__(self, **kwarg)
 
     # get access point
     def get_access_point(self, workspec, panda_id):
