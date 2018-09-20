@@ -3,7 +3,7 @@ import json
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_messenger import BaseMessenger
 from pandaharvester.harvesterconfig import harvester_config
 
 # json for job report
@@ -18,11 +18,11 @@ xmlOutputsBaseFileName = harvester_config.payload_interaction.eventStatusDumpXml
 # logger
 baseLogger = core_utils.setup_logger('act_messenger')
 
-class ACTMessenger(PluginBase):
+class ACTMessenger(BaseMessenger):
     '''Mechanism for passing information about completed jobs back to harvester.'''
 
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseMessenger.__init__(self, **kwarg)
 
     # get access point
     def get_access_point(self, workspec, panda_id):
@@ -61,7 +61,7 @@ class ACTMessenger(PluginBase):
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             tmpLog.debug("pilot info for {0}: {1}".format(pandaID, workspec.workAttributes[pandaID]))
-            
+
 
     def get_work_attributes(self, workspec):
         '''Get info from the job to pass back to harvester'''
@@ -71,19 +71,19 @@ class ACTMessenger(PluginBase):
 
     def events_requested(self, workspec):
         '''Used to tell harvester that the worker requests events'''
-        
+
         # TODO for ARC + ES where getEventRanges is called before submitting job
         return {}
 
     def feed_events(self, workspec, events_dict):
         '''Havester has an event range to pass to job'''
-        
+
         # TODO for ARC + ES pass event ranges in job desc
         return True
 
     def events_to_update(self, workspec):
         '''Report events processed for harvester to update'''
-        
+
         # TODO implement for ARC + ES where job does not update event ranges itself
         return {}
 
@@ -111,15 +111,15 @@ class ACTMessenger(PluginBase):
     def acknowledge_events_files(self, workSpec):
         '''Tell workers that harvester received events/files. No-op here'''
         pass
-    
+
     def kill_requested(self, workspec):
         '''Worker wants to kill itself (?)'''
         return False
-    
+
     def is_alive(self, workspec, time_limit):
         '''Check if worker is alive, not for Grid'''
         return True
-    
+
 
 def test():
     pass

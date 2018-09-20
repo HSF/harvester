@@ -82,10 +82,7 @@ class Sweeper(AgentBase):
                             tmpStat, tmpOut = sweeperCore.sweep_worker(workSpec)
                             tmpLog.debug('done sweep_worker with status={0} diag={1}'.format(tmpStat, tmpOut))
                             # clean up of messenger
-                            if hasattr(messenger, 'clean_up'):
-                                mc_tmpStat, mc_tmpOut = messenger.clean_up(workSpec)
-                            else:
-                                mc_tmpStat, mc_tmpOut = None, 'skipped'
+                            mc_tmpStat, mc_tmpOut = messenger.clean_up(workSpec)
                             tmpLog.debug('done clean_up with status={0} diag={1}'.format(mc_tmpStat, mc_tmpOut))
                             if tmpStat:
                                 # delete from DB
