@@ -73,7 +73,7 @@ class MysqlFifo(PluginBase):
         # create table for fifo
         try:
             self._make_table()
-            self._make_index()
+            # self._make_index()
             self.commit()
         except Exception as _e:
             self.rollback()
@@ -245,7 +245,7 @@ class MysqlFifo(PluginBase):
         sql_clear_table = (
                 'DROP TABLE IF EXISTS {table_name} '
             ).format(table_name=self.tableName)
-        self.execute(sql_clear_index)
+        # self.execute(sql_clear_index)
         self.execute(sql_clear_table)
         self.__init__()
 
