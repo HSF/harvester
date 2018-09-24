@@ -21,9 +21,6 @@ _logger = core_utils.setup_logger('submitter')
 
 # class to submit workers
 class Submitter(AgentBase):
-    # fifos
-    monitor_fifo = MonitorFIFO()
-
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
@@ -32,7 +29,7 @@ class Submitter(AgentBase):
         self.workerMaker = WorkerMaker()
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
-
+        self.monitor_fifo = MonitorFIFO()
 
     # main loop
     def run(self):
@@ -46,6 +43,7 @@ class Submitter(AgentBase):
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime,
                                                                              harvester_config.submitter.lockInterval)
+            submitted = False
             if siteName is not None:
                 mainLog.debug('got {0} queues for site {1}'.format(len(curWorkers), siteName))
 
@@ -83,6 +81,7 @@ class Submitter(AgentBase):
                                                       method_name='run')
                             try:
                                 tmpLog.debug('start')
+                                tmpLog.debug('workers status: %s' % tmpVal)
                                 nWorkers = tmpVal['nNewWorkers'] + tmpVal['nReady']
                                 nReady = tmpVal['nReady']
 
@@ -97,7 +96,35 @@ class Submitter(AgentBase):
                                     continue
                                 # get queue
                                 queueConfig = self.queueConfigMapper.get_queue(queueName)
-
+                                workerMakerCore = self.workerMaker.get_plugin(queueConfig)
+                                # check if resource is ready
+                                if hasattr(workerMakerCore, 'dynamicSizing') and workerMakerCore.dynamicSizing is True:
+                                    numReadyResources = self.workerMaker.num_ready_resources(queueConfig,
+                                                                                             resource_type,
+                                                                                             workerMakerCore)
+                                    tmpLog.debug('numReadyResources: %s' % numReadyResources)
+                                    if not numReadyResources:
+                                        if hasattr(workerMakerCore, 'staticWorkers'):
+                                            nQRWorkers = tmpVal['nQueue'] + tmpVal['nRunning']
+                                            tmpLog.debug('staticWorkers: %s, nQRWorkers(Queue+Running): %s' %
+                                                         (workerMakerCore.staticWorkers, nQRWorkers))
+                                            if nQRWorkers >= workerMakerCore.staticWorkers:
+                                                tmpLog.debug('No left static workers, skip')
+                                                continue
+                                            else:
+                                                nWorkers = min(workerMakerCore.staticWorkers - nQRWorkers, nWorkers)
+                                                tmpLog.debug('staticWorkers: %s, nWorkers: %s' %
+                                                             (workerMakerCore.staticWorkers, nWorkers))
+                                        else:
+                                            tmpLog.debug('skip since no resources are ready')
+                                            continue
+                                    else:
+                                        nWorkers = min(nWorkers, numReadyResources)
+                                # post action of worker maker
+                                if hasattr(workerMakerCore, 'skipOnFail') and workerMakerCore.skipOnFail is True:
+                                    skipOnFail = True
+                                else:
+                                    skipOnFail = False
                                 # actions based on mapping type
                                 if queueConfig.mapType == WorkSpec.MT_NoJob:
                                     # workers without jobs
@@ -117,7 +144,8 @@ class Submitter(AgentBase):
                                     # one worker for multiple jobs
                                     nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queueConfig,
                                                                                               nWorkers,
-                                                                                              resource_type)
+                                                                                              resource_type,
+                                                                                              maker=workerMakerCore)
                                     tmpLog.debug('nJobsPerWorker={0}'.format(nJobsPerWorker))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
@@ -131,14 +159,18 @@ class Submitter(AgentBase):
                                     # multiple workers for one job
                                     nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queueConfig,
                                                                                               nWorkers,
-                                                                                              resource_type)
+                                                                                              resource_type,
+                                                                                              maker=workerMakerCore)
+                                    maxWorkersPerJob = self.workerMaker.get_max_workers_per_job_in_total(
+                                        queueConfig, resource_type, maker=workerMakerCore)
+                                    tmpLog.debug('nWorkersPerJob={0}'.format(nWorkersPerJob))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
                                         nWorkers, nReady, None, nWorkersPerJob,
                                         queueConfig.useJobLateBinding,
                                         harvester_config.submitter.checkInterval,
                                         harvester_config.submitter.lockInterval,
-                                        lockedBy)
+                                        lockedBy, max_workers_per_job_in_total=maxWorkersPerJob)
                                 else:
                                     tmpLog.error('unknown mapType={0}'.format(queueConfig.mapType))
                                     continue
@@ -148,7 +180,8 @@ class Submitter(AgentBase):
                                     continue
                                 # make workers
                                 okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queueConfig,
-                                                                                   nReady, resource_type)
+                                                                                   nReady, resource_type,
+                                                                                   maker=workerMakerCore)
                                 if len(ngChunks) == 0:
                                     tmpLog.debug('successfully made {0} workers'.format(len(okChunks)))
                                 else:
@@ -156,20 +189,24 @@ class Submitter(AgentBase):
                                                                                                      len(ngChunks)))
                                 timeNow = datetime.datetime.utcnow()
                                 timeNow_timestamp = time.time()
+                                pandaIDs = set()
                                 # NG (=not good)
                                 for ngJobs in ngChunks:
                                     for jobSpec in ngJobs:
-                                        jobSpec.status = 'failed'
-                                        jobSpec.subStatus = 'failed_to_make'
-                                        jobSpec.stateChangeTime = timeNow
-                                        jobSpec.lockedBy = None
-                                        errStr = 'failed to make a worker'
-                                        jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
-                                        jobSpec.trigger_propagation()
-                                        self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
-                                                                          'subStatus': 'prepared'})
+                                        if skipOnFail:
+                                            # release jobs when workers are not made
+                                            pandaIDs.add(jobSpec.PandaID)
+                                        else:
+                                            jobSpec.status = 'failed'
+                                            jobSpec.subStatus = 'failed_to_make'
+                                            jobSpec.stateChangeTime = timeNow
+                                            jobSpec.lockedBy = None
+                                            errStr = 'failed to make a worker'
+                                            jobSpec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                            jobSpec.trigger_propagation()
+                                            self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
+                                                                              'subStatus': 'prepared'})
                                 # OK
-                                pandaIDs = set()
                                 workSpecList = []
                                 if len(okChunks) > 0:
                                     for workSpec, okJobs in okChunks:
@@ -321,6 +358,7 @@ class Submitter(AgentBase):
                                              in (WorkSpec.ST_submitted, WorkSpec.ST_running)]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue))
                                         mainLog.debug('put workers to monitor FIFO')
+                                    submitted = True
                                 # release jobs
                                 self.dbProxy.release_jobs(pandaIDs, lockedBy)
                                 tmpLog.info('done')
@@ -332,11 +370,15 @@ class Submitter(AgentBase):
                 sleepTime = harvester_config.submitter.sleepTime
             else:
                 sleepTime = 0
+                if submitted and hasattr(harvester_config.submitter, 'minSubmissionInterval'):
+                    interval = harvester_config.submitter.minSubmissionInterval
+                    if interval > 0:
+                        newTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=interval)
+                        self.dbProxy.update_panda_queue_attribute('submitTime', newTime, site_name=siteName)
             # check if being terminated
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
                 return
-
 
     # wrapper for submitWorkers to skip ready workers
     def submit_workers(self, submitter_core, workspec_list):

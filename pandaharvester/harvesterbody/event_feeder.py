@@ -39,6 +39,10 @@ class EventFeeder(AgentBase):
                     continue
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
+                if hasattr(queueConfig, 'scatteredEvents') and queueConfig.scatteredEvents:
+                    scattered = True
+                else:
+                    scattered = False
                 # get plugin
                 messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
                 # loop over all workers
@@ -47,7 +51,8 @@ class EventFeeder(AgentBase):
                                                     method_name='run')
                     # get events
                     tmpLog.debug('get events')
-                    tmpStat, events = self.communicator.get_event_ranges(workSpec.eventsRequestParams)
+                    tmpStat, events = self.communicator.get_event_ranges(workSpec.eventsRequestParams,
+                                                                         scattered)
                     # failed
                     if tmpStat is False:
                         tmpLog.error('failed to get events with {0}'.format(events))
@@ -57,6 +62,14 @@ class EventFeeder(AgentBase):
                     if tmpStat is False:
                         tmpLog.error('failed to feed events')
                         continue
+                    # disable multi workers
+                    if workSpec.mapType == WorkSpec.MT_MultiWorkers:
+                        for pandaID, eventList in iteritems(events):
+                            if len(eventList) == 0:
+                                tmpStat = self.dbProxy.disable_multi_workers(pandaID)
+                                if tmpStat == 1:
+                                    tmpLog.debug('disabled MultiWorkers for PandaID={0} due to no events'.format(
+                                        pandaID))
                     # update worker
                     workSpec.eventsRequest = WorkSpec.EV_useEvents
                     workSpec.eventsRequestParams = None

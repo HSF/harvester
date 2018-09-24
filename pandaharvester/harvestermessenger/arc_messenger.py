@@ -8,7 +8,7 @@ from urlparse import urlparse
 import arc
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_messenger import BaseMessenger
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc import arc_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -23,12 +23,12 @@ xmlOutputsBaseFileName = harvester_config.payload_interaction.eventStatusDumpXml
 # logger
 baselogger = core_utils.setup_logger()
 
-class ARCMessenger(PluginBase):
+class ARCMessenger(BaseMessenger):
     '''Mechanism for passing information about completed jobs back to harvester.'''
 
     def __init__(self, **kwarg):
         self.jobSpecFileFormat = 'json'
-        PluginBase.__init__(self, **kwarg)
+        BaseMessenger.__init__(self, **kwarg)
         self.schedulerid = harvester_config.master.harvester_id
         self.tmpdir = '/tmp' # TODO configurable or common function
 
@@ -52,14 +52,14 @@ class ARCMessenger(PluginBase):
             elif f.GetType() == f.file_type_dir:
                 filelist = self.listUrlRecursive(url, log, (fname+'/'+str(f.GetName())).strip('/'), filelist)
         return filelist
-  
+
 
     def _download_outputs(self, files, logdir, jobid, pandaid, userconfig, log):
         '''Download the output files specified in downloadfiles'''
 
         # construct datapoint object, initialising connection. Use the same
         # object until base URL changes. TODO group by base URL.
-        
+
         datapoint = arc_utils.DataPoint(str(jobid), userconfig)
         dp = datapoint.h
         dm = arc.DataMover()
@@ -69,7 +69,7 @@ class ARCMessenger(PluginBase):
         fetched = []
         notfetched = []
         notfetchedretry = []
-        
+
         # create required local log dirs
         try:
             os.makedirs(logdir, 0755)
@@ -160,17 +160,17 @@ class ARCMessenger(PluginBase):
             jobinfo.schedulerID = self.schedulerid
             if logurl:
                 jobinfo.pilotID = "%s.out|Unknown|Unknown|Unknown|Unknown" % '/'.join([logurl, pandaid])
-                
+
             # TODO: set error code based on batch error message (memory kill etc)
             jobinfo.pilotErrorCode = 1008
             if arcjob['Error']:
                 jobinfo.pilotErrorDiag = arcjob['Error']
             else:
                 # Probably failure getting outputs
-                jobinfo.pilotErrorDiag = "Failed to get outputs from CE"            
+                jobinfo.pilotErrorDiag = "Failed to get outputs from CE"
 
         jobinfo.computingElement = urlparse(arcid).netloc
-        
+
         return jobinfo.dictionary()
 
     def post_processing(self, workspec, jobspec_list, map_type):
@@ -229,7 +229,7 @@ class ARCMessenger(PluginBase):
         workspec.workAttributes[long(pandaid)] = {}
 
         workspec.workAttributes[long(pandaid)] = self._extractAndFixPilotPickle(job, pandaid, (arcid in fetched), logurl, tmplog)
-        
+
         tmplog.debug("pilot info for {0}: {1}".format(pandaid, workspec.workAttributes[long(pandaid)]))
 
     def get_work_attributes(self, workspec):
@@ -240,19 +240,19 @@ class ARCMessenger(PluginBase):
 
     def events_requested(self, workspec):
         '''Used to tell harvester that the worker requests events'''
-        
+
         # TODO for ARC + ES where getEventRanges is called before submitting job
         return {}
 
     def feed_events(self, workspec, events_dict):
         '''Havester has an event range to pass to job'''
-        
+
         # TODO for ARC + ES pass event ranges in job desc
         return True
 
     def events_to_update(self, workspec):
         '''Report events processed for harvester to update'''
-        
+
         # TODO implement for ARC + ES where job does not update event ranges itself
         return {}
 
@@ -280,15 +280,15 @@ class ARCMessenger(PluginBase):
     def acknowledge_events_files(self, workSpec):
         '''Tell workers that harvester received events/files. No-op here'''
         pass
-    
+
     def kill_requested(self, workspec):
         '''Worker wants to kill itself (?)'''
         return False
-    
+
     def is_alive(self, workspec, time_limit):
         '''Check if worker is alive, not for Grid'''
         return True
-    
+
 
 def test():
     pass

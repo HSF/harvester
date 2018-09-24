@@ -388,23 +388,36 @@ class YodaRucioRseDirectStager(BaseStager):
                 tmpLog.error(errMsg)
                 return None,errMsg
             # add files to dataset
-            try:
-                rucioAPI.add_files_to_datasets([{'scope': datasetScope,
-                                                 'name': datasetName,
-                                                 'dids': fileList,
-                                                 'rse': srcRSE}],
-                                               ignore_duplicate=True)
-            except FileAlreadyExists:
-                # ignore if files already exist
-                pass
-            except Exception:
-                errMsg = 'Could not add files to DS - {0}:{1}  rse - {2} files - {3}'.format(datasetScope,
-                                                                                             datasetName,
-                                                                                             srcRSE,
-                                                                                             fileList)
-                core_utils.dump_error_message(tmpLog)
-                tmpLog.error(errMsg)
-                return None,errMsg
+            #  add 500 files at a time
+            numfiles = len(fileList)
+            maxfiles = 500
+            numslices = numfiles/maxfiles
+            if (numfiles%maxfiles) > 0 :
+               numslices = numslices + 1
+            start = 0
+            for i in range(numslices) :
+               try:
+                  stop = start + maxfiles
+                  if stop > numfiles :
+                     stop = numfiles
+
+                  rucioAPI.add_files_to_datasets([{'scope': datasetScope,
+                                                   'name': datasetName,
+                                                   'dids': fileList[start:stop],
+                                                   'rse': srcRSE}],
+                                                 ignore_duplicate=True)
+                  start = stop
+               except FileAlreadyExists:
+                  # ignore if files already exist
+                  pass
+               except Exception:
+                  errMsg = 'Could not add files to DS - {0}:{1}  rse - {2} files - {3}'.format(datasetScope,
+                                                                                               datasetName,
+                                                                                               srcRSE,
+                                                                                               fileList)
+                  core_utils.dump_error_message(tmpLog)
+                  tmpLog.error(errMsg)
+                  return None,errMsg
             # add rule
             try:
                 tmpDID = dict()

@@ -39,11 +39,17 @@ database_filename = FIXME
 # verbose
 verbose = False
 
+# use inspect for decorator of verbose messages
+useInspect = False
+
 # number of database connections in each process
 nConnections = 10
 
 # database engine : sqlite or mariadb
 engine = sqlite
+
+# use MySQLdb for mariadb access
+useMySQLdb = False
 
 # user name for MariaDB. N/A for sqlite
 user = harvester
@@ -69,6 +75,7 @@ port = 	3306
 #
 
 [fifo]
+
 # module and class names to provide the fifo queue
 fifoModule = pandaharvester.harvesterfifo.sqlite_fifo
 fifoClass = SqliteFifo
@@ -84,13 +91,30 @@ database_filename = /dev/shm/$(AGENT)_fifo.db
 
 ##########################
 #
-# Panda Connection parameters
+# Communicator parameters
 #
 
-[pandacon]
+[communicator]
+
+# module name of Communicator
+moduleName = pandaharvester.harvestercommunicator.panda_communicator
+
+# class name of Communicator
+className = PandaCommunicator
 
 # number of connections
 nConnections = 5
+
+
+
+
+##########################
+#
+# Panda Connection parameters
+# (required only when PandaCommunicator is used to communicate with WMS)
+#
+
+[pandacon]
 
 # timeout
 timeout = 180
@@ -121,6 +145,12 @@ pandaCacheURL_R = https://aipanda011.cern.ch:25443/cache
 
 # verbose
 verbose = False
+
+# use inspect for decorator of verbose messages
+useInspect = False
+
+# event size when getting events
+getEventsChunkSize = 5120
 
 
 
@@ -283,6 +313,9 @@ lockInterval = 600
 # check interval in sec
 checkInterval = 60
 
+# minimum interval in sec between submissions to the same queue
+minSubmissionInterval = 0
+
 # sleep interval in sec
 sleepTime = 60
 
@@ -422,6 +455,9 @@ triggerInterval = 180
 
 # zip interval in sec
 zipInterval = 180
+
+# number of threads for zip making
+nThreadsForZip = 4
 
 # sleep interval in sec
 sleepTime = 60

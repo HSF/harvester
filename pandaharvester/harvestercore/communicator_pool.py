@@ -1,7 +1,7 @@
 import queue
+import importlib
 
 from pandaharvester.harvesterconfig import harvester_config
-from .communicator import Communicator
 from . import core_utils
 
 # logger
@@ -40,8 +40,17 @@ class CommunicatorPool(object):
         # install members
         object.__setattr__(self, 'pool', None)
         # connection pool
-        self.pool = queue.Queue(harvester_config.pandacon.nConnections)
-        for i in range(harvester_config.pandacon.nConnections):
+        try:
+            nConnections = harvester_config.communicator.nConnections
+        except Exception:
+            nConnections = harvester_config.pandacon.nConnections
+        self.pool = queue.Queue(nConnections)
+        try:
+            Communicator = importlib.import_module(harvester_config.communicator.className,
+                                                   harvester_config.communicator.moduleName)
+        except Exception:
+            from pandaharvester.harvestercommunicator.panda_communicator import PandaCommunicator as Communicator
+        for i in range(nConnections):
             con = Communicator()
             self.pool.put(con)
 

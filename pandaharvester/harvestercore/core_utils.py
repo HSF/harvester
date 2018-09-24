@@ -374,6 +374,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 if total_time > 0:
                     jobSpec.nCore = float(nCoreTime) / float(total_time)
                     jobSpec.nCore = int(math.ceil(jobSpec.nCore))
+            # disable to get more workers
+            jobSpec.moreWorkers = 0
         else:
             # live core count
             jobSpec.nCore = nCore
@@ -555,3 +557,12 @@ def dynamic_plugin_change():
         return harvester_config.master.dynamic_plugin_change
     except Exception:
         return True
+
+
+# replacement for slow namedtuple in python 2
+class DictTupleHybrid(tuple):
+    def set_attributes(self, attributes):
+        self.attributes = attributes
+
+    def _asdict(self):
+        return dict(zip(self.attributes, self))

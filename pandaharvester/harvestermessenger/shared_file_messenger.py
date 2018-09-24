@@ -1,20 +1,30 @@
 import json
 import os
-import re
+import shutil
 import datetime
+
 try:
     from urllib.parse import urlencode
 except ImportError:
     from urllib import urlencode
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    import subprocess
+
 import uuid
 import os.path
-import tarfile
 import fnmatch
+import distutils.spawn
+import multiprocessing
 from future.utils import iteritems
 from past.builtins import long
+from concurrent.futures import ThreadPoolExecutor as Pool
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_messenger import BaseMessenger
 from pandaharvester.harvesterconfig import harvester_config
 
 # json for worker attributes
@@ -74,12 +84,47 @@ def set_logger(master_logger):
     _logger = master_logger
 
 
+# filter for log.tgz
+def filter_log_tgz(extra=None):
+    patt = ['*.log', '*.txt', '*.xml', '*.json', 'log*']
+    if extra is not None:
+        patt += extra
+    return '-o '.join(['-name "{0}" '.format(i) for i in patt])
+
+
+# tar a single directory
+def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None):
+    if tar_name is None:
+        tarFilePath = os.path.join(os.path.dirname(dir_name), '{0}.subdir.tar.gz'.format(os.path.basename(dir_name)))
+    else:
+        tarFilePath = tar_name
+    com = 'cd {0}; '.format(dir_name)
+    com += 'find . '
+    if max_depth is not None:
+        com += '-maxdepth {0} '.format(max_depth)
+    com += r'-type f \( ' + filter_log_tgz(extra_files) + r'\) -print0 '
+    com += '| '
+    com += 'tar '
+    if distutils.spawn.find_executable('pigz') is None:
+        com += '-z '
+    else:
+        com += '-I pigz '
+    com += '-c -f {0} --null -T -'.format(tarFilePath)
+    p = subprocess.Popen(com,
+                         shell=True,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    stdOut, stdErr = p.communicate()
+    retCode = p.returncode
+    return com, retCode, stdOut, stdErr
+
+
 # messenger with shared file system
-class SharedFileMessenger(PluginBase):
+class SharedFileMessenger(BaseMessenger):
     # constructor
     def __init__(self, **kwarg):
         self.jobSpecFileFormat = 'json'
-        PluginBase.__init__(self, **kwarg)
+        BaseMessenger.__init__(self, **kwarg)
 
     # get access point
     def get_access_point(self, workspec, panda_id):
@@ -318,7 +363,7 @@ class SharedFileMessenger(PluginBase):
                 inFiles = jobSpec.get_input_file_attributes()
                 for inLFN, inFile in iteritems(inFiles):
                     dstPath = os.path.join(accessPoint, inLFN)
-                    if inFile['path'] != dstPath:
+                    if 'path' in inFile and inFile['path'] != dstPath:
                         # test if symlink exists if so remove it
                         if os.path.exists(dstPath):
                             os.unlink(dstPath)
@@ -460,13 +505,15 @@ class SharedFileMessenger(PluginBase):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                os.remove(jsonFilePath)
+                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                os.remove(jsonFilePath)
+                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
         tmpLog.debug('done')
@@ -518,15 +565,25 @@ class SharedFileMessenger(PluginBase):
                 logFilePath = os.path.join(accessPoint, logFileInfo['lfn'])
                 if map_type == WorkSpec.MT_MultiWorkers:
                     # append suffix
-                    logFilePath += '.{0}'.format(workspec.workerID)
+                    logFilePath += '._{0}'.format(workspec.workerID)
                 tmpLog.debug('making {0}'.format(logFilePath))
-                with tarfile.open(logFilePath, "w:gz") as tmpTarFile:
-                    for path, dirs, files in os.walk(accessPoint):
-                        for filename in files:
-                            if self.filter_log_tgz(filename):
-                                tmpFullPath = os.path.join(path, filename)
-                                tmpRelPath = re.sub(accessPoint+'/*', '', tmpFullPath)
-                                tmpTarFile.add(tmpFullPath, arcname=tmpRelPath)
+                dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
+                        if os.path.isdir(os.path.join(accessPoint, name))]
+                # tar sub dirs
+                tmpLog.debug('tar for {0} sub dirs'.format(len(dirs)))
+                with Pool(max_workers=multiprocessing.cpu_count()) as pool:
+                    retValList = pool.map(tar_directory, dirs)
+                    for dirName, (comStr, retCode, stdOut, stdErr) in zip(dirs, retValList):
+                        if retCode != 0:
+                            tmpLog.warning('failed to sub-tar {0} with {1} -> {2}:{3}'.format(
+                                dirName, comStr, stdOut, stdErr))
+                # tar main dir
+                tmpLog.debug('tar for main dir')
+                comStr, retCode, stdOut, stdErr = tar_directory(accessPoint, logFilePath, 1, ["*.subdir.tar.gz"])
+                tmpLog.debug('used command : ' + comStr)
+                if retCode != 0:
+                    tmpLog.warning('failed to tar {0} with {1} -> {2}:{3}'.format(
+                        accessPoint, comStr, stdOut, stdErr))
                 # make json to stage-out the log file
                 fileDict = dict()
                 fileDict[jobSpec.PandaID] = []
@@ -536,6 +593,7 @@ class SharedFileMessenger(PluginBase):
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 with open(jsonFilePath, 'w') as jsonFile:
                     json.dump(fileDict, jsonFile)
+                tmpLog.debug('done')
             return True
         except Exception:
             core_utils.dump_error_message(tmpLog)
@@ -611,3 +669,29 @@ class SharedFileMessenger(PluginBase):
         except Exception:
             tmpLog.debug('failed to get mtime')
             return None
+
+    # clean up. Called by sweeper agent to clean up stuff made by messenger for the worker
+    # for shared_file_messenger, clean up worker the directory of access point
+    def clean_up(self, workspec):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='cleanup_accesspoint')
+        # Remove from top directory of access point of worker
+        errStr = ''
+        worker_accessPoint = workspec.get_access_point()
+        if os.path.isdir(worker_accessPoint):
+            try:
+                shutil.rmtree(worker_accessPoint)
+            except Exception as _e:
+                errStr = 'failed to remove directory {0} : {1}'.format(worker_accessPoint, _e)
+                tmpLog.error(errStr)
+            else:
+                tmpLog.debug('done')
+                return (True, errStr)
+        elif not os.path.exists(worker_accessPoint):
+            tmpLog.debug('accessPoint directory already gone. Skipped')
+            return (None, errStr)
+        else:
+            errStr = '{0} is not a directory'.format(worker_accessPoint)
+            tmpLog.error(errStr)
+        return (False, errStr)
