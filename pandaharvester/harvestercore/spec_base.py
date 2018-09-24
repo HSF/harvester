@@ -95,7 +95,10 @@ class SpecBase(object):
         for attr in self.attributes:
             val = values[attr]
             if attr in self.serializedAttrs and val is not None:
-                val = json.loads(val, object_hook=as_python_object)
+                try:
+                    val = json.loads(val, object_hook=as_python_object)
+                except (json.JSONDecodeError, json.decoder.JSONDecodeError):
+                    pass
             object.__setattr__(self, attr, val)
 
     # return column names for INSERT

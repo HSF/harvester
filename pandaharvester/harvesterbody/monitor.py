@@ -19,9 +19,6 @@ _logger = core_utils.setup_logger('monitor')
 
 # propagate important checkpoints to panda
 class Monitor(AgentBase):
-    # fifos
-    monitor_fifo = MonitorFIFO()
-
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
         AgentBase.__init__(self, single_mode)
@@ -29,6 +26,7 @@ class Monitor(AgentBase):
         self.dbProxy = DBProxy()
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
+        self.monitor_fifo = MonitorFIFO()
 
     # main loop
     def run(self):
@@ -68,6 +66,7 @@ class Monitor(AgentBase):
             if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and \
                     not (monitor_fifo.enabled and self.singleMode):
                 # run with workers from DB
+                sw_db = core_utils.get_stopwatch()
                 mainLog.debug('starting run with DB')
                 mainLog.debug('getting workers to monitor')
                 workSpecsPerQueue = self.dbProxy.get_workers_to_update(harvester_config.monitor.maxWorkers,
@@ -98,6 +97,10 @@ class Monitor(AgentBase):
                                 except Exception as errStr:
                                     mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                 last_DB_cycle_timestamp = time.time()
+                if sw_db.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
+                    mainLog.warning('a single DB cycle was longer than lockInterval ' + sw_db.get_elapsed_time())
+                else:
+                    mainLog.debug('done a DB cycle' + sw_db.get_elapsed_time())
                 mainLog.debug('ended run with DB')
             elif monitor_fifo.enabled:
                 # run with workers from FIFO
@@ -128,6 +131,7 @@ class Monitor(AgentBase):
                             mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
                         else:
                             if obj_gotten is not None:
+                                sw_fifo = core_utils.get_stopwatch()
                                 if fifoProtectiveDequeue:
                                     obj_dequeued_id_list.append(obj_gotten.id)
                                 queueName, workSpecsList = obj_gotten.item
@@ -175,6 +179,10 @@ class Monitor(AgentBase):
                                     n_loops += 1
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
+                                if sw_fifo.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
+                                    mainLog.warning('a single FIFO cycle was longer than lockInterval ' + sw_fifo.get_elapsed_time())
+                                else:
+                                    mainLog.debug('done a FIFO cycle' + sw_fifo.get_elapsed_time())
                                 if to_break:
                                     break
                             else:
@@ -232,10 +240,7 @@ class Monitor(AgentBase):
                 # end run with fifo
                 mainLog.debug('ended run with FIFO')
 
-            if sw_main.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
-                mainLog.warning('a single cycle was longer than lockInterval ' + sw_main.get_elapsed_time())
-            else:
-                mainLog.debug('done a cycle' + sw_main.get_elapsed_time())
+            mainLog.debug('done a monitor cycle' + sw_main.get_elapsed_time())
 
             # check if being terminated
             if self.terminated(adjusted_sleepTime):
@@ -371,7 +376,7 @@ class Monitor(AgentBase):
                     if not temRetLockWorker:
                         continue
                 # update jobs and workers
-                if jobSpecs is not None:
+                if jobSpecs is not None and len(jobSpecs) > 0:
                     tmpQueLog.debug('updating {0} jobs with {1} workers'.format(len(jobSpecs), len(workSpecs)))
                     core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs,
                                                                   filesToStageOutList, eventsToUpdateList)

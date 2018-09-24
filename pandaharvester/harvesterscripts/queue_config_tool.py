@@ -1,8 +1,8 @@
 import types
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
-qcm = QueueConfigMapper()
-qcm.load_data()
+
+qcm = QueueConfigMapper(update_db=False)
 
 
 def list_active_queues():
@@ -13,7 +13,6 @@ def list_active_queues():
     for k in ks:
         print (k)
 
-
 def list_config_ids():
     """list all configIDs and queue names"""
     qs = qcm.get_all_queues_with_config_ids()
@@ -23,7 +22,6 @@ def list_config_ids():
     print ('--------- ------------')
     for k in ks:
         print ('{0:8} : {1}'.format(k, qs[k].queueName))
-
 
 def dump_active_queue(name, to_print=True):
     """dump configuration of an active queue with name"""
@@ -47,7 +45,6 @@ def dump_all_active_queues(to_print=True):
     else:
         return list(qs.values())
 
-
 def dump_queue_with_config_id(config_id, to_print=True):
     """dump configuration of a queue with configID"""
     if not qcm.has_queue(None, config_id):
@@ -58,7 +55,6 @@ def dump_queue_with_config_id(config_id, to_print=True):
         print (q)
     else:
         return q
-
 
 def help(o=None):
     """help() to list all functions. help(func_name) for the function"""

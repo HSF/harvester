@@ -1,5 +1,5 @@
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_worker_maker import BaseWorkerMaker
 from pandaharvester.harvestercore import core_utils
 
 # multijob worker maker. one job per node. aprun as executor (initially)
@@ -7,13 +7,13 @@ from pandaharvester.harvestercore import core_utils
 # pilot
 baseLogger = core_utils.setup_logger('multijob_workermaker')
 
-class MultiJobWorkerMaker(PluginBase):
+
+class MultiJobWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseWorkerMaker.__init__(self, **kwarg)
         tmpLog = self.make_logger(baseLogger, method_name='__init__')
         tmpLog.info("Multijob workermaker")
-
 
     def _get_executable(self, queue_config):
         # return string which contain body of script for scheduler: specific enviroment setup, executor with parameters
@@ -28,7 +28,7 @@ class MultiJobWorkerMaker(PluginBase):
 
         # prepare executor
         try:
-            if self.executor == "aprun": # "aprun -n [number of required nodes/jobs] -d [number of cpu per node/job]" - for one multicore job per node
+            if self.executor == "aprun":  # "aprun -n [number of required nodes/jobs] -d [number of cpu per node/job]" - for one multicore job per node
                 exe_str = self.executor + " -n {0} -d {1} ".format(self.nJobsPerWorker, queue_config.submitter['nCorePerNode'])
                 exe_str += self.pilot
             else:
@@ -68,26 +68,12 @@ class MultiJobWorkerMaker(PluginBase):
                     workSpec.maxDiskCount += jobSpec.jobParams['maxDiskCount']
                 except Exception:
                     pass
-                #try:  we should not relay on job parameters yet (not relaible)
-                #    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
-                #        workSpec.maxWalltime = max(workSpec.maxWalltime, jobSpec.jobParams['maxWalltime'])
-                #except Exception:
-                #    pass
+                # try:  we should not relay on job parameters yet (not relaible)
+                #     if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
+                #         workSpec.maxWalltime = max(workSpec.maxWalltime, jobSpec.jobParams['maxWalltime'])
+                # except Exception:
+                #     pass
 
             workSpec.workParams = self._get_executable(queue_config)
 
         return workSpec
-
-    # get number of jobs per worker
-    def get_num_jobs_per_worker(self, n_workers):
-        try:
-            return self.nJobsPerWorker
-        except Exception:
-            return 1
-
-    # get number of workers per job
-    def get_num_workers_per_job(self, n_workers):
-        try:
-            return self.nWorkersPerJob
-        except Exception:
-            return 1
