@@ -127,10 +127,12 @@ class WorkSpec(SpecBase):
         if '$' in self.accessPoint:
             patts = re.findall('\$\{([a-zA-Z\d_.]+)\}', self.accessPoint)
             for patt in patts:
+                tmpKey = '${' + patt + '}'
+                tmpVar = None
                 if hasattr(self, patt):
                     tmpVar = str(getattr(self, patt))
-                    tmpKey = '${' + patt + '}'
-                    self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
+                elif patt == 'harvesterID':
+                    tmpVar = harvester_config.master.harvester_id
                 else:
                     _match = re.search('^_workerID_((?:\d+.)*\d)$', patt)
                     if _match:
@@ -146,8 +148,8 @@ class WorkSpec(SpecBase):
                             else:
                                 string_list.append(_n)
                         tmpVar = ''.join(string_list)
-                        tmpKey = '${' + patt + '}'
-                        self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
+                if tmpVar is not None:
+                    self.accessPoint = self.accessPoint.replace(tmpKey, tmpVar)
         return self.accessPoint
 
     # set job spec list
