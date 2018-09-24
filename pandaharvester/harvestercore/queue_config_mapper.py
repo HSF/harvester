@@ -251,6 +251,10 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         queueConfig.siteName = queueConfig.queueName.split('/')[0]
                         if queueConfig.siteName != queueConfig.queueName:
                             queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
+                        # get common attributes
+                        commonAttrDict = dict()
+                        if isinstance(queueDict.get('common'), dict):
+                            commonAttrDict = queueDict.get('common')
                         # according to queueDict
                         for key, val in iteritems(queueDict):
                             if isinstance(val, dict) and 'module' in val and 'name' in val:
@@ -279,6 +283,9 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                                     # overwrite with middleware config
                                     for m_key, m_val in iteritems(queueDict[val['middleware']]):
                                         val[m_key] = m_val
+                                # fill in common attributes for all plugins
+                                for c_key, c_val in iteritems(commonAttrDict):
+                                    val[c_key] = c_val
                             setattr(queueConfig, key, val)
                         # get Panda Queue Name
                         if resolver is not None:
