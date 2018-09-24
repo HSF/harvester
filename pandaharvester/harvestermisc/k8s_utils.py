@@ -5,42 +5,48 @@ utilities routines associated with Kubernetes python client
 import os
 import six
 import yaml
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.core_utils import SingletonWithID
+
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-NAMESPACE = harvester_config.k8s.NAMESPACE
+from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore.core_utils import SingletonWithID
+
 
 class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
-    def __init__(self):
-        config.load_kube_config()
+    def __init__(self, namespace='default', config_file=None):
+        config.load_kube_config(config_file=config_file)
+        self.namespace = namespace
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
 
-    def create_job_from_yaml(self, yaml_file, workerID, cert):
+    def create_job_from_yaml(self, yaml_file, workerID, computingSite, cert):
         with open(yaml_file) as f:
             job = yaml.load(f)
         job['metadata']['name'] = job['metadata']['name'] + "-" + workerID
         job_name = job['metadata']['name']
 
         for i in range(len(job['spec']['template']['spec']['containers'])):
-            proxy_var = job['spec']['template']['spec']['containers'][i]['env']
-            proxy_var.append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
-            proxy_var.append({'name': 'workerID', 'value': workerID})
-            proxy_var.append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
-            proxy_var.append({'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R})
+            container_env = job['spec']['template']['spec']['containers'][i]
+            if 'env' not in container_env:
+                container_env['env'] = []
+            container_env['env'].append({'name': 'computingSite', 'value': computingSite})
+            container_env['env'].append({'name': 'computingElement', 'value': computingSite})
+            container_env['env'].append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
+            container_env['env'].append({'name': 'workerID', 'value': workerID})
+            container_env['env'].append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
+            container_env['env'].append({'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R})
 
 
-        rsp = self.batchv1.create_namespaced_job(body=job, namespace=NAMESPACE)
+        rsp = self.batchv1.create_namespaced_job(body=job, namespace=self.namespace)
         return job_name
 
     def get_pods_info(self, job_name=None):
         pods_list = list()
 
-        ret = self.corev1.list_namespaced_pod(namespace=NAMESPACE)
+        ret = self.corev1.list_namespaced_pod(namespace=self.namespace)
 
         for i in ret.items:
             pod_info = {}
@@ -60,7 +66,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         jobs_list = list()
 
         field_selector = 'metadata.name=' + job_name if job_name else ''
-        ret = self.batchv1.list_namespaced_job(namespace=NAMESPACE, field_selector=field_selector)
+        ret = self.batchv1.list_namespaced_job(namespace=self.namespace, field_selector=field_selector)
 
         for i in ret.items:
             job_info = {}
@@ -78,7 +84,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             rsp = {}
             rsp['name'] = pod_name
             try:
-                self.corev1.delete_namespaced_pod(name=pod_name, namespace=NAMESPACE, body=self.deletev1, grace_period_seconds=0)
+                self.corev1.delete_namespaced_pod(name=pod_name, namespace=self.namespace, body=self.deletev1, grace_period_seconds=0)
             except ApiException as _e:
                 rsp['errMsg'] = '' if _e.status == 404 else _e.reason
             else:
@@ -88,7 +94,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         return retList
 
     def delete_job(self, job_name):
-        self.batchv1.delete_namespaced_job(name=job_name, namespace=NAMESPACE, body=self.deletev1, grace_period_seconds=0)
+        self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1, grace_period_seconds=0)
 
     def set_proxy(self, proxy_path):
         with open(proxy_path) as f:

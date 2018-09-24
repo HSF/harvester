@@ -2,7 +2,6 @@ import os
 
 from concurrent.futures import ThreadPoolExecutor
 
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
@@ -19,7 +18,7 @@ class K8sSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client()
+        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
 
         # number of processes
         try:
@@ -39,7 +38,7 @@ class K8sSubmitter(PluginBase):
         tmpRetVal = (None, 'Nothing done')
 
         try:
-            job_id = self.k8s_client.create_job_from_yaml(harvester_config.k8s.YAMLFile, str(work_spec.workerID), self.x509UserProxy)
+            job_id = self.k8s_client.create_job_from_yaml(self.k8s_yaml_file, str(work_spec.workerID), work_spec.computingSite, self.x509UserProxy)
         except Exception as _e:
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)

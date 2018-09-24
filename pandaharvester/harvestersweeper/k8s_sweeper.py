@@ -14,7 +14,8 @@ class K8sSweeper(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.k8s_client = k8s_Client()
+
+        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
 
     # kill a worker
     def kill_worker(self, workspec):
