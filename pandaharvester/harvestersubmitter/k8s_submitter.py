@@ -37,14 +37,17 @@ class K8sSubmitter(PluginBase):
     def submit_a_job(self, work_spec):
         tmpRetVal = (None, 'Nothing done')
 
+        yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
+
         try:
-            job_id = self.k8s_client.create_job_from_yaml(self.k8s_yaml_file, str(work_spec.workerID), work_spec.computingSite, self.x509UserProxy)
+            self.k8s_client.create_job_from_yaml(yaml_content, str(work_spec.workerID), work_spec.computingSite, self.x509UserProxy) 
         except Exception as _e:
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)
         else:
-            work_spec.batchID = job_id
             tmpRetVal = (True, '')
+
+        work_spec.batchID = yaml_content['metadata']['name']
 
         return tmpRetVal
 

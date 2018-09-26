@@ -15,21 +15,24 @@ from pandaharvester.harvestercore.core_utils import SingletonWithID
 
 class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
-    def __init__(self, namespace='default', config_file=None):
+    def __init__(self, namespace, config_file=None):
         config.load_kube_config(config_file=config_file)
-        self.namespace = namespace
+        self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
 
-    def create_job_from_yaml(self, yaml_file, workerID, computingSite, cert):
+    def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
-            job = yaml.load(f)
-        job['metadata']['name'] = job['metadata']['name'] + "-" + workerID
-        job_name = job['metadata']['name']
+            yaml_content = yaml.load(f)
 
-        for i in range(len(job['spec']['template']['spec']['containers'])):
-            container_env = job['spec']['template']['spec']['containers'][i]
+        return yaml_content
+
+    def create_job_from_yaml(self, yaml_content, workerID, computingSite, cert):
+        yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + workerID
+
+        for i in range(len(yaml_content['spec']['template']['spec']['containers'])):
+            container_env = yaml_content['spec']['template']['spec']['containers'][i]
             if 'env' not in container_env:
                 container_env['env'] = []
             container_env['env'].append({'name': 'computingSite', 'value': computingSite})
@@ -40,8 +43,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             container_env['env'].append({'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R})
 
 
-        rsp = self.batchv1.create_namespaced_job(body=job, namespace=self.namespace)
-        return job_name
+        rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
 
     def get_pods_info(self, job_name=None):
         pods_list = list()
