@@ -21,7 +21,7 @@ import zlib
 from threading import Thread
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
-                    filename='/sharedfs/wdir_atlasprd/vm_script.log', filemode='w')
+                    filename='/tmp/vm_script.log', filemode='w')
 
 global loop
 loop = True
@@ -38,7 +38,7 @@ def upload_logs(url, log_file_name, destination_name, proxy_path):
         # verify = '/etc/grid-security/certificates' # not supported in CernVM - requests.exceptions.SSLError: [Errno 21] Is a directory
 
         logging.debug('[upload_logs] start')
-        res = requests.post(url, files=files, timeout=180, verify=False, cert=cert)
+        res = requests.post(url + '/putFile', files=files, timeout=180, verify=False, cert=cert)
         logging.debug('[upload_logs] finished with code={0} msg={1}'.format(res.status_code, res.text))
         if res.status_code == 200:
             return True
@@ -164,14 +164,13 @@ if __name__ == "__main__":
     wrapper_params = '-s {0} -h {0}'.format(panda_queue)
     if 'ANALY' in panda_queue:
         wrapper_params = '{0} -u user'.format(wrapper_params)
-    command = "/tmp/runpilot3-wrapper.sh {0} -p 25443 -w https://pandaserver.cern.ch >& /sharedfs/wdir_atlasprd/wrapper-wid{1}.log".\
+    command = "/tmp/runpilot3-wrapper.sh {0} -p 25443 -w https://pandaserver.cern.ch >& /tmp/wrapper-wid.log".\
         format(wrapper_params, worker_id)
     subprocess.call(command, shell=True)
     logging.debug('[main] pilot wrapper done...')
 
     # upload logs to e.g. panda cache or similar
-    file_path = '/sharedfs/wdir_atlasprd/wrapper-wid{0}.log'.format(worker_id)
-    upload_logs(logs_frontend_w, file_path, destination_name, proxy_path)
+    upload_logs(logs_frontend_w, '/tmp/wrapper-wid.log', destination_name, proxy_path)
 
     # ask harvester to kill the VM and stop the heartbeat
 #    suicide(harvester_frontend, worker_id, auth_token, proxy_path)
