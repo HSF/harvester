@@ -317,11 +317,13 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     newStatus = WorkSpec.ST_submitted
             elif batchStatus in ['3']:
                 # 3 removed
-                errStr = 'Condor HoldReason: {0} ; Condor RemoveReason: {1} '.format(
-                            job_ads_dict.get('LastHoldReason'), job_ads_dict.get('RemoveReason'))
+                if not errStr:
+                    errStr = 'Condor HoldReason: {0} ; Condor RemoveReason: {1} '.format(
+                                job_ads_dict.get('LastHoldReason'), job_ads_dict.get('RemoveReason'))
                 newStatus = WorkSpec.ST_cancelled
             elif batchStatus in ['5']:
                 # 5 held
+                errStr = 'Condor HoldReason: {0} '.format(job_ads_dict.get('HoldReason'))
                 if (
                     job_ads_dict.get('HoldReason') == 'Job not found'
                     or int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > held_timeout
@@ -337,6 +339,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     else:
                         newStatus = WorkSpec.ST_cancelled
                         tmpLog.error('cannot kill held job submissionHost={0} batchID={1}. Force worker to be in cancelled status'.format(workspec.submissionHost, workspec.batchID))
+                    errStr += 'Worker canceled by harvester '
                     # Mark the PanDA job as closed instead of failed
                     workspec.set_pilot_closed()
                     tmpLog.debug('Called workspec set_pilot_closed')

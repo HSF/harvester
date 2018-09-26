@@ -159,10 +159,12 @@ class MysqlFifo(PluginBase):
                 'ORDER BY score LIMIT 1 '
             ).format(table_name=self.tableName)
         sql_pop_to_temp = (
-                'UPDATE {table_name} SET temporary = 1 WHERE id = %s'
+                'UPDATE {table_name} SET temporary = 1 '
+                'WHERE id = %s AND temporary = 0 '
             ).format(table_name=self.tableName)
         sql_pop_del = (
-                'DELETE FROM {table_name} WHERE id = %s'
+                'DELETE FROM {table_name} '
+                'WHERE id = %s AND temporary = 0 '
             ).format(table_name=self.tableName)
         keep_polling = True
         wait = 0.1
