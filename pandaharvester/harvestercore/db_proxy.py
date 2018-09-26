@@ -1589,9 +1589,17 @@ class DBProxy:
                                     jobSpec.nWorkersLimit = n_workers_per_job
                                 if max_workers_per_job_in_total is not None:
                                     jobSpec.maxWorkersInTotal = max_workers_per_job_in_total
-                                for i in range(jobSpec.nWorkersLimit - jobSpec.nWorkers):
-                                    tmpLog.debug('new chunk with {0} jobs due to n_workers_per_job'.format(
-                                        len(jobChunk)))
+                                nMultiWorkers = min(jobSpec.nWorkersLimit - jobSpec.nWorkers,
+                                                    n_workers - len(jobChunkList))
+                                if jobSpec.maxWorkersInTotal is not None and jobSpec.nWorkersInTotal is not None:
+                                    nMultiWorkers = min(nMultiWorkers,
+                                                        jobSpec.maxWorkersInTotal - jobSpec.nWorkersInTotal)
+                                if nMultiWorkers < 0:
+                                    nMultiWorkers = 0
+                                tmpLog.debug(
+                                    'new {0} chunks with {1} jobs due to n_workers_per_job'.format(nMultiWorkers,
+                                                                                                   len(jobChunk)))
+                                for i in range(nMultiWorkers):
                                     jobChunkList.append(jobChunk)
                                 jobChunk = []
                             # enough job chunks
