@@ -62,7 +62,7 @@ class Monitor(AgentBase):
         while True:
             sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
-            mainLog.debug('start a cycle')
+            mainLog.debug('start a monitor cycle')
             if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and \
                     not (monitor_fifo.enabled and self.singleMode):
                 # run with workers from DB
@@ -106,6 +106,7 @@ class Monitor(AgentBase):
                 # run with workers from FIFO
                 sw = core_utils.get_stopwatch()
                 n_loops = 0
+                n_loops_hit = 0
                 last_fifo_cycle_timestamp = time.time()
                 to_break = False
                 obj_dequeued_id_list = []
@@ -114,8 +115,9 @@ class Monitor(AgentBase):
                 remaining_obj_to_enqueue_dict = {}
                 remaining_obj_to_enqueue_to_head_dict = {}
                 n_chunk_peeked_stat, sum_overhead_time_stat = 0, 0.0
-                while n_loops == 0 or time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
+                while time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
                     sw.reset()
+                    n_loops += 1
                     retVal, overhead_time = monitor_fifo.to_check_workers()
                     if overhead_time is not None:
                         n_chunk_peeked_stat += 1
@@ -176,13 +178,13 @@ class Monitor(AgentBase):
                                         mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
                                         to_break = True
                                     mainLog.debug('checked {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
-                                    n_loops += 1
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
                                 if sw_fifo.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
                                     mainLog.warning('a single FIFO cycle was longer than lockInterval ' + sw_fifo.get_elapsed_time())
                                 else:
                                     mainLog.debug('done a FIFO cycle' + sw_fifo.get_elapsed_time())
+                                    n_loops_hit += 1
                                 if to_break:
                                     break
                             else:
@@ -195,6 +197,7 @@ class Monitor(AgentBase):
                             time.sleep(max(-overhead_time*random.uniform(0.1, 1), adjusted_sleepTime))
                         else:
                             time.sleep(max(fifoCheckDuration*random.uniform(0.1, 1), adjusted_sleepTime))
+                mainLog.debug('run {0} loops, including {1} FIFO cycles'.format(n_loops, n_loops_hit))
 
                 # enqueue to fifo
                 sw.reset()
