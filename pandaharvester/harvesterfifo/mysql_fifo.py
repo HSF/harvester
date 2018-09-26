@@ -173,6 +173,7 @@ class MysqlFifo(PluginBase):
         last_attempt_timestamp = time.time()
         id = None
         while keep_polling:
+            n_row = 0
             try:
                 self.execute(sql_pop_get)
                 res = self.cur.fetchall()
@@ -183,17 +184,20 @@ class MysqlFifo(PluginBase):
                         self.execute(sql_pop_to_temp, params)
                     else:
                         self.execute(sql_pop_del, params)
+                    n_row = self.cur.rowcount
                     self.commit()
             except Exception as _e:
                 self.rollback()
+                if timeout is None or (now_timestamp - last_attempt_timestamp) >= timeout:
+                    raise _e
+            else:
+                if n_row > 0:
+                    keep_polling = False
+                    return (id, obj, score)
+            finally:
                 now_timestamp = time.time()
                 if timeout is None or (now_timestamp - last_attempt_timestamp) >= timeout:
                     keep_polling = False
-                    raise _e
-                    continue
-            else:
-                keep_polling = False
-                return (id, obj, score)
             tries += 1
             time.sleep(wait)
             wait = min(max_wait, tries/10.0 + wait)
