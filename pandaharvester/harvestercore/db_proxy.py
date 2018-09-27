@@ -2552,14 +2552,26 @@ class DBProxy:
             # sql to lock job again
             sqlLJ = "UPDATE {0} SET stagerTime=:timeNow ".format(jobTableName)
             sqlLJ += "WHERE PandaID=:PandaID AND stagerLock=:lockedBy "
+            # sql to check lock
+            sqlLC = "SELECT stagerLock FROM {0} ".format(jobTableName)
+            sqlLC += "WHERE PandaID=:PandaID "
+            # lock
             varMap = dict()
             varMap[':PandaID'] = jobspec.PandaID
             varMap[':lockedBy'] = locked_by
             varMap[':timeNow'] = datetime.datetime.utcnow()
             self.execute(sqlLJ, varMap)
+            nRow = self.cur.rowcount
+            # check just in case since nRow can be 0 if two lock actions are too close in time
+            if nRow == 0:
+                varMap = dict()
+                varMap[':PandaID'] = jobspec.PandaID
+                self.execute(sqlLC, varMap)
+                resLC = self.cur.fetchone()
+                if resLC is not None and resLC[0] == locked_by:
+                    nRow = 1
             # commit
             self.commit()
-            nRow = self.cur.rowcount
             if nRow == 0:
                 tmpLog.debug('skip since locked by another')
                 return None
