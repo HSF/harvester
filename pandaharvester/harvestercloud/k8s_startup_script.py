@@ -32,7 +32,7 @@ def upload_logs(url, log_file_name, destination_name, proxy_path):
 
         # open and compress the content of the file
         with open(log_file_name, 'rb') as log_file_object:
-            files = {'file': (destination_name, zlib.compress(log_file_object.read()))}
+            files = {'file': (destination_name, log_file_object.read())}
 
         cert = [proxy_path, proxy_path]
         # verify = '/etc/grid-security/certificates' # not supported in CernVM - requests.exceptions.SSLError: [Errno 21] Is a directory
