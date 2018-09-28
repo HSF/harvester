@@ -11,6 +11,7 @@ from kubernetes.client.rest import ApiException
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.core_utils import SingletonWithID
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 
 class k8s_Client(six.with_metaclass(SingletonWithID, object)):
@@ -29,6 +30,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         return yaml_content
 
     def create_job_from_yaml(self, yaml_content, workerID, computingSite, cert):
+        panda_queues_dict = PandaQueuesDict()
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + workerID
 
         for i in range(len(yaml_content['spec']['template']['spec']['containers'])):
@@ -36,7 +38,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             if 'env' not in container_env:
                 container_env['env'] = []
             container_env['env'].append({'name': 'computingSite', 'value': computingSite})
-            container_env['env'].append({'name': 'computingElement', 'value': computingSite})
+            container_env['env'].append({'name': 'pandaQueueName', 'value': panda_queues_dict.get_panda_queue_name(computingSite)})
             container_env['env'].append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
             container_env['env'].append({'name': 'workerID', 'value': workerID})
             container_env['env'].append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
