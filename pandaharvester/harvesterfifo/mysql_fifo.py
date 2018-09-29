@@ -159,12 +159,16 @@ class MysqlFifo(PluginBase):
                 'ORDER BY score LIMIT 1 '
             ).format(table_name=self.tableName)
         sql_pop_to_temp = (
-                'UPDATE {table_name} SET temporary = 1 WHERE id = %s'
+                'UPDATE {table_name} SET temporary = 1 '
+                'WHERE id = %s AND temporary = 0 '
             ).format(table_name=self.tableName)
         sql_pop_del = (
-                'DELETE FROM {table_name} WHERE id = %s'
+                'DELETE FROM {table_name} '
+                'WHERE id = %s AND temporary = 0 '
             ).format(table_name=self.tableName)
         keep_polling = True
+        got_object = False
+        _exc = None
         wait = 0.1
         max_wait = 2
         tries = 0
@@ -181,17 +185,22 @@ class MysqlFifo(PluginBase):
                         self.execute(sql_pop_to_temp, params)
                     else:
                         self.execute(sql_pop_del, params)
+                    n_row = self.cur.rowcount
+                    if n_row >= 1:
+                        got_object = True
                     self.commit()
             except Exception as _e:
                 self.rollback()
-                now_timestamp = time.time()
-                if timeout is None or (now_timestamp - last_attempt_timestamp) >= timeout:
-                    keep_polling = False
-                    raise _e
-                    continue
+                _exc = _e
             else:
+                if got_object:
+                    keep_polling = False
+                    return (id, obj, score)
+            now_timestamp = time.time()
+            if timeout is None or (now_timestamp - last_attempt_timestamp) >= timeout:
                 keep_polling = False
-                return (id, obj, score)
+                if _exc is not None:
+                    raise _exc
             tries += 1
             time.sleep(wait)
             wait = min(max_wait, tries/10.0 + wait)
