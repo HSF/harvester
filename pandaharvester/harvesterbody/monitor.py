@@ -265,8 +265,8 @@ class Monitor(AgentBase):
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
         # workspec chunk of active workers
-        workSpecsToEnqueue = []
-        workSpecsToEnqueueToHead = []
+        workSpecsToEnqueue_dict = {}
+        workSpecsToEnqueueToHead_dict = {}
         timeNow_timestamp = time.time()
         # get fifoCheckInterval for PQ and other fifo attributes
         try:
@@ -452,18 +452,20 @@ class Monitor(AgentBase):
                                     workSpec.set_work_params({'startFifoPreemptAt': startFifoPreemptAt})
                                 tmpQueLog.debug('workerID={0} , startFifoPreemptAt: {1}'.format(workSpec.workerID, startFifoPreemptAt))
                                 if timeNow_timestamp - startFifoPreemptAt < fifoMaxPreemptInterval:
-                                    workSpecsToEnqueueToHead.append(workSpecs)
+                                    workSpecsToEnqueueToHead_dict[workSpec.workerID] = workSpecs
                                 else:
                                     workSpec.set_work_params({'startFifoPreemptAt': timeNow_timestamp})
                                     workSpec.modificationTime = timeNow
                                     workSpec.force_update('modificationTime')
-                                    workSpecsToEnqueue.append(workSpecs)
+                                    workSpecsToEnqueue_dict[workSpec.workerID] = workSpecs
                             else:
                                 workSpec.modificationTime = timeNow
                                 workSpec.force_update('modificationTime')
-                                workSpecsToEnqueue.append(workSpecs)
+                                workSpecsToEnqueue_dict[workSpec.workerID] = workSpecs
         else:
             tmpQueLog.error('failed to check workers')
+        workSpecsToEnqueue = list(workSpecsToEnqueue_dict.values())
+        workSpecsToEnqueueToHead = list(workSpecsToEnqueueToHead_dict.values())
         retVal = workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval
         tmpQueLog.debug('done')
         return retVal
@@ -533,7 +535,7 @@ class Monitor(AgentBase):
                     if workerID in retMap:
                         # failed to check status
                         if newStatus is None:
-                            tmp_log.error('Failed to check workerID={0} with {1}'.format(workerID, diagMessage))
+                            tmp_log.warning('Failed to check workerID={0} with {1}'.format(workerID, diagMessage))
                             retMap[workerID]['isChecked'] = False
                             # set status
                             if workSpec.checkTime is not None and checkTimeout is not None and \
