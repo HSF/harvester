@@ -112,7 +112,7 @@ class Apfmon:
             url = '{0}/jobs'.format(self.base_url)
 
             for worker_spec_shard in generic_utils.create_shards(worker_spec_list, 20):
-                workers = []
+                apfmon_workers = []
                 for worker_spec in worker_spec_shard:
                     # TODO: be sure it's expecting the condor ID and it's consistent with the wrapper info
                     batch_id = worker_spec.batchID
@@ -136,11 +136,11 @@ class Apfmon:
                                      'logurl': log_url
                                      }
                     tmp_log.debug('packed worker: {0}'.format(apfmon_worker))
-                    workers.append()
+                    apfmon_workers.append(apfmon_worker)
 
-                payload = json.dumps(workers)
+                payload = json.dumps(apfmon_workers)
                 r = requests.put(url, data=payload)
-                tmp_log.debug('worker creation for {0} ended with {1}'.format(workers, r.status_code))
+                tmp_log.debug('worker creation for {0} ended with {1}'.format(apfmon_workers, r.status_code))
 
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
