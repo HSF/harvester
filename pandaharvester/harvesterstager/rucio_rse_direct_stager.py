@@ -176,7 +176,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
             try:
                 rucioAPI.add_dataset(datasetScope, datasetName,
                                      meta={'hidden': True},
-                                     lifetime=7 * 24 * 60 * 60,
+                                     lifetime=30 * 24 * 60 * 60,
                                      rse=srcRSE
                                      )
             except DataIdentifierAlreadyExists:
@@ -208,7 +208,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
                 tmpDID['scope'] = datasetScope
                 tmpDID['name'] = datasetName
                 tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
-                                                       lifetime=7 * 24 * 60 * 60)
+                                                       lifetime=30 * 24 * 60 * 60)
                 ruleIDs = tmpRet[0]
                 tmpLog.debug('registered dataset {0}:{1} with rule {2}'.format(datasetScope, datasetName,
                                                                                str(ruleIDs)))
