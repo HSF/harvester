@@ -217,7 +217,13 @@ class DBProxy:
             # convert param dict
             newSQL, params = self.convert_params(sql, varmap)
             # execute
-            retVal = self.cur.execute(newSQL, params)
+            try:
+                retVal = self.cur.execute(newSQL, params)
+            except Exception as e:
+                self._handle_exception(e)
+                if harvester_config.db.verbose:
+                    self.verbLog.debug('thr={0} exception during execute'.format(self.thrName))
+                raise
         finally:
             # release lock
             if self.usingAppLock and not self.lockDB:
@@ -257,7 +263,13 @@ class DBProxy:
                 newSQL, params = self.convert_params(sql, varMap)
                 paramList.append(params)
             # execute
-            retVal = self.cur.executemany(newSQL, paramList)
+            try:
+                retVal = self.cur.executemany(newSQL, paramList)
+            except Exception as e:
+                self._handle_exception(e)
+                if harvester_config.db.verbose:
+                    self.verbLog.debug('thr={0} exception during executemany'.format(self.thrName))
+                raise
         finally:
             # release lock
             if self.usingAppLock and not self.lockDB:

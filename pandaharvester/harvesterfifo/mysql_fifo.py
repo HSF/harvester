@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import functools
 import warnings
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -79,47 +80,54 @@ class MysqlFifo(PluginBase):
             self.rollback()
             raise _e
 
-    # exception handler for type of DBs
-    def _handle_exception(self, exc, retry_time=30):
-        # Case to try renew connection
-        isOperationalError = False
-        if isinstance(exc, self.OperationalError):
-            isOperationalError = True
-        if isOperationalError:
-            try_timestamp = time.time()
-            while time.time() - try_timestamp < retry_time:
+    # decorator exception handler for type of DBs
+    def _handle_exception(method, retry_time=30):
+        def _decorator(_method, *args, **kwargs):
+            @functools.wraps(_method)
+            def _wrapped_method(self, *args, **kwargs):
                 try:
-                    self.__init__()
-                    return
-                except Exception as _e:
-                    time.sleep(1)
-            raise _e
-        else:
-            raise exc
+                    _method(self, *args, **kwargs)
+                except Exception as exc:
+                    # Case to try renew connection
+                    isOperationalError = False
+                    if isinstance(exc, self.OperationalError):
+                        isOperationalError = True
+                    if isOperationalError:
+                        try_timestamp = time.time()
+                        while time.time() - try_timestamp < retry_time:
+                            try:
+                                self.__init__()
+                                return
+                            except Exception as _e:
+                                exc = _e
+                                time.sleep(1)
+                        raise exc
+                    else:
+                        raise exc
+            return _wrapped_method
+        return _decorator(method)
 
     # wrapper for execute
+    @_handle_exception
     def execute(self, sql, params=None):
         retVal = self.cur.execute(sql, params)
         return retVal
 
     # wrapper for executemany
+    @_handle_exception
     def executemany(self, sql, params_list):
         retVal = self.cur.executemany(sql, params_list)
         return retVal
 
     # commit
+    @_handle_exception
     def commit(self):
-        try:
-            self.con.commit()
-        except Exception as e:
-            self._handle_exception(e)
+        self.con.commit()
 
     # rollback
+    @_handle_exception
     def rollback(self):
-        try:
-            self.con.rollback()
-        except Exception as e:
-            self._handle_exception(e)
+        self.con.rollback()
 
     # make table
     def _make_table(self):
