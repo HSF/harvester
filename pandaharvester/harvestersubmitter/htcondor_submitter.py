@@ -117,7 +117,7 @@ def submit_a_worker(data):
     # make condor remote options
     name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
     pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
-    spool_opt = '-spool'.format(use_spool) if use_spool and condor_schedd else ''
+    spool_opt = '-remote -spool'.format(use_spool) if use_spool and condor_schedd else ''
     # command
     comStr = 'condor_submit {spool_opt} {name_opt} {pool_opt} {sdf_file}'.format(sdf_file=batchFile,
                                                                         name_opt=name_opt,
