@@ -166,11 +166,11 @@ class GlobusRucioStager(GlobusBulkStager):
                 try:
                     # register dataset
                     tmpLog.debug('register {0}:{1} rse = {2} meta=(hidden: True) lifetime = {3}'
-                                 .format(datasetScope, datasetName,srcRSE,(7*24*60*60)))
+                                 .format(datasetScope, datasetName,srcRSE,(30*24*60*60)))
                     try:
                         rucioAPI.add_dataset(datasetScope, datasetName,
                                              meta={'hidden': True},
-                                             lifetime=7 * 24 * 60 * 60,
+                                             lifetime=30 * 24 * 60 * 60,
                                              rse=srcRSE
                                              )
                     except DataIdentifierAlreadyExists:
@@ -221,7 +221,7 @@ class GlobusRucioStager(GlobusBulkStager):
                         tmpDID['scope'] = datasetScope
                         tmpDID['name'] = datasetName
                         tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
-                                                               lifetime=7 * 24 * 60 * 60)
+                                                               lifetime=30 * 24 * 60 * 60)
                         ruleIDs = tmpRet[0]
                         tmpLog.debug('registered dataset {0}:{1} with rule {2}'.format(datasetScope, datasetName,
                                                                                        str(ruleIDs)))

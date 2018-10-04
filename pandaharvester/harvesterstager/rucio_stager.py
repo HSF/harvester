@@ -148,7 +148,7 @@ class RucioStager(BaseStager):
                     tmpDS = 'panda.harvester_stage_out.{0}'.format(str(uuid.uuid4()))
                     rucioAPI.add_dataset(tmpScope, tmpDS,
                                          meta={'hidden': True},
-                                         lifetime=7*24*60*60,
+                                         lifetime=30*24*60*60,
                                          files=fileList,
                                          rse=self.srcRSE
                                          )
@@ -158,7 +158,7 @@ class RucioStager(BaseStager):
                     tmpDID['scope'] = tmpScope
                     tmpDID['name'] = tmpDS
                     tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
-                                                           lifetime=7*24*60*60
+                                                           lifetime=30*24*60*60
                                                            )
                     tmpTransferIDs = tmpRet[0]
                     transferIDs[fileType] = tmpTransferIDs
