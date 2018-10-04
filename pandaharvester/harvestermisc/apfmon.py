@@ -160,13 +160,13 @@ if __name__== "__main__":
 
     worker_a = WorkSpec()
     worker_a.batchID = 1
-    worker_a.computingsite = 'CERN-PROD-DEV_UCORE'
+    worker_a.computingSite = 'CERN-PROD-DEV_UCORE'
     worker_a.workAttributes = '{"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}'
     worker_a.workAttributes = {}
 
     worker_b = WorkSpec()
     worker_a.batchID = 2
-    worker_a.computingsite = 'CERN-PROD-DEV_UCORE'
+    worker_a.computingSite = 'CERN-PROD-DEV_UCORE'
     worker_a.workAttributes = '{"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}'
 
 
