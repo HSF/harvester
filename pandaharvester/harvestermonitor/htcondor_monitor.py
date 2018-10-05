@@ -51,6 +51,14 @@ CONDOR_JOB_STATUS_MAP = {
     }
 
 
+## List of job ads required
+CONDOR_JOB_ADS_LIST = [
+    'ClusterId', 'ProcId', 'JobStatus',
+    'JobStartDate', 'EnteredCurrentStatus', 'ExitCode',
+    'HoldReason', 'LastHoldReason', 'RemoveReason',
+]
+
+
 ## generate condor job id with schedd host from workspec
 def condor_job_id_from_workspec(workspec):
     return '{0}#{1}'.format(workspec.submissionHost, workspec.batchID)
@@ -202,7 +210,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             requirements = 'member(ClusterID, {{{0}}})'.format(batchIDs_str)
             tmpLog.debug('Query method: {0} ; requirements: "{1}"'.format(query_method.__name__, requirements))
             ## Query
-            jobs_iter = query_method(requirements=requirements, projection=[])
+            jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
                 job_ads_dict = dict(job)
                 batchid = str(job_ads_dict['ClusterId'])
