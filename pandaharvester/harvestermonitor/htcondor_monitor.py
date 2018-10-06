@@ -1,22 +1,35 @@
 import re
+import time
+import datetime
+import threading
+import random
+import xml.etree.ElementTree as ET
+
 try:
     import subprocess32 as subprocess
 except Exception:
     import subprocess
-import xml.etree.ElementTree as ET
 
-import time
-import datetime
-import threading
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
+try:
+    from threading import get_ident
+except ImportError:
+    from thread import get_ident
 
 import six
 
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.fifos import SpecialFIFOBase
 
 try:
     import htcondor
@@ -59,9 +72,21 @@ CONDOR_JOB_ADS_LIST = [
 ]
 
 
+## harvesterID
+harvesterID=harvester_config.master.harvester_id
+
+
 ## generate condor job id with schedd host from workspec
 def condor_job_id_from_workspec(workspec):
     return '{0}#{1}'.format(workspec.submissionHost, workspec.batchID)
+
+
+## Condor queue cache fifo
+class CondorQCacheFifo(six.with_metaclass(SingletonWithID, SpecialFIFOBase)):
+    def __init__(self, target, *args, **kwargs):
+        name_suffix = target.split('.')[0]
+        self.titleName = 'CondorQCache_{0}'.format(name_suffix)
+        SpecialFIFOBase.__init__(self)
 
 
 ## Condor job ads query
@@ -82,17 +107,18 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 <classads>
 """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, cacheRefreshInterval=None , *args, **kwargs):
+        self.submissionHost = str(kwargs.get('id'))
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.__init__')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.__init__')
         # Initialize
         with self.classLock:
             tmpLog.debug('Start')
-            self.submissionHost = str(kwargs.get('id'))
             self.lock = threading.Lock()
             self.condor_api = CONDOR_API
             self.condor_schedd = None
             self.condor_pool = None
+            self.cache_enabled = False
             if self.submissionHost:
                 try:
                     self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
@@ -105,18 +131,24 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 except Exception as e:
                     self.condor_api = 'command'
                     tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api: {0}'.format(e))
+            if cacheRefreshInterval is not None:
+                self.cache_enabled = True
+                self.cache = ([], 0)
+                self.cacheRefreshInterval = cacheRefreshInterval
             tmpLog.debug('Initialize done')
-
 
     def get_all(self, batchIDs_list=[]):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.get_all')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.get_all')
         # Get all
         tmpLog.debug('Start')
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                job_ads_all_dict = self.query_with_python(batchIDs_list)
+                if self.cache_enabled:
+                    job_ads_all_dict = self.query_with_python_cached(batchIDs_list)
+                else:
+                    job_ads_all_dict = self.query_with_python(batchIDs_list)
             except RuntimeError as e:
                 tmpLog.error(e)
                 if self.lock.acquire(False):
@@ -131,7 +163,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 
     def query_with_command(self, batchIDs_list=[]):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.query_with_command')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.query_with_command')
         ## Start query
         tmpLog.debug('Start query')
         job_ads_all_dict = {}
@@ -198,7 +230,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 
     def query_with_python(self, batchIDs_list=[]):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.query_with_python')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.query_with_python')
         ## Start query
         tmpLog.debug('Start query')
         job_ads_all_dict = {}
@@ -232,9 +264,123 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         ## Return
         return job_ads_all_dict
 
+    def query_with_python_cached(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.query_with_python_cached')
+        ## Start query
+        tmpLog.debug('Start query')
+        cache_fifo = CondorQCacheFifo(target=self.submissionHost, id=get_ident())
+        job_ads_all_dict = {}
+        batchIDs_set = set(batchIDs_list)
+        ## query from cache
+        def cache_query(requirements=None, projection=CONDOR_JOB_ADS_LIST, **kwargs):
+            # query from condor xquery and update cache to fifo
+            def update_cache():
+                tmpLog.debug('update_cache')
+                jobs_iter_orig = self.schedd.xquery(requirements=requirements, projection=projection)
+                jobs_iter = [ dict(job) for job in jobs_iter_orig ]
+                timeNow = time.time()
+                cache_fifo.put(jobs_iter, timeNow)
+                self.cache = (jobs_iter, timeNow)
+                return jobs_iter
+            # remove invalid or outdated caches from fifo
+            def cleanup_cache(max_n=5):
+                tmpLog.debug('cleanup_cache')
+                id_list = list()
+                for _ in range(max_n):
+                    peeked_tuple = cache_fifo.peek()
+                    if peeked_tuple.score is not None and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
+                        # no expired cache
+                        break
+                    got_tuple = cache_fifo.get(timeout=3, protective=True, decode_item=False)
+                    if got_tuple.score is not None and time.time() <= got_tuple.score + self.cacheRefreshInterval:
+                        # set back to queue if not expired yet
+                        cache_fifo.restore()
+                        break
+                    elif got_tuple.id is None:
+                        break
+                    else:
+                        id_list.append(got_tuple.id)
+                if len(id_list) > 0:
+                    cache_fifo.release(id_list)
+            # start
+            jobs_iter = tuple()
+            try:
+                attempt_timestamp = time.time()
+                while True:
+                    # get latest cache
+                    peeked_tuple = cache_fifo.peeklast()
+                    if peeked_tuple.score is not None:
+                        # got cache
+                        if peeked_tuple.item is not None \
+                            and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
+                            # got valid cache
+                            _obj, _last_update = self.cache
+                            if _last_update >= peeked_tuple.score:
+                                # valid local cache
+                                tmpLog.debug('valid local cache')
+                                jobs_iter = _obj
+                            else:
+                                # valid local cache
+                                tmpLog.debug('update local cache from fifo')
+                                jobs_iter = pickle.loads(peeked_tuple.item)
+                                self.cache = (jobs_iter, peeked_tuple.score)
+                        else:
+                            # cache expired
+                            tmpLog.debug('update cache in fifo')
+                            jobs_iter = update_cache()
+                            cleanup_cache()
+                        break
+                    else:
+                        # no cache in fifo, check with size again
+                        if cache_fifo.size() == 0:
+                            if time.time() > attempt_timestamp + random.uniform(10, 40):
+                                # have waited for long enough, update cache
+                                tmpLog.debug('waited enough, update cache in fifo')
+                                jobs_iter = update_cache()
+                            else:
+                                # still nothing, wait
+                                time.sleep(2)
+                        continue
+            except Exception as _e:
+                tmpLog.error('Error querying from cache fifo; {0}'.format(_e))
+            return jobs_iter
+        ## query
+        query_method_list = [cache_query, self.schedd.xquery, self.schedd.history]
+        for query_method in query_method_list:
+            ## Make requirements
+            batchIDs_str = ','.join(list(batchIDs_set))
+            if query_method is cache_query:
+                requirements = 'harvesterID =?= "{0}"'.format(harvesterID)
+            else:
+                requirements = 'member(ClusterID, {{{0}}})'.format(batchIDs_str)
+            tmpLog.debug('Query method: {0} ; batchIDs: "{1}"'.format(query_method.__name__, batchIDs_str))
+            ## Query
+            jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
+            for job in jobs_iter:
+                job_ads_dict = dict(job)
+                batchid = str(job_ads_dict['ClusterId'])
+                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                job_ads_all_dict[condor_job_id] = job_ads_dict
+                ## Remove batch jobs already gotten from the list
+                if batchid in batchIDs_set:
+                    batchIDs_set.discard(batchid)
+            if len(batchIDs_set) == 0:
+                break
+        ## Remaining
+        if len(batchIDs_set) > 0:
+            ## Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
+            for batchid in batchIDs_set:
+                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                job_ads_all_dict[condor_job_id] = dict()
+            tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
+                            self.submissionHost, ' '.join(list(batchIDs_set)) ) )
+        ## Return
+        return job_ads_all_dict
+
     def renew_session(self, retry=3):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, method_name='CondorJobQuery.renew_session')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.renew_session')
         # Clear security session
         tmpLog.info('Renew condor session')
         self.secman.invalidateAllSessions()
@@ -425,6 +571,10 @@ class HTCondorMonitor (PluginBase):
             self.heldTimeout
         except AttributeError:
             self.heldTimeout = 3600
+        try:
+            self.cacheRefreshInterval
+        except AttributeError:
+            self.cacheRefreshInterval = None
 
     # check workers
     def check_workers(self, workspec_list):
@@ -445,7 +595,7 @@ class HTCondorMonitor (PluginBase):
         job_ads_all_dict = {}
         for submissionHost, batchIDs_list in six.iteritems(s_b_dict):
             ## Record batch job query result to this dict, with key = batchID
-            job_query = CondorJobQuery(id=submissionHost)
+            job_query = CondorJobQuery(cacheRefreshInterval=self.cacheRefreshInterval, id=submissionHost)
             job_ads_all_dict.update(job_query.get_all(batchIDs_list=batchIDs_list))
 
         ## Check for all workers

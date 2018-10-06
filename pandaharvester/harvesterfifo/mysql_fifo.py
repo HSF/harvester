@@ -14,7 +14,7 @@ class MysqlFifo(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.tableName = '{agent}_FIFO'.format(agent=self.agentName)
+        self.tableName = '{title}_FIFO'.format(title=self.titleName)
         # DB access attribues
         if hasattr(self, 'db_host'):
             db_host = self.db_host
@@ -160,11 +160,16 @@ class MysqlFifo(PluginBase):
         params = (obj, score)
         self.execute(sql_push, params)
 
-    def _pop(self, timeout=None, protective=False):
-        sql_pop_get = (
+    def _pop(self, timeout=None, protective=False, from_last=False):
+        sql_pop_get_first = (
                 'SELECT id, item, score FROM {table_name} '
                 'WHERE temporary = 0 '
                 'ORDER BY score LIMIT 1 '
+            ).format(table_name=self.tableName)
+        sql_pop_get_last = (
+                'SELECT id, item, score FROM {table_name} '
+                'WHERE temporary = 0 '
+                'ORDER BY score DESC LIMIT 1 '
             ).format(table_name=self.tableName)
         sql_pop_to_temp = (
                 'UPDATE {table_name} SET temporary = 1 '
@@ -174,6 +179,7 @@ class MysqlFifo(PluginBase):
                 'DELETE FROM {table_name} '
                 'WHERE id = %s AND temporary = 0 '
             ).format(table_name=self.tableName)
+        sql_pop_get = sql_pop_get_last if from_last else sql_pop_get_first
         keep_polling = True
         got_object = False
         _exc = None
@@ -214,6 +220,28 @@ class MysqlFifo(PluginBase):
             wait = min(max_wait, tries/10.0 + wait)
         return None
 
+    def _peek(self, from_last=False):
+        sql_peek_first = (
+                'SELECT id, item, score FROM {table_name} '
+                'WHERE temporary = 0 '
+                'ORDER BY score LIMIT 1 '
+            ).format(table_name=self.tableName)
+        sql_peek_last = (
+                'SELECT id, item, score FROM {table_name} '
+                'WHERE temporary = 0 '
+                'ORDER BY score DESC LIMIT 1 '
+            ).format(table_name=self.tableName)
+        sql_peek = sql_peek_last if from_last else sql_peek_first
+        self.execute(sql_peek)
+        res = self.cur.fetchall()
+        self.commit()
+        if len(res) > 0:
+            id, obj, score = res[0]
+            return (obj, score)
+        else:
+            return (None, None)
+
+
     # number of objects in queue
     def size(self):
         sql_size = (
@@ -238,21 +266,17 @@ class MysqlFifo(PluginBase):
     def get(self, timeout=None, protective=False):
         return self._pop(timeout=timeout, protective=protective)
 
+    # dequeue the last object
+    def getlast(self, timeout=None, protective=False):
+        return self._pop(timeout=timeout, protective=protective, from_last=True)
+
     # get tuple of (item, score) of the first object without dequeuing it
     def peek(self):
-        sql_peek = (
-                'SELECT id, item, score FROM {table_name} '
-                'WHERE temporary = 0 '
-                'ORDER BY score LIMIT 1 '
-            ).format(table_name=self.tableName)
-        self.execute(sql_peek)
-        res = self.cur.fetchall()
-        self.commit()
-        if len(res) > 0:
-            id, obj, score = res[0]
-            return (obj, score)
-        else:
-            return (None, None)
+        return self._peek()
+
+    # get tuple of (item, score) of the first object without dequeuing it
+    def peeklast(self):
+        return self._peek(from_last=True)
 
     # drop all objects in queue and index and reset the table
     def clear(self):

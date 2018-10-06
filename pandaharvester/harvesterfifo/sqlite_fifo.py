@@ -75,7 +75,9 @@ class SqliteFifo(PluginBase):
             _db_filename = self.database_filename
         else:
             _db_filename = harvester_config.fifo.database_filename
-        self.db_path = os.path.abspath(re.sub('\$\(AGENT\)', self.agentName, _db_filename))
+        _db_filename = re.sub('\$\(TITLE\)', self.titleName, _db_filename)
+        _db_filename = re.sub('\$\(AGENT\)', self.titleName, _db_filename)
+        self.db_path = os.path.abspath(_db_filename)
         self._connection_cache = {}
         with self._get_conn() as conn:
             conn.execute(self._exclusive_lock_sql)
@@ -152,6 +154,15 @@ class SqliteFifo(PluginBase):
                 return (id, bytes(obj_buf), score)
         return None
 
+    def _peek(self, peek_sql):
+        with self._get_conn() as conn:
+            cursor = conn.execute(peek_sql)
+            try:
+                id, obj_buf, score = next(cursor)
+                return bytes(obj_buf), score
+            except StopIteration:
+                return None, None
+
     # number of objects in queue
     def size(self):
         return len(self)
@@ -170,13 +181,11 @@ class SqliteFifo(PluginBase):
 
     # get tuple of (item, score) of the first object without dequeuing it
     def peek(self):
-        with self._get_conn() as conn:
-            cursor = conn.execute(self._lpop_get_sql)
-            try:
-                id, obj_buf, score = next(cursor)
-                return bytes(obj_buf), score
-            except StopIteration:
-                return None, None
+        return self._peek(self._lpop_get_sql)
+
+    # get tuple of (item, score) of the last object without dequeuing it
+    def peeklast(self):
+        return self._peek(self._rpop_get_sql)
 
     # drop all objects in queue and index and reset primary key auto_increment
     def clear(self):

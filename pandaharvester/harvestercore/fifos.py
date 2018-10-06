@@ -34,7 +34,7 @@ _logger = core_utils.setup_logger('fifos')
 
 
 # base class of fifo message queue
-class FIFOBase:
+class FIFOBase(object):
     # constructor
     def __init__(self, **kwarg):
         for tmpKey, tmpVal in iteritems(kwarg):
@@ -61,15 +61,15 @@ class FIFOBase:
 
     # intialize fifo from harvester configuration
     def _initialize_fifo(self):
-        self.fifoName = '{0}_fifo'.format(self.agentName)
-        self.config = getattr(harvester_config, self.agentName)
+        self.fifoName = '{0}_fifo'.format(self.titleName)
+        self.config = getattr(harvester_config, self.titleName)
         if hasattr(self.config, 'fifoEnable') and self.config.fifoEnable:
             self.enabled = True
         else:
             self.enabled = False
             return
         pluginConf = vars(self.config).copy()
-        pluginConf.update( {'agentName': self.agentName} )
+        pluginConf.update( {'titleName': self.titleName} )
         if hasattr(self.config, 'fifoModule') and hasattr(self.config, 'fifoClass'):
             pluginConf.update( {'module': self.config.fifoModule,
                                 'name': self.config.fifoClass,} )
@@ -100,7 +100,7 @@ class FIFOBase:
         return retVal
 
     # dequeue to get the fifo object
-    def get(self, timeout=None, protective=False):
+    def get(self, timeout=None, protective=False, decode_item=True):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='get')
         object_tuple = self.fifo.get(timeout, protective)
         # retVal = json.loads(obj_serialized, object_hook=as_python_object)
@@ -108,7 +108,28 @@ class FIFOBase:
             retVal = None
         else:
             id, obj_serialized, score = object_tuple
-            retVal = FifoObject(id, pickle.loads(obj_serialized), score)
+            if decode_item:
+                obj = pickle.loads(obj_serialized)
+            else:
+                obj = obj_serialized
+            retVal = FifoObject(id, obj, score)
+        mainLog.debug('called. protective={0}'.format(protective))
+        return retVal
+
+    # dequeue to get the last fifo object
+    def getlast(self, timeout=None, protective=False, decode_item=True):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='getlast')
+        object_tuple = self.fifo.getlast(timeout, protective)
+        # retVal = json.loads(obj_serialized, object_hook=as_python_object)
+        if object_tuple is None:
+            retVal = None
+        else:
+            id, obj_serialized, score = object_tuple
+            if decode_item:
+                obj = pickle.loads(obj_serialized)
+            else:
+                obj = obj_serialized
+            retVal = FifoObject(id, obj, score)
         mainLog.debug('called. protective={0}'.format(protective))
         return retVal
 
@@ -116,6 +137,20 @@ class FIFOBase:
     def peek(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peek')
         obj_serialized, score = self.fifo.peek()
+        # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
+        if obj_serialized is None and score is None:
+            retVal = FifoObject(None, None, None)
+        else:
+            if score is None:
+                score = time.time()
+            retVal = FifoObject(None, obj_serialized, score)
+        mainLog.debug('score={0}'.format(score))
+        return retVal
+
+    # get tuple of the last object and its score without dequeuing
+    def peeklast(self):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peeklast')
+        obj_serialized, score = self.fifo.peeklast()
         # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
         if obj_serialized is None and score is None:
             retVal = FifoObject(None, None, None)
@@ -141,27 +176,32 @@ class FIFOBase:
         return retVal
 
 
-# Benchmark fifo
-class BenchmarkFIFO(FIFOBase):
+# Special fifo base for non havester-agent
+class SpecialFIFOBase(FIFOBase):
     # constructor
     def __init__(self, **kwarg):
         FIFOBase.__init__(self, **kwarg)
-        self.agentName = 'benchmark'
-        self.fifoName = '{0}_fifo'.format(self.agentName)
+        self.fifoName = '{0}_fifo'.format(self.titleName)
         pluginConf = {}
-        pluginConf.update( {'agentName': self.agentName} )
+        pluginConf.update( {'titleName': self.titleName} )
         pluginConf.update( {'module': harvester_config.fifo.fifoModule,
                             'name': harvester_config.fifo.fifoClass,} )
         pluginFactory = PluginFactory()
         self.fifo = pluginFactory.get_plugin(pluginConf)
 
 
+# Benchmark fifo
+class BenchmarkFIFO(SpecialFIFOBase):
+    titleName = 'benchmark'
+
+
 # monitor fifo
 class MonitorFIFO(FIFOBase):
+    titleName = 'monitor'
+
     # constructor
     def __init__(self, **kwarg):
         FIFOBase.__init__(self, **kwarg)
-        self.agentName = 'monitor'
         self._initialize_fifo()
 
     def populate(self, seconds_ago=0, clear_fifo=False):
