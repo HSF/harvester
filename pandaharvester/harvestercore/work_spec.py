@@ -233,7 +233,8 @@ class WorkSpec(SpecBase):
                      'diagMessage',
                      'nJobs',
                      'computingElement',
-                     'syncLevel'
+                     'syncLevel',
+                     'submissionHost'
                      ]:
             val = getattr(self, attr)
             if val is not None:
