@@ -11,11 +11,6 @@ except Exception:
     import subprocess
 
 try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
-try:
     from threading import get_ident
 except ImportError:
     from thread import get_ident
@@ -83,10 +78,31 @@ def condor_job_id_from_workspec(workspec):
 
 ## Condor queue cache fifo
 class CondorQCacheFifo(six.with_metaclass(SingletonWithID, SpecialFIFOBase)):
+    global_lock_id = -1
+
     def __init__(self, target, *args, **kwargs):
         name_suffix = target.split('.')[0]
         self.titleName = 'CondorQCache_{0}'.format(name_suffix)
         SpecialFIFOBase.__init__(self)
+
+    def lock(self, score=None):
+        lock_key = format(int(random.random() * 2**32), 'x')
+        if score is None:
+            score = time.time()
+        retVal = self.putbyid(self.global_lock_id, lock_key, score)
+        if retVal:
+            return lock_key
+        return None
+
+    def unlock(self, key=None, force=False):
+        peeked_tuple = self.peekbyid(id=self.global_lock_id)
+        if peeked_tuple.score is None or peeked_tuple.item is None:
+            return True
+        elif force or self.decode(peeked_tuple.item) == key:
+            self.release([self.global_lock_id])
+            return True
+        else:
+            return False
 
 
 ## Condor job ads query
@@ -242,7 +258,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             ## Make requirements
             batchIDs_str = ','.join(list(batchIDs_set))
             requirements = 'member(ClusterID, {{{0}}})'.format(batchIDs_str)
-            tmpLog.debug('Query method: {0} ; requirements: "{1}"'.format(query_method.__name__, requirements))
+            tmpLog.debug('Query method: {0} ; batchIDs: "{1}"'.format(query_method.__name__, batchIDs_str))
             ## Query
             jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
@@ -251,8 +267,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = job_ads_dict
                 ## Remove batch jobs already gotten from the list
-                if batchid in batchIDs_set:
-                    batchIDs_set.discard(batchid)
+                batchIDs_set.discard(batchid)
             if len(batchIDs_set) == 0:
                 break
         ## Remaining
@@ -275,46 +290,80 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         job_ads_all_dict = {}
         batchIDs_set = set(batchIDs_list)
         ## query from cache
-        def cache_query(requirements=None, projection=CONDOR_JOB_ADS_LIST, **kwargs):
+        def cache_query(requirements=None, projection=CONDOR_JOB_ADS_LIST, timeout=60):
             # query from condor xquery and update cache to fifo
-            def update_cache():
+            def update_cache(lockInterval=90):
                 tmpLog.debug('update_cache')
-                jobs_iter_orig = self.schedd.xquery(requirements=requirements, projection=projection)
-                jobs_iter = [ dict(job) for job in jobs_iter_orig ]
-                timeNow = time.time()
-                cache_fifo.put(jobs_iter, timeNow)
-                self.cache = (jobs_iter, timeNow)
-                return jobs_iter
+                # acquire lock with score timestamp
+                score = time.time() - self.cacheRefreshInterval + lockInterval
+                lock_key = cache_fifo.lock(score=score)
+                if lock_key is not None:
+                    # acquired lock, update from condor schedd
+                    tmpLog.debug('got lock, updating cache')
+                    jobs_iter_orig = self.schedd.xquery(requirements=requirements, projection=projection)
+                    jobs_iter = [ dict(job) for job in jobs_iter_orig ]
+                    timeNow = time.time()
+                    cache_fifo.put(jobs_iter, timeNow)
+                    self.cache = (jobs_iter, timeNow)
+                    # release lock
+                    retVal = cache_fifo.unlock(key=lock_key)
+                    if retVal:
+                        tmpLog.debug('done update cache and unlock')
+                    else:
+                        tmpLog.warning('cannot unlock... Maybe something wrong')
+                    return jobs_iter
+                else:
+                    tmpLog.debug('cache fifo locked by other thread. Skipped')
+                    return None
             # remove invalid or outdated caches from fifo
-            def cleanup_cache(max_n=5):
+            def cleanup_cache(timeout=60):
                 tmpLog.debug('cleanup_cache')
                 id_list = list()
-                for _ in range(max_n):
+                attempt_timestamp = time.time()
+                n_cleanup = 0
+                while True:
+                    if time.time() > attempt_timestamp + timeout:
+                        tmpLog.debug('Time is up when cleanup cache. Skipped')
+                        break
                     peeked_tuple = cache_fifo.peek()
-                    if peeked_tuple.score is not None and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
-                        # no expired cache
+                    if peeked_tuple.score is not None \
+                        and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
+                        # no expired cache or lock
+                        tmpLog.debug('nothing expired')
                         break
-                    got_tuple = cache_fifo.get(timeout=3, protective=True, decode_item=False)
-                    if got_tuple.score is not None and time.time() <= got_tuple.score + self.cacheRefreshInterval:
-                        # set back to queue if not expired yet
-                        cache_fifo.restore()
-                        break
-                    elif got_tuple.id is None:
-                        break
+                    elif peeked_tuple.id is not None:
+                        retVal = cache_fifo.release([peeked_tuple.id])
+                        n_cleanup += retVal
                     else:
-                        id_list.append(got_tuple.id)
-                if len(id_list) > 0:
-                    cache_fifo.release(id_list)
+                        # empty or problematic
+                        tmpLog.debug('got nothing when cleanup cache. Skipped')
+                        break
+                tmpLog.debug('cleaned up {0} objects in cache fifo'.format(n_cleanup))
             # start
             jobs_iter = tuple()
             try:
                 attempt_timestamp = time.time()
                 while True:
+                    if time.time() > attempt_timestamp + timeout:
+                        # skip cache_query if too long
+                        tmpLog.debug('cache_query got timeout ({0} seconds). Skipped '.format(timeout))
+                        break
                     # get latest cache
                     peeked_tuple = cache_fifo.peeklast()
                     if peeked_tuple.score is not None:
-                        # got cache
-                        if peeked_tuple.item is not None \
+                        # got something
+                        if peeked_tuple.id == cache_fifo.global_lock_id:
+                            if time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
+                                # lock
+                                tmpLog.debug('got fifo locked. Wait and retry...')
+                                time.sleep(random.uniform(1, 5))
+                                continue
+                            else:
+                                # expired lock
+                                tmpLog.debug('got lock expired. Clean up and retry...')
+                                cleanup_cache()
+                                continue
+                        elif peeked_tuple.item is not None \
                             and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
                             # got valid cache
                             _obj, _last_update = self.cache
@@ -323,23 +372,28 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                                 tmpLog.debug('valid local cache')
                                 jobs_iter = _obj
                             else:
-                                # valid local cache
+                                # valid fifo cache
                                 tmpLog.debug('update local cache from fifo')
-                                jobs_iter = pickle.loads(peeked_tuple.item)
+                                jobs_iter = cache_fifo.decode(peeked_tuple.item)
                                 self.cache = (jobs_iter, peeked_tuple.score)
                         else:
                             # cache expired
                             tmpLog.debug('update cache in fifo')
-                            jobs_iter = update_cache()
+                            retVal = update_cache()
+                            if retVal is not None:
+                                jobs_iter = retVal
                             cleanup_cache()
                         break
                     else:
                         # no cache in fifo, check with size again
                         if cache_fifo.size() == 0:
-                            if time.time() > attempt_timestamp + random.uniform(10, 40):
+                            if time.time() > attempt_timestamp + random.uniform(10, 30):
                                 # have waited for long enough, update cache
                                 tmpLog.debug('waited enough, update cache in fifo')
-                                jobs_iter = update_cache()
+                                retVal = update_cache()
+                                if retVal is not None:
+                                    jobs_iter = retVal
+                                break
                             else:
                                 # still nothing, wait
                                 time.sleep(2)
@@ -365,8 +419,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = job_ads_dict
                 ## Remove batch jobs already gotten from the list
-                if batchid in batchIDs_set:
-                    batchIDs_set.discard(batchid)
+                batchIDs_set.discard(batchid)
             if len(batchIDs_set) == 0:
                 break
         ## Remaining

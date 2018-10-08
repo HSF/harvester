@@ -145,7 +145,7 @@ class RedisFifo(PluginBase):
                 else:
                     break
 
-    # delete an object by list of id
+    # delete objects by list of id
     def delete(self, ids):
         if isinstance(ids, (list, tuple)):
             with self.qconn.pipeline() as pipeline:
@@ -166,24 +166,40 @@ class RedisFifo(PluginBase):
         else:
             raise TypeError('ids should be list or tuple')
 
-    # Move all object in temporary space to the queue
-    def restore(self):
+    # Move objects in temporary space to the queue
+    def restore(self, ids):
         with self.qconn.pipeline() as pipeline:
             while True:
                 now_timestamp = time.time()
                 try:
                     pipeline.watch(self.qname, self.idp, self.titem, self.tscore)
-                    temp_score_dict = pipeline.hgetall(self.tscore)
                     item_score_list = []
-                    for id, item in pipeline.hscan_iter(self.titem):
-                        item_score_list.extend([float(temp_score_dict.get(id, now_timestamp)), item])
-                    if len(item_score_list) > 0:
-                        pipeline.multi()
-                        pipeline.zadd(self.qname, *item_score_list)
-                        pipeline.delete(self.titem)
-                        pipeline.delete(self.tscore)
-                        pipeline.delete(self.idp)
-                        pipeline.execute()
+                    if ids is None:
+                        temp_score_dict = pipeline.hgetall(self.tscore)
+                        for id, item in pipeline.hscan_iter(self.titem):
+                            item_score_list.extend([float(temp_score_dict.get(id, now_timestamp)), item])
+                        if len(item_score_list) > 0:
+                            pipeline.multi()
+                            pipeline.zadd(self.qname, *item_score_list)
+                            pipeline.delete(self.titem)
+                            pipeline.delete(self.tscore)
+                            pipeline.delete(self.idp)
+                            pipeline.execute()
+                    elif isinstance(ids, (list, tuple)):
+                        for id in ids:
+                            score = pipeline.hget(self.tscore, id)
+                            item = pipeline.hget(self.titem, id)
+                            if score is not None and item is not None:
+                                item_score_list.extend([score, item])
+                        if len(ids) > 0:
+                            pipeline.multi()
+                            pipeline.zadd(self.qname, *item_score_list)
+                            pipeline.hdel(self.titem, *ids)
+                            pipeline.hdel(self.tscore, *ids)
+                            pipeline.srem(self.idp, *ids)
+                            pipeline.execute()
+                    else:
+                        raise TypeError('ids should be list or tuple or None')
                 except redis.WatchError:
                     continue
                 else:

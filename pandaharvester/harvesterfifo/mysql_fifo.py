@@ -160,7 +160,21 @@ class MysqlFifo(PluginBase):
         params = (obj, score)
         self.execute(sql_push, params)
 
-    def _pop(self, timeout=None, protective=False, from_last=False):
+    def _push_by_id(self, id, obj, score):
+        sql_push = (
+                'INSERT IGNORE INTO {table_name} '
+                '(id, item, score) '
+                'VALUES (%s, %s, %s) '
+            ).format(table_name=self.tableName)
+        params = (id, obj, score)
+        self.execute(sql_push, params)
+        n_row = self.cur.rowcount
+        if n_row == 1:
+            return True
+        else:
+            return False
+
+    def _pop(self, timeout=None, protective=False, mode='first'):
         sql_pop_get_first = (
                 'SELECT id, item, score FROM {table_name} '
                 'WHERE temporary = 0 '
@@ -179,15 +193,19 @@ class MysqlFifo(PluginBase):
                 'DELETE FROM {table_name} '
                 'WHERE id = %s AND temporary = 0 '
             ).format(table_name=self.tableName)
-        sql_pop_get = sql_pop_get_last if from_last else sql_pop_get_first
+        mode_sql_map = {
+                'first': sql_pop_get_first,
+                'last': sql_pop_get_last,
+            }
+        sql_pop_get = mode_sql_map[mode]
         keep_polling = True
         got_object = False
         _exc = None
         wait = 0.1
         max_wait = 2
         tries = 0
-        last_attempt_timestamp = time.time()
         id = None
+        last_attempt_timestamp = time.time()
         while keep_polling:
             try:
                 self.execute(sql_pop_get)
@@ -220,7 +238,7 @@ class MysqlFifo(PluginBase):
             wait = min(max_wait, tries/10.0 + wait)
         return None
 
-    def _peek(self, from_last=False):
+    def _peek(self, mode='first', id=None):
         sql_peek_first = (
                 'SELECT id, item, score FROM {table_name} '
                 'WHERE temporary = 0 '
@@ -231,15 +249,33 @@ class MysqlFifo(PluginBase):
                 'WHERE temporary = 0 '
                 'ORDER BY score DESC LIMIT 1 '
             ).format(table_name=self.tableName)
-        sql_peek = sql_peek_last if from_last else sql_peek_first
-        self.execute(sql_peek)
+        sql_peek_by_id = (
+                'SELECT id, item, score FROM {table_name} '
+                'WHERE id = %s AND temporary = 0 '
+            ).format(table_name=self.tableName)
+        sql_peek_by_id_temp = (
+                'SELECT id, item, score FROM {table_name} '
+                'WHERE id = %s AND temporary = 1 '
+            ).format(table_name=self.tableName)
+        mode_sql_map = {
+                'first': sql_peek_first,
+                'last': sql_peek_last,
+                'id': sql_peek_by_id,
+                'idtemp': sql_peek_by_id_temp,
+            }
+        sql_peek = mode_sql_map[mode]
+        if mode in ('id', 'idtemp'):
+            params = (id,)
+            self.execute(sql_peek, params)
+        else:
+            self.execute(sql_peek)
         res = self.cur.fetchall()
         self.commit()
         if len(res) > 0:
             id, obj, score = res[0]
-            return (obj, score)
+            return (id, obj, score)
         else:
-            return (None, None)
+            return (None, None, None)
 
 
     # number of objects in queue
@@ -262,21 +298,39 @@ class MysqlFifo(PluginBase):
             self.rollback()
             raise _e
 
+    # enqueue by id
+    def putbyid(self, id, obj, score):
+        try:
+            retVal = self._push_by_id(id, obj, score)
+            self.commit()
+        except Exception as _e:
+            self.rollback()
+            raise _e
+        else:
+            return retVal
+
     # dequeue the first object
     def get(self, timeout=None, protective=False):
         return self._pop(timeout=timeout, protective=protective)
 
     # dequeue the last object
     def getlast(self, timeout=None, protective=False):
-        return self._pop(timeout=timeout, protective=protective, from_last=True)
+        return self._pop(timeout=timeout, protective=protective, mode='last')
 
     # get tuple of (item, score) of the first object without dequeuing it
     def peek(self):
         return self._peek()
 
-    # get tuple of (item, score) of the first object without dequeuing it
+    # get tuple of (item, score) of the last object without dequeuing it
     def peeklast(self):
-        return self._peek(from_last=True)
+        return self._peek(mode='last')
+
+    # get tuple of (item, score) of object by id without dequeuing it
+    def peekbyid(self, id, temporary=False):
+        if temporary:
+            return self._peek(mode='idtemp', id=id)
+        else:
+            return self._peek(mode='id', id=id)
 
     # drop all objects in queue and index and reset the table
     def clear(self):
@@ -290,7 +344,7 @@ class MysqlFifo(PluginBase):
         self.execute(sql_clear_table)
         self.__init__()
 
-    # delete an object by list of id
+    # delete objects by list of id
     def delete(self, ids):
         sql_delete_template = 'DELETE FROM {table_name} WHERE id in ({placeholders} ) '
         if isinstance(ids, (list, tuple)):
@@ -298,15 +352,26 @@ class MysqlFifo(PluginBase):
             sql_delete = sql_delete_template.format(
                     table_name=self.tableName, placeholders=placeholders_str)
             self.execute(sql_delete, ids)
+            n_row = self.cur.rowcount
             self.commit()
+            return n_row
         else:
             raise TypeError('ids should be list or tuple')
 
-    # Move all object in temporary space to the queue
-    def restore(self):
-        sql_restore = (
-                'UPDATE {table_name} SET temporary = 0 WHERE temporary != 0 '
-            ).format(table_name=self.tableName)
+    # Move objects in temporary space to the queue
+    def restore(self, ids):
+        if ids is None:
+            sql_restore = (
+                    'UPDATE {table_name} SET temporary = 0 WHERE temporary != 0 '
+                ).format(table_name=self.tableName)
+        elif isinstance(ids, (list, tuple)):
+            placeholders_str = ','.join([' %s'] * len(ids))
+            sql_restore = (
+                    'UPDATE {table_name} SET temporary = 0 '
+                    'WHERE temporary != 0 AND id in ({placeholders} ) '
+                ).format(table_name=self.tableName, placeholders=placeholders_str)
+        else:
+            raise TypeError('ids should be list or tuple or None')
         try:
             self.execute(sql_restore)
             self.commit()

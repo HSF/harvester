@@ -67,6 +67,10 @@ class SqliteFifo(PluginBase):
             'ORDER BY score LIMIT 1'
             )
     _restore_sql = 'UPDATE queue_table SET temporary = 0 WHERE temporary != 0'
+    _restore_sql_template = (
+            'UPDATE queue_table SET temporary = 0 '
+            'WHERE temporary != 0 AND id in ({0})'
+            )
 
     # constructor
     def __init__(self, **kwarg):
@@ -199,7 +203,7 @@ class SqliteFifo(PluginBase):
             conn.commit()
         self.__init__()
 
-    # delete an object by list of id
+    # delete objects by list of id
     def delete(self, ids):
         if isinstance(ids, (list, tuple)):
             placeholders_str = ','.join('?' * len(ids))
@@ -209,8 +213,14 @@ class SqliteFifo(PluginBase):
         else:
             raise TypeError('ids should be list or tuple')
 
-    # Move all object in temporary space to the queue
-    def restore(self):
+    # Move objects in temporary space to the queue
+    def restore(self, ids):
         with self._get_conn() as conn:
             conn.execute(self._exclusive_lock_sql)
-            conn.execute(self._restore_sql)
+            if ids is None:
+                conn.execute(self._restore_sql)
+            elif isinstance(ids, (list, tuple)):
+                placeholders_str = ','.join('?' * len(ids))
+                conn.execute(self._restore_sql_template.format(placeholders_str), ids)
+            else:
+                raise TypeError('ids should be list or tuple or None')

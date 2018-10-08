@@ -81,6 +81,16 @@ class FIFOBase(object):
         pluginFactory = PluginFactory()
         self.fifo = pluginFactory.get_plugin(pluginConf)
 
+    # encode
+    def encode(self, obj):
+        obj_serialized = pickle.dumps(obj, -1)
+        return obj_serialized
+
+    # decode
+    def decode(self, obj_serialized):
+        obj = pickle.loads(obj_serialized)
+        return obj
+
     # size of queue
     def size(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='size')
@@ -93,7 +103,7 @@ class FIFOBase(object):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='put')
         if encode_item:
             # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
-            obj_serialized = pickle.dumps(obj, -1)
+            obj_serialized = self.encode(obj)
         else:
             obj_serialized = obj
         if score is None:
@@ -102,7 +112,21 @@ class FIFOBase(object):
         mainLog.debug('score={0}'.format(score))
         return retVal
 
-    # dequeue to get the fifo object
+    # enqueue by id, which is unique
+    def putbyid(self, id, obj, score=None, encode_item=True):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='putbyid')
+        if encode_item:
+            # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
+            obj_serialized = self.encode(obj)
+        else:
+            obj_serialized = obj
+        if score is None:
+            score = time.time()
+        retVal = self.fifo.putbyid(id, obj_serialized, score)
+        mainLog.debug('id={0} score={1}'.format(id, score))
+        return retVal
+
+    # dequeue to get the first fifo object
     def get(self, timeout=None, protective=False, decode_item=True):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='get')
         object_tuple = self.fifo.get(timeout, protective)
@@ -112,7 +136,7 @@ class FIFOBase(object):
         else:
             id, obj_serialized, score = object_tuple
             if decode_item:
-                obj = pickle.loads(obj_serialized)
+                obj = self.decode(obj_serialized)
             else:
                 obj = obj_serialized
             retVal = FifoObject(id, obj, score)
@@ -129,53 +153,70 @@ class FIFOBase(object):
         else:
             id, obj_serialized, score = object_tuple
             if decode_item:
-                obj = pickle.loads(obj_serialized)
+                obj = self.decode(obj_serialized)
             else:
                 obj = obj_serialized
             retVal = FifoObject(id, obj, score)
         mainLog.debug('called. protective={0}'.format(protective))
         return retVal
 
-    # get tuple of object and its score without dequeuing
+    # get tuple of the first object and its score without dequeuing
     def peek(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peek')
-        obj_serialized, score = self.fifo.peek()
+        id, obj_serialized, score = self.fifo.peek()
         # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
         if obj_serialized is None and score is None:
             retVal = FifoObject(None, None, None)
         else:
             if score is None:
                 score = time.time()
-            retVal = FifoObject(None, obj_serialized, score)
+            retVal = FifoObject(id, obj_serialized, score)
         mainLog.debug('score={0}'.format(score))
         return retVal
 
     # get tuple of the last object and its score without dequeuing
     def peeklast(self):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peeklast')
-        obj_serialized, score = self.fifo.peeklast()
+        id, obj_serialized, score = self.fifo.peeklast()
         # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
         if obj_serialized is None and score is None:
             retVal = FifoObject(None, None, None)
         else:
             if score is None:
                 score = time.time()
-            retVal = FifoObject(None, obj_serialized, score)
+            retVal = FifoObject(id, obj_serialized, score)
         mainLog.debug('score={0}'.format(score))
+        return retVal
+
+    # get tuple of the object by id without dequeuing
+    def peekbyid(self, id, temporary=False):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peekbyid')
+        id_gotten, obj_serialized, score = self.fifo.peekbyid(id, temporary)
+        # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
+        if obj_serialized is None and score is None:
+            retVal = FifoObject(None, None, None)
+        else:
+            if score is None:
+                score = time.time()
+            retVal = FifoObject(id, obj_serialized, score)
+        mainLog.debug('id={0} score={1} temporary={2}'.format(id, score, temporary))
         return retVal
 
     # remove objects by list of ids from temporary space
     def release(self, ids):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='release')
         retVal = self.fifo.delete(ids)
-        mainLog.debug('released objects in {0}'.format(ids))
+        mainLog.debug('released {0} objects in {1}'.format(retVal, ids))
         return retVal
 
-    # restore all objects from temporary space to fifo
-    def restore(self):
+    # restore objects by list of ids from temporary space to fifo; ids=None to restore all objects
+    def restore(self, ids=None):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='restore')
-        retVal = self.fifo.restore()
-        mainLog.debug('called')
+        retVal = self.fifo.restore(ids)
+        if ids is None:
+            mainLog.debug('restored all objects')
+        else:
+            mainLog.debug('restored objects in {0}'.format(ids))
         return retVal
 
 
