@@ -271,7 +271,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.query_with_python_cached')
         ## Start query
         tmpLog.debug('Start query')
-        cache_fifo = CondorQCacheFifo(target=self.submissionHost, id=get_ident())
+        cache_fifo = CondorQCacheFifo(target=self.submissionHost, id='{0},{1}'.format(self.submissionHost, get_ident()))
         job_ads_all_dict = {}
         batchIDs_set = set(batchIDs_list)
         ## query from cache
