@@ -119,11 +119,13 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             self.condor_schedd = None
             self.condor_pool = None
             self.cache_enabled = False
-            if self.submissionHost:
+            if self.submissionHost != 'None':
                 try:
                     self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
                 except ValueError:
                     tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
+            else:
+                tmpLog.debug('submissionHost is None, treated as localhost. Skipped'.format(self.submissionHost))
             if self.condor_api == 'python':
                 try:
                     self.secman = htcondor.SecMan()
@@ -507,8 +509,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                 try:
                     payloadExitCode = str(job_ads_dict['ExitCode'])
                 except KeyError:
-                    errStr = 'cannot get ExitCode of job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID)
-                    tmpLog.error(errStr)
+                    errStr = 'cannot get ExitCode of job submissionHost={0} batchID={1}. Regard the worker as failed'.format(workspec.submissionHost, workspec.batchID)
+                    tmpLog.warning(errStr)
                     newStatus = WorkSpec.ST_failed
                 else:
                     # Propagate condor return code

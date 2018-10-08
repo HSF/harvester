@@ -89,10 +89,13 @@ class FIFOBase(object):
         return retVal
 
     # enqueue
-    def put(self, obj, score=None):
+    def put(self, obj, score=None, encode_item=True):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='put')
-        # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
-        obj_serialized = pickle.dumps(obj, -1)
+        if encode_item:
+            # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
+            obj_serialized = pickle.dumps(obj, -1)
+        else:
+            obj_serialized = obj
         if score is None:
             score = time.time()
         retVal = self.fifo.put(obj_serialized, score)
@@ -274,6 +277,19 @@ class MonitorFIFO(FIFOBase):
             else:
                 mainLog.debug('False. Workers too young to check')
                 mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
+        elif peeked_tuple.score is None:
+            mainLog.debug('False. Got nothing in FIFO')
         else:
-            mainLog.warning('Got a null object in FIFO. Skipped')
+            mainLog.warning('False. Got a null object but with score in FIFO')
+            try:
+                obj_gotten = self.get(timeout=1, protective=False, decode_item=False)
+                if obj_gotten is None:
+                    mainLog.debug('Got nothing. Skipped')
+                elif obj_gotten.item is None:
+                    mainLog.info('Removed a null object')
+                else:
+                    self.put(obj_gotten.item, score=obj_gotten.score, encode_item=False)
+                    mainLog.debug('Released an non-null object and put it back')
+            except Exception as _e:
+                mainLog.warning('Error when trying to remove a null object: {0} . Skipped'.format(_e))
         return retVal, overhead_time
