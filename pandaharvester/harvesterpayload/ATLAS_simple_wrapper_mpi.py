@@ -38,7 +38,7 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
-logger.info('HPC Pilot ver. 0.006')
+logger.info('HPC Pilot ver. 0.007')
 
 
 # TODO: loglevel as input parameter
@@ -128,7 +128,7 @@ def parse_jobreport_data(job_report):
 def get_setup(job):
     # special setup preparation.
 
-    setup_commands = ['source /lustre/atlas/proj-shared/csc108/app_dir/pilot/grid_env/external/setup.sh',
+    setup_commands = ['source /ccs/proj/csc108/athena_grid_env/setup.sh',
                       'source $MODULESHOME/init/bash',
                       'tmp_dirname=/tmp/scratch',
                       'tmp_dirname+="/tmp"',
