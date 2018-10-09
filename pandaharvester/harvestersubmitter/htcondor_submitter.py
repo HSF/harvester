@@ -37,15 +37,26 @@ def _get_ce_weight_dict(ce_endpoint_list=[], queue_status_dict={}, worker_ce_sta
             return float(1)
         N = float(n_ce)
         Q = float(queue_status_dict['nQueueLimitWorker'])
-        R = float(queue_status_dict['maxWorkers'])
+        # R = float(queue_status_dict['maxWorkers'])
         q = float(worker_ce_stats_dict[_ce_endpoint]['submitted'])
         r = float(worker_ce_stats_dict[_ce_endpoint]['running'])
+        q_avg = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict )) / N
+        # r_avg = sum(( float(worker_ce_stats_dict[_k]['running']) for _k in worker_ce_stats_dict )) / N
         if ( _ce_endpoint in worker_ce_stats_dict and q > Q ):
             return float(0)
         else:
-            ret = ( 1 if (N*q <= Q) else sqrt((1 - q/Q)*N/(N - 1)) )
+            # Base weight by total queuing ratio
+            if (N*q <= Q):
+                ret = 1
+            else:
+                ret = sqrt((1 - q/Q)*N/(N - 1))
             if r == 0:
+                # Penalty for dead CE (no running worker)
                 ret = ret / (1 + log1p(q)**2)
+            else:
+                # Weight by individual queuing ratio compared with average
+                _weight = max(1 - ((q - q_avg)/sqrt(1 + q_avg * Q)), 0)
+                ret = ret * _weight
             return ret
     init_weight_iterator = map(_get_init_weight, ce_endpoint_list)
     sum_of_weight = sum(list(init_weight_iterator))
@@ -117,7 +128,7 @@ def submit_a_worker(data):
     # make condor remote options
     name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
     pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
-    spool_opt = '-spool'.format(use_spool) if use_spool and condor_schedd else ''
+    spool_opt = '-remote -spool'.format(use_spool) if use_spool and condor_schedd else ''
     # command
     comStr = 'condor_submit {spool_opt} {name_opt} {pool_opt} {sdf_file}'.format(sdf_file=batchFile,
                                                                         name_opt=name_opt,

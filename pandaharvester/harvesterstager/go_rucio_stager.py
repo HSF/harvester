@@ -166,11 +166,11 @@ class GlobusRucioStager(GlobusBulkStager):
                 try:
                     # register dataset
                     tmpLog.debug('register {0}:{1} rse = {2} meta=(hidden: True) lifetime = {3}'
-                                 .format(datasetScope, datasetName,srcRSE,(7*24*60*60)))
+                                 .format(datasetScope, datasetName,srcRSE,(30*24*60*60)))
                     try:
                         rucioAPI.add_dataset(datasetScope, datasetName,
                                              meta={'hidden': True},
-                                             lifetime=7 * 24 * 60 * 60,
+                                             lifetime=30 * 24 * 60 * 60,
                                              rse=srcRSE
                                              )
                     except DataIdentifierAlreadyExists:
@@ -185,31 +185,43 @@ class GlobusRucioStager(GlobusBulkStager):
                         raise
                         # return None,errMsg
                     # add files to dataset
-                    try:
-                        rucioAPI.add_files_to_datasets([{'scope': datasetScope,
-                                                         'name': datasetName,
-                                                         'dids': fileList,
-                                                         'rse': srcRSE}],
-                                                       ignore_duplicate=True)
-                    except FileAlreadyExists:
-                        # ignore if files already exist
-                        pass
-                    except Exception:
-                        errMsg = 'Could not add files to DS - {0}:{1}  rse - {2} files - {3}'.format(datasetScope,
-                                                                                                     datasetName,
-                                                                                                     srcRSE,
-                                                                                                     fileList)
-                        core_utils.dump_error_message(tmpLog)
-                        tmpLog.error(errMsg)
-                        #raise
-                        return None,errMsg
+                    #  add 500 files at a time
+                    numfiles = len(fileList)
+                    maxfiles = 500
+                    numslices = numfiles/maxfiles
+                    if (numfiles%maxfiles) > 0 :
+                        numslices = numslices + 1
+                    start = 0
+                    for i in range(numslices) :
+                        try:
+                            stop = start + maxfiles
+                            if stop > numfiles :
+                                stop = numfiles
+
+                            rucioAPI.add_files_to_datasets([{'scope': datasetScope,
+                                                             'name': datasetName,
+                                                             'dids': fileList[start:stop],
+                                                             'rse': srcRSE}],
+                                                           ignore_duplicate=True)
+                            start = stop
+                        except FileAlreadyExists:
+                            # ignore if files already exist
+                            pass
+                        except Exception:
+                            errMsg = 'Could not add files to DS - {0}:{1}  rse - {2} files - {3}'.format(datasetScope,
+                                                                                                         datasetName,
+                                                                                                         srcRSE,
+                                                                                                         fileList)
+                            core_utils.dump_error_message(tmpLog)
+                            tmpLog.error(errMsg)
+                            return None,errMsg
                     # add rule
                     try:
                         tmpDID = dict()
                         tmpDID['scope'] = datasetScope
                         tmpDID['name'] = datasetName
                         tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE,
-                                                               lifetime=7 * 24 * 60 * 60)
+                                                               lifetime=30 * 24 * 60 * 60)
                         ruleIDs = tmpRet[0]
                         tmpLog.debug('registered dataset {0}:{1} with rule {2}'.format(datasetScope, datasetName,
                                                                                        str(ruleIDs)))

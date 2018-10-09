@@ -217,7 +217,13 @@ class DBProxy:
             # convert param dict
             newSQL, params = self.convert_params(sql, varmap)
             # execute
-            retVal = self.cur.execute(newSQL, params)
+            try:
+                retVal = self.cur.execute(newSQL, params)
+            except Exception as e:
+                self._handle_exception(e)
+                if harvester_config.db.verbose:
+                    self.verbLog.debug('thr={0} exception during execute'.format(self.thrName))
+                raise
         finally:
             # release lock
             if self.usingAppLock and not self.lockDB:
@@ -257,7 +263,13 @@ class DBProxy:
                 newSQL, params = self.convert_params(sql, varMap)
                 paramList.append(params)
             # execute
-            retVal = self.cur.executemany(newSQL, paramList)
+            try:
+                retVal = self.cur.executemany(newSQL, paramList)
+            except Exception as e:
+                self._handle_exception(e)
+                if harvester_config.db.verbose:
+                    self.verbLog.debug('thr={0} exception during executemany'.format(self.thrName))
+                raise
         finally:
             # release lock
             if self.usingAppLock and not self.lockDB:
@@ -1231,6 +1243,10 @@ class DBProxy:
                     # update attributes
                     if jobSpec.subStatus in ['submitted', 'running']:
                         jobSpec.nWorkers = len(workerIDs)
+                        try:
+                            jobSpec.nWorkersInTotal += 1
+                        except Exception:
+                            jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     elif workspec.hasJob == 1:
                         if workspec.status == WorkSpec.ST_missed:
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
@@ -1239,6 +1255,10 @@ class DBProxy:
                         else:
                             jobSpec.subStatus = 'submitted'
                         jobSpec.nWorkers = len(workerIDs)
+                        try:
+                            jobSpec.nWorkersInTotal += 1
+                        except Exception:
+                            jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     else:
                         if workspec.status == WorkSpec.ST_missed:
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
@@ -1247,14 +1267,15 @@ class DBProxy:
                         else:
                             jobSpec.subStatus = 'queued'
                     # sql to update job
-                    sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
-                    sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
-                    # update job
-                    varMap = jobSpec.values_map(only_changed=True)
-                    varMap[':cr_PandaID'] = jobSpec.PandaID
-                    varMap[':cr_lockedBy'] = locked_by
-                    self.execute(sqlJ, varMap)
-                    if jobSpec.subStatus == 'submitted':
+                    if len(jobSpec.values_map(only_changed=True)) > 0:
+                        sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobSpec.bind_update_changes_expression())
+                        sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
+                        # update job
+                        varMap = jobSpec.values_map(only_changed=True)
+                        varMap[':cr_PandaID'] = jobSpec.PandaID
+                        varMap[':cr_lockedBy'] = locked_by
+                        self.execute(sqlJ, varMap)
+                    if jobSpec.subStatus in ['submitted', 'running']:
                         # values for job/worker mapping
                         jwRelation = JobWorkerRelationSpec()
                         jwRelation.PandaID = jobSpec.PandaID
@@ -1439,7 +1460,7 @@ class DBProxy:
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
                                    use_job_late_binding, check_interval, lock_interval, locked_by,
-                                   allow_job_mixture=False):
+                                   allow_job_mixture=False, max_workers_per_job_in_total=None):
         toCommit = False
         try:
             # get logger
@@ -1455,7 +1476,8 @@ class DBProxy:
             # submitted and running are for multi-workers
             sqlCore = "WHERE (subStatus IN (:subStat1,:subStat2) OR (subStatus IN (:subStat3,:subStat4) "
             sqlCore += "AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL AND nWorkers<nWorkersLimit "
-            sqlCore += "AND moreWorkers IS NULL)) "
+            sqlCore += "AND moreWorkers IS NULL AND (maxWorkersInTotal IS NULL OR nWorkersInTotal IS NULL "
+            sqlCore += "OR nWorkersInTotal<maxWorkersInTotal))) "
             sqlCore += "AND (submitterTime IS NULL "
             sqlCore += "OR (submitterTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
             sqlCore += "OR (submitterTime<:checkTimeLimit AND lockedBy IS NULL)) "
@@ -1577,9 +1599,19 @@ class DBProxy:
                             elif n_workers_per_job is not None:
                                 if jobSpec.nWorkersLimit is None:
                                     jobSpec.nWorkersLimit = n_workers_per_job
-                                for i in range(jobSpec.nWorkersLimit - jobSpec.nWorkers):
-                                    tmpLog.debug('new chunk with {0} jobs due to n_workers_per_job'.format(
-                                        len(jobChunk)))
+                                if max_workers_per_job_in_total is not None:
+                                    jobSpec.maxWorkersInTotal = max_workers_per_job_in_total
+                                nMultiWorkers = min(jobSpec.nWorkersLimit - jobSpec.nWorkers,
+                                                    n_workers - len(jobChunkList))
+                                if jobSpec.maxWorkersInTotal is not None and jobSpec.nWorkersInTotal is not None:
+                                    nMultiWorkers = min(nMultiWorkers,
+                                                        jobSpec.maxWorkersInTotal - jobSpec.nWorkersInTotal)
+                                if nMultiWorkers < 0:
+                                    nMultiWorkers = 0
+                                tmpLog.debug(
+                                    'new {0} chunks with {1} jobs due to n_workers_per_job'.format(nMultiWorkers,
+                                                                                                   len(jobChunk)))
+                                for i in range(nMultiWorkers):
                                     jobChunkList.append(jobChunk)
                                 jobChunk = []
                             # enough job chunks
@@ -1617,6 +1649,9 @@ class DBProxy:
             # sql to lock worker without time check
             sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
             sqlL += "WHERE workerID=:workerID "
+            # sql to update modificationTime
+            sqlLM = "UPDATE {0} SET modificationTime=:timeNow ".format(workTableName)
+            sqlLM += "WHERE workerID=:workerID "
             # sql to lock worker with time check
             sqlLT = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(workTableName)
             sqlLT += "WHERE workerID=:workerID "
@@ -1673,6 +1708,13 @@ class DBProxy:
                 # use only the largest worker to avoid updating the same worker set concurrently
                 if mapType == WorkSpec.MT_MultiWorkers:
                     if workerID != min(workerIDtoScan):
+                        # update modification time
+                        varMap = dict()
+                        varMap[':workerID'] = workerID
+                        varMap[':timeNow'] = timeNow
+                        self.execute(sqlLM, varMap)
+                        # commit
+                        self.commit()
                         continue
                 # lock worker
                 varMap = dict()
@@ -2498,11 +2540,13 @@ class DBProxy:
             return []
 
     # update job for stage-out
-    def update_job_for_stage_out(self, jobspec, update_event_status):
+    def update_job_for_stage_out(self, jobspec, update_event_status, locked_by):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'PandaID={0} subStatus={1}'.format(jobspec.PandaID,
-                                                                                        jobspec.subStatus),
+            tmpLog = core_utils.make_logger(_logger,
+                                            'PandaID={0} subStatus={1} thr={2}'.format(jobspec.PandaID,
+                                                                                       jobspec.subStatus,
+                                                                                       locked_by),
                                             method_name='update_job_for_stage_out')
             tmpLog.debug('start')
             # sql to update event
@@ -2510,43 +2554,89 @@ class DBProxy:
             sqlEU += "SET eventStatus=:eventStatus,subStatus=:subStatus "
             sqlEU += "WHERE eventRangeID=:eventRangeID "
             sqlEU += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
-            # get associated events
-            sqlAE = "SELECT eventRangeID FROM {0} ".format(fileTableName)
-            sqlAE += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
+            # sql to update associated events
+            sqlAE = "UPDATE {0} ".format(eventTableName)
+            sqlAE += "SET eventStatus=:eventStatus,subStatus=:subStatus "
+            sqlAE += "WHERE eventRangeID IN "
+            sqlAE += "(SELECT eventRangeID FROM {0} ".format(fileTableName)
+            sqlAE += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID) "
+            sqlAE += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
+            # sql to lock job again
+            sqlLJ = "UPDATE {0} SET stagerTime=:timeNow ".format(jobTableName)
+            sqlLJ += "WHERE PandaID=:PandaID AND stagerLock=:lockedBy "
+            # sql to check lock
+            sqlLC = "SELECT stagerLock FROM {0} ".format(jobTableName)
+            sqlLC += "WHERE PandaID=:PandaID "
+            # lock
+            varMap = dict()
+            varMap[':PandaID'] = jobspec.PandaID
+            varMap[':lockedBy'] = locked_by
+            varMap[':timeNow'] = datetime.datetime.utcnow()
+            self.execute(sqlLJ, varMap)
+            nRow = self.cur.rowcount
+            # check just in case since nRow can be 0 if two lock actions are too close in time
+            if nRow == 0:
+                varMap = dict()
+                varMap[':PandaID'] = jobspec.PandaID
+                self.execute(sqlLC, varMap)
+                resLC = self.cur.fetchone()
+                if resLC is not None and resLC[0] == locked_by:
+                    nRow = 1
+            # commit
+            self.commit()
+            if nRow == 0:
+                tmpLog.debug('skip since locked by another')
+                return None
             # update files
+            tmpLog.debug('update {0} files'.format(len(jobspec.outFiles)))
             for fileSpec in jobspec.outFiles:
                 # sql to update file
                 sqlF = "UPDATE {0} SET {1} ".format(fileTableName, fileSpec.bind_update_changes_expression())
                 sqlF += "WHERE PandaID=:PandaID AND fileID=:fileID "
                 varMap = fileSpec.values_map(only_changed=True)
+                updated = False
                 if len(varMap) > 0:
                     varMap[':PandaID'] = fileSpec.PandaID
                     varMap[':fileID'] = fileSpec.fileID
                     self.execute(sqlF, varMap)
+                    updated = True
                 # update event status
                 if update_event_status:
-                    eventRangeIDs = set()
                     if fileSpec.eventRangeID is not None:
-                        eventRangeIDs.add(fileSpec.eventRangeID)
-                    if fileSpec.isZip == 1:
-                        # get files associated with zip file
                         varMap = dict()
-                        varMap[':PandaID'] = fileSpec.PandaID
-                        varMap[':zipFileID'] = fileSpec.fileID
-                        self.execute(sqlAE, varMap)
-                        resAE = self.cur.fetchall()
-                        for eventRangeID, in resAE:
-                            eventRangeIDs.add(eventRangeID)
-                    varMaps = []
-                    for eventRangeID in eventRangeIDs:
-                        varMap = dict()
-                        varMap[':eventRangeID'] = eventRangeID
+                        varMap[':eventRangeID'] = fileSpec.eventRangeID
                         varMap[':eventStatus'] = fileSpec.status
                         varMap[':subStatus'] = fileSpec.status
                         varMap[':statusFailed'] = 'failed'
                         varMap[':statusDone'] = 'done'
-                        varMaps.append(varMap)
-                    self.executemany(sqlEU, varMaps)
+                        self.execute(sqlEU, varMap)
+                        updated = True
+                    if fileSpec.isZip == 1:
+                        # update files associated with zip file
+                        varMap = dict()
+                        varMap[':PandaID'] = fileSpec.PandaID
+                        varMap[':zipFileID'] = fileSpec.fileID
+                        varMap[':eventStatus'] = fileSpec.status
+                        varMap[':subStatus'] = fileSpec.status
+                        varMap[':statusFailed'] = 'failed'
+                        varMap[':statusDone'] = 'done'
+                        self.execute(sqlAE, varMap)
+                        updated = True
+                        nRow = self.cur.rowcount
+                        tmpLog.debug('updated {0} events'.format(nRow))
+                if updated:
+                    # lock job again
+                    varMap = dict()
+                    varMap[':PandaID'] = jobspec.PandaID
+                    varMap[':lockedBy'] = locked_by
+                    varMap[':timeNow'] = datetime.datetime.utcnow()
+                    self.execute(sqlLJ, varMap)
+                    # commit
+                    self.commit()
+                    nRow = self.cur.rowcount
+                    if nRow == 0:
+                        tmpLog.debug('skip since locked by another')
+                        return None
             # count files
             sqlC = "SELECT COUNT(*) cnt,status FROM {0} ".format(fileTableName)
             sqlC += "WHERE PandaID=:PandaID GROUP BY status "
@@ -2600,10 +2690,11 @@ class DBProxy:
                         jobspec.outputFilesToReport = core_utils.get_output_file_report(jobspec)
             # sql to update job
             sqlJ = "UPDATE {0} SET {1} ".format(jobTableName, jobspec.bind_update_changes_expression())
-            sqlJ += "WHERE PandaID=:PandaID "
+            sqlJ += "WHERE PandaID=:PandaID AND stagerLock=:lockedBy "
             # update job
             varMap = jobspec.values_map(only_changed=True)
             varMap[':PandaID'] = jobspec.PandaID
+            varMap[':lockedBy'] = locked_by
             self.execute(sqlJ, varMap)
             # commit
             self.commit()
@@ -4683,3 +4774,87 @@ class DBProxy:
             core_utils.dump_error_message(tmpLog)
             # return
             return None
+
+    # update PQ table
+    def update_panda_queue_attribute(self, key, value, site_name=None, queue_name=None):
+        tmpLog = None
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, 'site={0} queue={1}'.format(site_name, queue_name),
+                                            method_name='update_panda_queue')
+            tmpLog.debug('start key={0}'.format(key))
+            # sql to update
+            sqlJ = "UPDATE {0} SET {1}=:{1} ".format(pandaQueueTableName, key)
+            sqlJ += "WHERE "
+            varMap = dict()
+            varMap[':{0}'.format(key)] = value
+            if site_name is not None:
+                sqlJ += "siteName=:siteName "
+                varMap[':siteName'] = site_name
+            else:
+                sqlJ += "queueName=:queueName "
+                varMap[':queueName'] = queue_name
+            # update
+            self.execute(sqlJ, varMap)
+            nRow = self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('done with {0}'.format(nRow))
+            # return
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
+
+    # delete orphaned job info
+    def delete_orphaned_job_info(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger,
+                                            method_name='delete_orphaned_job_info')
+            tmpLog.debug('start')
+            # sql to get job info to be deleted
+            sqlGJ = "SELECT PandaID FROM {0} "
+            sqlGJ += "WHERE PandaID NOT IN ("
+            sqlGJ += "SELECT PandaID FROM {1}) "
+            # sql to delete job info
+            sqlDJ = "DELETE FROM {0} "
+            sqlDJ += "WHERE PandaID=:PandaID "
+            # sql to delete files
+            sqlDF = "DELETE FROM {0} ".format(fileTableName)
+            sqlDF += "WHERE PandaID=:PandaID "
+            # sql to delete events
+            sqlDE = "DELETE FROM {0} ".format(eventTableName)
+            sqlDE += "WHERE PandaID=:PandaID "
+            # sql to delete relations
+            sqlDR = "DELETE FROM {0} ".format(jobWorkerTableName)
+            sqlDR += "WHERE PandaID=:PandaID "
+            # loop over all tables
+            for tableName in [fileTableName, eventTableName, jobWorkerTableName]:
+                # get job info
+                self.execute(sqlGJ.format(tableName, jobTableName))
+                resGJ = self.cur.fetchall()
+                nDel = 0
+                for pandaID, in resGJ:
+                    # delete
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    self.execute(sqlDJ.format(tableName), varMap)
+                    iDel = self.cur.rowcount
+                    if iDel > 0:
+                        nDel += iDel
+                    # commit
+                    self.commit()
+                tmpLog.debug('deleted {0} records from {1}'.format(nDel, tableName))
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False

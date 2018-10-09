@@ -46,9 +46,17 @@ CONDOR_JOB_STATUS_MAP = {
     '3': 'removed',
     '4': 'completed',
     '5': 'held',
-    '6': 'transferring output',
+    '6': 'transferring_output',
     '7': 'suspended',
     }
+
+
+## List of job ads required
+CONDOR_JOB_ADS_LIST = [
+    'ClusterId', 'ProcId', 'JobStatus',
+    'JobStartDate', 'EnteredCurrentStatus', 'ExitCode',
+    'HoldReason', 'LastHoldReason', 'RemoveReason',
+]
 
 
 ## generate condor job id with schedd host from workspec
@@ -127,12 +135,12 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         ## Start query
         tmpLog.debug('Start query')
         job_ads_all_dict = {}
-        batchIDs_list = list(batchIDs_list)
+        batchIDs_set = set(batchIDs_list)
         for orig_comStr in self.orig_comStr_list:
             ## String of batchIDs
-            batchIDs_str = ' '.join(batchIDs_list)
+            batchIDs_str = ' '.join(list(batchIDs_set))
             ## Command
-            if 'condor_q' in orig_comStr or ('condor_history' in orig_comStr and batchIDs_list):
+            if 'condor_q' in orig_comStr or ('condor_history' in orig_comStr and batchIDs_set):
                 name_opt = '-name {0}'.format(self.condor_schedd) if self.condor_schedd else ''
                 pool_opt = '-pool {0}'.format(self.condor_pool) if self.condor_pool else ''
                 ids = batchIDs_str
@@ -168,8 +176,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                         condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                         job_ads_all_dict[condor_job_id] = job_ads_dict
                         ## Remove batch jobs already gotten from the list
-                        if batchid in batchIDs_list:
-                            batchIDs_list.remove(batchid)
+                        if batchid in batchIDs_set:
+                            batchIDs_set.discard(batchid)
                 else:
                     ## Job not found
                     tmpLog.debug('job not found with {0}'.format(comStr))
@@ -178,13 +186,13 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 ## Command failed
                 errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
                 tmpLog.error(errStr)
-        if len(batchIDs_list) > 0:
+        if len(batchIDs_set) > 0:
             ## Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
-            for batchid in batchIDs_list:
+            for batchid in batchIDs_set:
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = dict()
             tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
-                            self.submissionHost, ' '.join(batchIDs_list) ) )
+                            self.submissionHost, ' '.join(list(batchIDs_set)) ) )
         ## Return
         return job_ads_all_dict
 
@@ -194,33 +202,33 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         ## Start query
         tmpLog.debug('Start query')
         job_ads_all_dict = {}
-        batchIDs_list = list(batchIDs_list)
+        batchIDs_set = set(batchIDs_list)
         query_method_list = [self.schedd.xquery, self.schedd.history]
         for query_method in query_method_list:
             ## Make requirements
-            batchIDs_str = ','.join(batchIDs_list)
+            batchIDs_str = ','.join(list(batchIDs_set))
             requirements = 'member(ClusterID, {{{0}}})'.format(batchIDs_str)
             tmpLog.debug('Query method: {0} ; requirements: "{1}"'.format(query_method.__name__, requirements))
             ## Query
-            jobs_iter = query_method(requirements=requirements, projection=[])
+            jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
                 job_ads_dict = dict(job)
                 batchid = str(job_ads_dict['ClusterId'])
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = job_ads_dict
                 ## Remove batch jobs already gotten from the list
-                if batchid in batchIDs_list:
-                    batchIDs_list.remove(batchid)
-            if len(batchIDs_list) == 0:
+                if batchid in batchIDs_set:
+                    batchIDs_set.discard(batchid)
+            if len(batchIDs_set) == 0:
                 break
         ## Remaining
-        if len(batchIDs_list) > 0:
+        if len(batchIDs_set) > 0:
             ## Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
-            for batchid in batchIDs_list:
+            for batchid in batchIDs_set:
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = dict()
             tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
-                            self.submissionHost, ' '.join(batchIDs_list) ) )
+                            self.submissionHost, ' '.join(list(batchIDs_set)) ) )
         ## Return
         return job_ads_all_dict
 
@@ -293,6 +301,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
         try:
             batchStatus = str(job_ads_dict['JobStatus'])
         except KeyError:
+            # Propagate native condor job status as unknown
+            workspec.nativeStatus = 'unknown'
             if cancel_unknown:
                 newStatus = WorkSpec.ST_cancelled
                 errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled'.format(workspec.submissionHost, workspec.batchID)
@@ -315,11 +325,13 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     newStatus = WorkSpec.ST_submitted
             elif batchStatus in ['3']:
                 # 3 removed
-                errStr = 'Condor HoldReason: {0} ; Condor RemoveReason: {1} '.format(
-                            job_ads_dict.get('LastHoldReason'), job_ads_dict.get('RemoveReason'))
+                if not errStr:
+                    errStr = 'Condor HoldReason: {0} ; Condor RemoveReason: {1} '.format(
+                                job_ads_dict.get('LastHoldReason'), job_ads_dict.get('RemoveReason'))
                 newStatus = WorkSpec.ST_cancelled
             elif batchStatus in ['5']:
                 # 5 held
+                errStr = 'Condor HoldReason: {0} '.format(job_ads_dict.get('HoldReason'))
                 if (
                     job_ads_dict.get('HoldReason') == 'Job not found'
                     or int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > held_timeout
@@ -335,6 +347,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     else:
                         newStatus = WorkSpec.ST_cancelled
                         tmpLog.error('cannot kill held job submissionHost={0} batchID={1}. Force worker to be in cancelled status'.format(workspec.submissionHost, workspec.batchID))
+                    errStr += 'Worker canceled by harvester '
                     # Mark the PanDA job as closed instead of failed
                     workspec.set_pilot_closed()
                     tmpLog.debug('Called workspec set_pilot_closed')
@@ -374,6 +387,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                             workspec.submissionHost, workspec.batchID, batchStatus, newStatus))
 
     else:
+        # Propagate native condor job status as unknown
+        workspec.nativeStatus = 'unknown'
         if cancel_unknown:
             errStr = 'condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default'.format(
                             workspec.submissionHost, workspec.batchID)

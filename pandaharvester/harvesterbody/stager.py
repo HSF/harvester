@@ -70,7 +70,7 @@ class Stager(AgentBase):
                     # check result
                     if tmpStat is True:
                         # succeeded
-                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                         tmpLog.debug('succeeded new subStatus={0}'.format(newSubStatus))
                     elif tmpStat is False:
                         # fatal error
@@ -82,7 +82,7 @@ class Stager(AgentBase):
                         errStr = 'stage-out failed with {0}'.format(tmpStr)
                         jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
                         jobSpec.trigger_propagation()
-                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                         tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
                     else:
                         # on-going
@@ -135,7 +135,7 @@ class Stager(AgentBase):
                     if tmpStat is True:
                         # succeeded
                         jobSpec.all_files_triggered_to_stage_out()
-                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                         tmpLog.debug('triggered new subStatus={0}'.format(newSubStatus))
                     elif tmpStat is False:
                         # fatal error
@@ -147,7 +147,7 @@ class Stager(AgentBase):
                         errStr = 'stage-out failed with {0}'.format(tmpStr)
                         jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
                         jobSpec.trigger_propagation()
-                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True)
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                         tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
                     else:
                         # temporary error
@@ -204,7 +204,7 @@ class Stager(AgentBase):
                     if tmpStat is True:
                         # update job
                         jobSpec.all_files_zipped()
-                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False)
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False, lockedBy)
                         tmpLog.debug('zipped new subStatus={0}'.format(newSubStatus))
                     else:
                         # failed
