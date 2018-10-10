@@ -68,7 +68,7 @@ CONDOR_JOB_ADS_LIST = [
 
 
 ## harvesterID
-harvesterID=harvester_config.master.harvester_id
+harvesterID = harvester_config.master.harvester_id
 
 
 ## generate condor job id with schedd host from workspec
@@ -123,7 +123,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 <classads>
 """
 
-    def __init__(self, cacheRefreshInterval=None , *args, **kwargs):
+    def __init__(self, cacheEnable=False, cacheRefreshInterval=None , *args, **kwargs):
         self.submissionHost = str(kwargs.get('id'))
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.__init__')
@@ -134,7 +134,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             self.condor_api = CONDOR_API
             self.condor_schedd = None
             self.condor_pool = None
-            self.cache_enabled = False
+            self.cacheEnable = False
             if self.submissionHost != 'None':
                 try:
                     self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
@@ -149,8 +149,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 except Exception as e:
                     self.condor_api = 'command'
                     tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api: {0}'.format(e))
-            if cacheRefreshInterval is not None:
-                self.cache_enabled = True
+            self.cacheEnable = cacheEnable
+            if self.cacheEnable:
                 self.cache = ([], 0)
                 self.cacheRefreshInterval = cacheRefreshInterval
             tmpLog.debug('Initialize done')
@@ -163,7 +163,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                if self.cache_enabled:
+                if self.cacheEnable:
                     job_ads_all_dict = self.query_with_python_cached(batchIDs_list)
                 else:
                     job_ads_all_dict = self.query_with_python(batchIDs_list)
@@ -636,9 +636,13 @@ class HTCondorMonitor (PluginBase):
         except AttributeError:
             self.heldTimeout = 3600
         try:
-            self.cacheRefreshInterval
+            self.cacheEnable = harvester_config.monitor.pluginCacheEnable
         except AttributeError:
-            self.cacheRefreshInterval = None
+            self.cacheEnable = False
+        try:
+            self.cacheRefreshInterval = harvester_config.monitor.pluginCacheRefreshInterval
+        except AttributeError:
+            self.cacheRefreshInterval = harvester_config.monitor.checkInterval
 
     # check workers
     def check_workers(self, workspec_list):
@@ -659,7 +663,9 @@ class HTCondorMonitor (PluginBase):
         job_ads_all_dict = {}
         for submissionHost, batchIDs_list in six.iteritems(s_b_dict):
             ## Record batch job query result to this dict, with key = batchID
-            job_query = CondorJobQuery(cacheRefreshInterval=self.cacheRefreshInterval, id=submissionHost)
+            job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
+                                        cacheRefreshInterval=self.cacheRefreshInterval,
+                                        id=submissionHost)
             job_ads_all_dict.update(job_query.get_all(batchIDs_list=batchIDs_list))
 
         ## Check for all workers
