@@ -238,25 +238,29 @@ class MysqlFifo(PluginBase):
             wait = min(max_wait, tries/10.0 + wait)
         return None
 
-    def _peek(self, mode='first', id=None):
+    def _peek(self, mode='first', id=None, skip_item=False):
+        if skip_item:
+            columns_str = 'id, score'
+        else:
+            columns_str = 'id, item, score'
         sql_peek_first = (
-                'SELECT id, item, score FROM {table_name} '
+                'SELECT {columns} FROM {table_name} '
                 'WHERE temporary = 0 '
                 'ORDER BY score LIMIT 1 '
-            ).format(table_name=self.tableName)
+            ).format(columns=columns_str, table_name=self.tableName)
         sql_peek_last = (
-                'SELECT id, item, score FROM {table_name} '
+                'SELECT {columns} FROM {table_name} '
                 'WHERE temporary = 0 '
                 'ORDER BY score DESC LIMIT 1 '
-            ).format(table_name=self.tableName)
+            ).format(columns=columns_str, table_name=self.tableName)
         sql_peek_by_id = (
-                'SELECT id, item, score FROM {table_name} '
+                'SELECT {columns} FROM {table_name} '
                 'WHERE id = %s AND temporary = 0 '
-            ).format(table_name=self.tableName)
+            ).format(columns=columns_str, table_name=self.tableName)
         sql_peek_by_id_temp = (
-                'SELECT id, item, score FROM {table_name} '
+                'SELECT {columns} FROM {table_name} '
                 'WHERE id = %s AND temporary = 1 '
-            ).format(table_name=self.tableName)
+            ).format(columns=columns_str, table_name=self.tableName)
         mode_sql_map = {
                 'first': sql_peek_first,
                 'last': sql_peek_last,
@@ -272,10 +276,14 @@ class MysqlFifo(PluginBase):
         res = self.cur.fetchall()
         self.commit()
         if len(res) > 0:
-            id, obj, score = res[0]
+            if skip_item:
+                id, score = res[0]
+                obj = None
+            else:
+                id, obj, score = res[0]
             return (id, obj, score)
         else:
-            return (None, None, None)
+            return None
 
 
     # number of objects in queue

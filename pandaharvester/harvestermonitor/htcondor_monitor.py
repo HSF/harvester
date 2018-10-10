@@ -323,20 +323,22 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 n_cleanup = 0
                 while True:
                     if time.time() > attempt_timestamp + timeout:
-                        tmpLog.debug('Time is up when cleanup cache. Skipped')
+                        tmpLog.debug('time is up when cleanup cache. Skipped')
                         break
-                    peeked_tuple = cache_fifo.peek()
-                    if peeked_tuple.score is not None \
+                    peeked_tuple = cache_fifo.peek(skip_item=True)
+                    if peeked_tuple is None:
+                        tmpLog.debug('empty cache fifo')
+                        break
+                    elif peeked_tuple.score is not None \
                         and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
-                        # no expired cache or lock
                         tmpLog.debug('nothing expired')
                         break
                     elif peeked_tuple.id is not None:
                         retVal = cache_fifo.release([peeked_tuple.id])
                         n_cleanup += retVal
                     else:
-                        # empty or problematic
-                        tmpLog.debug('got nothing when cleanup cache. Skipped')
+                        # problematic
+                        tmpLog.warning('got nothing when cleanup cache, maybe problematic. Skipped')
                         break
                 tmpLog.debug('cleaned up {0} objects in cache fifo'.format(n_cleanup))
             # start
@@ -349,8 +351,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                         tmpLog.debug('cache_query got timeout ({0} seconds). Skipped '.format(timeout))
                         break
                     # get latest cache
-                    peeked_tuple = cache_fifo.peeklast()
-                    if peeked_tuple.score is not None:
+                    peeked_tuple = cache_fifo.peeklast(skip_item=True)
+                    if peeked_tuple is not None and peeked_tuple.score is not None:
                         # got something
                         if peeked_tuple.id == cache_fifo.global_lock_id:
                             if time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
@@ -363,8 +365,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                                 tmpLog.debug('got lock expired. Clean up and retry...')
                                 cleanup_cache()
                                 continue
-                        elif peeked_tuple.item is not None \
-                            and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
+                        elif time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
                             # got valid cache
                             _obj, _last_update = self.cache
                             if _last_update >= peeked_tuple.score:
@@ -374,8 +375,16 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                             else:
                                 # valid fifo cache
                                 tmpLog.debug('update local cache from fifo')
-                                jobs_iter = cache_fifo.decode(peeked_tuple.item)
-                                self.cache = (jobs_iter, peeked_tuple.score)
+                                peeked_tuple_with_item = cache_fifo.peeklast()
+                                if peeked_tuple_with_item is not None \
+                                    and peeked_tuple.id != cache_fifo.global_lock_id \
+                                    and peeked_tuple_with_item.item is not None:
+                                    jobs_iter = cache_fifo.decode(peeked_tuple_with_item.item)
+                                    self.cache = (jobs_iter, peeked_tuple_with_item.score)
+                                else:
+                                    tmpLog.debug('peeked invalid cache fifo object. Wait and retry...')
+                                    time.sleep(random.uniform(1, 5))
+                                    continue
                         else:
                             # cache expired
                             tmpLog.debug('update cache in fifo')
