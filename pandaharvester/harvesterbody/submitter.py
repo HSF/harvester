@@ -31,7 +31,7 @@ class Submitter(AgentBase):
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
         self.monitor_fifo = MonitorFIFO()
-        self.apfmon = Apfmon()
+        self.apfmon = Apfmon(self.queueConfigMapper)
 
     # main loop
     def run(self):

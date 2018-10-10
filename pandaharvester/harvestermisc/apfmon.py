@@ -12,11 +12,10 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester import panda_pkg_info
 from pandaharvester.harvestermisc import generic_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 class Apfmon:
 
-    def __init__(self):
+    def __init__(self, queue_config_mapper):
 
         self._base_logger = core_utils.setup_logger('apfmon')
 
@@ -36,7 +35,7 @@ class Apfmon:
         except:
             self.base_url = 'http://apfmon.lancs.ac.uk/api'
 
-        self.queue_config_mapper = QueueConfigMapper()
+        self.queue_config_mapper = queue_config_mapper()
 
     def __apfmon_active(cls, method, *args, **kwargs):
         if cls.__active:
@@ -153,8 +152,10 @@ if __name__== "__main__":
     """
     Quick tests
     """
+    from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+    queue_config_mapper = QueueConfigMapper()
 
-    apfmon = Apfmon()
+    apfmon = Apfmon(queue_config_mapper)
     apfmon.create_factory()
     apfmon.create_labels()
 
@@ -162,7 +163,6 @@ if __name__== "__main__":
     worker_a.batchID = 1
     worker_a.computingSite = 'CERN-PROD-DEV_UCORE'
     worker_a.workAttributes = '{"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}'
-    worker_a.workAttributes = {}
 
     worker_b = WorkSpec()
     worker_b.batchID = 2

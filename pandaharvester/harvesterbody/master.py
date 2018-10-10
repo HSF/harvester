@@ -157,7 +157,7 @@ class Master(object):
             thrList.append(thr)
 
         # Report itself to APF Mon
-        Apfmon().create_factory()
+        Apfmon(self.queueConfigMapper).create_factory()
 
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
