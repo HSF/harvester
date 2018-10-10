@@ -319,8 +319,21 @@ class MonitorFIFO(FIFOBase):
         retVal = False
         overhead_time = None
         timeNow_timestamp = time.time()
-        peeked_tuple = self.peek()
-        if peeked_tuple.item is not None:
+        peeked_tuple = self.peek(skip_item=True)
+        if peeked_tuple is not None:
+            # if False:
+            #     mainLog.warning('False. Got a null object but with score in FIFO')
+            #     try:
+            #         obj_gotten = self.get(timeout=1, protective=False, decode_item=False)
+            #         if obj_gotten is None:
+            #             mainLog.debug('Got nothing. Skipped')
+            #         elif obj_gotten.item is None:
+            #             mainLog.info('Removed a null object')
+            #         else:
+            #             self.put(obj_gotten.item, score=obj_gotten.score, encode_item=False)
+            #             mainLog.debug('Released an non-null object and put it back')
+            #         except Exception as _e:
+            #             mainLog.warning('Error when trying to remove a null object: {0} . Skipped'.format(_e))
             score = peeked_tuple.score
             overhead_time = timeNow_timestamp - score
             if overhead_time > 0:
@@ -334,19 +347,6 @@ class MonitorFIFO(FIFOBase):
             else:
                 mainLog.debug('False. Workers too young to check')
                 mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
-        elif peeked_tuple.score is None:
-            mainLog.debug('False. Got nothing in FIFO')
         else:
-            mainLog.warning('False. Got a null object but with score in FIFO')
-            try:
-                obj_gotten = self.get(timeout=1, protective=False, decode_item=False)
-                if obj_gotten is None:
-                    mainLog.debug('Got nothing. Skipped')
-                elif obj_gotten.item is None:
-                    mainLog.info('Removed a null object')
-                else:
-                    self.put(obj_gotten.item, score=obj_gotten.score, encode_item=False)
-                    mainLog.debug('Released an non-null object and put it back')
-            except Exception as _e:
-                mainLog.warning('Error when trying to remove a null object: {0} . Skipped'.format(_e))
+            mainLog.debug('False. Got nothing in FIFO')
         return retVal, overhead_time

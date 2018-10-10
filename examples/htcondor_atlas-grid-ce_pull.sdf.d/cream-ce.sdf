@@ -8,6 +8,7 @@ error = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = {x509UserProxy}
 environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} RUCIO_ACCOUNT=pilot GTAG={gtag}"
++harvesterID = "{harvesterID}"
 
 grid_resource = cream https://{ceEndpoint}/ce-cream/services/{ceVersion} {ceJobmanager} {ceQueueName}
 +remote_jobuniverse = 5
