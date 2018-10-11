@@ -13,11 +13,11 @@ from pandaharvester import panda_pkg_info
 from pandaharvester.harvestermisc import generic_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 
+_base_logger = core_utils.setup_logger('apfmon')
+
 class Apfmon:
 
     def __init__(self, queue_config_mapper):
-
-        self._base_logger = core_utils.setup_logger('apfmon')
 
         try:
             self.__active = harvester_config.apfmon.active
@@ -48,7 +48,7 @@ class Apfmon:
         Creates or updates a harvester instance to APF Mon. Should be done at startup of the instance.
         """
         start_time = time.time()
-        tmp_log = core_utils.make_logger(self._base_logger, 'harvester_id={0}'.format(self.harvester_id),
+        tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
                                          method_name='create_factory')
         try:
             tmp_log.debug('start')
@@ -72,7 +72,7 @@ class Apfmon:
         Creates or updates a collection of labels (=panda queues)
         """
         start_time = time.time()
-        tmp_log = core_utils.make_logger(self._base_logger, 'harvester_id={0}'.format(self.harvester_id),
+        tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
                                          method_name='create_labels')
         try:
             tmp_log.debug('start')
@@ -103,7 +103,7 @@ class Apfmon:
         Creates a worker. The updates (state transitions) are expected to come from the pilot wrappers
         """
         start_time = time.time()
-        tmp_log = core_utils.make_logger(self._base_logger, 'harvester_id={0}'.format(self.harvester_id),
+        tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
                                          method_name='create_workers')
         try:
             tmp_log.debug('start')
