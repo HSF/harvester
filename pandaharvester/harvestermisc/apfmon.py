@@ -35,7 +35,7 @@ class Apfmon:
         except:
             self.base_url = 'http://apfmon.lancs.ac.uk/api'
 
-        self.queue_config_mapper = queue_config_mapper()
+        self.queue_config_mapper = queue_config_mapper
 
     def __apfmon_active(cls, method, *args, **kwargs):
         if cls.__active:
