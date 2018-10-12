@@ -37,7 +37,7 @@ def _get_ce_weight_dict(ce_endpoint_list=[], queue_status_dict={}, worker_ce_sta
             return float(1)
         N = float(n_ce)
         Q = float(queue_status_dict['nQueueLimitWorker'])
-        # R = float(queue_status_dict['maxWorkers'])
+        R = float(queue_status_dict['maxWorkers'])
         q = float(worker_ce_stats_dict[_ce_endpoint]['submitted'])
         r = float(worker_ce_stats_dict[_ce_endpoint]['running'])
         q_avg = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict )) / N
@@ -55,8 +55,10 @@ def _get_ce_weight_dict(ce_endpoint_list=[], queue_status_dict={}, worker_ce_sta
                 ret = ret / (1 + log1p(q)**2)
             else:
                 # Weight by individual queuing ratio compared with average
-                _weight = max(1 - ((q - q_avg)/sqrt(1 + q_avg * Q)), 0)
-                ret = ret * _weight
+                _weight_q = max(1 - ((q - q_avg)/sqrt(1 + q_avg * Q)), 0)
+                # Weight by running ratio
+                _weight_r = 1 + N*r/R
+                ret = ret * _weight_q * _weight_r
             return ret
     init_weight_iterator = map(_get_init_weight, ce_endpoint_list)
     sum_of_weight = sum(list(init_weight_iterator))
@@ -484,16 +486,18 @@ class HTCondorSubmitter(PluginBase):
             # template for batch script
             try:
                 tmpFile = open(self.templateFile)
-                sdf_template = tmpFile.read()
+                sdf_template_raw = tmpFile.read()
                 tmpFile.close()
             except AttributeError:
                 tmpLog.error('No valid templateFile found. Maybe templateFile, CEtemplateDir invalid, or no valid CE found')
                 to_submit = False
             else:
-                # get batch_log, stdout, stderr filename
-                for _line in sdf_template.split('\n'):
+                # get batch_log, stdout, stderr filename, and remobe commented liness
+                sdf_template_str_list = []
+                for _line in sdf_template_raw.split('\n'):
                     if _line.startswith('#'):
                         continue
+                    sdf_template_str_list.append(_line)
                     _match_batch_log = re.match('log = (.+)', _line)
                     _match_stdout = re.match('output = (.+)', _line)
                     _match_stderr = re.match('error = (.+)', _line)
@@ -506,6 +510,7 @@ class HTCondorSubmitter(PluginBase):
                     if _match_stderr:
                         stderr_value = _match_stderr.group(1)
                         continue
+                sdf_template = '\n'.join(sdf_template_str_list)
 
                 # get override requirements from queue configured
                 try:

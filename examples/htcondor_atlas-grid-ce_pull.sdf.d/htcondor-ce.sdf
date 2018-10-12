@@ -8,6 +8,7 @@ error = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = {x509UserProxy}
 environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} GTAG={gtag}"
++harvesterID = "{harvesterID}"
 
 grid_resource = condor {ceHostname} {ceEndpoint}
 +remote_jobuniverse = 5

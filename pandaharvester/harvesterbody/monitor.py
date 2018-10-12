@@ -221,7 +221,7 @@ class Monitor(AgentBase):
                         try:
                             workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue_to_head
                             if workSpecsToEnqueueToHead:
-                                score = fifoCheckInterval - timeNow_timestamp
+                                score = fifoCheckInterval + timeNow_timestamp - 2**32
                                 monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
                                 n_chunk_put += 1
                                 mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
