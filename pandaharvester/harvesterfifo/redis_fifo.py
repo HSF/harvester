@@ -208,11 +208,12 @@ class RedisFifo(PluginBase):
                         pipeline.srem(self.id_temp, *ids)
                         pipeline.hdel(self.id_item, *ids)
                         pipeline.zrem(self.id_score, *ids)
-                        pipeline.execute()
+                        resVal = pipeline.execute()
                     except redis.WatchError:
                         continue
                     else:
-                        break
+                        n_row = resVal[-1]
+                        return n_row
         else:
             raise TypeError('ids should be list or tuple')
 

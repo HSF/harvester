@@ -218,7 +218,7 @@ class FIFOBase(object):
             mainLog.debug('id={0} score={1} temporary={2}'.format(id, score, temporary))
         return retVal
 
-    # remove objects by list of ids from temporary space
+    # remove objects by list of ids from temporary space, return the number of objects successfully removed
     def release(self, ids):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='release')
         retVal = self.fifo.delete(ids)

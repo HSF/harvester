@@ -227,7 +227,10 @@ class SqliteFifo(PluginBase):
             placeholders_str = ','.join('?' * len(ids))
             with self._get_conn() as conn:
                 conn.execute(self._exclusive_lock_sql)
-                conn.execute(self._del_sql_template.format(placeholders_str), ids)
+                cursor = conn.execute(self._del_sql_template.format(placeholders_str), ids)
+            n_row = cursor.rowcount
+            self.commit()
+            return n_row
         else:
             raise TypeError('ids should be list or tuple')
 

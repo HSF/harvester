@@ -335,7 +335,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                         break
                     elif peeked_tuple.id is not None:
                         retVal = cache_fifo.release([peeked_tuple.id])
-                        n_cleanup += retVal
+                        if isinstance(retVal, int):
+                            n_cleanup += retVal
                     else:
                         # problematic
                         tmpLog.warning('got nothing when cleanup cache, maybe problematic. Skipped')
