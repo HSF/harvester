@@ -325,15 +325,15 @@ class MysqlFifo(PluginBase):
     def getlast(self, timeout=None, protective=False):
         return self._pop(timeout=timeout, protective=protective, mode='last')
 
-    # get tuple of (item, score) of the first object without dequeuing it
+    # get tuple of (id, item, score) of the first object without dequeuing it
     def peek(self, skip_item=False):
         return self._peek(skip_item=skip_item)
 
-    # get tuple of (item, score) of the last object without dequeuing it
+    # get tuple of (id, item, score) of the last object without dequeuing it
     def peeklast(self, skip_item=False):
         return self._peek(mode='last', skip_item=skip_item)
 
-    # get tuple of (item, score) of object by id without dequeuing it
+    # get tuple of (id, item, score) of object by id without dequeuing it
     def peekbyid(self, id, temporary=False, skip_item=False):
         if temporary:
             return self._peek(mode='idtemp', id=id, skip_item=skip_item)

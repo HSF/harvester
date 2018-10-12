@@ -39,16 +39,21 @@ class SqliteFifo(PluginBase):
     _write_lock_sql = 'BEGIN IMMEDIATE'
     _exclusive_lock_sql = 'BEGIN EXCLUSIVE'
     _push_sql = 'INSERT INTO queue_table (item,score) VALUES (?,?)'
-    _push_with_id_sql = 'INSERT INTO queue_table (id,item,score) VALUES (?,?,?)'
-    _lpop_get_sql = (
-            'SELECT id, item, score FROM queue_table '
+    _push_by_id_sql = 'INSERT INTO queue_table (id,item,score) VALUES (?,?,?)'
+    _lpop_get_sql_template = (
+            'SELECT {columns} FROM queue_table '
             'WHERE temporary = 0 '
             'ORDER BY score LIMIT 1'
             )
-    _rpop_get_sql = (
-            'SELECT id, item, score FROM queue_table '
+    _rpop_get_sql_template = (
+            'SELECT {columns} FROM queue_table '
             'WHERE temporary = 0 '
             'ORDER BY score DESC LIMIT 1'
+            )
+    _get_by_id_sql_template = (
+            'SELECT {columns} FROM queue_table '
+            'WHERE id = ? '
+            'AND temporary = {temp}'
             )
     _pop_del_sql = 'DELETE FROM queue_table WHERE id = ?'
     _move_to_temp_sql = 'UPDATE queue_table SET temporary = 1 WHERE id = ?'
@@ -57,12 +62,7 @@ class SqliteFifo(PluginBase):
     _clear_drop_table_sql = 'DROP TABLE IF EXISTS queue_table'
     _clear_zero_id_sql = 'DELETE FROM sqlite_sequence WHERE name = "queue_table"'
     _peek_sql = (
-            'SELECT item, score FROM queue_table '
-            'WHERE temporary = 0 '
-            'ORDER BY score LIMIT 1'
-            )
-    _peek_id_sql = (
-            'SELECT id FROM queue_table '
+            'SELECT id, item, score FROM queue_table '
             'WHERE temporary = 0 '
             'ORDER BY score LIMIT 1'
             )
@@ -105,26 +105,6 @@ class SqliteFifo(PluginBase):
             self._connection_cache[id] = sqlite3.Connection(self.db_path, timeout=60)
         return self._connection_cache[id]
 
-    def _push(self, obj, score, push_sql):
-        obj_buf = memoryviewOrBuffer(obj)
-        with self._get_conn() as conn:
-            conn.execute(push_sql, (obj_buf, score))
-
-    # def _push_right(self, obj, score):
-    #     obj_buf = memoryviewOrBuffer(obj)
-    #     with self._get_conn() as conn:
-    #         conn.execute(self._exclusive_lock_sql)
-    #         cursor = conn.execute(self._peek_id_sql)
-    #         first_id = None
-    #         try:
-    #             first_id, = next(cursor)
-    #         except StopIteration:
-    #             pass
-    #         finally:
-    #             id = (first_id - 1) if first_id is not None else 0
-    #             conn.execute(self._push_with_id_sql, (id, obj_buf, score))
-    #         conn.commit()
-
     def _pop(self, get_sql, timeout=None, protective=False):
         keep_polling = True
         wait = 0.1
@@ -158,14 +138,28 @@ class SqliteFifo(PluginBase):
                 return (id, bytes(obj_buf), score)
         return None
 
-    def _peek(self, peek_sql):
+    def _peek(self, peek_sql_temlate, skip_item=False, id=None, temporary=False):
+        columns = 'id, item, score'
+        temp = 0
+        if skip_item:
+            columns = 'id, score'
+        if temporary:
+            temp = 1
+        peek_sql = peek_sql_temlate.format(columns=columns, temp=temp)
         with self._get_conn() as conn:
-            cursor = conn.execute(peek_sql)
+            if id is not None:
+                cursor = conn.execute(peek_sql, (id,))
+            else:
+                cursor = conn.execute(peek_sql)
             try:
-                id, obj_buf, score = next(cursor)
-                return bytes(obj_buf), score
+                if skip_item:
+                    id, score = next(cursor)
+                    return id, None, score
+                else:
+                    id, obj_buf, score = next(cursor)
+                    return id, bytes(obj_buf), score
             except StopIteration:
-                return None, None
+                return None
 
     # number of objects in queue
     def size(self):
@@ -173,23 +167,47 @@ class SqliteFifo(PluginBase):
 
     # enqueue with priority score
     def put(self, obj, score):
-        self._push(obj, score, push_sql=self._push_sql)
+        retVal = False
+        obj_buf = memoryviewOrBuffer(obj)
+        with self._get_conn() as conn:
+            cursor = conn.execute(self._push_sql, (obj_buf, score))
+            n_row =  cursor.rowcount
+            if n_row == 1:
+                retVal = True
+        return retVal
+
+    # enqueue by id
+    def putbyid(self, id, obj, score):
+        retVal = False
+        obj_buf = memoryviewOrBuffer(obj)
+        with self._get_conn() as conn:
+            cursor = conn.execute(self._push_by_id_sql, (id, obj_buf, score))
+            n_row =  cursor.rowcount
+            if n_row == 1:
+                retVal = True
+        return retVal
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
-        return self._pop(get_sql=self._lpop_get_sql, timeout=timeout, protective=protective)
+        sql_str = self._lpop_get_sql_template(columns='id, item, score')
+        return self._pop(get_sql=sql_str, timeout=timeout, protective=protective)
 
     # dequeue the last object
     def getlast(self, timeout=None, protective=False):
-        return self._pop(get_sql=self._rpop_get_sql, timeout=timeout, protective=protective)
+        sql_str = self._rpop_get_sql(columns='id, item, score')
+        return self._pop(get_sql=sql_str, timeout=timeout, protective=protective)
 
-    # get tuple of (item, score) of the first object without dequeuing it
-    def peek(self):
-        return self._peek(self._lpop_get_sql)
+    # get tuple of (id, item, score) of the first object without dequeuing it
+    def peek(self, skip_item=False):
+        return self._peek(self._lpop_get_sql_template, skip_item=skip_item)
 
-    # get tuple of (item, score) of the last object without dequeuing it
-    def peeklast(self):
-        return self._peek(self._rpop_get_sql)
+    # get tuple of (id, item, score) of the last object without dequeuing it
+    def peeklast(self, skip_item=False):
+        return self._peek(self._rpop_get_sql_template, skip_item=skip_item)
+
+    # get tuple of (id, item, score) of object by id without dequeuing it
+    def peekbyid(self, id, temporary=False, skip_item=False):
+        return self._peek(self._get_by_id_sql_template, skip_item=skip_item, id=id, temporary=temporary):
 
     # drop all objects in queue and index and reset primary key auto_increment
     def clear(self):
