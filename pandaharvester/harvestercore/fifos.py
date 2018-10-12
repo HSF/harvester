@@ -135,7 +135,7 @@ class FIFOBase(object):
             retVal = None
         else:
             id, obj_serialized, score = object_tuple
-            if decode_item:
+            if obj_serialized is not None and decode_item:
                 obj = self.decode(obj_serialized)
             else:
                 obj = obj_serialized
@@ -152,7 +152,7 @@ class FIFOBase(object):
             retVal = None
         else:
             id, obj_serialized, score = object_tuple
-            if decode_item:
+            if obj_serialized is not None and decode_item:
                 obj = self.decode(obj_serialized)
             else:
                 obj = obj_serialized

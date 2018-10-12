@@ -289,7 +289,7 @@ class MysqlFifo(PluginBase):
     # number of objects in queue
     def size(self):
         sql_size = (
-                'SELECT COUNT(id) FROM {table_name}'
+                'SELECT COUNT(id) FROM {table_name} WHERE temporary = 0'
             ).format(table_name=self.tableName)
         self.execute(sql_size)
         res = self.cur.fetchall()

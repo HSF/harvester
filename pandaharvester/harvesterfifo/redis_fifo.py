@@ -44,9 +44,15 @@ class RedisFifo(PluginBase):
 
     def _peek(self, mode='first', id=None, skip_item=False):
         if mode == 'first':
-            id_gotten, score = self.qconn.zrange(self.id_score, 0, 0, withscores=True)[0]
+            try:
+                id_gotten, score = self.qconn.zrange(self.id_score, 0, 0, withscores=True)[0]
+            except IndexError:
+                return None
         elif mode == 'last':
-            id_gotten, score = self.qconn.zrevrange(self.id_score, 0, 0, withscores=True)[0]
+            try:
+                id_gotten, score = self.qconn.zrevrange(self.id_score, 0, 0, withscores=True)[0]
+            except IndexError:
+                return None
         else:
             resVal = self.qconn.sismember(self.id_temp, id)
             if (mode == 'id' and not resVal) or (mode == 'idtemp' and resVal):
@@ -57,7 +63,7 @@ class RedisFifo(PluginBase):
         if skip_item:
             item = None
         else:
-            item = self.qconn.hget(self.id_item, id)
+            item = self.qconn.hget(self.id_item, id_gotten)
         if id_gotten is None:
             return None
         else:
@@ -69,9 +75,9 @@ class RedisFifo(PluginBase):
         max_wait = 2
         tries = 1
         last_attempt_timestamp = time.time()
-        item = None
+        id, item, score = None, None, None
         while keep_polling:
-            peeked_tuple = self._peek(mode=mode, skip_item=True)
+            peeked_tuple = self._peek(mode=mode)
             if peeked_tuple is None:
                 time.sleep(wait)
                 wait = min(max_wait, tries/10.0 + wait)
@@ -80,7 +86,7 @@ class RedisFifo(PluginBase):
                 while True:
                     try:
                         with self.qconn.pipeline() as pipeline:
-                            pipeline.watch(self.id_score, self.id_item)
+                            pipeline.watch(self.id_score, self.id_item, self.id_temp)
                             pipeline.multi()
                             if protective:
                                 pipeline.sadd(self.id_temp, id)
@@ -112,6 +118,30 @@ class RedisFifo(PluginBase):
         while True:
             id = random_id()
             resVal = None
+            with self.qconn.pipeline() as pipeline:
+                while True:
+                    try:
+                        pipeline.watch(self.id_score, self.id_item)
+                        pipeline.multi()
+                        pipeline.execute_command('ZADD', self.id_score, 'NX', score, id)
+                        pipeline.hsetnx(self.id_item, id, item)
+                        resVal = pipeline.execute()
+                    except redis.WatchError:
+                        continue
+                    else:
+                        break
+            if resVal is not None:
+                if resVal[-2] == 1 and resVal[-1] == 1:
+                    return True
+            if time.time() > generate_id_attempt_timestamp + 60:
+                raise Exception('Cannot generate unique id')
+                return False
+            time.sleep(0.0001)
+        return False
+
+    # enqueue by id
+    def putbyid(self, id, item, score):
+        with self.qconn.pipeline() as pipeline:
             while True:
                 try:
                     pipeline.watch(self.id_score, self.id_item)
@@ -123,28 +153,6 @@ class RedisFifo(PluginBase):
                     continue
                 else:
                     break
-            if resVal is not None:
-                if resVal[-2] == 1 and resVal[-1] == 1:
-                    return True
-            if time.time() > generate_id_attempt_timestamp + 60:
-                raise Exception('Cannot generate unique id')
-                return False
-            time.sleep(0.0001)
-        return False
-
-    # enqueue by id
-    def putbyid(self, id, obj, score):
-        while True:
-            try:
-                pipeline.watch(self.id_score, self.id_item)
-                pipeline.multi()
-                pipeline.execute_command('ZADD', self.id_score, 'NX', score, id)
-                pipeline.hsetnx(self.id_item, id, item)
-                resVal = pipeline.execute()
-            except redis.WatchError:
-                continue
-            else:
-                break
         if resVal is not None:
             if resVal[-2] == 1 and resVal[-1] == 1:
                 return True
@@ -152,11 +160,11 @@ class RedisFifo(PluginBase):
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
-        return self._pop(self._peek, timeout, protective)
+        return self._pop(timeout=timeout, protective=protective, mode='first')
 
     # dequeue the last object
     def getlast(self, timeout=None, protective=False):
-        return self._pop(self._peek_last, timeout, protective)
+        return self._pop(timeout=timeout, protective=protective, mode='last')
 
     # get tuple of (id, item, score) of the first object without dequeuing it
     def peek(self, skip_item=False):
@@ -216,10 +224,9 @@ class RedisFifo(PluginBase):
                 try:
                     pipeline.watch(self.id_score, self.id_item, self.id_temp)
                     if ids is None:
-                        if len(ids) > 0:
-                            pipeline.multi()
-                            pipeline.delete(self.id_temp)
-                            pipeline.execute()
+                        pipeline.multi()
+                        pipeline.delete(self.id_temp)
+                        pipeline.execute()
                     elif isinstance(ids, (list, tuple)):
                         if len(ids) > 0:
                             pipeline.multi()

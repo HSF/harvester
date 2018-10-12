@@ -34,7 +34,7 @@ class SqliteFifo(PluginBase):
             'CREATE INDEX IF NOT EXISTS score_index ON queue_table '
             '(score)'
             )
-    _count_sql = 'SELECT COUNT(id) FROM queue_table'
+    _count_sql = 'SELECT COUNT(id) FROM queue_table WHERE temporary = 0'
     _iterate_sql = 'SELECT id, item, score FROM queue_table'
     _write_lock_sql = 'BEGIN IMMEDIATE'
     _exclusive_lock_sql = 'BEGIN EXCLUSIVE'
@@ -138,14 +138,14 @@ class SqliteFifo(PluginBase):
                 return (id, bytes(obj_buf), score)
         return None
 
-    def _peek(self, peek_sql_temlate, skip_item=False, id=None, temporary=False):
+    def _peek(self, peek_sql_template, skip_item=False, id=None, temporary=False):
         columns = 'id, item, score'
         temp = 0
         if skip_item:
             columns = 'id, score'
         if temporary:
             temp = 1
-        peek_sql = peek_sql_temlate.format(columns=columns, temp=temp)
+        peek_sql = peek_sql_template.format(columns=columns, temp=temp)
         with self._get_conn() as conn:
             if id is not None:
                 cursor = conn.execute(peek_sql, (id,))
@@ -189,12 +189,12 @@ class SqliteFifo(PluginBase):
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
-        sql_str = self._lpop_get_sql_template(columns='id, item, score')
+        sql_str = self._lpop_get_sql_template.format(columns='id, item, score')
         return self._pop(get_sql=sql_str, timeout=timeout, protective=protective)
 
     # dequeue the last object
     def getlast(self, timeout=None, protective=False):
-        sql_str = self._rpop_get_sql(columns='id, item, score')
+        sql_str = self._rpop_get_sql_template.format(columns='id, item, score')
         return self._pop(get_sql=sql_str, timeout=timeout, protective=protective)
 
     # get tuple of (id, item, score) of the first object without dequeuing it
@@ -207,7 +207,7 @@ class SqliteFifo(PluginBase):
 
     # get tuple of (id, item, score) of object by id without dequeuing it
     def peekbyid(self, id, temporary=False, skip_item=False):
-        return self._peek(self._get_by_id_sql_template, skip_item=skip_item, id=id, temporary=temporary):
+        return self._peek(self._get_by_id_sql_template, skip_item=skip_item, id=id, temporary=temporary)
 
     # drop all objects in queue and index and reset primary key auto_increment
     def clear(self):
