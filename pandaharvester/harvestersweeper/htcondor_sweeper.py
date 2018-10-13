@@ -54,7 +54,9 @@ class HTCondorSweeper(PluginBase):
 
         ## Parse condor remote options
         name_opt, pool_opt = '', ''
-        if workspec.submissionHost:
+        if workspec.submissionHost is None or workspec.submissionHost == 'LOCAL':
+            pass
+        else:
             try:
                 condor_schedd, condor_pool = workspec.submissionHost.split(',')[0:2]
             except ValueError:

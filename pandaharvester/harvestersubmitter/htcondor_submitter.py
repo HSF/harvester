@@ -163,7 +163,7 @@ def submit_a_worker(data):
             workspec.batchID = job_id_match.group(2)
             # set submissionHost
             if not condor_schedd and not condor_pool:
-                workspec.submissionHost = None
+                workspec.submissionHost = 'LOCAL'
             else:
                 workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
             tmpLog.debug('submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
