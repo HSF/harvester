@@ -135,13 +135,13 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             self.condor_schedd = None
             self.condor_pool = None
             self.cacheEnable = False
-            if self.submissionHost != 'None':
+            if self.submissionHost in ('LOCAL', 'None'):
+                tmpLog.debug('submissionHost is {0}, treated as local schedd. Skipped'.format(self.submissionHost))
+            else:
                 try:
                     self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
                 except ValueError:
                     tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
-            else:
-                tmpLog.debug('submissionHost is None, treated as localhost. Skipped'.format(self.submissionHost))
             if self.condor_api == 'python':
                 try:
                     self.secman = htcondor.SecMan()

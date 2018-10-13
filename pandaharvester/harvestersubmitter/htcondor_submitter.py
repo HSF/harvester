@@ -163,7 +163,7 @@ def submit_a_worker(data):
             workspec.batchID = job_id_match.group(2)
             # set submissionHost
             if not condor_schedd and not condor_pool:
-                workspec.submissionHost = None
+                workspec.submissionHost = 'LOCAL'
             else:
                 workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
             tmpLog.debug('submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
@@ -444,6 +444,16 @@ class HTCondorSubmitter(PluginBase):
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
                     ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
+                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
+                        # add default port to ce_endpoint if missing
+                        default_port_map = {
+                                'cream-ce': 8443,
+                                'arc-ce': 2811,
+                                'htcondor-ce': 9619,
+                            }
+                        if ce_flavour_str in default_port_map:
+                            default_port = default_port_map[ce_flavour_str]
+                            ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
                     if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                         sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)

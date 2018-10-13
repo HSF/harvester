@@ -229,7 +229,7 @@ class SqliteFifo(PluginBase):
                 conn.execute(self._exclusive_lock_sql)
                 cursor = conn.execute(self._del_sql_template.format(placeholders_str), ids)
             n_row = cursor.rowcount
-            self.commit()
+            conn.commit()
             return n_row
         else:
             raise TypeError('ids should be list or tuple')
