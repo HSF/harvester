@@ -287,7 +287,7 @@ class MonitorFIFO(FIFOBase):
         score = timeNow_timestamp
         for workspec in workspec_iterator:
             workspec.set_work_params({'lastCheckAt': timeNow_timestamp})
-            if last_queueName == None:
+            if last_queueName is None:
                 try:
                     score = timegm(workspec.modificationTime.utctimetuple())
                 except Exception:

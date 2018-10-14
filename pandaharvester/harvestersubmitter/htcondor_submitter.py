@@ -33,11 +33,10 @@ def _div_round_up(a, b):
 def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
     multiplier = 1000.
     n_ce = len(ce_endpoint_list)
-    queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, n_new_workers = worker_ce_all_tuple
+    queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
     N = float(n_ce)
     Q = float(queue_status_dict['nQueueLimitWorker'])
     W = float(queue_status_dict['maxWorkers'])
-    # time_window = float(worker_ce_backend_throughput_dict['_time_window'])
     Q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce][_st]
                             for _st in ('submitted', 'running', 'finished')
                             for _ce in worker_ce_backend_throughput_dict))
@@ -47,27 +46,39 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
     thruput_avg = (log1p(Q_good_init) - log1p(Q_good_fin))
     n_new_workers = float(n_new_workers)
     def _get_thruput_adj_ratio(_ce_endpoint):
-        q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
-                                for _st in ('submitted', 'running', 'finished')))
-        q_good_fin = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
-                                for _st in ('submitted',)))
+        if _ce_endpoint not in worker_ce_backend_throughput_dict:
+            q_good_init = 0.
+            q_good_fin = 0.
+        else:
+            q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
+                                    for _st in ('submitted', 'running', 'finished')))
+            q_good_fin = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
+                                    for _st in ('submitted',)))
         thruput = (log1p(q_good_init) - log1p(q_good_fin))
-        thruput_adj_ratio = thruput/thruput_avg + 1/N
+        try:
+            thruput_adj_ratio = thruput/thruput_avg + 1/N
+        except ZeroDivisionError:
+            if thruput == 0.:
+                thruput_adj_ratio = 1/N
+            else:
+                raise
         return thruput_adj_ratio
     ce_base_weight_sum = sum((_get_thruput_adj_ratio(_ce) for _ce in ce_endpoint_list))
     def _get_init_weight(_ce_endpoint):
-        if ( _ce_endpoint not in worker_ce_stats_dict or n_ce == 1 ):
-            return float(1)
-        q = float(worker_ce_stats_dict[_ce_endpoint]['submitted'])
-        r = float(worker_ce_stats_dict[_ce_endpoint]['running'])
-        # q_avg = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict )) / N
-        # r_avg = sum(( float(worker_ce_stats_dict[_k]['running']) for _k in worker_ce_stats_dict )) / N
+        if _ce_endpoint not in worker_ce_stats_dict:
+            q = 0.
+            r = 0.
+        else:
+            q = float(worker_ce_stats_dict[_ce_endpoint]['submitted'])
+            r = float(worker_ce_stats_dict[_ce_endpoint]['running'])
+            # q_avg = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict )) / N
+            # r_avg = sum(( float(worker_ce_stats_dict[_k]['running']) for _k in worker_ce_stats_dict )) / N
         if ( _ce_endpoint in worker_ce_stats_dict and q > Q ):
             return float(0)
         ce_base_weight_normalized = _get_thruput_adj_ratio(_ce_endpoint)/ce_base_weight_sum
         q_expected = (Q + n_new_workers) * ce_base_weight_normalized
         # weight by difference
-        ret = max((q - q_expected), 0)
+        ret = max((q - q_expected), 2**-10)
         # # Weight by running ratio
         # _weight_r = 1 + N*r/R
         if r == 0:
@@ -80,7 +91,7 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
         regulator = multiplier * N / sum_of_weights
     except ZeroDivisionError:
         regulator = 1.
-    ce_weight_dict = {ce_endpoint_list: _w * regulator for _w in init_weight_iterator}
+    ce_weight_dict = {_ce: _get_init_weight(_ce) * regulator for _ce in ce_endpoint_list}
     return ce_weight_dict, multiplier*N
 
 
@@ -89,11 +100,13 @@ def _choose_ce(weighting):
     ce_weight_dict, total_score = weighting
     lucky_number = random.random() * total_score
     cur = 0.
+    ce_now = None
     for _ce, _w in ce_weight_dict.items():
+        ce_now = _ce
         cur += _w
         if cur >= lucky_number:
             return _ce
-    return _ce
+    return ce_now
 
 
 # Replace condor Marco from SDF file, return string
@@ -376,8 +389,8 @@ class HTCondorSubmitter(PluginBase):
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
 
-    # get CE weighting of a site
-    def get_ce_weighting(self, site_name, n_new_workers, time_window=21600):
+    # get CE statistics of a site
+    def get_ce_statistics(self, site_name, n_new_workers, time_window=21600):
         if site_name in self.ceStats:
             return self.ceStats[site_name]
         with self.ceStatsLock:
@@ -387,7 +400,7 @@ class HTCondorSubmitter(PluginBase):
                 queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
                 worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
                 worker_ce_backend_throughput_dict = self.dbInterface.get_worker_ce_backend_throughput(self.queueName, time_window=time_window)
-                return (queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, n_new_workers)
+                return (queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers)
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -456,7 +469,8 @@ class HTCondorSubmitter(PluginBase):
             n_qualified_ce = len(ce_auxilary_dict)
             if n_qualified_ce > 0:
                 # choose a CE
-                worker_ce_all_tuple = self.get_ce_weighting(self.queueName, nWorkers)
+                tmpLog.debug('Get CE weighing')
+                worker_ce_all_tuple = self.get_ce_statistics(self.queueName, nWorkers)
                 ce_weighting = _get_ce_weighting(ce_endpoint_list=list(ce_auxilary_dict.keys()),
                                                         worker_ce_all_tuple=worker_ce_all_tuple)
                 tmpLog.debug('worker_ce_all_tuple: {0} ; ce_weighting: {1}'.format(

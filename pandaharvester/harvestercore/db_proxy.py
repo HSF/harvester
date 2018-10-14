@@ -4277,7 +4277,7 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_worker_ce_backend_throughput')
             tmpLog.debug('start')
             # get worker CE throughput
-            sqlW = "SELECT wt.computingElement,wt.status,COUNT(*) cnt,"
+            sqlW = "SELECT wt.computingElement,wt.status,COUNT(*) cnt "
             sqlW += "FROM {0} wt ".format(workTableName)
             sqlW += "WHERE wt.computingSite=:siteName "
             sqlW += "AND wt.status IN (:st1,:st2,:st3) "
@@ -4306,10 +4306,10 @@ class DBProxy:
                         'finished': 0,
                     }
                 retMap[computingElement][workerStatus] = cnt
-            retMap['_time_window'] = time_window
             # commit
             self.commit()
-            tmpLog.debug('got {0} for site {1}'.format(str(retMap), site_name))
+            tmpLog.debug('got {0} with time_window={1} for site {2}'.format(
+                                            str(retMap), time_window, site_name))
             return retMap
         except Exception:
             # roll back
