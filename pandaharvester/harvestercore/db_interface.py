@@ -66,6 +66,10 @@ class DBInterface:
     def get_worker_ce_stats(self, site_name):
         return self.dbProxy.get_worker_ce_stats(site_name)
 
+    # get worker CE backend throughput
+    def get_worker_ce_backend_throughput(self, site_name, time_window):
+        return self.dbProxy.get_worker_ce_backend_throughput(site_name, time_window)
+
     # add dialog message
     def add_dialog_message(self, message, level, module_name, identifier=None):
         # set level

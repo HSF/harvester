@@ -2,6 +2,7 @@ import os
 import errno
 import datetime
 import tempfile
+import threading
 try:
     import subprocess32 as subprocess
 except Exception:
@@ -28,47 +29,71 @@ def _div_round_up(a, b):
     return a // b + int(a % b > 0)
 
 
-# Compute weight of each CE according to worker stat, return dict
-def _get_ce_weight_dict(ce_endpoint_list=[], queue_status_dict={}, worker_ce_stats_dict={}):
-    multiplier = 10.0
+# Compute weight of each CE according to worker stat, return tuple(dict, total weight score)
+def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
+    multiplier = 1000.
     n_ce = len(ce_endpoint_list)
+    queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, n_new_workers = worker_ce_all_tuple
+    N = float(n_ce)
+    Q = float(queue_status_dict['nQueueLimitWorker'])
+    W = float(queue_status_dict['maxWorkers'])
+    # time_window = float(worker_ce_backend_throughput_dict['_time_window'])
+    Q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce][_st]
+                            for _st in ('submitted', 'running', 'finished')
+                            for _ce in worker_ce_backend_throughput_dict))
+    Q_good_fin = float(sum(worker_ce_backend_throughput_dict[_ce][_st]
+                            for _st in ('submitted',)
+                            for _ce in worker_ce_backend_throughput_dict))
+    thruput_avg = (log1p(Q_good_init) - log1p(Q_good_fin))
+    n_new_workers = float(n_new_workers)
+    def _get_thruput_adj_ratio(_ce_endpoint):
+        q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
+                                for _st in ('submitted', 'running', 'finished')))
+        q_good_fin = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
+                                for _st in ('submitted',)))
+        thruput = (log1p(q_good_init) - log1p(q_good_fin))
+        thruput_adj_ratio = thruput/thruput_avg + 1/N
+        return thruput_adj_ratio
+    ce_base_weight_sum = sum((_get_thruput_adj_ratio(_ce) for _ce in ce_endpoint_list))
     def _get_init_weight(_ce_endpoint):
         if ( _ce_endpoint not in worker_ce_stats_dict or n_ce == 1 ):
             return float(1)
-        N = float(n_ce)
-        Q = float(queue_status_dict['nQueueLimitWorker'])
-        R = float(queue_status_dict['maxWorkers'])
         q = float(worker_ce_stats_dict[_ce_endpoint]['submitted'])
         r = float(worker_ce_stats_dict[_ce_endpoint]['running'])
-        q_avg = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict )) / N
+        # q_avg = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict )) / N
         # r_avg = sum(( float(worker_ce_stats_dict[_k]['running']) for _k in worker_ce_stats_dict )) / N
         if ( _ce_endpoint in worker_ce_stats_dict and q > Q ):
             return float(0)
-        else:
-            # Base weight by total queuing ratio
-            if (N*q <= Q):
-                ret = 1
-            else:
-                ret = sqrt((1 - q/Q)*N/(N - 1))
-            if r == 0:
-                # Penalty for dead CE (no running worker)
-                ret = ret / (1 + log1p(q)**2)
-            else:
-                # Weight by individual queuing ratio compared with average
-                _weight_q = max(1 - ((q - q_avg)/sqrt(1 + q_avg * Q)), 0)
-                # Weight by running ratio
-                _weight_r = 1 + N*r/R
-                ret = ret * _weight_q * _weight_r
-            return ret
+        ce_base_weight_normalized = _get_thruput_adj_ratio(_ce_endpoint)/ce_base_weight_sum
+        q_expected = (Q + n_new_workers) * ce_base_weight_normalized
+        # weight by difference
+        ret = max((q - q_expected), 0)
+        # # Weight by running ratio
+        # _weight_r = 1 + N*r/R
+        if r == 0:
+            # Penalty for dead CE (no running worker)
+            ret = ret / (1 + log1p(q)**2)
+        return ret
     init_weight_iterator = map(_get_init_weight, ce_endpoint_list)
-    sum_of_weight = sum(list(init_weight_iterator))
+    sum_of_weights = sum(init_weight_iterator)
     try:
-        regulator = multiplier * n_ce / sum_of_weight
+        regulator = multiplier * N / sum_of_weights
     except ZeroDivisionError:
-        regulator = 1
-    ce_init_weight_dict = dict(map( lambda x: (x[0], int(x[1] * regulator)),
-                            zip(ce_endpoint_list, init_weight_iterator) ))
-    return ce_init_weight_dict
+        regulator = 1.
+    ce_weight_dict = {ce_endpoint_list: _w * regulator for _w in init_weight_iterator}
+    return ce_weight_dict, multiplier*N
+
+
+# Choose a CE accroding to weighting
+def _choose_ce(weighting):
+    ce_weight_dict, total_score = weighting
+    lucky_number = random.random() * total_score
+    cur = 0.
+    for _ce, _w in ce_weight_dict.items():
+        cur += _w
+        if cur >= lucky_number:
+            return _ce
+    return _ce
 
 
 # Replace condor Marco from SDF file, return string
@@ -347,6 +372,22 @@ class HTCondorSubmitter(PluginBase):
             self.useSpool
         except AttributeError:
             self.useSpool = True
+        # record of information of CE statistics
+        self.ceStatsLock = threading.Lock()
+        self.ceStats = dict()
+
+    # get CE weighting of a site
+    def get_ce_weighting(self, site_name, n_new_workers, time_window=21600):
+        if site_name in self.ceStats:
+            return self.ceStats[site_name]
+        with self.ceStatsLock:
+            if site_name in self.ceStats:
+                return self.ceStats[site_name]
+            else:
+                queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
+                worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
+                worker_ce_backend_throughput_dict = self.dbInterface.get_worker_ce_backend_throughput(self.queueName, time_window=time_window)
+                return (queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, n_new_workers)
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -354,6 +395,9 @@ class HTCondorSubmitter(PluginBase):
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
+
+        # whether to submit
+        to_submit = True
 
         # get log subdirectory name from timestamp
         timeNow = datetime.datetime.utcnow()
@@ -383,151 +427,148 @@ class HTCondorSubmitter(PluginBase):
             panda_queue_name = self.queueName
             this_panda_queue_dict = dict()
 
+        # get default information from queue info
+        n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
+        is_unified_queue = 'unifiedPandaQueue' in this_panda_queue_dict.get('catchall', '').split(',') \
+                           or this_panda_queue_dict.get('capability', '') == 'ucore'
+
+        # deal with CE
+        ce_info_dict = dict()
+        special_par = ''
+        if self.useAtlasGridCE:
+            # If ATLAS Grid CE mode used
+            tmpLog.debug('Using ATLAS Grid CE mode...')
+            queues_from_queue_list = this_panda_queue_dict.get('queues', [])
+            special_par = this_panda_queue_dict.get('special_par', '')
+            ce_auxilary_dict = {}
+            for _queue_dict in queues_from_queue_list:
+                if not ( _queue_dict.get('ce_endpoint')
+                        and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE'
+                        and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
+                    continue
+                ce_endpoint = _queue_dict.get('ce_endpoint')
+                if ( ce_endpoint in ce_auxilary_dict
+                    and str(_queue_dict.get('ce_queue_name', '')).lower() == 'default' ):
+                    pass
+                else:
+                    ce_auxilary_dict[ce_endpoint] = _queue_dict
+            # qualified CEs from AGIS info
+            n_qualified_ce = len(ce_auxilary_dict)
+            if n_qualified_ce > 0:
+                # choose a CE
+                worker_ce_all_tuple = self.get_ce_weighting(self.queueName, nWorkers)
+                ce_weighting = _get_ce_weighting(ce_endpoint_list=list(ce_auxilary_dict.keys()),
+                                                        worker_ce_all_tuple=worker_ce_all_tuple)
+                tmpLog.debug('worker_ce_all_tuple: {0} ; ce_weighting: {1}'.format(
+                                worker_ce_all_tuple, ce_weighting))
+                ce_chosen = _choose_ce(ce_weighting)
+                try:
+                    ce_info_dict = ce_auxilary_dict[ce_chosen].copy()
+                except KeyError:
+                    tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
+                    ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
+                # go on info of the CE
+                ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
+                ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
+                ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
+                if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
+                    # add default port to ce_endpoint if missing
+                    default_port_map = {
+                            'cream-ce': 8443,
+                            'arc-ce': 2811,
+                            'htcondor-ce': 9619,
+                        }
+                    if ce_flavour_str in default_port_map:
+                        default_port = default_port_map[ce_flavour_str]
+                        ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
+                tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
+                if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                    sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
+                    self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
+            else:
+                tmpLog.error('No valid CE endpoint found')
+                ce_info_dict = {}
+                to_submit = False
+        else:
+            try:
+                # Manually define site condor schedd as ceHostname and central manager as ceEndpoint
+                if self.ceHostname and isinstance(self.ceHostname, list) and len(self.ceHostname) > 0:
+                    if isinstance(self.ceEndpoint, list) and len(self.ceEndpoint) > 0:
+                        ce_info_dict['ce_hostname'], ce_info_dict['ce_endpoint'] = random.choice(list(zip(self.ceHostname, self.ceEndpoint)))
+                    else:
+                        ce_info_dict['ce_hostname'] = random.choice(self.ceHostname)
+                        ce_info_dict['ce_endpoint'] = self.ceEndpoint
+                else:
+                    ce_info_dict['ce_hostname'] = self.ceHostname
+                    ce_info_dict['ce_endpoint'] = self.ceEndpoint
+            except AttributeError:
+                pass
+
+        # Choose from Condor schedd and central managers
+        if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
+            if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
+                condor_schedd, condor_pool = random.choice(list(zip(self.condorSchedd, self.condorPool)))
+            else:
+                condor_schedd = random.choice(self.condorSchedd)
+                condor_pool = self.condorPool
+        else:
+            condor_schedd = self.condorSchedd
+            condor_pool = self.condorPool
+
+        # Log Base URL
+        if self.logBaseURL and '[ScheddHostname]' in self.logBaseURL:
+            schedd_hostname = re.sub(r'(?:[a-zA-Z0-9_.\-]*@)?([a-zA-Z0-9.\-]+)(?::[0-9]+)?',
+                                        lambda matchobj: matchobj.group(1) if matchobj.group(1) else '',
+                                        condor_schedd)
+            log_base_url = re.sub(r'\[ScheddHostname\]', schedd_hostname, self.logBaseURL)
+        else:
+            log_base_url = self.logBaseURL
+
+        # template for batch script
+        try:
+            tmpFile = open(self.templateFile)
+            sdf_template_raw = tmpFile.read()
+            tmpFile.close()
+        except AttributeError:
+            tmpLog.error('No valid templateFile found. Maybe templateFile, CEtemplateDir invalid, or no valid CE found')
+            to_submit = False
+        else:
+            # get batch_log, stdout, stderr filename, and remobe commented liness
+            sdf_template_str_list = []
+            for _line in sdf_template_raw.split('\n'):
+                if _line.startswith('#'):
+                    continue
+                sdf_template_str_list.append(_line)
+                _match_batch_log = re.match('log = (.+)', _line)
+                _match_stdout = re.match('output = (.+)', _line)
+                _match_stderr = re.match('error = (.+)', _line)
+                if _match_batch_log:
+                    batch_log_value = _match_batch_log.group(1)
+                    continue
+                if _match_stdout:
+                    stdout_value = _match_stdout.group(1)
+                    continue
+                if _match_stderr:
+                    stderr_value = _match_stderr.group(1)
+                    continue
+            sdf_template = '\n'.join(sdf_template_str_list)
+
+            # get override requirements from queue configured
+            try:
+                n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
+            except AttributeError:
+                n_core_per_node = n_core_per_node_from_queue
+
+
         def _handle_one_worker(workspec):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                             method_name='_handle_one_worker')
-
-            # get default information from queue info
-            to_submit = True
-            n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
-            is_unified_queue = 'unifiedPandaQueue' in this_panda_queue_dict.get('catchall', '').split(',') \
-                               or this_panda_queue_dict.get('capability', '') == 'ucore'
-            ce_info_dict = dict()
             batch_log_dict = dict()
-            special_par = ''
             data = {'workspec': workspec,
                     'to_submit': to_submit,}
-
-            if self.useAtlasGridCE:
-                # If ATLAS Grid CE mode used
-                tmpLog.debug('Using ATLAS Grid CE mode...')
-                queues_from_queue_list = this_panda_queue_dict.get('queues', [])
-                special_par = this_panda_queue_dict.get('special_par', '')
-                ce_auxilary_dict = {}
-                for _queue_dict in queues_from_queue_list:
-                    if not ( _queue_dict.get('ce_endpoint')
-                            and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE'
-                            and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
-                        continue
-                    ce_endpoint = _queue_dict.get('ce_endpoint')
-                    if ( ce_endpoint in ce_auxilary_dict
-                        and str(_queue_dict.get('ce_queue_name', '')).lower() == 'default' ):
-                        pass
-                    else:
-                        ce_auxilary_dict[ce_endpoint] = _queue_dict
-                # qualified CEs from AGIS info
-                n_qualified_ce = len(ce_auxilary_dict)
-                queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
-                worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
-                ce_weight_dict = _get_ce_weight_dict(ce_endpoint_list=list(ce_auxilary_dict.keys()),
-                                                        queue_status_dict=queue_status_dict,
-                                                        worker_ce_stats_dict=worker_ce_stats_dict)
-                # good CEs which can be submitted to, duplicate by weight
-                good_ce_weighted_list = []
-                for _ce_endpoint in ce_auxilary_dict.keys():
-                    good_ce_weighted_list.extend([_ce_endpoint] * ce_weight_dict.get(_ce_endpoint, 0))
-                tmpLog.debug('queue_status_dict: {0} ; worker_ce_stats_dict: {1} ; ce_weight_dict: {2}'.format(
-                        queue_status_dict, worker_ce_stats_dict, ce_weight_dict))
-                try:
-                    if len(good_ce_weighted_list) > 0:
-                            ce_info_dict = ce_auxilary_dict[random.choice(good_ce_weighted_list)].copy()
-                    else:
-                        tmpLog.info('No good CE endpoint left. Choose an arbitrary CE endpoint')
-                        ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                except IndexError:
-                    tmpLog.error('No valid CE endpoint found')
-                    ce_info_dict = {}
-                    to_submit = False
-                else:
-                    ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
-                    ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
-                    ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
-                    ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
-                        # add default port to ce_endpoint if missing
-                        default_port_map = {
-                                'cream-ce': 8443,
-                                'arc-ce': 2811,
-                                'htcondor-ce': 9619,
-                            }
-                        if ce_flavour_str in default_port_map:
-                            default_port = default_port_map[ce_flavour_str]
-                            ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
-                    tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
-                    if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
-                        sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
-                        self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
-            else:
-                try:
-                    # Manually define site condor schedd as ceHostname and central manager as ceEndpoint
-                    if self.ceHostname and isinstance(self.ceHostname, list) and len(self.ceHostname) > 0:
-                        if isinstance(self.ceEndpoint, list) and len(self.ceEndpoint) > 0:
-                            ce_info_dict['ce_hostname'], ce_info_dict['ce_endpoint'] = random.choice(list(zip(self.ceHostname, self.ceEndpoint)))
-                        else:
-                            ce_info_dict['ce_hostname'] = random.choice(self.ceHostname)
-                            ce_info_dict['ce_endpoint'] = self.ceEndpoint
-                    else:
-                        ce_info_dict['ce_hostname'] = self.ceHostname
-                        ce_info_dict['ce_endpoint'] = self.ceEndpoint
-                except AttributeError:
-                    pass
-
-            # Choose from Condor schedd and central managers
-            if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
-                if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
-                    condor_schedd, condor_pool = random.choice(list(zip(self.condorSchedd, self.condorPool)))
-                else:
-                    condor_schedd = random.choice(self.condorSchedd)
-                    condor_pool = self.condorPool
-            else:
-                condor_schedd = self.condorSchedd
-                condor_pool = self.condorPool
-
-            # Log Base URL
-            if self.logBaseURL and '[ScheddHostname]' in self.logBaseURL:
-                schedd_hostname = re.sub(r'(?:[a-zA-Z0-9_.\-]*@)?([a-zA-Z0-9.\-]+)(?::[0-9]+)?',
-                                            lambda matchobj: matchobj.group(1) if matchobj.group(1) else '',
-                                            condor_schedd)
-                log_base_url = re.sub(r'\[ScheddHostname\]', schedd_hostname, self.logBaseURL)
-            else:
-                log_base_url = self.logBaseURL
-
-            # template for batch script
-            try:
-                tmpFile = open(self.templateFile)
-                sdf_template_raw = tmpFile.read()
-                tmpFile.close()
-            except AttributeError:
-                tmpLog.error('No valid templateFile found. Maybe templateFile, CEtemplateDir invalid, or no valid CE found')
-                to_submit = False
-            else:
-                # get batch_log, stdout, stderr filename, and remobe commented liness
-                sdf_template_str_list = []
-                for _line in sdf_template_raw.split('\n'):
-                    if _line.startswith('#'):
-                        continue
-                    sdf_template_str_list.append(_line)
-                    _match_batch_log = re.match('log = (.+)', _line)
-                    _match_stdout = re.match('output = (.+)', _line)
-                    _match_stderr = re.match('error = (.+)', _line)
-                    if _match_batch_log:
-                        batch_log_value = _match_batch_log.group(1)
-                        continue
-                    if _match_stdout:
-                        stdout_value = _match_stdout.group(1)
-                        continue
-                    if _match_stderr:
-                        stderr_value = _match_stderr.group(1)
-                        continue
-                sdf_template = '\n'.join(sdf_template_str_list)
-
-                # get override requirements from queue configured
-                try:
-                    n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
-                except AttributeError:
-                    n_core_per_node = n_core_per_node_from_queue
-
+            if to_submit:
                 # URLs for log files
                 if not (log_base_url is None):
                     if workspec.batchID:
@@ -550,9 +591,7 @@ class HTCondorSubmitter(PluginBase):
                     batch_log_dict['batch_stderr'] = batch_stderr
                     batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
                     tmpLog.debug('Done set_log_file before submission')
-
                 tmpLog.debug('Done jobspec attribute setting')
-
                 # set data dict
                 data.update({
                         'workspec': workspec,
@@ -572,7 +611,6 @@ class HTCondorSubmitter(PluginBase):
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
                         })
-
             return data
 
         def _propagate_attributes(workspec, tmpVal):
