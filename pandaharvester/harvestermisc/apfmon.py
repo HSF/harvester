@@ -60,7 +60,7 @@ class Apfmon:
                  'version': panda_pkg_info.release_version}
             payload = json.dumps(f)
 
-            r = requests.put(url, data=payload)
+            r = requests.put(url, data=payload, timeout=0.2)
             tmp_log.debug('registration ended with {0}'.format(r.status_code))
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
@@ -90,7 +90,7 @@ class Apfmon:
 
                 payload = json.dumps(labels)
 
-                r = requests.put(url, data=payload)
+                r = requests.put(url, data=payload, timeout=0.2)
                 tmp_log.debug('label creation for {0} ended with {1}'.format(sites, r.status_code))
 
             end_time = time.time()
@@ -138,7 +138,7 @@ class Apfmon:
                     apfmon_workers.append(apfmon_worker)
 
                 payload = json.dumps(apfmon_workers)
-                r = requests.put(url, data=payload)
+                r = requests.put(url, data=payload, timeout=0.2)
                 tmp_log.debug('worker creation for {0} ended with {1}'.format(apfmon_workers, r.status_code))
 
             end_time = time.time()
