@@ -119,7 +119,7 @@ class Apfmon:
                     computingsite = worker_spec.computingSite
 
                     # extract the log URLs
-                    work_attribs = json.loads(worker_spec.workAttributes)
+                    work_attribs = worker_spec.workAttributes
                     stdout_url = work_attribs['stdOut']
                     stderr_url = work_attribs['stdErr']
                     log_url = work_attribs['batchLog']
@@ -162,12 +162,12 @@ if __name__== "__main__":
     worker_a = WorkSpec()
     worker_a.batchID = 1
     worker_a.computingSite = 'CERN-PROD-DEV_UCORE'
-    worker_a.workAttributes = '{"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}'
+    worker_a.workAttributes = {"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}
 
     worker_b = WorkSpec()
     worker_b.batchID = 2
     worker_b.computingSite = 'CERN-PROD-DEV_UCORE'
-    worker_b.workAttributes = '{"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}'
+    worker_b.workAttributes = {"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}
 
 
     workers = [worker_a, worker_b]
