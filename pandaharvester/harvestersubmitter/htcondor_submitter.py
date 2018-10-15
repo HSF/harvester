@@ -499,8 +499,13 @@ class HTCondorSubmitter(PluginBase):
         is_unified_queue = 'unifiedPandaQueue' in this_panda_queue_dict.get('catchall', '').split(',') \
                            or this_panda_queue_dict.get('capability', '') == 'ucore'
 
+        # get override requirements from queue configured
+        try:
+            n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
+        except AttributeError:
+            n_core_per_node = n_core_per_node_from_queue
+
         # deal with CE
-        ce_info_dict = dict()
         special_par = ''
         ce_weighting = None
         if self.useAtlasGridCE:
@@ -533,19 +538,15 @@ class HTCondorSubmitter(PluginBase):
                 tmpLog.debug('CE stats and weighting: {0}'.format(stats_weighting_display_str))
             else:
                 tmpLog.error('No valid CE endpoint found')
-                ce_info_dict = {}
                 to_submit_any = False
 
-            # get override requirements from queue configured
-            try:
-                n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
-            except AttributeError:
-                n_core_per_node = n_core_per_node_from_queue
+
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                             method_name='_handle_one_worker')
+            ce_info_dict = dict()
             batch_log_dict = dict()
             data = {'workspec': workspec,
                     'to_submit': to_submit,}

@@ -488,7 +488,9 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
     errStr = ''
 
     name_opt, pool_opt = '', ''
-    if workspec.submissionHost:
+    if workspec.submissionHost is None or workspec.submissionHost == 'LOCAL':
+        pass
+    else:
         try:
             condor_schedd, condor_pool = workspec.submissionHost.split(',')[0:2]
         except ValueError:
