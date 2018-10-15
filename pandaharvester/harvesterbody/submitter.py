@@ -357,7 +357,7 @@ class Submitter(AgentBase):
                                             [[w] for w in workSpecList if w.status
                                              in (WorkSpec.ST_submitted, WorkSpec.ST_running)]
                                         monitor_fifo.put((queueName, workSpecsToEnqueue),
-                                                            time.time() + harvester_config.monitor.checkInterval)
+                                                            time.time() + harvester_config.monitor.fifoCheckInterval)
                                         mainLog.debug('put workers to monitor FIFO')
                                     submitted = True
                                 # release jobs

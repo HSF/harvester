@@ -4256,12 +4256,60 @@ class DBProxy:
                     retMap[computingElement] = {
                         'running': 0,
                         'submitted': 0,
-                        'to_submit': 0
                     }
                 retMap[computingElement][workerStatus] = cnt
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # get worker CE backend throughput
+    def get_worker_ce_backend_throughput(self, site_name, time_window):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_ce_backend_throughput')
+            tmpLog.debug('start')
+            # get worker CE throughput
+            sqlW = "SELECT wt.computingElement,wt.status,COUNT(*) cnt "
+            sqlW += "FROM {0} wt ".format(workTableName)
+            sqlW += "WHERE wt.computingSite=:siteName "
+            sqlW += "AND wt.status IN (:st1,:st2,:st3) "
+            sqlW += "AND wt.creationtime >= :timeWindowStart "
+            sqlW += "AND wt.creationtime <= :timeWindowEnd "
+            sqlW += "GROUP BY wt.status,wt.computingElement "
+            # time window start and end
+            timeWindowEnd = datetime.datetime.utcnow()
+            timeWindowStart = timeWindowEnd - datetime.timedelta(seconds=time_window)
+            # get worker CE throughput
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            varMap[':st1'] = 'submitted'
+            varMap[':st2'] = 'running'
+            varMap[':st3'] = 'finished'
+            varMap[':timeWindowStart'] = timeWindowStart
+            varMap[':timeWindowEnd'] = timeWindowEnd
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            retMap = dict()
+            for computingElement, workerStatus, cnt in resW:
+                if computingElement not in retMap:
+                    retMap[computingElement] = {
+                        'submitted': 0,
+                        'running': 0,
+                        'finished': 0,
+                    }
+                retMap[computingElement][workerStatus] = cnt
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} with time_window={1} for site {2}'.format(
+                                            str(retMap), time_window, site_name))
             return retMap
         except Exception:
             # roll back
