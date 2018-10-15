@@ -495,8 +495,9 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             condor_schedd, condor_pool = workspec.submissionHost.split(',')[0:2]
         except ValueError:
             pass
-        name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
-        pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
+        else:
+            name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
+            pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
 
     try:
         job_ads_dict = job_ads_all_dict[condor_job_id_from_workspec(workspec)]
