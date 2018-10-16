@@ -7,6 +7,11 @@ import json
 import pickle
 from future.utils import iteritems
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError
+
 
 # encoder for non-native json objects
 class PythonObjectEncoder(json.JSONEncoder):
@@ -97,7 +102,7 @@ class SpecBase(object):
             if attr in self.serializedAttrs and val is not None:
                 try:
                     val = json.loads(val, object_hook=as_python_object)
-                except (json.JSONDecodeError, json.decoder.JSONDecodeError):
+                except JSONDecodeError:
                     pass
             object.__setattr__(self, attr, val)
 

@@ -7,6 +7,10 @@ import importlib
 import six
 from future.utils import iteritems
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError
 
 from pandaharvester.harvesterconfig import harvester_config
 from .work_spec import WorkSpec
@@ -164,7 +168,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         except OSError as e:
             mainLog.error('Cannot read file: {0} ; {1}'.format(confFilePath, e))
             return None
-        except (json.JSONDecodeError, json.decoder.JSONDecodeError) as e:
+        except JSONDecodeError as e:
             mainLog.error('Invalid JSON in file: {0} ; {1}'.format(confFilePath, e))
             return None
         return queueConfigJson
