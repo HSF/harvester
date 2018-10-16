@@ -2297,7 +2297,7 @@ class DBProxy:
                 # make job
                 jobSpec = JobSpec()
                 jobSpec.pack(resJ)
-                if only_running and jobSpec.subStatus not in ['running', 'submitted', 'queued']:
+                if only_running and jobSpec.subStatus not in ['running', 'submitted', 'queued', 'idle']:
                     continue
                 jobSpec.lockedBy = locked_by
                 # lock job
