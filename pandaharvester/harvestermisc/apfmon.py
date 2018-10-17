@@ -12,6 +12,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester import panda_pkg_info
 from pandaharvester.harvestermisc import generic_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 _base_logger = core_utils.setup_logger('apfmon')
 
@@ -81,12 +82,23 @@ class Apfmon:
 
             # get the active queues from the config mapper
             all_sites = self.queue_config_mapper.get_active_queues().keys()
+            panda_queues_dict = PandaQueuesDict()
 
             # publish the active queues to APF mon in shards
             for sites in generic_utils.create_shards(all_sites, 20):
                 labels = []
                 for site in sites:
-                    labels.append({'name': site, 'factory': self.harvester_id})
+                    try:
+                        site_info = panda_queues_dict.get(site, dict())
+
+                        for queue in site_info['queues']:
+                            ce = queue['ce_endpoint'].split('.')[0]
+                            labels.append({'name': '{0}-{1}'.format(site, ce),
+                                           'wmsqueue': site,
+                                           'factory': self.harvester_id})
+                    except:
+                        tmp_log.error('Excepted for site {0} with: {1}'.format(site, traceback.format_exc()))
+
 
                 payload = json.dumps(labels)
 
