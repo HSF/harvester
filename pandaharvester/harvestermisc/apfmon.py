@@ -141,10 +141,10 @@ class Apfmon:
             for worker_spec_shard in generic_utils.create_shards(worker_spec_list, 20):
                 apfmon_workers = []
                 for worker_spec in worker_spec_shard:
-                    # TODO: be sure it's expecting the condor ID and it's consistent with the wrapper info
                     batch_id = worker_spec.batchID
                     factory = self.harvester_id
                     computingsite = worker_spec.computingSite
+                    ce = worker_spec.computingElement.split('.')[0]
 
                     # extract the log URLs
                     work_attribs = worker_spec.workAttributes
@@ -156,7 +156,7 @@ class Apfmon:
 
                     apfmon_worker = {'cid': batch_id,
                                      'factory': factory,
-                                     'label': computingsite,
+                                     'label': '{0}-{1}'.format(computingsite, ce),
                                      'jdlurl': jdl_url,
                                      'stdouturl': stdout_url,
                                      'stderrurl': stderr_url,
