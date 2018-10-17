@@ -475,3 +475,16 @@ class JobSpec(SpecBase):
     # check if pilot_closed
     def is_pilot_closed(self):
         return self.pilotClosed == 1
+
+    # get job parameters
+    def get_job_params(self, strip):
+        if not strip:
+            return self.jobParams
+        else:
+            newParams = dict()
+            for k, v in iteritems(self.jobParams):
+                if k in ['prodDBlocks', 'realDatasetsIn', 'dispatchDblock', 'ddmEndPointIn', 'scopeIn',
+                         'dispatchDBlockToken', 'prodDBlockToken']:
+                    continue
+                newParams[k] = v
+            return newParams
