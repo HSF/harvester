@@ -23,7 +23,7 @@ class Apfmon:
         try:
             self.__active = harvester_config.apfmon.active
         except:
-            self.__active = True # TODO: decide if default is active or not
+            self.__active = False
 
         # TODO: make proper exception handling and defaults
         try:
@@ -48,9 +48,15 @@ class Apfmon:
         """
         Creates or updates a harvester instance to APF Mon. Should be done at startup of the instance.
         """
+
         start_time = time.time()
         tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
                                          method_name='create_factory')
+
+        if not self.__active:
+            tmp_log.debug('APFMon reporting not enabled')
+            return
+
         try:
             tmp_log.debug('start')
 
@@ -75,6 +81,11 @@ class Apfmon:
         start_time = time.time()
         tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
                                          method_name='create_labels')
+
+        if not self.__active:
+            tmp_log.debug('APFMon reporting not enabled')
+            return
+
         try:
             tmp_log.debug('start')
 
@@ -117,6 +128,11 @@ class Apfmon:
         start_time = time.time()
         tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
                                          method_name='create_workers')
+
+        if not self.__active:
+            tmp_log.debug('APFMon reporting not enabled')
+            return
+
         try:
             tmp_log.debug('start')
 
