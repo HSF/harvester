@@ -4281,12 +4281,14 @@ class DBProxy:
             sqlW += "FROM {0} wt ".format(workTableName)
             sqlW += "WHERE wt.computingSite=:siteName "
             sqlW += "AND wt.status IN (:st1,:st2,:st3) "
-            sqlW += "AND wt.creationtime >= :timeWindowStart "
-            sqlW += "AND wt.creationtime <= :timeWindowEnd "
+            sqlW += "AND wt.creationtime < :timeWindowMiddle "
+            sqlW += "AND (wt.starttime is NULL OR "
+            sqlW += "(wt.starttime >= :timeWindowStart AND wt.starttime < :timeWindowEnd) ) "
             sqlW += "GROUP BY wt.status,wt.computingElement "
             # time window start and end
             timeWindowEnd = datetime.datetime.utcnow()
             timeWindowStart = timeWindowEnd - datetime.timedelta(seconds=time_window)
+            timeWindowMiddle = timeWindowEnd - datetime.timedelta(seconds=time_window/2)
             # get worker CE throughput
             varMap = dict()
             varMap[':siteName'] = site_name
@@ -4295,6 +4297,7 @@ class DBProxy:
             varMap[':st3'] = 'finished'
             varMap[':timeWindowStart'] = timeWindowStart
             varMap[':timeWindowEnd'] = timeWindowEnd
+            varMap[':timeWindowMiddle'] = timeWindowMiddle
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             retMap = dict()
