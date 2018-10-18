@@ -181,7 +181,9 @@ class DummyContext(object):
 # wrapper for stderr
 class StdErrWrapper(object):
     def write(self, message):
-        _logger.error(message)
+        # set a header and footer to the message to make it easier to parse
+        wrapped_message = '#####START#####\n{0}#####END#####\n'.format(message)
+        _logger.error(wrapped_message)
 
     def flush(self):
         _logger.handlers[0].flush()

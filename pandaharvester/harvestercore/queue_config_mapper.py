@@ -27,6 +27,7 @@ from .db_interface import DBInterface
 _logger = core_utils.setup_logger('queue_config_mapper')
 _dbInterface = DBInterface()
 
+
 # make logger
 def _make_logger(base_log=_logger, token=None, method_name=None, send_dialog=True):
     if send_dialog and _dbInterface:
