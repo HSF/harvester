@@ -155,7 +155,10 @@ class Apfmon:
                     batch_id = worker_spec.batchID
                     factory = self.harvester_id
                     computingsite = worker_spec.computingSite
-                    ce = worker_spec.computingElement.split('.')[0]
+                    try:
+                        ce = worker_spec.computingElement.split('.')[0]
+                    except AttributeError:
+                        ce = ''
 
                     # extract the log URLs
                     work_attribs = worker_spec.workAttributes
@@ -232,7 +235,7 @@ class Apfmon:
                     if status == 'exiting':
                         # return code
                         apfmon_worker['rc'] = 0 # TODO: I'm not sure how to fill this field
-                        if worker_spec.has_attribute('pandaid_list'):
+                        if worker_spec.has_attribute('pandaid_list') and worker_spec.pandaid_list:
                             apfmon_worker['ids'] = ','.join(str(x) for x in worker_spec.pandaid_list)
 
                     tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
@@ -262,14 +265,15 @@ if __name__== "__main__":
     worker_a = WorkSpec()
     worker_a.batchID = 1
     worker_a.computingSite = 'CERN-PROD-DEV_UCORE'
+    worker_b.computingElement = 'bla1'
     worker_a.workAttributes = {"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}
     worker_a.pandaid_list = [1234, 5678]
 
     worker_b = WorkSpec()
     worker_b.batchID = 2
     worker_b.computingSite = 'CERN-PROD-DEV_UCORE'
+    worker_b.computingElement = 'bla2'
     worker_b.workAttributes = {"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}
-
 
     workers = [worker_a, worker_b]
 
