@@ -79,7 +79,7 @@ class Apfmon:
             payload = json.dumps(f)
 
             r = requests.put(url, data=payload, timeout=self.__label_timeout)
-            tmp_log.debug('registration ended with {0}'.format(r.status_code))
+            tmp_log.debug('registration ended with {0} {1}'.format(r.status_code, r.text))
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
         except:
@@ -125,7 +125,7 @@ class Apfmon:
                 payload = json.dumps(labels)
 
                 r = requests.put(url, data=payload, timeout=self.__label_timeout)
-                tmp_log.debug('label creation for {0} ended with {1}'.format(sites, r.status_code))
+                tmp_log.debug('label creation for {0} ended with {1} {2}'.format(sites, r.status_code, r.text))
 
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
@@ -181,7 +181,7 @@ class Apfmon:
 
                 payload = json.dumps(apfmon_workers)
                 r = requests.put(url, data=payload, timeout=self.__worker_timeout)
-                tmp_log.debug('worker creation for {0} ended with {1}'.format(apfmon_workers, r.status_code))
+                tmp_log.debug('worker creation for {0} ended with {1} {2}'.format(apfmon_workers, r.status_code, r.text))
 
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
@@ -241,7 +241,7 @@ class Apfmon:
                     tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
 
                     r = requests.post(url, data=apfmon_worker, timeout=self.__worker_timeout)
-                    tmp_log.debug('worker update for {0} ended with {1}'.format(batch_id, r.status_code))
+                    tmp_log.debug('worker update for {0} ended with {1} {2}'.format(batch_id, r.status_code, r.text))
 
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
