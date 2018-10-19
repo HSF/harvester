@@ -235,13 +235,12 @@ class Apfmon:
                     if status == 'exiting':
                         # return code
                         apfmon_worker['rc'] = 0 # TODO: I'm not sure how to fill this field
-                        if worker_spec.has_attribute('pandaid_list') and worker_spec.pandaid_list:
+                        if hasattr(worker_spec, 'pandaid_list') and worker_spec.pandaid_list:
                             apfmon_worker['ids'] = ','.join(str(x) for x in worker_spec.pandaid_list)
 
                     tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
-                    payload = json.dumps(apfmon_worker)
 
-                    r = requests.post(url, data=payload, timeout=self.__worker_timeout)
+                    r = requests.post(url, data=apfmon_worker, timeout=self.__worker_timeout)
                     tmp_log.debug('worker update for {0} ended with {1}'.format(batch_id, r.status_code))
 
             end_time = time.time()
@@ -265,7 +264,7 @@ if __name__== "__main__":
     worker_a = WorkSpec()
     worker_a.batchID = 1
     worker_a.computingSite = 'CERN-PROD-DEV_UCORE'
-    worker_b.computingElement = 'bla1'
+    worker_a.computingElement = 'bla1'
     worker_a.workAttributes = {"batchLog": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.log", "stdErr": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.err", "stdOut": "https://aipanda024.cern.ch/condor_logs/18-07-19_09/grid.9659.0.out"}
     worker_a.pandaid_list = [1234, 5678]
 
