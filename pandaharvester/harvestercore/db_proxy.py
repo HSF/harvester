@@ -1945,9 +1945,12 @@ class DBProxy:
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlFI += FileSpec.bind_values_expression()
             # sql to get pending files
-            sqlFP = "SELECT fileID,fsize,lfn,provenanceID,workerID FROM {0} ".format(fileTableName)
+            sqlFP = "SELECT fsize,fileID,lfn FROM {0} ".format(fileTableName)
             sqlFP += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
-            sqlFP += "ORDER BY provenanceID,workerID "
+            # sql to get provenanceID,workerID for pending files
+            sqlPW = "SELECT SUM(fsize),provenanceID,workerID FROM {0} ".format(fileTableName)
+            sqlPW += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
+            sqlPW += "GROUP BY provenanceID,workerID "
             # sql to update pending files
             sqlFU = "UPDATE {0} ".format(fileTableName)
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
@@ -2074,39 +2077,56 @@ class DBProxy:
                         # check pending files
                         if jobSpec.zipPerMB is not None and \
                                 not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'to_transfer'):
+                            # get workerID and provenanceID of pending files
+                            zippedFileIDs = []
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
                             varMap[':status'] = 'pending'
                             varMap[':type'] = 'input'
-                            self.execute(sqlFP, varMap)
-                            resFP = self.cur.fetchall()
-                            tmpLog.debug('got {0} pending files'.format(len(resFP)))
-                            # make subsets
-                            subTotalSize = 0
-                            subFileIDs = []
-                            zippedFileIDs = []
-                            prevProvenanceID = None
-                            prevWorkerID = None
-                            for tmpFileID, tmpFsize, tmpLFN, tmpProvenanceID, tmpWorkerID in resFP:
-                                if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
-                                        and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024
-                                             or tmpProvenanceID != prevProvenanceID
-                                             or tmpWorkerID != prevWorkerID):
-                                    if jobSpec.subStatus == 'to_transfer' or \
-                                            (tmpProvenanceID == prevProvenanceID and tmpWorkerID == prevWorkerID) or \
-                                            (prevWorkerID is not None and prevWorkerID not in activeWorkers):
-                                        zippedFileIDs.append(subFileIDs)
-                                    subFileIDs = []
+                            self.execute(sqlPW, varMap)
+                            resPW = self.cur.fetchall()
+                            for subTotalSize, tmpProvenanceID, tmpWorkerID in resPW:
+                                if jobSpec.subStatus == 'to_transfer' \
+                                        or (jobSpec.zipPerMB > 0 and subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
+                                        or (tmpWorkerID is not None and tmpWorkerID not in activeWorkers):
+                                    sqlFPx = sqlFP
+                                    varMap = dict()
+                                    varMap[':PandaID'] = jobSpec.PandaID
+                                    varMap[':status'] = 'pending'
+                                    varMap[':type'] = 'input'
+                                    if tmpProvenanceID is None:
+                                        sqlFPx += 'AND provenanceID IS NULL '
+                                    else:
+                                        varMap[':provenanceID'] = tmpProvenanceID
+                                        sqlFPx += 'AND provenanceID=:provenanceID '
+                                    if tmpWorkerID is None:
+                                        sqlFPx += 'AND tmpWorkerID IS NULL '
+                                    else:
+                                        varMap[':workerID'] = tmpWorkerID
+                                        sqlFPx += 'AND workerID=:workerID'
+                                    # get pending files
+                                    self.execute(sqlFPx, varMap)
+                                    resFP = self.cur.fetchall()
+                                    tmpLog.debug('got {0} pending files for workerID={1} provenanceID={2}'.format(
+                                        len(resFP),
+                                        tmpWorkerID,
+                                        tmpProvenanceID))
+                                    # make subsets
                                     subTotalSize = 0
-                                prevProvenanceID = tmpProvenanceID
-                                prevWorkerID = tmpWorkerID
-                                subTotalSize += tmpFsize
-                                subFileIDs.append((tmpFileID, tmpLFN))
-                            if (jobSpec.subStatus == 'to_transfer'
-                                    or (jobSpec.zipPerMB > 0 and subTotalSize > jobSpec.zipPerMB * 1024 * 1024)
-                                    or (prevWorkerID is not None and prevWorkerID not in activeWorkers)) \
-                                    and len(subFileIDs) > 0:
-                                zippedFileIDs.append(subFileIDs)
+                                    subFileIDs = []
+                                    for tmpFileID, tmpFsize, tmpLFN in resFP:
+                                        if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
+                                                and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024):
+                                            zippedFileIDs.append(subFileIDs)
+                                            subFileIDs = []
+                                            subTotalSize = 0
+                                        subTotalSize += tmpFsize
+                                        subFileIDs.append((tmpFileID, tmpLFN))
+                                    if (jobSpec.subStatus == 'to_transfer'
+                                            or (jobSpec.zipPerMB > 0 and subTotalSize > jobSpec.zipPerMB * 1024 * 1024)
+                                            or (tmpWorkerID is not None and tmpWorkerID not in activeWorkers)) \
+                                            and len(subFileIDs) > 0:
+                                        zippedFileIDs.append(subFileIDs)
                             # make zip files
                             for subFileIDs in zippedFileIDs:
                                 # insert zip file
