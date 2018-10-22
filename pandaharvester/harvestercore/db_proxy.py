@@ -1945,9 +1945,9 @@ class DBProxy:
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlFI += FileSpec.bind_values_expression()
             # sql to get pending files
-            sqlFP = "SELECT fileID,fsize,lfn,provenanceID FROM {0} ".format(fileTableName)
+            sqlFP = "SELECT fileID,fsize,lfn,provenanceID,workerID FROM {0} ".format(fileTableName)
             sqlFP += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
-            sqlFP += "ORDER BY provenanceID "
+            sqlFP += "ORDER BY provenanceID,workerID "
             # sql to update pending files
             sqlFU = "UPDATE {0} ".format(fileTableName)
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
@@ -1971,11 +1971,9 @@ class DBProxy:
             sqlIR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlIR += JobWorkerRelationSpec.bind_values_expression()
             # count number of workers
-            sqlNW = "SELECT COUNT(*) cnt FROM ("
-            sqlNW += "SELECT DISTINCT t.workerID FROM {0} t, {1} w ".format(jobWorkerTableName, workTableName)
+            sqlNW = "SELECT DISTINCT t.workerID FROM {0} t, {1} w ".format(jobWorkerTableName, workTableName)
             sqlNW += "WHERE t.PandaID=:PandaID AND w.workerID=t.workerID "
             sqlNW += "AND w.status IN (:st_submitted,:st_running,:st_idle) "
-            sqlNW += ") "
             # update job
             if jobspec_list is not None:
                 if len(workspec_list) > 0 and workspec_list[0].mapType == WorkSpec.MT_MultiWorkers:
@@ -1995,6 +1993,19 @@ class DBProxy:
                     if tmpJobStatus == ['cancelled']:
                         pass
                     else:
+                        # get nWorkers
+                        activeWorkers = set()
+                        if isMultiWorkers:
+                            varMap = dict()
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            varMap[':st_submitted'] = WorkSpec.ST_submitted
+                            varMap[':st_running'] = WorkSpec.ST_running
+                            varMap[':st_idle'] = WorkSpec.ST_idle
+                            self.execute(sqlNW, varMap)
+                            resNW = self.cur.fetchall()
+                            for tmpWorkerID, in resNW:
+                                activeWorkers.add(tmpWorkerID)
+                            jobSpec.nWorkers = len(activeWorkers)
                         # get all LFNs
                         allLFNs = set()
                         varMap = dict()
@@ -2062,7 +2073,6 @@ class DBProxy:
                             tmpLog.debug('inserted {0} files'.format(nFiles))
                         # check pending files
                         if jobSpec.zipPerMB is not None and \
-                                (nFiles > 0 or jobSpec.subStatus == 'to_transfer') and \
                                 not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'to_transfer'):
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
@@ -2076,18 +2086,25 @@ class DBProxy:
                             subFileIDs = []
                             zippedFileIDs = []
                             prevProvenanceID = None
-                            for tmpFileID, tmpFsize, tmpLFN, tmpProvenanceID in resFP:
+                            prevWorkerID = None
+                            for tmpFileID, tmpFsize, tmpLFN, tmpProvenanceID, tmpWorkerID in resFP:
                                 if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
                                         and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024
-                                             or tmpProvenanceID != prevProvenanceID):
-                                    if jobSpec.subStatus == 'to_transfer' or tmpProvenanceID == prevProvenanceID:
+                                             or tmpProvenanceID != prevProvenanceID
+                                             or tmpWorkerID != prevWorkerID):
+                                    if jobSpec.subStatus == 'to_transfer' or \
+                                            (tmpProvenanceID == prevProvenanceID and tmpWorkerID == prevWorkerID) or \
+                                            (prevWorkerID is not None and prevWorkerID not in activeWorkers):
                                         zippedFileIDs.append(subFileIDs)
                                     subFileIDs = []
                                     subTotalSize = 0
                                 prevProvenanceID = tmpProvenanceID
+                                prevWorkerID = tmpWorkerID
                                 subTotalSize += tmpFsize
                                 subFileIDs.append((tmpFileID, tmpLFN))
-                            if (jobSpec.subStatus == 'to_transfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
+                            if (jobSpec.subStatus == 'to_transfer'
+                                    or (jobSpec.zipPerMB > 0 and subTotalSize > jobSpec.zipPerMB * 1024 * 1024)
+                                    or (prevWorkerID is not None and prevWorkerID not in activeWorkers)) \
                                     and len(subFileIDs) > 0:
                                 zippedFileIDs.append(subFileIDs)
                             # make zip files
@@ -2170,17 +2187,6 @@ class DBProxy:
                         if len(varMapsEU) > 0:
                             self.executemany(sqlEU, varMapsEU)
                             tmpLog.debug('updated {0} event'.format(len(varMapsEU)))
-                        # get nWorkers
-                        if isMultiWorkers:
-                            varMap = dict()
-                            varMap[':PandaID'] = jobSpec.PandaID
-                            varMap[':st_submitted'] = WorkSpec.ST_submitted
-                            varMap[':st_running'] = WorkSpec.ST_running
-                            varMap[':st_idle'] = WorkSpec.ST_idle
-                            self.execute(sqlNW, varMap)
-                            resNW = self.cur.fetchone()
-                            if resNW is not None:
-                                jobSpec.nWorkers, = resNW
                         # update job
                         varMap = jobSpec.values_map(only_changed=True)
                         if len(varMap) > 0:

@@ -31,7 +31,8 @@ class FileSpec(SpecBase):
                            'todelete:integer / index',
                            'scope:text',
                            'pathConvention:integer',
-                           'provenanceID:text / index'
+                           'provenanceID:text / index',
+                           'workerID:integer / index'
                            )
 
     # attributes initialized with 0

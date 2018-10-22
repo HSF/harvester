@@ -294,10 +294,9 @@ class Monitor(AgentBase):
             iWorker = 0
             for workSpecs in workSpecsList:
                 jobSpecs = None
-                filesToStageOut = dict()
                 pandaIDsList = []
                 eventsToUpdateList = []
-                filesToStageOutList = []
+                filesToStageOutList = dict()
                 isCheckedList = []
                 mapType = workSpecs[0].mapType
                 # loop over workSpecs
@@ -356,7 +355,7 @@ class Monitor(AgentBase):
                     if len(eventsToUpdate) > 0:
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
-                        filesToStageOutList.append(filesToStageOut)
+                        filesToStageOutList[workSpec.workerID] = filesToStageOut
                 # lock workers for fifo
                 if from_fifo:
                     # collect some attributes to be updated when wokers are locked
