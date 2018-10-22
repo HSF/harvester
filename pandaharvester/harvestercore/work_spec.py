@@ -87,7 +87,8 @@ class WorkSpec(SpecBase):
                            'submissionHost:text',
                            'configID:integer / index',
                            'syncLevel:integer',
-                           'checkTime:timestamp'
+                           'checkTime:timestamp',
+                           'ioIntensity:integer'
                            )
 
     # constructor
