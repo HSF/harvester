@@ -1,4 +1,4 @@
-executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
+executable = {executableFile}
 arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} -f false -C 0
 initialdir = {accessPoint}
 universe = grid
@@ -23,6 +23,7 @@ grid_resource = cream https://{ceEndpoint}/ce-cream/services/{ceVersion} {ceJobm
 #+remote_RequestMemory = {requestRam}
 #+remote_RequestDisk = {requestDisk}
 #+remote_JobMaxVacateTime = {requestWalltime}
++ioIntensity = {ioIntensity}
 
 cream_attributes = CpuNumber={nCoreTotal};WholeNodes=false;SMPGranularity={nCoreTotal};CERequirements = "other.GlueCEPolicyMaxCPUTime == {requestCputimeMinute} && other.GlueCEPolicyMaxWallClockTime == {requestWalltimeMinute} && other.GlueHostMainMemoryRAMSize == {requestRam}";
 
