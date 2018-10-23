@@ -1,4 +1,4 @@
-executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
+executable = {executableFile}
 arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} -f false -C 0
 initialdir = {accessPoint}
 universe = grid
@@ -20,6 +20,8 @@ grid_resource = condor {ceHostname} {ceEndpoint}
 #+remote_RequestMemory = {requestRam}
 #+remote_RequestDisk = {requestDisk}
 #+remote_JobMaxVacateTime = {requestWalltime}
++ioIntensity = {ioIntensity}
+
 +xcount = {nCoreTotal}
 +maxMemory = {requestRam}
 +remote_queue = "{ceQueueName}"

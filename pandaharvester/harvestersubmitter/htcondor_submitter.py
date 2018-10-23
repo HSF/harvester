@@ -291,9 +291,9 @@ def submit_a_worker(data):
 
 
 # make batch script
-def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, x509_user_proxy,
-                        log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), special_par='',
-                        harvester_queue_config=None, is_unified_queue=False, **kwarg):
+def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
+                        x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
+                        special_par='', harvester_queue_config=None, is_unified_queue=False, **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_batch_script')
@@ -305,6 +305,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
     request_ram = max(workspec.minRamCount, 1 * n_core_total) if workspec.minRamCount else 1 * n_core_total
     request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
     request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
+    io_intensity = workspec.ioIntensity if workspec.ioIntensity else 0
     ce_info_dict = ce_info_dict.copy()
     batch_log_dict = batch_log_dict.copy()
 
@@ -333,6 +334,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
 
     # fill in template
     tmpFile.write(template.format(
+        executableFile=executable_file,
         nCorePerNode=n_core_per_node,
         nCoreTotal=n_core_total,
         nNode=n_node,
@@ -361,6 +363,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         prodSourceLabel=harvester_queue_config.get_source_label(),
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
         pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
+        ioIntensity=io_intensity,
         )
     )
     tmpFile.close()
@@ -399,6 +402,11 @@ class HTCondorSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
+        # executable file
+        try:
+            self.executableFile
+        except AttributeError:
+            self.executableFile = None
         # condor log directory
         try:
             self.logDir
@@ -667,6 +675,7 @@ class HTCondorSubmitter(PluginBase):
                         'workspec': workspec,
                         'to_submit': to_submit,
                         'template': sdf_template,
+                        'executable_file': self.executableFile,
                         'log_dir': self.logDir,
                         'log_subdir': log_subdir,
                         'n_core_per_node': n_core_per_node,
