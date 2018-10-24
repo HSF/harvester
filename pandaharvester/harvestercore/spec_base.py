@@ -33,6 +33,7 @@ class SpecBase(object):
     # to be set
     attributesWithTypes = ()
     zeroAttrs = ()
+    skipAttrsToSlim = ()
 
     # constructor
     def __init__(self):
@@ -94,23 +95,36 @@ class SpecBase(object):
         return len(self.changedAttrs) > 0
 
     # pack into attributes
-    def pack(self, values):
+    def pack(self, values, slim=False):
         if hasattr(values, '_asdict'):
             values = values._asdict()
         for attr in self.attributes:
-            val = values[attr]
-            if attr in self.serializedAttrs and val is not None:
-                try:
-                    val = json.loads(val, object_hook=as_python_object)
-                except JSONDecodeError:
-                    pass
+            if slim and attr in self.skipAttrsToSlim:
+                val = None
+            else:
+                val = values[attr]
+                if attr in self.serializedAttrs and val is not None:
+                    try:
+                        val = json.loads(val, object_hook=as_python_object)
+                    except JSONDecodeError:
+                        pass
             object.__setattr__(self, attr, val)
 
+    # set blob attribute
+    def set_blob_attribute(self, key, val):
+        try:
+            val = json.loads(val, object_hook=as_python_object)
+            object.__setattr__(self, key, val)
+        except JSONDecodeError:
+            pass
+
     # return column names for INSERT
-    def column_names(cls, prefix=None):
+    def column_names(cls, prefix=None, slim=False):
         ret = ""
         for attr in cls.attributesWithTypes:
             attr = attr.split(':')[0]
+            if slim and attr in cls.skipAttrsToSlim:
+                continue
             if prefix is None:
                 ret += "{0},".format(attr)
             else:

@@ -2289,7 +2289,7 @@ class DBProxy:
             return False
 
     # get jobs with workerID
-    def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False, only_running=False):
+    def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False, only_running=False, slim=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
@@ -2299,8 +2299,11 @@ class DBProxy:
             sqlP = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
             sqlP += "WHERE workerID=:workerID "
             # sql to get jobs
-            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(slim=slim), jobTableName)
             sqlJ += "WHERE PandaID=:PandaID "
+            # sql to get job parameters
+            sqlJJ = "SELECT jobParams FROM {0} ".format(jobTableName)
+            sqlJJ += "WHERE PandaID=:PandaID "
             # sql to lock job
             sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
             sqlL += "WHERE PandaID=:PandaID "
@@ -2322,10 +2325,19 @@ class DBProxy:
                 resJ = self.cur.fetchone()
                 # make job
                 jobSpec = JobSpec()
-                jobSpec.pack(resJ)
+                jobSpec.pack(resJ, slim=slim)
                 if only_running and jobSpec.subStatus not in ['running', 'submitted', 'queued', 'idle']:
                     continue
                 jobSpec.lockedBy = locked_by
+                # for old jobs without extractions
+                if jobSpec.jobParamsExtForLog is None:
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    self.execute(sqlJJ, varMap)
+                    resJJ = self.cur.fetchone()
+                    jobSpec.set_blob_attribute('jobParams', resJJ[0])
+                    jobSpec.get_output_file_attributes()
+                    jobSpec.get_logfile_info()
                 # lock job
                 if locked_by is not None:
                     varMap = dict()
@@ -2464,8 +2476,11 @@ class DBProxy:
             sqlL += "OR (stagerTime<:updateTimeLimit AND stagerLock IS NULL) "
             sqlL += ") "
             # sql to get job
-            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(slim=True), jobTableName)
             sqlJ += "WHERE PandaID=:PandaID "
+            # sql to get job parameters
+            sqlJJ = "SELECT jobParams FROM {0} ".format(jobTableName)
+            sqlJJ += "WHERE PandaID=:PandaID "
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
@@ -2512,9 +2527,18 @@ class DBProxy:
                     resJ = self.cur.fetchone()
                     # make job
                     jobSpec = JobSpec()
-                    jobSpec.pack(resJ)
+                    jobSpec.pack(resJ, slim=True)
                     jobSpec.stagerLock = locked_by
                     jobSpec.stagerTime = timeNow
+                    # for old jobs without extractions
+                    if jobSpec.jobParamsExtForLog is None:
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        self.execute(sqlJJ, varMap)
+                        resJJ = self.cur.fetchone()
+                        jobSpec.set_blob_attribute('jobParams', resJJ[0])
+                        jobSpec.get_output_file_attributes()
+                        jobSpec.get_logfile_info()
                     # get files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID

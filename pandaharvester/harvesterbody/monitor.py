@@ -349,7 +349,8 @@ class Monitor(AgentBase):
                     if workSpec.hasJob == 1 and jobSpecs is None:
                         jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                         None,
-                                                                        only_running=True)
+                                                                        only_running=True,
+                                                                        slim=True)
                     # pandaIDs for push
                     pandaIDsList.append(pandaIDs)
                     if len(eventsToUpdate) > 0:
@@ -358,7 +359,7 @@ class Monitor(AgentBase):
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
                 # lock workers for fifo
                 if from_fifo:
-                    # collect some attributes to be updated when wokers are locked
+                    # collect some attributes to be updated when workers are locked
                     worker_id_list = dict()
                     for workSpec, isChecked in zip(workSpecs, isCheckedList):
                         attrs = dict()
@@ -603,7 +604,8 @@ class Monitor(AgentBase):
                                     # post processing unless heartbeat is suppressed
                                     jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                                     None, True,
-                                                                                    only_running=True)
+                                                                                    only_running=True,
+                                                                                    slim=True)
                                     # post processing
                                     messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
                                 workSpec.post_processed()

@@ -54,7 +54,9 @@ class JobSpec(SpecBase):
                            'nRemainingEvents:integer',
                            'moreWorkers:integer',
                            'maxWorkersInTotal:integer',
-                           'nWorkersInTotal:integer'
+                           'nWorkersInTotal:integer',
+                           'jobParamsExtForOutput:blob',
+                           'jobParamsExtForLog:blob'
                            )
 
     # attributes initialized with 0
@@ -62,6 +64,9 @@ class JobSpec(SpecBase):
                  'submissionAttempts',
                  'nWorkersInTotal'
                  )
+
+    # attributes to skip when slim reading
+    skipAttrsToSlim = ('jobParams')
 
     # constructor
     def __init__(self):
@@ -126,6 +131,8 @@ class JobSpec(SpecBase):
             self.jobsetID = data['jobsetID']
         self.currentPriority = data['currentPriority']
         self.jobParams = data
+        self.jobParamsExtForOutput = self.get_output_file_attributes()
+        self.jobParamsExtForLog = self.get_logfile_info()
         if 'zipPerMB' in data:
             self.zipPerMB = data['zipPerMB']
 
@@ -321,6 +328,8 @@ class JobSpec(SpecBase):
 
     # get output file attributes
     def get_output_file_attributes(self):
+        if self.jobParamsExtForOutput is not None:
+            return self.jobParamsExtForOutput
         outFiles = {}
         lfns = self.jobParams['outFiles'].split(',')
         scopes = self.jobParams['scopeOut'].split(',')
@@ -333,13 +342,17 @@ class JobSpec(SpecBase):
             outFiles[lfn] = {'scope': scope,
                              'dataset': dataset,
                              'endpoint': endpoint}
+        self.jobParamsExtForOutput = outFiles
         return outFiles
 
     # get log file information
     def get_logfile_info(self):
+        if self.jobParamsExtForLog is not None:
+            return self.jobParamsExtForLog
         retMap = dict()
         retMap['lfn'] = self.jobParams['logFile']
         retMap['guid'] = self.jobParams['logGUID']
+        self.jobParamsExtForLog = retMap
         return retMap
 
     # set start time
