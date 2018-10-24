@@ -91,6 +91,9 @@ class WorkSpec(SpecBase):
                            'ioIntensity:integer'
                            )
 
+    # attributes to skip when slim reading
+    skipAttrsToSlim = ('workParams', 'workAttributes')
+
     # constructor
     def __init__(self):
         SpecBase.__init__(self)

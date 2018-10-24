@@ -3765,7 +3765,7 @@ class DBProxy:
             sqlW = "SELECT workerID FROM {0} WHERE PandaID=:PandaID ".format(jobWorkerTableName)
             sqlW += "ORDER BY workerID "
             # sql to get a worker
-            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
+            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(slim=True), workTableName)
             sqlG += "WHERE workerID=:workerID "
             # get workerIDs
             varMap = dict()
@@ -3779,7 +3779,7 @@ class DBProxy:
                 self.execute(sqlG, varMap)
                 res = self.cur.fetchone()
                 workSpec = WorkSpec()
-                workSpec.pack(res)
+                workSpec.pack(res, slim=True)
                 retList.append(workSpec)
             # commit
             if use_commit:
