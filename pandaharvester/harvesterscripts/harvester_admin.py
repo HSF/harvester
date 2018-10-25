@@ -66,21 +66,21 @@ def get_harvester_attributes():
     return attr_list
 
 def repopulate_fifos(*names):
-    agent_fifo_class_name_map = {
+    fifo_class_name_map = {
             'monitor': 'MonitorFIFO',
         }
     if len(names) > 0:
-        agent_fifo_class_name_list = [ agent_fifo_class_name_map.get(name) for name in names ]
+        fifo_class_name_list = [ fifo_class_name_map.get(name) for name in names ]
     else:
-        agent_fifo_class_name_list = agent_fifo_class_name_map.values()
-    for agent_fifo_class_name in agent_fifo_class_name_list:
-        if agent_fifo_class_name is None:
+        fifo_class_name_list = fifo_class_name_map.values()
+    for fifo_class_name in fifo_class_name_list:
+        if fifo_class_name is None:
             continue
-        fifo = getattr(harvesterFifos, agent_fifo_class_name)()
+        fifo = getattr(harvesterFifos, fifo_class_name)()
         if not fifo.enabled:
             continue
         fifo.populate(clear_fifo=True)
-        print('Repopulated {0} fifo'.format(fifo.agentName))
+        print('Repopulated {0} fifo'.format(fifo.titleName))
 
 
 # TODO

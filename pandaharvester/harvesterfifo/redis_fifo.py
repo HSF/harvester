@@ -35,61 +35,73 @@ class RedisFifo(PluginBase):
         elif hasattr(harvester_config.fifo, 'redisPassword'):
             _redis_conn_opt_dict['password'] = harvester_config.fifo.redisPassword
         self.qconn = redis.StrictRedis(**_redis_conn_opt_dict)
-        self.qname = '{0}-fifo'.format(self.agentName)
-        self.idp = '{0}-fifo_id-pool'.format(self.agentName)
-        self.titem = '{0}-fifo_temp-item'.format(self.agentName)
-        self.tscore = '{0}-fifo_temp-score'.format(self.agentName)
+        self.id_score = '{0}-fifo_id-score'.format(self.titleName)
+        self.id_item = '{0}-fifo_id-item'.format(self.titleName)
+        self.id_temp = '{0}-fifo_id-temp'.format(self.titleName)
 
     def __len__(self):
-        return self.qconn.zcard(self.qname)
+        return self.qconn.zcard(self.id_score)
 
-    def _peek(self):
-        return self.qconn.zrange(self.qname, 0, 0, withscores=True)[0]
+    def _peek(self, mode='first', id=None, skip_item=False):
+        if mode == 'first':
+            try:
+                id_gotten, score = self.qconn.zrange(self.id_score, 0, 0, withscores=True)[0]
+            except IndexError:
+                return None
+        elif mode == 'last':
+            try:
+                id_gotten, score = self.qconn.zrevrange(self.id_score, 0, 0, withscores=True)[0]
+            except IndexError:
+                return None
+        else:
+            resVal = self.qconn.sismember(self.id_temp, id)
+            if (mode == 'id' and not resVal) or (mode == 'idtemp' and resVal):
+                id_gotten = id
+                score = self.qconn.zscore(self.id_score, id)
+            else:
+                id_gotten, score = None, None
+        if skip_item:
+            item = None
+        else:
+            item = self.qconn.hget(self.id_item, id_gotten)
+        if id_gotten is None:
+            return None
+        else:
+            return (id_gotten, item, score)
 
-    def _peek_last(self):
-        return self.qconn.zrevrange(self.qname, 0, 0, withscores=True)[0]
-
-    def _pop(self, peek_method, timeout=None, protective=False):
+    def _pop(self, timeout=None, protective=False, mode='first'):
         keep_polling = True
         wait = 0.1
         max_wait = 2
         tries = 1
         last_attempt_timestamp = time.time()
-        item = None
+        id, item, score = None, None, None
         while keep_polling:
-            generate_id_attempt_timestamp = time.time()
-            while True:
-                id = random_id()
-                resVal = self.qconn.sadd(self.idp, id)
-                if resVal:
-                    break
-                elif time.time() > generate_id_attempt_timestamp + 60:
-                    raise Exception('Cannot generate unique id')
-                    return
-                time.sleep(0.0001)
-            try:
-                item, score = peek_method()
-            except IndexError:
+            peeked_tuple = self._peek(mode=mode)
+            if peeked_tuple is None:
                 time.sleep(wait)
                 wait = min(max_wait, tries/10.0 + wait)
             else:
-                if protective:
-                    with self.qconn.pipeline() as pipeline:
-                        pipeline.hset(self.titem, id, item)
-                        pipeline.hset(self.tscore, id, score)
-                        pipeline.zrem(self.qname, item)
-                        resVal = pipeline.execute()
-                    ret_pop = resVal[-1]
-                else:
-                    ret_pop = self.qconn.zrem(self.qname, item)
-                if ret_pop == 1:
+                id, item, score = peeked_tuple
+                while True:
+                    try:
+                        with self.qconn.pipeline() as pipeline:
+                            pipeline.watch(self.id_score, self.id_item, self.id_temp)
+                            pipeline.multi()
+                            if protective:
+                                pipeline.sadd(self.id_temp, id)
+                                pipeline.zrem(self.id_score, id)
+                            else:
+                                pipeline.srem(self.id_temp, id)
+                                pipeline.hdel(self.id_item, id)
+                                pipeline.zrem(self.id_score, id)
+                            resVal = pipeline.execute()
+                    except redis.WatchError:
+                        continue
+                    else:
+                        break
+                if resVal[-2] == 1 and resVal[-1] == 1:
                     break
-                elif protective:
-                    with self.qconn.pipeline() as pipeline:
-                        pipeline.hdel(self.titem, id)
-                        pipeline.hdel(self.tscore, id)
-                        pipeline.srem(self.idp, id)
-                        resVal = pipeline.execute()
             tries += 1
             now_timestamp = time.time()
             if timeout is not None and (now_timestamp - last_attempt_timestamp) >= timeout:
@@ -102,80 +114,127 @@ class RedisFifo(PluginBase):
 
     # enqueue with priority score
     def put(self, item, score):
-        return self.qconn.zadd(self.qname, score, item)
+        generate_id_attempt_timestamp = time.time()
+        while True:
+            id = random_id()
+            resVal = None
+            with self.qconn.pipeline() as pipeline:
+                while True:
+                    try:
+                        pipeline.watch(self.id_score, self.id_item)
+                        pipeline.multi()
+                        pipeline.execute_command('ZADD', self.id_score, 'NX', score, id)
+                        pipeline.hsetnx(self.id_item, id, item)
+                        resVal = pipeline.execute()
+                    except redis.WatchError:
+                        continue
+                    else:
+                        break
+            if resVal is not None:
+                if resVal[-2] == 1 and resVal[-1] == 1:
+                    return True
+            if time.time() > generate_id_attempt_timestamp + 60:
+                raise Exception('Cannot generate unique id')
+                return False
+            time.sleep(0.0001)
+        return False
+
+    # enqueue by id
+    def putbyid(self, id, item, score):
+        with self.qconn.pipeline() as pipeline:
+            while True:
+                try:
+                    pipeline.watch(self.id_score, self.id_item)
+                    pipeline.multi()
+                    pipeline.execute_command('ZADD', self.id_score, 'NX', score, id)
+                    pipeline.hsetnx(self.id_item, id, item)
+                    resVal = pipeline.execute()
+                except redis.WatchError:
+                    continue
+                else:
+                    break
+        if resVal is not None:
+            if resVal[-2] == 1 and resVal[-1] == 1:
+                return True
+        return False
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
-        return self._pop(self._peek, timeout, protective)
+        return self._pop(timeout=timeout, protective=protective, mode='first')
 
     # dequeue the last object
-    def getlast(self, timeout=None):
-        return self._pop(self._peek_last, timeout)
+    def getlast(self, timeout=None, protective=False):
+        return self._pop(timeout=timeout, protective=protective, mode='last')
 
-    # get tuple of (item, score) of the first object without dequeuing it
-    def peek(self):
-        try:
-            item, score = self._peek()
-            return item, score
-        except IndexError:
-            return None, None
+    # get tuple of (id, item, score) of the first object without dequeuing it
+    def peek(self, skip_item=False):
+        return self._peek(skip_item=skip_item)
+
+    # get tuple of (id, item, score) of the last object without dequeuing it
+    def peeklast(self, skip_item=False):
+        return self._peek(mode='last', skip_item=skip_item)
+
+    # get tuple of (id, item, score) of object by id without dequeuing it
+    def peekbyid(self, id, temporary=False, skip_item=False):
+        if temporary:
+            return self._peek(mode='idtemp', id=id, skip_item=skip_item)
+        else:
+            return self._peek(mode='id', id=id, skip_item=skip_item)
 
     # drop all objects in queue
     def clear(self):
         with self.qconn.pipeline() as pipeline:
             while True:
                 try:
-                    pipeline.watch(self.qname, self.idp, self.titem, self.tscore)
+                    pipeline.watch(self.id_score, self.id_item, self.id_temp)
                     pipeline.multi()
-                    pipeline.delete(self.qname)
-                    pipeline.delete(self.idp)
-                    pipeline.delete(self.titem)
-                    pipeline.delete(self.tscore)
+                    pipeline.delete(self.id_score)
+                    pipeline.delete(self.id_item)
+                    pipeline.delete(self.id_temp)
                     pipeline.execute()
                 except redis.WatchError:
                     continue
                 else:
                     break
 
-    # delete an object by list of id
+    # delete objects by list of id
     def delete(self, ids):
         if isinstance(ids, (list, tuple)):
             with self.qconn.pipeline() as pipeline:
                 while True:
                     try:
-                        pipeline.watch(self.qname, self.idp, self.titem, self.tscore)
-                        item_list = pipeline.hmget(self.titem, ids)
+                        pipeline.watch(self.id_score, self.id_item, self.id_temp)
                         pipeline.multi()
-                        pipeline.hdel(self.tscore, *ids)
-                        pipeline.hdel(self.titem, *ids)
-                        pipeline.zrem(self.qname, *item_list)
-                        pipeline.srem(self.idp, *ids)
-                        pipeline.execute()
+                        pipeline.srem(self.id_temp, *ids)
+                        pipeline.hdel(self.id_item, *ids)
+                        pipeline.zrem(self.id_score, *ids)
+                        resVal = pipeline.execute()
                     except redis.WatchError:
                         continue
                     else:
-                        break
+                        n_row = resVal[-1]
+                        return n_row
         else:
             raise TypeError('ids should be list or tuple')
 
-    # Move all object in temporary space to the queue
-    def restore(self):
+    # Move objects in temporary space to the queue
+    def restore(self, ids):
         with self.qconn.pipeline() as pipeline:
             while True:
                 now_timestamp = time.time()
                 try:
-                    pipeline.watch(self.qname, self.idp, self.titem, self.tscore)
-                    temp_score_dict = pipeline.hgetall(self.tscore)
-                    item_score_list = []
-                    for id, item in pipeline.hscan_iter(self.titem):
-                        item_score_list.extend([float(temp_score_dict.get(id, now_timestamp)), item])
-                    if len(item_score_list) > 0:
+                    pipeline.watch(self.id_score, self.id_item, self.id_temp)
+                    if ids is None:
                         pipeline.multi()
-                        pipeline.zadd(self.qname, *item_score_list)
-                        pipeline.delete(self.titem)
-                        pipeline.delete(self.tscore)
-                        pipeline.delete(self.idp)
+                        pipeline.delete(self.id_temp)
                         pipeline.execute()
+                    elif isinstance(ids, (list, tuple)):
+                        if len(ids) > 0:
+                            pipeline.multi()
+                            pipeline.srem(self.id_temp, *ids)
+                            pipeline.execute()
+                    else:
+                        raise TypeError('ids should be list or tuple or None')
                 except redis.WatchError:
                     continue
                 else:

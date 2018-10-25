@@ -14,7 +14,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
         BaseWorkerMaker.__init__(self, **kwarg)
-        self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime']
+        self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
         self.rt_mapper = ResourceTypeMapper()
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
@@ -88,17 +88,20 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             minRamCount = 0
             maxDiskCount = 0
             maxWalltime = 0
+            ioIntensity = 0
             for jobSpec in jobspec_list:
 
                 job_corecount, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
                 nCore += job_corecount
                 minRamCount += job_memory
-
                 try:
                     maxDiskCount += jobSpec.jobParams['maxDiskCount']
                 except Exception:
                     pass
-
+                try:
+                    ioIntensity += jobSpec.jobParams['ioIntensity']
+                except Exception:
+                    pass
                 try:
                     if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
                         if hasattr(queue_config, 'maxWalltime'):
@@ -119,6 +122,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 workSpec.maxDiskCount = maxDiskCount
             if maxWalltime > 0 and 'maxWalltime' in self.jobAttributesToUse:
                 workSpec.maxWalltime = maxWalltime
+            if ioIntensity > 0 and 'ioIntensity' in self.jobAttributesToUse:
+                workSpec.ioIntensity = ioIntensity
 
         # TODO: this needs to be improved with real resource types
         if resource_type and resource_type != 'ANY':

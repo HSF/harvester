@@ -6,6 +6,7 @@ output = {logDir}/grid.$(Cluster).$(Process).out
 error = {logDir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = /tmp/userproxy-harvester-twgridpil.pem
++harvesterID = "{harvesterID}"
 
 grid_resource = condor {ceHostname} {ceEndpoint}
 remote_initialdir = {accessPoint}

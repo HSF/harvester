@@ -1,4 +1,4 @@
-executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
+executable = {executableFile}
 arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} {pilotResourceTypeOption}
 initialdir = {accessPoint}
 universe = grid
@@ -8,6 +8,7 @@ error = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = {x509UserProxy}
 environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID}"
++harvesterID = "{harvesterID}"
 
 grid_resource = nordugrid {ceHostname}
 nordugrid_rsl = (queue = {ceQueueName})(runtimeenvironment = APPS/HEP/ATLAS-SITE-LCG)(runtimeenvironment = ENV/PROXY)(jobname = arc_pilot)(count = {nCoreTotal})(countpernode = {nCoreTotal})(memory = {requestRamPerCore})(walltime = {requestWalltime})(cputime = {requestCputime})(environment = (PANDA_JSID harvester-{harvesterID})(HARVESTER_ID {harvesterID})(HARVESTER_WORKER_ID {workerID})(GTAG {gtag}))
@@ -22,6 +23,7 @@ nordugrid_rsl = (queue = {ceQueueName})(runtimeenvironment = APPS/HEP/ATLAS-SITE
 #+remote_RequestMemory = {requestRam}
 #+remote_RequestDisk = {requestDisk}
 #+remote_JobMaxVacateTime = {requestWalltime}
++ioIntensity = {ioIntensity}
 
 #+remote_Requirements = JobRunCount == 0
 periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)

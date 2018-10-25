@@ -10,4 +10,5 @@ output = {logDir}/vanilla.$(Cluster).$(Process).$(Node).out
 error = {logDir}/vanilla.$(Cluster).$(Process).$(Node).err
 should_transfer_files = NO
 when_to_transfer_output = ON_EXIT
++harvesterID = "{harvesterID}"
 queue 1

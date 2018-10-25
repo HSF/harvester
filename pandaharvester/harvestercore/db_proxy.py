@@ -1945,9 +1945,12 @@ class DBProxy:
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlFI += FileSpec.bind_values_expression()
             # sql to get pending files
-            sqlFP = "SELECT fileID,fsize,lfn,provenanceID FROM {0} ".format(fileTableName)
+            sqlFP = "SELECT fsize,fileID,lfn FROM {0} ".format(fileTableName)
             sqlFP += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
-            sqlFP += "ORDER BY provenanceID "
+            # sql to get provenanceID,workerID for pending files
+            sqlPW = "SELECT SUM(fsize),provenanceID,workerID FROM {0} ".format(fileTableName)
+            sqlPW += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
+            sqlPW += "GROUP BY provenanceID,workerID "
             # sql to update pending files
             sqlFU = "UPDATE {0} ".format(fileTableName)
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
@@ -1971,11 +1974,9 @@ class DBProxy:
             sqlIR = "INSERT INTO {0} ({1}) ".format(jobWorkerTableName, JobWorkerRelationSpec.column_names())
             sqlIR += JobWorkerRelationSpec.bind_values_expression()
             # count number of workers
-            sqlNW = "SELECT COUNT(*) cnt FROM ("
-            sqlNW += "SELECT DISTINCT t.workerID FROM {0} t, {1} w ".format(jobWorkerTableName, workTableName)
+            sqlNW = "SELECT DISTINCT t.workerID FROM {0} t, {1} w ".format(jobWorkerTableName, workTableName)
             sqlNW += "WHERE t.PandaID=:PandaID AND w.workerID=t.workerID "
             sqlNW += "AND w.status IN (:st_submitted,:st_running,:st_idle) "
-            sqlNW += ") "
             # update job
             if jobspec_list is not None:
                 if len(workspec_list) > 0 and workspec_list[0].mapType == WorkSpec.MT_MultiWorkers:
@@ -1995,6 +1996,19 @@ class DBProxy:
                     if tmpJobStatus == ['cancelled']:
                         pass
                     else:
+                        # get nWorkers
+                        activeWorkers = set()
+                        if isMultiWorkers:
+                            varMap = dict()
+                            varMap[':PandaID'] = jobSpec.PandaID
+                            varMap[':st_submitted'] = WorkSpec.ST_submitted
+                            varMap[':st_running'] = WorkSpec.ST_running
+                            varMap[':st_idle'] = WorkSpec.ST_idle
+                            self.execute(sqlNW, varMap)
+                            resNW = self.cur.fetchall()
+                            for tmpWorkerID, in resNW:
+                                activeWorkers.add(tmpWorkerID)
+                            jobSpec.nWorkers = len(activeWorkers)
                         # get all LFNs
                         allLFNs = set()
                         varMap = dict()
@@ -2062,34 +2076,57 @@ class DBProxy:
                             tmpLog.debug('inserted {0} files'.format(nFiles))
                         # check pending files
                         if jobSpec.zipPerMB is not None and \
-                                (nFiles > 0 or jobSpec.subStatus == 'to_transfer') and \
                                 not (jobSpec.zipPerMB == 0 and jobSpec.subStatus != 'to_transfer'):
+                            # get workerID and provenanceID of pending files
+                            zippedFileIDs = []
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
                             varMap[':status'] = 'pending'
                             varMap[':type'] = 'input'
-                            self.execute(sqlFP, varMap)
-                            resFP = self.cur.fetchall()
-                            tmpLog.debug('got {0} pending files'.format(len(resFP)))
-                            # make subsets
-                            subTotalSize = 0
-                            subFileIDs = []
-                            zippedFileIDs = []
-                            prevProvenanceID = None
-                            for tmpFileID, tmpFsize, tmpLFN, tmpProvenanceID in resFP:
-                                if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
-                                        and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024
-                                             or tmpProvenanceID != prevProvenanceID):
-                                    if jobSpec.subStatus == 'to_transfer' or tmpProvenanceID == prevProvenanceID:
-                                        zippedFileIDs.append(subFileIDs)
-                                    subFileIDs = []
+                            self.execute(sqlPW, varMap)
+                            resPW = self.cur.fetchall()
+                            for subTotalSize, tmpProvenanceID, tmpWorkerID in resPW:
+                                if jobSpec.subStatus == 'to_transfer' \
+                                        or (jobSpec.zipPerMB > 0 and subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
+                                        or (tmpWorkerID is not None and tmpWorkerID not in activeWorkers):
+                                    sqlFPx = sqlFP
+                                    varMap = dict()
+                                    varMap[':PandaID'] = jobSpec.PandaID
+                                    varMap[':status'] = 'pending'
+                                    varMap[':type'] = 'input'
+                                    if tmpProvenanceID is None:
+                                        sqlFPx += 'AND provenanceID IS NULL '
+                                    else:
+                                        varMap[':provenanceID'] = tmpProvenanceID
+                                        sqlFPx += 'AND provenanceID=:provenanceID '
+                                    if tmpWorkerID is None:
+                                        sqlFPx += 'AND tmpWorkerID IS NULL '
+                                    else:
+                                        varMap[':workerID'] = tmpWorkerID
+                                        sqlFPx += 'AND workerID=:workerID'
+                                    # get pending files
+                                    self.execute(sqlFPx, varMap)
+                                    resFP = self.cur.fetchall()
+                                    tmpLog.debug('got {0} pending files for workerID={1} provenanceID={2}'.format(
+                                        len(resFP),
+                                        tmpWorkerID,
+                                        tmpProvenanceID))
+                                    # make subsets
                                     subTotalSize = 0
-                                prevProvenanceID = tmpProvenanceID
-                                subTotalSize += tmpFsize
-                                subFileIDs.append((tmpFileID, tmpLFN))
-                            if (jobSpec.subStatus == 'to_transfer' or subTotalSize > jobSpec.zipPerMB * 1024 * 1024) \
-                                    and len(subFileIDs) > 0:
-                                zippedFileIDs.append(subFileIDs)
+                                    subFileIDs = []
+                                    for tmpFileID, tmpFsize, tmpLFN in resFP:
+                                        if jobSpec.zipPerMB > 0 and subTotalSize > 0 \
+                                                and (subTotalSize + tmpFsize > jobSpec.zipPerMB * 1024 * 1024):
+                                            zippedFileIDs.append(subFileIDs)
+                                            subFileIDs = []
+                                            subTotalSize = 0
+                                        subTotalSize += tmpFsize
+                                        subFileIDs.append((tmpFileID, tmpLFN))
+                                    if (jobSpec.subStatus == 'to_transfer'
+                                            or (jobSpec.zipPerMB > 0 and subTotalSize > jobSpec.zipPerMB * 1024 * 1024)
+                                            or (tmpWorkerID is not None and tmpWorkerID not in activeWorkers)) \
+                                            and len(subFileIDs) > 0:
+                                        zippedFileIDs.append(subFileIDs)
                             # make zip files
                             for subFileIDs in zippedFileIDs:
                                 # insert zip file
@@ -2170,17 +2207,6 @@ class DBProxy:
                         if len(varMapsEU) > 0:
                             self.executemany(sqlEU, varMapsEU)
                             tmpLog.debug('updated {0} event'.format(len(varMapsEU)))
-                        # get nWorkers
-                        if isMultiWorkers:
-                            varMap = dict()
-                            varMap[':PandaID'] = jobSpec.PandaID
-                            varMap[':st_submitted'] = WorkSpec.ST_submitted
-                            varMap[':st_running'] = WorkSpec.ST_running
-                            varMap[':st_idle'] = WorkSpec.ST_idle
-                            self.execute(sqlNW, varMap)
-                            resNW = self.cur.fetchone()
-                            if resNW is not None:
-                                jobSpec.nWorkers, = resNW
                         # update job
                         varMap = jobSpec.values_map(only_changed=True)
                         if len(varMap) > 0:
@@ -2263,7 +2289,7 @@ class DBProxy:
             return False
 
     # get jobs with workerID
-    def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False, only_running=False):
+    def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False, only_running=False, slim=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
@@ -2273,8 +2299,11 @@ class DBProxy:
             sqlP = "SELECT PandaID FROM {0} ".format(jobWorkerTableName)
             sqlP += "WHERE workerID=:workerID "
             # sql to get jobs
-            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(slim=slim), jobTableName)
             sqlJ += "WHERE PandaID=:PandaID "
+            # sql to get job parameters
+            sqlJJ = "SELECT jobParams FROM {0} ".format(jobTableName)
+            sqlJJ += "WHERE PandaID=:PandaID "
             # sql to lock job
             sqlL = "UPDATE {0} SET modificationTime=:timeNow,lockedBy=:lockedBy ".format(jobTableName)
             sqlL += "WHERE PandaID=:PandaID "
@@ -2296,10 +2325,19 @@ class DBProxy:
                 resJ = self.cur.fetchone()
                 # make job
                 jobSpec = JobSpec()
-                jobSpec.pack(resJ)
-                if only_running and jobSpec.subStatus not in ['running', 'submitted', 'queued']:
+                jobSpec.pack(resJ, slim=slim)
+                if only_running and jobSpec.subStatus not in ['running', 'submitted', 'queued', 'idle']:
                     continue
                 jobSpec.lockedBy = locked_by
+                # for old jobs without extractions
+                if jobSpec.jobParamsExtForLog is None:
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    self.execute(sqlJJ, varMap)
+                    resJJ = self.cur.fetchone()
+                    jobSpec.set_blob_attribute('jobParams', resJJ[0])
+                    jobSpec.get_output_file_attributes()
+                    jobSpec.get_logfile_info()
                 # lock job
                 if locked_by is not None:
                     varMap = dict()
@@ -2438,8 +2476,11 @@ class DBProxy:
             sqlL += "OR (stagerTime<:updateTimeLimit AND stagerLock IS NULL) "
             sqlL += ") "
             # sql to get job
-            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(), jobTableName)
+            sqlJ = "SELECT {0} FROM {1} ".format(JobSpec.column_names(slim=True), jobTableName)
             sqlJ += "WHERE PandaID=:PandaID "
+            # sql to get job parameters
+            sqlJJ = "SELECT jobParams FROM {0} ".format(jobTableName)
+            sqlJJ += "WHERE PandaID=:PandaID "
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
@@ -2486,9 +2527,18 @@ class DBProxy:
                     resJ = self.cur.fetchone()
                     # make job
                     jobSpec = JobSpec()
-                    jobSpec.pack(resJ)
+                    jobSpec.pack(resJ, slim=True)
                     jobSpec.stagerLock = locked_by
                     jobSpec.stagerTime = timeNow
+                    # for old jobs without extractions
+                    if jobSpec.jobParamsExtForLog is None:
+                        varMap = dict()
+                        varMap[':PandaID'] = pandaID
+                        self.execute(sqlJJ, varMap)
+                        resJJ = self.cur.fetchone()
+                        jobSpec.set_blob_attribute('jobParams', resJJ[0])
+                        jobSpec.get_output_file_attributes()
+                        jobSpec.get_logfile_info()
                     # get files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
@@ -3715,7 +3765,7 @@ class DBProxy:
             sqlW = "SELECT workerID FROM {0} WHERE PandaID=:PandaID ".format(jobWorkerTableName)
             sqlW += "ORDER BY workerID "
             # sql to get a worker
-            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(), workTableName)
+            sqlG = "SELECT {0} FROM {1} ".format(WorkSpec.column_names(slim=True), workTableName)
             sqlG += "WHERE workerID=:workerID "
             # get workerIDs
             varMap = dict()
@@ -3729,7 +3779,7 @@ class DBProxy:
                 self.execute(sqlG, varMap)
                 res = self.cur.fetchone()
                 workSpec = WorkSpec()
-                workSpec.pack(res)
+                workSpec.pack(res, slim=True)
                 retList.append(workSpec)
             # commit
             if use_commit:
@@ -4256,12 +4306,63 @@ class DBProxy:
                     retMap[computingElement] = {
                         'running': 0,
                         'submitted': 0,
-                        'to_submit': 0
                     }
                 retMap[computingElement][workerStatus] = cnt
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # get worker CE backend throughput
+    def get_worker_ce_backend_throughput(self, site_name, time_window):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_ce_backend_throughput')
+            tmpLog.debug('start')
+            # get worker CE throughput
+            sqlW = "SELECT wt.computingElement,wt.status,COUNT(*) cnt "
+            sqlW += "FROM {0} wt ".format(workTableName)
+            sqlW += "WHERE wt.computingSite=:siteName "
+            sqlW += "AND wt.status IN (:st1,:st2,:st3) "
+            sqlW += "AND wt.creationtime < :timeWindowMiddle "
+            sqlW += "AND (wt.starttime is NULL OR "
+            sqlW += "(wt.starttime >= :timeWindowStart AND wt.starttime < :timeWindowEnd) ) "
+            sqlW += "GROUP BY wt.status,wt.computingElement "
+            # time window start and end
+            timeWindowEnd = datetime.datetime.utcnow()
+            timeWindowStart = timeWindowEnd - datetime.timedelta(seconds=time_window)
+            timeWindowMiddle = timeWindowEnd - datetime.timedelta(seconds=time_window/2)
+            # get worker CE throughput
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            varMap[':st1'] = 'submitted'
+            varMap[':st2'] = 'running'
+            varMap[':st3'] = 'finished'
+            varMap[':timeWindowStart'] = timeWindowStart
+            varMap[':timeWindowEnd'] = timeWindowEnd
+            varMap[':timeWindowMiddle'] = timeWindowMiddle
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            retMap = dict()
+            for computingElement, workerStatus, cnt in resW:
+                if computingElement not in retMap:
+                    retMap[computingElement] = {
+                        'submitted': 0,
+                        'running': 0,
+                        'finished': 0,
+                    }
+                retMap[computingElement][workerStatus] = cnt
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} with time_window={1} for site {2}'.format(
+                                            str(retMap), time_window, site_name))
             return retMap
         except Exception:
             # roll back
