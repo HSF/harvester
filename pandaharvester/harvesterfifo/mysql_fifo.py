@@ -135,7 +135,7 @@ class MysqlFifo(PluginBase):
                 'CREATE TABLE IF NOT EXISTS {table_name} '
                 '('
                 '  id BIGINT NOT NULL AUTO_INCREMENT,'
-                '  item MEDIUMBLOB,'
+                '  item LONGBLOB,'
                 '  score DOUBLE,'
                 '  temporary TINYINT DEFAULT 0,'
                 '  PRIMARY KEY (id) '
