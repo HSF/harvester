@@ -87,7 +87,7 @@ class Apfmon:
 
     def create_labels(self):
         """
-        Creates or updates a collection of labels (=panda queues)
+        Creates or updates a collection of labels (=panda queue+CE)
         """
         start_time = time.time()
         tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
@@ -132,6 +132,45 @@ class Apfmon:
         except:
             tmp_log.error('Excepted with: {0}'.format(traceback.format_exc()))
 
+    def update_label(self, site, msg):
+        """
+        Updates a label (=panda queue+CE)
+        """
+        start_time = time.time()
+        tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
+                                         method_name='create_label')
+
+        if not self.__active:
+            tmp_log.debug('APFMon reporting not enabled')
+            return
+
+        try:
+            tmp_log.debug('start')
+
+            # get the active queues from the config mapper
+            all_sites = self.queue_config_mapper.get_active_queues().keys()
+            panda_queues_dict = PandaQueuesDict()
+
+            site_info = panda_queues_dict.get(site, dict())
+
+            for queue in site_info['queues']:
+                try:
+                    ce = queue['ce_endpoint'].split('.')[0]
+                    label_data = {'status': msg}
+                    label = '{0}-{1}'.format(site, ce)
+                    label_id = '{0}:{1}'.format(self.harvester_id, label)
+                    url = '{0}/labels/{1}'.format(self.base_url, label_id)
+
+                    r = requests.post(url, data=label_data, timeout=self.__label_timeout)
+                    tmp_log.debug('label update for {0} ended with {1} {2}'.format(label, r.status_code, r.text))
+                except:
+                    tmp_log.error('Excepted for site {0} with: {1}'.format(label, traceback.format_exc()))
+
+            end_time = time.time()
+            tmp_log.debug('done (took {0})'.format(end_time - start_time))
+        except:
+            tmp_log.error('Excepted with: {0}'.format(traceback.format_exc()))
+
     def create_workers(self, worker_spec_list):
         """
         Creates a worker
@@ -165,8 +204,7 @@ class Apfmon:
                     stdout_url = work_attribs['stdOut']
                     stderr_url = work_attribs['stdErr']
                     log_url = work_attribs['batchLog']
-
-                    jdl_url = '' # TODO: publish the jdl files
+                    jdl_url = '{0}.jdl'.format(log_url[:-4])
 
                     apfmon_worker = {'cid': batch_id,
                                      'factory': factory,
