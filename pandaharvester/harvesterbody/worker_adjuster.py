@@ -144,7 +144,7 @@ class WorkerAdjuster:
                 if not apf_msg:
                     apf_msg = 'Attempting to submit new workers (across all CEs in the queue): {0}'.format(dyn_num_workers[queueName])
 
-                self.apf_mon.update_label(apf_msg)
+                self.apf_mon.update_label(queueName, apf_msg)
 
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))
