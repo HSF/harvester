@@ -142,7 +142,7 @@ class WorkerAdjuster:
                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
 
                 if not apf_msg:
-                    apf_msg = 'Attempting to submit new workers: {0}'.format(dyn_num_workers[queueName])
+                    apf_msg = 'Attempting to submit new workers (across all CEs in the queue): {0}'.format(dyn_num_workers[queueName])
 
                 self.apf_mon.update_label(apf_msg)
 
