@@ -123,7 +123,7 @@ class Apfmon:
                                            'factory': self.harvester_id})
                     except:
                         tmp_log.error('Excepted for site {0} with: {1}'.format(site, traceback.format_exc()))
-
+                        continue
 
                 payload = json.dumps(labels)
 
