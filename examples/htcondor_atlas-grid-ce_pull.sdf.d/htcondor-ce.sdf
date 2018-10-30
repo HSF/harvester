@@ -1,4 +1,4 @@
-executable = /data/atlpan/harvester_common/runpilot3-wrapper.sh
+executable = {executableFile}
 arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} {pilotResourceTypeOption}
 initialdir = {accessPoint}
 universe = grid
@@ -8,6 +8,7 @@ error = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).err
 transfer_executable = True
 x509userproxy = {x509UserProxy}
 environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} GTAG={gtag}"
++harvesterID = "{harvesterID}"
 
 grid_resource = condor {ceHostname} {ceEndpoint}
 +remote_jobuniverse = 5
@@ -18,6 +19,8 @@ grid_resource = condor {ceHostname} {ceEndpoint}
 #+remote_RequestMemory = {requestRam}
 #+remote_RequestDisk = {requestDisk}
 #+remote_JobMaxVacateTime = {requestWalltime}
++ioIntensity = {ioIntensity}
+
 +xcount = {nCoreTotal}
 +maxMemory = {requestRam}
 +remote_queue = "{ceQueueName}"
@@ -27,5 +30,7 @@ grid_resource = condor {ceHostname} {ceEndpoint}
 periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)
 #+remote_PeriodicHold = ( JobStatus==1 && gridjobstatus=?=UNDEFINED && CurrentTime-EnteredCurrentStatus>3600 ) || ( (JobRunCount =!= UNDEFINED && JobRunCount > 0) ) || ( JobStatus == 2 && CurrentTime-EnteredCurrentStatus>604800 )
 +remote_PeriodicRemove = (JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 3600) || (JobStatus == 1 && globusstatus =!= 1 && (CurrentTime - EnteredCurrentStatus) > 86400)
+
++sdfPath = "{sdfPath}"
 
 queue 1

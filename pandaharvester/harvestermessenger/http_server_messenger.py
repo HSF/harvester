@@ -2,6 +2,12 @@ import json
 import os
 import os.path
 import threading
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError
+
 from queue import Queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
 # try:
@@ -153,7 +159,7 @@ class HttpHandler(BaseHTTPRequestHandler):
                                         _message = json.load(fileHandle)
                                         message = json.dumps(_message)
                                         self.send_header('Content-Type', 'application/json')
-                                    except json.decoder.JSONDecodeError:
+                                    except JSONDecodeError:
                                         _f_qs = open(filePath).read()
                                         # _message = dict(parse_qsl(_f_qs, keep_blank_values=True))
                                         message = _f_qs

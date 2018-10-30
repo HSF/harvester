@@ -223,7 +223,7 @@ class Monitor(AgentBase):
                         try:
                             workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue_to_head
                             if workSpecsToEnqueueToHead:
-                                score = fifoCheckInterval - timeNow_timestamp
+                                score = fifoCheckInterval + timeNow_timestamp - 2**32
                                 monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
                                 n_chunk_put += 1
                                 mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
@@ -296,10 +296,9 @@ class Monitor(AgentBase):
             iWorker = 0
             for workSpecs in workSpecsList:
                 jobSpecs = None
-                filesToStageOut = dict()
                 pandaIDsList = []
                 eventsToUpdateList = []
-                filesToStageOutList = []
+                filesToStageOutList = dict()
                 isCheckedList = []
                 mapType = workSpecs[0].mapType
                 # loop over workSpecs
@@ -352,13 +351,14 @@ class Monitor(AgentBase):
                     if workSpec.hasJob == 1 and jobSpecs is None:
                         jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                         None,
-                                                                        only_running=True)
+                                                                        only_running=True,
+                                                                        slim=True)
                     # pandaIDs for push
                     pandaIDsList.append(pandaIDs)
                     if len(eventsToUpdate) > 0:
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
-                        filesToStageOutList.append(filesToStageOut)
+                        filesToStageOutList[workSpec.workerID] = filesToStageOut
 
                     # update APFMon about the change
                     # TODO: define the conditions under which a worker should be updated from monitor agent
@@ -368,7 +368,7 @@ class Monitor(AgentBase):
 
                 # lock workers for fifo
                 if from_fifo:
-                    # collect some attributes to be updated when wokers are locked
+                    # collect some attributes to be updated when workers are locked
                     worker_id_list = dict()
                     for workSpec, isChecked in zip(workSpecs, isCheckedList):
                         attrs = dict()
@@ -613,7 +613,8 @@ class Monitor(AgentBase):
                                     # post processing unless heartbeat is suppressed
                                     jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                                     None, True,
-                                                                                    only_running=True)
+                                                                                    only_running=True,
+                                                                                    slim=True)
                                     # post processing
                                     messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
                                 workSpec.post_processed()

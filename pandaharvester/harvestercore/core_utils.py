@@ -295,7 +295,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                     jobSpec.set_one_attribute('batchID', workSpec.batchID)
             # add files
             outFileAttrs = jobSpec.get_output_file_attributes()
-            for files_to_stage_out in files_to_stage_out_list:
+            for tmpWorkerID, files_to_stage_out in iteritems(files_to_stage_out_list):
                 if jobSpec.PandaID in files_to_stage_out:
                     for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
                         for fileAtters in fileAttersList:
@@ -307,6 +307,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                             fileSpec.fsize = fileAtters['fsize']
                             fileSpec.fileType = fileAtters['type']
                             fileSpec.fileAttributes = fileAtters
+                            fileSpec.workerID = tmpWorkerID
                             if 'isZip' in fileAtters:
                                 fileSpec.isZip = fileAtters['isZip']
                             if 'chksum' in fileAtters:
@@ -384,7 +385,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # jobSpec.set_attributes(workAttributes)
         # add files
         outFileAttrs = jobSpec.get_output_file_attributes()
-        for files_to_stage_out in files_to_stage_out_list:
+        for tmpWorkerID, files_to_stage_out in iteritems(files_to_stage_out_list):
             if jobSpec.PandaID in files_to_stage_out:
                 for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
                     for fileAtters in fileAttersList:
@@ -396,6 +397,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                         fileSpec.fsize = fileAtters['fsize']
                         fileSpec.fileType = fileAtters['type']
                         fileSpec.fileAttributes = fileAtters
+                        fileSpec.workerID = tmpWorkerID
                         if 'isZip' in fileAtters:
                             fileSpec.isZip = fileAtters['isZip']
                         if 'chksum' in fileAtters:

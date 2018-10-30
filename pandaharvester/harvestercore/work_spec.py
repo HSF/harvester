@@ -87,8 +87,12 @@ class WorkSpec(SpecBase):
                            'submissionHost:text',
                            'configID:integer / index',
                            'syncLevel:integer',
-                           'checkTime:timestamp'
+                           'checkTime:timestamp',
+                           'ioIntensity:integer'
                            )
+
+    # attributes to skip when slim reading
+    skipAttrsToSlim = ('workParams', 'workAttributes')
 
     # constructor
     def __init__(self):
@@ -233,7 +237,8 @@ class WorkSpec(SpecBase):
                      'diagMessage',
                      'nJobs',
                      'computingElement',
-                     'syncLevel'
+                     'syncLevel',
+                     'submissionHost'
                      ]:
             val = getattr(self, attr)
             if val is not None:
