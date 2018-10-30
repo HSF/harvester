@@ -31,20 +31,23 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
     def create_job_from_yaml(self, yaml_content, work_spec, cert):
         panda_queues_dict = PandaQueuesDict()
+        queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
+        queue_dict = panda_queues_dict.get(queue_name, {})
+
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
 
         for i in range(len(yaml_content['spec']['template']['spec']['containers'])):
             container_env = yaml_content['spec']['template']['spec']['containers'][i]
-            if 'requests' not in container_env['resources']:
-                container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'Mi', 'cpu': str(work_spec.nCore}
-            else:
-                container_env['resources']['requests']['memory'] = str(work_spec.minRamCount) + 'Mi'
-                container_env['resources']['requests']['cpu'] = str(work_spec.nCore)
+            if 'resources' not in container_env:
+                container_env['resources'] = {}
+            container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'M', 'cpu': str(work_spec.nCore)}
+            container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxmemory', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
+                if queue_dict.get('corecount', 1) else '1'}
 
             if 'env' not in container_env:
                 container_env['env'] = []
             container_env['env'].append({'name': 'computingSite', 'value': work_spec.computingSite})
-            container_env['env'].append({'name': 'pandaQueueName', 'value': panda_queues_dict.get_panda_queue_name(work_spec.computingSite)})
+            container_env['env'].append({'name': 'pandaQueueName', 'value': queue_name})
             container_env['env'].append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
             container_env['env'].append({'name': 'workerID', 'value': str(work_spec.workerID)})
             container_env['env'].append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
