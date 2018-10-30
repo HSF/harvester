@@ -112,6 +112,9 @@ class Apfmon:
                 for site in sites:
                     try:
                         site_info = panda_queues_dict.get(site, dict())
+                        if not site_info:
+                            tmp_log.warning('No site info for {0}'.format(site))
+                            continue
 
                         for queue in site_info['queues']:
                             ce = queue['ce_endpoint'].split('.')[0]
@@ -152,6 +155,9 @@ class Apfmon:
             panda_queues_dict = PandaQueuesDict()
 
             site_info = panda_queues_dict.get(site, dict())
+            if not site_info:
+                tmp_log.warning('No site info for {0}'.format(site))
+                return
 
             for queue in site_info['queues']:
                 try:
