@@ -73,7 +73,7 @@ class Apfmon:
 
             url = '{0}/factories/{1}'.format(self.base_url, self.harvester_id)
 
-            f = {'url': 'url_to_logs', # TODO: get the URL properly. This can be problematic when harvester runs on two nodes and one DB
+            f = {'url': 'url_to_logs',
                  'email': 'atlas-adc-harvester-central-support@cern.ch',
                  'version': panda_pkg_info.release_version}
             payload = json.dumps(f)
@@ -138,7 +138,7 @@ class Apfmon:
         """
         start_time = time.time()
         tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
-                                         method_name='create_label')
+                                         method_name='update_label')
 
         if not self.__active:
             tmp_log.debug('APFMon reporting not enabled')
