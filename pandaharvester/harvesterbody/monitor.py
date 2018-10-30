@@ -12,6 +12,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.fifos import MonitorFIFO
+from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger('monitor')
@@ -27,6 +28,7 @@ class Monitor(AgentBase):
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
         self.monitor_fifo = MonitorFIFO()
+        self.apfmon = Apfmon(self.queueConfigMapper)
 
     # main loop
     def run(self):
@@ -357,6 +359,13 @@ class Monitor(AgentBase):
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
+
+                    # update APFMon about the change
+                    # TODO: define the conditions under which a worker should be updated from monitor agent
+                    # if newStatus != monStatus:
+                    #   self.apfmon.update_workers([workSpec])
+
+
                 # lock workers for fifo
                 if from_fifo:
                     # collect some attributes to be updated when workers are locked
