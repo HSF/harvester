@@ -40,7 +40,7 @@ class Apfmon:
         try:
             self.__label_timeout = harvester_config.apfmon.worker_timeout
         except:
-            self.__label_timeout = 0.5
+            self.__label_timeout = 1
 
         # TODO: make proper exception handling and defaults
         try:
