@@ -22,6 +22,7 @@ from pandaharvester import commit_timestamp
 from pandaharvester import panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger('master')
@@ -154,6 +155,13 @@ class Master(object):
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
+        # Report itself to APF Mon
+        apf_mon = Apfmon(self.queueConfigMapper)
+        apf_mon.create_factory()
+        apf_mon.create_labels()
+
+
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
         while True:

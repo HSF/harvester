@@ -14,6 +14,7 @@ from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.fifos import MonitorFIFO
+from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger('submitter')
@@ -30,6 +31,7 @@ class Submitter(AgentBase):
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
         self.monitor_fifo = MonitorFIFO()
+        self.apfmon = Apfmon(self.queueConfigMapper)
 
     # main loop
     def run(self):
@@ -395,6 +397,10 @@ class Submitter(AgentBase):
             else:
                 workersToSubmit.append(workSpec)
         tmpRetList = submitter_core.submit_workers(workersToSubmit)
+
+        # submit the workers to the monitoring
+        self.apfmon.create_workers(workersToSubmit)
+
         for tmpRet, tmpStr in tmpRetList:
             retList.append(tmpRet)
             strList.append(tmpStr)

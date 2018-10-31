@@ -4,6 +4,7 @@ from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger('worker_adjuster')
@@ -17,6 +18,7 @@ class WorkerAdjuster:
         self.pluginFactory = PluginFactory()
         self.dbProxy = DBProxy()
         self.throttlerMap = dict()
+        self.apf_mon = Apfmon(self.queueConfigMapper)
 
     # define number of workers to submit based on various information
     def define_num_workers(self, static_num_workers, site_name):
@@ -34,6 +36,7 @@ class WorkerAdjuster:
 
             # define num of new workers
             for queueName in static_num_workers:
+                apf_msg = None
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
                     tmpLog.debug('Processing queue {0} resource {1} with static_num_workers {2}'.
                                  format(queueName, resource_type, tmpVal))
@@ -44,6 +47,7 @@ class WorkerAdjuster:
                         dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
                         retMsg = 'set nNewWorkers=0 since status={0}'.format(queueStat[queueName]['status'])
                         tmpLog.debug(retMsg)
+                        apf_msg = 'Not submitting workers since queue status = {0}'.format(queueStat[queueName]['status'])
                         continue
 
                     # get queue
@@ -54,6 +58,7 @@ class WorkerAdjuster:
                         dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
                         retMsg = 'set nNewWorkers=0 due to missing queueConfig'
                         tmpLog.debug(retMsg)
+                        apf_msg = 'Not submitting workers because of missing queueConfig'
                         continue
 
                     # get throttler
@@ -135,6 +140,12 @@ class WorkerAdjuster:
                         tmpLog.debug('setting nNewWorkers to {0} in order to respect maxNewWorkersPerCycle'
                                      .format(nNewWorkers))
                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
+
+                if not apf_msg:
+                    apf_msg = 'Attempting to submit new workers (across all CEs in the queue): {0}'.format(dyn_num_workers[queueName])
+
+                self.apf_mon.update_label(queueName, apf_msg)
+
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))
             return dyn_num_workers

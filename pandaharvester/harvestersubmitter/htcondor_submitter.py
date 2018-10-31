@@ -334,6 +334,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
 
     # fill in template
     tmpFile.write(template.format(
+        sdfPath=tmpFile.name,
         executableFile=executable_file,
         nCorePerNode=n_core_per_node,
         nCoreTotal=n_core_total,

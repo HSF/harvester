@@ -123,7 +123,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
 <classads>
 """
 
-    def __init__(self, cacheEnable=False, cacheRefreshInterval=None , *args, **kwargs):
+    def __init__(self, cacheEnable=False, cacheRefreshInterval=None, useCondorHistory=True, *args, **kwargs):
         self.submissionHost = str(kwargs.get('id'))
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.__init__')
@@ -153,6 +153,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
             if self.cacheEnable:
                 self.cache = ([], 0)
                 self.cacheRefreshInterval = cacheRefreshInterval
+            self.useCondorHistory = useCondorHistory
             tmpLog.debug('Initialize done')
 
     def get_all(self, batchIDs_list=[]):
@@ -253,7 +254,10 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
         tmpLog.debug('Start query')
         job_ads_all_dict = {}
         batchIDs_set = set(batchIDs_list)
-        query_method_list = [self.schedd.xquery, self.schedd.history]
+        if self.useCondorHistory:
+            query_method_list = [self.schedd.xquery, self.schedd.history]
+        else:
+            query_method_list = [self.schedd.xquery]
         for query_method in query_method_list:
             ## Make requirements
             batchIDs_str = ','.join(list(batchIDs_set))
@@ -412,7 +416,10 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, object)):
                 tmpLog.error('Error querying from cache fifo; {0}'.format(_e))
             return jobs_iter
         ## query
-        query_method_list = [cache_query, self.schedd.xquery, self.schedd.history]
+        if self.useCondorHistory:
+            query_method_list = [cache_query, self.schedd.xquery, self.schedd.history]
+        else:
+            query_method_list = [cache_query, self.schedd.xquery]
         for query_method in query_method_list:
             ## Make requirements
             batchIDs_str = ','.join(list(batchIDs_set))
@@ -647,6 +654,10 @@ class HTCondorMonitor (PluginBase):
             self.cacheRefreshInterval = harvester_config.monitor.pluginCacheRefreshInterval
         except AttributeError:
             self.cacheRefreshInterval = harvester_config.monitor.checkInterval
+        try:
+            self.useCondorHistory
+        except AttributeError:
+            self.useCondorHistory = True
 
     # check workers
     def check_workers(self, workspec_list):
@@ -669,6 +680,7 @@ class HTCondorMonitor (PluginBase):
             ## Record batch job query result to this dict, with key = batchID
             job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
                                         cacheRefreshInterval=self.cacheRefreshInterval,
+                                        useCondorHistory=self.useCondorHistory,
                                         id=submissionHost)
             job_ads_all_dict.update(job_query.get_all(batchIDs_list=batchIDs_list))
 

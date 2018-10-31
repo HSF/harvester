@@ -1,1 +1,1 @@
-timestamp = "24-10-2018 14:14:29 on master (by tmaeno)"
+timestamp = "30-10-2018 13:58:03 on contrib_cern (by fbarreir)"

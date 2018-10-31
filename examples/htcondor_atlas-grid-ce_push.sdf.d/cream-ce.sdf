@@ -30,4 +30,6 @@ cream_attributes = CpuNumber={nCoreTotal};WholeNodes=false;SMPGranularity={nCore
 #+remote_Requirements = JobRunCount == 0
 periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)
 
++sdfPath = "{sdfPath}"
+
 queue 1
