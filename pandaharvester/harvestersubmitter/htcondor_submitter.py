@@ -3,7 +3,6 @@ import errno
 import datetime
 import tempfile
 import threading
-import socket
 try:
     import subprocess32 as subprocess
 except Exception:
@@ -259,9 +258,6 @@ def submit_a_worker(data):
                 workspec.submissionHost = 'LOCAL'
             else:
                 workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
-
-            # set harvesterHost
-            workspec.harvesterHost = socket.gethostname()
 
             tmpLog.debug('submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
             # set computingElement
