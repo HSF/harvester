@@ -166,6 +166,9 @@ getEventsChunkSize = 5120
 # config file
 configFile = panda_queueconfig.json
 
+# enable config from cacher "queues_config_file"
+configFromCacher = False
+
 # queue list : one queue name following a whitespace per line. Or just ALL if all queues in the configFile are used
 queueList =
  FIXME_1

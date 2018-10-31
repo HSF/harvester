@@ -123,12 +123,16 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         self.lastUpdate = None
         self.dbProxy = DBProxy()
         self.toUpdateDB = update_db
+        try:
+            self.configFromCacher = harvester_config.qconf.configFromCacher
+        except AttributeError:
+            self.configFromCacher = False
 
     # load config from DB cache of URL with validation
     def _load_config_from_cache(self):
         mainLog = _make_logger(method_name='QueueConfigMapper._load_config_from_cache')
         # load config json on URL
-        if core_utils.get_queues_config_url() is not None:
+        if self.configFromCacher:
             queueConfig_cacheSpec = self.dbProxy.get_cache('queues_config_file')
             if queueConfig_cacheSpec is not None:
                 queueConfigJson = queueConfig_cacheSpec.data
@@ -325,7 +329,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             for templateQueueName in templateQueueList:
                 if templateQueueName in newQueueConfig:
                     del newQueueConfig[templateQueueName]
-            for queueName in newQueueConfig.keys():
+            for queueName in newQueueConfig.copy().keys():
                 if queueName.endswith('_TEMPLATE'):
                     del newQueueConfig[queueName]
                 elif hasattr(newQueueConfig[queueName], 'isTemplateQueue') and \
