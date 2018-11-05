@@ -1,6 +1,7 @@
 import math
 import datetime
 import time
+import socket
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -276,6 +277,10 @@ class Submitter(AgentBase):
                                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore,
                                                                                                workSpecList)
                                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
+
+                                        # set harvesterHost
+                                        workSpec.harvesterHost = socket.gethostname()
+
                                         workSpec, jobList = okChunks[iWorker]
                                         # use associated job list since it can be truncated for re-filling
                                         jobList = workSpec.get_jobspec_list()
