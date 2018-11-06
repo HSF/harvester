@@ -89,7 +89,8 @@ class WorkSpec(SpecBase):
                            'syncLevel:integer',
                            'checkTime:timestamp',
                            'ioIntensity:integer',
-                           'harvesterHost:text'
+                           'harvesterHost:text',
+                           'pilotType:text'
                            )
 
     # attributes to skip when slim reading

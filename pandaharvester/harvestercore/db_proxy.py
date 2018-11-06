@@ -1945,7 +1945,7 @@ class DBProxy:
             sqlFI = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlFI += FileSpec.bind_values_expression()
             # sql to get pending files
-            sqlFP = "SELECT fsize,fileID,lfn FROM {0} ".format(fileTableName)
+            sqlFP = "SELECT fileID,fsize,lfn FROM {0} ".format(fileTableName)
             sqlFP += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
             # sql to get provenanceID,workerID for pending files
             sqlPW = "SELECT SUM(fsize),provenanceID,workerID FROM {0} ".format(fileTableName)
@@ -2100,7 +2100,7 @@ class DBProxy:
                                         varMap[':provenanceID'] = tmpProvenanceID
                                         sqlFPx += 'AND provenanceID=:provenanceID '
                                     if tmpWorkerID is None:
-                                        sqlFPx += 'AND tmpWorkerID IS NULL '
+                                        sqlFPx += 'AND workerID IS NULL '
                                     else:
                                         varMap[':workerID'] = tmpWorkerID
                                         sqlFPx += 'AND workerID=:workerID'
