@@ -176,6 +176,7 @@ class WorkerAdjuster:
                                 dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
                             tmpLog.debug('No nNewWorkers since nNewWorkers_max_agg=0 for UCORE')
                         else:
+                            tmpLog.debug('nNewWorkers_max_agg={0} for UCORE'.format(nNewWorkers_max_agg))
                             _d = dyn_num_workers[queueName]
                             simple_rt_nw_dict = { _rt: _d[_rt].get('nNewWorkers', 0) for _rt in _d }
                             sorted_rt_list = sorted(simple_rt_nw_dict, key=dict.get)
