@@ -512,5 +512,7 @@ class JobSpec(SpecBase):
             return 'ALRB'
         elif self.jobParams['prodSourceLabel'] == 'ptest':
             return 'PT'
+        elif self.jobParams['prodSourceLabel']:
+            return 'PR'
         else:
             return None

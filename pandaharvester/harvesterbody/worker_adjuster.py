@@ -177,16 +177,17 @@ class WorkerAdjuster:
                             tmpLog.debug('No nNewWorkers since nNewWorkers_max_agg=0 for UCORE')
                         else:
                             tmpLog.debug('nNewWorkers_max_agg={0} for UCORE'.format(nNewWorkers_max_agg))
-                            _d = dyn_num_workers[queueName]
-                            simple_rt_nw_dict = { _rt: _d[_rt].get('nNewWorkers', 0) for _rt in _d }
-                            sorted_rt_list = sorted(simple_rt_nw_dict, key=dict.get)
+                            _d = dyn_num_workers[queueName].copy()
+                            del _d['ANY']
+                            simple_rt_nw_list = [ (_rt, _d[_rt].get('nNewWorkers', 0)) for _rt in _d ]
+                            sorted_rt_list = sorted(simple_rt_nw_list, key=lambda x: x[1])
                             _remaining = nNewWorkers_max_agg
-                            for resource_type in sorted_rt_list:
-                                nNewWorkers = (_d[resource_type]['nNewWorkers']*nNewWorkers_max_agg)//total_new_workers_rts
+                            for resource_type, nNewWorkers_orig in sorted_rt_list:
+                                nNewWorkers = (nNewWorkers_orig*nNewWorkers_max_agg)//total_new_workers_rts
                                 dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
                                 _remaining -= nNewWorkers
                             while _remaining > 0:
-                                for resource_type in sorted_rt_list:
+                                for resource_type, nNewWorkers_orig in sorted_rt_list:
                                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] += 1
                                     _remaining -= 1
                                     if _remaining <= 0:
