@@ -1,6 +1,7 @@
 import copy
 from future.utils import iteritems
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -19,6 +20,10 @@ class WorkerAdjuster:
         self.dbProxy = DBProxy()
         self.throttlerMap = dict()
         self.apf_mon = Apfmon(self.queueConfigMapper)
+        try:
+            self.maxNewWorkers = harvester_config.submitter.maxNewWorkers
+        except AttributeError:
+            self.maxNewWorkers = None
 
     # define number of workers to submit based on various information
     def define_num_workers(self, static_num_workers, site_name):
@@ -36,6 +41,7 @@ class WorkerAdjuster:
 
             # define num of new workers
             for queueName in static_num_workers:
+                nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
                     tmpLog.debug('Processing queue {0} resource {1} with static_num_workers {2}'.
@@ -85,6 +91,10 @@ class WorkerAdjuster:
                     nRunning = tmpVal['nRunning']
                     nQueueLimit = queueConfig.nQueueLimitWorker
                     maxWorkers = queueConfig.maxWorkers
+                    if resource_type != 'ANY':
+                        nQueue_total += nQueue
+                        nReady_total += nReady
+                        nRunning_total += nRunning
                     if queueConfig.runMode == 'slave':
                         nNewWorkersDef = tmpVal['nNewWorkers']
                         if nNewWorkersDef == 0:
@@ -139,7 +149,54 @@ class WorkerAdjuster:
                         nNewWorkers = min(nNewWorkers, queueConfig.maxNewWorkersPerCycle)
                         tmpLog.debug('setting nNewWorkers to {0} in order to respect maxNewWorkersPerCycle'
                                      .format(nNewWorkers))
+                    if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
+                        nNewWorkers = min(nNewWorkers, self.maxNewWorkers)
+                        tmpLog.debug('setting nNewWorkers to {0} in order to respect universal maxNewWorkers'
+                                     .format(nNewWorkers))
                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
+
+                # adjust nNewWorkers for UCORE to let aggregations over RT respect nQueueLimitWorker and maxWorkers
+                if len(dyn_num_workers[queueName]) > 1:
+                    total_new_workers_rts = sum( dyn_num_workers[queueName][_rt]['nNewWorkers']
+                                                if _rt != 'ANY' else 0
+                                                for _rt in dyn_num_workers[queueName] )
+                    nNewWorkers_max_agg = min(
+                                                max(nQueueLimit - nQueue_total, 0),
+                                                max(maxWorkers - nQueue_total - nReady_total - nRunning_total, 0),
+                                                )
+                    if queueConfig.maxNewWorkersPerCycle > 0:
+                        nNewWorkers_max_agg = min(nNewWorkers_max_agg, queueConfig.maxNewWorkersPerCycle)
+                    if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
+                        nNewWorkers_max_agg = min(nNewWorkers_max_agg, self.maxNewWorkers)
+                    # exceeded max, to adjust
+                    if total_new_workers_rts > nNewWorkers_max_agg:
+                        if nNewWorkers_max_agg == 0:
+                            for resource_type in dyn_num_workers[queueName]:
+                                dyn_num_workers[queueName][resource_type]['nNewWorkers'] = 0
+                            tmpLog.debug('No nNewWorkers since nNewWorkers_max_agg=0 for UCORE')
+                        else:
+                            tmpLog.debug('nNewWorkers_max_agg={0} for UCORE'.format(nNewWorkers_max_agg))
+                            _d = dyn_num_workers[queueName].copy()
+                            del _d['ANY']
+                            simple_rt_nw_list = [ (_rt, _d[_rt].get('nNewWorkers', 0)) for _rt in _d ]
+                            sorted_rt_list = sorted(simple_rt_nw_list, key=lambda x: x[1])
+                            _remaining = nNewWorkers_max_agg
+                            for resource_type, nNewWorkers_orig in sorted_rt_list:
+                                nNewWorkers = (nNewWorkers_orig*nNewWorkers_max_agg)//total_new_workers_rts
+                                dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
+                                _remaining -= nNewWorkers
+                            while _remaining > 0:
+                                for resource_type, nNewWorkers_orig in sorted_rt_list:
+                                    dyn_num_workers[queueName][resource_type]['nNewWorkers'] += 1
+                                    _remaining -= 1
+                                    if _remaining <= 0:
+                                        break
+                        for resource_type in dyn_num_workers[queueName]:
+                            if resource_type == 'ANY':
+                                continue
+                            nNewWorkers = dyn_num_workers[queueName][resource_type]['nNewWorkers']
+                            tmpLog.debug('setting nNewWorkers to {0} of type {1} in order to respect RT aggregations for UCORE'
+                                         .format(nNewWorkers, resource_type))
 
                 if not apf_msg:
                     apf_msg = 'Attempting to submit new workers (across all CEs in the queue): {0}'.format(dyn_num_workers[queueName])
