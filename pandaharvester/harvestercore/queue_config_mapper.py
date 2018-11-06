@@ -221,6 +221,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 mainLog.warning('Failed to load config from local json file. Skipped')
             # get queue names from queue configs
             for _qcj in [queueConfigJson_cacher, queueConfigJson_local]:
+                if _qcj is None:
+                    continue
                 queueNameList |= set(_qcj.keys())
             # get queue names from resolver
             if resolver is not None and 'DYNAMIC' in harvester_config.qconf.queueList:
