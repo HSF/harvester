@@ -76,6 +76,8 @@ class SAGASubmitter (PluginBase):
         #sagadateformat_str = '%a %b %d %H:%M:%S %Y'
         try:
             os.chdir(work_spec.accessPoint)
+            tmpLog.info("Walltime: {0} sec. {1} min.".format(work_spec.maxWalltime, work_spec.maxWalltime / 60))
+            tmpLog.info("Cores: {0}".format(work_spec.nCore))
             tmpLog.debug("Worker directory: {0}".format(work_spec.accessPoint))
             jd = saga.job.Description()
             if self.projectname:
