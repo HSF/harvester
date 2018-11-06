@@ -90,7 +90,6 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             maxWalltime = 0
             ioIntensity = 0
             for jobSpec in jobspec_list:
-
                 job_corecount, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
                 nCore += job_corecount
                 minRamCount += job_memory
@@ -124,7 +123,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 workSpec.maxWalltime = maxWalltime
             if ioIntensity > 0 and 'ioIntensity' in self.jobAttributesToUse:
                 workSpec.ioIntensity = ioIntensity
-
+            workSpec.pilotType = jobspec_list[0].get_pilot_type()
         # TODO: this needs to be improved with real resource types
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type

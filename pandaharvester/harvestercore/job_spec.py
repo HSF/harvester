@@ -501,3 +501,16 @@ class JobSpec(SpecBase):
                     continue
                 newParams[k] = v
             return newParams
+
+    # get pilot type
+    def get_pilot_type(self):
+        if 'prodSourceLabel' not in self.jobParams:
+            return None
+        if self.jobParams['prodSourceLabel'] == 'rc_test':
+            return 'RC'
+        elif self.jobParams['prodSourceLabel'] == 'rc_alrb':
+            return 'ALRB'
+        elif self.jobParams['prodSourceLabel'] == 'ptest':
+            return 'PT'
+        else:
+            return None
