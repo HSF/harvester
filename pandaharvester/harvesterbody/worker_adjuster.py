@@ -1,5 +1,4 @@
 import copy
-import random
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
