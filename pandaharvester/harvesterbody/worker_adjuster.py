@@ -161,7 +161,7 @@ class WorkerAdjuster:
                                                 if _rt != 'ANY' else 0
                                                 for _rt in dyn_num_workers[queueName] )
                     nNewWorkers_max_agg = min(
-                                                max(maxQueuedWorkers - nQueue_total, 0),
+                                                max(nQueueLimit - nQueue_total, 0),
                                                 max(maxWorkers - nQueue_total - nReady_total - nRunning_total, 0),
                                                 )
                     if queueConfig.maxNewWorkersPerCycle > 0:
