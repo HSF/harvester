@@ -11,6 +11,7 @@ from kubernetes.client.rest import ApiException
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.core_utils import SingletonWithID
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 
 class k8s_Client(six.with_metaclass(SingletonWithID, object)):
@@ -28,19 +29,31 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, workerID, computingSite, cert):
-        yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + workerID
+    def create_job_from_yaml(self, yaml_content, work_spec, cert):
+        panda_queues_dict = PandaQueuesDict()
+        queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
+        queue_dict = panda_queues_dict.get(queue_name, {})
 
-        for i in range(len(yaml_content['spec']['template']['spec']['containers'])):
-            container_env = yaml_content['spec']['template']['spec']['containers'][i]
-            if 'env' not in container_env:
-                container_env['env'] = []
-            container_env['env'].append({'name': 'computingSite', 'value': computingSite})
-            container_env['env'].append({'name': 'computingElement', 'value': computingSite})
-            container_env['env'].append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
-            container_env['env'].append({'name': 'workerID', 'value': workerID})
-            container_env['env'].append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
-            container_env['env'].append({'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R})
+        yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
+
+        yaml_containers = yaml_content['spec']['template']['spec']['containers']
+        del(yaml_containers[1:len(yaml_containers)])
+
+        container_env = yaml_containers[0]
+        if 'resources' not in container_env:
+            container_env['resources'] = {}
+        container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'M', 'cpu': str(work_spec.nCore)}
+        container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxmemory', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
+            if queue_dict.get('corecount', 1) else '1'}
+
+        if 'env' not in container_env:
+            container_env['env'] = []
+        container_env['env'].append({'name': 'computingSite', 'value': work_spec.computingSite})
+        container_env['env'].append({'name': 'pandaQueueName', 'value': queue_name})
+        container_env['env'].append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
+        container_env['env'].append({'name': 'workerID', 'value': str(work_spec.workerID)})
+        container_env['env'].append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
+        container_env['env'].append({'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R})
 
 
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
