@@ -104,7 +104,7 @@ def get_configuration():
     proxy_string = os.environ.get('proxyContent').replace(",", "\n")
     with open(proxy_path, "w") as proxy_file:
         proxy_file.write(proxy_string)
-    os.chmod(proxy_path, 0600)
+    os.chmod(proxy_path, 0o600)
     os.environ['X509_USER_PROXY'] = proxy_path
     logging.debug('[main] initialized proxy')
 
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     wrapper_string = get_url(wrapper_url)
     with open(wrapper_path, "w") as wrapper_file:
         wrapper_file.write(wrapper_string)
-    os.chmod(wrapper_path, 0544) # make pilot wrapper executable
+    os.chmod(wrapper_path, 0o544) # make pilot wrapper executable
     logging.debug('[main] downloaded pilot wrapper')
 
     # execute the pilot wrapper
