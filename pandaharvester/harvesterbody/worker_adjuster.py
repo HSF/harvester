@@ -41,6 +41,10 @@ class WorkerAdjuster:
 
             # define num of new workers
             for queueName in static_num_workers:
+                # get queue
+                queueConfig = self.queueConfigMapper.get_queue(queueName)
+                nQueueLimit = queueConfig.nQueueLimitWorker
+                maxWorkers = queueConfig.maxWorkers
                 nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
@@ -55,9 +59,6 @@ class WorkerAdjuster:
                         tmpLog.debug(retMsg)
                         apf_msg = 'Not submitting workers since queue status = {0}'.format(queueStat[queueName]['status'])
                         continue
-
-                    # get queue
-                    queueConfig = self.queueConfigMapper.get_queue(queueName)
 
                     # protection against not-up-to-date queue config
                     if queueConfig is None:
@@ -89,8 +90,6 @@ class WorkerAdjuster:
                     nQueue = tmpVal['nQueue']
                     nReady = tmpVal['nReady']
                     nRunning = tmpVal['nRunning']
-                    nQueueLimit = queueConfig.nQueueLimitWorker
-                    maxWorkers = queueConfig.maxWorkers
                     if resource_type != 'ANY':
                         nQueue_total += nQueue
                         nReady_total += nReady
