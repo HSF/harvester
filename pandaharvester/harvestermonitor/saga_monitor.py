@@ -1,3 +1,4 @@
+import radical.utils
 import os
 import time
 from datetime import datetime
@@ -89,7 +90,7 @@ class SAGAMonitor(PluginBase):
                     if worker.state == saga.job.PENDING:
                         queue_time = (datetime.now() - workSpec.submitTime).total_seconds()
                         tmpLog.info("Worker queued for {0} sec.".format(queue_time))
-                        if self.maxqueuetime and queue_time > self.maxqueuetime:
+                        if hasattr(self, 'maxqueuetime') and queue_time > self.maxqueuetime:
                             tmpLog.info(
                                 "Queue time {0} is longer than limit {1} worker will be canceled".format(queue_time,
                                                                                                          self.maxqueuetime))
@@ -150,7 +151,7 @@ class SAGAMonitor(PluginBase):
         starttime = None
         endtime = None
         queue_config = self.queue_config_mapper.get_queue(self.queueName)
-        if queue_config.resource:
+        if hasattr(queue_config, 'resource'):
             resource_utils = self.pluginFactory.get_plugin(queue_config.resource)
         else:
             tmpLog.debug("Resource configuration missed for: {0}".format(self.queueName))
