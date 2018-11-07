@@ -7,6 +7,8 @@ import uuid
 from pandaharvester.harvestercore import core_utils
 from .base_stager import BaseStager
 
+#TODO: retry of failed transfers
+
 # logger
 baseLogger = core_utils.setup_logger('rucio_stager_hpc')
 
