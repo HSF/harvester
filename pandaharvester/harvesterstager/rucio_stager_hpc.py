@@ -24,6 +24,8 @@ class RucioStagerHPC(BaseStager):
             self.pathConvention = None
         if not hasattr(self, 'objstoreID'):
             self.objstoreID = None
+        if not hasattr(self, 'maxAttempts'):
+            self.maxAttempts = 3
 
     # check status
     def check_status(self, jobspec):
@@ -106,6 +108,8 @@ class RucioStagerHPC(BaseStager):
                                        stderr=subprocess.STDOUT)
 
             stdout, stderr = process.communicate()
+            fileSpec.attemptNr += 1
+            stdout = stdout + " attemptNr: %s" % fileSpec.attemptNr
             if process.returncode == 0:
                 fileSpec.status = 'finished'
                 tmpLog.debug(stdout)
@@ -129,10 +133,12 @@ class RucioStagerHPC(BaseStager):
                     allChecked = False
                     continue
                 else:
-                    fileSpec.status = 'failed'
                     tmpLog.error('rucio upload failed with stdout: %s' % stdout)
                     ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn, stdout)
                     allChecked = False
+                    if fileSpec.attemptNr >= self.maxAttempts:
+                        tmpLog.error('reached maxattempts: %s, marked it as failed' % self.maxAttempts)
+                        fileSpec.status = 'failed'
 
             # force update
             fileSpec.force_update('status')
