@@ -15,7 +15,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 _base_logger = core_utils.setup_logger('apfmon')
-
+NO_CE = 'noCE'
 
 def apfmon_active(method, *args, **kwargs):
     if cls.__active:
@@ -116,7 +116,18 @@ class Apfmon:
                             tmp_log.warning('No site info for {0}'.format(site))
                             continue
 
-                        for queue in site_info['queues']:
+                        if not site_info['queues']:
+                            # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
+                            # in local configuration, otherwise set it to a dummy value
+                            try:
+                                ce = self.queue_config_mapper.queueConfig[site].submitter['ceEndpoint']
+                            except:
+                                ce = NO_CE
+                            queues = [{'ce_endpoint': ce}]
+                        else:
+                            queues = site_info['queues']
+
+                        for queue in queues:
                             ce = queue['ce_endpoint'].split('.')[0]
                             labels.append({'name': '{0}-{1}'.format(site, ce),
                                            'wmsqueue': site,
@@ -159,7 +170,18 @@ class Apfmon:
                 tmp_log.warning('No site info for {0}'.format(site))
                 return
 
-            for queue in site_info['queues']:
+            if not site_info['queues']:
+                # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
+                # in local configuration, otherwise set it to a dummy value
+                try:
+                    ce = self.queue_config_mapper.queueConfig[site].submitter['ceEndpoint']
+                except:
+                    ce = NO_CE
+                queues = [{'ce_endpoint': ce}]
+            else:
+                queues = site_info['queues']
+
+            for queue in queues:
                 try:
                     ce = queue['ce_endpoint'].split('.')[0]
                     label_data = {'status': msg}
