@@ -258,6 +258,7 @@ def submit_a_worker(data):
                 workspec.submissionHost = 'LOCAL'
             else:
                 workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
+
             tmpLog.debug('submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
             # set computingElement
             workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
@@ -365,6 +366,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
         pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
         ioIntensity=io_intensity,
+        pilotType=workspec.pilotType,
         )
     )
     tmpFile.close()
