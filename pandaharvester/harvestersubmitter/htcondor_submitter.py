@@ -366,6 +366,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
         pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
         ioIntensity=io_intensity,
+        pilotType=workspec.pilotType,
         )
     )
     tmpFile.close()

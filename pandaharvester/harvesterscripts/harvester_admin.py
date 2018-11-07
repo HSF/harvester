@@ -199,8 +199,11 @@ def qconf_dump(arguments):
                         for configID in arguments.id_list ]
             resObj = { obj.get('queueName'): obj for obj in res_list }
         elif arguments.all:
-            res_dict = queue_config_tool.dump_all_active_queues(to_print)
-            resObj = { k: vars(v) for k, v in res_dict.items() }
+            res_list = queue_config_tool.dump_all_active_queues(to_print)
+            if res_list is None or to_print:
+                resObj = {}
+            else:
+                resObj = { vars(qm).get('queueName', ''): vars(qm) for qm in res_list }
         else:
             resObj = { queue: vars(queue_config_tool.dump_active_queue(queue, to_print))
                         for queue in arguments.queue_list }
