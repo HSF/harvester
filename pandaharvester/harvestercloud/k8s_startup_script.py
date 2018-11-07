@@ -104,11 +104,16 @@ def get_configuration():
     proxy_string = os.environ.get('proxyContent').replace(",", "\n")
     with open(proxy_path, "w") as proxy_file:
         proxy_file.write(proxy_string)
+    os.chmod(proxy_path, 0600)
     os.environ['X509_USER_PROXY'] = proxy_path
     logging.debug('[main] initialized proxy')
 
+    # get the panda site name
+    panda_site = os.environ.get('computingSite')
+    logging.debug('[main] got panda site: {0}'.format(panda_site))
+
     # get the panda queue name
-    panda_queue = os.environ.get('computingSite')
+    panda_queue = os.environ.get('pandaQueueName')
     logging.debug('[main] got panda queue: {0}'.format(panda_queue))
 
     # get the harvester frontend URL, where we'll send heartbeats
@@ -133,13 +138,13 @@ def get_configuration():
     logs_frontend_r = os.environ.get('logs_frontend_r')
     logging.debug('[main] got url to download logs')
 
-    return proxy_path, panda_queue, harvester_frontend, worker_id, auth_token, logs_frontend_w, logs_frontend_r
+    return proxy_path, panda_site, panda_queue, harvester_frontend, worker_id, auth_token, logs_frontend_w, logs_frontend_r
 
 
 if __name__ == "__main__":
 
     # get all the configuration from the GCE metadata server
-    proxy_path, panda_queue, harvester_frontend, worker_id, auth_token, logs_frontend_w, logs_frontend_r = get_configuration()
+    proxy_path, panda_site, panda_queue, harvester_frontend, worker_id, auth_token, logs_frontend_w, logs_frontend_r = get_configuration()
 
     # start a separate thread that will send a heartbeat to harvester every 5 minutes
 #    heartbeat_thread = Thread(target=heartbeat_loop, args=(harvester_frontend, worker_id, auth_token, proxy_path))
@@ -161,9 +166,11 @@ if __name__ == "__main__":
 
     # execute the pilot wrapper
     logging.debug('[main] starting pilot wrapper...')
-    wrapper_params = '-s {0} -h {0}'.format(panda_queue)
+    wrapper_params = '-s {0} -h {1}'.format(panda_site, panda_queue)
     if 'ANALY' in panda_queue:
         wrapper_params = '{0} -u user'.format(wrapper_params)
+    else:
+        wrapper_params = '{0} -u managed'.format(wrapper_params)
     command = "/tmp/runpilot3-wrapper.sh {0} -p 25443 -w https://pandaserver.cern.ch >& /tmp/wrapper-wid.log".\
         format(wrapper_params, worker_id)
     subprocess.call(command, shell=True)

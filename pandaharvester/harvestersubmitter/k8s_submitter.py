@@ -40,7 +40,7 @@ class K8sSubmitter(PluginBase):
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
 
         try:
-            self.k8s_client.create_job_from_yaml(yaml_content, str(work_spec.workerID), work_spec.computingSite, self.x509UserProxy) 
+            self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy)
         except Exception as _e:
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)
