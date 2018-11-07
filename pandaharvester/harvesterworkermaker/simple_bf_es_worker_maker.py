@@ -68,7 +68,8 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
     # get number of workers per job
     def get_num_workers_per_job(self, n_workers):
         try:
-            return min(self.nWorkersPerJob, n_workers)
+            # return min(self.nWorkersPerJob, n_workers)
+            return self.nWorkersPerJob
         except Exception:
             return 1
 
