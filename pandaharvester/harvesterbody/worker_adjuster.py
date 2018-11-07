@@ -177,19 +177,21 @@ class WorkerAdjuster:
                             tmpLog.debug('nNewWorkers_max_agg={0} for UCORE'.format(nNewWorkers_max_agg))
                             _d = dyn_num_workers[queueName].copy()
                             del _d['ANY']
-                            simple_rt_nw_list = [ (_rt, _d[_rt].get('nNewWorkers', 0)) for _rt in _d ]
-                            sorted_rt_list = sorted(simple_rt_nw_list, key=lambda x: x[1])
-                            _remaining = nNewWorkers_max_agg
-                            for resource_type, nNewWorkers_orig in sorted_rt_list:
-                                nNewWorkers = (nNewWorkers_orig*nNewWorkers_max_agg)//total_new_workers_rts
+                            simple_rt_nw_list = [ [_rt, _d[_rt].get('nNewWorkers', 0), 0] for _rt in _d ]
+                            _countdown = nNewWorkers_max_agg
+                            for _rt_list in simple_rt_nw_list:
+                                resource_type, nNewWorkers_orig, _r = _rt_list
+                                nNewWorkers, remainder = divmod(nNewWorkers_orig*nNewWorkers_max_agg, total_new_workers_rts)
                                 dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
-                                _remaining -= nNewWorkers
-                            while _remaining > 0:
-                                for resource_type, nNewWorkers_orig in sorted_rt_list:
-                                    dyn_num_workers[queueName][resource_type]['nNewWorkers'] += 1
-                                    _remaining -= 1
-                                    if _remaining <= 0:
-                                        break
+                                _rt_list[2] = remainder
+                                _countdown -= nNewWorkers
+                            _s_list = sorted(simple_rt_nw_list, key=(lambda x: x[1]))
+                            sorted_rt_nw_list = sorted(_s_list, key=(lambda x: x[2]), reverse=True)
+                            for resource_type, nNewWorkers_orig, remainder in sorted_rt_nw_list:
+                                dyn_num_workers[queueName][resource_type]['nNewWorkers'] += 1
+                                _countdown -= 1
+                                if _countdown <= 0:
+                                    break
                         for resource_type in dyn_num_workers[queueName]:
                             if resource_type == 'ANY':
                                 continue
