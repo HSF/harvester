@@ -3,6 +3,7 @@ try:
 except:
     import subprocess
 import uuid
+import os
 
 from pandaharvester.harvestercore import core_utils
 from .base_stager import BaseStager
@@ -26,6 +27,8 @@ class RucioStagerHPC(BaseStager):
             self.objstoreID = None
         if not hasattr(self, 'maxAttempts'):
             self.maxAttempts = 3
+        if not hasattr(self, 'objectstore_additions'):
+            self.objectstore_additions = None
 
     # check status
     def check_status(self, jobspec):
@@ -87,8 +90,26 @@ class RucioStagerHPC(BaseStager):
 
             # for now mimic behaviour and code of pilot v2 rucio copy tool (rucio download) change when needed
 
-            executable = ['/usr/bin/env',
-                          'rucio', '-v', 'upload']
+            executable_prefix = None
+            pfn_prefix = None
+            if dstRSE in self.objectstore_additions:
+                if 'storage_id' in self.objectstore_additions[dstRSE]:
+                    fileSpec.objstoreID = self.objectstore_additions[dstRSE]['storage_id']
+                if 'access_key' in self.objectstore_additions[dstRSE] and \
+                   'secret_key' in self.objectstore_additions[dstRSE] and \
+                   'is_secure' in self.objectstore_additions[dstRSE]:
+                    executable_prefix = "export S3_ACCESS_KEY=%s; export S3_SECRET_KEY=%s; export S3_IS_SECURE=%s" % (
+                      self.objectstore_additions[dstRSE]['access_key'],
+                      self.objectstore_additions[dstRSE]['secret_key'],
+                      self.objectstore_additions[dstRSE]['is_secure'])
+                if 'pfn_prefix' in self.objectstore_additions[dstRSE]:
+                    pfn_prefix = self.objectstore_additions[dstRSE]['pfn_prefix']
+
+            if executable_prefix:
+                executable = ['%s; /usr/bin/env' % executable_prefix, 'rucio', '-v', 'upload']
+            else:
+                executable = ['/usr/bin/env', 'rucio', '-v', 'upload']
+
             executable += ['--no-register']
             if hasattr(self, 'lifetime'):
                 executable += ['--lifetime', ('%d' % self.lifetime)]
@@ -96,6 +117,9 @@ class RucioStagerHPC(BaseStager):
                     executable += ['--guid', fileSpec.fileAttributes['guid']]
 
             executable += ['--rse', dstRSE]
+            if pfn_prefix:
+                executable += ['--pfn %s' % os.path.join(pfn_prefix, os.path.basename(fileSpec.path))]
+
             executable += ['--scope', scope]
             executable += [('%s:%s' % (scope, datasetName))]
             executable += [('%s' % fileSpec.path)]
