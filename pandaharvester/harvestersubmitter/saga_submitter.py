@@ -76,6 +76,9 @@ class SAGASubmitter (PluginBase):
         #sagadateformat_str = '%a %b %d %H:%M:%S %Y'
         try:
             os.chdir(work_spec.accessPoint)
+            tmpLog.info("Walltime: {0} sec. {1} min.".format(work_spec.maxWalltime, work_spec.maxWalltime / 60))
+            tmpLog.info("Cores: {0}".format(work_spec.nCore))
+            tmpLog.debug("Worker directory: {0}".format(work_spec.accessPoint))
             jd = saga.job.Description()
             if self.projectname:
                 jd.project = self.projectname
@@ -85,11 +88,15 @@ class SAGASubmitter (PluginBase):
             if work_spec.workParams in (None, "NULL"):
                 jd.executable = "\n".join(self._get_executable(work_spec.jobspec_list))
             else:
-                jd.executable = work_spec.workParams
+                tmpLog.debug("Work params (executable templatae): \n{0}".format(work_spec.workParams))
+                exe_str = work_spec.workParams
+                exe_str = exe_str.format(work_dir=work_spec.accessPoint)
+                jd.executable = exe_str
+                # jd.executable = work_spec.workParams.format(work_dir=work_spec.accessPoint)
+
             tmpLog.debug("Command to be launched: \n{0}".format(jd.executable))
             jd.total_cpu_count = work_spec.nCore  # one node with 16 cores for one job
             jd.queue = self.localqueue
-            tmpLog.debug("Worker directory: {0}".format(work_spec.accessPoint))
             jd.working_directory = work_spec.accessPoint  # working directory of task
             uq_prefix = '{0:07}'.format(random.randint(0, 10000000))
             jd.output = os.path.join(work_spec.accessPoint, 'MPI_pilot_stdout_{0}'.format(uq_prefix))
@@ -102,24 +109,15 @@ class SAGASubmitter (PluginBase):
             task = job_service.create_job(jd)
 
             self._workSpec = work_spec
-            #task.add_callback(saga.STATE, self._state_change_cb)
             task.run()
             work_spec.batchID = task.id.split('-')[1][1:-1] #SAGA have own representation, but real batch id easy to extract
             tmpLog.info("Worker ID={0} with BatchID={1} submitted".format(work_spec.workerID, work_spec.batchID))
             tmpLog.debug("SAGA status: {0}".format(task.state))
-            #task.wait()  # waiting till payload will be compleated.
-            #tmpLog.info('Worker with BatchID={0} completed with exit code {1}'.format(work_spec.batchID, task.exit_code))
-            #tmpLog.info('Started: [{0}] finished: [{1}]'.format(task.started, task.finished))
-            #work_spec.status = self.status_translator(task.state)
 
             # for compatibility with dummy monitor
             f = open(os.path.join(work_spec.accessPoint, 'status.txt'), 'w')
             f.write(self.status_translator(task.state))
             f.close()
-
-            #work_spec.submitTime = datetime.strptime(task.created, sagadateformat_str)
-            #work_spec.startTime = datetime.strptime(task.started, sagadateformat_str)
-            #work_spec.endTime = datetime.strptime(task.finished, sagadateformat_str)
 
             job_service.close()
             return 0

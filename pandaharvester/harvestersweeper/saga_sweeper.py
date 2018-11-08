@@ -1,10 +1,10 @@
-import radical.utils
-import saga
 import os
 import shutil
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
+import saga
+
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestersubmitter.saga_submitter import SAGASubmitter
 
 # logger
@@ -29,15 +29,19 @@ class SAGASweeper(PluginBase):
         :rtype: (bool, string)
         """
         job_service = saga.job.Service(self.adaptor)
-        tmpLog = self.make_logger(baseLogger, method_name='kill_worker')
-        tmpLog.info("[{0}] SAGA adaptor will be used".format(self.adaptor))
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                  method_name='kill_worker')
+        tmpLog.info("[{0}] SAGA adaptor will be used to kill worker {1} with batchid {2}".format(self.adaptor,
+                                                                                                 workspec.workerID,
+                                                                                                 workspec.batchID))
         errStr = ''
 
         if workspec.batchID:
             saga_submission_id = '[{0}]-[{1}]'.format(self.adaptor, workspec.batchID)
             try:
                 worker = job_service.get_job(saga_submission_id)
-                tmpLog.info('SAGA State for submission with batchid: {0} is: {1}'.format(workspec.batchID, worker.state))
+                tmpLog.info(
+                    'SAGA State for submission with batchid: {0} is: {1}'.format(workspec.batchID, worker.state))
                 harvester_job_state = SAGASubmitter.status_translator(worker.state)
                 tmpLog.info(
                     'Worker state with batchid: {0} is: {1}'.format(workspec.batchID, harvester_job_state))

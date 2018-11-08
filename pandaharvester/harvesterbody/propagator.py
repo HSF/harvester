@@ -69,7 +69,7 @@ class Propagator(AgentBase):
                 mainLog.debug('check_jobs for {0} jobs {1}'.format(len(jobListToCheck), sw.get_elapsed_time()))
                 sw.reset()
                 retList += self.communicator.update_jobs(jobListToUpdate, self.get_pid())
-                mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate),
+                mainLog.debug('update_jobs for {0} jobs took {1}'.format(len(jobListToUpdate),
                                                                               sw.get_elapsed_time()))
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
@@ -152,7 +152,7 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update workerID={0} status={1}'.format(tmpWorkSpec.workerID,
                                                                                             tmpWorkSpec.status))
-            mainLog.debug('update_workers for {0} workers took {1} sec.'.format(iWorkers,
+            mainLog.debug('update_workers for {0} workers took {1}'.format(iWorkers,
                                                                       sw.get_elapsed_time()))
             mainLog.debug('getting commands')
             commandSpecs = self.dbProxy.get_commands_for_receiver('propagator')
