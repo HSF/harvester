@@ -10,7 +10,7 @@ This script will be executed at the VM startup time.
 import requests
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 import os
 import sys
@@ -42,7 +42,7 @@ def upload_logs(url, log_file_name, destination_name, proxy_path):
         logging.debug('[upload_logs] finished with code={0} msg={1}'.format(res.status_code, res.text))
         if res.status_code == 200:
             return True
-    except:
+    except Exception:
         err_type, err_value = sys.exc_info()[:2]
         err_messsage = "failed to put with {0}:{1} ".format(err_type, err_value)
         err_messsage += traceback.format_exc()
