@@ -263,6 +263,11 @@ class Monitor(AgentBase):
             return None
         # get queue
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
+        try:
+            apfmon_status_updates = self.queueConfigMapper.queueConfig[queueName].monitor['apfmon_status_updates']
+        except:
+            apfmon_status_updates = False
+        tmpQueLog.debug('apfmon_status_updates: {0}'.format(apfmon_status_updates))
         # get plugins
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
@@ -307,6 +312,7 @@ class Monitor(AgentBase):
                                               'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                               method_name='run')
                     tmpOut = tmpRetMap[workSpec.workerID]
+                    oldStatus = tmpOut['oldStatus']
                     newStatus = tmpOut['newStatus']
                     monStatus = tmpOut['monStatus']
                     diagMessage = tmpOut['diagMessage']
@@ -360,11 +366,10 @@ class Monitor(AgentBase):
                     if len(filesToStageOut) > 0:
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
 
-                    # update APFMon about the change
-                    # TODO: define the conditions under which a worker should be updated from monitor agent
-                    # if newStatus != monStatus:
-                    #   self.apfmon.update_workers([workSpec])
-
+                    if apfmon_status_updates and newStatus != oldStatus:
+                        tmpQueLog.debug('apfmon_status_updates: {0} newStatus: {1} monStatus: {2} oldStatus: {3} workSpecStatus: {4}'.
+                                        format(apfmon_status_updates, newStatus, monStatus, oldStatus, workSpec.status))
+                        self.apfmon.update_worker(workSpec, monStatus)
 
                 # lock workers for fifo
                 if from_fifo:
@@ -518,7 +523,8 @@ class Monitor(AgentBase):
             else:
                 workersToCheck.append(workSpec)
             # add
-            retMap[workSpec.workerID] = {'newStatus': workStatus,
+            retMap[workSpec.workerID] = {'oldStatus': workSpec.status,
+                                         'newStatus': workStatus,
                                          'monStatus': workStatus,
                                          'workAttributes': workAttributes,
                                          'filesToStageOut': filesToStageOut,
