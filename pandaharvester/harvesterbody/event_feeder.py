@@ -28,7 +28,8 @@ class EventFeeder(AgentBase):
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting workers to feed events')
             workSpecsPerQueue = self.dbProxy.get_workers_to_feed_events(harvester_config.eventfeeder.maxWorkers,
-                                                                        harvester_config.eventfeeder.lockInterval)
+                                                                        harvester_config.eventfeeder.lockInterval,
+                                                                        lockedBy)
             mainLog.debug('got {0} queues'.format(len(workSpecsPerQueue)))
             # loop over all workers
             for queueName, workSpecList in iteritems(workSpecsPerQueue):
@@ -49,6 +50,11 @@ class EventFeeder(AgentBase):
                 for workSpec in workSpecList:
                     tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                                     method_name='run')
+                    # lock worker again
+                    lockedFlag = self.dbProxy.lock_worker_again_to_feed_events(workSpec.workerID, lockedBy)
+                    if not lockedFlag:
+                        tmpLog.debug('skipped since locked by another')
+                        continue
                     # get events
                     tmpLog.debug('get events')
                     tmpStat, events = self.communicator.get_event_ranges(workSpec.eventsRequestParams,
@@ -56,6 +62,11 @@ class EventFeeder(AgentBase):
                     # failed
                     if tmpStat is False:
                         tmpLog.error('failed to get events with {0}'.format(events))
+                        continue
+                    # lock worker again
+                    lockedFlag = self.dbProxy.lock_worker_again_to_feed_events(workSpec.workerID, lockedBy)
+                    if not lockedFlag:
+                        tmpLog.debug('skipped before feeding since locked by another')
                         continue
                     tmpStat = messenger.feed_events(workSpec, events)
                     # failed
@@ -74,8 +85,9 @@ class EventFeeder(AgentBase):
                     workSpec.eventsRequest = WorkSpec.EV_useEvents
                     workSpec.eventsRequestParams = None
                     workSpec.eventFeedTime = None
+                    workSpec.eventFeedLock = None
                     # update local database
-                    tmpStat = self.dbProxy.update_worker(workSpec)
+                    tmpStat = self.dbProxy.update_worker(workSpec, {'eventFeedLock': lockedBy})
                     tmpLog.debug('done with {0}'.format(tmpStat))
                 tmpQueLog.debug('done')
             mainLog.debug('done')

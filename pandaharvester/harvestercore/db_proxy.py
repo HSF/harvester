@@ -1859,7 +1859,7 @@ class DBProxy:
             return {}
 
     # get workers to feed events
-    def get_workers_to_feed_events(self, max_workers, lock_interval):
+    def get_workers_to_feed_events(self, max_workers, lock_interval, locked_by):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_workers_to_feed_events')
@@ -1870,7 +1870,7 @@ class DBProxy:
             sqlW += "AND (eventFeedTime IS NULL OR eventFeedTime<:lockTimeLimit) "
             sqlW += "ORDER BY eventFeedTime LIMIT {0} ".format(max_workers)
             # sql to lock worker
-            sqlL = "UPDATE {0} SET eventFeedTime=:timeNow ".format(workTableName)
+            sqlL = "UPDATE {0} SET eventFeedTime=:timeNow,eventFeedLock=:lockedBy ".format(workTableName)
             sqlL += "WHERE eventsRequest=:eventsRequest AND status=:status "
             sqlL += "AND (eventFeedTime IS NULL OR eventFeedTime<:lockTimeLimit) "
             sqlL += "AND workerID=:workerID "
@@ -1899,6 +1899,7 @@ class DBProxy:
                 varMap[':status'] = workStatus
                 varMap[':eventsRequest'] = WorkSpec.EV_requestEvents
                 varMap[':lockTimeLimit'] = lockTimeLimit
+                varMap[':lockedBy'] = locked_by
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
                 # commit
@@ -4952,6 +4953,49 @@ class DBProxy:
                     self.commit()
                 tmpLog.debug('deleted {0} records from {1}'.format(nDel, tableName))
             return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    # lock worker again to feed events
+    def lock_worker_again_to_feed_events(self, worker_id, locked_by):
+        try:
+            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
+                                            method_name='lock_worker_again_to_feed_events')
+            tmpLog.debug('start id={0}'.format(locked_by))
+            # check lock
+            sqlC = "SELECT eventFeedLock,eventFeedTime FROM {0} ".format(workTableName)
+            sqlC += "WHERE workerID=:workerID "
+            sqlC += "FOR UPDATE "
+            varMap = dict()
+            varMap[':workerID'] = worker_id
+            self.execute(sqlC, varMap)
+            resC = self.cur.fetchone()
+            if resC is None:
+                retVal = False
+                tmpLog.debug('not found')
+            else:
+                oldLockedBy, oldLockedTime = resC
+                if oldLockedBy != locked_by:
+                    tmpLog.debug('locked by another {0} at {1}'.format(oldLockedBy, oldLockedTime))
+                    retVal = False
+                else:
+                    # update locked time
+                    sqlU = "UPDATE {0} SET eventFeedTime=:timeNow WHERE workerID=:workerID ".format(workTableName)
+                    varMap = dict()
+                    varMap[':workerID'] = worker_id
+                    varMap[':timeNow'] = datetime.datetime.utcnow()
+                    self.execute(sqlU, varMap)
+                    retVal = True
+            # commit
+            self.commit()
+            tmpLog.debug('done with {0}'.format(retVal))
+            # return
+            return retVal
         except Exception:
             # roll back
             self.rollback()
