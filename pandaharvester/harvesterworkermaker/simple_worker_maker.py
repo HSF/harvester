@@ -60,7 +60,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # case of unified queue: look at the resource type and queue configuration
         else:
 
-            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified'):
+            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified', 'DESY-ZN_UCORE'):
                 # temporary hack to debug killed workers in Taiwan queues
                 site_corecount = queue_dict.get('corecount', 1) or 1
                 site_maxrss = queue_dict.get('maxrss', 1) or 1
