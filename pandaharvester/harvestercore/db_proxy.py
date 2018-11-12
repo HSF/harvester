@@ -1028,6 +1028,8 @@ class DBProxy:
                         zipFileSpec = None
                         # get associated zip file if any
                         if eventSpec.fileID is not None:
+                            if eventSpec.fileID not in zipIdMap:
+                                continue
                             zipFileID = zipIdMap[eventSpec.fileID]
                             if zipFileID is not None:
                                 zipFileSpec = zipFiles[zipFileID]
@@ -2520,6 +2522,8 @@ class DBProxy:
                     varMap[':badHasOutFile'] = bad_has_out_file_flag
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
+                # commit
+                self.commit()
                 if nRow > 0:
                     # get job
                     varMap = dict()
@@ -2562,6 +2566,9 @@ class DBProxy:
                         varMap[':fileID'] = fileSpec.fileID
                         self.execute(sqlFU, varMap)
                     jobSpecList.append(jobSpec)
+                    # commit
+                    if len(resFileList) > 0:
+                        self.commit()
                     # get associated files
                     if has_out_file_flag == JobSpec.HO_hasZipOutput:
                         for fileSpec in jobSpec.outFiles:
@@ -2578,8 +2585,6 @@ class DBProxy:
                     # get associated workers
                     tmpWorkers = self.get_workers_with_job_id(jobSpec.PandaID, use_commit=False)
                     jobSpec.add_workspec_list(tmpWorkers)
-                # commit
-                self.commit()
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
         except Exception:
