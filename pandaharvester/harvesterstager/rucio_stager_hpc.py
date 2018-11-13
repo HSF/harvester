@@ -3,11 +3,12 @@ try:
 except:
     import subprocess
 import uuid
+import os
 
 from pandaharvester.harvestercore import core_utils
 from .base_stager import BaseStager
 
-#TODO: retry of failed transfers
+# TODO: retry of failed transfers
 
 # logger
 baseLogger = core_utils.setup_logger('rucio_stager_hpc')
@@ -24,6 +25,10 @@ class RucioStagerHPC(BaseStager):
             self.pathConvention = None
         if not hasattr(self, 'objstoreID'):
             self.objstoreID = None
+        if not hasattr(self, 'maxAttempts'):
+            self.maxAttempts = 3
+        if not hasattr(self, 'objectstore_additions'):
+            self.objectstore_additions = None
 
     # check status
     def check_status(self, jobspec):
@@ -85,8 +90,22 @@ class RucioStagerHPC(BaseStager):
 
             # for now mimic behaviour and code of pilot v2 rucio copy tool (rucio download) change when needed
 
-            executable = ['/usr/bin/env',
-                          'rucio', '-v', 'upload']
+            executable_prefix = None
+            pfn_prefix = None
+            if dstRSE in self.objectstore_additions:
+                if 'storage_id' in self.objectstore_additions[dstRSE]:
+                    fileSpec.objstoreID = self.objectstore_additions[dstRSE]['storage_id']
+                if 'access_key' in self.objectstore_additions[dstRSE] and \
+                   'secret_key' in self.objectstore_additions[dstRSE] and \
+                   'is_secure' in self.objectstore_additions[dstRSE]:
+                    executable_prefix = "export S3_ACCESS_KEY=%s; export S3_SECRET_KEY=%s; export S3_IS_SECURE=%s" % (
+                      self.objectstore_additions[dstRSE]['access_key'],
+                      self.objectstore_additions[dstRSE]['secret_key'],
+                      self.objectstore_additions[dstRSE]['is_secure'])
+                if 'pfn_prefix' in self.objectstore_additions[dstRSE]:
+                    pfn_prefix = self.objectstore_additions[dstRSE]['pfn_prefix']
+
+            executable = ['/usr/bin/env', 'rucio', '-v', 'upload']
             executable += ['--no-register']
             if hasattr(self, 'lifetime'):
                 executable += ['--lifetime', ('%d' % self.lifetime)]
@@ -95,20 +114,33 @@ class RucioStagerHPC(BaseStager):
 
             executable += ['--rse', dstRSE]
             executable += ['--scope', scope]
-            executable += [('%s:%s' % (scope, datasetName))]
+            if pfn_prefix:
+                executable += ['--pfn %s' % os.path.join(pfn_prefix, os.path.basename(fileSpec.path))]
+            else:
+                executable += [('%s:%s' % (scope, datasetName))]
             executable += [('%s' % fileSpec.path)]
 
             tmpLog.debug('rucio upload command: {0} '.format(executable))
             tmpLog.debug('rucio upload command (for human): %s ' % ' '.join(executable))
 
-            process = subprocess.Popen(executable,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT)
+            if executable_prefix:
+                cmd = executable_prefix + "; " + ' '.join(executable)
+                process = subprocess.Popen(cmd,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.STDOUT,
+                                           shell=True)
+            else:
+                process = subprocess.Popen(executable,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.STDOUT)
 
             stdout, stderr = process.communicate()
+            fileSpec.attemptNr += 1
+            stdout = stdout + " attemptNr: %s" % fileSpec.attemptNr
+            tmpLog.debug("stdout: %s" % stdout)
+            tmpLog.debug("stderr: %s" % stderr)
             if process.returncode == 0:
                 fileSpec.status = 'finished'
-                tmpLog.debug(stdout)
             else:
                 # check what failed
                 file_exists = False
@@ -129,10 +161,12 @@ class RucioStagerHPC(BaseStager):
                     allChecked = False
                     continue
                 else:
-                    fileSpec.status = 'failed'
                     tmpLog.error('rucio upload failed with stdout: %s' % stdout)
                     ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn, stdout)
                     allChecked = False
+                    if fileSpec.attemptNr >= self.maxAttempts:
+                        tmpLog.error('reached maxattempts: %s, marked it as failed' % self.maxAttempts)
+                        fileSpec.status = 'failed'
 
             # force update
             fileSpec.force_update('status')

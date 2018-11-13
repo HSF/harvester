@@ -73,9 +73,11 @@ class PBSSubmitter(PluginBase):
     def make_batch_script(self, workspec):
         if hasattr(self, 'dynamicSizing') and self.dynamicSizing is True:
             maxWalltime = str(datetime.timedelta(seconds=workspec.maxWalltime))
+            yodaWallClockLimit = workspec.maxWalltime / 60
         else:
             workspec.nCore = self.nCore
             maxWalltime = str(datetime.timedelta(seconds=self.maxWalltime))
+            yodaWallClockLimit = self.maxWalltime / 60
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            localQueue=self.localQueue,
@@ -83,6 +85,7 @@ class PBSSubmitter(PluginBase):
                                            nNode=workspec.nCore / self.nCorePerNode,
                                            accessPoint=workspec.accessPoint,
                                            walltime=maxWalltime,
+                                           yodaWallClockLimit=yodaWallClockLimit,
                                            workerID=workspec.workerID)
                       )
         tmpFile.close()
