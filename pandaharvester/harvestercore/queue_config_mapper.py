@@ -257,7 +257,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 if _qcj is None:
                     continue
                 queueNameList |= set(_qcj.keys())
-            # get queue names and params from resolver
+            # get queue names from resolver
             if resolver is not None and 'DYNAMIC' in harvester_config.qconf.queueList:
                 getQueuesDynamic = True
                 queueTemplateMap = resolver.get_all_queue_names()
