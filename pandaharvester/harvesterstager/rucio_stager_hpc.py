@@ -8,7 +8,7 @@ import os
 from pandaharvester.harvestercore import core_utils
 from .base_stager import BaseStager
 
-#TODO: retry of failed transfers
+# TODO: retry of failed transfers
 
 # logger
 baseLogger = core_utils.setup_logger('rucio_stager_hpc')
@@ -105,11 +105,7 @@ class RucioStagerHPC(BaseStager):
                 if 'pfn_prefix' in self.objectstore_additions[dstRSE]:
                     pfn_prefix = self.objectstore_additions[dstRSE]['pfn_prefix']
 
-            if executable_prefix:
-                executable = ['%s; /usr/bin/env' % executable_prefix, 'rucio', '-v', 'upload']
-            else:
-                executable = ['/usr/bin/env', 'rucio', '-v', 'upload']
-
+            executable = ['/usr/bin/env', 'rucio', '-v', 'upload']
             executable += ['--no-register']
             if hasattr(self, 'lifetime'):
                 executable += ['--lifetime', ('%d' % self.lifetime)]
@@ -117,26 +113,34 @@ class RucioStagerHPC(BaseStager):
                     executable += ['--guid', fileSpec.fileAttributes['guid']]
 
             executable += ['--rse', dstRSE]
+            executable += ['--scope', scope]
             if pfn_prefix:
                 executable += ['--pfn %s' % os.path.join(pfn_prefix, os.path.basename(fileSpec.path))]
-
-            executable += ['--scope', scope]
-            executable += [('%s:%s' % (scope, datasetName))]
+            else:
+                executable += [('%s:%s' % (scope, datasetName))]
             executable += [('%s' % fileSpec.path)]
 
             tmpLog.debug('rucio upload command: {0} '.format(executable))
             tmpLog.debug('rucio upload command (for human): %s ' % ' '.join(executable))
 
-            process = subprocess.Popen(executable,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT)
+            if executable_prefix:
+                cmd = executable_prefix + "; " + ' '.join(executable)
+                process = subprocess.Popen(cmd,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.STDOUT,
+                                           shell=True)
+            else:
+                process = subprocess.Popen(executable,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.STDOUT)
 
             stdout, stderr = process.communicate()
             fileSpec.attemptNr += 1
             stdout = stdout + " attemptNr: %s" % fileSpec.attemptNr
+            tmpLog.debug("stdout: %s" % stdout)
+            tmpLog.debug("stderr: %s" % stderr)
             if process.returncode == 0:
                 fileSpec.status = 'finished'
-                tmpLog.debug(stdout)
             else:
                 # check what failed
                 file_exists = False
