@@ -38,7 +38,7 @@ def _make_logger(base_log=_logger, token=None, method_name=None, send_dialog=Tru
 
 
 # class for queue config
-class QueueConfig:
+class QueueConfig(object):
 
     def __init__(self, queue_name):
         self.queueName = queue_name
@@ -117,6 +117,36 @@ class QueueConfig:
 
 # mapper
 class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
+
+    mandatory_attrs = set([
+            'messenger',
+            'monitor',
+            'preparator',
+            'stager',
+            'submitter',
+            'sweeper',
+            'workerMaker',
+        ])
+    updatable_generic_attrs = set([
+            'nQueueLimitWorker',
+            'maxWorkers',
+            'maxNewWorkersPerCycle',
+            'nQueueLimitJob',
+            'nQueueLimitJobRatio',
+            'nQueueLimitJobMax',
+            'nQueueLimitJobMin',
+        ])
+    updatable_plugin_attrs = set([
+            'common',
+            'messenger',
+            'monitor',
+            'preparator',
+            'stager',
+            'submitter',
+            'sweeper',
+            'workerMaker',
+        ])
+
     # constructor
     def __init__(self, update_db=True):
         self.lock = threading.Lock()
@@ -206,9 +236,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             queueNameList = set()
             templateQueueList = set()
             queueTemplateMap = dict()
-            resolver = self._get_resolver()
             getQueuesDynamic = False
             invalidQueueList = set()
+            # get resolver
+            resolver = self._get_resolver()
+            if resolver is None:
+                mainLog.debug('No resolver is configured')
             # load config json from cacher
             queueConfigJson_cacher = self._load_config_from_cache()
             if queueConfigJson_cacher is not None:
@@ -224,12 +257,11 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 if _qcj is None:
                     continue
                 queueNameList |= set(_qcj.keys())
-            # get queue names from resolver
+            # get queue names and params from resolver
             if resolver is not None and 'DYNAMIC' in harvester_config.qconf.queueList:
                 getQueuesDynamic = True
                 queueTemplateMap = resolver.get_all_queue_names()
                 queueNameList |= set(queueTemplateMap.keys())
-
             # set attributes
             for queueName in queueNameList:
                 # prepare queueDictList
@@ -245,7 +277,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                             queueDictList.insert(0, queueConfigJson[templateQueueName])
                 elif getQueuesDynamic:
                     templateQueueName = queueTemplateMap[queueName]
-                    if templateQueueName not in queueConfigJson:
+                    resolver_harvester_template = None
+                    if resolver is not None:
+                         resolver_harvester_template = resolver.get_harvester_template(queueName)
+                    if resolver_harvester_template:
+                        templateQueueName = resolver_harvester_template
+                    elif templateQueueName not in queueConfigJson:
                         templateQueueName = harvester_config.qconf.defaultTemplateQueueName
                     templateQueueList.add(templateQueueName)
                     if templateQueueName in queueConfigJson:
@@ -268,7 +305,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     # according to queueDict
                     for key, val in iteritems(queueDict):
                         if isinstance(val, dict) and 'module' in val and 'name' in val:
+                            # plugin attributes
                             val = copy.copy(val)
+                            # fill in common attributes for all plugins
+                            for c_key, c_val in iteritems(commonAttrDict):
+                                if c_key not in val and c_key not in ('module', 'name'):
+                                    val[c_key] = c_val
                             # check module and class name
                             try:
                                 _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val['module'])
@@ -293,10 +335,26 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                                 # overwrite with middleware config
                                 for m_key, m_val in iteritems(queueDict[val['middleware']]):
                                     val[m_key] = m_val
-                            # fill in common attributes for all plugins
-                            for c_key, c_val in iteritems(commonAttrDict):
-                                val[c_key] = c_val
                         setattr(queueConfig, key, val)
+                    # update from resolver queue params
+                    if resolver is not None:
+                        resolver_harvester_params = resolver.get_harvester_params(queueName)
+                        for key, val in iteritems(resolver_harvester_params):
+                            if queueConfigJson_local is None \
+                                or key not in queueConfigJson_local.get(queueName, dict()):
+                                # generic attributes
+                                if key in self.updatable_generic_attrs:
+                                    setattr(queueConfig, key, val)
+                                elif key in self.updatable_plugin_attrs \
+                                    and isinstance(val, dict):
+                                    try:
+                                        update_dict = getattr(queueConfig, key).copy()
+                                    except Exception as _e:
+                                        mainLog.warning('Resolver params problematic. Omitted {0} in queue config ({1})'.format(
+                                                        queueName, _e))
+                                    else:
+                                        update_dict.update(val)
+                                        setattr(queueConfig, key, update_dict)
                     # get Panda Queue Name
                     if resolver is not None:
                         queueConfig.pandaQueueName = resolver.get_panda_queue_name(queueConfig.siteName)
@@ -322,6 +380,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     queueConfig.set_unique_name()
                     # put into new queue configs
                     newQueueConfig[queueName] = queueConfig
+                # Check existence of mandatory attributes
+                for _attr in self.mandatory_attrs:
+                    if not hasattr(queueConfig, _attr):
+                        invalidQueueList.add(queueConfig.queueName)
+                        mainLog.error('Missing mandatory attribute "{0}". Omitted {1} in queue config'.format(
+                                        _attr, queueConfig.queueName))
             # delete invalid queues
             for invalidQueueName in invalidQueueList:
                 if invalidQueueName in newQueueConfig:
@@ -352,7 +416,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 # get dynamic information
                 if 'DYNAMIC' in harvester_config.qconf.queueList:
                     # UPS queue
-                    if resolver.is_ups_queue(queueName):
+                    if resolver is not None and resolver.is_ups_queue(queueName):
                         queueConfig.runMode = 'slave'
                         queueConfig.mapType = 'NoJob'
                 # set online if undefined

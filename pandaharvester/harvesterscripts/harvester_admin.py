@@ -190,6 +190,11 @@ def qconf_list(arguments):
     else:
         queue_config_tool.list_active_queues()
 
+def qconf_refresh(arguments):
+    from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+    qcm = QueueConfigMapper()
+    qcm.load_data()
+
 def qconf_dump(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
     to_print = not arguments.json
@@ -237,6 +242,7 @@ commandMap = {
             # qconf commands
             'qconf_list': qconf_list,
             'qconf_dump': qconf_dump,
+            'qconf_refresh': qconf_refresh,
             'qconf_purge': qconf_purge,
             }
 
@@ -280,6 +286,9 @@ def main():
     qconf_dump_parser.add_argument('-a', '--all', dest='all', action='store_true', help='Dump configuration of all active queues')
     qconf_dump_parser.add_argument('queue_list', nargs='*', type=str, action='store', metavar='<queue_name>', help='Name of active queue')
     qconf_dump_parser.add_argument('-i', '--id', dest='id_list', nargs='+', type=int, action='store', metavar='<configID>', help='Dump configuration of queue with configID')
+    # qconf refresh command
+    qconf_refresh_parser = qconf_subparsers.add_parser('refresh', help='refresh queue configuration immediately')
+    qconf_refresh_parser.set_defaults(which='qconf_refresh')
     # qconf purge command
     qconf_purge_parser = qconf_subparsers.add_parser('purge', help='Purge the queue thoroughly from harvester DB (Be careful !!)')
     qconf_purge_parser.set_defaults(which='qconf_purge')

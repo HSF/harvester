@@ -1,8 +1,10 @@
 from future.utils import iteritems
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.db_interface import DBInterface
 
+harvesterID = harvester_config.master.harvester_id
 
 class PandaQueuesDict(dict, PluginBase):
     """
@@ -48,17 +50,18 @@ class PandaQueuesDict(dict, PluginBase):
         panda_queue_dict = self.get(panda_resource)
         if panda_queue_dict is None:
             return None
-        # offline if not with harvester
-        if panda_queue_dict['pilot_manager'] not in ['Harvester']:
+        # offline if not with harvester or not of this harvester instance
+        if panda_queue_dict.get('pilot_manager') not in ['Harvester'] \
+            or panda_queue_dict.get('harvester') != harvesterID:
             return 'offline'
         return panda_queue_dict['status']
 
-    # get all queue names
+    # get all queue names of this harvester instance
     def get_all_queue_names(self):
         names = dict()
         for queue_name, queue_dict in iteritems(self):
-            if queue_dict['pilot_manager'] in ['Harvester']:
-                # FIXME once template name is available in AGIS
+            if queue_dict.get('pilot_manager') in ['Harvester'] \
+                and queue_dict.get('harvester') == harvesterID:
                 names[queue_name] = None
         return names
 
@@ -67,7 +70,23 @@ class PandaQueuesDict(dict, PluginBase):
         panda_queue_dict = self.get(panda_resource)
         if panda_queue_dict is None:
             return False
-        if panda_queue_dict['capability'] == 'ucore' and \
-                'Pull' in panda_queue_dict['catchall'].split(','):
+        if panda_queue_dict.get('capability') == 'ucore' and \
+                'Pull' in panda_queue_dict.get('catchall').split(','):
             return True
         return False
+
+    # get harvester params
+    def get_harvester_params(self, panda_resource):
+        panda_queue_dict = self.get(panda_resource)
+        if panda_queue_dict is None:
+            return dict()
+        else:
+             return panda_queue_dict.get('params', dict())
+
+    # get harvester_template
+    def get_harvester_template(self, panda_resource):
+        panda_queue_dict = self.get(panda_resource)
+        if panda_queue_dict is None:
+            return None
+        else:
+             return panda_queue_dict.get('harvester_template', '')

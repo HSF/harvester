@@ -628,7 +628,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
 
 
 # monitor for HTCONDOR batch system
-class HTCondorMonitor (PluginBase):
+class HTCondorMonitor(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
