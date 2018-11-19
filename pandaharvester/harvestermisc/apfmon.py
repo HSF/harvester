@@ -269,7 +269,7 @@ class Apfmon:
         if harvester_status == 'finished':
             return ['exiting', 'done']
 
-    def update_workers(self, worker_spec_list):
+    def update_worker(self, worker_spec, worker_status):
         """
         Updates the state of a worker. This can also be done directly from the wrapper, assuming there is outbound
         connectivity on the worker node
@@ -285,35 +285,32 @@ class Apfmon:
         try:
             tmp_log.debug('start')
 
-            for worker_spec in worker_spec_list:
+            batch_id = worker_spec.batchID
+            factory = self.harvester_id
 
-                batch_id = worker_spec.batchID
-                factory = self.harvester_id
+            url = '{0}/jobs/{1}:{2}'.format(self.base_url, factory, batch_id)
 
-                url = '{0}/jobs/{1}:{2}'.format(self.base_url, factory, batch_id)
+            apfmon_status = self.convert_status(worker_status)
+            apfmon_worker = {}
 
-                apfmon_status = self.convert_status(worker_spec.status)
-                apfmon_worker = {}
+            for status in apfmon_status:
+                apfmon_worker['state'] = status
 
-                for status in apfmon_status:
-                    apfmon_worker['state'] = status
+                if status == 'exiting':
+                    # return code
+                    apfmon_worker['rc'] = 0
+                    if hasattr(worker_spec, 'pandaid_list') and worker_spec.pandaid_list:
+                        apfmon_worker['ids'] = ','.join(str(x) for x in worker_spec.pandaid_list)
 
-                    if status == 'exiting':
-                        # return code
-                        apfmon_worker['rc'] = 0 # TODO: I'm not sure how to fill this field
-                        if hasattr(worker_spec, 'pandaid_list') and worker_spec.pandaid_list:
-                            apfmon_worker['ids'] = ','.join(str(x) for x in worker_spec.pandaid_list)
+                tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
 
-                    tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
-
-                    r = requests.post(url, data=apfmon_worker, timeout=self.__worker_timeout)
-                    tmp_log.debug('worker update for {0} ended with {1} {2}'.format(batch_id, r.status_code, r.text))
+                r = requests.post(url, data=apfmon_worker, timeout=self.__worker_timeout)
+                tmp_log.debug('worker update for {0} ended with {1} {2}'.format(batch_id, r.status_code, r.text))
 
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
         except:
             tmp_log.error('Excepted with: {0}'.format(traceback.format_exc()))
-
 
 if __name__== "__main__":
 
