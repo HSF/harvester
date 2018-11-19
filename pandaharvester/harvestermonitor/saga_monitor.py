@@ -106,7 +106,7 @@ class SAGAMonitor(PluginBase):
                             tmpLog.info("Worker state: {0} worker exit code: {1}".format(harvester_job_state,
                                                                                          workSpec.nativeExitCode))
                             # proper processing of jobs for worker will be required, to avoid 'fake' fails
-
+                    del worker
                 except saga.SagaException as ex:
                     tmpLog.info('An exception occured during retriving worker information {0}'.format(workSpec.batchID))
                     tmpLog.info(ex.get_message())
@@ -122,6 +122,12 @@ class SAGAMonitor(PluginBase):
                         workSpec.endTime = endtime
                     workSpec.set_status(harvester_job_state)
                     tmpLog.debug('Worker state set to: {0} ({1})'.format(workSpec.status, harvester_job_state))
+                    try:
+                        worker
+                    except NameError:
+                        pass
+                    else:
+                        del worker
                 retList.append((harvester_job_state, errStr))
                 # for compatibility with dummy monitor
                 f = open(os.path.join(workSpec.accessPoint, 'status.txt'), 'w')
@@ -132,6 +138,7 @@ class SAGAMonitor(PluginBase):
                 tmpLog.debug("SAGA monitor found worker [{0}] without batchID".format(workSpec.workerID))
 
         job_service.close()
+        del job_service
         tmpLog.debug('Results: {0}'.format(retList))
 
         return True, retList
@@ -144,7 +151,7 @@ class SAGAMonitor(PluginBase):
         :return harvester_job_state, nativeExitCode, nativeStatus, startTime, endTime, diagMessage
         """
         tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workerid), method_name='deep_checkjob')
-        harvester_job_state = None
+        harvester_job_state = ""
         nativeexitcode = None
         nativestatus = None
         diagmessage = ""
@@ -158,15 +165,15 @@ class SAGAMonitor(PluginBase):
             resource_utils = None
         if resource_utils:
             batchjob_info = resource_utils.get_batchjob_info(batchid)
-        if batchjob_info:
-            tmpLog.info('Batch job info collected: {0}'.format(batchjob_info))
-            harvester_job_state = batchjob_info['status']
-            nativeexitcode = batchjob_info['nativeExitCode']
-            nativestatus = batchjob_info['nativeStatus']
-            diagmessage = batchjob_info['nativeExitMsg']
-            if batchjob_info['start_time']:
-                starttime = batchjob_info['start_time']
-            if batchjob_info['finish_time']:
-                endtime = batchjob_info['finish_time']
+            if batchjob_info:
+                tmpLog.info('Batch job info collected: {0}'.format(batchjob_info))
+                harvester_job_state = batchjob_info['status']
+                nativeexitcode = batchjob_info['nativeExitCode']
+                nativestatus = batchjob_info['nativeStatus']
+                diagmessage = batchjob_info['nativeExitMsg']
+                if batchjob_info['start_time']:
+                    starttime = batchjob_info['start_time']
+                if batchjob_info['finish_time']:
+                    endtime = batchjob_info['finish_time']
 
         return harvester_job_state, nativeexitcode, nativestatus, starttime, endtime, diagmessage
