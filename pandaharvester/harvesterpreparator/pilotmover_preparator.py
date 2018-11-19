@@ -73,6 +73,7 @@ class PilotmoverPreparator(PluginBase):
         ErrMsg = 'These files failed to download : '
         if len(files) > 0:
             tmpLog.info("Going to transfer {0} of files with one call to Pilot2 Data API".format(len(files)))
+            sw = core_utils.get_stopwatch()
             try:
                 result = data_client.transfer(files)
             except Exception as e:
@@ -87,6 +88,7 @@ class PilotmoverPreparator(PluginBase):
                         ErrMsg = ErrMsg + (" %s " % answer['name'])
             else:
                 tmpLog.info('Looks like all files in place. Number of files: {0}'.format(len(files)))
+            tmpLog('Number of files {0}. Transfer done {1}'.format(len(files), sw.get_elapsed_time()))
         # return
         tmpLog.debug('Finished data transfer with {0} files for job {1}'.format(len(files), jobspec.PandaID))
         if allChecked:
