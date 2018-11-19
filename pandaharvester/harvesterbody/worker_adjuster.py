@@ -188,10 +188,10 @@ class WorkerAdjuster:
                             _s_list = sorted(simple_rt_nw_list, key=(lambda x: x[1]))
                             sorted_rt_nw_list = sorted(_s_list, key=(lambda x: x[2]), reverse=True)
                             for resource_type, nNewWorkers_orig, remainder in sorted_rt_nw_list:
-                                dyn_num_workers[queueName][resource_type]['nNewWorkers'] += 1
-                                _countdown -= 1
                                 if _countdown <= 0:
                                     break
+                                dyn_num_workers[queueName][resource_type]['nNewWorkers'] += 1
+                                _countdown -= 1
                         for resource_type in dyn_num_workers[queueName]:
                             if resource_type == 'ANY':
                                 continue

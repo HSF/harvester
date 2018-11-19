@@ -21,7 +21,7 @@ class FileSpec(SpecBase):
                            'modificationTime:timestamp',
                            'fileAttributes:blob',
                            'isZip:integer',
-                           'zipFileID:integer',
+                           'zipFileID:integer / index',
                            'objstoreID:integer',
                            'endpoint:text',
                            'groupID:text / index',
