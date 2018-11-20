@@ -61,5 +61,7 @@ setup(
                  ]
          ),
         ],
-    scripts=['templates/panda_jedi-renice']
+    scripts=['templates/panda_jedi-renice',
+             'templates/panda_harvester-sqlite3backup',
+             ]
     )
