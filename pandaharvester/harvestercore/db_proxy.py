@@ -515,10 +515,37 @@ class DBProxy:
             # sql to insert a file
             sqlF = "INSERT INTO {0} ({1}) ".format(fileTableName, FileSpec.column_names())
             sqlF += FileSpec.bind_values_expression()
+            # sql to delete job
+            sqlDJ = "DELETE FROM {0} ".format(jobTableName)
+            sqlDJ += "WHERE PandaID=:PandaID "
+            # sql to delete files
+            sqlDF = "DELETE FROM {0} ".format(fileTableName)
+            sqlDF += "WHERE PandaID=:PandaID "
+            # sql to delete events
+            sqlDE = "DELETE FROM {0} ".format(eventTableName)
+            sqlDE += "WHERE PandaID=:PandaID "
+            # sql to delete relations
+            sqlDR = "DELETE FROM {0} ".format(jobWorkerTableName)
+            sqlDR += "WHERE PandaID=:PandaID "
             # loop over all jobs
             varMapsJ = []
             varMapsF = []
             for jobSpec in jobspec_list:
+                # delete job just in case
+                varMap = dict()
+                varMap[':PandaID'] = jobSpec.PandaID
+                self.execute(sqlDJ, varMap)
+                iDel = self.cur.rowcount
+                if iDel > 0:
+                    # delete files
+                    self.execute(sqlDF, varMap)
+                    # delete events
+                    self.execute(sqlDE, varMap)
+                    # delete relations
+                    self.execute(sqlDR, varMap)
+                # commit
+                self.commit()
+                # insert job and files
                 varMap = jobSpec.values_list()
                 varMapsJ.append(varMap)
                 for fileSpec in jobSpec.inFiles:
