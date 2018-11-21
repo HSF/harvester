@@ -40,7 +40,7 @@ class Cacher(AgentBase):
             timeLimit = datetime.datetime.utcnow() - \
                 datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
             itemsList = []
-            keysForceUpdate = []
+            # keysForceUpdate = []
             nItems = 4
             for tmpStr in harvester_config.cacher.data:
                 tmpItems = tmpStr.split('|')
@@ -49,18 +49,18 @@ class Cacher(AgentBase):
                 tmpItems += [None] * (nItems - len(tmpItems))
                 tmpItems = tmpItems[:nItems]
                 itemsList.append(tmpItems)
-            # add queues_config
-            if core_utils.get_queues_config_url() is not None:
-                tmpKey = 'queues_config_file'
-                itemsList.append((tmpKey, None, core_utils.get_queues_config_url()))
-                keysForceUpdate.append(tmpKey)
+            # # add queues_config
+            # if core_utils.get_queues_config_url() is not None:
+            #     tmpKey = 'queues_config_file'
+            #     itemsList.append((tmpKey, None, core_utils.get_queues_config_url()))
+            #     keysForceUpdate.append(tmpKey)
             # loop over all items
             for mainKey, subKey, infoURL, dumpFile in itemsList:
                 if subKey == '':
                     subKey = None
                 # check last update time
                 lastUpdateTime = self.dbProxy.get_cache_last_update_time(mainKey, subKey)
-                if (not force_update or mainKey not in keysForceUpdate) and lastUpdateTime is not None \
+                if (not force_update) and lastUpdateTime is not None \
                         and lastUpdateTime > timeLimit:
                     continue
                 # get information
