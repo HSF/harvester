@@ -8,8 +8,7 @@ from urlparse import urlparse
 import arc
 
 from pandaharvester.harvestercore import core_utils
-#from .base_messenger import BaseMessenger
-from pandaharvester.harvestermessenger.base_messenger import BaseMessenger
+from .base_messenger import BaseMessenger
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc import arc_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
