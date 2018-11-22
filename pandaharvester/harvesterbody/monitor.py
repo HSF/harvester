@@ -265,7 +265,7 @@ class Monitor(AgentBase):
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
         try:
             apfmon_status_updates = self.queueConfigMapper.queueConfig[queueName].monitor['apfmon_status_updates']
-        except:
+        except Exception:
             apfmon_status_updates = False
         tmpQueLog.debug('apfmon_status_updates: {0}'.format(apfmon_status_updates))
         # get plugins
