@@ -171,24 +171,6 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         except AttributeError:
             self.configFromCacher = False
 
-    # update plugin attributes by each subkey, instead of overwriting the whole value
-    def _attrs_update(self, qconf_json, key, val):
-        if key in self.dynamic_queue_generic_attrs:
-            # generic attributes
-            setattr(qconf_json, key, val)
-        elif key in self.updatable_plugin_attrs and isinstance(val, dict):
-            # plugin attributes
-            try:
-                update_dict = getattr(qconf_json, key).copy()
-            except Exception as _e:
-                errStr = 'value problematic. Omitted {0} in queue config ({1})'.format(
-                                getattr(qconf_json, 'queueName', None), _e)
-                return False, errStr
-            else:
-                update_dict.update(val)
-                setattr(qconf_json, key, update_dict)
-        return True, ''
-
     # load config from DB cache of URL with validation
     def _load_config_from_cache(self):
         mainLog = _make_logger(method_name='QueueConfigMapper._load_config_from_cache')
