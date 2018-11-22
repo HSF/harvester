@@ -454,6 +454,8 @@ class DBProxy:
         outStrs += self.make_table(ProcessLockSpec, processLockTableName)
         outStrs += self.make_table(DiagSpec, diagTableName)
         outStrs += self.make_table(QueueConfigDumpSpec, queueConfigDumpTableName)
+        outStrs += self.make_table(ServiceMetricSpec, serviceMetricsTableName)
+
         # dump error messages
         if len(outStrs) > 0:
             errMsg = "ERROR : Definitions of some database tables are incorrect. "
