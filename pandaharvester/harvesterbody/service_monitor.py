@@ -1,6 +1,6 @@
 import psutil
-import json
 
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.service_metrics_spec import ServiceMetricSpec
