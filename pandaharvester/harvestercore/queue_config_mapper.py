@@ -117,6 +117,19 @@ class QueueConfig(object):
 
 # mapper
 class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
+    """
+    Using some acronyms here:
+    LT = local template, written in local queueconfig file
+    RT = remote template, on http source fetched by cacher
+    FT = final template of a queue
+    LQ = local queue configuration, written in local queueconfig file
+    RQ = remote queue configuration, on http source fetched by cacher, static
+    DQ = dynamic queue configuration, configured with information from resolver
+
+    Relations:
+    FT = LT if existing else RT
+    FQ = FT updated with RQ, then updated with DQ, then updated with LQ
+    """
 
     mandatory_attrs = set([
             'messenger',
@@ -127,7 +140,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             'sweeper',
             'workerMaker',
         ])
-    updatable_generic_attrs = set([
+    dynamic_queue_generic_attrs = set([
             'nQueueLimitWorker',
             'maxWorkers',
             'maxNewWorkersPerCycle',
@@ -157,6 +170,24 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             self.configFromCacher = harvester_config.qconf.configFromCacher
         except AttributeError:
             self.configFromCacher = False
+
+    # update plugin attributes by each subkey, instead of overwriting the whole value
+    def _attrs_update(self, qconf_json, key, val):
+        if key in self.dynamic_queue_generic_attrs:
+            # generic attributes
+            setattr(qconf_json, key, val)
+        elif key in self.updatable_plugin_attrs and isinstance(val, dict):
+            # plugin attributes
+            try:
+                update_dict = getattr(qconf_json, key).copy()
+            except Exception as _e:
+                errStr = 'value problematic. Omitted {0} in queue config ({1})'.format(
+                                getattr(qconf_json, 'queueName', None), _e)
+                return False, errStr
+            else:
+                update_dict.update(val)
+                setattr(qconf_json, key, update_dict)
+        return True, ''
 
     # load config from DB cache of URL with validation
     def _load_config_from_cache(self):
@@ -231,175 +262,248 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         # start
         with self.lock:
             # init
-            newQueueConfig = {}
+            newQueueConfig = dict()
             queueConfigJson = dict()
-            queueNameList = set()
-            templateQueueList = set()
-            queueTemplateMap = dict()
+            localTemplatesDict = dict()
+            remoteTemplatesDict = dict()
+            finalTemplatesDict = dict()
+            localQueuesDict = dict()
+            remoteQueuesDict = dict()
+            dynamicQueuesDict = dict()
+            allQueuesNameList = set()
             getQueuesDynamic = False
             invalidQueueList = set()
             # get resolver
             resolver = self._get_resolver()
             if resolver is None:
                 mainLog.debug('No resolver is configured')
-            # load config json from cacher
+            # load config json from cacher (RT & RQ)
             queueConfigJson_cacher = self._load_config_from_cache()
             if queueConfigJson_cacher is not None:
-                queueConfigJson.update(queueConfigJson_cacher)
-            # load config from local json file
+                # queueConfigJson.update(queueConfigJson_cacher)
+                for queueName, queueDict in iteritems(queueConfigJson_cacher):
+                    if queueDict.get('isTemplateQueue') is True \
+                        or queueName.endswith('_TEMPLATE'):
+                        # is RT
+                        queueDict['isTemplateQueue'] = True
+                        queueDict.pop('templateQueueName', None)
+                        remoteTemplatesDict[queueName] = queueDict
+                    else:
+                        # is RQ
+                        queueDict['isTemplateQueue'] = False
+                        remoteQueuesDict[queueName] = queueDict
+            # load config from local json file (LT & LQ)
             queueConfigJson_local = self._load_config_from_file()
             if queueConfigJson_local is not None:
-                queueConfigJson.update(queueConfigJson_local)
+                for queueName, queueDict in iteritems(queueConfigJson_local):
+                    if queueDict.get('isTemplateQueue') is True \
+                        or queueName.endswith('_TEMPLATE'):
+                        # is LT
+                        queueDict['isTemplateQueue'] = True
+                        queueDict.pop('templateQueueName', None)
+                        localTemplatesDict[queueName] = queueDict
+                    else:
+                        # is LQ
+                        queueDict['isTemplateQueue'] = False
+                        localQueuesDict[queueName] = queueDict
             else:
                 mainLog.warning('Failed to load config from local json file. Skipped')
-            # get queue names from queue configs
-            for _qcj in [queueConfigJson_cacher, queueConfigJson_local]:
-                if _qcj is None:
-                    continue
-                queueNameList |= set(_qcj.keys())
-            # get queue names from resolver
-            if resolver is not None and 'DYNAMIC' in harvester_config.qconf.queueList:
+            # fill in final template (FT)
+            finalTemplatesDict.update(remoteTemplatesDict)
+            finalTemplatesDict.update(localTemplatesDict)
+            finalTemplatesDict.pop(None, None)
+            # remove queues with invalid templateQueueName
+            for acr, queuesDict in [('RQ', remoteQueuesDict), ('LQ', localQueuesDict)]:
+                for queueName, queueDict in iteritems(queuesDict.copy()):
+                    templateQueueName = queueDict.get('templateQueueName')
+                    if templateQueueName is not None \
+                        and templateQueueName not in finalTemplatesDict:
+                        del queuesDict[queueName]
+                        mainLog.warning('Invalid templateQueueName "{0}" for {1} ({2}). Skipped'.format(
+                                            templateQueueName, queueName, acr))
+            # get queue names from resolver and fill in dynamic queue (DQ)
+            if resolver is not None \
+                and 'DYNAMIC' in harvester_config.qconf.queueList:
                 getQueuesDynamic = True
-                queueTemplateMap = resolver.get_all_queue_names()
-                queueNameList |= set(queueTemplateMap.keys())
-            # set attributes
-            for queueName in queueNameList:
-                # prepare queueDictList
-                queueDictList = []
-                if queueName in queueConfigJson:
-                    queueDict = queueConfigJson[queueName]
-                    queueDictList.append(queueDict)
+                dynamicQueuesNameList = resolver.get_all_queue_names()
+                for queueName in dynamicQueuesNameList.copy():
+                    queueDict = dict()
                     # template
-                    if 'templateQueueName' in queueDict:
-                        templateQueueName = queueDict['templateQueueName']
-                        templateQueueList.add(templateQueueName)
-                        if templateQueueName in queueConfigJson:
-                            queueDictList.insert(0, queueConfigJson[templateQueueName])
-                elif getQueuesDynamic:
-                    templateQueueName = queueTemplateMap[queueName]
+                    templateQueueName = None
                     resolver_harvester_template = None
                     if resolver is not None:
-                         resolver_harvester_template = resolver.get_harvester_template(queueName)
+                        resolver_harvester_template = resolver.get_harvester_template(queueName)
                     if resolver_harvester_template:
                         templateQueueName = resolver_harvester_template
                     elif templateQueueName not in queueConfigJson:
                         templateQueueName = harvester_config.qconf.defaultTemplateQueueName
-                    templateQueueList.add(templateQueueName)
-                    if templateQueueName in queueConfigJson:
-                        queueDictList.insert(0, queueConfigJson[templateQueueName])
-                # fill in queueConfig
-                for queueDict in queueDictList:
-                    # prepare queueConfig
-                    if queueName in newQueueConfig:
-                        queueConfig = newQueueConfig[queueName]
-                    else:
-                        queueConfig = QueueConfig(queueName)
-                    # queueName = siteName/resourceType
-                    queueConfig.siteName = queueConfig.queueName.split('/')[0]
-                    if queueConfig.siteName != queueConfig.queueName:
-                        queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
-                    # get common attributes
-                    commonAttrDict = dict()
-                    if isinstance(queueDict.get('common'), dict):
-                        commonAttrDict = queueDict.get('common')
-                    # according to queueDict
-                    for key, val in iteritems(queueDict):
-                        if isinstance(val, dict) and 'module' in val and 'name' in val:
-                            # plugin attributes
-                            val = copy.copy(val)
-                            # fill in common attributes for all plugins
-                            for c_key, c_val in iteritems(commonAttrDict):
-                                if c_key not in val and c_key not in ('module', 'name'):
-                                    val[c_key] = c_val
-                            # check module and class name
-                            try:
-                                _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val['module'])
-                                _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val['name'])
-                            except Exception as _e:
-                                invalidQueueList.add(queueConfig.queueName)
-                                mainLog.error('Module or class not found. Omitted {0} in queue config ({1})'.format(
-                                                queueConfig.queueName, _e))
-                                continue
-                            else:
-                                del _t3mP_1Mp0R7_mO6U1e__
-                                del _t3mP_1Mp0R7_N4m3__
-                            # fill in siteName and queueName
-                            if 'siteName' not in val:
-                                val['siteName'] = queueConfig.siteName
-                            if 'queueName' not in val:
-                                val['queueName'] = queueConfig.queueName
-                            # middleware
-                            if 'middleware' in val and val['middleware'] in queueDict:
-                                # keep original config
-                                val['original_config'] = copy.deepcopy(val)
-                                # overwrite with middleware config
-                                for m_key, m_val in iteritems(queueDict[val['middleware']]):
-                                    val[m_key] = m_val
-                        setattr(queueConfig, key, val)
-                    # update from resolver queue params
-                    if resolver is not None:
-                        resolver_harvester_params = resolver.get_harvester_params(queueName)
-                        for key, val in iteritems(resolver_harvester_params):
-                            if queueConfigJson_local is None \
-                                or key not in queueConfigJson_local.get(queueName, dict()):
-                                # generic attributes
-                                if key in self.updatable_generic_attrs:
-                                    setattr(queueConfig, key, val)
-                                elif key in self.updatable_plugin_attrs \
-                                    and isinstance(val, dict):
-                                    try:
-                                        update_dict = getattr(queueConfig, key).copy()
-                                    except Exception as _e:
-                                        mainLog.warning('Resolver params problematic. Omitted {0} in queue config ({1})'.format(
-                                                        queueName, _e))
-                                    else:
-                                        update_dict.update(val)
-                                        setattr(queueConfig, key, update_dict)
-                    # get Panda Queue Name
-                    if resolver is not None:
-                        queueConfig.pandaQueueName = resolver.get_panda_queue_name(queueConfig.siteName)
-                    # additional criteria for getJob
-                    if queueConfig.getJobCriteria is not None:
-                        tmpCriteria = dict()
-                        for tmpItem in queueConfig.getJobCriteria.split(','):
-                            tmpKey, tmpVal = tmpItem.split('=')
-                            tmpCriteria[tmpKey] = tmpVal
-                        if len(tmpCriteria) == 0:
-                            queueConfig.getJobCriteria = None
+                    if templateQueueName not in finalTemplatesDict:
+                        # remove queues with invalid templateQueueName
+                        dynamicQueuesNameList.discard(queueName)
+                        mainLog.warning('Invalid templateQueueName "{0}" for {1} (DQ). Skipped'.format(
+                                            templateQueueName, queueName))
+                        continue
+                    # parameters
+                    resolver_harvester_params = resolver.get_harvester_params(queueName)
+                    for key, val in iteritems(resolver_harvester_params):
+                        if key in self.dynamic_queue_generic_attrs:
+                            queueDict[key] = val
+                    # fill in dynamic queue configs
+                    queueDict['templateQueueName'] = templateQueueName
+                    dynamicQueuesDict[queueName] = queueDict
+            # fill in all queue name list (names of RQ + DQ + LQ)
+            allQueuesNameList |= set(remoteQueuesDict)
+            allQueuesNameList |= set(dynamicQueuesDict)
+            allQueuesNameList |= set(localQueuesDict)
+            allQueuesNameList.discard(None)
+            # set attributes
+            for queueName in allQueuesNameList:
+                # sources or queues and templates
+                queueSourceList = []
+                templateSourceList = []
+                # prepare templateQueueName
+                templateQueueName = None
+                for queuesDict in [remoteQueuesDict, dynamicQueuesDict, localQueuesDict]:
+                    if queueName not in queuesDict:
+                        continue
+                    tmp_queueDict = queuesDict[queueName]
+                    tmp_templateQueueName = tmp_queueDict.get('templateQueueName')
+                    if tmp_templateQueueName is not None:
+                        templateQueueName = tmp_templateQueueName
+                # prepare queueDict
+                queueDict = dict()
+                if templateQueueName in finalTemplatesDict:
+                    queueDict.update(finalTemplatesDict[templateQueueName])
+                for acr, templatesDict in [('RT', remoteTemplatesDict), ('LT', localTemplatesDict)]:
+                    if templateQueueName in templatesDict:
+                        templateSourceList.append(acr)
+                # update queueDict
+                for acr, queuesDict in [('RQ', remoteQueuesDict),
+                        ('DQ', dynamicQueuesDict), ('LQ', localQueuesDict)]:
+                    if queueName not in queuesDict:
+                        continue
+                    queueSourceList.append(acr)
+                    tmp_queueDict = queuesDict[queueName]
+                    for key, val in iteritems(tmp_queueDict):
+                        if key in self.updatable_plugin_attrs \
+                            and isinstance(queueDict.get(key), dict) \
+                            and isinstance(val, dict):
+                            # update plugin parameters instead of overwriting whole plugin section
+                            queueDict[key].update(val)
                         else:
-                            queueConfig.getJobCriteria = tmpCriteria
-                    # removal of some attributes based on mapType
-                    if queueConfig.mapType == WorkSpec.MT_NoJob:
-                        for attName in ['nQueueLimitJob', 'nQueueLimitJobRatio']:
-                            if hasattr(queueConfig, attName):
-                                delattr(queueConfig, attName)
-                    # heartbeat suppression
-                    if queueConfig.truePilot and queueConfig.noHeartbeat == '':
-                        queueConfig.noHeartbeat = 'running,transferring,finished,failed'
-                    # set unique name
-                    queueConfig.set_unique_name()
-                    # put into new queue configs
-                    newQueueConfig[queueName] = queueConfig
-                # Check existence of mandatory attributes
-                for _attr in self.mandatory_attrs:
-                    if not hasattr(queueConfig, _attr):
+                            queueDict[key] = val
+                # record sources of the queue config and its templates in log
+                if templateQueueName:
+                    mainLog.debug(('queue {queueName} comes from {queueSource} '
+                                    '(with template {templateName} '
+                                    'from {templateSource})').format(
+                                    queueName=queueName,
+                                    templateName=templateQueueName,
+                                    queueSource=','.join(queueSourceList),
+                                    templateSource=','.join(templateSourceList) ))
+                else:
+                    mainLog.debug('queue {queueName} comes from {queueSource}'.format(
+                                    queueName=queueName,
+                                    queueSource=','.join(queueSourceList)))
+                # prepare queueConfig
+                if queueName in newQueueConfig:
+                    queueConfig = newQueueConfig[queueName]
+                else:
+                    queueConfig = QueueConfig(queueName)
+                # queueName = siteName/resourceType
+                queueConfig.siteName = queueConfig.queueName.split('/')[0]
+                if queueConfig.siteName != queueConfig.queueName:
+                    queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
+                # get common attributes
+                commonAttrDict = dict()
+                if isinstance(queueDict.get('common'), dict):
+                    commonAttrDict = queueDict.get('common')
+                # according to queueDict
+                for key, val in iteritems(queueDict):
+                    if isinstance(val, dict) and 'module' in val and 'name' in val:
+                        # plugin attributes
+                        val = copy.copy(val)
+                        # fill in common attributes for all plugins
+                        for c_key, c_val in iteritems(commonAttrDict):
+                            if c_key not in val and c_key not in ('module', 'name'):
+                                val[c_key] = c_val
+                        # check module and class name
+                        try:
+                            _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val['module'])
+                            _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val['name'])
+                        except Exception as _e:
+                            invalidQueueList.add(queueConfig.queueName)
+                            mainLog.error('Module or class not found. Omitted {0} in queue config ({1})'.format(
+                                            queueConfig.queueName, _e))
+                            continue
+                        else:
+                            del _t3mP_1Mp0R7_mO6U1e__
+                            del _t3mP_1Mp0R7_N4m3__
+                        # fill in siteName and queueName
+                        if 'siteName' not in val:
+                            val['siteName'] = queueConfig.siteName
+                        if 'queueName' not in val:
+                            val['queueName'] = queueConfig.queueName
+                        # middleware
+                        if 'middleware' in val and val['middleware'] in queueDict:
+                            # keep original config
+                            val['original_config'] = copy.deepcopy(val)
+                            # overwrite with middleware config
+                            for m_key, m_val in iteritems(queueDict[val['middleware']]):
+                                val[m_key] = m_val
+                    setattr(queueConfig, key, val)
+                # delete isTemplateQueue attribute
+                try:
+                    if getattr(queueConfig, 'isTemplateQueue'):
+                        mainLog.error('Internal error: isTemplateQueue is True. Omitted {0} in queue config'.format(
+                                        queueConfig.queueName))
                         invalidQueueList.add(queueConfig.queueName)
-                        mainLog.error('Missing mandatory attribute "{0}". Omitted {1} in queue config'.format(
-                                        _attr, queueConfig.queueName))
+                    else:
+                        delattr(queueConfig, 'isTemplateQueue')
+                except AttributeError as _e:
+                    mainLog.error('Internal error with attr "isTemplateQueue". Omitted {0} in queue config ({1})'.format(
+                                    queueConfig.queueName, _e))
+                    invalidQueueList.add(queueConfig.queueName)
+                # get Panda Queue Name
+                if resolver is not None:
+                    queueConfig.pandaQueueName = resolver.get_panda_queue_name(queueConfig.siteName)
+                # additional criteria for getJob
+                if queueConfig.getJobCriteria is not None:
+                    tmpCriteria = dict()
+                    for tmpItem in queueConfig.getJobCriteria.split(','):
+                        tmpKey, tmpVal = tmpItem.split('=')
+                        tmpCriteria[tmpKey] = tmpVal
+                    if len(tmpCriteria) == 0:
+                        queueConfig.getJobCriteria = None
+                    else:
+                        queueConfig.getJobCriteria = tmpCriteria
+                # removal of some attributes based on mapType
+                if queueConfig.mapType == WorkSpec.MT_NoJob:
+                    for attName in ['nQueueLimitJob', 'nQueueLimitJobRatio']:
+                        if hasattr(queueConfig, attName):
+                            delattr(queueConfig, attName)
+                # heartbeat suppression
+                if queueConfig.truePilot and queueConfig.noHeartbeat == '':
+                    queueConfig.noHeartbeat = 'running,transferring,finished,failed'
+                # set unique name
+                queueConfig.set_unique_name()
+                # put into new queue configs
+                newQueueConfig[queueName] = queueConfig
+                # Check existence of mandatory attributes
+                if queueName in newQueueConfig:
+                    queueConfig = newQueueConfig[queueName]
+                    missing_attr_list = []
+                    for _attr in self.mandatory_attrs:
+                        if not hasattr(queueConfig, _attr):
+                            invalidQueueList.add(queueConfig.queueName)
+                            missing_attr_list.append(_attr)
+                    if missing_attr_list:
+                        mainLog.error('Missing mandatory attributes {0} . Omitted {1} in queue config'.format(
+                                        ','.join(missing_attr_list), queueConfig.queueName))
             # delete invalid queues
             for invalidQueueName in invalidQueueList:
                 if invalidQueueName in newQueueConfig:
                     del newQueueConfig[invalidQueueName]
-            # delete templates
-            for templateQueueName in templateQueueList:
-                if templateQueueName in newQueueConfig:
-                    del newQueueConfig[templateQueueName]
-            for queueName in newQueueConfig.copy().keys():
-                if queueName.endswith('_TEMPLATE'):
-                    del newQueueConfig[queueName]
-                elif hasattr(newQueueConfig[queueName], 'isTemplateQueue') and \
-                        getattr(newQueueConfig[queueName], 'isTemplateQueue') is True:
-                    del newQueueConfig[queueName]
             # auto blacklisting
             autoBlacklist = False
             if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \
@@ -461,6 +565,9 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         # update database
         if self.toUpdateDB:
             self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self)
+            mainLog.debug('updated to DB')
+        # done
+        mainLog.debug('done')
 
     # check if valid queue
     def has_queue(self, queue_name, config_id=None):

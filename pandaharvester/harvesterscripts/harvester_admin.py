@@ -196,6 +196,7 @@ def qconf_list(arguments):
 def qconf_refresh(arguments):
     from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
     qcm = QueueConfigMapper()
+    qcm.lastUpdate = None
     qcm.load_data()
 
 def qconf_dump(arguments):

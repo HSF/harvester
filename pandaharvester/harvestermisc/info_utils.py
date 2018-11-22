@@ -58,11 +58,11 @@ class PandaQueuesDict(dict, PluginBase):
 
     # get all queue names of this harvester instance
     def get_all_queue_names(self):
-        names = dict()
+        names = set()
         for queue_name, queue_dict in iteritems(self):
             if queue_dict.get('pilot_manager') in ['Harvester'] \
                 and queue_dict.get('harvester') == harvesterID:
-                names[queue_name] = None
+                names.add(queue_name)
         return names
 
     # is UPS queue
