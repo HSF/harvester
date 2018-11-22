@@ -228,11 +228,20 @@ class Apfmon:
                         ce = ''
 
                     # extract the log URLs
+                    stdout_url = ''
+                    stderr_url = ''
+                    log_url = ''
+                    jdl_url = ''
+
                     work_attribs = worker_spec.workAttributes
-                    stdout_url = work_attribs['stdOut']
-                    stderr_url = work_attribs['stdErr']
-                    log_url = work_attribs['batchLog']
-                    jdl_url = '{0}.jdl'.format(log_url[:-4])
+                    if work_attribs:
+                        if 'stdOut' in work_attribs:
+                            stdout_url = work_attribs['stdOut']
+                            jdl_url = '{0}.jdl'.format(log_url[:-4])
+                        if 'stdErr' in work_attribs:
+                            stderr_url = work_attribs['stdErr']
+                        if 'batchLog' in work_attribs:
+                            log_url = work_attribs['batchLog']
 
                     apfmon_worker = {'cid': batch_id,
                                      'factory': factory,
