@@ -157,7 +157,7 @@ class Master(object):
             thrList.append(thr)
         # Service monitor
         from pandaharvester.harvesterbody.service_monitor import ServiceMonitor
-        thr = ServiceMonitor(single_mode=self.singleMode)
+        thr = ServiceMonitor(options.pid, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
         thr.start()
         thrList.append(thr)
@@ -211,11 +211,13 @@ class StdErrWrapper(object):
 
 # profiler
 prof = None
-
+# options
+options = None
 
 # main
 def main(daemon_mode=True):
     global prof
+    global options
     # parse option
     parser = argparse.ArgumentParser()
     parser.add_argument('--pid', action='store', dest='pid', default=None,
