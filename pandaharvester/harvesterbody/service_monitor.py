@@ -3,6 +3,7 @@ import json
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.service_metrics_spec import ServiceMetricSpec
 
 # logger
 _logger = core_utils.setup_logger('service_monitor')
@@ -53,18 +54,20 @@ class ServiceMonitor:
     # main loop
     def run(self):
         while True:
+            _logger.debug('Running service monitor')
 
             service_metrics = {}
 
             # get memory usage
             rss_mib = self.get_memory()
-            service_metrics['rss_mib'] = rss_mib
+            _logger.debug('Memory usage: {0} MiB'.format(rss_mib))
 
             # TODO: find other metrics
 
             # convert to json format and write to DB
-            service_metrics_json = json.dumps(service_metrics)
-            self.db_proxy.insert_service_metrics(service_metrics_json)
+            service_metrics['rss_mib'] = rss_mib
+            service_metrics_spec = ServiceMetricSpec(service_metrics)
+            self.db_proxy.insert_service_metrics(service_metrics_spec)
 
             # check if being terminated
             try:
