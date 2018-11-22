@@ -67,6 +67,11 @@ class ServiceMonitor:
             self.db_proxy.insert_service_metrics(service_metrics_json)
 
             # check if being terminated
-            if self.terminated(harvester_config.service_monitor.sleepTime, randomize=False):
+            try:
+                sleep_time = harvester_config.service_monitor.sleepTime
+            except:
+                sleep_time = 300
+
+            if self.terminated(sleep_time, randomize=False):
                 return
 

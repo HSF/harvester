@@ -155,6 +155,12 @@ class Master(object):
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+        # Service monitor
+        from pandaharvester.harvesterbody.service_monitor import ServiceMonitor
+        thr = ServiceMonitor(single_mode=self.singleMode)
+        thr.set_stop_event(self.stopEvent)
+        thr.start()
+        thrList.append(thr)
 
         # Report itself to APF Mon
         apf_mon = Apfmon(self.queueConfigMapper)
