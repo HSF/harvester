@@ -350,6 +350,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                             queueDict[key] = val
                     # fill in dynamic queue configs
                     queueDict['templateQueueName'] = templateQueueName
+                    queueDict['isTemplateQueue'] = False
                     dynamicQueuesDict[queueName] = queueDict
             # fill in all queue name list (names of RQ + DQ + LQ)
             allQueuesNameList |= set(remoteQueuesDict)
