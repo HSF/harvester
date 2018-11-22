@@ -5034,3 +5034,28 @@ class DBProxy:
             core_utils.dump_error_message(tmpLog)
             # return
             return False
+
+    # get worker stats
+    def get_service_metrics(self, last_update):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_service_metrics')
+            tmpLog.debug('start')
+            sql = "SELECT creationTime, metrics FROM {0} ".format(serviceMetricsTableName)
+            sql += "WHERE creationTime>=:last_update "
+
+            var_map = {':last_update': last_update}
+            self.execute(sql, var_map)
+            res = self.cur.fetchall()
+
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(res)))
+            return retMap
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
