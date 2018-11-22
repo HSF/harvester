@@ -10,9 +10,10 @@ _logger = core_utils.setup_logger('service_monitor')
 
 
 # class to monitor the service, e.g. memory usage
-class ServiceMonitor:
+class ServiceMonitor(AgentBase):
     # constructor
-    def __init__(self, pid_file):
+    def __init__(self, single_mode=False, pid_file):
+        AgentBase.__init__(self, single_mode)
         self.db_proxy = DBProxy()
         self.pid_file = pid_file
         self.pid = self.get_master_pid()
