@@ -4291,7 +4291,8 @@ class DBProxy:
             tmpLog = core_utils.make_logger(_logger, method_name='get_worker_limits')
             tmpLog.debug('start')
             # sql to get
-            sqlQ = "SELECT maxWorkers,nQueueLimitWorker,nQueueLimitWorkerMax,nQueueLimitWorkerMin FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT maxWorkers,nQueueLimitWorker,nQueueLimitWorkerRatio,"
+            sqlQ += "nQueueLimitWorkerMax,nQueueLimitWorkerMin FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName AND resourceType='ANY'"
             # sql to count running workers
             sqlN = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
@@ -4310,10 +4311,10 @@ class DBProxy:
             # dynamic nQueueLimitWorker
             retMap = dict()
             nRunning = 0
-            for cnt in resN:
+            for cnt, in resN:
                 nRunning = cnt
-            for maxWorkers, nQueueLimitWorker, \
-                nQueueLimitWorkerMax, nQueueLimitWorkerMinin in resQ:
+            for maxWorkers, nQueueLimitWorker, nQueueLimitWorkerRatio, \
+                nQueueLimitWorkerMax, nQueueLimitWorkerMin in resQ:
                 if nQueueLimitWorkerRatio is not None and nQueueLimitWorkerRatio > 0:
                     nQueueLimitWorker = int(nRunning * nQueueLimitWorkerRatio / 100)
                     if nQueueLimitWorkerMax is not None:
