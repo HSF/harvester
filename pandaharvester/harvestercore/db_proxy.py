@@ -818,7 +818,8 @@ class DBProxy:
                         varMap = dict()
                         sqlU = "UPDATE {0} SET ".format(pandaQueueTableName)
                         for qAttr in ['nQueueLimitJob', 'nQueueLimitWorker', 'maxWorkers',
-                                      'nQueueLimitJobRatio', 'nQueueLimitJobMax', 'nQueueLimitJobMin']:
+                                      'nQueueLimitJobRatio', 'nQueueLimitJobMax', 'nQueueLimitJobMin',
+                                      'nQueueLimitWorkerRatio', 'nQueueLimitWorkerMax', 'nQueueLimitWorkerMin']:
                             if hasattr(queueConfig, qAttr):
                                 sqlU += '{0}=:{0},'.format(qAttr)
                                 varMap[':{0}'.format(qAttr)] = getattr(queueConfig, qAttr)
@@ -883,7 +884,8 @@ class DBProxy:
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             iQueues = 0
-            for queueName, nQueueLimitJob, nQueueLimitJobRatio, nQueueLimitJobMax, nQueueLimitJobMin in resQ:
+            for queueName, nQueueLimitJob, nQueueLimitJobRatio, \
+                nQueueLimitJobMax, nQueueLimitJobMin in resQ:
                 # update timestamp to lock the queue
                 varMap = dict()
                 varMap[':queueName'] = queueName
@@ -3645,7 +3647,6 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             return False
 
-
     # set queue limit
     def set_queue_limit(self, site_name, params):
         try:
@@ -4284,21 +4285,44 @@ class DBProxy:
             return False
 
     # get queue status
-    def get_queue_status(self, site_name):
+    def get_worker_limits(self, site_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, method_name='get_queue_status')
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_limits')
             tmpLog.debug('start')
             # sql to get
-            sqlQ = "SELECT queueName,nQueueLimitWorker,maxWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT maxWorkers,nQueueLimitWorker,nQueueLimitWorkerRatio,"
+            sqlQ += "nQueueLimitWorkerMax,nQueueLimitWorkerMin FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName AND resourceType='ANY'"
+            # sql to count running workers
+            sqlN = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
+            sqlN += "WHERE computingSite=:computingSite AND status IN (:status1)"
             # get
             varMap = dict()
             varMap[':siteName'] = site_name
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
+            # count running workers
+            varMap = dict()
+            varMap[':computingSite'] = site_name
+            varMap[':status1'] = 'running'
+            self.execute(sqlN, varMap)
+            resN = self.cur.fetchall()
+            # dynamic nQueueLimitWorker
             retMap = dict()
-            for computingSite, nQueueLimitWorker, maxWorkers in resQ:
+            nRunning = 0
+            for cnt, in resN:
+                nRunning = cnt
+            for maxWorkers, nQueueLimitWorker, nQueueLimitWorkerRatio, \
+                nQueueLimitWorkerMax, nQueueLimitWorkerMin in resQ:
+                if nQueueLimitWorkerRatio is not None and nQueueLimitWorkerRatio > 0:
+                    nQueueLimitWorker = int(nRunning * nQueueLimitWorkerRatio / 100)
+                    if nQueueLimitWorkerMax is not None:
+                        nQueueLimitWorker = min(nQueueLimitWorker, nQueueLimitWorkerMax)
+                    if nQueueLimitWorkerMin is None:
+                        nQueueLimitWorkerMin = 1
+                    nQueueLimitWorker = max(nQueueLimitWorker, nQueueLimitWorkerMin)
+                nQueueLimitWorker = min(nQueueLimitWorker, maxWorkers)
                 retMap.update({
                     'nQueueLimitWorker': nQueueLimitWorker,
                     'maxWorkers': maxWorkers,

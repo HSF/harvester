@@ -148,6 +148,9 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             'nQueueLimitJobRatio',
             'nQueueLimitJobMax',
             'nQueueLimitJobMin',
+            'nQueueLimitWorkerRatio',
+            'nQueueLimitWorkerMax',
+            'nQueueLimitWorkerMin',
         ])
     updatable_plugin_attrs = set([
             'common',

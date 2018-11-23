@@ -33,10 +33,10 @@ def _div_round_up(a, b):
 def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
     multiplier = 1000.
     n_ce = len(ce_endpoint_list)
-    queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
+    worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
     N = float(n_ce)
-    Q = float(queue_status_dict['nQueueLimitWorker'])
-    W = float(queue_status_dict['maxWorkers'])
+    Q = float(worker_limits_dict['nQueueLimitWorker'])
+    W = float(worker_limits_dict['maxWorkers'])
     Q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce][_st]
                             for _st in ('submitted', 'running', 'finished')
                             for _ce in worker_ce_backend_throughput_dict))
@@ -121,13 +121,13 @@ def _choose_ce(weighting):
 
 # Get better string to display the statistics and weightng of CEs
 def _get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
-    queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
+    worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
     total_score, ce_weight_dict, ce_thruput_dict = ce_weighting
     worker_ce_stats_dict_sub_default = {'submitted': 0, 'running': 0}
     worker_ce_backend_throughput_dict_sub_default = {'submitted': 0, 'running': 0, 'finished': 0}
     general_dict = {
-            'maxWorkers': int(queue_status_dict.get('maxWorkers')),
-            'nQueueLimitWorker': int(queue_status_dict.get('nQueueLimitWorker')),
+            'maxWorkers': int(worker_limits_dict.get('maxWorkers')),
+            'nQueueLimitWorker': int(worker_limits_dict.get('nQueueLimitWorker')),
             'nNewWorkers': int(n_new_workers),
             'history_time_window': int(time_window),
         }
@@ -462,10 +462,10 @@ class HTCondorSubmitter(PluginBase):
             if site_name in self.ceStats:
                 return self.ceStats[site_name]
             else:
-                queue_status_dict = self.dbInterface.get_queue_status(self.queueName)
+                worker_limits_dict = self.dbInterface.get_worker_limits(self.queueName)
                 worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
                 worker_ce_backend_throughput_dict = self.dbInterface.get_worker_ce_backend_throughput(self.queueName, time_window=time_window)
-                return (queue_status_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers)
+                return (worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers)
 
     # submit workers
     def submit_workers(self, workspec_list):

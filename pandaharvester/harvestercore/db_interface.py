@@ -59,8 +59,8 @@ class DBInterface:
         return self.dbProxy.set_file_group(file_specs, group_id, status_string)
 
     # get queue status
-    def get_queue_status(self, site_name):
-        return self.dbProxy.get_queue_status(site_name)
+    def get_worker_limits(self, site_name):
+        return self.dbProxy.get_worker_limits(site_name)
 
     # get worker CE stats
     def get_worker_ce_stats(self, site_name):
