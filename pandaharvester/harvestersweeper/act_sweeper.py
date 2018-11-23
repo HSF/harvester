@@ -35,18 +35,18 @@ class ACTSweeper(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                         method_name='kill_worker')
 
-        jobSpecs = workspec.get_jobspec_list()
-        if not jobSpecs:
-            # return true since there is nothing to kill
+        if workspec.batchID is None:
+            tmpLog.info('workerID={0} has no batch ID so assume was not submitted - skipped'.format(
+                        workspec.workerID))
             return True, ''
 
-        for jobSpec in jobSpecs:
-            try:
-                self.actDB.updateJob(jobSpec.PandaID, {'actpandastatus': 'tobekilled'})
-            except Exception as e:
-                tmpLog.error('Failed to cancel job {0} in aCT: {1}'.format(jobSpec.PandaID, str(e)))
-            else:
-                tmplog.info('Job {0} cancelled in aCT'.format(jobSpec.PandaID))
+        try:
+            self.actDB.updateJobs('id={0}'.format(workspec.batchID), {'actpandastatus': 'tobekilled'})
+        except Exception as e:
+            tmpLog.error('Failed to cancel job {0} in aCT: {1}'.format(workspec.batchID, str(e)))
+            return False, str(e)
+        else:
+            tmpLog.info('Job {0} cancelled in aCT'.format(workspec.batchID))
 
         return True, ''
 
