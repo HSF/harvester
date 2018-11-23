@@ -16,7 +16,6 @@ import inspect
 import datetime
 import requests
 import traceback
-import socket
 from future.utils import iteritems
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
@@ -671,7 +670,6 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug('start')
         data = dict()
         data['harvesterID'] = harvester_config.master.harvester_id
-        data['hostname'] = socket.getfqdn()
         data['metrics'] = json.dumps(service_metrics_list)
         tmp_log.debug('updating metrics...')
         tmp_stat, tmp_res = self.post_ssl('updateServiceMetrics', data)
