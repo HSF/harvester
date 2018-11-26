@@ -248,7 +248,6 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         with self.lock:
             # init
             newQueueConfig = dict()
-            queueConfigJson = dict()
             localTemplatesDict = dict()
             remoteTemplatesDict = dict()
             finalTemplatesDict = dict()
@@ -313,14 +312,19 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 dynamicQueuesNameList = resolver.get_all_queue_names()
                 for queueName in dynamicQueuesNameList.copy():
                     queueDict = dict()
-                    # template
+                    # template and default template via workflow
                     templateQueueName = None
                     resolver_harvester_template = None
                     if resolver is not None:
                         resolver_harvester_template = resolver.get_harvester_template(queueName)
+                        resolver_type, resolver_workflow = resolver.get_type_workflow(queueName)
                     if resolver_harvester_template:
                         templateQueueName = resolver_harvester_template
-                    elif templateQueueName not in queueConfigJson:
+                    elif not (resolver_type is None or resolver_workflow is None):
+                        templateQueueName = '{pq_type}.{workflow}'.format(
+                                                pq_type=resolver_type,
+                                                workflow=resolver_workflow)
+                    else:
                         templateQueueName = harvester_config.qconf.defaultTemplateQueueName
                     if templateQueueName not in finalTemplatesDict:
                         # remove queues with invalid templateQueueName
