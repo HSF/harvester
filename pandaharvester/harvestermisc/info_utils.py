@@ -81,7 +81,7 @@ class PandaQueuesDict(dict, PluginBase):
         if panda_queue_dict is None:
             return dict()
         else:
-             return panda_queue_dict.get('params', dict())
+            return panda_queue_dict.get('params', dict())
 
     # get harvester_template
     def get_harvester_template(self, panda_resource):
@@ -89,4 +89,15 @@ class PandaQueuesDict(dict, PluginBase):
         if panda_queue_dict is None:
             return None
         else:
-             return panda_queue_dict.get('harvester_template', '')
+            return panda_queue_dict.get('harvester_template', '')
+
+    # get a tuple of type (production, analysis, etc.) and workflow
+    def get_type_workflow(self, panda_resource):
+        panda_queue_dict = self.get(panda_resource)
+        if panda_queue_dict is None:
+            pq_type = None
+            workflow = None
+        else:
+            pq_type = panda_queue_dict.get('type')
+            workflow = panda_queue_dict.get('workflow')
+        return pq_type, workflow
