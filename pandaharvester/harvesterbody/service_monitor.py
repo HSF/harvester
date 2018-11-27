@@ -34,7 +34,7 @@ class ServiceMonitor(AgentBase):
         fh.close()
         return pid
 
-    def get_memory(self):
+    def get_memory_n_cpu(self):
         """
         sum memory of whole process tree starting from master pid
         :return: rss in MiB
@@ -43,15 +43,18 @@ class ServiceMonitor(AgentBase):
             # obtain master process
             master_process = psutil.Process(self.pid)
             rss = master_process.memory_info()[0]
+            cpu_pc = master_process.cpu_percent()
             for child in master_process.children(recursive=True):
                 rss += child.process.memory_info()[0]
+                cpu_pc += child.process.cpu_percent()
 
             # convert bytes to MiB
             rss_mib = rss / float(2 ** 20)
         except:
             rss_mib = None
+            cpu_pc = None
 
-        return rss_mib
+        return rss_mib, cpu_pc
 
     # main loop
     def run(self):
@@ -61,13 +64,12 @@ class ServiceMonitor(AgentBase):
             service_metrics = {}
 
             # get memory usage
-            rss_mib = self.get_memory()
-            _logger.debug('Memory usage: {0} MiB'.format(rss_mib))
-
-            # TODO: find other metrics
+            rss_mib, cpu_pc = self.get_memory_n_cpu()
+            _logger.debug('Memory usage: {0} MiB, CPU usage: {1}'.format(rss_mib, cpu_pc))
 
             # convert to json format and write to DB
             service_metrics['rss_mib'] = rss_mib
+            service_metrics['cpu_pc'] = cpu_pc
             service_metrics_spec = ServiceMetricSpec(service_metrics)
             self.db_proxy.insert_service_metrics(service_metrics_spec)
 
