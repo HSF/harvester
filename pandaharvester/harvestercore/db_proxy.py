@@ -5048,10 +5048,15 @@ class DBProxy:
             self.execute(sql, var_map)
             res = self.cur.fetchall()
 
+            # change datetime objects to strings for json serialization later
+            res_corrected = []
+            for entry in res:
+                res_corrected.append([str(entry[0]), entry[1], entry[2]])
+
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(res)))
-            return res
+            return res_corrected
         except Exception:
             # roll back
             self.rollback()

@@ -673,7 +673,7 @@ class PandaCommunicator(BaseCommunicator):
         data['metrics'] = json.dumps(service_metrics_list)
         tmp_log.debug('updating metrics...')
         tmp_stat, tmp_res = self.post_ssl('updateServiceMetrics', data)
-        errStr = 'OK'
+        err_str = 'OK'
         if tmp_stat is False:
             err_str = core_utils.dump_error_message(tmp_log, tmp_res)
         else:
