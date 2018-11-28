@@ -70,8 +70,8 @@ class PandaQueuesDict(dict, PluginBase):
         panda_queue_dict = self.get(panda_resource)
         if panda_queue_dict is None:
             return False
-        if panda_queue_dict.get('capability') == 'ucore' and \
-                'Pull' in panda_queue_dict.get('catchall').split(','):
+        if panda_queue_dict.get('capability') == 'ucore' \
+            and panda_queue_dict.get('workflow') == 'pull_ups':
             return True
         return False
 

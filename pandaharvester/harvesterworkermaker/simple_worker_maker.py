@@ -22,8 +22,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         job_memory = job_spec.jobParams.get('minRamCount', 0) or 0
         job_corecount = job_spec.jobParams.get('coreCount', 1) or 1
 
-        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '') \
-                        or queue_dict.get('capability', '') == 'ucore'
+        unified_queue = queue_dict.get('capability', '') == 'ucore'
 
         if not job_memory and unified_queue:
             site_maxrss = queue_dict.get('maxrss', 0) or 0
@@ -50,8 +49,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         panda_queues_dict = PandaQueuesDict()
         queue_dict = panda_queues_dict.get(queue_config.queueName, {})
 
-        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')\
-                        or queue_dict.get('capability', '') == 'ucore'
+        unified_queue = queue_dict.get('capability', '') == 'ucore'
         # case of traditional (non-unified) queue: look at the queue configuration
         if not unified_queue:
             workSpec.nCore = queue_dict.get('corecount', 1) or 1
