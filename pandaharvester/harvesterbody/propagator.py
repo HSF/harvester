@@ -208,7 +208,7 @@ class Propagator(AgentBase):
                         mainLog.debug('update of service metrics OK')
                         self._last_metrics_update = datetime.datetime.utcnow()
                     else:
-                        mainLog.error('failed to update service metrics err={1}'.format(tmp_str))
+                        mainLog.error('failed to update service metrics err={0}'.format(tmp_str))
 
             # send dialog messages
             mainLog.debug('getting dialog messages to propagate')
