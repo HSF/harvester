@@ -184,7 +184,7 @@ def cacher_refresh(arguments):
     from pandaharvester.harvesterbody.cacher import Cacher
     communicatorPool = CommunicatorPool()
     cacher = Cacher(communicatorPool)
-    cacher.execute(force_update=True, skip_lock=True)
+    cacher.execute(force_update=True, skip_lock=True, n_thread=4)
 
 def qconf_list(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
