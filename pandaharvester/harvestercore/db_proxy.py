@@ -5051,7 +5051,10 @@ class DBProxy:
             # change datetime objects to strings for json serialization later
             res_corrected = []
             for entry in res:
-                res_corrected.append([str(entry[0]), entry[1], entry[2]])
+                try:
+                    res_corrected.append([entry[0].strftime('%Y-%m-%d %H:%M:%S.%f'), entry[1], entry[2]])
+                except:
+                    pass
 
             # commit
             self.commit()
