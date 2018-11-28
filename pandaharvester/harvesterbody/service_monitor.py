@@ -90,7 +90,8 @@ class ServiceMonitor(AgentBase):
                 volumes = []
             for volume in volumes:
                 volume_use = self.volume_use(volume)
-                service_metrics['volume_{0}'.format(volume)] = volume_use
+                _logger.debug('Disk usage of {0}: {1} %'.format(volume, volume_use))
+                service_metrics['volume_{0}_pc'.format(volume)] = volume_use
 
             service_metrics_spec = ServiceMetricSpec(service_metrics)
             self.db_proxy.insert_service_metrics(service_metrics_spec)
