@@ -1,4 +1,6 @@
 import psutil
+import subprocess
+import re
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
@@ -56,6 +58,18 @@ class ServiceMonitor(AgentBase):
 
         return rss_mib, cpu_pc
 
+    def volume_use(self, volume_name):
+        command = "df -Pkh /" + volume_name
+        used_amount = 0
+        tmp_array = command.split()
+        output = subprocess.Popen(tmp_array, stdout=subprocess.PIPE).communicate()[0]
+
+        for line in output.split('\n'):
+            if re.search(volume_name, line):
+                used_amount = re.search(r"(\d+)\%", line).group(1)
+
+        return used_amount
+
     # main loop
     def run(self):
         while True:
@@ -65,11 +79,19 @@ class ServiceMonitor(AgentBase):
 
             # get memory usage
             rss_mib, cpu_pc = self.get_memory_n_cpu()
-            _logger.debug('Memory usage: {0} MiB, CPU usage: {1}'.format(rss_mib, cpu_pc))
-
-            # convert to json format and write to DB
             service_metrics['rss_mib'] = rss_mib
             service_metrics['cpu_pc'] = cpu_pc
+            _logger.debug('Memory usage: {0} MiB, CPU usage: {1}'.format(rss_mib, cpu_pc))
+
+            # get volume usage
+            try:
+                volumes = harvester_config.service_monitor.disk_volumes.split(',')
+            except:
+                volumes = []
+            for volume in volumes:
+                volume_use = self.volume_use(volume)
+                service_metrics['volume_{0}'.format(volume)] = volume_use
+
             service_metrics_spec = ServiceMetricSpec(service_metrics)
             self.db_proxy.insert_service_metrics(service_metrics_spec)
 
