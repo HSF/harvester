@@ -195,11 +195,12 @@ class Propagator(AgentBase):
                             mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name,
                                                                                                         tmp_str))
 
-            if not self._last_metrics_update or time.time() - self._last_metrics_update > METRICS_PERIOD:
+            if not self._last_metrics_update or datetime.datetime.utcnow() - self._last_metrics_update > METRICS_PERIOD:
                 # get latest metrics from DB
                 service_metrics_list = self.dbProxy.get_service_metrics(self._last_metrics_update)
                 if not service_metrics_list:
                     mainLog.error('failed to get service metrics')
+                    self._last_metrics_update = datetime.datetime.utcnow()
                 else:
                     tmp_ret, tmp_str = self.communicator.update_service_metrics(service_metrics_list)
                     if tmp_ret:

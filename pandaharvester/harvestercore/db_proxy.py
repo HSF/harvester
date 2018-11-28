@@ -5040,7 +5040,7 @@ class DBProxy:
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_service_metrics')
-            tmpLog.debug('start')
+            tmpLog.debug('start with last_update: {0}'.format(last_update))
             sql = "SELECT creationTime, hostName, metrics FROM {0} ".format(serviceMetricsTableName)
             sql += "WHERE creationTime>=:last_update "
 
