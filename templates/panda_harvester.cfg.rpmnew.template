@@ -687,7 +687,20 @@ mailFrom = example_from@example.com
 # a comma-concatenated list of email recipients
 mailTo = example_to_1@example.com,example_to_2@example.com
 
+##########################
+#
+# APF monitoring parameters
+#
+[apfmon]
+active = True
 
+##########################
+#
+# Service monitor parameters
+#
+
+[service_monitor]
+active = True
 
 ##########################
 #
