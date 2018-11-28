@@ -4313,7 +4313,7 @@ class DBProxy:
             nRunning = 0
             for cnt, in resN:
                 nRunning = cnt
-            for maxWorkers, nQueueLimitWorker, nQueueLimitWorkerRatio, \
+            for maxWorkers, nQueueLimitWorker_orig, nQueueLimitWorkerRatio, \
                 nQueueLimitWorkerMax, nQueueLimitWorkerMin in resQ:
                 if nQueueLimitWorkerRatio is not None and nQueueLimitWorkerRatio > 0:
                     nQueueLimitWorker = int(nRunning * nQueueLimitWorkerRatio / 100)
@@ -4322,6 +4322,10 @@ class DBProxy:
                     if nQueueLimitWorkerMin is None:
                         nQueueLimitWorkerMin = 1
                     nQueueLimitWorker = max(nQueueLimitWorker, nQueueLimitWorkerMin)
+                elif nQueueLimitWorker_orig is not None:
+                    nQueueLimitWorker = nQueueLimitWorker_orig
+                else:
+                    nQueueLimitWorker = maxWorkers
                 nQueueLimitWorker = min(nQueueLimitWorker, maxWorkers)
                 retMap.update({
                     'nQueueLimitWorker': nQueueLimitWorker,
