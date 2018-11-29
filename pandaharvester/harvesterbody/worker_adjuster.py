@@ -44,8 +44,9 @@ class WorkerAdjuster:
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 workerLimits_dict = self.dbProxy.get_worker_limits(queueName)
-                nQueueLimit = workerLimits_dict['nQueueLimitWorker']
                 maxWorkers = workerLimits_dict['maxWorkers']
+                nQueueLimit = workerLimits_dict['nQueueLimitWorker']
+                nQueueLimitPerRT = workerLimits_dict['nQueueLimitWorkerPerRT']
                 nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
@@ -107,9 +108,9 @@ class WorkerAdjuster:
 
                     # define num of new workers based on static site config
                     nNewWorkers = 0
-                    if nQueue >= nQueueLimit > 0:
+                    if nQueue >= nQueueLimitPerRT > 0:
                         # enough queued workers
-                        retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimit({1})'.format(nQueue, nQueueLimit)
+                        retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimitPerRT({1})'.format(nQueue, nQueueLimitPerRT)
                         tmpLog.debug(retMsg)
                         pass
                     elif (nQueue + nReady + nRunning) >= maxWorkers > 0:
@@ -124,8 +125,8 @@ class WorkerAdjuster:
 
                         maxQueuedWorkers = None
 
-                        if nQueueLimit > 0:  # there is a limit set for the queue
-                            maxQueuedWorkers = nQueueLimit
+                        if nQueueLimitPerRT > 0:  # there is a limit set for the queue
+                            maxQueuedWorkers = nQueueLimitPerRT
 
                         if nNewWorkersDef is not None:  # don't surpass limits given centrally
                             maxQueuedWorkers_slave = nNewWorkersDef + nQueue

@@ -920,11 +920,11 @@ class DBProxy:
                     except Exception:
                         nRunning = 0
                     nQueueLimitJob = int(nRunning * nQueueLimitJobRatio / 100)
-                    if nQueueLimitJobMax is not None:
-                        nQueueLimitJob = min(nQueueLimitJob, nQueueLimitJobMax)
                     if nQueueLimitJobMin is None:
                         nQueueLimitJobMin = 1
                     nQueueLimitJob = max(nQueueLimitJob, nQueueLimitJobMin)
+                    if nQueueLimitJobMax is not None:
+                        nQueueLimitJob = min(nQueueLimitJob, nQueueLimitJobMax)
                 # more jobs need to be queued
                 if nQueueLimitJob is not None and nQueue < nQueueLimitJob:
                     retMap[queueName] = nQueueLimitJob - nQueue
@@ -4294,42 +4294,61 @@ class DBProxy:
             sqlQ = "SELECT maxWorkers,nQueueLimitWorker,nQueueLimitWorkerRatio,"
             sqlQ += "nQueueLimitWorkerMax,nQueueLimitWorkerMin FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName AND resourceType='ANY'"
+            # sql to count resource types
+            sqlNT = "SELECT COUNT(*) cnt FROM {0} ".format(pandaQueueTableName)
+            sqlNT += "WHERE siteName=:siteName AND resourceType!='ANY'"
             # sql to count running workers
-            sqlN = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
-            sqlN += "WHERE computingSite=:computingSite AND status IN (:status1)"
+            sqlNR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
+            sqlNR += "WHERE computingSite=:computingSite AND status IN (:status1)"
             # get
             varMap = dict()
             varMap[':siteName'] = site_name
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
+            # count resource types
+            varMap = dict()
+            varMap[':computingSite'] = site_name
+            varMap[':siteName'] = site_name
+            self.execute(sqlNT, varMap)
+            resNT = self.cur.fetchall()
             # count running workers
             varMap = dict()
             varMap[':computingSite'] = site_name
             varMap[':status1'] = 'running'
-            self.execute(sqlN, varMap)
-            resN = self.cur.fetchall()
+            self.execute(sqlNR, varMap)
+            resNR = self.cur.fetchall()
             # dynamic nQueueLimitWorker
             retMap = dict()
             nRunning = 0
-            for cnt, in resN:
+            nRT = 1
+            for cnt, in resNR:
                 nRunning = cnt
+            for cnt, in resNT:
+                nRT = max(nRT, cnt)
             for maxWorkers, nQueueLimitWorker_orig, nQueueLimitWorkerRatio, \
-                nQueueLimitWorkerMax, nQueueLimitWorkerMin in resQ:
+                nQueueLimitWorkerMax, nQueueLimitWorkerMin_orig in resQ:
                 if nQueueLimitWorkerRatio is not None and nQueueLimitWorkerRatio > 0:
-                    nQueueLimitWorker = int(nRunning * nQueueLimitWorkerRatio / 100)
+                    nQueueLimitWorkerByRatio = int(nRunning * nQueueLimitWorkerRatio / 100)
+                    nQueueLimitWorkerMin = 1
+                    if nQueueLimitWorkerMin_orig is not None:
+                        nQueueLimitWorkerMin = nQueueLimitWorkerMin_orig
+                    nQueueLimitWorkerMinAllRTs = nQueueLimitWorkerMin * nRT
+                    nQueueLimitWorker = max(nQueueLimitWorkerByRatio, nQueueLimitWorkerMinAllRTs)
+                    nQueueLimitWorkerPerRT = max(nQueueLimitWorkerByRatio, nQueueLimitWorkerMin)
                     if nQueueLimitWorkerMax is not None:
                         nQueueLimitWorker = min(nQueueLimitWorker, nQueueLimitWorkerMax)
-                    if nQueueLimitWorkerMin is None:
-                        nQueueLimitWorkerMin = 1
-                    nQueueLimitWorker = max(nQueueLimitWorker, nQueueLimitWorkerMin)
+                        nQueueLimitWorkerPerRT = min(nQueueLimitWorkerPerRT, nQueueLimitWorkerMax)
                 elif nQueueLimitWorker_orig is not None:
                     nQueueLimitWorker = nQueueLimitWorker_orig
+                    nQueueLimitWorkerPerRT = nQueueLimitWorker
                 else:
                     nQueueLimitWorker = maxWorkers
+                    nQueueLimitWorkerPerRT = nQueueLimitWorker
                 nQueueLimitWorker = min(nQueueLimitWorker, maxWorkers)
                 retMap.update({
-                    'nQueueLimitWorker': nQueueLimitWorker,
                     'maxWorkers': maxWorkers,
+                    'nQueueLimitWorker': nQueueLimitWorker,
+                    'nQueueLimitWorkerPerRT': nQueueLimitWorkerPerRT,
                 })
             # commit
             self.commit()
