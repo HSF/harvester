@@ -20,6 +20,7 @@ class ServiceMonitor(AgentBase):
         self.db_proxy = DBProxy()
         self.pid_file = pid_file
         self.pid = self.get_master_pid()
+        self.master_process = psutil.Process(self.pid)
 
     def get_master_pid(self):
         """
@@ -42,8 +43,7 @@ class ServiceMonitor(AgentBase):
         :return: rss in MiB
         """
         try:
-            # obtain master process
-            master_process = psutil.Process(self.pid)
+            master_process = self.master_process
             rss = master_process.memory_info()[0]
             cpu_pc = master_process.cpu_percent()
             for child in master_process.children(recursive=True):
