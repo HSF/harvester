@@ -41,7 +41,8 @@ class ACTSweeper(PluginBase):
             return True, ''
 
         try:
-            self.actDB.updateJobs('id={0}'.format(workspec.batchID), {'actpandastatus': 'tobekilled'})
+            self.actDB.updateJobs('id={0}'.format(workspec.batchID),
+                                  {'actpandastatus': 'tobekilled', 'pandastatus': None})
         except Exception as e:
             tmpLog.error('Failed to cancel job {0} in aCT: {1}'.format(workspec.batchID, str(e)))
             return False, str(e)
