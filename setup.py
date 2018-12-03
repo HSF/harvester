@@ -35,7 +35,8 @@ setup(
                       'subprocess32; python_version == "2.*"',
                       'rpyc',
                       'paramiko',
-                      'pexpect'
+                      'pexpect',
+                      'psutil >= 5.4.8'
                       ],
     data_files=[
         # config and cron files

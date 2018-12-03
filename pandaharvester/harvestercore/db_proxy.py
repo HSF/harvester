@@ -24,6 +24,7 @@ from .panda_queue_spec import PandaQueueSpec
 from .job_worker_relation_spec import JobWorkerRelationSpec
 from .process_lock_spec import ProcessLockSpec
 from .diag_spec import DiagSpec
+from .service_metrics_spec import ServiceMetricSpec
 from .queue_config_dump_spec import QueueConfigDumpSpec
 
 from . import core_utils
@@ -45,6 +46,7 @@ jobWorkerTableName = 'jw_table'
 processLockTableName = 'lock_table'
 diagTableName = 'diag_table'
 queueConfigDumpTableName = 'qcdump_table'
+serviceMetricsTableName = 'sm_table'
 
 # connection lock
 conLock = threading.Lock()
@@ -452,6 +454,8 @@ class DBProxy:
         outStrs += self.make_table(ProcessLockSpec, processLockTableName)
         outStrs += self.make_table(DiagSpec, diagTableName)
         outStrs += self.make_table(QueueConfigDumpSpec, queueConfigDumpTableName)
+        outStrs += self.make_table(ServiceMetricSpec, serviceMetricsTableName)
+
         # dump error messages
         if len(outStrs) > 0:
             errMsg = "ERROR : Definitions of some database tables are incorrect. "
@@ -5082,3 +5086,58 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return False
+
+    # insert service metrics
+    def insert_service_metrics(self, service_metric_spec):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name='insert_service_metrics')
+        tmpLog.debug('start')
+        try:
+            sql = "INSERT INTO {0} ({1}) ".format(serviceMetricsTableName, ServiceMetricSpec.column_names())
+            sql += ServiceMetricSpec.bind_values_expression()
+            var_map = service_metric_spec.values_list()
+
+            self.execute(sql, var_map)
+            self.commit()
+
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return False
+
+    # get worker stats
+    def get_service_metrics(self, last_update):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_service_metrics')
+            tmpLog.debug('start with last_update: {0}'.format(last_update))
+            sql = "SELECT creationTime, hostName, metrics FROM {0} ".format(serviceMetricsTableName)
+            sql += "WHERE creationTime>=:last_update "
+
+            var_map = {':last_update': last_update}
+            self.execute(sql, var_map)
+            res = self.cur.fetchall()
+
+            # change datetime objects to strings for json serialization later
+            res_corrected = []
+            for entry in res:
+                try:
+                    res_corrected.append([entry[0].strftime('%Y-%m-%d %H:%M:%S.%f'), entry[1], entry[2]])
+                except:
+                    pass
+
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(res)))
+            return res_corrected
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
