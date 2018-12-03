@@ -18,8 +18,7 @@ class ACTSweeper(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         self.log = core_utils.make_logger(baseLogger, 'aCT sweeper', method_name='__init__')
-        self.conf = aCTConfigARC()
-        self.actDB = aCTDBPanda(self.log, self.conf.get(["db", "file"]))
+        self.actDB = aCTDBPanda(self.log)
 
 
     # kill a worker
