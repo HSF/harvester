@@ -161,6 +161,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             'submitter',
             'sweeper',
             'workerMaker',
+            'throttler',
         ])
 
     # constructor
@@ -469,7 +470,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         queueConfig.getJobCriteria = tmpCriteria
                 # removal of some attributes based on mapType
                 if queueConfig.mapType == WorkSpec.MT_NoJob:
-                    for attName in ['nQueueLimitJob', 'nQueueLimitJobRatio']:
+                    for attName in ['nQueueLimitJob', 'nQueueLimitJobRatio',
+                                    'nQueueLimitJobMax', 'nQueueLimitJobMin']:
                         if hasattr(queueConfig, attName):
                             delattr(queueConfig, attName)
                 # heartbeat suppression
