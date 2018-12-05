@@ -1,3 +1,4 @@
+import traceback
 import psutil
 import subprocess
 import re
@@ -18,7 +19,15 @@ class ServiceMonitor(AgentBase):
     def __init__(self, pid_file, single_mode=False):
         AgentBase.__init__(self, single_mode)
         self.db_proxy = DBProxy()
-        self.pid_file = pid_file
+
+        if pid_file is not None:
+            self.pid_file = pid_file
+        else:
+            try:
+                self.pid_file = harvester_config.service_monitor.pidfile
+            except:
+                self.pid_file = None
+
         self.pid = self.get_master_pid()
         self.master_process = psutil.Process(self.pid)
 
@@ -27,14 +36,14 @@ class ServiceMonitor(AgentBase):
         Gets the master pid from the lock file
         :return:
         """
-        fh = open(self.pid_file, 'r')
-
         try:
-            pid = int(file.readline())
+            fh = open(self.pid_file, 'r')
+            pid = int(fh.readline())
+            fh.close()
         except:
+            _logger.error('Could not read pidfile "{0}"'.format(self.pid_file))
             pid = None
 
-        fh.close()
         return pid
 
     def get_memory_n_cpu(self):
@@ -47,12 +56,13 @@ class ServiceMonitor(AgentBase):
             rss = master_process.memory_info()[0]
             cpu_pc = master_process.cpu_percent()
             for child in master_process.children(recursive=True):
-                rss += child.process.memory_info()[0]
-                cpu_pc += child.process.cpu_percent()
+                rss += child.memory_info()[0]
+                cpu_pc += child.cpu_percent()
 
             # convert bytes to MiB
             rss_mib = rss / float(2 ** 20)
         except:
+            _logger.error('Excepted with: {0}'.format(traceback.format_exc()))
             rss_mib = None
             cpu_pc = None
 

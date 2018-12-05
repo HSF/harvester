@@ -708,6 +708,12 @@ active = True
 [service_monitor]
 active = True
 
+# optional in case you want to monitor any disk volume
+disk_volumes = data
+
+# pidfile only necessary when running in uwsgi
+pidfile = /var/log/harvester/panda_harvester.pid
+
 ##########################
 #
 # Google cloud parameters
