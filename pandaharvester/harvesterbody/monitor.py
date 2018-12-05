@@ -560,10 +560,10 @@ class Monitor(AgentBase):
                             if workSpec.checkTime is not None and checkTimeout is not None and \
                                     timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout):
                                 # kill due to timeout
-                                tmp_log.debug('kill workerID={0} due to continuous check failure'.format(workerID))
+                                tmp_log.debug('kill workerID={0} due to consecutive check failures'.format(workerID))
                                 self.dbProxy.kill_worker(workSpec.workerID)
                                 newStatus = WorkSpec.ST_cancelled
-                                diagMessage = 'killed due to continuous check failure. ' + diagMessage
+                                diagMessage = 'Killed by Harvester due to consecutive worker check failures. ' + diagMessage
                                 workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
                             else:
                                 # use original status
@@ -578,6 +578,8 @@ class Monitor(AgentBase):
                             tmp_log.debug('kill workerID={0} due to queuing longer than {1} seconds'.format(
                                             workerID, workerQueueTimeLimit))
                             self.dbProxy.kill_worker(workSpec.workerID)
+                            diagMessage = 'Killed by Harvester due to worker queuing too long' + diagMessage
+                            workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
                         # expired heartbeat - only when requested in the configuration
                         try:
                             # check if the queue configuration requires checking for worker heartbeat
@@ -594,6 +596,8 @@ class Monitor(AgentBase):
                                 tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(
                                     workerID))
                                 self.dbProxy.kill_worker(workSpec.workerID)
+                                diagMessage = 'Killed by Harvester due to worker heartbeat expired. ' + diagMessage
+                                workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
                         # get work attributes
                         workAttributes = messenger.get_work_attributes(workSpec)
                         retMap[workerID]['workAttributes'] = workAttributes
