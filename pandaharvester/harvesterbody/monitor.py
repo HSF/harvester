@@ -2,6 +2,7 @@ import time
 import datetime
 import collections
 import random
+import itertools
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -346,6 +347,8 @@ class Monitor(AgentBase):
                     elif monStatus == WorkSpec.ST_cancelled:
                         if not workSpec.has_pilot_error():
                             workSpec.set_pilot_error(PilotErrors.ERR_PANDAKILL, diagMessage)
+                    if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                        workSpec.set_work_params({'finalMonStatus': monStatus})
                     # request events
                     if eventsRequestParams != {}:
                         workSpec.eventsRequest = WorkSpec.EV_requestEvents
@@ -365,7 +368,7 @@ class Monitor(AgentBase):
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
-
+                    # apfmon status update
                     if apfmon_status_updates and newStatus != oldStatus:
                         tmpQueLog.debug('apfmon_status_updates: {0} newStatus: {1} monStatus: {2} oldStatus: {3} workSpecStatus: {4}'.
                                         format(apfmon_status_updates, newStatus, monStatus, oldStatus, workSpec.status))
@@ -500,6 +503,7 @@ class Monitor(AgentBase):
         except AttributeError:
             workerQueueTimeLimit = 172800
         workersToCheck = []
+        thingsToPostProcess = []
         retMap = dict()
         for workSpec in all_workers:
             eventsRequestParams = {}
@@ -509,23 +513,29 @@ class Monitor(AgentBase):
             workAttributes = None
             filesToStageOut = []
             nJobsToReFill = None
-            # job-level late binding
-            if workSpec.hasJob == 0 and workSpec.mapType != WorkSpec.MT_NoJob:
-                # check if job is requested
-                jobRequested = messenger.job_requested(workSpec)
-                if jobRequested:
-                    # set ready when job is requested
-                    workStatus = WorkSpec.ST_ready
-                else:
-                    workStatus = workSpec.status
-            elif workSpec.nJobsToReFill in [0, None]:
-                # check if job is requested to refill free slots
-                jobRequested = messenger.job_requested(workSpec)
-                if jobRequested:
-                    nJobsToReFill = jobRequested
-                workersToCheck.append(workSpec)
+            if workSpec.has_work_params('finalMonStatus'):
+                # to post-process
+                _bool, finalMonStatus = workSpec.get_work_params('finalMonStatus')
+                _thing = (workSpec, (finalMonStatus, ''))
+                thingsToPostProcess.append(_thing)
             else:
-                workersToCheck.append(workSpec)
+                # job-level late binding
+                if workSpec.hasJob == 0 and workSpec.mapType != WorkSpec.MT_NoJob:
+                    # check if job is requested
+                    jobRequested = messenger.job_requested(workSpec)
+                    if jobRequested:
+                        # set ready when job is requested
+                        workStatus = WorkSpec.ST_ready
+                    else:
+                        workStatus = workSpec.status
+                elif workSpec.nJobsToReFill in [0, None]:
+                    # check if job is requested to refill free slots
+                    jobRequested = messenger.job_requested(workSpec)
+                    if jobRequested:
+                        nJobsToReFill = jobRequested
+                    workersToCheck.append(workSpec)
+                else:
+                    workersToCheck.append(workSpec)
             # add
             retMap[workSpec.workerID] = {'oldStatus': workSpec.status,
                                          'newStatus': workStatus,
@@ -547,7 +557,8 @@ class Monitor(AgentBase):
             else:
                 tmp_log.debug('checked')
                 timeNow = datetime.datetime.utcnow()
-                for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
+                for workSpec, (newStatus, diagMessage) in itertools.chain(
+                        zip(workersToCheck, tmpOut), thingsToPostProcess):
                     workerID = workSpec.workerID
                     tmp_log.debug('Going to check workerID={0}'.format(workerID))
                     pandaIDs = []
