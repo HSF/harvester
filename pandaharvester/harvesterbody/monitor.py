@@ -495,6 +495,10 @@ class Monitor(AgentBase):
                 checkTimeout = harvester_config.monitor.checkTimeout
             except Exception:
                 checkTimeout = None
+        try:
+            workerQueueTimeLimit = harvester_config.monitor.workerQueueTimeLimit
+        except AttributeError:
+            workerQueueTimeLimit = 172800
         workersToCheck = []
         retMap = dict()
         for workSpec in all_workers:
@@ -568,7 +572,12 @@ class Monitor(AgentBase):
                         if messenger.kill_requested(workSpec):
                             tmp_log.debug('kill workerID={0} as requested'.format(workerID))
                             self.dbProxy.kill_worker(workSpec.workerID)
-
+                        # stuck queuing for too long
+                        if workSpec.status == WorkSpec.ST_submitted \
+                            and timeNow > workSpec.submitTime + datetime.timedelta(seconds=workerQueueTimeLimit):
+                            tmp_log.debug('kill workerID={0} due to queuing longer than {1} seconds'.format(
+                                            workerID, workerQueueTimeLimit))
+                            self.dbProxy.kill_worker(workSpec.workerID)
                         # expired heartbeat - only when requested in the configuration
                         try:
                             # check if the queue configuration requires checking for worker heartbeat
@@ -585,7 +594,6 @@ class Monitor(AgentBase):
                                 tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(
                                     workerID))
                                 self.dbProxy.kill_worker(workSpec.workerID)
-
                         # get work attributes
                         workAttributes = messenger.get_work_attributes(workSpec)
                         retMap[workerID]['workAttributes'] = workAttributes

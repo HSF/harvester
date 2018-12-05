@@ -5127,7 +5127,7 @@ class DBProxy:
             for entry in res:
                 try:
                     res_corrected.append([entry[0].strftime('%Y-%m-%d %H:%M:%S.%f'), entry[1], entry[2]])
-                except:
+                except Exception:
                     pass
 
             # commit
