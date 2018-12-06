@@ -43,7 +43,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         if 'resources' not in container_env:
             container_env['resources'] = {}
         if 'limits' not in container_env['resources']:
-            container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxmemory', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
+            container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxrss', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
                 if queue_dict.get('corecount', 1) else '1'}
         if 'requests' not in container_env['resources']:
             container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'M', 'cpu': str(work_spec.nCore)}
