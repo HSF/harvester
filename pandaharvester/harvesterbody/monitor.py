@@ -450,15 +450,24 @@ class Monitor(AgentBase):
                             last_check_period = forceEnqueueInterval + 1.0
                         if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval \
                             and timeNow_timestamp - harvester_config.monitor.checkInterval > self.startTimestamp:
-                            tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
-                                                workSpec.workerID, last_check_period))
+                            if last_check_period > harvester_config.monitor.checkInterval * 4:
+                                tmpQueLog.error('last check period of workerID={0} is {1} sec, way longer than monitor checkInterval. Please check why monitor checks worker slowly'.format(
+                                                    workSpec.workerID, last_check_period))
+                            else:
+                                tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
+                                                    workSpec.workerID, last_check_period))
+                        _bool, lastForceEnqueueAt = workSpec.get_work_params('lastForceEnqueueAt')
+                        if not (_bool and lastForceEnqueueAt is not None):
+                            lastForceEnqueueAt = 0
                         if (from_fifo) \
                             or (not from_fifo
                                 and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
-                                and last_check_period > forceEnqueueInterval):
+                                and last_check_period > forceEnqueueInterval
+                                and timeNow_timestamp - lastForceEnqueueAt > 86400 + forceEnqueueInterval):
                             if not from_fifo:
                                 tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor forceEnqueueInterval. Enqueue the worker by force'.format(
                                                     workSpec.workerID, last_check_period))
+                                workSpec.set_work_params({'lastForceEnqueueAt': timeNow_timestamp})
                             workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
