@@ -44,8 +44,8 @@ class WorkerAdjuster:
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 workerLimits_dict = self.dbProxy.get_worker_limits(queueName)
-                maxWorkers = workerLimits_dict['maxWorkers']
-                nQueueLimit = workerLimits_dict['nQueueLimitWorker']
+                maxWorkers = workerLimits_dict.get('maxWorkers', 0)
+                nQueueLimit = workerLimits_dict.get('nQueueLimitWorker', 0)
                 nQueueLimitPerRT = workerLimits_dict['nQueueLimitWorkerPerRT']
                 nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
@@ -157,6 +157,12 @@ class WorkerAdjuster:
                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
 
                 # adjust nNewWorkers for UCORE to let aggregations over RT respect nQueueLimitWorker and maxWorkers
+                if queueConfig is None:
+                    maxNewWorkersPerCycle = 0
+                    retMsg = 'set maxNewWorkersPerCycle=0 in UCORE aggregation due to missing queueConfig'
+                    tmpLog.debug(retMsg)
+                else:
+                    maxNewWorkersPerCycle = queueConfig.maxNewWorkersPerCycle
                 if len(dyn_num_workers[queueName]) > 1:
                     total_new_workers_rts = sum( dyn_num_workers[queueName][_rt]['nNewWorkers']
                                                 if _rt != 'ANY' else 0
@@ -165,8 +171,8 @@ class WorkerAdjuster:
                                                 max(nQueueLimit - nQueue_total, 0),
                                                 max(maxWorkers - nQueue_total - nReady_total - nRunning_total, 0),
                                                 )
-                    if queueConfig.maxNewWorkersPerCycle > 0:
-                        nNewWorkers_max_agg = min(nNewWorkers_max_agg, queueConfig.maxNewWorkersPerCycle)
+                    if maxNewWorkersPerCycle >= 0:
+                        nNewWorkers_max_agg = min(nNewWorkers_max_agg, maxNewWorkersPerCycle)
                     if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
                         nNewWorkers_max_agg = min(nNewWorkers_max_agg, self.maxNewWorkers)
                     # exceeded max, to adjust

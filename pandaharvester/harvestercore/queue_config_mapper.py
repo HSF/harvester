@@ -533,7 +533,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     if not tmpStat:
                         dumpSpec.configID = self.dbProxy.get_config_id_dump(dumpSpec)
                         if dumpSpec.configID is None:
-                            raise Exception('failed to get configID for {0}'.format(dumpSpec.dumpUniqueName))
+                            mainLog.error('failed to get configID for {0}'.format(dumpSpec.dumpUniqueName))
+                            continue
                     queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
                 queueConfig.configID = dumpSpec.configID
                 # ignore offline
