@@ -50,13 +50,15 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
         if 'env' not in container_env:
             container_env['env'] = []
-        container_env['env'].append({'name': 'computingSite', 'value': work_spec.computingSite})
-        container_env['env'].append({'name': 'pandaQueueName', 'value': queue_name})
-        container_env['env'].append({'name': 'proxyContent', 'value': self.set_proxy(cert)})
-        container_env['env'].append({'name': 'workerID', 'value': str(work_spec.workerID)})
-        container_env['env'].append({'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W})
-        container_env['env'].append({'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R})
-
+        container_env['env'].extend([
+            {'name': 'computingSite', 'value': work_spec.computingSite},
+            {'name': 'pandaQueueName', 'value': queue_name},
+            {'name': 'proxyContent', 'value': self.set_proxy(cert)},
+            {'name': 'workerID', 'value': str(work_spec.workerID)},
+            {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
+            {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
+            {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
+            ])
 
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
 

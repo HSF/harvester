@@ -1,7 +1,10 @@
 import traceback
 import psutil
-import subprocess
 import re
+try:
+    import subprocess32 as subprocess
+except Exception:
+    import subprocess
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
@@ -25,7 +28,7 @@ class ServiceMonitor(AgentBase):
         else:
             try:
                 self.pid_file = harvester_config.service_monitor.pidfile
-            except:
+            except Exception:
                 self.pid_file = None
 
         self.pid = self.get_master_pid()
@@ -40,7 +43,7 @@ class ServiceMonitor(AgentBase):
             fh = open(self.pid_file, 'r')
             pid = int(fh.readline())
             fh.close()
-        except:
+        except Exception:
             _logger.error('Could not read pidfile "{0}"'.format(self.pid_file))
             pid = None
 
@@ -61,7 +64,7 @@ class ServiceMonitor(AgentBase):
 
             # convert bytes to MiB
             rss_mib = rss / float(2 ** 20)
-        except:
+        except Exception:
             _logger.error('Excepted with: {0}'.format(traceback.format_exc()))
             rss_mib = None
             cpu_pc = None
@@ -96,7 +99,7 @@ class ServiceMonitor(AgentBase):
             # get volume usage
             try:
                 volumes = harvester_config.service_monitor.disk_volumes.split(',')
-            except:
+            except Exception:
                 volumes = []
             for volume in volumes:
                 volume_use = self.volume_use(volume)
@@ -109,9 +112,8 @@ class ServiceMonitor(AgentBase):
             # check if being terminated
             try:
                 sleep_time = harvester_config.service_monitor.sleepTime
-            except:
+            except Exception:
                 sleep_time = 300
 
             if self.terminated(sleep_time, randomize=False):
                 return
-
