@@ -44,8 +44,8 @@ class WorkerAdjuster:
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 workerLimits_dict = self.dbProxy.get_worker_limits(queueName)
-                maxWorkers = workerLimits_dict['maxWorkers']
-                nQueueLimit = workerLimits_dict['nQueueLimitWorker']
+                maxWorkers = workerLimits_dict.get('maxWorkers', 0)
+                nQueueLimit = workerLimits_dict.get('nQueueLimitWorker', 0)
                 nQueueLimitPerRT = workerLimits_dict['nQueueLimitWorkerPerRT']
                 nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
