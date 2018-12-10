@@ -61,7 +61,7 @@ CONDOR_JOB_STATUS_MAP = {
 
 ## List of job ads required
 CONDOR_JOB_ADS_LIST = [
-    'ClusterId', 'ProcId', 'JobStatus',
+    'ClusterId', 'ProcId', 'JobStatus', 'LastJobStatus',
     'JobStartDate', 'EnteredCurrentStatus', 'ExitCode',
     'HoldReason', 'LastHoldReason', 'RemoveReason',
 ]
@@ -533,6 +533,14 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                 errStr = 'cannot get JobStatus of job submissionHost={0} batchID={1}. Skipped'.format(workspec.submissionHost, workspec.batchID)
                 tmpLog.warning(errStr)
         else:
+            # Try to get LastJobStatus
+            lastBatchStatus = str(job_ads_dict.get('LastJobStatus', ''))
+            # Set batchStatus if lastBatchStatus is terminated status
+            if (lastBatchStatus in ['3', '4'] and batchStatus not in ['3', '4']) \
+                or (lastBatchStatus in ['4'] and batchStatus in ['3']):
+                batchStatus = lastBatchStatus
+                tmpLog.warning('refer to LastJobStatus={0} as new status of job submissionHost={1} batchID={2} to avoid reversal in status (Jobstatus={3})'.format(
+                                lastBatchStatus, workspec.submissionHost, workspec.batchID, str(job_ads_dict['JobStatus'])))
             # Propagate native condor job status
             workspec.nativeStatus = CONDOR_JOB_STATUS_MAP.get(batchStatus, 'unexpected')
             if batchStatus in ['2', '6']:
