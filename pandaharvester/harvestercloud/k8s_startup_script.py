@@ -10,7 +10,7 @@ This script will be executed at the VM startup time.
 import requests
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 import os
 import sys
@@ -42,7 +42,7 @@ def upload_logs(url, log_file_name, destination_name, proxy_path):
         logging.debug('[upload_logs] finished with code={0} msg={1}'.format(res.status_code, res.text))
         if res.status_code == 200:
             return True
-    except:
+    except Exception:
         err_type, err_value = sys.exc_info()[:2]
         err_messsage = "failed to put with {0}:{1} ".format(err_type, err_value)
         err_messsage += traceback.format_exc()
@@ -104,7 +104,7 @@ def get_configuration():
     proxy_string = os.environ.get('proxyContent').replace(",", "\n")
     with open(proxy_path, "w") as proxy_file:
         proxy_file.write(proxy_string)
-    os.chmod(proxy_path, 0600)
+    os.chmod(proxy_path, 0o600)
     os.environ['X509_USER_PROXY'] = proxy_path
     logging.debug('[main] initialized proxy')
 
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     wrapper_string = get_url(wrapper_url)
     with open(wrapper_path, "w") as wrapper_file:
         wrapper_file.write(wrapper_string)
-    os.chmod(wrapper_path, 0544) # make pilot wrapper executable
+    os.chmod(wrapper_path, 0o544) # make pilot wrapper executable
     logging.debug('[main] downloaded pilot wrapper')
 
     # execute the pilot wrapper

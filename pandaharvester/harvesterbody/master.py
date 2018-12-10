@@ -22,6 +22,7 @@ from pandaharvester import commit_timestamp
 from pandaharvester import panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger('master')
@@ -154,6 +155,25 @@ class Master(object):
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+        # Service monitor
+        try:
+            sm_active = harvester_config.service_monitor.active
+        except:
+            sm_active = False
+
+        if sm_active:
+            from pandaharvester.harvesterbody.service_monitor import ServiceMonitor
+            thr = ServiceMonitor(options.pid, single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
+            thr.start()
+            thrList.append(thr)
+
+        # Report itself to APF Mon
+        apf_mon = Apfmon(self.queueConfigMapper)
+        apf_mon.create_factory()
+        apf_mon.create_labels()
+
+
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
         while True:
@@ -181,7 +201,9 @@ class DummyContext(object):
 # wrapper for stderr
 class StdErrWrapper(object):
     def write(self, message):
-        _logger.error(message)
+        # set a header and footer to the message to make it easier to parse
+        wrapped_message = '#####START#####\n{0}#####END#####\n'.format(message)
+        _logger.error(wrapped_message)
 
     def flush(self):
         _logger.handlers[0].flush()
@@ -195,11 +217,13 @@ class StdErrWrapper(object):
 
 # profiler
 prof = None
-
+# options
+options = None
 
 # main
 def main(daemon_mode=True):
     global prof
+    global options
     # parse option
     parser = argparse.ArgumentParser()
     parser.add_argument('--pid', action='store', dest='pid', default=None,

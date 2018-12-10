@@ -12,7 +12,7 @@ from pandaharvester.harvestercore.pilot_errors import PilotErrors
 _logger = core_utils.setup_logger('propagator')
 
 STATS_PERIOD = 300
-
+METRICS_PERIOD = 300
 
 # propagate important checkpoints to panda
 class Propagator(AgentBase):
@@ -23,6 +23,7 @@ class Propagator(AgentBase):
         self.communicator = communicator
         self.queueConfigMapper = queue_config_mapper
         self._last_stats_update = None
+        self._last_metrics_update = None
 
     # main loop
     def run(self):
@@ -54,7 +55,7 @@ class Propagator(AgentBase):
                                                                        tmpJobSpec.configID)
                         hbSuppressMap[tmpJobSpec.computingSite] = queueConfig.get_no_heartbeat_status()
                     # heartbeat is suppressed
-                    if tmpJobSpec.status in hbSuppressMap[tmpJobSpec.computingSite] and \
+                    if tmpJobSpec.get_status() in hbSuppressMap[tmpJobSpec.computingSite] and \
                             not tmpJobSpec.not_suppress_heartbeat():
                         # check running job to detect lost heartbeat
                         if tmpJobSpec.status == 'running':
@@ -69,7 +70,7 @@ class Propagator(AgentBase):
                 mainLog.debug('check_jobs for {0} jobs {1}'.format(len(jobListToCheck), sw.get_elapsed_time()))
                 sw.reset()
                 retList += self.communicator.update_jobs(jobListToUpdate, self.get_pid())
-                mainLog.debug('update_jobs for {0} jobs took {1} sec.'.format(len(jobListToUpdate),
+                mainLog.debug('update_jobs for {0} jobs took {1}'.format(len(jobListToUpdate),
                                                                               sw.get_elapsed_time()))
                 # logging
                 for tmpJobSpec, tmpRet in zip(jobListToSkip+jobListToCheck+jobListToUpdate, retList):
@@ -152,7 +153,7 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update workerID={0} status={1}'.format(tmpWorkSpec.workerID,
                                                                                             tmpWorkSpec.status))
-            mainLog.debug('update_workers for {0} workers took {1} sec.'.format(iWorkers,
+            mainLog.debug('update_workers for {0} workers took {1}'.format(iWorkers,
                                                                       sw.get_elapsed_time()))
             mainLog.debug('getting commands')
             commandSpecs = self.dbProxy.get_commands_for_receiver('propagator')
@@ -193,6 +194,22 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error('failed to update worker stats (bulk) for {0} err={1}'.format(site_name,
                                                                                                         tmp_str))
+
+            if not self._last_metrics_update \
+                    or datetime.datetime.utcnow() - self._last_metrics_update > datetime.timedelta(seconds=METRICS_PERIOD):
+                # get latest metrics from DB
+                service_metrics_list = self.dbProxy.get_service_metrics(self._last_metrics_update)
+                if not service_metrics_list:
+                    mainLog.error('failed to get service metrics')
+                    self._last_metrics_update = datetime.datetime.utcnow()
+                else:
+                    tmp_ret, tmp_str = self.communicator.update_service_metrics(service_metrics_list)
+                    if tmp_ret:
+                        mainLog.debug('update of service metrics OK')
+                        self._last_metrics_update = datetime.datetime.utcnow()
+                    else:
+                        mainLog.error('failed to update service metrics err={0}'.format(tmp_str))
+
             # send dialog messages
             mainLog.debug('getting dialog messages to propagate')
             try:

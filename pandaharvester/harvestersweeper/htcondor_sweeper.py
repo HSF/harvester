@@ -46,9 +46,17 @@ class HTCondorSweeper(PluginBase):
         tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                   method_name='kill_worker')
 
+        ## Skip batch operation for workers without batchID
+        if workspec.batchID is None:
+            tmpLog.info('Found workerID={0} has submissionHost={1} batchID={2} . Cannot kill. Skipped '.format(
+                            workspec.workerID, workspec.submissionHost, workspec.batchID))
+            return True, ''
+
         ## Parse condor remote options
         name_opt, pool_opt = '', ''
-        if workspec.submissionHost:
+        if workspec.submissionHost is None or workspec.submissionHost == 'LOCAL':
+            pass
+        else:
             try:
                 condor_schedd, condor_pool = workspec.submissionHost.split(',')[0:2]
             except ValueError:

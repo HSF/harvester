@@ -124,6 +124,7 @@ class SharedFileMessenger(BaseMessenger):
     # constructor
     def __init__(self, **kwarg):
         self.jobSpecFileFormat = 'json'
+        self.stripJobParams = False
         BaseMessenger.__init__(self, **kwarg)
 
     # get access point
@@ -352,10 +353,11 @@ class SharedFileMessenger(BaseMessenger):
             try:
                 # put job spec file
                 with open(jobSpecFilePath, 'w') as jobSpecFile:
+                    jobParams = jobSpec.get_job_params(self.stripJobParams)
                     if self.jobSpecFileFormat == 'cgi':
-                        jobSpecFile.write(urlencode(jobSpec.jobParams))
+                        jobSpecFile.write(urlencode(jobParams))
                     else:
-                        json.dump({jobSpec.PandaID: jobSpec.jobParams}, jobSpecFile)
+                        json.dump({jobSpec.PandaID: jobParams}, jobSpecFile)
                 # put PFC.xml
                 with open(xmlFilePath, 'w') as pfcFile:
                     pfcFile.write(pfc)

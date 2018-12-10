@@ -1,24 +1,26 @@
 #!/usr/bin/env python
-import sys
-import os
-import time
 import json
 import logging
+import os
 import shutil
+import sys
 import tarfile
+import time
 from collections import defaultdict
+from datetime import datetime
 from glob import glob
 from socket import gethostname
 from subprocess import call
-from datetime import datetime
+
 from mpi4py import MPI
+
+from pilot.jobdescription import JobDescription  # temporary hack
 from pilot.util.filehandling import get_json_dictionary as read_json
-#from pilot.util.filehandling import read_json
 
-from pilot.jobdescription import JobDescription  #temporary hack
-#from pilot.control.payload import parse_jobreport_data  # failed with third party import "import _ssl"
+# from pilot.util.filehandling import read_json
+# from pilot.control.payload import parse_jobreport_data  # failed with third party import "import _ssl"
 
-#TODO Safe local copy, with proper exit on failure
+# TODO Safe local copy, with proper exit on failure
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -36,7 +38,8 @@ error_h.setLevel(logging.ERROR)
 logger.addHandler(error_h)
 logger.addHandler(debug_h)
 
-logger.info('HPC Pilot ver. 0.006')
+logger.info('HPC Pilot ver. 0.007')
+
 
 # TODO: loglevel as input parameter
 
@@ -68,7 +71,7 @@ def parse_jobreport_data(job_report):
 
     if 'ATHENA_PROC_NUMBER' in os.environ:
         work_attributes['core_count'] = os.environ['ATHENA_PROC_NUMBER']
-        core_count = os.environ['ATHENA_PROC_NUMBER']
+        core_count = int(os.environ['ATHENA_PROC_NUMBER'])
 
     dq = DictQuery(job_report)
     dq.get("resource/transform/processedEvents", work_attributes, "nEvents")
@@ -79,7 +82,7 @@ def parse_jobreport_data(job_report):
     dq.get("resource/dbDataTotal", work_attributes, "dbData")
     dq.get("exitCode", work_attributes, "transExitCode")
     dq.get("exitMsg", work_attributes, "exeErrorDiag")
-    dq.get("files/output",work_attributes,"outputfiles")
+    dq.get("files/output", work_attributes, "outputfiles")
 
     outputfiles_dict = {}
     if 'outputfiles' in work_attributes.keys():
@@ -110,23 +113,22 @@ def parse_jobreport_data(job_report):
                 nInputFiles += len(job_report['files']['input']['subfiles'])
         work_attributes['nInputFiles'] = nInputFiles
 
-    #workdir_size = get_workdir_size()
+    # workdir_size = get_workdir_size()
     work_attributes['jobMetrics'] = 'coreCount=%s nEvents=%s dbTime=%s dbData=%s' % \
-                                    (   core_count,
-                                        work_attributes["nEvents"],
-                                        work_attributes["dbTime"],
-                                        work_attributes["dbData"])
-    del(work_attributes["dbData"])
-    del(work_attributes["dbTime"])
+                                    (core_count,
+                                     work_attributes["nEvents"],
+                                     work_attributes["dbTime"],
+                                     work_attributes["dbData"])
+    del (work_attributes["dbData"])
+    del (work_attributes["dbTime"])
 
     return work_attributes
 
 
 def get_setup(job):
-
     # special setup preparation.
 
-    setup_commands = [ 'source /lustre/atlas/proj-shared/csc108/app_dir/pilot/grid_env/external/setup.sh',
+    setup_commands = ['source /ccs/proj/csc108/athena_grid_env/setup.sh',
                       'source $MODULESHOME/init/bash',
                       'tmp_dirname=/tmp/scratch',
                       'tmp_dirname+="/tmp"',
@@ -154,9 +156,10 @@ def timestamp():
     sign_str = '+'
     if tmptz > 0:
         sign_str = '-'
-    tmptz_hours = int(tmptz/3600)
+    tmptz_hours = int(tmptz / 3600)
 
-    return str("%s%s%02d:%02d" % (time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()), sign_str, abs(tmptz_hours), int(tmptz/60-tmptz_hours*60)))
+    return str("%s%s%02d:%02d" % (time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()), sign_str, abs(tmptz_hours),
+                                  int(tmptz / 60 - tmptz_hours * 60)))
 
 
 def main_exit(exit_code, work_report=None, workerAttributesFile="worker_attributes.json"):
@@ -169,7 +172,7 @@ def publish_work_report(work_report=None, workerAttributesFile="worker_attribute
     """Publishing of work report to file"""
     if work_report:
         if work_report.has_key("outputfiles"):
-            del(work_report["outputfiles"])
+            del (work_report["outputfiles"])
         with open(workerAttributesFile, 'w') as outputfile:
             work_report['timestamp'] = timestamp()
             json.dump(work_report, outputfile)
@@ -240,9 +243,10 @@ def main():
     job.endTime = ""
     setup_str = "; ".join(get_setup(job))
 
-    job_working_dir = titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point, job, workerAttributesFile)
+    job_working_dir = titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point, job,
+                                       workerAttributesFile)
 
-    my_command = " ".join([job.script,job.script_parameters])
+    my_command = " ".join([job.script, job.script_parameters])
     my_command = titan_command_fix(my_command, job_working_dir)
     my_command = setup_str + my_command
     logger.debug("Going to launch: {0}".format(my_command))
@@ -305,10 +309,10 @@ def main():
     removeRedundantFiles(job_working_dir, protectedfiles)
     cleanup_time = time.time() - cleanup_strat
     logger.info("Cleanup took: {0} sec.".format(cleanup_time))
-    res = packlogs(job_working_dir,protectedfiles,job.log_file)
+    res = packlogs(job_working_dir, protectedfiles, job.log_file)
     if res > 0:
         job.state = 'failed'
-        work_report['pilotErrorCode'] = 1164 # Let's take this as closed one
+        work_report['pilotErrorCode'] = 1164  # Let's take this as closed one
         work_report['jobStatus'] = job.state
         main_exit(0, work_report, workerAttributesFile)
 
@@ -317,7 +321,8 @@ def main():
         cp_start = time.time()
         for outfile in job.output_files.keys():
             if os.path.exists(outfile):
-                shutil.copyfile(os.path.join(job_working_dir,outfile),os.path.join(worker_communication_point,outfile))
+                shutil.copyfile(os.path.join(job_working_dir, outfile),
+                                os.path.join(worker_communication_point, outfile))
         os.chdir(worker_communication_point)
         cp_time = time.time() - cp_start
         logger.info("Copy of outputs took: {0} sec.".format(cp_time))
@@ -389,20 +394,20 @@ def titan_command_fix(command, job_working_dir):
     for i in range(len(subs_a)):
         if i > 0:
             if '(' in subs_a[i] and not subs_a[i][0] == '"':
-                subs_a[i] = '"'+subs_a[i]+'"'
+                subs_a[i] = '"' + subs_a[i] + '"'
             if subs_a[i].startswith("--inputEVNTFile"):
                 filename = subs_a[i].split("=")[1]
                 subs_a[i] = subs_a[i].replace(filename, os.path.join(job_working_dir, filename))
 
     command = ' '.join(subs_a)
     command = command.strip()
-    command = command.replace('--DBRelease="all:current"', '') # avoid Frontier reading
+    command = command.replace('--DBRelease="all:current"', '')  # avoid Frontier reading
 
     return command
 
 
-def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point,job, workerAttributesFile):
-    #---------
+def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point, job, workerAttributesFile):
+    # ---------
     # Copy Poolcond files to scratch (RAMdisk, ssd, etc) to cope high IO. MOve execution to RAM disk
 
     dst_db_path = 'sqlite200/'
@@ -410,7 +415,7 @@ def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point
     dst_db_path_2 = 'geomDB/'
     dst_db_filename_2 = 'geomDB_sqlite'
     tmp_path = 'tmp/'
-    src_file   = '/ccs/proj/csc108/AtlasReleases/21.0.15/DBRelease/current/sqlite200/ALLP200.db'
+    src_file = '/ccs/proj/csc108/AtlasReleases/21.0.15/DBRelease/current/sqlite200/ALLP200.db'
     src_file_2 = '/ccs/proj/csc108/AtlasReleases/21.0.15/DBRelease/current/geomDB/geomDB_sqlite'
     copy_start = time.time()
     if os.path.exists(scratch_path):
@@ -426,14 +431,15 @@ def titan_prepare_wd(scratch_path, trans_job_workdir, worker_communication_point
             if not os.path.exists(trans_job_workdir):
                 os.makedirs(trans_job_workdir)
             for inp_file in job.input_files:
-                shutil.copyfile(os.path.join(worker_communication_point, inp_file), job.input_files[inp_file]["scratch_path"])
+                shutil.copyfile(os.path.join(worker_communication_point, inp_file),
+                                job.input_files[inp_file]["scratch_path"])
         except IOError as e:
             copy_time = time.time() - copy_start
             logger.info('Special Titan setup failed after: {0}'.format(copy_time))
             logger.error("Copy to scratch failed, execution terminated':  \n %s " % (sys.exc_info()[1]))
             work_report = dict()
             work_report["jobStatus"] = "failed"
-            work_report["pilotErrorCode"] = 1103 # Should be changed to Pilot2 errors
+            work_report["pilotErrorCode"] = 1103  # Should be changed to Pilot2 errors
             work_report["exitMsg"] = str(sys.exc_info()[1])
             main_exit(1103, work_report, workerAttributesFile)
         except:
@@ -460,7 +466,7 @@ def titan_postprocess_wd(jobdir):
     return 0
 
 
-def removeRedundantFiles(workdir, outputfiles = []):
+def removeRedundantFiles(workdir, outputfiles=[]):
     """ Remove redundant files and directories. Should be migrated to Pilot2 """
 
     logger.info("Removing redundant files prior to log creation")
@@ -534,7 +540,7 @@ def removeRedundantFiles(workdir, outputfiles = []):
     if matches != []:
         for f in matches:
             remove(f)
-    #else:
+    # else:
     #    print("Found no archive files")
 
     # note: these should be partitial file/dir names, not containing any wildcards
@@ -568,12 +574,12 @@ def removeRedundantFiles(workdir, outputfiles = []):
     broken = []
     for root, dirs, files in os.walk(workdir):
         for filename in files:
-            path = os.path.join(root,filename)
+            path = os.path.join(root, filename)
             if os.path.islink(path):
                 target_path = os.readlink(path)
                 # Resolve relative symlinks
                 if not os.path.isabs(target_path):
-                    target_path = os.path.join(os.path.dirname(path),target_path)
+                    target_path = os.path.join(os.path.dirname(path), target_path)
                 if not os.path.exists(target_path):
                     broken.append(path)
             else:
@@ -587,7 +593,7 @@ def removeRedundantFiles(workdir, outputfiles = []):
     return 0
 
 
-def cleanupAthenaMP(workdir, outputfiles = []):
+def cleanupAthenaMP(workdir, outputfiles=[]):
     """ Cleanup AthenaMP sud directories prior to log file creation. ATLAS specific """
 
     for ampdir in glob('%s/athenaMP-workers-*' % (workdir)):
@@ -616,8 +622,8 @@ def remove(path):
     return 0
 
 
-def packlogs(wkdir, excludedfiles, logfile_name, attempt = 0):
-    #logfile_size = 0
+def packlogs(wkdir, excludedfiles, logfile_name, attempt=0):
+    # logfile_size = 0
     to_pack = []
     pack_start = time.time()
     for path, subdir, files in os.walk(wkdir):
@@ -632,15 +638,15 @@ def packlogs(wkdir, excludedfiles, logfile_name, attempt = 0):
             logfile_name = os.path.join(wkdir, logfile_name)
             log_pack = tarfile.open(logfile_name, 'w:gz')
             for f in to_pack:
-                log_pack.add(f[0],arcname=f[1])
+                log_pack.add(f[0], arcname=f[1])
             log_pack.close()
-            #logfile_size = os.path.getsize(logfile_name)
+            # logfile_size = os.path.getsize(logfile_name)
         except IOError as e:
             if attempt == 0:
                 safe_delay = 15
                 logger.info('I/O error. Will retry in {0} sec.'.format(safe_delay))
                 time.sleep(safe_delay)
-                packlogs(wkdir, excludedfiles, logfile_name, attempt = 1)
+                packlogs(wkdir, excludedfiles, logfile_name, attempt=1)
             else:
                 logger.info("Continues I/O error during packing of logs. Job will be failed")
                 return 1
@@ -652,6 +658,7 @@ def packlogs(wkdir, excludedfiles, logfile_name, attempt = 0):
     pack_time = time.time() - pack_start
     logger.debug("Pack of logs took: {0} sec.".format(pack_time))
     return 0
+
 
 def del_empty_dirs(src_dir):
     "Common function for removing of empty directories. Should migrate to Pilo2"
@@ -666,7 +673,7 @@ def del_empty_dirs(src_dir):
     return 0
 
 
-def cleanup_pathes(pathprefix = "/lustre/"):
+def cleanup_pathes(pathprefix="/lustre/"):
     """"
     Cleanup of PATH, LD_PATH etc from entities, which points to shared file system required to reduce IO from traversing
     of python libraries
@@ -692,6 +699,7 @@ def cleanup_pathes(pathprefix = "/lustre/"):
     os.putenv('LD_LIBRARY_PATH', ':'.join(ldpath))
 
     return 0
+
 
 if __name__ == "__main__":
     main()

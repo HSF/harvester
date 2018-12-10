@@ -14,7 +14,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
         BaseWorkerMaker.__init__(self, **kwarg)
-        self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime']
+        self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
         self.rt_mapper = ResourceTypeMapper()
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
@@ -22,8 +22,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         job_memory = job_spec.jobParams.get('minRamCount', 0) or 0
         job_corecount = job_spec.jobParams.get('coreCount', 1) or 1
 
-        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '') \
-                        or queue_dict.get('capability', '') == 'ucore'
+        unified_queue = queue_dict.get('capability', '') == 'ucore'
 
         if not job_memory and unified_queue:
             site_maxrss = queue_dict.get('maxrss', 0) or 0
@@ -50,8 +49,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         panda_queues_dict = PandaQueuesDict()
         queue_dict = panda_queues_dict.get(queue_config.queueName, {})
 
-        unified_queue = 'unifiedPandaQueue' in queue_dict.get('catchall', '')\
-                        or queue_dict.get('capability', '') == 'ucore'
+        unified_queue = queue_dict.get('capability', '') == 'ucore'
         # case of traditional (non-unified) queue: look at the queue configuration
         if not unified_queue:
             workSpec.nCore = queue_dict.get('corecount', 1) or 1
@@ -60,7 +58,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # case of unified queue: look at the resource type and queue configuration
         else:
 
-            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified'):
+            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified', 'DESY-ZN_UCORE'):
                 # temporary hack to debug killed workers in Taiwan queues
                 site_corecount = queue_dict.get('corecount', 1) or 1
                 site_maxrss = queue_dict.get('maxrss', 1) or 1
@@ -88,17 +86,19 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             minRamCount = 0
             maxDiskCount = 0
             maxWalltime = 0
+            ioIntensity = 0
             for jobSpec in jobspec_list:
-
                 job_corecount, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
                 nCore += job_corecount
                 minRamCount += job_memory
-
                 try:
                     maxDiskCount += jobSpec.jobParams['maxDiskCount']
                 except Exception:
                     pass
-
+                try:
+                    ioIntensity += jobSpec.jobParams['ioIntensity']
+                except Exception:
+                    pass
                 try:
                     if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
                         if hasattr(queue_config, 'maxWalltime'):
@@ -119,7 +119,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 workSpec.maxDiskCount = maxDiskCount
             if maxWalltime > 0 and 'maxWalltime' in self.jobAttributesToUse:
                 workSpec.maxWalltime = maxWalltime
-
+            if ioIntensity > 0 and 'ioIntensity' in self.jobAttributesToUse:
+                workSpec.ioIntensity = ioIntensity
+            workSpec.pilotType = jobspec_list[0].get_pilot_type()
         # TODO: this needs to be improved with real resource types
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type

@@ -2,6 +2,7 @@ import time
 import datetime
 import collections
 import random
+import itertools
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -12,6 +13,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.fifos import MonitorFIFO
+from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger('monitor')
@@ -27,6 +29,7 @@ class Monitor(AgentBase):
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
         self.monitor_fifo = MonitorFIFO()
+        self.apfmon = Apfmon(self.queueConfigMapper)
 
     # main loop
     def run(self):
@@ -62,7 +65,7 @@ class Monitor(AgentBase):
         while True:
             sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
-            mainLog.debug('start a cycle')
+            mainLog.debug('start a monitor cycle')
             if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and \
                     not (monitor_fifo.enabled and self.singleMode):
                 # run with workers from DB
@@ -106,6 +109,7 @@ class Monitor(AgentBase):
                 # run with workers from FIFO
                 sw = core_utils.get_stopwatch()
                 n_loops = 0
+                n_loops_hit = 0
                 last_fifo_cycle_timestamp = time.time()
                 to_break = False
                 obj_dequeued_id_list = []
@@ -114,8 +118,9 @@ class Monitor(AgentBase):
                 remaining_obj_to_enqueue_dict = {}
                 remaining_obj_to_enqueue_to_head_dict = {}
                 n_chunk_peeked_stat, sum_overhead_time_stat = 0, 0.0
-                while n_loops == 0 or time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
+                while time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
                     sw.reset()
+                    n_loops += 1
                     retVal, overhead_time = monitor_fifo.to_check_workers()
                     if overhead_time is not None:
                         n_chunk_peeked_stat += 1
@@ -176,13 +181,13 @@ class Monitor(AgentBase):
                                         mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
                                         to_break = True
                                     mainLog.debug('checked {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
-                                    n_loops += 1
                                 else:
                                     mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
                                 if sw_fifo.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
                                     mainLog.warning('a single FIFO cycle was longer than lockInterval ' + sw_fifo.get_elapsed_time())
                                 else:
                                     mainLog.debug('done a FIFO cycle' + sw_fifo.get_elapsed_time())
+                                    n_loops_hit += 1
                                 if to_break:
                                     break
                             else:
@@ -195,6 +200,7 @@ class Monitor(AgentBase):
                             time.sleep(max(-overhead_time*random.uniform(0.1, 1), adjusted_sleepTime))
                         else:
                             time.sleep(max(fifoCheckDuration*random.uniform(0.1, 1), adjusted_sleepTime))
+                mainLog.debug('run {0} loops, including {1} FIFO cycles'.format(n_loops, n_loops_hit))
 
                 # enqueue to fifo
                 sw.reset()
@@ -218,7 +224,7 @@ class Monitor(AgentBase):
                         try:
                             workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue_to_head
                             if workSpecsToEnqueueToHead:
-                                score = fifoCheckInterval - timeNow_timestamp
+                                score = fifoCheckInterval + timeNow_timestamp - 2**32
                                 monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
                                 n_chunk_put += 1
                                 mainLog.info('put a chunk of {0} workers of {1} to FIFO with score {2}'.format(
@@ -258,12 +264,17 @@ class Monitor(AgentBase):
             return None
         # get queue
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
+        try:
+            apfmon_status_updates = self.queueConfigMapper.queueConfig[queueName].monitor['apfmon_status_updates']
+        except Exception:
+            apfmon_status_updates = False
+        tmpQueLog.debug('apfmon_status_updates: {0}'.format(apfmon_status_updates))
         # get plugins
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
         # workspec chunk of active workers
-        workSpecsToEnqueue = []
-        workSpecsToEnqueueToHead = []
+        workSpecsToEnqueue_dict = {}
+        workSpecsToEnqueueToHead_dict = {}
         timeNow_timestamp = time.time()
         # get fifoCheckInterval for PQ and other fifo attributes
         try:
@@ -291,10 +302,9 @@ class Monitor(AgentBase):
             iWorker = 0
             for workSpecs in workSpecsList:
                 jobSpecs = None
-                filesToStageOut = dict()
                 pandaIDsList = []
                 eventsToUpdateList = []
-                filesToStageOutList = []
+                filesToStageOutList = dict()
                 isCheckedList = []
                 mapType = workSpecs[0].mapType
                 # loop over workSpecs
@@ -303,6 +313,7 @@ class Monitor(AgentBase):
                                               'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
                                               method_name='run')
                     tmpOut = tmpRetMap[workSpec.workerID]
+                    oldStatus = tmpOut['oldStatus']
                     newStatus = tmpOut['newStatus']
                     monStatus = tmpOut['monStatus']
                     diagMessage = tmpOut['diagMessage']
@@ -336,6 +347,8 @@ class Monitor(AgentBase):
                     elif monStatus == WorkSpec.ST_cancelled:
                         if not workSpec.has_pilot_error():
                             workSpec.set_pilot_error(PilotErrors.ERR_PANDAKILL, diagMessage)
+                    if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                        workSpec.set_work_params({'finalMonStatus': monStatus})
                     # request events
                     if eventsRequestParams != {}:
                         workSpec.eventsRequest = WorkSpec.EV_requestEvents
@@ -347,16 +360,23 @@ class Monitor(AgentBase):
                     if workSpec.hasJob == 1 and jobSpecs is None:
                         jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                         None,
-                                                                        only_running=True)
+                                                                        only_running=True,
+                                                                        slim=True)
                     # pandaIDs for push
                     pandaIDsList.append(pandaIDs)
                     if len(eventsToUpdate) > 0:
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
-                        filesToStageOutList.append(filesToStageOut)
+                        filesToStageOutList[workSpec.workerID] = filesToStageOut
+                    # apfmon status update
+                    if apfmon_status_updates and newStatus != oldStatus:
+                        tmpQueLog.debug('apfmon_status_updates: {0} newStatus: {1} monStatus: {2} oldStatus: {3} workSpecStatus: {4}'.
+                                        format(apfmon_status_updates, newStatus, monStatus, oldStatus, workSpec.status))
+                        self.apfmon.update_worker(workSpec, monStatus)
+
                 # lock workers for fifo
                 if from_fifo:
-                    # collect some attributes to be updated when wokers are locked
+                    # collect some attributes to be updated when workers are locked
                     worker_id_list = dict()
                     for workSpec, isChecked in zip(workSpecs, isCheckedList):
                         attrs = dict()
@@ -430,15 +450,24 @@ class Monitor(AgentBase):
                             last_check_period = forceEnqueueInterval + 1.0
                         if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval \
                             and timeNow_timestamp - harvester_config.monitor.checkInterval > self.startTimestamp:
-                            tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
-                                                workSpec.workerID, last_check_period))
+                            if last_check_period > harvester_config.monitor.checkInterval * 4:
+                                tmpQueLog.error('last check period of workerID={0} is {1} sec, way longer than monitor checkInterval. Please check why monitor checks worker slowly'.format(
+                                                    workSpec.workerID, last_check_period))
+                            else:
+                                tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
+                                                    workSpec.workerID, last_check_period))
+                        _bool, lastForceEnqueueAt = workSpec.get_work_params('lastForceEnqueueAt')
+                        if not (_bool and lastForceEnqueueAt is not None):
+                            lastForceEnqueueAt = 0
                         if (from_fifo) \
                             or (not from_fifo
                                 and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
-                                and last_check_period > forceEnqueueInterval):
+                                and last_check_period > forceEnqueueInterval
+                                and timeNow_timestamp - lastForceEnqueueAt > 86400 + forceEnqueueInterval):
                             if not from_fifo:
                                 tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor forceEnqueueInterval. Enqueue the worker by force'.format(
                                                     workSpec.workerID, last_check_period))
+                                workSpec.set_work_params({'lastForceEnqueueAt': timeNow_timestamp})
                             workSpec.set_work_params({'lastCheckAt': timeNow_timestamp})
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
@@ -449,18 +478,20 @@ class Monitor(AgentBase):
                                     workSpec.set_work_params({'startFifoPreemptAt': startFifoPreemptAt})
                                 tmpQueLog.debug('workerID={0} , startFifoPreemptAt: {1}'.format(workSpec.workerID, startFifoPreemptAt))
                                 if timeNow_timestamp - startFifoPreemptAt < fifoMaxPreemptInterval:
-                                    workSpecsToEnqueueToHead.append(workSpecs)
+                                    workSpecsToEnqueueToHead_dict[workSpec.workerID] = workSpecs
                                 else:
                                     workSpec.set_work_params({'startFifoPreemptAt': timeNow_timestamp})
                                     workSpec.modificationTime = timeNow
                                     workSpec.force_update('modificationTime')
-                                    workSpecsToEnqueue.append(workSpecs)
+                                    workSpecsToEnqueue_dict[workSpec.workerID] = workSpecs
                             else:
                                 workSpec.modificationTime = timeNow
                                 workSpec.force_update('modificationTime')
-                                workSpecsToEnqueue.append(workSpecs)
+                                workSpecsToEnqueue_dict[workSpec.workerID] = workSpecs
         else:
             tmpQueLog.error('failed to check workers')
+        workSpecsToEnqueue = list(workSpecsToEnqueue_dict.values())
+        workSpecsToEnqueueToHead = list(workSpecsToEnqueueToHead_dict.values())
         retVal = workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval
         tmpQueLog.debug('done')
         return retVal
@@ -476,7 +507,12 @@ class Monitor(AgentBase):
                 checkTimeout = harvester_config.monitor.checkTimeout
             except Exception:
                 checkTimeout = None
+        try:
+            workerQueueTimeLimit = harvester_config.monitor.workerQueueTimeLimit
+        except AttributeError:
+            workerQueueTimeLimit = 172800
         workersToCheck = []
+        thingsToPostProcess = []
         retMap = dict()
         for workSpec in all_workers:
             eventsRequestParams = {}
@@ -486,25 +522,32 @@ class Monitor(AgentBase):
             workAttributes = None
             filesToStageOut = []
             nJobsToReFill = None
-            # job-level late binding
-            if workSpec.hasJob == 0 and workSpec.mapType != WorkSpec.MT_NoJob:
-                # check if job is requested
-                jobRequested = messenger.job_requested(workSpec)
-                if jobRequested:
-                    # set ready when job is requested
-                    workStatus = WorkSpec.ST_ready
-                else:
-                    workStatus = workSpec.status
-            elif workSpec.nJobsToReFill in [0, None]:
-                # check if job is requested to refill free slots
-                jobRequested = messenger.job_requested(workSpec)
-                if jobRequested:
-                    nJobsToReFill = jobRequested
-                workersToCheck.append(workSpec)
+            if workSpec.has_work_params('finalMonStatus'):
+                # to post-process
+                _bool, finalMonStatus = workSpec.get_work_params('finalMonStatus')
+                _thing = (workSpec, (finalMonStatus, ''))
+                thingsToPostProcess.append(_thing)
             else:
-                workersToCheck.append(workSpec)
+                # job-level late binding
+                if workSpec.hasJob == 0 and workSpec.mapType != WorkSpec.MT_NoJob:
+                    # check if job is requested
+                    jobRequested = messenger.job_requested(workSpec)
+                    if jobRequested:
+                        # set ready when job is requested
+                        workStatus = WorkSpec.ST_ready
+                    else:
+                        workStatus = workSpec.status
+                elif workSpec.nJobsToReFill in [0, None]:
+                    # check if job is requested to refill free slots
+                    jobRequested = messenger.job_requested(workSpec)
+                    if jobRequested:
+                        nJobsToReFill = jobRequested
+                    workersToCheck.append(workSpec)
+                else:
+                    workersToCheck.append(workSpec)
             # add
-            retMap[workSpec.workerID] = {'newStatus': workStatus,
+            retMap[workSpec.workerID] = {'oldStatus': workSpec.status,
+                                         'newStatus': workStatus,
                                          'monStatus': workStatus,
                                          'workAttributes': workAttributes,
                                          'filesToStageOut': filesToStageOut,
@@ -517,103 +560,119 @@ class Monitor(AgentBase):
         # check workers
         tmp_log.debug('checking workers with plugin')
         try:
-            tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
-            if not tmpStat:
-                tmp_log.error('failed to check workers with: {0}'.format(tmpOut))
+            if workersToCheck:
+                tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
+                if not tmpStat:
+                    tmp_log.error('failed to check workers with: {0}'.format(tmpOut))
+                    workersToCheck = []
+                    tmpOut = []
+                else:
+                    tmp_log.debug('checked')
             else:
-                tmp_log.debug('checked')
-                timeNow = datetime.datetime.utcnow()
-                for workSpec, (newStatus, diagMessage) in zip(workersToCheck, tmpOut):
-                    workerID = workSpec.workerID
-                    tmp_log.debug('Going to check workerID={0}'.format(workerID))
-                    pandaIDs = []
-                    if workerID in retMap:
-                        # failed to check status
-                        if newStatus is None:
-                            tmp_log.error('Failed to check workerID={0} with {1}'.format(workerID, diagMessage))
-                            retMap[workerID]['isChecked'] = False
-                            # set status
-                            if workSpec.checkTime is not None and checkTimeout is not None and \
-                                    timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout):
-                                # kill due to timeout
-                                tmp_log.debug('kill workerID={0} due to continuous check failure'.format(workerID))
-                                self.dbProxy.kill_worker(workSpec.workerID)
-                                newStatus = WorkSpec.ST_cancelled
-                                diagMessage = 'killed due to continuous check failure. ' + diagMessage
-                                workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
-                            else:
-                                # use original status
-                                newStatus = workSpec.status
-                        # request kill
-                        if messenger.kill_requested(workSpec):
-                            tmp_log.debug('kill workerID={0} as requested'.format(workerID))
+                tmp_log.debug('Nothing to be checked with plugin')
+                tmpOut = []
+            timeNow = datetime.datetime.utcnow()
+            for workSpec, (newStatus, diagMessage) in itertools.chain(
+                    zip(workersToCheck, tmpOut), thingsToPostProcess):
+                workerID = workSpec.workerID
+                tmp_log.debug('Going to check workerID={0}'.format(workerID))
+                pandaIDs = []
+                if workerID in retMap:
+                    # failed to check status
+                    if newStatus is None:
+                        tmp_log.warning('Failed to check workerID={0} with {1}'.format(workerID, diagMessage))
+                        retMap[workerID]['isChecked'] = False
+                        # set status
+                        if workSpec.checkTime is not None and checkTimeout is not None and \
+                                timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout):
+                            # kill due to timeout
+                            tmp_log.debug('kill workerID={0} due to consecutive check failures'.format(workerID))
                             self.dbProxy.kill_worker(workSpec.workerID)
-
-                        # expired heartbeat - only when requested in the configuration
-                        try:
-                            # check if the queue configuration requires checking for worker heartbeat
-                            worker_heartbeat_limit = int(queue_config.messenger['worker_heartbeat'])
-                        except (AttributeError, KeyError):
-                            worker_heartbeat_limit = None
-                        tmp_log.debug(
-                            'workerID={0} heartbeat limit is configured to {1}'.format(workerID,
-                                                                                       worker_heartbeat_limit))
-                        if worker_heartbeat_limit:
-                            if messenger.is_alive(workSpec, worker_heartbeat_limit):
-                                tmp_log.debug('heartbeat for workerID={0} is valid'.format(workerID))
+                            newStatus = WorkSpec.ST_cancelled
+                            diagMessage = 'Killed by Harvester due to consecutive worker check failures. ' + diagMessage
+                            workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
+                        else:
+                            # use original status
+                            newStatus = workSpec.status
+                    # request kill
+                    if messenger.kill_requested(workSpec):
+                        tmp_log.debug('kill workerID={0} as requested'.format(workerID))
+                        self.dbProxy.kill_worker(workSpec.workerID)
+                    # stuck queuing for too long
+                    if workSpec.status == WorkSpec.ST_submitted \
+                        and timeNow > workSpec.submitTime + datetime.timedelta(seconds=workerQueueTimeLimit):
+                        tmp_log.debug('kill workerID={0} due to queuing longer than {1} seconds'.format(
+                                        workerID, workerQueueTimeLimit))
+                        self.dbProxy.kill_worker(workSpec.workerID)
+                        diagMessage = 'Killed by Harvester due to worker queuing too long' + diagMessage
+                        workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
+                    # expired heartbeat - only when requested in the configuration
+                    try:
+                        # check if the queue configuration requires checking for worker heartbeat
+                        worker_heartbeat_limit = int(queue_config.messenger['worker_heartbeat'])
+                    except (AttributeError, KeyError):
+                        worker_heartbeat_limit = None
+                    tmp_log.debug(
+                        'workerID={0} heartbeat limit is configured to {1}'.format(workerID,
+                                                                                   worker_heartbeat_limit))
+                    if worker_heartbeat_limit:
+                        if messenger.is_alive(workSpec, worker_heartbeat_limit):
+                            tmp_log.debug('heartbeat for workerID={0} is valid'.format(workerID))
+                        else:
+                            tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(
+                                workerID))
+                            self.dbProxy.kill_worker(workSpec.workerID)
+                            diagMessage = 'Killed by Harvester due to worker heartbeat expired. ' + diagMessage
+                            workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
+                    # get work attributes
+                    workAttributes = messenger.get_work_attributes(workSpec)
+                    retMap[workerID]['workAttributes'] = workAttributes
+                    # get output files
+                    filesToStageOut = messenger.get_files_to_stage_out(workSpec)
+                    retMap[workerID]['filesToStageOut'] = filesToStageOut
+                    # get events to update
+                    if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
+                        eventsToUpdate = messenger.events_to_update(workSpec)
+                        retMap[workerID]['eventsToUpdate'] = eventsToUpdate
+                    # request events
+                    if workSpec.eventsRequest == WorkSpec.EV_useEvents:
+                        eventsRequestParams = messenger.events_requested(workSpec)
+                        retMap[workerID]['eventsRequestParams'] = eventsRequestParams
+                    # get PandaIDs for pull model
+                    if workSpec.mapType == WorkSpec.MT_NoJob:
+                        pandaIDs = messenger.get_panda_ids(workSpec)
+                    retMap[workerID]['pandaIDs'] = pandaIDs
+                    # keep original new status
+                    retMap[workerID]['monStatus'] = newStatus
+                    # set running or idle while there are events to update or files to stage out
+                    if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                        if len(retMap[workerID]['filesToStageOut']) > 0 or \
+                                        len(retMap[workerID]['eventsToUpdate']) > 0:
+                            if workSpec.status == WorkSpec.ST_running:
+                                newStatus = WorkSpec.ST_running
                             else:
-                                tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(
-                                    workerID))
-                                self.dbProxy.kill_worker(workSpec.workerID)
-
-                        # get work attributes
-                        workAttributes = messenger.get_work_attributes(workSpec)
-                        retMap[workerID]['workAttributes'] = workAttributes
-                        # get output files
-                        filesToStageOut = messenger.get_files_to_stage_out(workSpec)
-                        retMap[workerID]['filesToStageOut'] = filesToStageOut
-                        # get events to update
-                        if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
-                            eventsToUpdate = messenger.events_to_update(workSpec)
-                            retMap[workerID]['eventsToUpdate'] = eventsToUpdate
-                        # request events
-                        if workSpec.eventsRequest == WorkSpec.EV_useEvents:
-                            eventsRequestParams = messenger.events_requested(workSpec)
-                            retMap[workerID]['eventsRequestParams'] = eventsRequestParams
-                        # get PandaIDs for pull model
-                        if workSpec.mapType == WorkSpec.MT_NoJob:
-                            pandaIDs = messenger.get_panda_ids(workSpec)
-                        retMap[workerID]['pandaIDs'] = pandaIDs
-                        # keep original new status
-                        retMap[workerID]['monStatus'] = newStatus
-                        # set running or idle while there are events to update or files to stage out
-                        if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
-                            if len(retMap[workerID]['filesToStageOut']) > 0 or \
-                                            len(retMap[workerID]['eventsToUpdate']) > 0:
-                                if workSpec.status == WorkSpec.ST_running:
-                                    newStatus = WorkSpec.ST_running
-                                else:
-                                    newStatus = WorkSpec.ST_idle
-                            elif not workSpec.is_post_processed():
-                                if not queue_config.is_no_heartbeat_status(newStatus):
-                                    # post processing unless heartbeat is suppressed
-                                    jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                                                    None, True,
-                                                                                    only_running=True)
-                                    # post processing
-                                    messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
-                                workSpec.post_processed()
-                                if workSpec.status == WorkSpec.ST_running:
-                                    newStatus = WorkSpec.ST_running
-                                else:
-                                    newStatus = WorkSpec.ST_idle
-                            # reset modification time to immediately trigger subsequent lookup
-                            if not self.monitor_fifo.enabled:
-                                workSpec.trigger_next_lookup()
-                        retMap[workerID]['newStatus'] = newStatus
-                        retMap[workerID]['diagMessage'] = diagMessage
-                    else:
-                        tmp_log.debug('workerID={0} not in retMap'.format(workerID))
+                                newStatus = WorkSpec.ST_idle
+                        elif not workSpec.is_post_processed():
+                            if not queue_config.is_no_heartbeat_status(newStatus):
+                                # post processing unless heartbeat is suppressed
+                                jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
+                                                                                None, True,
+                                                                                only_running=True,
+                                                                                slim=True)
+                                # post processing
+                                messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
+                            workSpec.post_processed()
+                            if workSpec.status == WorkSpec.ST_running:
+                                newStatus = WorkSpec.ST_running
+                            else:
+                                newStatus = WorkSpec.ST_idle
+                        # reset modification time to immediately trigger subsequent lookup
+                        if not self.monitor_fifo.enabled:
+                            workSpec.trigger_next_lookup()
+                    retMap[workerID]['newStatus'] = newStatus
+                    retMap[workerID]['diagMessage'] = diagMessage
+                else:
+                    tmp_log.debug('workerID={0} not in retMap'.format(workerID))
             return True, retMap
         except Exception:
             core_utils.dump_error_message(tmp_log)

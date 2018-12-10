@@ -24,7 +24,7 @@ class MultiJobWorkerMaker(BaseWorkerMaker):
         # prepare static enviroment
         env_str = ""
         if self.env not in (None, "NULL"):
-            env_str = "\n".join(map(lambda s: s.strip(),  self.env.split(",")))
+            env_str = "\n".join(map(lambda s: s.strip(),  self.env.split(", ")))
 
         # prepare executor
         try:

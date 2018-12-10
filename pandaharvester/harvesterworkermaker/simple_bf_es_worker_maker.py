@@ -68,7 +68,8 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
     # get number of workers per job
     def get_num_workers_per_job(self, n_workers):
         try:
-            return min(self.nWorkersPerJob, n_workers)
+            # return min(self.nWorkersPerJob, n_workers)
+            return self.nWorkersPerJob
         except Exception:
             return 1
 
@@ -114,7 +115,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
                         adjuster[key] = value
                     adjuster['minCapacity'] = adjuster['minWalltimeSeconds'] * adjuster['minNodes']
                     adjuster['maxCapacity'] = adjuster['maxWalltimeSeconds'] * adjuster['maxNodes']
-        self.adjusters.sort(key=lambda my_dict: my_dict['minNodes'])
+            self.adjusters.sort(key=lambda my_dict: my_dict['minNodes'])
 
     # get backfill resources
     def get_bf_resources(self, blocking=True):
@@ -173,11 +174,16 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
         ret_resources = []
         for resource in resources:
             if resource['nodes'] > self.maxNodes:
-                resource['nodes'] = self.maxNodes
+                nodes = self.maxNodes
+            else:
+                nodes = resource['nodes']
 
-            adjuster = self.get_adjuster(resource['nodes'])
+            adjuster = self.get_adjuster(nodes)
             if adjuster:
-                nodes = resource['nodes'] - adjuster['nodesToDecrease']
+                if (resource['nodes'] - adjuster['nodesToDecrease']) < nodes:
+                    nodes = resource['nodes'] - adjuster['nodesToDecrease']
+                if nodes <= 0:
+                    continue
                 walltime = resource['walltime']
                 if walltime == 'INFINITY':
                     walltime = adjuster['maxWalltimeSeconds']

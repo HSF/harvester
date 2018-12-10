@@ -69,3 +69,7 @@ class BaseCommunicator(with_metaclass(abc.ABCMeta, object)):
     # send dialog messages
     def send_dialog_messages(self, dialog_list):
         return True, ''
+
+    # update service metrics
+    def update_service_metrics(self, service_metrics_list):
+        return True, ''

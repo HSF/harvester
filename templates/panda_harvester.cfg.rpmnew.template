@@ -82,9 +82,10 @@ fifoClass = SqliteFifo
 
 # database filename for sqlite fifo plugin
 # must be different from main Harvester DB and other fifo DBs if using sqlite
-# different db filenames for fifos of of different agents
-# placeholder $(AGENT) should be used in filename; it will then be changed to the agent name
-database_filename = /dev/shm/$(AGENT)_fifo.db
+# different db filenames for fifos of different titles
+# a titile can be named after a harvester agent (e.g. monitor) or other special components
+# placeholder $(TITLE) should be used in filename; it will then be changed to the title name
+database_filename = /dev/shm/$(TITLE)_fifo.db
 
 
 
@@ -164,6 +165,9 @@ getEventsChunkSize = 5120
 
 # config file
 configFile = panda_queueconfig.json
+
+# enable config from cacher "queues_config_file"
+configFromCacher = False
 
 # queue list : one queue name following a whitespace per line. Or just ALL if all queues in the configFile are used
 queueList =
@@ -319,6 +323,9 @@ minSubmissionInterval = 0
 # sleep interval in sec
 sleepTime = 60
 
+# max number of workers per queue to try in one cycle
+maxNewWorkers = 1000
+
 
 
 
@@ -363,13 +370,20 @@ fifoCheckDuration = 60
 fifoForceEnqueueInterval = 1500
 
 # max number of workers to be populated into fifo
-fifoMaxWorkersToPopulate = 10000
+#fifoMaxWorkersToPopulate = 100000
 
 # max number of workers in a chunk to enqueue
 fifoMaxWorkersPerChunk = 500
 
 # max interval in sec a post-processing worker can preempt in fifo
 fifoMaxPreemptInterval = 60
+
+# plugin cache parameters (used if monitor plugin supports)
+#pluginCacheEnable = True
+#pluginCacheRefreshInterval = 300
+
+# workers will be killed if stuck queuing (submitted) for longer than this
+workerQueueTimeLimit = 172800
 
 
 
@@ -680,7 +694,26 @@ mailFrom = example_from@example.com
 # a comma-concatenated list of email recipients
 mailTo = example_to_1@example.com,example_to_2@example.com
 
+##########################
+#
+# APF monitoring parameters
+#
+[apfmon]
+active = True
 
+##########################
+#
+# Service monitor parameters
+#
+
+[service_monitor]
+active = True
+
+# optional in case you want to monitor any disk volume
+disk_volumes = data
+
+# pidfile only necessary when running in uwsgi
+pidfile = /var/log/harvester/panda_harvester.pid
 
 ##########################
 #

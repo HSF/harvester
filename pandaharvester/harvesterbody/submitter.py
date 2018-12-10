@@ -1,6 +1,7 @@
 import math
 import datetime
 import time
+import socket
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -14,6 +15,7 @@ from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.fifos import MonitorFIFO
+from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger('submitter')
@@ -30,6 +32,7 @@ class Submitter(AgentBase):
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
         self.monitor_fifo = MonitorFIFO()
+        self.apfmon = Apfmon(self.queueConfigMapper)
 
     # main loop
     def run(self):
@@ -274,6 +277,10 @@ class Submitter(AgentBase):
                                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore,
                                                                                                workSpecList)
                                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
+
+                                        # set harvesterHost
+                                        workSpec.harvesterHost = socket.gethostname()
+
                                         workSpec, jobList = okChunks[iWorker]
                                         # use associated job list since it can be truncated for re-filling
                                         jobList = workSpec.get_jobspec_list()
@@ -356,7 +363,8 @@ class Submitter(AgentBase):
                                         workSpecsToEnqueue = \
                                             [[w] for w in workSpecList if w.status
                                              in (WorkSpec.ST_submitted, WorkSpec.ST_running)]
-                                        monitor_fifo.put((queueName, workSpecsToEnqueue))
+                                        monitor_fifo.put((queueName, workSpecsToEnqueue),
+                                                            time.time() + harvester_config.monitor.fifoCheckInterval)
                                         mainLog.debug('put workers to monitor FIFO')
                                     submitted = True
                                 # release jobs
@@ -394,6 +402,10 @@ class Submitter(AgentBase):
             else:
                 workersToSubmit.append(workSpec)
         tmpRetList = submitter_core.submit_workers(workersToSubmit)
+
+        # submit the workers to the monitoring
+        self.apfmon.create_workers(workersToSubmit)
+
         for tmpRet, tmpStr in tmpRetList:
             retList.append(tmpRet)
             strList.append(tmpStr)

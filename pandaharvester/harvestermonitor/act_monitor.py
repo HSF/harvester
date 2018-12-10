@@ -17,8 +17,7 @@ class ACTMonitor(PluginBase):
 
         # Set up aCT DB connection
         self.log = core_utils.make_logger(baseLogger, 'aCT submitter', method_name='__init__')
-        self.conf = aCTConfigARC()
-        self.actDB = aCTDBPanda(self.log, self.conf.get(["db", "file"]))
+        self.actDB = aCTDBPanda(self.log)
 
 
     # check workers

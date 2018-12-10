@@ -56,7 +56,6 @@ def multithread_executer(func, n_object, n_thread):
         retIterator = _pool.map(func, range(n_object))
     return retIterator
 
-
 def get_harvester_attributes():
     attr_list = [
         'harvesterID',
@@ -66,22 +65,21 @@ def get_harvester_attributes():
     return attr_list
 
 def repopulate_fifos(*names):
-    agent_fifo_class_name_map = {
+    fifo_class_name_map = {
             'monitor': 'MonitorFIFO',
         }
     if len(names) > 0:
-        agent_fifo_class_name_list = [ agent_fifo_class_name_map.get(name) for name in names ]
+        fifo_class_name_list = [ fifo_class_name_map.get(name) for name in names ]
     else:
-        agent_fifo_class_name_list = agent_fifo_class_name_map.values()
-    for agent_fifo_class_name in agent_fifo_class_name_list:
-        if agent_fifo_class_name is None:
+        fifo_class_name_list = fifo_class_name_map.values()
+    for fifo_class_name in fifo_class_name_list:
+        if fifo_class_name is None:
             continue
-        fifo = getattr(harvesterFifos, agent_fifo_class_name)()
+        fifo = getattr(harvesterFifos, fifo_class_name)()
         if not fifo.enabled:
             continue
         fifo.populate(clear_fifo=True)
-        print('Repopulated {0} fifo'.format(fifo.agentName))
-
+        print('Repopulated {0} fifo'.format(fifo.titleName))
 
 # TODO
 
@@ -107,7 +105,6 @@ def get(arguments):
         print(hpi.commit_info)
     elif attr == 'harvesterID':
         print(harvester_config.master.harvester_id)
-
 
 def fifo_benchmark(arguments):
     n_object = arguments.n_object
@@ -176,12 +173,18 @@ def fifo_benchmark(arguments):
     print('Get protective : {0:.3f} ms / obj'.format(1000. * sum_dict['get_protective_time']/n_object))
     print('Clear          : {0:.3f} ms / obj'.format(1000. * sum_dict['clear_time']/n_object))
 
-
 def fifo_repopulate(arguments):
     if 'ALL' in arguments.name_list:
         repopulate_fifos()
     else:
         repopulate_fifos(*arguments.name_list)
+
+def cacher_refresh(arguments):
+    from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+    from pandaharvester.harvesterbody.cacher import Cacher
+    communicatorPool = CommunicatorPool()
+    cacher = Cacher(communicatorPool)
+    cacher.execute(force_update=True, skip_lock=True, n_thread=4)
 
 def qconf_list(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
@@ -189,6 +192,12 @@ def qconf_list(arguments):
         queue_config_tool.list_config_ids()
     else:
         queue_config_tool.list_active_queues()
+
+def qconf_refresh(arguments):
+    from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+    qcm = QueueConfigMapper()
+    qcm.lastUpdate = None
+    qcm.load_data()
 
 def qconf_dump(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
@@ -199,8 +208,11 @@ def qconf_dump(arguments):
                         for configID in arguments.id_list ]
             resObj = { obj.get('queueName'): obj for obj in res_list }
         elif arguments.all:
-            res_dict = queue_config_tool.dump_all_active_queues(to_print)
-            resObj = { k: vars(v) for k, v in res_dict.items() }
+            res_list = queue_config_tool.dump_all_active_queues(to_print)
+            if res_list is None or to_print:
+                resObj = {}
+            else:
+                resObj = { vars(qm).get('queueName', ''): vars(qm) for qm in res_list }
         else:
             resObj = { queue: vars(queue_config_tool.dump_active_queue(queue, to_print))
                         for queue in arguments.queue_list }
@@ -231,9 +243,12 @@ commandMap = {
             # fifo commands
             'fifo_benchmark': fifo_benchmark,
             'fifo_repopulate': fifo_repopulate,
+            # cacher commands
+            'cacher_refresh': cacher_refresh,
             # qconf commands
             'qconf_list': qconf_list,
             'qconf_dump': qconf_dump,
+            'qconf_refresh': qconf_refresh,
             'qconf_purge': qconf_purge,
             }
 
@@ -263,6 +278,12 @@ def main():
     fifo_repopulate_parser = fifo_subparsers.add_parser('repopulate', help='Repopulate agent fifo')
     fifo_repopulate_parser.set_defaults(which='fifo_repopulate')
     fifo_repopulate_parser.add_argument('name_list', nargs='+', type=str, action='store', metavar='<agent_name>', help='Name of agent fifo, e.g. "monitor" ("ALL" for all)')
+    # cacher parser
+    cacher_parser = subparsers.add_parser('cacher', help='cacher related')
+    cacher_subparsers = cacher_parser.add_subparsers()
+    # cacher refresh command
+    cacher_refresh_parser = cacher_subparsers.add_parser('refresh', help='refresh cacher immediately')
+    cacher_refresh_parser.set_defaults(which='cacher_refresh')
     # qconf (queue configuration) parser
     qconf_parser = subparsers.add_parser('qconf', help='queue configuration')
     qconf_subparsers = qconf_parser.add_subparsers()
@@ -277,6 +298,9 @@ def main():
     qconf_dump_parser.add_argument('-a', '--all', dest='all', action='store_true', help='Dump configuration of all active queues')
     qconf_dump_parser.add_argument('queue_list', nargs='*', type=str, action='store', metavar='<queue_name>', help='Name of active queue')
     qconf_dump_parser.add_argument('-i', '--id', dest='id_list', nargs='+', type=int, action='store', metavar='<configID>', help='Dump configuration of queue with configID')
+    # qconf refresh command
+    qconf_refresh_parser = qconf_subparsers.add_parser('refresh', help='refresh queue configuration immediately')
+    qconf_refresh_parser.set_defaults(which='qconf_refresh')
     # qconf purge command
     qconf_purge_parser = qconf_subparsers.add_parser('purge', help='Purge the queue thoroughly from harvester DB (Be careful !!)')
     qconf_purge_parser.set_defaults(which='qconf_purge')
