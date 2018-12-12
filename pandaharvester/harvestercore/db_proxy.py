@@ -1284,6 +1284,9 @@ class DBProxy:
                             jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     elif workspec.hasJob == 1:
                         if workspec.status == WorkSpec.ST_missed:
+                            # not update if other workers are active
+                            if len(workerIDs) > 1:
+                                continue
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
                                                                           [workspec], {}, {})
                             jobSpec.trigger_propagation()
@@ -1296,6 +1299,9 @@ class DBProxy:
                             jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     else:
                         if workspec.status == WorkSpec.ST_missed:
+                            # not update if other workers are active
+                            if len(workerIDs) > 1:
+                                continue
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
                                                                           [workspec], {}, {})
                             jobSpec.trigger_propagation()

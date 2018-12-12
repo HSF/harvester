@@ -276,11 +276,19 @@ class Submitter(AgentBase):
                                     tmpLog.info('submitting {0} workers'.format(len(workSpecList)))
                                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore,
                                                                                                workSpecList)
+                                    # collect successful jobs
+                                    okPandaIDs = set()
                                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
-
+                                        if tmpRet:
+                                            workSpec, jobList = okChunks[iWorker]
+                                            jobList = workSpec.get_jobspec_list()
+                                            if jobList is not None:
+                                                for jobSpec in jobList:
+                                                    okPandaIDs.add(jobSpec.PandaID)
+                                    # loop over all workers
+                                    for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
                                         # set harvesterHost
                                         workSpec.harvesterHost = socket.gethostname()
-
                                         workSpec, jobList = okChunks[iWorker]
                                         # use associated job list since it can be truncated for re-filling
                                         jobList = workSpec.get_jobspec_list()
@@ -298,6 +306,9 @@ class Submitter(AgentBase):
                                                 # increment attempt number
                                                 newJobList = []
                                                 for jobSpec in jobList:
+                                                    # skip if successful with another worker
+                                                    if jobSpec.PandaID in okPandaIDs:
+                                                        continue
                                                     if jobSpec.submissionAttempts is None:
                                                         jobSpec.submissionAttempts = 0
                                                     jobSpec.submissionAttempts += 1
