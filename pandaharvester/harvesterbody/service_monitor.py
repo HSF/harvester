@@ -30,6 +30,7 @@ class ServiceMonitor(AgentBase):
 
         self.pid = self.get_master_pid()
         self.master_process = psutil.Process(self.pid)
+        self.children = self.master_process.children(recursive=True)
 
     def get_master_pid(self):
         """
@@ -46,6 +47,28 @@ class ServiceMonitor(AgentBase):
 
         return pid
 
+    def refresh_children_list(self, children):
+
+        children_refreshed = []
+
+        for child_current in children:
+            pid_current = child_current.pid
+            found = False
+            for child_stored in self.children:
+                pid_stored = child_stored.pid
+                if pid_stored == pid_current:
+                    found = True
+                    break
+
+            if found:
+                children_refreshed.append(child_stored)
+            else:
+                children_refreshed.append(child_current)
+
+        self.children = children_refreshed
+
+        return children_refreshed
+
     def get_memory_n_cpu(self):
         """
         sum memory of whole process tree starting from master pid
@@ -54,19 +77,25 @@ class ServiceMonitor(AgentBase):
         try:
             master_process = self.master_process
             rss = master_process.memory_info()[0]
+            memory_pc = master_process.memory_percent()
             cpu_pc = master_process.cpu_percent()
-            for child in master_process.children(recursive=True):
+
+            children = self.refresh_children_list(master_process.children(recursive=True))
+            for child in children:
                 rss += child.memory_info()[0]
+                memory_pc += child.memory_percent()
                 cpu_pc += child.cpu_percent()
 
             # convert bytes to MiB
             rss_mib = rss / float(2 ** 20)
+
         except:
             _logger.error('Excepted with: {0}'.format(traceback.format_exc()))
             rss_mib = None
+            memory_pc = None
             cpu_pc = None
 
-        return rss_mib, cpu_pc
+        return rss_mib, memory_pc, cpu_pc
 
     def volume_use(self, volume_name):
         command = "df -Pkh /" + volume_name
@@ -88,10 +117,11 @@ class ServiceMonitor(AgentBase):
             service_metrics = {}
 
             # get memory usage
-            rss_mib, cpu_pc = self.get_memory_n_cpu()
+            rss_mib, memory_pc, cpu_pc = self.get_memory_n_cpu()
             service_metrics['rss_mib'] = rss_mib
+            service_metrics['memory_pc'] = memory_pc
             service_metrics['cpu_pc'] = cpu_pc
-            _logger.debug('Memory usage: {0} MiB, CPU usage: {1}'.format(rss_mib, cpu_pc))
+            _logger.debug('Memory usage: {0} MiB/{1}%, CPU usage: {2}'.format(rss_mib, memory_pc, cpu_pc))
 
             # get volume usage
             try:
