@@ -128,9 +128,13 @@ class Apfmon:
                             queues = site_info['queues']
 
                         for queue in queues:
-                            ce = queue['ce_endpoint'].split('.')[0]
+                            try:
+                                ce = queue['ce_endpoint'].split('.')[0].split('://')[-1]
+                            except:
+                                ce = ''
                             labels.append({'name': '{0}-{1}'.format(site, ce),
                                            'wmsqueue': site,
+                                           'ce_queue_id': queue['ce_queue_id'],
                                            'factory': self.harvester_id})
                     except:
                         tmp_log.error('Excepted for site {0} with: {1}'.format(site, traceback.format_exc()))
@@ -183,7 +187,10 @@ class Apfmon:
 
             for queue in queues:
                 try:
-                    ce = queue['ce_endpoint'].split('.')[0]
+                    try:
+                        ce = queue['ce_endpoint'].split('.')[0].split('://')[-1]
+                    except:
+                        ce = ''
                     label_data = {'status': msg}
                     label = '{0}-{1}'.format(site, ce)
                     label_id = '{0}:{1}'.format(self.harvester_id, label)
@@ -223,7 +230,7 @@ class Apfmon:
                     factory = self.harvester_id
                     computingsite = worker_spec.computingSite
                     try:
-                        ce = worker_spec.computingElement.split('.')[0]
+                        ce = worker_spec.computingElement.split('.')[0].split('://')[-1]
                     except AttributeError:
                         ce = ''
 
