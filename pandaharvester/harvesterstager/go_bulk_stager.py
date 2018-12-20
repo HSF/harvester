@@ -167,6 +167,10 @@ class GlobusBulkStager(BaseStager):
             return False, errStr
         # set transferID to None
         transferID = None
+        # get jobParams[scopeLog]                                                                                                                                    
+        jobparams = jobspec.get_job_params(strip=True)
+        scopeLog = jobparams['scopeLog']
+        del jobparams
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
@@ -253,9 +257,12 @@ class GlobusBulkStager(BaseStager):
                         scope ='panda'
                         if fileSpec.scope is not None :
                             scope = fileSpec.scope
-                        # for Yoda job set the scope to transient 
-                        if self.Yodajob :
-                            scope = 'transient'
+                        # for Yoda job set the scope to transient for non log files
+                        if "log.tgz" in fileSpec.lfn :
+                            scope = scopeLog
+                        else:
+                            if self.Yodajob :
+                                scope = 'transient'
                         # only print to log file first 25 files
                         if ifile < 25 :
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
