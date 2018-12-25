@@ -169,10 +169,10 @@ class GlobusBulkStager(BaseStager):
         transferID = None
         # get the scope of the log files
         outfileattrib = jobspec.get_output_file_attributes()
-        logScope = 'xxxx'
+        scopeLog = 'xxxx'
         for key in outfileattrib.keys():
             if "log.tgz" in key :
-                logScope = outfileattrib[key]['scope']
+                scopeLog = outfileattrib[key]['scope']
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
