@@ -33,3 +33,10 @@ class BaseWorkerMaker(PluginBase):
             return self.maxWorkersPerJobInTotal
         except Exception:
             return 10
+
+    # get upper limit on the number of new workers per job in a cycle
+    def get_max_workers_per_job_per_cycle(self):
+        try:
+            return self.maxWorkersPerJobPerCycle
+        except Exception:
+            return None

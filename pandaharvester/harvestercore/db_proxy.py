@@ -1501,7 +1501,8 @@ class DBProxy:
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
                                    use_job_late_binding, check_interval, lock_interval, locked_by,
-                                   allow_job_mixture=False, max_workers_per_job_in_total=None):
+                                   allow_job_mixture=False, max_workers_per_job_in_total=None,
+                                   max_workers_per_job_per_cycle=None):
         toCommit = False
         try:
             # get logger
@@ -1647,6 +1648,8 @@ class DBProxy:
                                 if jobSpec.maxWorkersInTotal is not None and jobSpec.nWorkersInTotal is not None:
                                     nMultiWorkers = min(nMultiWorkers,
                                                         jobSpec.maxWorkersInTotal - jobSpec.nWorkersInTotal)
+                                if max_workers_per_job_per_cycle is not None:
+                                    nMultiWorkers = min(nMultiWorkers, max_workers_per_job_per_cycle)
                                 if nMultiWorkers < 0:
                                     nMultiWorkers = 0
                                 tmpLog.debug(

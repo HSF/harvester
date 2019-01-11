@@ -253,7 +253,6 @@ class Monitor(AgentBase):
                 mainLog.debug('terminated')
                 return
 
-
     # core of monitor agent to check workers in workSpecsList of queueName
     def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False, config_id=None):
         tmpQueLog = self.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
@@ -495,7 +494,6 @@ class Monitor(AgentBase):
         retVal = workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval
         tmpQueLog.debug('done')
         return retVal
-
 
     # wrapper for checkWorkers
     def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log, from_fifo):
