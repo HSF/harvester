@@ -58,6 +58,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         container_env['env'].extend([
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
+            {'name': 'resourceType', 'value': work_spec.resourceType},
             {'name': 'proxyContent', 'value': self.set_proxy(cert)},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
