@@ -102,7 +102,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     pass
                 try:
                     if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
-                        if hasattr(queue_config, 'maxWalltime'):
+                        if hasattr(queue_config, 'walltimeLimit'):
                             maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams['maxWalltime'])
                         else:
                             maxWalltime = jobSpec.jobParams['maxWalltime']
