@@ -32,7 +32,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
     def create_job_from_yaml(self, yaml_content, work_spec, cert):
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
-        queue_dict = panda_queues_dict.get(queue_name, {})
+        # queue_dict = panda_queues_dict.get(queue_name, {})
 
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
 
@@ -40,16 +40,21 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         del(yaml_containers[1:len(yaml_containers)])
 
         container_env = yaml_containers[0]
-        if 'resources' not in container_env:
-            container_env['resources'] = {}
-        if 'limits' not in container_env['resources']:
-            container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxrss', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
-                if queue_dict.get('corecount', 1) else '1'}
-        if 'requests' not in container_env['resources']:
-            container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'M', 'cpu': str(work_spec.nCore)}
+        container_env.setdefault('resources', {})
 
-        if 'env' not in container_env:
-            container_env['env'] = []
+        #if 'limits' not in container_env['resources']:
+        #    container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxrss', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
+        #        if queue_dict.get('corecount', 1) else '1'}
+        #if 'requests' not in container_env['resources']:
+        #    container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'M', 'cpu': str(work_spec.nCore)}
+
+        container_env['resources']['limits'] = {'memory': str(work_spec.minRamCount) + 'M',
+                                                'cpu': str(work_spec.nCore)}
+
+        container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'M',
+                                                  'cpu': str(work_spec.nCore)}
+
+        container_env.setdefault('env', [])
         container_env['env'].extend([
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
