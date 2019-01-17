@@ -60,7 +60,8 @@ class K8sMonitor(PluginBase):
 
     def check_a_job(self, workspec):
         # set logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='check_a_job')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
+                                  method_name='check_a_job')
 
         ## initialization
         job_id = workspec.batchID
@@ -82,6 +83,7 @@ class K8sMonitor(PluginBase):
                 newStatus = WorkSpec.ST_cancelled
             else:
                 newStatus = self.check_pods_status(pods_status_list)
+                tmpLog.debug('new_status={0}'.format(newStatus))
 
         return (newStatus, errStr)
 
