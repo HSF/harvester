@@ -35,16 +35,18 @@ class K8sSubmitter(PluginBase):
             self.x509UserProxy = os.getenv('X509_USER_PROXY')
 
     def submit_a_job(self, work_spec):
+        tmp_log = self.make_logger(baseLogger, method_name='submit_a_job')
         tmpRetVal = (None, 'Nothing done')
 
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
 
         try:
-            self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy)
+            resp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy)
         except Exception as _e:
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)
         else:
+            tmp_log.debug('Created worker {0} with k8s response {1}'.format(work_spec.workerID, resp))
             tmpRetVal = (True, '')
 
         work_spec.batchID = yaml_content['metadata']['name']
@@ -54,22 +56,22 @@ class K8sSubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmpLog = self.make_logger(baseLogger, method_name='submit_workers')
+        tmp_log = self.make_logger(baseLogger, method_name='submit_workers')
 
         nWorkers = len(workspec_list)
-        tmpLog.debug('start, nWorkers={0}'.format(nWorkers))
+        tmp_log.debug('start, nWorkers={0}'.format(nWorkers))
 
         retList = list()
         if not workspec_list:
-            tmpLog.debug('empty workspec_list')
+            tmp_log.debug('empty workspec_list')
             return retList
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            retValList = thread_pool.map(self.submit_a_job, workspec_list)  
-        tmpLog.debug('{0} workers submitted'.format(nWorkers))
+            retValList = thread_pool.map(self.submit_a_job, workspec_list)
+            tmp_log.debug('{0} workers submitted'.format(nWorkers))
 
         retList = list(retValList)
 
-        tmpLog.debug('done')
+        tmp_log.debug('done')
 
         return retList

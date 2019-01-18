@@ -67,6 +67,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             ])
 
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
+        return rsp
 
     def get_pods_info(self, job_name=None):
         pods_list = list()
