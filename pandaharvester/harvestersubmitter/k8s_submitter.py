@@ -46,7 +46,7 @@ class K8sSubmitter(PluginBase):
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)
         else:
-            tmp_log.debug('Created worker {0} with k8s response {1}'.format(work_spec.workerID, resp))
+            tmp_log.debug('Created worker {0}'.format(work_spec.workerID))
             tmpRetVal = (True, '')
 
         work_spec.batchID = yaml_content['metadata']['name']
