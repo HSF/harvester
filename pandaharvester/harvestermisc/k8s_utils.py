@@ -29,7 +29,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, work_spec, cert):
+    def create_job_from_yaml(self, yaml_content, work_spec, cert, cpuadjustratio, memoryadjustratio):
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
         queue_dict = panda_queues_dict.get(queue_name, {})
@@ -46,7 +46,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxrss', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
                 if queue_dict.get('corecount', 1) else '1'}
         if 'requests' not in container_env['resources']:
-            container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount) + 'M', 'cpu': str(work_spec.nCore)}
+            container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount*memoryadjustratio/100.0) + 'M', 'cpu': str(work_spec.nCore*cpuadjustratio/100.0)}
 
         if 'env' not in container_env:
             container_env['env'] = []

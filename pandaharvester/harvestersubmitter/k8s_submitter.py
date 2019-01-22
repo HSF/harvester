@@ -34,13 +34,25 @@ class K8sSubmitter(PluginBase):
         except AttributeError:
             self.x509UserProxy = os.getenv('X509_USER_PROXY')
 
+        # CPU adjust ratio
+        try:
+            self.cpuAdjustRatio
+        except AttributeError:
+            self.cpuAdjustRatio = 100
+
+        # Memory adjust ratio
+        try:
+            self.memoryAdjustRatio
+        except AttributeError:
+            self.memoryAdjustRatio = 100
+
     def submit_a_job(self, work_spec):
         tmpRetVal = (None, 'Nothing done')
 
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
 
         try:
-            self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy)
+            self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy, self.cpuAdjustRatio, self.memoryAdjustRatio)
         except Exception as _e:
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)
