@@ -1,1 +1,1 @@
-timestamp = "22-01-2019 09:51:50 on contrib_cern (by fahui)"
+timestamp = "22-01-2019 12:34:00 on k8s (by fahui)"

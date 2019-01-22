@@ -76,12 +76,13 @@ class ResourceTypeMapper:
                 return site_maxrss, site_corecount
 
             if resource_type.max_core:
-                worker_cores = resource_type.max_core
+                worker_cores = min(resource_type.max_core, site_corecount)
             else:
                 worker_cores = site_corecount
 
             if resource_type.max_ram_per_core:
-                worker_memory = resource_type.max_ram_per_core * worker_cores
+                worker_memory = min(resource_type.max_ram_per_core * worker_cores,
+                                    (site_maxrss / site_corecount) * worker_cores)
             else:
                 worker_memory = (site_maxrss / site_corecount) * worker_cores
 

@@ -3,6 +3,7 @@ utilities routines associated with Kubernetes python client
 
 """
 import os
+import copy
 import six
 import yaml
 
@@ -32,27 +33,34 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
     def create_job_from_yaml(self, yaml_content, work_spec, cert, cpuadjustratio, memoryadjustratio):
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
-        queue_dict = panda_queues_dict.get(queue_name, {})
 
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
+
+        yaml_content['spec']['template'].setdefault('metadata', {})
+        yaml_content['spec']['template']['metadata'].update({
+            'labels': {'resourceType': str(work_spec.resourceType)}})
 
         yaml_containers = yaml_content['spec']['template']['spec']['containers']
         del(yaml_containers[1:len(yaml_containers)])
 
         container_env = yaml_containers[0]
-        if 'resources' not in container_env:
-            container_env['resources'] = {}
-        if 'limits' not in container_env['resources']:
-            container_env['resources']['limits'] = {'memory': str(queue_dict.get('maxrss', '')) + 'M', 'cpu': str(queue_dict.get('corecount', 1)) \
-                if queue_dict.get('corecount', 1) else '1'}
-        if 'requests' not in container_env['resources']:
-            container_env['resources']['requests'] = {'memory': str(work_spec.minRamCount*memoryadjustratio/100.0) + 'M', 'cpu': str(work_spec.nCore*cpuadjustratio/100.0)}
 
-        if 'env' not in container_env:
-            container_env['env'] = []
+        container_env.setdefault('resources', {})
+
+        container_env['resources'].setdefault('limits', {
+            'memory': str(work_spec.minRamCount) + 'M',
+            'cpu': str(work_spec.nCore)})
+
+        container_env['resources'].setdefault('requests', {
+            'memory': str(work_spec.minRamCount*memoryadjustratio/100.0) + 'M',
+            'cpu': str(work_spec.nCore*cpuadjustratio/100.0)})
+
+        container_env.setdefault('env', [])
+
         container_env['env'].extend([
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
+            {'name': 'resourceType', 'value': work_spec.resourceType},
             {'name': 'proxyContent', 'value': self.set_proxy(cert)},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
@@ -60,7 +68,11 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
             ])
 
+        if 'affinity' not in yaml_content['spec']['template']['spec']:
+            yaml_content = self.set_affinity(yaml_content)
+
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
+        return rsp
 
     def get_pods_info(self, job_name=None):
         pods_list = list()
@@ -120,3 +132,26 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             content = f.read()
         content = content.replace("\n", ",")
         return content
+
+    def set_affinity(self, yaml_content):
+        yaml_content['spec']['template']['spec']['affinity'] = {}
+        yaml_affinity = yaml_content['spec']['template']['spec']['affinity']
+        res_element = {'SCORE', 'MCORE'}
+        affinity_spec = {
+            'preferredDuringSchedulingIgnoredDuringExecution': [
+                {'weight': 100, 'podAffinityTerm': {
+                    'labelSelector': {'matchExpressions': [
+                        {'key': 'resourceType', 'operator': 'In', 'values': ['SCORE']}]},
+                    'topologyKey': 'kubernetes.io/hostname'}
+                }]}
+
+        resourceType = yaml_content['spec']['template']['metadata']['labels']['resourceType']
+
+        if resourceType == 'SCORE':
+            yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
+            yaml_affinity['podAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm']['labelSelector']['matchExpressions'][0]['values'][0] = resourceType
+
+        # yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
+        # yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm']['labelSelector']['matchExpressions'][0]['values'][0] = res_element.difference({resourceType}).pop()
+
+        return yaml_content
