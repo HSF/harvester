@@ -34,6 +34,18 @@ class K8sSubmitter(PluginBase):
         except AttributeError:
             self.x509UserProxy = os.getenv('X509_USER_PROXY')
 
+        # CPU adjust ratio
+        try:
+            self.cpuAdjustRatio
+        except AttributeError:
+            self.cpuAdjustRatio = 100
+
+        # Memory adjust ratio
+        try:
+            self.memoryAdjustRatio
+        except AttributeError:
+            self.memoryAdjustRatio = 100
+
     def submit_a_job(self, work_spec):
         tmp_log = self.make_logger(baseLogger, method_name='submit_a_job')
         tmpRetVal = (None, 'Nothing done')
@@ -41,15 +53,14 @@ class K8sSubmitter(PluginBase):
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
 
         try:
-            resp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy)
+            rsp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy, self.cpuAdjustRatio, self.memoryAdjustRatio)
         except Exception as _e:
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)
         else:
-            tmp_log.debug('Created worker {0}'.format(work_spec.workerID))
+            work_spec.batchID = yaml_content['metadata']['name']
+            tmp_log.debug('Created worker {0} with batchID={1}'.format(work_spec.workerID, work_spec.batchID))
             tmpRetVal = (True, '')
-
-        work_spec.batchID = yaml_content['metadata']['name']
 
         return tmpRetVal
 
