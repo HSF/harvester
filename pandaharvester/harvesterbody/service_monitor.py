@@ -2,6 +2,7 @@ import traceback
 import psutil
 import subprocess
 import re
+import multiprocessing
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
@@ -31,6 +32,8 @@ class ServiceMonitor(AgentBase):
         self.pid = self.get_master_pid()
         self.master_process = psutil.Process(self.pid)
         self.children = self.master_process.children(recursive=True)
+
+        self.cpu_count = multiprocessing.cpu_count()
 
     def get_master_pid(self):
         """
@@ -88,6 +91,9 @@ class ServiceMonitor(AgentBase):
 
             # convert bytes to MiB
             rss_mib = rss / float(2 ** 20)
+
+            # normalize cpu percentage by cpu count
+            cpu_pc = cpu_pc * 1.0 / self.cpu_count
 
         except:
             _logger.error('Excepted with: {0}'.format(traceback.format_exc()))
