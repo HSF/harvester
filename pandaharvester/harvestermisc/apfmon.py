@@ -137,9 +137,15 @@ class Apfmon:
                                 ce = clean_ce(queue['ce_endpoint'])
                             except:
                                 ce = ''
+
+                            try:
+                                ce_queue_id = queue['ce_queue_id']
+                            except KeyError:
+                                ce_queue_id = 0
+
                             labels.append({'name': '{0}-{1}'.format(site, ce),
                                            'wmsqueue': site,
-                                           'ce_queue_id': queue['ce_queue_id'],
+                                           'ce_queue_id': ce_queue_id,
                                            'factory': self.harvester_id})
                     except:
                         tmp_log.error('Excepted for site {0} with: {1}'.format(site, traceback.format_exc()))
