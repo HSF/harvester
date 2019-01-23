@@ -23,6 +23,11 @@ def apfmon_active(method, *args, **kwargs):
     else:
         return
 
+
+def clean_ce(ce):
+    return ce.split('.')[0].split('://')[-1]
+
+
 class Apfmon:
 
     def __init__(self, queue_config_mapper):
@@ -129,7 +134,7 @@ class Apfmon:
 
                         for queue in queues:
                             try:
-                                ce = queue['ce_endpoint'].split('.')[0].split('://')[-1]
+                                ce = clean_ce(queue['ce_endpoint'])
                             except:
                                 ce = ''
                             labels.append({'name': '{0}-{1}'.format(site, ce),
@@ -188,7 +193,7 @@ class Apfmon:
             for queue in queues:
                 try:
                     try:
-                        ce = queue['ce_endpoint'].split('.')[0].split('://')[-1]
+                        ce = clean_ce(queue['ce_endpoint'])
                     except:
                         ce = ''
                     label_data = None
@@ -234,7 +239,7 @@ class Apfmon:
                     factory = self.harvester_id
                     computingsite = worker_spec.computingSite
                     try:
-                        ce = worker_spec.computingElement.split('.')[0].split('://')[-1]
+                        ce = clean_ce(worker_spec.computingElement)
                     except AttributeError:
                         ce = ''
 
