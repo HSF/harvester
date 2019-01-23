@@ -151,7 +151,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
             yaml_affinity['podAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm']['labelSelector']['matchExpressions'][0]['values'][0] = resourceType
 
-        # yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
-        # yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm']['labelSelector']['matchExpressions'][0]['values'][0] = res_element.difference({resourceType}).pop()
+        yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
+        yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm']['labelSelector']['matchExpressions'][0]['values'][0] = res_element.difference({resourceType}).pop()
 
         return yaml_content
