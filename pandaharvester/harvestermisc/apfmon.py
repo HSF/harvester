@@ -205,7 +205,7 @@ class Apfmon:
                     label_id = '{0}:{1}'.format(self.harvester_id, label)
                     url = '{0}/labels/{1}'.format(self.base_url, label_id)
 
-                    r = requests.post(url, data=json.dumps(label_data), timeout=self.__label_timeout)
+                    r = requests.post(url, data=label_data, timeout=self.__label_timeout)
                     tmp_log.debug('label update for {0} ended with {1} {2}'.format(label, r.status_code, r.text))
                 except:
                     tmp_log.error('Excepted for site {0} with: {1}'.format(label, traceback.format_exc()))
