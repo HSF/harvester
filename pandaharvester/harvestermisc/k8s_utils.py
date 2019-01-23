@@ -5,6 +5,7 @@ utilities routines associated with Kubernetes python client
 import os
 import six
 import yaml
+import copy
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -36,6 +37,8 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
 
+        yaml_content['spec']['template']['metadata'] = {'labels': {'resourceType': str(work_spec.resourceType)}}
+
         yaml_containers = yaml_content['spec']['template']['spec']['containers']
         del(yaml_containers[1:len(yaml_containers)])
 
@@ -59,6 +62,9 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
             ])
+
+        if 'affinity' not in yaml_content['spec']['template']['spec']:
+            yaml_content = self.set_affinity(yaml_content)
 
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
 
@@ -120,3 +126,25 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             content = f.read()
         content = content.replace("\n", ",")
         return content
+
+    def set_affinity(self, yaml_content):
+        yaml_content['spec']['template']['spec']['affinity'] = {}
+        yaml_affinity = yaml_content['spec']['template']['spec']['affinity']
+        res_element = {'SCORE', 'MCORE'}
+        affinity_spec = {'preferredDuringSchedulingIgnoredDuringExecution': [{'weight': 100, 'podAffinityTerm': {'labelSelector': {'matchExpressions': [{'key': 'resourceType', 'operator': 'In', 'values': ['SCORE']}]}, 'topologyKey': 'kubernetes.io/hostname'}}]}
+
+        resourceType = yaml_content['spec']['template']['metadata']['labels']['resourceType'] 
+
+        if resourceType == 'SCORE':
+            yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
+            yaml_affinity['podAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm']['labelSelector']['matchExpressions'][0]['values'][0] = resourceType
+
+        yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
+        yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm']['labelSelector']['matchExpressions'][0]['values'][0] = res_element.difference({resourceType}).pop()
+
+        return yaml_content
+
+
+
+
+
