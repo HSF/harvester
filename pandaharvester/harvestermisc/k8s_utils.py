@@ -47,6 +47,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
         container_env.setdefault('resources', {})
 
+        # note that predefined values in the yaml template will NOT be overwritten
         container_env['resources'].setdefault('limits', {
             'memory': str(work_spec.minRamCount) + 'M',
             'cpu': str(work_spec.nCore)})
