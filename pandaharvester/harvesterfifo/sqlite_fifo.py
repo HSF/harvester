@@ -170,6 +170,7 @@ class SqliteFifo(PluginBase):
         retVal = False
         obj_buf = memoryviewOrBuffer(obj)
         with self._get_conn() as conn:
+            conn.execute(self._write_lock_sql)
             cursor = conn.execute(self._push_sql, (obj_buf, score))
             n_row =  cursor.rowcount
             if n_row == 1:
