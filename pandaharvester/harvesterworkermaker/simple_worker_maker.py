@@ -57,8 +57,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         # case of unified queue: look at the resource type and queue configuration
         else:
-
-            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified', 'DESY-ZN_UCORE'):
+            catchall = queue_dict.get('catchall', '')
+            if 'useMaxRamUcore' in catchall or queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified',
+                                                                       'Taiwan-LCG2-HPC_Unified', 'DESY-ZN_UCORE'):
                 # temporary hack to debug killed workers in Taiwan queues
                 site_corecount = queue_dict.get('corecount', 1) or 1
                 site_maxrss = queue_dict.get('maxrss', 1) or 1
@@ -101,7 +102,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     pass
                 try:
                     if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
-                        if hasattr(queue_config, 'maxWalltime'):
+                        if hasattr(queue_config, 'walltimeLimit'):
                             maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams['maxWalltime'])
                         else:
                             maxWalltime = jobSpec.jobParams['maxWalltime']

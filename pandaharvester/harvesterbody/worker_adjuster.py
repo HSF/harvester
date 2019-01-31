@@ -49,6 +49,7 @@ class WorkerAdjuster:
                 nQueueLimitPerRT = workerLimits_dict['nQueueLimitWorkerPerRT']
                 nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
+                apf_data = None
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
                     tmpLog.debug('Processing queue {0} resource {1} with static_num_workers {2}'.
                                  format(queueName, resource_type, tmpVal))
@@ -208,9 +209,9 @@ class WorkerAdjuster:
                                          .format(nNewWorkers, resource_type))
 
                 if not apf_msg:
-                    apf_msg = 'Attempting to submit new workers (across all CEs in the queue): {0}'.format(dyn_num_workers[queueName])
+                    apf_data = dyn_num_workers[queueName]
 
-                self.apf_mon.update_label(queueName, apf_msg)
+                self.apf_mon.update_label(queueName, apf_msg, apf_data)
 
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))

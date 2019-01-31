@@ -23,6 +23,11 @@ def apfmon_active(method, *args, **kwargs):
     else:
         return
 
+
+def clean_ce(ce):
+    return ce.split('.')[0].split('://')[-1]
+
+
 class Apfmon:
 
     def __init__(self, queue_config_mapper):
@@ -128,9 +133,19 @@ class Apfmon:
                             queues = site_info['queues']
 
                         for queue in queues:
-                            ce = queue['ce_endpoint'].split('.')[0]
+                            try:
+                                ce = clean_ce(queue['ce_endpoint'])
+                            except:
+                                ce = ''
+
+                            try:
+                                ce_queue_id = queue['ce_queue_id']
+                            except KeyError:
+                                ce_queue_id = 0
+
                             labels.append({'name': '{0}-{1}'.format(site, ce),
                                            'wmsqueue': site,
+                                           'ce_queue_id': ce_queue_id,
                                            'factory': self.harvester_id})
                     except:
                         tmp_log.error('Excepted for site {0} with: {1}'.format(site, traceback.format_exc()))
@@ -146,7 +161,7 @@ class Apfmon:
         except:
             tmp_log.error('Excepted with: {0}'.format(traceback.format_exc()))
 
-    def update_label(self, site, msg):
+    def update_label(self, site, msg, data):
         """
         Updates a label (=panda queue+CE)
         """
@@ -183,13 +198,17 @@ class Apfmon:
 
             for queue in queues:
                 try:
-                    ce = queue['ce_endpoint'].split('.')[0]
-                    label_data = {'status': msg}
+                    try:
+                        ce = clean_ce(queue['ce_endpoint'])
+                    except:
+                        ce = ''
+
+                    label_data = {'status': msg, 'data': data}
                     label = '{0}-{1}'.format(site, ce)
                     label_id = '{0}:{1}'.format(self.harvester_id, label)
                     url = '{0}/labels/{1}'.format(self.base_url, label_id)
 
-                    r = requests.post(url, data=label_data, timeout=self.__label_timeout)
+                    r = requests.post(url, data=json.dumps(label_data), timeout=self.__label_timeout)
                     tmp_log.debug('label update for {0} ended with {1} {2}'.format(label, r.status_code, r.text))
                 except:
                     tmp_log.error('Excepted for site {0} with: {1}'.format(label, traceback.format_exc()))
@@ -223,7 +242,7 @@ class Apfmon:
                     factory = self.harvester_id
                     computingsite = worker_spec.computingSite
                     try:
-                        ce = worker_spec.computingElement.split('.')[0]
+                        ce = clean_ce(worker_spec.computingElement)
                     except AttributeError:
                         ce = ''
 
@@ -237,7 +256,7 @@ class Apfmon:
                     if work_attribs:
                         if 'stdOut' in work_attribs:
                             stdout_url = work_attribs['stdOut']
-                            jdl_url = '{0}.jdl'.format(log_url[:-4])
+                            jdl_url = '{0}.jdl'.format(stdout_url[:-4])
                         if 'stdErr' in work_attribs:
                             stderr_url = work_attribs['stdErr']
                         if 'batchLog' in work_attribs:
