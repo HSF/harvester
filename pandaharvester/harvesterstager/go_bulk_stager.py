@@ -167,6 +167,12 @@ class GlobusBulkStager(BaseStager):
             return False, errStr
         # set transferID to None
         transferID = None
+        # get the scope of the log files
+        outfileattrib = jobspec.get_output_file_attributes()
+        scopeLog = 'xxxx'
+        for key in outfileattrib.keys():
+            if "log.tgz" in key :
+                scopeLog = outfileattrib[key]['scope']
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
@@ -250,12 +256,16 @@ class GlobusBulkStager(BaseStager):
                     # loop over all files
                     ifile = 0
                     for fileSpec in fileSpecs:
+                        logfile = False
                         scope ='panda'
                         if fileSpec.scope is not None :
                             scope = fileSpec.scope
-                        # for Yoda job set the scope to transient 
+                        # for Yoda job set the scope to transient for non log files
                         if self.Yodajob :
                             scope = 'transient'
+                        if fileSpec.fileType == "log" :
+                            logfile = True
+                            scope = scopeLog
                         # only print to log file first 25 files
                         if ifile < 25 :
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
@@ -273,6 +283,8 @@ class GlobusBulkStager(BaseStager):
                                                                                    hash1=hash_hex[0:2],
                                                                                    hash2=hash_hex[2:4],
                                                                                    lfn=fileSpec.lfn)
+                        if logfile :
+                            tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
                         if ifile < 25 :
                             tmpLog.debug('src={srcURL} dst={dstURL}'.format(srcURL=srcURL, dstURL=dstURL))
                         # add files to transfer object - tdata

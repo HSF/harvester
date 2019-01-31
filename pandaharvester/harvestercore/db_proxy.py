@@ -1284,6 +1284,9 @@ class DBProxy:
                             jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     elif workspec.hasJob == 1:
                         if workspec.status == WorkSpec.ST_missed:
+                            # not update if other workers are active
+                            if len(workerIDs) > 1:
+                                continue
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
                                                                           [workspec], {}, {})
                             jobSpec.trigger_propagation()
@@ -1296,6 +1299,9 @@ class DBProxy:
                             jobSpec.nWorkersInTotal = jobSpec.nWorkers
                     else:
                         if workspec.status == WorkSpec.ST_missed:
+                            # not update if other workers are active
+                            if len(workerIDs) > 1:
+                                continue
                             core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec],
                                                                           [workspec], {}, {})
                             jobSpec.trigger_propagation()
@@ -1495,7 +1501,8 @@ class DBProxy:
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
                                    use_job_late_binding, check_interval, lock_interval, locked_by,
-                                   allow_job_mixture=False, max_workers_per_job_in_total=None):
+                                   allow_job_mixture=False, max_workers_per_job_in_total=None,
+                                   max_workers_per_job_per_cycle=None):
         toCommit = False
         try:
             # get logger
@@ -1641,6 +1648,8 @@ class DBProxy:
                                 if jobSpec.maxWorkersInTotal is not None and jobSpec.nWorkersInTotal is not None:
                                     nMultiWorkers = min(nMultiWorkers,
                                                         jobSpec.maxWorkersInTotal - jobSpec.nWorkersInTotal)
+                                if max_workers_per_job_per_cycle is not None:
+                                    nMultiWorkers = min(nMultiWorkers, max_workers_per_job_per_cycle)
                                 if nMultiWorkers < 0:
                                     nMultiWorkers = 0
                                 tmpLog.debug(
@@ -5127,7 +5136,7 @@ class DBProxy:
             for entry in res:
                 try:
                     res_corrected.append([entry[0].strftime('%Y-%m-%d %H:%M:%S.%f'), entry[1], entry[2]])
-                except:
+                except Exception:
                     pass
 
             # commit

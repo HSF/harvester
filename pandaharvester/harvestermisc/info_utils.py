@@ -9,6 +9,7 @@ harvesterID = harvester_config.master.harvester_id
 class PandaQueuesDict(dict, PluginBase):
     """
     Dictionary of PanDA queue info from DB by cacher
+    Key is PanDA Resouce name (rather than PanDA Queue name)
     Able to query with either PanDA Queue name or PanDA Resource name
     """
     def __init__(self, **kwarg):
@@ -17,8 +18,16 @@ class PandaQueuesDict(dict, PluginBase):
         dbInterface = DBInterface()
         cacher_key = kwarg.get('cacher_key', 'panda_queues.json')
         panda_queues_cache = dbInterface.get_cache(cacher_key)
-        if panda_queues_cache:
-            self.update(panda_queues_cache.data)
+        if panda_queues_cache and isinstance(panda_queues_cache.data, dict):
+            panda_queues_dict = panda_queues_cache.data
+            for (k, v) in iteritems(panda_queues_dict):
+                try:
+                    panda_resource = v['panda_resource']
+                    assert k == v['nickname']
+                except Exception:
+                    pass
+                else:
+                    self[panda_resource] = v
 
     def __getitem__(self, panda_resource):
         if panda_resource in self:
@@ -38,12 +47,11 @@ class PandaQueuesDict(dict, PluginBase):
         """
         Return PanDA Queue name with specified PanDA Resource name
         """
-        panda_queues_set = {_k for (_k, _v) in self.items() if _v['panda_resource'] == panda_resource}
-        if len(panda_queues_set) >= 1:
-            panda_queue = panda_queues_set.pop()
-        else:
-            panda_queue = panda_resource
-        return panda_queue
+        try:
+            panda_queue =  self.get(panda_resource).get('nickname')
+            return panda_queue
+        except Exception:
+            return None
 
     # get queue status for auto blacklisting
     def get_queue_status(self, panda_resource):

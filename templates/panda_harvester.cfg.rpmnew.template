@@ -370,13 +370,20 @@ fifoCheckDuration = 60
 fifoForceEnqueueInterval = 1500
 
 # max number of workers to be populated into fifo
-fifoMaxWorkersToPopulate = 10000
+#fifoMaxWorkersToPopulate = 100000
 
 # max number of workers in a chunk to enqueue
 fifoMaxWorkersPerChunk = 500
 
 # max interval in sec a post-processing worker can preempt in fifo
 fifoMaxPreemptInterval = 60
+
+# plugin cache parameters (used if monitor plugin supports)
+#pluginCacheEnable = True
+#pluginCacheRefreshInterval = 300
+
+# workers will be killed if stuck queuing (submitted) for longer than this
+workerQueueTimeLimit = 172800
 
 
 
