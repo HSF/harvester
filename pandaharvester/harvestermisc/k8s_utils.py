@@ -75,7 +75,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
         return rsp
 
-    def get_pods_info(self, job_name=None):
+    def get_pods_info(self):
         pods_list = list()
 
         ret = self.corev1.list_namespaced_pod(namespace=self.namespace)
@@ -88,10 +88,12 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             pod_info['status_message'] = i.status.conditions[0].message if i.status.conditions else None
             pod_info['job_name'] = i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None
             pods_list.append(pod_info)
+
+        return pods_list
+
+    def filter_pods_info(self, pods_list, job_name=None):
         if job_name:
-            tmp_list = [ i for i in pods_list if i['job_name'] == job_name]
-            del pods_list[:]
-            pods_list = tmp_list
+            pods_list = [ i for i in pods_list if i['job_name'] == job_name]
         return pods_list
 
     def get_jobs_info(self, job_name=None):
