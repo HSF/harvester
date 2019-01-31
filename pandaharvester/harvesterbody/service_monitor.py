@@ -108,7 +108,7 @@ class ServiceMonitor(AgentBase):
         command = "df -Pkh /" + volume_name
         used_amount = 0
         tmp_array = command.split()
-        output = subprocess.Popen(tmp_array, stdout=subprocess.PIPE).communicate()[0]
+        output = subprocess.Popen(tmp_array, stdout=subprocess.PIPE).communicate()[0].decode("utf-8")
 
         for line in output.split('\n'):
             if re.search(volume_name, line):
