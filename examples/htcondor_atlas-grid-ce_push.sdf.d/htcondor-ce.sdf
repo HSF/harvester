@@ -1,5 +1,5 @@
 executable = {executableFile}
-arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} -f false -C 0
+arguments = -s {computingSite} -h {pandaQueueName} -u {prodSourceLabel} -f false -C 0 -p 25443 -w https://pandaserver.cern.ch
 initialdir = {accessPoint}
 universe = grid
 log = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).log
