@@ -1,3 +1,5 @@
+import random
+
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
@@ -16,6 +18,29 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         BaseWorkerMaker.__init__(self, **kwarg)
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
         self.rt_mapper = ResourceTypeMapper()
+        try:
+            self.pilotTypeRandomWeightsPermille
+        except AttributeError:
+            self.pilotTypeRandomWeightsPermille = {
+                'RC': 2,
+                'ALRB': 10,
+                'PT': 1,
+            }
+        finally:
+            # randomize pilot type with weighting
+            weight_rc = self.pilotTypeRandomWeightsPermille.get('RC', 0)
+            weight_alrb = self.pilotTypeRandomWeightsPermille.get('ALRB', 0)
+            weight_pt = self.pilotTypeRandomWeightsPermille.get('PT', 0)
+            weight_tmp_sum = weight_rc + weight_alrb + weight_pt
+            if weight_tmp_sum > 1000:
+                weight_rc = weight_rc*1000/weight_tmp_sum
+                weight_alrb = weight_alrb*1000/weight_tmp_sum
+                weight_pt = weight_pt*1000/weight_tmp_sum
+            weight_pr = 1000 - (weight_rc + weight_alrb + weight_pt)
+            self.pilotTypeRandomList = ['PR'] * weight_pr \
+                + ['RC'] * weight_rc \
+                + ['ALRB'] * weight_alrb \
+                + ['PT'] * weight_pt
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
@@ -81,8 +106,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         workSpec.maxWalltime = queue_dict.get('maxtime', 1)
         workSpec.maxDiskCount = queue_dict.get('maxwdir', 1)
 
-        # get info from jobs
         if len(jobspec_list) > 0:
+            # get info from jobs
             nCore = 0
             minRamCount = 0
             maxDiskCount = 0
@@ -123,6 +148,13 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             if ioIntensity > 0 and 'ioIntensity' in self.jobAttributesToUse:
                 workSpec.ioIntensity = ioIntensity
             workSpec.pilotType = jobspec_list[0].get_pilot_type()
+        else:
+            # when no job
+            # randomize pilot type with weighting
+            workSpec.pilotType = random.choice(self.pilotTypeRandomList)
+            if workSpec.pilotType in ['RC', 'ALRB', 'PT']:
+                tmpLog.info('workerID={0} has pilotType={1}'.format(
+                    workSpec.workerID, workSpec.pilotType))
         # TODO: this needs to be improved with real resource types
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type
