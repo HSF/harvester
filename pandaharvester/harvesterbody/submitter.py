@@ -290,9 +290,9 @@ class Submitter(AgentBase):
                                                     okPandaIDs.add(jobSpec.PandaID)
                                     # loop over all workers
                                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
+                                        workSpec, jobList = okChunks[iWorker]
                                         # set harvesterHost
                                         workSpec.harvesterHost = socket.gethostname()
-                                        workSpec, jobList = okChunks[iWorker]
                                         # use associated job list since it can be truncated for re-filling
                                         jobList = workSpec.get_jobspec_list()
                                         # set status

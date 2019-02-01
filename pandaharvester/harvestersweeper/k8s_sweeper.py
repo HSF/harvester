@@ -17,6 +17,8 @@ class K8sSweeper(PluginBase):
 
         self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
 
+        self._all_pods_list = []
+
     # kill a worker
     def kill_worker(self, workspec):
         tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
@@ -32,7 +34,8 @@ class K8sSweeper(PluginBase):
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)
 
-        pods_list = self.k8s_client.get_pods_info(job_id)
+        self._all_pods_list = self.k8s_client.get_pods_info()
+        pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
         pods_name = [ pods_info['name'] for pods_info in pods_list ]
         job_info = self.k8s_client.get_jobs_info(job_id)
 

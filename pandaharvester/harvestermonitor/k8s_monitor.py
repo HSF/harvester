@@ -34,6 +34,8 @@ class K8sMonitor(PluginBase):
         else:
             self.cancelUnknown = bool(self.cancelUnknown)
 
+        self._all_pods_list = []
+
     def check_pods_status(self, pods_status_list):
         newStatus = ''
 
@@ -60,7 +62,8 @@ class K8sMonitor(PluginBase):
 
     def check_a_job(self, workspec):
         # set logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='check_a_job')
+        tmpLog = self.make_logger(baseLogger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
+                                  method_name='check_a_job')
 
         ## initialization
         job_id = workspec.batchID
@@ -68,7 +71,7 @@ class K8sMonitor(PluginBase):
         errStr = ''
 
         try:
-            pods_list = self.k8s_client.get_pods_info(job_id)
+            pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
             pods_status_list = [ pods_info['status'] for pods_info in pods_list ]
         except Exception as _e:
             errStr = 'Failed to get POD status of JOB id={0} ; {1}'.format(job_id, _e)
@@ -82,6 +85,7 @@ class K8sMonitor(PluginBase):
                 newStatus = WorkSpec.ST_cancelled
             else:
                 newStatus = self.check_pods_status(pods_status_list)
+                tmpLog.debug('new_status={0}'.format(newStatus))
 
         return (newStatus, errStr)
 
@@ -97,6 +101,8 @@ class K8sMonitor(PluginBase):
             tmpLog.debug(errStr)
             retList.append(('', errStr))
             return False, retList
+
+        self._all_pods_list = self.k8s_client.get_pods_info()
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
             retIterator = thread_pool.map(self.check_a_job, workspec_list)
