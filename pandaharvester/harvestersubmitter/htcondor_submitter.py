@@ -190,6 +190,17 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
     return ret
 
 
+# Map pilotType to prodSourceLabel
+def _get_prod_source_label(pilot_type):
+    pt_psl_map = {
+        'RC': 'rc_test',
+        'ALRB': 'rc_alrb',
+        'PT': 'ptest',
+    }
+    prod_source_label = pt_psl_map.get(pilot_type, None)
+    return prod_source_label
+
+
 # submit a worker
 def submit_a_worker(data):
     workspec = data['workspec']
@@ -333,6 +344,11 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
 
+    # decide prodSourceLabel
+    prod_source_label = _get_prod_source_label(workspec.pilotType)
+    if prod_source_label is None:
+        prod_source_label = harvester_queue_config.get_source_label()
+
     # fill in template
     tmpFile.write(template.format(
         sdfPath=tmpFile.name,
@@ -362,7 +378,7 @@ def make_batch_script(workspec, template, n_core_per_node, log_dir, panda_queue_
         logDir=log_dir,
         logSubdir=log_subdir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
-        prodSourceLabel=harvester_queue_config.get_source_label(),
+        prodSourceLabel=prod_source_label,
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
         pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
         ioIntensity=io_intensity,
