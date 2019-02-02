@@ -442,28 +442,35 @@ class Monitor(AgentBase):
                         and workSpec.workAttributes is not None:
                         timeNow = datetime.datetime.utcnow()
                         timeNow_timestamp = time.time()
+                        # get lastCheckAt
                         _bool, lastCheckAt = workSpec.get_work_params('lastCheckAt')
                         try:
                             last_check_period = timeNow_timestamp - lastCheckAt
                         except TypeError:
                             last_check_period = forceEnqueueInterval + 1.0
+                        # get lastForceEnqueueAt
+                        _bool, lastForceEnqueueAt = workSpec.get_work_params('lastForceEnqueueAt')
+                        if not (_bool and lastForceEnqueueAt is not None):
+                            lastForceEnqueueAt = 0
+                        # notification
+                        intolerable_delay = max(forceEnqueueInterval*2, harvester_config.monitor.checkInterval * 4)
                         if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval \
                             and timeNow_timestamp - harvester_config.monitor.checkInterval > self.startTimestamp:
-                            if last_check_period > harvester_config.monitor.checkInterval * 4:
-                                tmpQueLog.error('last check period of workerID={0} is {1} sec, way longer than monitor checkInterval. Please check why monitor checks worker slowly'.format(
+                            if last_check_period > intolerable_delay:
+                                tmpQueLog.error('last check period of workerID={0} is {1} sec, intolerably longer than monitor checkInterval. Will NOT enquque worker by force. Please check why monitor checks worker slowly'.format(
                                                     workSpec.workerID, last_check_period))
                             else:
                                 tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
                                                     workSpec.workerID, last_check_period))
-                        _bool, lastForceEnqueueAt = workSpec.get_work_params('lastForceEnqueueAt')
-                        if not (_bool and lastForceEnqueueAt is not None):
-                            lastForceEnqueueAt = 0
+                        # prepartion to enqueue fifo
                         if (from_fifo) \
                             or (not from_fifo
                                 and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
                                 and last_check_period > forceEnqueueInterval
+                                and last_check_period < intolerable_delay
                                 and timeNow_timestamp - lastForceEnqueueAt > 86400 + forceEnqueueInterval):
                             if not from_fifo:
+                                # in DB cycle
                                 tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor forceEnqueueInterval. Enqueue the worker by force'.format(
                                                     workSpec.workerID, last_check_period))
                                 workSpec.set_work_params({'lastForceEnqueueAt': timeNow_timestamp})
@@ -471,6 +478,7 @@ class Monitor(AgentBase):
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
                             if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                                # for post-processing
                                 _bool, startFifoPreemptAt = workSpec.get_work_params('startFifoPreemptAt')
                                 if not _bool or startFifoPreemptAt is None:
                                     startFifoPreemptAt = timeNow_timestamp
