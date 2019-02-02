@@ -245,7 +245,7 @@ class Monitor(AgentBase):
                 mainLog.debug('adjusted_sleepTime becomes {0:.3f} sec'.format(adjusted_sleepTime))
                 # end run with fifo
                 mainLog.debug('ended run with FIFO')
-
+            # time the cycle
             mainLog.debug('done a monitor cycle' + sw_main.get_elapsed_time())
 
             # check if being terminated

@@ -1,7 +1,7 @@
 import os
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 
 
@@ -10,10 +10,10 @@ baseLogger = core_utils.setup_logger('k8s_sweeper')
 
 
 # sweeper for K8S
-class K8sSweeper(PluginBase):
+class K8sSweeper(BaseSweeper):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseSweeper.__init__(self, **kwarg)
 
         self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
 
