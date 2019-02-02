@@ -40,7 +40,7 @@ class K8sSweeper(BaseSweeper):
     #     job_info = self.k8s_client.get_jobs_info(job_id)
     #
     #     if not job_info:
-    #         retList = self.k8s_client.delete_pod(pods_name)
+    #         retList = self.k8s_client.delete_pods(pods_name)
     #         if all(item['errMsg'] == '' for item in retList):
     #             tmpLog.info('Deleted a JOB & POD with id={0}'.format(job_id))
     #             tmpRetVal = (True, '')
@@ -78,7 +78,7 @@ class K8sSweeper(BaseSweeper):
             job_info = self.k8s_client.get_jobs_info(job_id)
 
             if not job_info:
-                retList = self.k8s_client.delete_pod(pods_name)
+                retList = self.k8s_client.delete_pods(pods_name)
                 if all(item['errMsg'] == '' for item in retList):
                     tmpLog.info('Deleted a JOB & POD with id={0}'.format(job_id))
                     tmpRetVal = (True, '')
