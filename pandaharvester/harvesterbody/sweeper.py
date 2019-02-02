@@ -46,7 +46,7 @@ class Sweeper(AgentBase):
                     n_workers = len(workspec_list)
                     try:
                         # try bulk method
-                        tmpLog = self.make_logger(_logger, method_name='run')
+                        tmpLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
                         tmpLog.debug('start killing')
                         tmpList = sweeperCore.kill_workers(workspec_list)
                     except AttributeError:
