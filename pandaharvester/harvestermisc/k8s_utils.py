@@ -4,6 +4,8 @@ utilities routines associated with Kubernetes python client
 """
 import os
 import copy
+import datetime
+
 import six
 import yaml
 
@@ -83,6 +85,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         for i in ret.items:
             pod_info = {}
             pod_info['name'] = i.metadata.name
+            pod_info['start_time'] = i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time
             pod_info['status'] = i.status.phase
             pod_info['status_reason'] = i.status.conditions[0].reason if i.status.conditions else None
             pod_info['status_message'] = i.status.conditions[0].message if i.status.conditions else None
@@ -111,7 +114,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             jobs_list.append(job_info)
         return jobs_list
 
-    def delete_pod(self, pod_name_list):
+    def delete_pods(self, pod_name_list):
         retList = list()
 
         for pod_name in pod_name_list:
