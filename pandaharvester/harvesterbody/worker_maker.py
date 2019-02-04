@@ -7,7 +7,7 @@ _logger = core_utils.setup_logger('worker_maker')
 
 
 # class to make worker
-class WorkerMaker:
+class WorkerMaker(object):
     # constructor
     def __init__(self):
         self.pluginFactory = PluginFactory()

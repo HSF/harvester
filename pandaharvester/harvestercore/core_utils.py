@@ -59,7 +59,7 @@ class StopWatch(object):
 
 
 # map with lock
-class MapWithLock:
+class MapWithLock(object):
     def __init__(self):
         self.lock = threading.Lock()
         self.dataMap = dict()
