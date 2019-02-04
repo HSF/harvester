@@ -2,7 +2,7 @@ from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
 
 
-class PluginBase:
+class PluginBase(object):
     def __init__(self, **kwarg):
         for tmpKey, tmpVal in iteritems(kwarg):
             setattr(self, tmpKey, tmpVal)

@@ -28,7 +28,7 @@ def clean_ce(ce):
     return ce.split('.')[0].split('://')[-1]
 
 
-class Apfmon:
+class Apfmon(object):
 
     def __init__(self, queue_config_mapper):
 
@@ -374,4 +374,3 @@ if __name__== "__main__":
     worker_a.status = 'finished'
     worker_b.status = 'failed'
     apfmon.update_workers(workers)
-

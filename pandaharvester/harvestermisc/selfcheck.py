@@ -9,7 +9,7 @@ from pandaharvester.panda_pkg_info import release_version as releaseVersion
 
 
 
-class harvesterPackageInfo:
+class harvesterPackageInfo(object):
     """
     """
     _attributes = ('commit_info', 'version', 'info_digest')
@@ -52,4 +52,3 @@ class harvesterPackageInfo:
     @property
     def package_changed(self):
         return self.info_digest != self._local_info_dict.get('info_digest')
-

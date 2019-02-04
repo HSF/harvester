@@ -10,7 +10,7 @@ _logger = core_utils.setup_logger('db_proxy_pool')
 
 
 # method wrapper
-class DBProxyMethod:
+class DBProxyMethod(object):
     # constructor
     def __init__(self, method_name, pool):
         self.methodName = method_name

@@ -1,6 +1,6 @@
 # Error codes : Taken from pilot1. To be removed once pilot2 API is ready
 
-class PilotErrors:
+class PilotErrors(object):
     """ Pilot error handling """
 
     # error codes

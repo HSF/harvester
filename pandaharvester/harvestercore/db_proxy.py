@@ -53,7 +53,7 @@ conLock = threading.Lock()
 
 
 # connection class
-class DBProxy:
+class DBProxy(object):
     # constructor
     def __init__(self, thr_name=None):
         self.thrName = thr_name

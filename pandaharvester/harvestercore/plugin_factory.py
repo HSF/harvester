@@ -8,7 +8,7 @@ _logger = core_utils.setup_logger('plugin_factory')
 
 
 # plugin factory
-class PluginFactory:
+class PluginFactory(object):
     # constructor
     def __init__(self, no_db=False):
         self.classMap = {}

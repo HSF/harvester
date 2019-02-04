@@ -4,7 +4,7 @@ import datetime
 from .db_proxy_pool import DBProxyPool as DBProxy
 
 
-class ResourceType:
+class ResourceType(object):
 
     def __init__(self, resource_type_dict):
         """
@@ -20,7 +20,7 @@ class ResourceType:
         self.max_ram_per_core = resource_type_dict['maxrampercore']
 
 
-class ResourceTypeMapper:
+class ResourceTypeMapper(object):
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -90,4 +90,3 @@ class ResourceTypeMapper:
             pass
 
         return worker_cores, worker_memory
-

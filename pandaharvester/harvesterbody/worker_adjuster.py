@@ -12,7 +12,7 @@ _logger = core_utils.setup_logger('worker_adjuster')
 
 
 # class to define number of workers to submit
-class WorkerAdjuster:
+class WorkerAdjuster(object):
     # constructor
     def __init__(self, queue_config_mapper):
         self.queueConfigMapper = queue_config_mapper
