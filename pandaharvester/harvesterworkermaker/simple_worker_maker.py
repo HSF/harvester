@@ -21,11 +21,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         try:
             self.pilotTypeRandomWeightsPermille
         except AttributeError:
-            self.pilotTypeRandomWeightsPermille = {
-                'RC': 2,
-                'ALRB': 10,
-                'PT': 1,
-            }
+            self.pilotTypeRandomWeightsPermille = {}
         finally:
             # randomize pilot type with weighting
             weight_rc = self.pilotTypeRandomWeightsPermille.get('RC', 0)
