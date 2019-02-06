@@ -161,6 +161,36 @@ class Apfmon(object):
         except:
             tmp_log.error('Excepted with: {0}'.format(traceback.format_exc()))
 
+    def massage_label_data(self, data):
+
+        tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
+                                         method_name='massage_label_data')
+        if not data:
+            return data
+
+        try:
+            any = data['ANY']
+            agg = {}
+            for rtype in data:
+                if rtype == 'ANY':
+                    continue
+                else:
+                    for value in data[rtype]:
+                        agg.setdefault(value, 0)
+                        agg[value] += data[rtype][value]
+
+            if agg:
+                data['ANY'] = agg
+            else:
+                data['ANY'] = any
+
+            tmp_log.debug('Massaged to data: {0}'.format(data))
+
+        except Exception:
+            tmp_log.debug('Exception in data: {0}'.format(data))
+
+        return data
+
     def update_label(self, site, msg, data):
         """
         Updates a label (=panda queue+CE)
@@ -175,6 +205,7 @@ class Apfmon(object):
 
         try:
             tmp_log.debug('start')
+            data = self.massage_label_data(data)
 
             # get the active queues from the config mapper
             all_sites = self.queue_config_mapper.get_active_queues().keys()
