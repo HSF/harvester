@@ -168,7 +168,10 @@ if __name__ == "__main__":
 
     # execute the pilot wrapper
     logging.debug('[main] starting pilot wrapper...')
-    wrapper_params = '-s {0} -h {1} -R {2}'.format(panda_site, panda_queue, resource_type)
+    resource_type_option = ''
+    if resource_type:
+        resource_type_option = '-R {0}'.format(resource_type)
+    wrapper_params = '-s {0} -h {1} {2}'.format(panda_site, panda_queue, resource_type_option)
     if 'ANALY' in panda_queue:
         wrapper_params = '{0} -u user'.format(wrapper_params)
     else:

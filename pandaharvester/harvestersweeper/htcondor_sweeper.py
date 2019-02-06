@@ -121,7 +121,7 @@ class HTCondorSweeper(BaseSweeper):
                 except ValueError:
                     errStr = 'Invalid submissionHost: {0} . Skipped'.format(workspec.submissionHost)
                     tmpLog.error(errStr)
-                    ret_list.append(False, errStr)
+                    ret_list.append((False, errStr))
                 name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
                 pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
 
@@ -146,7 +146,7 @@ class HTCondorSweeper(BaseSweeper):
                         ## Command failed to kill
                         errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
                         tmpLog.error(errStr)
-                        ret_list.append(False, errStr)
+                        ret_list.append((False, errStr))
                 ## Found already killed
                 tmpLog.info('Found workerID={0} submissionHost={1} batchID={2} already killed'.format(
                                 workspec.workerID, workspec.submissionHost, workspec.batchID))
