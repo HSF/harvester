@@ -58,8 +58,8 @@ class ResourceTypeMapper(object):
         """
         Calculates worker requirements (cores and memory) to request in pilot streaming mode/unified pull queue
         """
-        worker_cores = None
-        worker_memory = None
+        worker_cores = 1
+        worker_memory = 1
 
         self.load_data()
         try:

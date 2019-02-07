@@ -209,7 +209,7 @@ class WorkerAdjuster(object):
                                          .format(nNewWorkers, resource_type))
 
                 if not apf_msg:
-                    apf_data = dyn_num_workers[queueName]
+                    apf_data = copy.deepcopy(dyn_num_workers[queueName])
 
                 self.apf_mon.update_label(queueName, apf_msg, apf_data)
 

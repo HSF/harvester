@@ -50,13 +50,18 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
         container_env.setdefault('resources', {})
 
         # note that predefined values in the yaml template will NOT be overwritten
-        container_env['resources'].setdefault('limits', {
-            'memory': str(work_spec.minRamCount) + 'M',
-            'cpu': str(work_spec.nCore)})
+        if work_spec.nCore > 0:
+            container_env['resources'].setdefault('limits', {
+                'cpu': str(work_spec.nCore)})
+            container_env['resources'].setdefault('requests', {
+                'cpu': str(work_spec.nCore*cpuadjustratio/100.0)})
 
-        container_env['resources'].setdefault('requests', {
-            'memory': str(work_spec.minRamCount*memoryadjustratio/100.0) + 'M',
-            'cpu': str(work_spec.nCore*cpuadjustratio/100.0)})
+        if work_spec.minRamCount > 4:
+            # K8S minimum memory limit = 4 MB
+            container_env['resources'].setdefault('limits', {
+                'memory': str(work_spec.minRamCount) + 'M'})
+            container_env['resources'].setdefault('requests', {
+                'memory': str(work_spec.minRamCount*memoryadjustratio/100.0) + 'M'})
 
         container_env.setdefault('env', [])
 
