@@ -118,6 +118,20 @@ def get_job_id_tuple_from_batchid(batchid):
     procid = batchid_str_list[1]
     return (clusterid, procid)
 
+
+# def jdl_to_map(jdl):
+#     """
+#     Transform jdl into dictionary
+#     The "queue" line (e.g. "queue 1") will be omitted
+#     """
+#     # FIXME: not containing "+"
+#     ret_map = {}
+#     for line in jdl.split('\n'):
+#         match = re.search('^(.+) = (.+)$', line)
+#         if match:
+#             ret_map[match(1)] = match(2)
+#     return ret_map
+
 #===============================================================
 
 #=== Classes ===================================================
@@ -542,7 +556,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
             self.lock = threading.Lock()
             CondorClient.__init__(self, self.submissionHost, *args, **kwargs)
 
-    def submit(self, jdl_str, use_spool=False):
+    def submit(self, jdl_list, use_spool=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobSubmit.submit')
         # Get all
@@ -550,128 +564,118 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                job_ads_all_dict = self.query_with_python(batchIDs_list)
-            except RuntimeError as e:
-                tmpLog.error(e)
-                if self.lock.acquire(False):
-                    self.renew_session()
-                    self.lock.release()
+                clusterid = self.submit_with_python(jdl_list, use_spool)
             except Exception as e:
                 tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api: {0}'.format(e))
-                job_ads_all_dict = self.query_with_command(batchIDs_list)
+                clusterid = self.submit_with_command(jdl_list, use_spool)
         else:
-            job_ads_all_dict = self.query_with_command(batchIDs_list)
-        return job_ads_all_dict
+            clusterid = self.submit_with_command(jdl_list, use_spool)
+        return clusterid
 
-    def submit_with_command(self, jdl_str, use_spool=False):
+    def submit_with_command(self, jdl_list, use_spool=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobSubmit.submit_with_command')
-        # # Start query
-        # tmpLog.debug('Start query')
-        # job_ads_all_dict = {}
-        # batchIDs_set = set(batchIDs_list)
-        # for orig_comStr in self.orig_comStr_list:
-        #     # String of batchIDs
-        #     batchIDs_str = ' '.join(list(batchIDs_set))
-        #     # Command
-        #     if 'condor_q' in orig_comStr or ('condor_history' in orig_comStr and batchIDs_set):
-        #         name_opt = '-name {0}'.format(self.condor_schedd) if self.condor_schedd else ''
-        #         pool_opt = '-pool {0}'.format(self.condor_pool) if self.condor_pool else ''
-        #         ids = batchIDs_str
-        #         comStr = '{cmd} {name_opt} {pool_opt} {ids}'.format(cmd=orig_comStr,
-        #                                                             name_opt=name_opt,
-        #                                                             pool_opt=pool_opt,
-        #                                                             ids=ids)
-        #     else:
-        #         # tmpLog.debug('No batch job left to query in this cycle by this thread')
-        #         continue
-        #     tmpLog.debug('check with {0}'.format(comStr))
-        #     (retCode, stdOut, stdErr) = _runShell(comStr)
-        #     if retCode == 0:
-        #         # Command succeeded
-        #         job_ads_xml_str = '\n'.join(str(stdOut).split(self.badtext))
-        #         if '<c>' in job_ads_xml_str:
-        #             # Found at least one job
-        #             # XML parsing
-        #             xml_root = ET.fromstring(job_ads_xml_str)
-        #             def _getAttribute_tuple(attribute_xml_element):
-        #                 # Attribute name
-        #                 _n = str(attribute_xml_element.get('n'))
-        #                 # Attribute value text
-        #                 _t = ' '.join(attribute_xml_element.itertext())
-        #                 return (_n, _t)
-        #             # Every batch job
-        #             for _c in xml_root.findall('c'):
-        #                 job_ads_dict = dict()
-        #                 # Every attribute
-        #                 attribute_iter = map(_getAttribute_tuple, _c.findall('a'))
-        #                 job_ads_dict.update(attribute_iter)
-        #                 batchid = str(job_ads_dict['ClusterId'])
-        #                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
-        #                 job_ads_all_dict[condor_job_id] = job_ads_dict
-        #                 # Remove batch jobs already gotten from the list
-        #                 if batchid in batchIDs_set:
-        #                     batchIDs_set.discard(batchid)
+        # TODO: copied from htcondor_submitter; to sort out
+        # # make condor remote options
+        # name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
+        # pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
+        # spool_opt = '-remote -spool'.format(use_spool) if use_spool and condor_schedd else ''
+        # # command
+        # comStr = 'condor_submit {spool_opt} {name_opt} {pool_opt} {sdf_file}'.format(sdf_file=batchFile,
+        #                                                                     name_opt=name_opt,
+        #                                                                     pool_opt=pool_opt,
+        #                                                                     spool_opt=spool_opt)
+        # # submit
+        # tmpLog.debug('submit with command: {0}'.format(comStr))
+        # try:
+        #     p = subprocess.Popen(comStr.split(),
+        #                          shell=False,
+        #                          universal_newlines=True,
+        #                          stdout=subprocess.PIPE,
+        #                          stderr=subprocess.PIPE)
+        #     # check return code
+        #     stdOut, stdErr = p.communicate()
+        #     retCode = p.returncode
+        # except Exception:
+        #     stdOut = ''
+        #     stdErr = core_utils.dump_error_message(tmpLog, no_message=True)
+        #     retCode = 1
+        # tmpLog.debug('retCode={0}'.format(retCode))
+        # if retCode == 0:
+        #     # extract batchID
+        #     job_id_match = None
+        #     for tmp_line_str in stdOut.split('\n'):
+        #         job_id_match = re.search('^(\d+) job[(]s[)] submitted to cluster (\d+)\.$', tmp_line_str)
+        #         if job_id_match:
+        #             break
+        #     if job_id_match is not None:
+        #         workspec.batchID = job_id_match.group(2)
+        #         # set submissionHost
+        #         if not condor_schedd and not condor_pool:
+        #             workspec.submissionHost = 'LOCAL'
         #         else:
-        #             # Job not found
-        #             tmpLog.debug('job not found with {0}'.format(comStr))
-        #             continue
+        #             workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
+        #
+        #         tmpLog.debug('submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
+        #         # set computingElement
+        #         workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
+        #         # set log
+        #         batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
+        #         batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
+        #         batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=workspec.batchID)
+        #         workspec.set_log_file('batch_log', batch_log)
+        #         workspec.set_log_file('stdout', batch_stdout)
+        #         workspec.set_log_file('stderr', batch_stderr)
+        #         if not workspec.get_jobspec_list():
+        #             tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
+        #         else:
+        #             for jobSpec in workspec.get_jobspec_list():
+        #                 # using batchLog and stdOut URL as pilotID and pilotLog
+        #                 jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
+        #                 jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
+        #         tmpLog.debug('Done set_log_file after submission')
+        #         tmpRetVal = (True, '')
+        #
         #     else:
-        #         # Command failed
-        #         errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+        #         errStr = 'batchID cannot be found'
         #         tmpLog.error(errStr)
-        # if len(batchIDs_set) > 0:
-        #     # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
-        #     for batchid in batchIDs_set:
-        #         condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
-        #         job_ads_all_dict[condor_job_id] = dict()
-        #     tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
-        #                     self.submissionHost, ' '.join(list(batchIDs_set)) ) )
-        # # Return
-        # return job_ads_all_dict
+        #         tmpRetVal = (None, errStr)
+        # else:
+        #     # failed
+        #     errStr = '{0} \n {1}'.format(stdOut, stdErr)
+        #     tmpLog.error(errStr)
+        #     tmpRetVal = (None, errStr)
+        # return tmpRetVal, workspec.get_changed_attributes()
         pass
 
-
     @CondorClient.renew_session_and_retry
-    def submit_with_python(self, jdl_str, use_spool=False):
+    def submit_with_python(self, jdl_list, use_spool=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobSubmit.submit_with_python')
         # Start
         tmpLog.debug('Start')
-        # Make submit object
-        submit_obj = htcondor.Submit(jdl_str)
-        with schedd.transaction() as txn:
-            submit_obj.queue(txn)
-
+        # Initialize
+        batchIDs_list = []
+        # Make list of jdl map with dummy submit objects
+        jdl_map_list = [ htcondor.Submit(jdl).items() for jdl in jdl_list ]
         # Go
-        for query_method in query_method_list:
-            # Make requirements
-            batchIDs_str = ','.join(list(batchIDs_set))
-            if query_method is cache_query:
-                requirements = 'harvesterID =?= "{0}"'.format(harvesterID)
-            else:
-                requirements = 'member(ClusterID, {{{0}}})'.format(batchIDs_str)
-            tmpLog.debug('Query method: {0} ; batchIDs: "{1}"'.format(query_method.__name__, batchIDs_str))
-            # Query
-            jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
-            for job in jobs_iter:
-                job_ads_dict = dict(job)
-                batchid = str(job_ads_dict['ClusterId'])
-                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
-                job_ads_all_dict[condor_job_id] = job_ads_dict
-                # Remove batch jobs already gotten from the list
-                batchIDs_set.discard(batchid)
-            if len(batchIDs_set) == 0:
-                break
-        # Remaining
-        if len(batchIDs_set) > 0:
-            # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
-            for batchid in batchIDs_set:
-                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
-                job_ads_all_dict[condor_job_id] = dict()
-            tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
-                            self.submissionHost, ' '.join(list(batchIDs_set)) ) )
+        submit_obj = htcondor.Submit()
+        with self.schedd.transaction() as txn:
+            # TODO: Currently spool is not supported in htcondor.Submit ...
+            for jdl_map in jdl_map_list:
+                job_submitted_list = []
+                submit_obj.update(jdl_map)
+                clusterid = submit_obj.queue(txn, ad_results=job_submitted_list)
+                batchid_list = [ '{0}.{1}'.format(clusterid, j['ProcId'])
+                                    for j in job_submitted_list ]
+                batchIDs_list.extend(batchid_list)
+        if batchIDs_list:
+            n_jobs = len(batchIDs_list)
+            tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
+        else:
+            tmpLog.error('submission failed; got result: {0}'.format(batchIDs_list))
+        tmpLog.debug('Done')
         # Return
-        return job_ads_all_dict
+        return batchIDs_list
 
 #===============================================================
