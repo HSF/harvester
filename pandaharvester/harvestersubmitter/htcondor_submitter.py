@@ -464,7 +464,7 @@ class HTCondorSubmitter(PluginBase):
         try:
             self.useSpool
         except AttributeError:
-            self.useSpool = True
+            self.useSpool = False
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
