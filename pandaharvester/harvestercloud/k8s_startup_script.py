@@ -102,6 +102,7 @@ def get_configuration():
     proxy_string = os.environ.get('proxyContent').replace(",", "\n")
     with open(proxy_path, "w") as proxy_file:
         proxy_file.write(proxy_string)
+    del os.environ['proxyContent']
     os.chmod(proxy_path, 0o600)
     os.environ['X509_USER_PROXY'] = proxy_path
     logging.debug('[main] initialized proxy')
