@@ -39,6 +39,13 @@ class WorkerAdjuster(object):
             else:
                 queueStat = queueStat.data
 
+            # get job statistics
+            job_stats = self.dbProxy.get_cache("job_statistics.json", None)
+            if job_stats is None:
+                job_stats = dict()
+            else:
+                job_stats = job_stats.data
+
             # define num of new workers
             for queueName in static_num_workers:
                 # get queue
@@ -135,6 +142,13 @@ class WorkerAdjuster(object):
                                 maxQueuedWorkers = min(maxQueuedWorkers_slave, maxQueuedWorkers)
                             else:
                                 maxQueuedWorkers = maxQueuedWorkers_slave
+                        else:
+                            # limit the queue to the number of activated jobs to avoid empty pilots
+                            try:
+                                n_activated = job_stats[queueName]['activated']
+                                maxQueuedWorkers = n_activated
+                            except KeyError:
+                                maxQueuedWorkers = 1
 
                         if maxQueuedWorkers is None:  # no value found, use default value
                             maxQueuedWorkers = 1
