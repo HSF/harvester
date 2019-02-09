@@ -3,10 +3,6 @@ import errno
 import datetime
 import tempfile
 import threading
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
 import random
 
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +15,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestermisc.htcondor_utils import CondorJobSubmit
+
 
 # logger
 baseLogger = core_utils.setup_logger('htcondor_submitter')
@@ -257,7 +254,7 @@ def submit_bag_of_workers(data_list):
         tmpLog.debug('submitting to submissionHost={0}'.format(host))
         condor_job_submit = CondorJobSubmit(id=host)
         # submit
-        batchIDs_list = condor_job_submit.submit(jdl_list, use_spool=use_spool)
+        batchIDs_list, ret_err_str = condor_job_submit.submit(jdl_list, use_spool=use_spool)
         # result
         if batchIDs_list:
             # submitted
@@ -291,10 +288,10 @@ def submit_bag_of_workers(data_list):
                 worker_retval_map[workspec.workerID] = (tmpRetVal, workspec.get_changed_attributes())
         else:
             # failed
-            tmpLog.debug('failed to submit workers to submissionHost={0}'.format(host))
+            tmpLog.debug('failed to submit workers to submissionHost={0} ; {1}'.format(host, ret_err_str))
             for val in val_list:
                 workspec = val[0]
-                errStr = 'submission failed: {0}'.format(batchIDs_list)
+                errStr = 'submission failed: {0}'.format(ret_err_str)
                 tmpLog.error(errStr)
                 tmpRetVal = (None, errStr)
                 worker_retval_map[workspec.workerID] = (tmpRetVal, workspec.get_changed_attributes())

@@ -564,13 +564,13 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                clusterid = self.submit_with_python(jdl_list, use_spool)
+                retVal = self.submit_with_python(jdl_list, use_spool)
             except Exception as e:
-                tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api: {0}'.format(e))
-                clusterid = self.submit_with_command(jdl_list, use_spool)
+                tmpLog.warning('Exception {0}: {1}'.format(e.__class__.__name__, e))
+                raise
         else:
-            clusterid = self.submit_with_command(jdl_list, use_spool)
-        return clusterid
+            retVal = self.submit_with_command(jdl_list, use_spool)
+        return retVal
 
     def submit_with_command(self, jdl_list, use_spool=False):
         # Make logger
@@ -655,19 +655,25 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         # Start
         tmpLog.debug('Start')
         # Initialize
+        errStr = ''
         batchIDs_list = []
         # Make list of jdl map with dummy submit objects
         jdl_map_list = [ dict(htcondor.Submit(jdl).items()) for jdl in jdl_list ]
         # Go
         submit_obj = htcondor.Submit()
-        with self.schedd.transaction() as txn:
-            # TODO: Currently spool is not supported in htcondor.Submit ...
-            submit_result = submit_obj.queue_with_itemdata(txn, 1, iter(jdl_map_list))
-            clusterid = submit_result.cluster()
-            first_proc = submit_result.first_proc()
-            num_proc = submit_result.num_procs()
-            batchIDs_list.extend(['{0}.{1}'.format(clusterid, procid)
-                                    for procid in range(first_proc, first_proc + num_proc)])
+        try:
+            with self.schedd.transaction() as txn:
+                # TODO: Currently spool is not supported in htcondor.Submit ...
+                submit_result = submit_obj.queue_with_itemdata(txn, 1, iter(jdl_map_list))
+                clusterid = submit_result.cluster()
+                first_proc = submit_result.first_proc()
+                num_proc = submit_result.num_procs()
+                batchIDs_list.extend(['{0}.{1}'.format(clusterid, procid)
+                                        for procid in range(first_proc, first_proc + num_proc)])
+        except RuntimeError:
+            errStr = '{0}: {1}'.format(e.__class__.__name__, e)
+            tmpLog.error('submission failed; got: {0} . Dump submit object... itemdata: {1} ; QArgs: {2} ; procs: {3} '.format(
+                batchIDs_list, submit_obj.itemdata(), submit_obj.getQArgs(), submit_obj.procs()))
         if batchIDs_list:
             n_jobs = len(batchIDs_list)
             tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
@@ -675,6 +681,6 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
             tmpLog.error('submission failed; got: {0}'.format(batchIDs_list))
         tmpLog.debug('Done')
         # Return
-        return batchIDs_list
+        return (batchIDs_list, errStr)
 
 #===============================================================

@@ -1,11 +1,4 @@
-import re
 import time
-import datetime
-
-try:
-    from threading import get_ident
-except ImportError:
-    from thread import get_ident
 
 import six
 
