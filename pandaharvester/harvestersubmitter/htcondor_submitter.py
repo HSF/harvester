@@ -294,7 +294,7 @@ def submit_bag_of_workers(data_list):
             tmpLog.debug('failed to submit workers to submissionHost={0}'.format(host))
             for val in val_list:
                 workspec = val[0]
-                errStr = 'submission failed'
+                errStr = 'submission failed: {0}'.format(batchIDs_list)
                 tmpLog.error(errStr)
                 tmpRetVal = (None, errStr)
                 worker_retval_map[workspec.workerID] = (tmpRetVal, workspec.get_changed_attributes())

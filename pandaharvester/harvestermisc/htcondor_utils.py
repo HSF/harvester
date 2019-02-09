@@ -657,23 +657,22 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         # Initialize
         batchIDs_list = []
         # Make list of jdl map with dummy submit objects
-        jdl_map_list = [ htcondor.Submit(jdl).items() for jdl in jdl_list ]
+        jdl_map_list = [ dict(htcondor.Submit(jdl).items()) for jdl in jdl_list ]
         # Go
         submit_obj = htcondor.Submit()
         with self.schedd.transaction() as txn:
             # TODO: Currently spool is not supported in htcondor.Submit ...
-            for jdl_map in jdl_map_list:
-                job_submitted_list = []
-                submit_obj.update(jdl_map)
-                clusterid = submit_obj.queue(txn, ad_results=job_submitted_list)
-                batchid_list = [ '{0}.{1}'.format(clusterid, j['ProcId'])
-                                    for j in job_submitted_list ]
-                batchIDs_list.extend(batchid_list)
+            submit_result = submit_obj.queue_with_itemdata(txn, 1, iter(jdl_map_list))
+            clusterid = submit_result.cluster()
+            first_proc = submit_result.first_proc()
+            num_proc = submit_result.num_procs()
+            batchIDs_list.extend(['{0}.{1}'.format(clusterid, procid)
+                                    for procid in range(first_proc, first_proc + num_proc)])
         if batchIDs_list:
             n_jobs = len(batchIDs_list)
             tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
         else:
-            tmpLog.error('submission failed; got result: {0}'.format(batchIDs_list))
+            tmpLog.error('submission failed; got: {0}'.format(batchIDs_list))
         tmpLog.debug('Done')
         # Return
         return batchIDs_list
