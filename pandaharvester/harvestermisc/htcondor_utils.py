@@ -172,6 +172,7 @@ class CondorClient(object):
         """
         If RuntimeError, call renew_session and retry
         """
+        to_retry = False
         # Wrapper
         def wrapper(self, *args, **kwargs):
             # Make logger
@@ -184,8 +185,11 @@ class CondorClient(object):
                 if self.lock.acquire(False):
                     self.renew_session()
                     self.lock.release()
-                tmpLog.debug('condor session renewed. Retrying {0}'.format(func_name))
-                ret = func(self, analyzer, *args, **kwargs)
+                if to_retry:
+                    tmpLog.debug('condor session renewed. Retrying {0}'.format(func_name))
+                    ret = func(self, *args, **kwargs)
+                else:
+                    tmpLog.debug('condor session renewed')
                 tmpLog.debug('done')
             return ret
         return wrapper
@@ -646,12 +650,179 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         #     tmpLog.error(errStr)
         #     tmpRetVal = (None, errStr)
         # return tmpRetVal, workspec.get_changed_attributes()
-        pass
+        raise NotImplementedError
 
     @CondorClient.renew_session_and_retry
     def submit_with_python(self, jdl_list, use_spool=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobSubmit.submit_with_python')
+        # Start
+        tmpLog.debug('Start')
+        # Initialize
+        errStr = ''
+        batchIDs_list = []
+        # Make list of jdl map with dummy submit objects
+        jdl_map_list = [ dict(htcondor.Submit(jdl).items()) for jdl in jdl_list ]
+        # Go
+        submit_obj = htcondor.Submit()
+        try:
+            with self.schedd.transaction() as txn:
+                # TODO: Currently spool is not supported in htcondor.Submit ...
+                submit_result = submit_obj.queue_with_itemdata(txn, 1, iter(jdl_map_list))
+                clusterid = submit_result.cluster()
+                first_proc = submit_result.first_proc()
+                num_proc = submit_result.num_procs()
+                batchIDs_list.extend(['{0}.{1}'.format(clusterid, procid)
+                                        for procid in range(first_proc, first_proc + num_proc)])
+        except RuntimeError as e:
+            errStr = '{0}: {1}'.format(e.__class__.__name__, e)
+            tmpLog.error('submission failed: {0}'.format(errStr))
+        if batchIDs_list:
+            n_jobs = len(batchIDs_list)
+            tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
+        elif not errStr:
+            tmpLog.error('submitted nothing')
+        tmpLog.debug('Done')
+        # Return
+        return (batchIDs_list, errStr)
+
+
+# Condor job remove
+class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
+    # class lock
+    classLock = threading.Lock()
+
+    def __init__(self, *args, **kwargs):
+        self.submissionHost = str(kwargs.get('id'))
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.__init__')
+        # Initialize
+        with self.classLock:
+            tmpLog.debug('Start')
+            self.lock = threading.Lock()
+            CondorClient.__init__(self, self.submissionHost, *args, **kwargs)
+
+    def query(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.query')
+        # Get all
+        tmpLog.debug('Start')
+        job_ads_all_dict = {}
+        if self.condor_api == 'python':
+            try:
+                retVal = self.query_with_python(batchIDs_list)
+            except Exception as e:
+                tmpLog.warning('Exception {0}: {1}'.format(e.__class__.__name__, e))
+                raise
+        else:
+            retVal = self.query_with_command(batchIDs_list)
+        return retVal
+
+    def remove(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove')
+        # Get all
+        tmpLog.debug('Start')
+        job_ads_all_dict = {}
+        if self.condor_api == 'python':
+            try:
+                retVal = self.remove_with_python(jdl_list, use_spool)
+            except Exception as e:
+                tmpLog.warning('Exception {0}: {1}'.format(e.__class__.__name__, e))
+                raise
+        else:
+            retVal = self.remove_with_command(jdl_list, use_spool)
+        return retVal
+
+    def remove_with_command(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove_with_command')
+        # if workspec.batchID is None:
+        #     tmpLog.info('Found workerID={0} has submissionHost={1} batchID={2} . Cannot kill. Skipped '.format(
+        #                     workspec.workerID, workspec.submissionHost, workspec.batchID))
+        #     ret_list.append((True, ''))
+        #
+        # ## Parse condor remote options
+        # name_opt, pool_opt = '', ''
+        # if workspec.submissionHost is None or workspec.submissionHost == 'LOCAL':
+        #     pass
+        # else:
+        #     try:
+        #         condor_schedd, condor_pool = workspec.submissionHost.split(',')[0:2]
+        #     except ValueError:
+        #         errStr = 'Invalid submissionHost: {0} . Skipped'.format(workspec.submissionHost)
+        #         tmpLog.error(errStr)
+        #         ret_list.append((False, errStr))
+        #     name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
+        #     pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
+        #
+        # ## Kill command
+        # comStr = 'condor_rm {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
+        #                                                             pool_opt=pool_opt,
+        #                                                             batchID=workspec.batchID)
+        # (retCode, stdOut, stdErr) = _runShell(comStr)
+        # if retCode != 0:
+        #     comStr = 'condor_q -l {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
+        #                                                                 pool_opt=pool_opt,
+        #                                                                 batchID=workspec.batchID)
+        #     (retCode, stdOut, stdErr) = _runShell(comStr)
+        #     if ('ClusterId = {0}'.format(workspec.batchID) in str(stdOut) \
+        #         and 'JobStatus = 3' not in str(stdOut)) or retCode != 0:
+        #         ## Force to cancel if batch job not terminated first time
+        #         comStr = 'condor_rm -forcex {name_opt} {pool_opt} {batchID}'.format(name_opt=name_opt,
+        #                                                                     pool_opt=pool_opt,
+        #                                                                     batchID=workspec.batchID)
+        #         (retCode, stdOut, stdErr) = _runShell(comStr)
+        #         if retCode != 0:
+        #             ## Command failed to kill
+        #             errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+        #             tmpLog.error(errStr)
+        #             ret_list.append((False, errStr))
+        #     ## Found already killed
+        #     tmpLog.info('Found workerID={0} submissionHost={1} batchID={2} already killed'.format(
+        #                     workspec.workerID, workspec.submissionHost, workspec.batchID))
+        # else:
+        #     tmpLog.info('Succeeded to kill workerID={0} submissionHost={1} batchID={2}'.format(
+        #                     workspec.workerID, workspec.submissionHost, workspec.batchID))
+        raise NotImplementedError
+
+    @CondorClient.renew_session_and_retry
+    def query_with_python(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove_with_python')
+        # # Start
+        # tmpLog.debug('Start')
+        # # Initialize
+        # errStr = ''
+        # batchIDs_list = []
+        # # Go
+        # # Make requirements
+        # clusterids_str = ','.join(list(clusterids_set))
+        # if query_method is cache_query:
+        #     requirements = 'harvesterID =?= "{0}"'.format(harvesterID)
+        # else:
+        #     requirements = 'member(ClusterID, {{{0}}})'.format(clusterids_str)
+        # tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
+        # # Query
+        # jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
+        # for job in jobs_iter:
+        #     job_ads_dict = dict(job)
+        #     batchid = get_batchid_from_job(job_ads_dict)
+        #     condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+        #     job_ads_all_dict[condor_job_id] = job_ads_dict
+        #     # Remove batch jobs already gotten from the list
+        #     batchIDs_set.discard(batchid)
+        # if len(batchIDs_set) == 0:
+        #     break
+        # tmpLog.debug('Done')
+        # # Return
+        # return (batchIDs_list, errStr)
+        raise NotImplementedError
+
+    @CondorClient.renew_session_and_retry
+    def remove_with_python(self, batchIDs_list=[]):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove_with_python')
         # Start
         tmpLog.debug('Start')
         # Initialize
@@ -682,5 +853,6 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         tmpLog.debug('Done')
         # Return
         return (batchIDs_list, errStr)
+
 
 #===============================================================
