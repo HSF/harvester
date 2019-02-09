@@ -39,6 +39,7 @@ class Submitter(AgentBase):
         lockedBy = 'submitter-{0}'.format(self.get_pid())
         monitor_fifo = self.monitor_fifo
         while True:
+            sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
 
@@ -246,6 +247,7 @@ class Submitter(AgentBase):
                                             workSpec.eventsRequest = WorkSpec.EV_useEvents
                                         workSpecList.append(workSpec)
                                 if len(workSpecList) > 0:
+                                    sw = core_utils.get_stopwatch()
                                     # get plugin for submitter
                                     submitterCore = self.pluginFactory.get_plugin(queueConfig.submitter)
                                     if submitterCore is None:
@@ -276,9 +278,12 @@ class Submitter(AgentBase):
                                     # insert workers
                                     self.dbProxy.insert_workers(workSpecList, lockedBy)
                                     # submit
+                                    sw.reset()
                                     tmpLog.info('submitting {0} workers'.format(len(workSpecList)))
                                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore,
                                                                                                workSpecList)
+                                    tmpLog.debug('done submitting {0} workers'.format(len(workSpecList))
+                                                    + sw.get_elapsed_time())
                                     # collect successful jobs
                                     okPandaIDs = set()
                                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
@@ -397,6 +402,9 @@ class Submitter(AgentBase):
                     if interval > 0:
                         newTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=interval)
                         self.dbProxy.update_panda_queue_attribute('submitTime', newTime, site_name=siteName)
+
+            # time the cycle
+            mainLog.debug('done a submitter cycle' + sw_main.get_elapsed_time())
             # check if being terminated
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')
