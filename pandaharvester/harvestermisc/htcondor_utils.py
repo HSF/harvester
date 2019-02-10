@@ -90,7 +90,10 @@ def get_host_batchid_map(workspec_list):
     host_batchid_map = {}
     for workspec in workspec_list:
         host = workspec.submissionHost
-        batchid_str = str(workspec.batchID)
+        batchid = workspec.batchID
+        if batchid is None:
+            continue
+        batchid_str = str(batchid)
         # backward compatibility if workspec.batchID does not contain ProcId
         if '.' not in batchid_str:
             batchid_str += '.0'
@@ -190,6 +193,7 @@ class CondorClient(object):
                     ret = func(self, *args, **kwargs)
                 else:
                     tmpLog.debug('condor session renewed')
+                    raise
                 tmpLog.debug('done')
             return ret
         return wrapper
@@ -702,22 +706,6 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
             self.lock = threading.Lock()
             CondorClient.__init__(self, self.submissionHost, *args, **kwargs)
 
-    def query(self, batchIDs_list=[]):
-        # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.query')
-        # Get all
-        tmpLog.debug('Start')
-        job_ads_all_dict = {}
-        if self.condor_api == 'python':
-            try:
-                retVal = self.query_with_python(batchIDs_list)
-            except Exception as e:
-                tmpLog.warning('Exception {0}: {1}'.format(e.__class__.__name__, e))
-                raise
-        else:
-            retVal = self.query_with_command(batchIDs_list)
-        return retVal
-
     def remove(self, batchIDs_list=[]):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove')
@@ -726,12 +714,12 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                retVal = self.remove_with_python(jdl_list, use_spool)
+                retVal = self.remove_with_python(batchIDs_list)
             except Exception as e:
                 tmpLog.warning('Exception {0}: {1}'.format(e.__class__.__name__, e))
                 raise
         else:
-            retVal = self.remove_with_command(jdl_list, use_spool)
+            retVal = self.remove_with_command(batchIDs_list)
         return retVal
 
     def remove_with_command(self, batchIDs_list=[]):
@@ -787,72 +775,50 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
         raise NotImplementedError
 
     @CondorClient.renew_session_and_retry
-    def query_with_python(self, batchIDs_list=[]):
-        # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove_with_python')
-        # # Start
-        # tmpLog.debug('Start')
-        # # Initialize
-        # errStr = ''
-        # batchIDs_list = []
-        # # Go
-        # # Make requirements
-        # clusterids_str = ','.join(list(clusterids_set))
-        # if query_method is cache_query:
-        #     requirements = 'harvesterID =?= "{0}"'.format(harvesterID)
-        # else:
-        #     requirements = 'member(ClusterID, {{{0}}})'.format(clusterids_str)
-        # tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
-        # # Query
-        # jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
-        # for job in jobs_iter:
-        #     job_ads_dict = dict(job)
-        #     batchid = get_batchid_from_job(job_ads_dict)
-        #     condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
-        #     job_ads_all_dict[condor_job_id] = job_ads_dict
-        #     # Remove batch jobs already gotten from the list
-        #     batchIDs_set.discard(batchid)
-        # if len(batchIDs_set) == 0:
-        #     break
-        # tmpLog.debug('Done')
-        # # Return
-        # return (batchIDs_list, errStr)
-        raise NotImplementedError
-
-    @CondorClient.renew_session_and_retry
     def remove_with_python(self, batchIDs_list=[]):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove_with_python')
         # Start
         tmpLog.debug('Start')
         # Initialize
-        errStr = ''
-        batchIDs_list = []
-        # Make list of jdl map with dummy submit objects
-        jdl_map_list = [ dict(htcondor.Submit(jdl).items()) for jdl in jdl_list ]
+        ret_list = []
+        retMap = {}
         # Go
-        submit_obj = htcondor.Submit()
-        try:
-            with self.schedd.transaction() as txn:
-                # TODO: Currently spool is not supported in htcondor.Submit ...
-                submit_result = submit_obj.queue_with_itemdata(txn, 1, iter(jdl_map_list))
-                clusterid = submit_result.cluster()
-                first_proc = submit_result.first_proc()
-                num_proc = submit_result.num_procs()
-                batchIDs_list.extend(['{0}.{1}'.format(clusterid, procid)
-                                        for procid in range(first_proc, first_proc + num_proc)])
-        except RuntimeError:
-            errStr = '{0}: {1}'.format(e.__class__.__name__, e)
-            tmpLog.error('submission failed; got: {0} . Dump submit object... itemdata: {1} ; QArgs: {2} ; procs: {3} '.format(
-                batchIDs_list, submit_obj.itemdata(), submit_obj.getQArgs(), submit_obj.procs()))
-        if batchIDs_list:
-            n_jobs = len(batchIDs_list)
-            tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
+        n_jobs = len(batchIDs_list)
+        act_ret = self.schedd.act(htcondor.JobAction.Remove, batchIDs_list)
+        # Check if all jobs clear (off from schedd queue)
+        is_all_clear = (n_jobs == act_ret['TotalAlreadyDone'] + act_ret['TotalNotFound'] + act_ret['TotalSuccess'])
+        if act_ret and is_all_clear:
+            tmpLog.debug('removed {0} jobs: {1}'.format(n_jobs, ','.join(batchIDs_list)))
+            for batchid in batchIDs_list:
+                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                retMap[condor_job_id] = (True, '')
         else:
-            tmpLog.error('submission failed; got: {0}'.format(batchIDs_list))
+            tmpLog.error('job removal failed; batchIDs_list={0}, got: {1}'.format(batchIDs_list, act_ret))
+            # need to query queue for unterminated jobs not removed yet
+            clusterids_set = set([ get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list ])
+            clusterids_str = ','.join(list(clusterids_set))
+            requirements = 'member(ClusterID, {{{0}}}) && JobStatus =!= 3 && JobStatus =!= 4'.format(clusterids_str)
+            jobs_iter = self.schedd.xquery(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
+            all_batchid_map = {}
+            ok_batchid_list = []
+            ng_batchid_list = []
+            for job in jobs_iter:
+                job_ads_dict = dict(job)
+                batchid = get_batchid_from_job(job_ads_dict)
+                all_batchid_map[batchid] = job_ads_dict
+            for batchid in batchIDs_list:
+                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                if batchid in all_batchid_map:
+                    ng_batchid_list.append(batchid)
+                    retMap[condor_job_id] = (False, 'batchID={0} still unterminated in condor queue'.format(batchid))
+                else:
+                    ok_batchid_list.append(batchid)
+                    retMap[condor_job_id] = (True, '')
+            tmpLog.debug('removed {0} jobs: {1} ; failed to remove {2} jobs: {3}'.format(
+                            len(ok_batchid_list), ','.join(ok_batchid_list), len(ng_batchid_list), ','.join(ng_batchid_list)))
         tmpLog.debug('Done')
         # Return
-        return (batchIDs_list, errStr)
-
+        return retMap
 
 #===============================================================
