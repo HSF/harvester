@@ -188,11 +188,14 @@ class CondorClient(object):
                 if self.lock.acquire(False):
                     self.renew_session()
                     self.lock.release()
-                if to_retry:
-                    tmpLog.debug('condor session renewed. Retrying {0}'.format(func_name))
-                    ret = func(self, *args, **kwargs)
+                    if to_retry:
+                        tmpLog.debug('condor session renewed. Retrying {0}'.format(func_name))
+                        ret = func(self, *args, **kwargs)
+                    else:
+                        tmpLog.debug('condor session renewed')
+                        raise
                 else:
-                    tmpLog.debug('condor session renewed')
+                    tmpLog.debug('another thread is renewing condor session; skipped...')
                     raise
                 tmpLog.debug('done')
             return ret
@@ -222,8 +225,8 @@ class CondorClient(object):
                 self.secman = htcondor.SecMan()
                 self.renew_session()
             except Exception as e:
-                self.condor_api = 'command'
-                tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api: {0}'.format(e))
+                tmpLog.error('Error when using htcondor Python API. Exception {0}: {1}'.format(e.__class__.__name__, e))
+                raise
         tmpLog.debug('Initialized client')
 
     def renew_session(self, retry=3):
@@ -305,8 +308,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             try:
                 job_ads_all_dict = self.query_with_python(batchIDs_list)
             except Exception as e:
-                tmpLog.warning('Using condor command instead due to exception from unsupported version of python or condor api, or code bugs: {0}'.format(e))
-                job_ads_all_dict = self.query_with_command(batchIDs_list)
+                tmpLog.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
+                raise
         else:
             job_ads_all_dict = self.query_with_command(batchIDs_list)
         return job_ads_all_dict
@@ -574,7 +577,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
             try:
                 retVal = self.submit_with_python(jdl_list, use_spool)
             except Exception as e:
-                tmpLog.warning('Exception {0}: {1}'.format(e.__class__.__name__, e))
+                tmpLog.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
                 raise
         else:
             retVal = self.submit_with_command(jdl_list, use_spool)
@@ -681,6 +684,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         except RuntimeError as e:
             errStr = '{0}: {1}'.format(e.__class__.__name__, e)
             tmpLog.error('submission failed: {0}'.format(errStr))
+            raise
         if batchIDs_list:
             n_jobs = len(batchIDs_list)
             tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
@@ -716,7 +720,7 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
             try:
                 retVal = self.remove_with_python(batchIDs_list)
             except Exception as e:
-                tmpLog.warning('Exception {0}: {1}'.format(e.__class__.__name__, e))
+                tmpLog.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
                 raise
         else:
             retVal = self.remove_with_command(batchIDs_list)
