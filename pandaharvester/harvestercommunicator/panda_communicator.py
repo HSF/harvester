@@ -10,6 +10,7 @@ except Exception:
     pass
 import sys
 import json
+import pickle
 import zlib
 import uuid
 import inspect
@@ -441,6 +442,25 @@ class PandaCommunicator(BaseCommunicator):
 
         return ret_val, ret_msg
 
+    # get job statistics
+    def get_job_stats(self):
+        tmp_log = self.make_logger(method_name='get_job_stats')
+        tmp_log.debug('start')
+
+        tmp_stat, tmp_res = self.post_ssl('getJobStatisticsPerSite', {})
+        stats = {}
+        if tmp_stat is False:
+            ret_msg = 'FAILED'
+            core_utils.dump_error_message(tmp_log, tmp_res)
+        else:
+            try:
+                stats = pickle.loads(tmp_res.content)
+                ret_msg = 'OK'
+            except Exception:
+                ret_msg = 'Exception'
+                core_utils.dump_error_message(tmp_log)
+
+        return stats, ret_msg
 
     # update workers
     def update_workers(self, workspec_list):

@@ -131,7 +131,9 @@ class Cacher(AgentBase):
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('panda_server:'):
             try:
-                retVal, outStr = self.communicator.get_resource_types()
+                method_name = info_url.split(':')[-1]
+                method_function = getattr(self.communicator, method_name)
+                retVal, outStr = method_function()
                 if not retVal:
                     tmp_log.error(outStr)
             except Exception:
