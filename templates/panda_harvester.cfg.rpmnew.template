@@ -521,6 +521,7 @@ data =
  agis_ddmendpoints.json||http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1
  proxy_pilot||file://path_to/FIXME_proxy_pilot
  proxy_production||file://path_to/FIXME_proxy_production
+ resource_types.json||panda_server:get_resource_types
  job_statistics.json||panda_server:get_job_stats
 # BNL_key||panda_cache:BNL_ObjectStoreKey.pub&BNL_ObjectStoreKey
 # globus_secret||panda_cache:GlobusClientID_1&GlobusRefreshToken_1
