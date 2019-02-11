@@ -146,9 +146,10 @@ class WorkerAdjuster(object):
                             # limit the queue to the number of activated jobs to avoid empty pilots
                             try:
                                 n_activated = job_stats[queueName]['activated']
+                                queue_limit = maxQueuedWorkers
                                 maxQueuedWorkers = min(n_activated, maxQueuedWorkers)
                                 tmpLog.debug('limiting maxQueuedWorkers to min(n_activated={0}, queue_limit={1})'.
-                                             format(n_activated, maxQueuedWorkers))
+                                             format(n_activated, queue_limit))
                             except KeyError:
                                 maxQueuedWorkers = 1
 
