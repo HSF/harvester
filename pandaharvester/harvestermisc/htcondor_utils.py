@@ -175,7 +175,8 @@ class CondorClient(object):
         """
         If RuntimeError, call renew_session and retry
         """
-        to_retry = False
+        # FIXME: currently hard-coded
+        to_retry = True
         # Wrapper
         def wrapper(self, *args, **kwargs):
             # Make logger

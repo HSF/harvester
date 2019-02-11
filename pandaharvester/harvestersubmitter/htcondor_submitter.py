@@ -254,7 +254,11 @@ def submit_bag_of_workers(data_list):
         tmpLog.debug('submitting to submissionHost={0}'.format(host))
         condor_job_submit = CondorJobSubmit(id=host)
         # submit
-        batchIDs_list, ret_err_str = condor_job_submit.submit(jdl_list, use_spool=use_spool)
+        try:
+            batchIDs_list, ret_err_str = condor_job_submit.submit(jdl_list, use_spool=use_spool)
+        except Exception as e:
+            batchIDs_list = None
+            ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
         # result
         if batchIDs_list:
             # submitted

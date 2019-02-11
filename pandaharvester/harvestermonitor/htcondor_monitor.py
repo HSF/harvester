@@ -216,7 +216,13 @@ class HTCondorMonitor(PluginBase):
                                         cacheRefreshInterval=self.cacheRefreshInterval,
                                         useCondorHistory=self.useCondorHistory,
                                         id=submissionHost)
-            job_ads_all_dict.update(job_query.get_all(batchIDs_list=batchIDs_list))
+            try:
+                host_job_ads_dict = job_query.get_all(batchIDs_list=batchIDs_list)
+            except Exception as e:
+                host_job_ads_dict = {}
+                ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
+                tmpLog.error(ret_err_str)
+            job_ads_all_dict.update(host_job_ads_dict)
         # Check for all workers
         with Pool(self.nProcesses) as _pool:
             retIterator = _pool.map(lambda _x: _check_one_worker(

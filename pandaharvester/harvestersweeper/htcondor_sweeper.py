@@ -93,7 +93,12 @@ class HTCondorSweeper(BaseSweeper):
         # Kill
         for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map(workspec_list)):
             condor_job_manage = CondorJobManage(id=submissionHost)
-            ret_map = condor_job_manage.remove(batchIDs_list)
+            try:
+                ret_map = condor_job_manage.remove(batchIDs_list)
+            except Exception as e:
+                ret_map = {}
+                ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
+                tmpLog.error(ret_err_str)
             all_job_ret_map.update(ret_map)
         # Fill return list
         for workspec in workspec_list:
@@ -101,7 +106,7 @@ class HTCondorSweeper(BaseSweeper):
                 ret = (True, 'worker withoug batchID; skipped')
             else:
                 ret = all_job_ret_map.get(condor_job_id_from_workspec(workspec),
-                                        (False, 'batch job unfound in return map!'))
+                                        (False, 'batch job unfound in return map'))
             retList.append(ret)
         tmpLog.debug('done')
         # Return
