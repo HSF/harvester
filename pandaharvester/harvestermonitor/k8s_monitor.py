@@ -96,6 +96,7 @@ class K8sMonitor(PluginBase):
                 tmpLog.info('Force to cancel the worker due to JOB not found')
                 newStatus = WorkSpec.ST_cancelled
             else:
+                tmpLog.debug('pods_status_list={0}'.format(pods_status_list))
                 newStatus = self.check_pods_status(pods_status_list)
                 tmpLog.debug('new_status={0}'.format(newStatus))
             # delete queuing too long pods
