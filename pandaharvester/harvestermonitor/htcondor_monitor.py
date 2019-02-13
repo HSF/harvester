@@ -8,8 +8,8 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermisc.htcondor_utils import condor_job_id_from_workspec, get_host_batchid_map, _runShell
-from pandaharvester.harvestermisc.htcondor_utils import CondorJobQuery
+from pandaharvester.harvestermisc.htcondor_utils import condor_job_id_from_workspec, get_host_batchid_map
+from pandaharvester.harvestermisc.htcondor_utils import CondorJobQuery, CondorJobManage
 
 
 # logger
@@ -35,17 +35,6 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
     # Initialize newStatus
     newStatus = workspec.status
     errStr = ''
-    name_opt, pool_opt = '', ''
-    if workspec.submissionHost is None or workspec.submissionHost == 'LOCAL':
-        pass
-    else:
-        try:
-            condor_schedd, condor_pool = workspec.submissionHost.split(',')[0:2]
-        except ValueError:
-            pass
-        else:
-            name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
-            pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
     try:
         job_ads_dict = job_ads_all_dict[condor_job_id_from_workspec(workspec)]
     except KeyError:
@@ -105,17 +94,21 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     or int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > held_timeout
                     ):
                     # Kill the job if held too long or other reasons
-                    (retCode, stdOut, stdErr) = _runShell('condor_rm {name_opt} {pool_opt} {batchID}'.format(
-                                                                                    batchID=workspec.batchID,
-                                                                                    name_opt=name_opt,
-                                                                                    pool_opt=pool_opt,
-                                                                                    ))
-                    if retCode == 0:
-                        tmpLog.info('killed held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
+                    condor_job_manage = CondorJobManage(id=workspec.submissionHost)
+                    try:
+                        ret_map = condor_job_manage.remove([workspec.batchID])
+                    except Exception as e:
+                        ret_map = {}
+                        ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
+                        tmpLog.error(ret_err_str)
                     else:
-                        newStatus = WorkSpec.ST_cancelled
-                        tmpLog.error('cannot kill held job submissionHost={0} batchID={1}. Force worker to be in cancelled status'.format(workspec.submissionHost, workspec.batchID))
-                    errStr += 'Worker canceled by harvester '
+                        ret = ret_map.get(condor_job_id_from_workspec(workspec))
+                        if ret and ret[0]:
+                            tmpLog.info('killed held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
+                        else:
+                            tmpLog.error('cannot kill held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
+                    newStatus = WorkSpec.ST_cancelled
+                    errStr += ' ; Worker canceled by harvester due to held too long'
                     # Mark the PanDA job as closed instead of failed
                     workspec.set_pilot_closed()
                     tmpLog.debug('Called workspec set_pilot_closed')
