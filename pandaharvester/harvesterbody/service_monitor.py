@@ -114,7 +114,13 @@ class ServiceMonitor(AgentBase):
             if re.search(volume_name, line):
                 used_amount = re.search(r"(\d+)\%", line).group(1)
 
-        return used_amount
+        try:
+            used_amount_float = float(used_amount)
+        except ValueError:
+            used_amount_float = None
+            _logger.error('Could not convert used amount {0} to float for volume {1}'.format(used_amount, volume_name))
+
+        return used_amount_float
 
     # main loop
     def run(self):
