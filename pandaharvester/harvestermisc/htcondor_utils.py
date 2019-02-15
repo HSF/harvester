@@ -22,7 +22,7 @@ import six
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.core_utils import SingletonWithID
+from pandaharvester.harvestercore.core_utils import SingletonWithID, SingletonWithThreadAndID
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.fifos import SpecialFIFOBase
 
@@ -286,7 +286,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
     def __init__(self, cacheEnable=False, cacheRefreshInterval=None, useCondorHistory=True, *args, **kwargs):
         self.submissionHost = str(kwargs.get('id'))
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.__init__')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0} thrid={1} oid={2}'.format(self.submissionHost, get_ident(), id(self)), method_name='CondorJobQuery.__init__')
         # Initialize
         with self.classLock:
             tmpLog.debug('Start')
@@ -554,19 +554,19 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
 
 
 # Condor job submit
-class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
+class CondorJobSubmit(six.with_metaclass(SingletonWithThreadAndID, CondorClient)):
     # class lock
     classLock = threading.Lock()
 
     def __init__(self, *args, **kwargs):
         self.submissionHost = str(kwargs.get('id'))
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobSubmit.__init__')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0} thrid={1} oid={2}'.format(self.submissionHost, get_ident(), id(self)), method_name='CondorJobSubmit.__init__')
         # Initialize
-        with self.classLock:
-            tmpLog.debug('Start')
-            self.lock = threading.Lock()
-            CondorClient.__init__(self, self.submissionHost, *args, **kwargs)
+        tmpLog.debug('Start')
+        self.lock = threading.Lock()
+        CondorClient.__init__(self, self.submissionHost, *args, **kwargs)
+        tmpLog.debug('Initialize done')
 
     def submit(self, jdl_list, use_spool=False):
         # Make logger
@@ -697,19 +697,19 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
 
 
 # Condor job remove
-class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
+class CondorJobManage(six.with_metaclass(SingletonWithThreadAndID, CondorClient)):
     # class lock
     classLock = threading.Lock()
 
     def __init__(self, *args, **kwargs):
         self.submissionHost = str(kwargs.get('id'))
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.__init__')
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0} thrid={1} oid={2}'.format(self.submissionHost, get_ident(), id(self)), method_name='CondorJobManage.__init__')
         # Initialize
-        with self.classLock:
-            tmpLog.debug('Start')
-            self.lock = threading.Lock()
-            CondorClient.__init__(self, self.submissionHost, *args, **kwargs)
+        tmpLog.debug('Start')
+        self.lock = threading.Lock()
+        CondorClient.__init__(self, self.submissionHost, *args, **kwargs)
+        tmpLog.debug('Initialize done')
 
     def remove(self, batchIDs_list=[]):
         # Make logger
