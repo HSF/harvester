@@ -270,11 +270,16 @@ class Apfmon(object):
                 apfmon_workers = []
                 for worker_spec in worker_spec_shard:
                     batch_id = worker_spec.batchID
+                    worker_id = worker_spec.workerID
+                    if not batch_id:
+                        tmp_log.debug('no batchID found for workerID {0}... skipping'.format(worker_id))
+                        continue
                     factory = self.harvester_id
                     computingsite = worker_spec.computingSite
                     try:
                         ce = clean_ce(worker_spec.computingElement)
                     except AttributeError:
+                        tmp_log.debug('no CE found for workerID {0} batchID {1}'.format(worker_id, batch_id))
                         ce = ''
 
                     # extract the log URLs
