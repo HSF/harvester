@@ -6,6 +6,8 @@ import time
 import datetime
 import threading
 import random
+import multiprocessing
+import tempfile
 import xml.etree.ElementTree as ET
 
 try:
@@ -134,6 +136,51 @@ def get_job_id_tuple_from_batchid(batchid):
 #         if match:
 #             ret_map[match(1)] = match(2)
 #     return ret_map
+
+
+def condor_submit_process(mp_queue, host, jdl_map_list):
+    """
+    Function for new process to submit condor
+    """
+    # initialization
+    errStr = ''
+    batchIDs_list = []
+    # parse schedd and pool name
+    condor_schedd, condor_pool = None, None
+    if host in ('LOCAL', 'None'):
+        tmpLog.debug('submissionHost is {0}, treated as local schedd. Skipped'.format(host))
+    else:
+        try:
+            condor_schedd, condor_pool = host.split(',')[0:2]
+        except ValueError:
+            tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(host))
+    # get schedd
+    try:
+        if condor_pool:
+            collector = htcondor.Collector(condor_pool)
+        else:
+            collector = htcondor.Collector()
+        if condor_schedd:
+            scheddAd = collector.locate(htcondor.DaemonTypes.Schedd, condor_schedd)
+        else:
+            scheddAd = collector.locate(htcondor.DaemonTypes.Schedd)
+        schedd = htcondor.Schedd(scheddAd)
+    except Exception as e:
+        errStr = 'create condor collector and schedd failed; {0}: {1}'.format(e.__class__.__name__, e)
+    else:
+        submit_obj = htcondor.Submit()
+        try:
+            with schedd.transaction() as txn:
+                # TODO: Currently spool is not supported in htcondor.Submit ...
+                submit_result = submit_obj.queue_with_itemdata(txn, 1, iter(jdl_map_list))
+                clusterid = submit_result.cluster()
+                first_proc = submit_result.first_proc()
+                num_proc = submit_result.num_procs()
+                batchIDs_list.extend(['{0}.{1}'.format(clusterid, procid)
+                                        for procid in range(first_proc, first_proc + num_proc)])
+        except RuntimeError as e:
+            errStr = 'submission failed; {0}: {1}'.format(e.__class__.__name__, e)
+    mp_queue.put((batchIDs_list, errStr))
 
 #===============================================================
 
@@ -576,7 +623,12 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithThreadAndID, CondorClient)
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                retVal = self.submit_with_python(jdl_list, use_spool)
+                # TODO: submit_with_python will meet segfault or c++ error after many times of submission; need help from condor team
+                # TODO: submit_with_python_proces has no such error but spawns some processes that will not terminate after harvester stops
+                # TODO: Fall back to submit_with_command for now
+                # retVal = self.submit_with_python(jdl_list, use_spool)
+                # retVal = self.submit_with_python_proces(jdl_list, use_spool)
+                retVal = self.submit_with_command(jdl_list, use_spool)
             except Exception as e:
                 tmpLog.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
                 raise
@@ -584,81 +636,60 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithThreadAndID, CondorClient)
             retVal = self.submit_with_command(jdl_list, use_spool)
         return retVal
 
-    def submit_with_command(self, jdl_list, use_spool=False):
+    def submit_with_command(self, jdl_list, use_spool=False, tmp_str='', keep_temp_sdf=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobSubmit.submit_with_command')
-        # TODO: copied from htcondor_submitter; to sort out
-        # # make condor remote options
-        # name_opt = '-name {0}'.format(condor_schedd) if condor_schedd else ''
-        # pool_opt = '-pool {0}'.format(condor_pool) if condor_pool else ''
-        # spool_opt = '-remote -spool'.format(use_spool) if use_spool and condor_schedd else ''
-        # # command
-        # comStr = 'condor_submit {spool_opt} {name_opt} {pool_opt} {sdf_file}'.format(sdf_file=batchFile,
-        #                                                                     name_opt=name_opt,
-        #                                                                     pool_opt=pool_opt,
-        #                                                                     spool_opt=spool_opt)
-        # # submit
-        # tmpLog.debug('submit with command: {0}'.format(comStr))
-        # try:
-        #     p = subprocess.Popen(comStr.split(),
-        #                          shell=False,
-        #                          universal_newlines=True,
-        #                          stdout=subprocess.PIPE,
-        #                          stderr=subprocess.PIPE)
-        #     # check return code
-        #     stdOut, stdErr = p.communicate()
-        #     retCode = p.returncode
-        # except Exception:
-        #     stdOut = ''
-        #     stdErr = core_utils.dump_error_message(tmpLog, no_message=True)
-        #     retCode = 1
-        # tmpLog.debug('retCode={0}'.format(retCode))
-        # if retCode == 0:
-        #     # extract batchID
-        #     job_id_match = None
-        #     for tmp_line_str in stdOut.split('\n'):
-        #         job_id_match = re.search('^(\d+) job[(]s[)] submitted to cluster (\d+)\.$', tmp_line_str)
-        #         if job_id_match:
-        #             break
-        #     if job_id_match is not None:
-        #         workspec.batchID = job_id_match.group(2)
-        #         # set submissionHost
-        #         if not condor_schedd and not condor_pool:
-        #             workspec.submissionHost = 'LOCAL'
-        #         else:
-        #             workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
-        #
-        #         tmpLog.debug('submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
-        #         # set computingElement
-        #         workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
-        #         # set log
-        #         batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
-        #         batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
-        #         batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=workspec.batchID)
-        #         workspec.set_log_file('batch_log', batch_log)
-        #         workspec.set_log_file('stdout', batch_stdout)
-        #         workspec.set_log_file('stderr', batch_stderr)
-        #         if not workspec.get_jobspec_list():
-        #             tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
-        #         else:
-        #             for jobSpec in workspec.get_jobspec_list():
-        #                 # using batchLog and stdOut URL as pilotID and pilotLog
-        #                 jobSpec.set_one_attribute('pilotID', workspec.workAttributes['stdOut'])
-        #                 jobSpec.set_one_attribute('pilotLog', workspec.workAttributes['batchLog'])
-        #         tmpLog.debug('Done set_log_file after submission')
-        #         tmpRetVal = (True, '')
-        #
-        #     else:
-        #         errStr = 'batchID cannot be found'
-        #         tmpLog.error(errStr)
-        #         tmpRetVal = (None, errStr)
-        # else:
-        #     # failed
-        #     errStr = '{0} \n {1}'.format(stdOut, stdErr)
-        #     tmpLog.error(errStr)
-        #     tmpRetVal = (None, errStr)
-        # return tmpRetVal, workspec.get_changed_attributes()
-        raise NotImplementedError
+        # Initialize
+        errStr = ''
+        batchIDs_list = []
+        # make sdf temp file from jdls
+        tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=(not keep_temp_sdf),
+                                    suffix='_{0}_cluster_submit.sdf'.format(tmp_str))
+        sdf_file = tmpFile.name
+        tmpFile.write('\n\n'.join(jdl_list))
+        tmpFile.flush()
+        # make condor remote options
+        name_opt = '-name {0}'.format(self.condor_schedd) if self.condor_schedd else ''
+        pool_opt = '-pool {0}'.format(self.condor_pool) if self.condor_pool else ''
+        spool_opt = '-remote -spool' if use_spool and self.condor_schedd else ''
+        # command
+        comStr = 'condor_submit -single-cluster {spool_opt} {name_opt} {pool_opt} {sdf_file}'.format(
+                    sdf_file=sdf_file, name_opt=name_opt, pool_opt=pool_opt, spool_opt=spool_opt)
+        # submit
+        tmpLog.debug('submit with command: {0}'.format(comStr))
+        try:
+            p = subprocess.Popen(comStr.split(), shell=False, universal_newlines=True,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # check return code
+            stdOut, stdErr = p.communicate()
+            retCode = p.returncode
+        except Exception as e:
+            stdOut = ''
+            stdErr = core_utils.dump_error_message(tmpLog, no_message=True)
+            retCode = 1
+            errStr = '{0}: {1}'.format(e.__class__.__name__, e)
+        finally:
+            tmpFile.close()
+        tmpLog.debug('retCode={0}'.format(retCode))
+        if retCode == 0:
+            # extract clusterid and n_jobs
+            job_id_match = None
+            for tmp_line_str in stdOut.split('\n'):
+                job_id_match = re.search('^(\d+) job[(]s[)] submitted to cluster (\d+)\.$', tmp_line_str)
+                if job_id_match:
+                    break
+            if job_id_match is not None:
+                n_jobs = int(job_id_match.group(1))
+                clusterid = job_id_match.group(2)
+                batchIDs_list = ['{0}.{1}'.format(clusterid, procid) for procid in range(n_jobs)]
+                tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
+            else:
+                errStr = 'no job submitted: {0}'.format(errStr)
+                tmpLog.error(errStr)
+        else:
+            tmpLog.error('submission failed: {0} ; {1}'.format(stdErr, errStr))
+        # Return
+        return (batchIDs_list, errStr)
 
     @CondorClient.renew_session_and_retry
     def submit_with_python(self, jdl_list, use_spool=False):
@@ -686,6 +717,31 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithThreadAndID, CondorClient)
             errStr = '{0}: {1}'.format(e.__class__.__name__, e)
             tmpLog.error('submission failed: {0}'.format(errStr))
             raise
+        if batchIDs_list:
+            n_jobs = len(batchIDs_list)
+            tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
+        elif not errStr:
+            tmpLog.error('submitted nothing')
+        tmpLog.debug('Done')
+        # Return
+        return (batchIDs_list, errStr)
+
+    def submit_with_python_process(self, jdl_list, use_spool=False):
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobSubmit.submit_with_python_process')
+        # Start
+        tmpLog.debug('Start')
+        # Make list of jdl map with dummy submit objects
+        jdl_map_list = [ dict(htcondor.Submit(jdl).items()) for jdl in jdl_list ]
+        # Go
+        mp_queue = multiprocessing.Queue()
+        mp_process = multiprocessing.Process(target=condor_submit_process, args=(mp_queue, self.submissionHost, jdl_map_list))
+        mp_process.daemon = True
+        mp_process.start()
+        (batchIDs_list, errStr) = mp_queue.get()
+        mp_queue.close()
+        mp_process.terminate()
+        mp_process.join()
         if batchIDs_list:
             n_jobs = len(batchIDs_list)
             tmpLog.debug('submitted {0} jobs: {1}'.format(n_jobs, ' '.join(batchIDs_list)))
