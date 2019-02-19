@@ -1,0 +1,34 @@
+executable = {executableFile}
+arguments = -s {computingSite} -h {pandaQueueName} -u {prodSourceLabel} -f false -C 0 -p 25443 -w https://pandaserver.cern.ch
+initialdir = {accessPoint}
+universe = grid
+log = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).log
+output = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).out
+error = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).err
+transfer_executable = True
+x509userproxy = {x509UserProxy}
+environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} GTAG={gtag}"
++harvesterID = "{harvesterID}"
+transfer_input_files = pandaJobData.out
+
+grid_resource = condor {ceHostname} {ceEndpoint}
++remote_jobuniverse = 5
++remote_ShouldTransferFiles = "YES"
++remote_WhenToTransferOutput = "ON_EXIT_OR_EVICT"
++remote_TransferOutput = ""
+#+remote_RequestCpus = {nCoreTotal}
+#+remote_RequestMemory = {requestRam}
+#+remote_RequestDisk = {requestDisk}
+#+remote_JobMaxVacateTime = {requestWalltime}
++ioIntensity = {ioIntensity}
+
++xcount = {nCoreTotal}
++maxMemory = {requestRam}
++maxWallTime = {requestWalltimeMinute}
+
+#+remote_Requirements = JobRunCount == 0
+periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)
+
++sdfPath = "{sdfPath}"
+
+queue 1
