@@ -94,21 +94,23 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     or int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > held_timeout
                     ):
                     # Kill the job if held too long or other reasons
-                    condor_job_manage = CondorJobManage(id=workspec.submissionHost)
-                    try:
-                        ret_map = condor_job_manage.remove([workspec.batchID])
-                    except Exception as e:
-                        ret_map = {}
-                        ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
-                        tmpLog.error(ret_err_str)
-                    else:
-                        ret = ret_map.get(condor_job_id_from_workspec(workspec))
-                        if ret and ret[0]:
-                            tmpLog.info('killed held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
+                    tmpLog.debug('trying to kill job submissionHost={0} batchID={1} due to held too long or not found'.format(workspec.submissionHost, workspec.batchID))
+                    for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map([workspec])):
+                        condor_job_manage = CondorJobManage(id=workspec.submissionHost)
+                        try:
+                            ret_map = condor_job_manage.remove(batchIDs_list)
+                        except Exception as e:
+                            ret_map = {}
+                            ret_err_str = 'failed to kill job. Exception {0}: {1}'.format(e.__class__.__name__, e)
+                            tmpLog.error(ret_err_str)
                         else:
-                            tmpLog.error('cannot kill held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
+                            ret = ret_map.get(condor_job_id_from_workspec(workspec))
+                            if ret and ret[0]:
+                                tmpLog.info('killed held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
+                            else:
+                                tmpLog.error('cannot kill held job submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID))
                     newStatus = WorkSpec.ST_cancelled
-                    errStr += ' ; Worker canceled by harvester due to held too long'
+                    errStr += ' ; Worker canceled by harvester due to held too long or not found'
                     # Mark the PanDA job as closed instead of failed
                     workspec.set_pilot_closed()
                     tmpLog.debug('Called workspec set_pilot_closed')
