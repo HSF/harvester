@@ -265,7 +265,6 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             # load config json from cacher (RT & RQ)
             queueConfigJson_cacher = self._load_config_from_cache()
             if queueConfigJson_cacher is not None:
-                # queueConfigJson.update(queueConfigJson_cacher)
                 for queueName, queueDict in iteritems(queueConfigJson_cacher):
                     if queueDict.get('isTemplateQueue') is True \
                         or queueName.endswith('_TEMPLATE'):
@@ -364,7 +363,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 # prepare queueDict
                 queueDict = dict()
                 if templateQueueName in finalTemplatesDict:
-                    queueDict.update(finalTemplatesDict[templateQueueName])
+                    queueDict.update(copy.deepcopy(finalTemplatesDict[templateQueueName]))
                 for acr, templatesDict in [('RT', remoteTemplatesDict), ('LT', localTemplatesDict)]:
                     if templateQueueName in templatesDict:
                         templateSourceList.append(acr)
@@ -376,6 +375,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     queueSourceList.append(acr)
                     tmp_queueDict = queuesDict[queueName]
                     for key, val in iteritems(tmp_queueDict):
+                        val = copy.deepcopy(val)
                         if key in self.updatable_plugin_attrs \
                             and isinstance(queueDict.get(key), dict) \
                             and isinstance(val, dict):
@@ -413,7 +413,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 for key, val in iteritems(queueDict):
                     if isinstance(val, dict) and 'module' in val and 'name' in val:
                         # plugin attributes
-                        val = copy.copy(val)
+                        val = copy.deepcopy(val)
                         # fill in common attributes for all plugins
                         for c_key, c_val in iteritems(commonAttrDict):
                             if c_key not in val and c_key not in ('module', 'name'):
