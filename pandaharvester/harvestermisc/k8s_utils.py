@@ -33,7 +33,7 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, work_spec, cert, cpuadjustratio, memoryadjustratio):
+    def create_job_from_yaml(self, yaml_content, work_spec, cert, cert_in_secret=True, cpuadjustratio=100, memoryadjustratio=100):
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
 
@@ -70,7 +70,8 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
             {'name': 'resourceType', 'value': work_spec.resourceType},
-            {'name': 'proxyContent', 'value': self.set_proxy(cert)},
+            {'name': 'proxySecretPath', 'value': cert if cert_in_secret else None},
+            {'name': 'proxyContent', 'value': None if cert_in_secret else self.set_proxy(cert)},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
