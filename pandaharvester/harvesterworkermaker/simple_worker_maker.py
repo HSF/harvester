@@ -101,6 +101,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # parameters that are independent on traditional vs unified
         workSpec.maxWalltime = queue_dict.get('maxtime', 1)
         workSpec.maxDiskCount = queue_dict.get('maxwdir', 1)
+        walltimeLimit_default = getattr(queue_config, 'walltimeLimit', 0)
 
         if len(jobspec_list) > 0:
             # get info from jobs
@@ -121,16 +122,11 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     ioIntensity += jobSpec.jobParams['ioIntensity']
                 except Exception:
                     pass
-                try:
-                    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
-                        if hasattr(queue_config, 'walltimeLimit'):
-                            maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams['maxWalltime'])
-                        else:
-                            maxWalltime = jobSpec.jobParams['maxWalltime']
-                    else:
-                        maxWalltime = queue_config.walltimeLimit
-                except Exception:
-                    pass
+            try:
+                # maxWallTime from AGIS or qconf, not trusting job currently
+                maxWalltime = queue_dict.get('maxtime', walltimeLimit_default)
+            except Exception:
+                pass
             if (nCore > 0 and 'nCore' in self.jobAttributesToUse) \
                or unified_queue:
                 workSpec.nCore = nCore
