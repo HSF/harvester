@@ -32,7 +32,8 @@ class K8sSubmitter(PluginBase):
         try:
             self.x509UserProxy
         except AttributeError:
-            self.x509UserProxy = os.getenv('X509_USER_PROXY')
+            if os.getenv('X509_USER_PROXY'):
+                self.x509UserProxy = os.getenv('X509_USER_PROXY')
 
         # CPU adjust ratio
         try:
@@ -53,7 +54,13 @@ class K8sSubmitter(PluginBase):
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
 
         try:
-            rsp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy, self.cpuAdjustRatio, self.memoryAdjustRatio)
+            if hasattr(self, 'proxySecretPath'):
+                rsp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.proxySecretPath, True, self.cpuAdjustRatio, self.memoryAdjustRatio)
+            elif hasattr(self, 'x509UserProxy'):
+                rsp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy, False, self.cpuAdjustRatio, self.memoryAdjustRatio)
+            else:
+                errStr = 'No proxy specified in proxySecretPath or x509UserProxy; not submitted'
+                tmpRetVal = (False, errStr)
         except Exception as _e:
             errStr = 'Failed to create a JOB; {0}'.format(_e)
             tmpRetVal = (False, errStr)
