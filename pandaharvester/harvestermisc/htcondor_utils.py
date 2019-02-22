@@ -121,6 +121,8 @@ def get_job_id_tuple_from_batchid(batchid):
     batchid_str_list = str(batchid).split('.')
     clusterid = batchid_str_list[0]
     procid = batchid_str_list[1]
+    if not procid:
+        procid = 0
     return (clusterid, procid)
 
 

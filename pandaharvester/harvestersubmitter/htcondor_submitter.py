@@ -14,6 +14,7 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.htcondor_utils import get_job_id_tuple_from_batchid
 from pandaharvester.harvestermisc.htcondor_utils import CondorJobSubmit
 
 
@@ -165,7 +166,7 @@ def _condor_macro_replace(string, **kwarg):
     new_string = string
     macro_map = {
                 '\$\(Cluster\)': str(kwarg['ClusterId']),
-                '\$\(Process\)': '0',
+                '\$\(Process\)': str(kwarg['ProcId']),
                 }
     for k, v in macro_map.items():
         new_string = re.sub(k, v, new_string)
@@ -206,11 +207,13 @@ def submit_bag_of_workers(data_list):
     workerIDs_list = [ data['workspec'].workerID for data in data_list ]
     # initialization
     worker_retval_map = {}
+    worker_data_map = {}
     host_jdl_list_workerid_map = {}
     # go
     for data in data_list:
         workspec = data['workspec']
         workerID = workspec.workerID
+        worker_data_map[workerID] = data
         to_submit = data['to_submit']
         # no need to submit bad worker
         if not to_submit:
@@ -223,8 +226,6 @@ def submit_bag_of_workers(data_list):
         try:
             ce_info_dict = data['ce_info_dict']
             batch_log_dict = data['batch_log_dict']
-            condor_schedd = data['condor_schedd']
-            condor_pool = data['condor_pool']
             use_spool = data['use_spool']
         except KeyError:
             errStr = '{0} not submitted due to incomplete data of the worker'.format(workerID)
@@ -234,11 +235,6 @@ def submit_bag_of_workers(data_list):
             worker_retval_map[workerID] = (tmpRetVal, workspec.get_changed_attributes())
         else:
             workspec.reset_changed_list()
-            # set submissionHost
-            if not condor_schedd and not condor_pool:
-                workspec.submissionHost = 'LOCAL'
-            else:
-                workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
             # fill in host_jdl_list_workerid_map
             a_jdl = make_a_jdl(**data)
             val = (workspec, a_jdl)
@@ -272,11 +268,15 @@ def submit_bag_of_workers(data_list):
                 tmpLog.debug('workerID={0} submissionHost={1} batchID={2}'.format(
                                 workspec.workerID, workspec.submissionHost, workspec.batchID))
                 # set computingElement
+                data = worker_data_map[workspec.workerID]
+                ce_info_dict = data['ce_info_dict']
+                batch_log_dict = data['batch_log_dict']
                 workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
                 # set log
-                batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=workspec.batchID)
-                batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=workspec.batchID)
-                batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=workspec.batchID)
+                (clusterid, procid) = get_job_id_tuple_from_batchid(workspec.batchID)
+                batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid)
+                batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid)
+                batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid)
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
                 workspec.set_log_file('stderr', batch_stderr)
@@ -658,6 +658,12 @@ class HTCondorSubmitter(PluginBase):
                     else:
                         condor_schedd = self.condorSchedd
                         condor_pool = self.condorPool
+                    # set submissionHost
+                    if not condor_schedd and not condor_pool:
+                        workspec.submissionHost = 'LOCAL'
+                    else:
+                        workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
+                    tmpLog.debug('set submissionHost={0}'.format(workspec.submissionHost))
                     # Log Base URL
                     if self.logBaseURL and '[ScheddHostname]' in self.logBaseURL:
                         schedd_hostname = re.sub(r'(?:[a-zA-Z0-9_.\-]*@)?([a-zA-Z0-9.\-]+)(?::[0-9]+)?',
@@ -666,6 +672,7 @@ class HTCondorSubmitter(PluginBase):
                         log_base_url = re.sub(r'\[ScheddHostname\]', schedd_hostname, self.logBaseURL)
                     else:
                         log_base_url = self.logBaseURL
+                    tmpLog.debug('set log base url = {0}'.format(log_base_url))
                     # URLs for log files
                     if not (log_base_url is None):
                         if workspec.batchID:
