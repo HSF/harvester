@@ -136,13 +136,15 @@ class WorkerAdjuster(object):
                         if nQueueLimitPerRT > 0:  # there is a limit set for the queue
                             maxQueuedWorkers = nQueueLimitPerRT
 
+                        # Reset the maxQueueWorkers according to particular
                         if nNewWorkersDef is not None:  # don't surpass limits given centrally
                             maxQueuedWorkers_slave = nNewWorkersDef + nQueue
                             if maxQueuedWorkers is not None:
                                 maxQueuedWorkers = min(maxQueuedWorkers_slave, maxQueuedWorkers)
                             else:
                                 maxQueuedWorkers = maxQueuedWorkers_slave
-                        else:
+
+                        elif queueConfig.mapType == 'NoJob': # for pull mode, limit to activated jobs
                             # limit the queue to the number of activated jobs to avoid empty pilots
                             try:
                                 n_activated = max(job_stats[queueName]['activated'], 1) # avoid no activity queues
