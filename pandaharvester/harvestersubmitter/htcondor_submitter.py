@@ -267,12 +267,13 @@ def submit_bag_of_workers(data_list):
                 workspec.batchID = batchIDs_list[val_i]
                 tmpLog.debug('workerID={0} submissionHost={1} batchID={2}'.format(
                                 workspec.workerID, workspec.submissionHost, workspec.batchID))
-                # set computingElement
+                # get worker data
                 data = worker_data_map[workspec.workerID]
+                # set computingElement
                 ce_info_dict = data['ce_info_dict']
-                batch_log_dict = data['batch_log_dict']
                 workspec.computingElement = ce_info_dict.get('ce_endpoint', '')
                 # set log
+                batch_log_dict = data['batch_log_dict']
                 (clusterid, procid) = get_job_id_tuple_from_batchid(workspec.batchID)
                 batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid)
                 batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid)
@@ -462,10 +463,16 @@ class HTCondorSubmitter(PluginBase):
             self.condorPool
         except AttributeError:
             self.condorPool = None
+        # condor spool mechanism. If False, need shared FS across remote schedd
         try:
             self.useSpool
         except AttributeError:
             self.useSpool = False
+        # number of workers less than this number will be bulkily submitted in only one schedd
+        try:
+            self.minBulkToRamdomizedSchedd
+        except AttributeError:
+            self.minBulkToRamdomizedSchedd = 20
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
@@ -530,6 +537,20 @@ class HTCondorSubmitter(PluginBase):
             n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
         except AttributeError:
             n_core_per_node = n_core_per_node_from_queue
+
+        # deal with Condor schedd and central managers; make a random list the choose
+        n_bulks = _div_round_up(nWorkers, self.minBulkToRamdomizedSchedd)
+        if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
+            if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
+                orig_list = list(zip(self.condorSchedd, self.condorPool))
+            else:
+                orig_list = [ (_schedd, self.condorPool) for _schedd in self.condorSchedd ]
+            if n_bulks < len(orig_list):
+                schedd_pool_choice_list = random.sample(orig_list, n_bulks)
+            else:
+                schedd_pool_choice_list = orig_list
+        else:
+            schedd_pool_choice_list = [(self.condorSchedd, self.condorPool)]
 
         # deal with CE
         special_par = ''
@@ -649,15 +670,7 @@ class HTCondorSubmitter(PluginBase):
                             continue
                     sdf_template = '\n'.join(sdf_template_str_list)
                     # Choose from Condor schedd and central managers
-                    if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
-                        if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
-                            condor_schedd, condor_pool = random.choice(list(zip(self.condorSchedd, self.condorPool)))
-                        else:
-                            condor_schedd = random.choice(self.condorSchedd)
-                            condor_pool = self.condorPool
-                    else:
-                        condor_schedd = self.condorSchedd
-                        condor_pool = self.condorPool
+                    condor_schedd, condor_pool = random.choice(schedd_pool_choice_list)
                     # set submissionHost
                     if not condor_schedd and not condor_pool:
                         workspec.submissionHost = 'LOCAL'
@@ -672,7 +685,6 @@ class HTCondorSubmitter(PluginBase):
                         log_base_url = re.sub(r'\[ScheddHostname\]', schedd_hostname, self.logBaseURL)
                     else:
                         log_base_url = self.logBaseURL
-                    tmpLog.debug('set log base url = {0}'.format(log_base_url))
                     # URLs for log files
                     if not (log_base_url is None):
                         if workspec.batchID:
