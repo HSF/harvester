@@ -8,6 +8,7 @@ import threading
 import random
 import multiprocessing
 import tempfile
+import functools
 import xml.etree.ElementTree as ET
 
 try:
@@ -24,7 +25,7 @@ import six
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.core_utils import SingletonWithID, SingletonWithThreadAndID
+from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.fifos import SpecialFIFOBase
 
@@ -44,7 +45,8 @@ else:
 baseLogger = core_utils.setup_logger('htcondor_utils')
 
 
-
+# module level lock
+moduleLock = threading.Lock()
 
 
 # List of job ads required
@@ -61,6 +63,17 @@ harvesterID = harvester_config.master.harvester_id
 #===============================================================
 
 #=== Functions =================================================
+
+def synchronize(func):
+    """
+    synchronize decorator
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with moduleLock:
+            return func(*args, **kwargs)
+    return wrapper
+
 
 def _runShell(cmd):
     """
@@ -273,18 +286,20 @@ class CondorClient(object):
         if self.condor_api == 'python':
             try:
                 self.secman = htcondor.SecMan()
-                self.renew_session()
+                self.renew_session(init=True)
             except Exception as e:
                 tmpLog.error('Error when using htcondor Python API. Exception {0}: {1}'.format(e.__class__.__name__, e))
                 raise
         tmpLog.debug('Initialized client')
 
-    def renew_session(self, retry=3):
+    @synchronize
+    def renew_session(self, retry=3, init=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorClient.renew_session')
-        # Clear security session
-        tmpLog.info('Renew condor session')
-        self.secman.invalidateAllSessions()
+        # Clear security session if not initialization
+        if not init:
+            tmpLog.info('Renew condor session')
+            self.secman.invalidateAllSessions()
         # Recreate collector and schedd object
         i_try = 1
         while i_try <= retry:
@@ -603,7 +618,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
 
 
 # Condor job submit
-class CondorJobSubmit(six.with_metaclass(SingletonWithThreadAndID, CondorClient)):
+class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
     # class lock
     classLock = threading.Lock()
 
@@ -755,7 +770,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithThreadAndID, CondorClient)
 
 
 # Condor job remove
-class CondorJobManage(six.with_metaclass(SingletonWithThreadAndID, CondorClient)):
+class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
     # class lock
     classLock = threading.Lock()
 
@@ -843,43 +858,46 @@ class CondorJobManage(six.with_metaclass(SingletonWithThreadAndID, CondorClient)
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobManage.remove_with_python')
         # Start
         tmpLog.debug('Start')
-        # Initialize
-        ret_list = []
-        retMap = {}
-        # Go
-        n_jobs = len(batchIDs_list)
-        act_ret = self.schedd.act(htcondor.JobAction.Remove, batchIDs_list)
-        # Check if all jobs clear (off from schedd queue)
-        is_all_clear = (n_jobs == act_ret['TotalAlreadyDone'] + act_ret['TotalNotFound'] + act_ret['TotalSuccess'])
-        if act_ret and is_all_clear:
-            tmpLog.debug('removed {0} jobs: {1}'.format(n_jobs, ','.join(batchIDs_list)))
-            for batchid in batchIDs_list:
-                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
-                retMap[condor_job_id] = (True, '')
-        else:
-            tmpLog.error('job removal failed; batchIDs_list={0}, got: {1}'.format(batchIDs_list, act_ret))
-            # need to query queue for unterminated jobs not removed yet
-            clusterids_set = set([ get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list ])
-            clusterids_str = ','.join(list(clusterids_set))
-            requirements = 'member(ClusterID, {{{0}}}) && JobStatus =!= 3 && JobStatus =!= 4'.format(clusterids_str)
-            jobs_iter = self.schedd.xquery(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
-            all_batchid_map = {}
-            ok_batchid_list = []
-            ng_batchid_list = []
-            for job in jobs_iter:
-                job_ads_dict = dict(job)
-                batchid = get_batchid_from_job(job_ads_dict)
-                all_batchid_map[batchid] = job_ads_dict
-            for batchid in batchIDs_list:
-                condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
-                if batchid in all_batchid_map:
-                    ng_batchid_list.append(batchid)
-                    retMap[condor_job_id] = (False, 'batchID={0} still unterminated in condor queue'.format(batchid))
-                else:
-                    ok_batchid_list.append(batchid)
+        # Acquire class lock
+        with self.classLock:
+            tmpLog.debug('Got class lock')
+            # Initialize
+            ret_list = []
+            retMap = {}
+            # Go
+            n_jobs = len(batchIDs_list)
+            act_ret = self.schedd.act(htcondor.JobAction.Remove, batchIDs_list)
+            # Check if all jobs clear (off from schedd queue)
+            is_all_clear = (n_jobs == act_ret['TotalAlreadyDone'] + act_ret['TotalNotFound'] + act_ret['TotalSuccess'])
+            if act_ret and is_all_clear:
+                tmpLog.debug('removed {0} jobs: {1}'.format(n_jobs, ','.join(batchIDs_list)))
+                for batchid in batchIDs_list:
+                    condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                     retMap[condor_job_id] = (True, '')
-            tmpLog.debug('removed {0} jobs: {1} ; failed to remove {2} jobs: {3}'.format(
-                            len(ok_batchid_list), ','.join(ok_batchid_list), len(ng_batchid_list), ','.join(ng_batchid_list)))
+            else:
+                tmpLog.error('job removal failed; batchIDs_list={0}, got: {1}'.format(batchIDs_list, act_ret))
+                # need to query queue for unterminated jobs not removed yet
+                clusterids_set = set([ get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list ])
+                clusterids_str = ','.join(list(clusterids_set))
+                requirements = 'member(ClusterID, {{{0}}}) && JobStatus =!= 3 && JobStatus =!= 4'.format(clusterids_str)
+                jobs_iter = self.schedd.xquery(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
+                all_batchid_map = {}
+                ok_batchid_list = []
+                ng_batchid_list = []
+                for job in jobs_iter:
+                    job_ads_dict = dict(job)
+                    batchid = get_batchid_from_job(job_ads_dict)
+                    all_batchid_map[batchid] = job_ads_dict
+                for batchid in batchIDs_list:
+                    condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
+                    if batchid in all_batchid_map:
+                        ng_batchid_list.append(batchid)
+                        retMap[condor_job_id] = (False, 'batchID={0} still unterminated in condor queue'.format(batchid))
+                    else:
+                        ok_batchid_list.append(batchid)
+                        retMap[condor_job_id] = (True, '')
+                tmpLog.debug('removed {0} jobs: {1} ; failed to remove {2} jobs: {3}'.format(
+                                len(ok_batchid_list), ','.join(ok_batchid_list), len(ng_batchid_list), ','.join(ng_batchid_list)))
         tmpLog.debug('Done')
         # Return
         return retMap
