@@ -396,6 +396,9 @@ class Submitter(AgentBase):
                                 core_utils.dump_error_message(tmpLog)
                 # release the site
                 self.dbProxy.release_site(siteName, lockedBy)
+                if sw_main.get_elapsed_time_in_sec() > queueLockInterval:
+                    mainLog.warning('a submitter cycle was longer than queueLockInterval {0} sec'.format(queueLockInterval)
+                                    + sw_main.get_elapsed_time())
             mainLog.debug('done')
             # define sleep interval
             if siteName is None:
