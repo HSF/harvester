@@ -38,6 +38,8 @@ class Submitter(AgentBase):
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.get_pid())
         monitor_fifo = self.monitor_fifo
+        queueLockInterval = getattr(harvester_config.submitter, 'queueLockInterval',
+                                    harvester_config.submitter.lockInterval)
         while True:
             sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
@@ -46,7 +48,8 @@ class Submitter(AgentBase):
             # get queues associated to a site to submit workers
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime,
-                                                                             harvester_config.submitter.lockInterval)
+                                                                             harvester_config.submitter.lockInterval,
+                                                                             lockedBy, queueLockInterval)
             submitted = False
             if siteName is not None:
                 mainLog.debug('got {0} queues for site {1}'.format(len(curWorkers), siteName))
@@ -391,6 +394,8 @@ class Submitter(AgentBase):
                                 tmpLog.info('done')
                             except Exception:
                                 core_utils.dump_error_message(tmpLog)
+                # release the site
+                self.dbProxy.release_site(siteName, lockedBy)
             mainLog.debug('done')
             # define sleep interval
             if siteName is None:

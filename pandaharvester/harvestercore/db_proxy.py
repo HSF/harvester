@@ -1370,7 +1370,7 @@ class DBProxy(object):
             return False
 
     # get queues to submit workers
-    def get_queues_to_submit(self, n_queues, lookup_interval, lock_interval):
+    def get_queues_to_submit(self, n_queues, lookup_interval, lock_interval, locked_by, queue_lock_interval):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_queues_to_submit')
@@ -1380,7 +1380,9 @@ class DBProxy(object):
             resourceMap = dict()
             # sql to get a site
             sqlS = "SELECT siteName FROM {0} ".format(pandaQueueTableName)
-            sqlS += "WHERE submitTime IS NULL OR submitTime<:timeLimit "
+            sqlS += "WHERE submitTime IS NULL "
+            sqlS += "OR (submitTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sqlS += "OR (submitTime<:lookupTimeLimit AND lockedBy IS NULL) "
             sqlS += "ORDER BY submitTime "
             # sql to get queues
             sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
@@ -1399,14 +1401,15 @@ class DBProxy(object):
             sqlR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlR += "WHERE computingSite=:computingSite AND status=:status "
             sqlR += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0 "
-            # sql to update timestamp
-            sqlU = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
+            # sql to update timestamp and lock site
+            sqlU = "UPDATE {0} SET submitTime=:submitTime,lockedBy=:lockedBy ".format(pandaQueueTableName)
             sqlU += "WHERE siteName=:siteName "
             sqlU += "AND (submitTime IS NULL OR submitTime<:timeLimit) "
             # get sites
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
-            varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
+            varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=queue_lock_interval)
+            varMap[':lookupTimeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
             self.execute(sqlS, varMap)
             resS = self.cur.fetchall()
             for siteName, in resS:
@@ -1414,6 +1417,7 @@ class DBProxy(object):
                 varMap = dict()
                 varMap[':siteName'] = siteName
                 varMap[':submitTime'] = timeNow
+                varMap[':lockedBy'] = locked_by
                 varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
                 self.execute(sqlU, varMap)
                 nRow = self.cur.rowcount
@@ -5150,3 +5154,34 @@ class DBProxy(object):
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # release a site
+    def release_site(self, site_name, locked_by):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='release_site')
+            tmpLog.debug('start')
+            # sql to release site
+            sql = "UPDATE {0} SET lockedBy=NULL ".format(pandaQueueTableName)
+            sql += "WHERE siteName=:siteName AND lockedBy=:lockedBy "
+            # release site
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            varMap[':lockedBy'] = locked_by
+            self.execute(sql, varMap)
+            n_done = self.cur.rowcount > 0
+            # commit
+            self.commit()
+            if n_done >= 1:
+                tmpLog.debug('released {0}'.format(site_name))
+            else:
+                tmpLog.debug('found nothing to release. Skipped'.format(site_name))
+            # return
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False

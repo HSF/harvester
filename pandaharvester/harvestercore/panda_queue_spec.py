@@ -14,6 +14,7 @@ class PandaQueueSpec(SpecBase):
                            'maxWorkers:integer',
                            'jobFetchTime:timestamp / index',
                            'submitTime:timestamp / index',
+                           'lockedBy:text',
                            'siteName:text / index',
                            'resourceType:text',
                            'nNewWorkers:integer',
