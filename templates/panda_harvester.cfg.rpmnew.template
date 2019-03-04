@@ -311,6 +311,9 @@ nQueues = 3
 # interval for queue lookup
 lookupTime = 60
 
+# interval for queue lock
+queueLockInterval = 300
+
 # lock interval in sec
 lockInterval = 600
 
