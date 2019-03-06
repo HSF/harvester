@@ -40,7 +40,12 @@ class Apfmon(object):
         try:
             self.__worker_timeout = harvester_config.apfmon.worker_timeout
         except:
-            self.__worker_timeout = 0.2
+            self.__worker_timeout = 0.5
+
+        try:
+            self.__worker_update_timeout = harvester_config.apfmon.worker_timeout
+        except:
+            self.__worker_update_timeout = 0.2
 
         try:
             self.__label_timeout = harvester_config.apfmon.worker_timeout
@@ -310,8 +315,14 @@ class Apfmon(object):
                     apfmon_workers.append(apfmon_worker)
 
                 payload = json.dumps(apfmon_workers)
-                r = requests.put(url, data=payload, timeout=self.__worker_timeout)
-                tmp_log.debug('worker creation for {0} ended with {1} {2}'.format(apfmon_workers, r.status_code, r.text))
+
+                try:
+                    r = requests.put(url, data=payload, timeout=self.__worker_timeout)
+                    tmp_log.debug('worker creation for {0} ended with {1} {2}'.format(apfmon_workers, r.status_code, r.text))
+                except:
+                    tmp_log.debug(
+                        'worker creation for {0} failed with'.format(apfmon_workers, format(traceback.format_exc())))
+
 
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
@@ -364,7 +375,7 @@ class Apfmon(object):
 
             tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
 
-            r = requests.post(url, data=apfmon_worker, timeout=self.__worker_timeout)
+            r = requests.post(url, data=apfmon_worker, timeout=self.__worker_update_timeout)
             tmp_log.debug('worker update for {0} ended with {1} {2}'.format(batch_id, r.status_code, r.text))
 
             end_time = time.time()
