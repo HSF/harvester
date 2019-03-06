@@ -325,13 +325,13 @@ class Apfmon(object):
         :return: list with apfmon_status. Usually it's just one status, except for exiting&done
         """
         if harvester_status == 'submitted':
-            return ['created']
+            return 'created'
         if harvester_status in ['running', 'idle']:
-            return ['running']
+            return 'running'
         if harvester_status in ['missed', 'failed', 'cancelled']:
-            return ['fault']
+            return 'fault'
         if harvester_status == 'finished':
-            return ['exiting', 'done']
+            return 'done'
 
     def update_worker(self, worker_spec, worker_status):
         """
@@ -356,20 +356,16 @@ class Apfmon(object):
 
             apfmon_status = self.convert_status(worker_status)
             apfmon_worker = {}
+            apfmon_worker['state'] = apfmon_status
 
-            for status in apfmon_status:
-                apfmon_worker['state'] = status
+            # For final states include panda id's if available (push mode only)
+            if apfmon_status in ('fault', 'done') and hasattr(worker_spec, 'pandaid_list') and worker_spec.pandaid_list:
+                    apfmon_worker['ids'] = ','.join(str(x) for x in worker_spec.pandaid_list)
 
-                if status == 'exiting':
-                    # return code
-                    apfmon_worker['rc'] = 0
-                    if hasattr(worker_spec, 'pandaid_list') and worker_spec.pandaid_list:
-                        apfmon_worker['ids'] = ','.join(str(x) for x in worker_spec.pandaid_list)
+            tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
 
-                tmp_log.debug('updating worker {0}: {1}'.format(batch_id, apfmon_worker))
-
-                r = requests.post(url, data=apfmon_worker, timeout=self.__worker_timeout)
-                tmp_log.debug('worker update for {0} ended with {1} {2}'.format(batch_id, r.status_code, r.text))
+            r = requests.post(url, data=apfmon_worker, timeout=self.__worker_timeout)
+            tmp_log.debug('worker update for {0} ended with {1} {2}'.format(batch_id, r.status_code, r.text))
 
             end_time = time.time()
             tmp_log.debug('done (took {0})'.format(end_time - start_time))
