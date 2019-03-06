@@ -364,8 +364,8 @@ class Monitor(AgentBase):
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
                     # apfmon status update
                     if newStatus != oldStatus:
-                        tmpQueLog.debug('apfmon_status_updates: {0} newStatus: {1} monStatus: {2} oldStatus: {3} workSpecStatus: {4}'.
-                                        format(apfmon_status_updates, newStatus, monStatus, oldStatus, workSpec.status))
+                        tmpQueLog.debug('newStatus: {0} monStatus: {1} oldStatus: {2} workSpecStatus: {3}'.
+                                        format(newStatus, monStatus, oldStatus, workSpec.status))
                         self.apfmon.update_worker(workSpec, monStatus)
 
                 # lock workers for fifo
