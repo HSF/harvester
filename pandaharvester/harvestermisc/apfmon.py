@@ -340,7 +340,7 @@ class Apfmon(object):
         """
         start_time = time.time()
         tmp_log = core_utils.make_logger(_base_logger, 'harvester_id={0}'.format(self.harvester_id),
-                                         method_name='update_workers')
+                                         method_name='update_worker')
 
         if not self.__active:
             tmp_log.debug('APFMon reporting not enabled')
