@@ -369,7 +369,7 @@ class WorkSpec(SpecBase):
 
     # set dialog message
     def set_dialog_message(self, msg):
-        if msg is not None:
+        if msg not in (None, ''):
             msg = msg[:500]
         self.diagMessage = msg
 
