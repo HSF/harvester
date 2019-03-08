@@ -371,7 +371,7 @@ class WorkSpec(SpecBase):
     def set_dialog_message(self, msg):
         if msg not in (None, ''):
             msg = msg[:500]
-        self.diagMessage = msg
+            self.diagMessage = msg
 
     # set pilot error
     def set_pilot_error(self, error_code, error_dialog):
