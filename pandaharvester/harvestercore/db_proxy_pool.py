@@ -40,11 +40,11 @@ class DBProxyPool(object):
     lock = threading.Lock()
 
     # constructor
-    def __init__(self):
+    def __init__(self, read_only=False):
         pass
 
     # initialize
-    def initialize(self):
+    def initialize(self, read_only=False):
         # install members
         object.__setattr__(self, 'pool', None)
         # connection pool
@@ -56,7 +56,7 @@ class DBProxyPool(object):
             thrID = currentThr.ident
         thrName = '{0}-{1}'.format(os.getpid(), thrID)
         for i in range(harvester_config.db.nConnections):
-            con = DBProxy(thr_name='{0}-{1}'.format(thrName, i))
+            con = DBProxy(thr_name='{0}-{1}'.format(thrName, i), read_only=read_only)
             self.pool.put(con)
 
     # override __new__ to have a singleton
@@ -64,8 +64,12 @@ class DBProxyPool(object):
         if cls.instance is None:
             with cls.lock:
                 if cls.instance is None:
+                    if 'read_only' in kwargs and kwargs['read_only']:
+                        read_only = True
+                    else:
+                        read_only = False
                     cls.instance = super(DBProxyPool, cls).__new__(cls, *args, **kwargs)
-                    cls.instance.initialize()
+                    cls.instance.initialize(read_only=read_only)
         return cls.instance
 
     # override __getattribute__
