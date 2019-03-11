@@ -263,11 +263,6 @@ class Monitor(AgentBase):
             return None
         # get queue
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
-        try:
-            apfmon_status_updates = self.queueConfigMapper.queueConfig[queueName].monitor['apfmon_status_updates']
-        except Exception:
-            apfmon_status_updates = False
-        tmpQueLog.debug('apfmon_status_updates: {0}'.format(apfmon_status_updates))
         # get plugins
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
@@ -368,9 +363,9 @@ class Monitor(AgentBase):
                     if len(filesToStageOut) > 0:
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
                     # apfmon status update
-                    if apfmon_status_updates and newStatus != oldStatus:
-                        tmpQueLog.debug('apfmon_status_updates: {0} newStatus: {1} monStatus: {2} oldStatus: {3} workSpecStatus: {4}'.
-                                        format(apfmon_status_updates, newStatus, monStatus, oldStatus, workSpec.status))
+                    if newStatus != oldStatus:
+                        tmpQueLog.debug('newStatus: {0} monStatus: {1} oldStatus: {2} workSpecStatus: {3}'.
+                                        format(newStatus, monStatus, oldStatus, workSpec.status))
                         self.apfmon.update_worker(workSpec, monStatus)
 
                 # lock workers for fifo

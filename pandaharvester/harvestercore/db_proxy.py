@@ -3,6 +3,7 @@ database connection
 
 """
 
+import os
 import re
 import sys
 import copy
@@ -55,7 +56,7 @@ conLock = threading.Lock()
 # connection class
 class DBProxy(object):
     # constructor
-    def __init__(self, thr_name=None):
+    def __init__(self, thr_name=None, read_only=False):
         self.thrName = thr_name
         self.verbLog = None
         self.useInspect = False
@@ -112,7 +113,12 @@ class DBProxy(object):
                 self.cur = self.con.cursor(named_tuple=True, buffered=True)
         else:
             import sqlite3
-            self.con = sqlite3.connect(harvester_config.db.database_filename,
+            if read_only:
+                fd = os.open(harvester_config.db.database_filename, os.O_RDONLY)
+                database_filename = '/dev/fd/{0}'.format(fd)
+            else:
+                database_filename = harvester_config.db.database_filename
+            self.con = sqlite3.connect(database_filename,
                                        detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
                                        check_same_thread=False)
             core_utils.set_file_permission(harvester_config.db.database_filename)
