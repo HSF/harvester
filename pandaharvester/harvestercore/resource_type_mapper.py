@@ -4,7 +4,7 @@ import datetime
 from .db_proxy_pool import DBProxyPool as DBProxy
 
 
-class ResourceType:
+class ResourceType(object):
 
     def __init__(self, resource_type_dict):
         """
@@ -20,7 +20,7 @@ class ResourceType:
         self.max_ram_per_core = resource_type_dict['maxrampercore']
 
 
-class ResourceTypeMapper:
+class ResourceTypeMapper(object):
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -58,8 +58,8 @@ class ResourceTypeMapper:
         """
         Calculates worker requirements (cores and memory) to request in pilot streaming mode/unified pull queue
         """
-        worker_cores = None
-        worker_memory = None
+        worker_cores = 1
+        worker_memory = 1
 
         self.load_data()
         try:
@@ -76,12 +76,13 @@ class ResourceTypeMapper:
                 return site_maxrss, site_corecount
 
             if resource_type.max_core:
-                worker_cores = resource_type.max_core
+                worker_cores = min(resource_type.max_core, site_corecount)
             else:
                 worker_cores = site_corecount
 
             if resource_type.max_ram_per_core:
-                worker_memory = resource_type.max_ram_per_core * worker_cores
+                worker_memory = min(resource_type.max_ram_per_core * worker_cores,
+                                    (site_maxrss / site_corecount) * worker_cores)
             else:
                 worker_memory = (site_maxrss / site_corecount) * worker_cores
 
@@ -89,4 +90,3 @@ class ResourceTypeMapper:
             pass
 
         return worker_cores, worker_memory
-

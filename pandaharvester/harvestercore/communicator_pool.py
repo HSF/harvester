@@ -9,7 +9,7 @@ _logger = core_utils.setup_logger('communicator_pool')
 
 
 # method wrapper
-class CommunicatorMethod:
+class CommunicatorMethod(object):
     # constructor
     def __init__(self, method_name, pool):
         self.methodName = method_name

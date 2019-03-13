@@ -10,7 +10,7 @@ from .db_proxy_pool import DBProxyPool
 from pandaharvester.harvesterconfig import harvester_config
 
 
-class DBInterface:
+class DBInterface(object):
     # constructor
     def __init__(self):
         self.dbProxy = DBProxyPool()

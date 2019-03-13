@@ -3,6 +3,7 @@ database connection
 
 """
 
+import os
 import re
 import sys
 import copy
@@ -53,9 +54,9 @@ conLock = threading.Lock()
 
 
 # connection class
-class DBProxy:
+class DBProxy(object):
     # constructor
-    def __init__(self, thr_name=None):
+    def __init__(self, thr_name=None, read_only=False):
         self.thrName = thr_name
         self.verbLog = None
         self.useInspect = False
@@ -112,7 +113,12 @@ class DBProxy:
                 self.cur = self.con.cursor(named_tuple=True, buffered=True)
         else:
             import sqlite3
-            self.con = sqlite3.connect(harvester_config.db.database_filename,
+            if read_only:
+                fd = os.open(harvester_config.db.database_filename, os.O_RDONLY)
+                database_filename = '/dev/fd/{0}'.format(fd)
+            else:
+                database_filename = harvester_config.db.database_filename
+            self.con = sqlite3.connect(database_filename,
                                        detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
                                        check_same_thread=False)
             core_utils.set_file_permission(harvester_config.db.database_filename)
@@ -1370,7 +1376,7 @@ class DBProxy:
             return False
 
     # get queues to submit workers
-    def get_queues_to_submit(self, n_queues, lookup_interval, lock_interval):
+    def get_queues_to_submit(self, n_queues, lookup_interval, lock_interval, locked_by, queue_lock_interval):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='get_queues_to_submit')
@@ -1380,7 +1386,9 @@ class DBProxy:
             resourceMap = dict()
             # sql to get a site
             sqlS = "SELECT siteName FROM {0} ".format(pandaQueueTableName)
-            sqlS += "WHERE submitTime IS NULL OR submitTime<:timeLimit "
+            sqlS += "WHERE submitTime IS NULL "
+            sqlS += "OR (submitTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+            sqlS += "OR (submitTime<:lookupTimeLimit AND lockedBy IS NULL) "
             sqlS += "ORDER BY submitTime "
             # sql to get queues
             sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
@@ -1399,14 +1407,15 @@ class DBProxy:
             sqlR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlR += "WHERE computingSite=:computingSite AND status=:status "
             sqlR += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0 "
-            # sql to update timestamp
-            sqlU = "UPDATE {0} SET submitTime=:submitTime ".format(pandaQueueTableName)
+            # sql to update timestamp and lock site
+            sqlU = "UPDATE {0} SET submitTime=:submitTime,lockedBy=:lockedBy ".format(pandaQueueTableName)
             sqlU += "WHERE siteName=:siteName "
             sqlU += "AND (submitTime IS NULL OR submitTime<:timeLimit) "
             # get sites
             timeNow = datetime.datetime.utcnow()
             varMap = dict()
-            varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
+            varMap[':lockTimeLimit'] = timeNow - datetime.timedelta(seconds=queue_lock_interval)
+            varMap[':lookupTimeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
             self.execute(sqlS, varMap)
             resS = self.cur.fetchall()
             for siteName, in resS:
@@ -1414,6 +1423,7 @@ class DBProxy:
                 varMap = dict()
                 varMap[':siteName'] = siteName
                 varMap[':submitTime'] = timeNow
+                varMap[':lockedBy'] = locked_by
                 varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lookup_interval)
                 self.execute(sqlU, varMap)
                 nRow = self.cur.rowcount
@@ -1501,7 +1511,8 @@ class DBProxy:
     # get job chunks to make workers
     def get_job_chunks_for_workers(self, queue_name, n_workers, n_ready, n_jobs_per_worker, n_workers_per_job,
                                    use_job_late_binding, check_interval, lock_interval, locked_by,
-                                   allow_job_mixture=False, max_workers_per_job_in_total=None):
+                                   allow_job_mixture=False, max_workers_per_job_in_total=None,
+                                   max_workers_per_job_per_cycle=None):
         toCommit = False
         try:
             # get logger
@@ -1647,6 +1658,8 @@ class DBProxy:
                                 if jobSpec.maxWorkersInTotal is not None and jobSpec.nWorkersInTotal is not None:
                                     nMultiWorkers = min(nMultiWorkers,
                                                         jobSpec.maxWorkersInTotal - jobSpec.nWorkersInTotal)
+                                if max_workers_per_job_per_cycle is not None:
+                                    nMultiWorkers = min(nMultiWorkers, max_workers_per_job_per_cycle)
                                 if nMultiWorkers < 0:
                                     nMultiWorkers = 0
                                 tmpLog.debug(
@@ -5147,6 +5160,37 @@ class DBProxy:
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # release a site
+    def release_site(self, site_name, locked_by):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='release_site')
+            tmpLog.debug('start')
+            # sql to release site
+            sql = "UPDATE {0} SET lockedBy=NULL ".format(pandaQueueTableName)
+            sql += "WHERE siteName=:siteName AND lockedBy=:lockedBy "
+            # release site
+            varMap = dict()
+            varMap[':siteName'] = site_name
+            varMap[':lockedBy'] = locked_by
+            self.execute(sql, varMap)
+            n_done = self.cur.rowcount > 0
+            # commit
+            self.commit()
+            if n_done >= 1:
+                tmpLog.debug('released {0}'.format(site_name))
+            else:
+                tmpLog.debug('found nothing to release. Skipped'.format(site_name))
+            # return
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
 
     # get workers via workerID
     def get_workers_from_ids(self, ids):

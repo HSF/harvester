@@ -245,14 +245,13 @@ class Monitor(AgentBase):
                 mainLog.debug('adjusted_sleepTime becomes {0:.3f} sec'.format(adjusted_sleepTime))
                 # end run with fifo
                 mainLog.debug('ended run with FIFO')
-
+            # time the cycle
             mainLog.debug('done a monitor cycle' + sw_main.get_elapsed_time())
 
             # check if being terminated
             if self.terminated(adjusted_sleepTime):
                 mainLog.debug('terminated')
                 return
-
 
     # core of monitor agent to check workers in workSpecsList of queueName
     def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False, config_id=None):
@@ -264,11 +263,6 @@ class Monitor(AgentBase):
             return None
         # get queue
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
-        try:
-            apfmon_status_updates = self.queueConfigMapper.queueConfig[queueName].monitor['apfmon_status_updates']
-        except Exception:
-            apfmon_status_updates = False
-        tmpQueLog.debug('apfmon_status_updates: {0}'.format(apfmon_status_updates))
         # get plugins
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
@@ -369,9 +363,9 @@ class Monitor(AgentBase):
                     if len(filesToStageOut) > 0:
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
                     # apfmon status update
-                    if apfmon_status_updates and newStatus != oldStatus:
-                        tmpQueLog.debug('apfmon_status_updates: {0} newStatus: {1} monStatus: {2} oldStatus: {3} workSpecStatus: {4}'.
-                                        format(apfmon_status_updates, newStatus, monStatus, oldStatus, workSpec.status))
+                    if newStatus != oldStatus:
+                        tmpQueLog.debug('newStatus: {0} monStatus: {1} oldStatus: {2} workSpecStatus: {3}'.
+                                        format(newStatus, monStatus, oldStatus, workSpec.status))
                         self.apfmon.update_worker(workSpec, monStatus)
 
                 # lock workers for fifo
@@ -443,28 +437,35 @@ class Monitor(AgentBase):
                         and workSpec.workAttributes is not None:
                         timeNow = datetime.datetime.utcnow()
                         timeNow_timestamp = time.time()
+                        # get lastCheckAt
                         _bool, lastCheckAt = workSpec.get_work_params('lastCheckAt')
                         try:
                             last_check_period = timeNow_timestamp - lastCheckAt
                         except TypeError:
                             last_check_period = forceEnqueueInterval + 1.0
+                        # get lastForceEnqueueAt
+                        _bool, lastForceEnqueueAt = workSpec.get_work_params('lastForceEnqueueAt')
+                        if not (_bool and lastForceEnqueueAt is not None):
+                            lastForceEnqueueAt = 0
+                        # notification
+                        intolerable_delay = max(forceEnqueueInterval*2, harvester_config.monitor.checkInterval * 4)
                         if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval \
                             and timeNow_timestamp - harvester_config.monitor.checkInterval > self.startTimestamp:
-                            if last_check_period > harvester_config.monitor.checkInterval * 4:
-                                tmpQueLog.error('last check period of workerID={0} is {1} sec, way longer than monitor checkInterval. Please check why monitor checks worker slowly'.format(
+                            if last_check_period > intolerable_delay:
+                                tmpQueLog.error('last check period of workerID={0} is {1} sec, intolerably longer than monitor checkInterval. Will NOT enquque worker by force. Please check why monitor checks worker slowly'.format(
                                                     workSpec.workerID, last_check_period))
                             else:
                                 tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor checkInterval'.format(
                                                     workSpec.workerID, last_check_period))
-                        _bool, lastForceEnqueueAt = workSpec.get_work_params('lastForceEnqueueAt')
-                        if not (_bool and lastForceEnqueueAt is not None):
-                            lastForceEnqueueAt = 0
+                        # prepartion to enqueue fifo
                         if (from_fifo) \
                             or (not from_fifo
                                 and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp
                                 and last_check_period > forceEnqueueInterval
+                                and last_check_period < intolerable_delay
                                 and timeNow_timestamp - lastForceEnqueueAt > 86400 + forceEnqueueInterval):
                             if not from_fifo:
+                                # in DB cycle
                                 tmpQueLog.warning('last check period of workerID={0} is {1} sec, longer than monitor forceEnqueueInterval. Enqueue the worker by force'.format(
                                                     workSpec.workerID, last_check_period))
                                 workSpec.set_work_params({'lastForceEnqueueAt': timeNow_timestamp})
@@ -472,6 +473,7 @@ class Monitor(AgentBase):
                             workSpec.lockedBy = None
                             workSpec.force_update('lockedBy')
                             if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                                # for post-processing
                                 _bool, startFifoPreemptAt = workSpec.get_work_params('startFifoPreemptAt')
                                 if not _bool or startFifoPreemptAt is None:
                                     startFifoPreemptAt = timeNow_timestamp
@@ -495,7 +497,6 @@ class Monitor(AgentBase):
         retVal = workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval
         tmpQueLog.debug('done')
         return retVal
-
 
     # wrapper for checkWorkers
     def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log, from_fifo):

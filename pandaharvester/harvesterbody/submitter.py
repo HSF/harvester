@@ -38,14 +38,18 @@ class Submitter(AgentBase):
     def run(self):
         lockedBy = 'submitter-{0}'.format(self.get_pid())
         monitor_fifo = self.monitor_fifo
+        queueLockInterval = getattr(harvester_config.submitter, 'queueLockInterval',
+                                    harvester_config.submitter.lockInterval)
         while True:
+            sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('getting queues to submit workers')
 
             # get queues associated to a site to submit workers
             curWorkers, siteName, resMap = self.dbProxy.get_queues_to_submit(harvester_config.submitter.nQueues,
                                                                              harvester_config.submitter.lookupTime,
-                                                                             harvester_config.submitter.lockInterval)
+                                                                             harvester_config.submitter.lockInterval,
+                                                                             lockedBy, queueLockInterval)
             submitted = False
             if siteName is not None:
                 mainLog.debug('got {0} queues for site {1}'.format(len(curWorkers), siteName))
@@ -166,6 +170,8 @@ class Submitter(AgentBase):
                                                                                               maker=workerMakerCore)
                                     maxWorkersPerJob = self.workerMaker.get_max_workers_per_job_in_total(
                                         queueConfig, resource_type, maker=workerMakerCore)
+                                    maxWorkersPerJobPerCycle = self.workerMaker.get_max_workers_per_job_per_cycle(
+                                        queueConfig, resource_type, maker=workerMakerCore)
                                     tmpLog.debug('nWorkersPerJob={0}'.format(nWorkersPerJob))
                                     jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                         queueName,
@@ -173,7 +179,8 @@ class Submitter(AgentBase):
                                         queueConfig.useJobLateBinding,
                                         harvester_config.submitter.checkInterval,
                                         harvester_config.submitter.lockInterval,
-                                        lockedBy, max_workers_per_job_in_total=maxWorkersPerJob)
+                                        lockedBy, max_workers_per_job_in_total=maxWorkersPerJob,
+                                        max_workers_per_job_per_cycle=maxWorkersPerJobPerCycle)
                                 else:
                                     tmpLog.error('unknown mapType={0}'.format(queueConfig.mapType))
                                     continue
@@ -243,6 +250,7 @@ class Submitter(AgentBase):
                                             workSpec.eventsRequest = WorkSpec.EV_useEvents
                                         workSpecList.append(workSpec)
                                 if len(workSpecList) > 0:
+                                    sw = core_utils.get_stopwatch()
                                     # get plugin for submitter
                                     submitterCore = self.pluginFactory.get_plugin(queueConfig.submitter)
                                     if submitterCore is None:
@@ -273,9 +281,12 @@ class Submitter(AgentBase):
                                     # insert workers
                                     self.dbProxy.insert_workers(workSpecList, lockedBy)
                                     # submit
+                                    sw.reset()
                                     tmpLog.info('submitting {0} workers'.format(len(workSpecList)))
                                     workSpecList, tmpRetList, tmpStrList = self.submit_workers(submitterCore,
                                                                                                workSpecList)
+                                    tmpLog.debug('done submitting {0} workers'.format(len(workSpecList))
+                                                    + sw.get_elapsed_time())
                                     # collect successful jobs
                                     okPandaIDs = set()
                                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
@@ -287,9 +298,9 @@ class Submitter(AgentBase):
                                                     okPandaIDs.add(jobSpec.PandaID)
                                     # loop over all workers
                                     for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
+                                        workSpec, jobList = okChunks[iWorker]
                                         # set harvesterHost
                                         workSpec.harvesterHost = socket.gethostname()
-                                        workSpec, jobList = okChunks[iWorker]
                                         # use associated job list since it can be truncated for re-filling
                                         jobList = workSpec.get_jobspec_list()
                                         # set status
@@ -383,6 +394,11 @@ class Submitter(AgentBase):
                                 tmpLog.info('done')
                             except Exception:
                                 core_utils.dump_error_message(tmpLog)
+                # release the site
+                self.dbProxy.release_site(siteName, lockedBy)
+                if sw_main.get_elapsed_time_in_sec() > queueLockInterval:
+                    mainLog.warning('a submitter cycle was longer than queueLockInterval {0} sec'.format(queueLockInterval)
+                                    + sw_main.get_elapsed_time())
             mainLog.debug('done')
             # define sleep interval
             if siteName is None:
@@ -394,6 +410,9 @@ class Submitter(AgentBase):
                     if interval > 0:
                         newTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=interval)
                         self.dbProxy.update_panda_queue_attribute('submitTime', newTime, site_name=siteName)
+
+            # time the cycle
+            mainLog.debug('done a submitter cycle' + sw_main.get_elapsed_time())
             # check if being terminated
             if self.terminated(sleepTime):
                 mainLog.debug('terminated')

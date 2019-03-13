@@ -24,7 +24,6 @@ grid_resource = condor {ceHostname} {ceEndpoint}
 
 +xcount = {nCoreTotal}
 +maxMemory = {requestRam}
-+remote_queue = "{ceQueueName}"
 +maxWallTime = {requestWalltimeMinute}
 
 #+remote_Requirements = JobRunCount == 0

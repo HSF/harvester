@@ -1,13 +1,13 @@
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
 
 # dummy plugin for sweeper
-class DummySweeper(PluginBase):
+class DummySweeper(BaseSweeper):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseSweeper.__init__(self, **kwarg)
 
-    # kill a worker
+    # kill a worker (DEPRECATED)
     def kill_worker(self, workspec):
         """Kill a worker in a scheduling system like batch systems and computing elements.
 
@@ -17,6 +17,19 @@ class DummySweeper(PluginBase):
         :rtype: (bool, string)
         """
         return True, ''
+
+    # kill workers
+    def kill_workers(self, workspec_list):
+        """Kill workers in a scheduling system like batch systems and computing elements.
+
+        :param workspec_list: a list of workspec instances
+        :return: A list of tuples of return code (True for success, False otherwise) and error dialog
+        :rtype: [(bool, string), ...]
+        """
+        retList = []
+        for workspec in workspec_list:
+            retList.append((True, ''))
+        return retList
 
     # cleanup for a worker
     def sweep_worker(self, workspec):

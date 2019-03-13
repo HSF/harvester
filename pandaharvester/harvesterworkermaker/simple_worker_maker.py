@@ -1,3 +1,5 @@
+import random
+
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
@@ -16,6 +18,25 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         BaseWorkerMaker.__init__(self, **kwarg)
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
         self.rt_mapper = ResourceTypeMapper()
+        try:
+            self.pilotTypeRandomWeightsPermille
+        except AttributeError:
+            self.pilotTypeRandomWeightsPermille = {}
+        finally:
+            # randomize pilot type with weighting
+            weight_rc = self.pilotTypeRandomWeightsPermille.get('RC', 0)
+            weight_alrb = self.pilotTypeRandomWeightsPermille.get('ALRB', 0)
+            weight_pt = self.pilotTypeRandomWeightsPermille.get('PT', 0)
+            weight_tmp_sum = weight_rc + weight_alrb + weight_pt
+            if weight_tmp_sum > 1000:
+                weight_rc = weight_rc*1000/weight_tmp_sum
+                weight_alrb = weight_alrb*1000/weight_tmp_sum
+                weight_pt = weight_pt*1000/weight_tmp_sum
+            weight_pr = 1000 - (weight_rc + weight_alrb + weight_pt)
+            self.pilotTypeRandomList = ['PR'] * weight_pr \
+                + ['RC'] * weight_rc \
+                + ['ALRB'] * weight_alrb \
+                + ['PT'] * weight_pt
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
@@ -57,8 +78,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         # case of unified queue: look at the resource type and queue configuration
         else:
-
-            if queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified', 'Taiwan-LCG2-HPC_Unified', 'DESY-ZN_UCORE'):
+            catchall = queue_dict.get('catchall', '')
+            if 'useMaxRamUcore' in catchall or queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified',
+                                                                       'Taiwan-LCG2-HPC_Unified', 'DESY-ZN_UCORE'):
                 # temporary hack to debug killed workers in Taiwan queues
                 site_corecount = queue_dict.get('corecount', 1) or 1
                 site_maxrss = queue_dict.get('maxrss', 1) or 1
@@ -79,9 +101,10 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # parameters that are independent on traditional vs unified
         workSpec.maxWalltime = queue_dict.get('maxtime', 1)
         workSpec.maxDiskCount = queue_dict.get('maxwdir', 1)
+        walltimeLimit_default = getattr(queue_config, 'walltimeLimit', 0)
 
-        # get info from jobs
         if len(jobspec_list) > 0:
+            # get info from jobs
             nCore = 0
             minRamCount = 0
             maxDiskCount = 0
@@ -99,16 +122,11 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     ioIntensity += jobSpec.jobParams['ioIntensity']
                 except Exception:
                     pass
-                try:
-                    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
-                        if hasattr(queue_config, 'maxWalltime'):
-                            maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams['maxWalltime'])
-                        else:
-                            maxWalltime = jobSpec.jobParams['maxWalltime']
-                    else:
-                        maxWalltime = queue_config.walltimeLimit
-                except Exception:
-                    pass
+            try:
+                # maxWallTime from AGIS or qconf, not trusting job currently
+                maxWalltime = queue_dict.get('maxtime', walltimeLimit_default)
+            except Exception:
+                pass
             if (nCore > 0 and 'nCore' in self.jobAttributesToUse) \
                or unified_queue:
                 workSpec.nCore = nCore
@@ -122,6 +140,13 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             if ioIntensity > 0 and 'ioIntensity' in self.jobAttributesToUse:
                 workSpec.ioIntensity = ioIntensity
             workSpec.pilotType = jobspec_list[0].get_pilot_type()
+        else:
+            # when no job
+            # randomize pilot type with weighting
+            workSpec.pilotType = random.choice(self.pilotTypeRandomList)
+            if workSpec.pilotType in ['RC', 'ALRB', 'PT']:
+                tmpLog.info('a worker of {0} has pilotType={1}'.format(
+                    workSpec.computingSite, workSpec.pilotType))
         # TODO: this needs to be improved with real resource types
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type

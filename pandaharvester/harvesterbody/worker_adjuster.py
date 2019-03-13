@@ -12,7 +12,7 @@ _logger = core_utils.setup_logger('worker_adjuster')
 
 
 # class to define number of workers to submit
-class WorkerAdjuster:
+class WorkerAdjuster(object):
     # constructor
     def __init__(self, queue_config_mapper):
         self.queueConfigMapper = queue_config_mapper
@@ -39,6 +39,13 @@ class WorkerAdjuster:
             else:
                 queueStat = queueStat.data
 
+            # get job statistics
+            job_stats = self.dbProxy.get_cache("job_statistics.json", None)
+            if job_stats is None:
+                job_stats = dict()
+            else:
+                job_stats = job_stats.data
+
             # define num of new workers
             for queueName in static_num_workers:
                 # get queue
@@ -49,6 +56,7 @@ class WorkerAdjuster:
                 nQueueLimitPerRT = workerLimits_dict['nQueueLimitWorkerPerRT']
                 nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
+                apf_data = None
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
                     tmpLog.debug('Processing queue {0} resource {1} with static_num_workers {2}'.
                                  format(queueName, resource_type, tmpVal))
@@ -128,12 +136,25 @@ class WorkerAdjuster:
                         if nQueueLimitPerRT > 0:  # there is a limit set for the queue
                             maxQueuedWorkers = nQueueLimitPerRT
 
+                        # Reset the maxQueueWorkers according to particular
                         if nNewWorkersDef is not None:  # don't surpass limits given centrally
                             maxQueuedWorkers_slave = nNewWorkersDef + nQueue
                             if maxQueuedWorkers is not None:
                                 maxQueuedWorkers = min(maxQueuedWorkers_slave, maxQueuedWorkers)
                             else:
                                 maxQueuedWorkers = maxQueuedWorkers_slave
+
+                        elif queueConfig.mapType == 'NoJob': # for pull mode, limit to activated jobs
+                            # limit the queue to the number of activated jobs to avoid empty pilots
+                            try:
+                                n_activated = max(job_stats[queueName]['activated'], 1) # avoid no activity queues
+                                queue_limit = maxQueuedWorkers
+                                maxQueuedWorkers = min(n_activated, maxQueuedWorkers)
+                                tmpLog.debug('limiting maxQueuedWorkers to min(n_activated={0}, queue_limit={1})'.
+                                             format(n_activated, queue_limit))
+                            except KeyError:
+                                tmpLog.warning('n_activated not defined, defaulting to configured queue limits')
+                                pass
 
                         if maxQueuedWorkers is None:  # no value found, use default value
                             maxQueuedWorkers = 1
@@ -208,9 +229,9 @@ class WorkerAdjuster:
                                          .format(nNewWorkers, resource_type))
 
                 if not apf_msg:
-                    apf_msg = 'Attempting to submit new workers (across all CEs in the queue): {0}'.format(dyn_num_workers[queueName])
+                    apf_data = copy.deepcopy(dyn_num_workers[queueName])
 
-                self.apf_mon.update_label(queueName, apf_msg)
+                self.apf_mon.update_label(queueName, apf_msg, apf_data)
 
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))

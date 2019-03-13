@@ -1,5 +1,5 @@
 executable = {executableFile}
-arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} {pilotResourceTypeOption}
+arguments = -s {computingSite} -h {pandaQueueName} -u {prodSourceLabel} -i {pilotType} {pilotResourceTypeOption} -p 25443 -w https://pandaserver.cern.ch
 initialdir = {accessPoint}
 universe = grid
 log = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).log
@@ -24,7 +24,7 @@ grid_resource = condor {ceHostname} {ceEndpoint}
 +xcount = {nCoreTotal}
 +maxMemory = {requestRam}
 +remote_queue = "{ceQueueName}"
-+maxWallTime = {requestWalltime}
++maxWallTime = {requestWalltimeMinute}
 
 #+remote_Requirements = JobRunCount == 0
 periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)
