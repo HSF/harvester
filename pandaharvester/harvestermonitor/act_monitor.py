@@ -45,7 +45,7 @@ class ACTMonitor(PluginBase):
                 with open(jsonFilePath) as jsonFile:
                     jobreport = json.load(jsonFile)
             except:
-                # Assume no job report avaiable means true pilot or push mode
+                # Assume no job report available means true pilot or push mode
                 # If job report is not available in full push mode aCT would have failed the job
                 tmpLog.debug('no job report at {0}'.format(jsonFilePath))
                 return WorkSpec.ST_finished
