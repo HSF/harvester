@@ -218,6 +218,25 @@ class FIFOBase(object):
             mainLog.debug('id={0} score={1} temporary={2}'.format(id, score, temporary))
         return retVal
 
+    # get list of object tuples without dequeuing
+    def peekmany(self, mode='first', minscore=None, maxscore=None, count=None, skip_item=False):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peekmany')
+        object_tuple_list = self.fifo.peekmany(mode, minscore, maxscore, count, skip_item)
+        if not object_tuple_list:
+            mainLog.debug('empty list')
+        ret_list = []
+        for object_tuple in object_tuple_list:
+            id_gotten, obj_serialized, score = object_tuple
+            if obj_serialized is None and score is None:
+                val_tuple = FifoObject(None, None, None)
+            else:
+                if score is None:
+                    score = time.time()
+                val_tuple = FifoObject(id, obj_serialized, score)
+            ret_list.append(val_tuple)
+        mainLog.debug('mode={0} minscore={1} maxscore={2} count={3}'.format(mode, minscore, maxscore, count))
+        return ret_list
+
     # remove objects by list of ids from temporary space, return the number of objects successfully removed
     def release(self, ids):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='release')

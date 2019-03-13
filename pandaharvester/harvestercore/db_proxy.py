@@ -5115,7 +5115,7 @@ class DBProxy:
             # return
             return False
 
-    # get worker stats
+    # get service metrics
     def get_service_metrics(self, last_update):
         try:
             # get logger
@@ -5140,6 +5140,112 @@ class DBProxy:
             self.commit()
             tmpLog.debug('got {0}'.format(str(res)))
             return res_corrected
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # get workers via workerID
+    def get_workers_from_ids(self, ids):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_workers_from_ids')
+            tmpLog.debug('start')
+            # sql to get workers
+            sqlW = (
+                "SELECT workerID,configID,mapType FROM {workTableName} "
+                "WHERE status IN ({ids_str}) "
+                ).format(workTableName=workTableName, ids_str=','.join(ids))
+            # sql to get associated workerIDs
+            sqlA = (
+                "SELECT t.workerID FROM {jobWorkerTableName} t, {jobWorkerTableName} s, {workTableName} w "
+                "WHERE s.PandaID=t.PandaID AND s.workerID=:workerID "
+                "AND w.workerID=t.workerID AND w.status IN (:st_submitted,:st_running,:st_idle) "
+                ).format(jobWorkerTableName=jobWorkerTableName, workTableName=workTableName)
+            # sql to get associated workers
+            sqlG = (
+                "SELECT {0} FROM {1} "
+                "WHERE workerID=:workerID "
+                ).format(WorkSpec.column_names(), workTableName)
+            # sql to get associated PandaIDs
+            sqlP = (
+                "SELECT PandaID FROM {0} "
+                "WHERE workerID=:workerID "
+                ).format(jobWorkerTableName)
+            # get workerIDs
+            timeNow = datetime.datetime.utcnow()
+            varMap = dict()
+            varMap[':st_submitted'] = WorkSpec.ST_submitted
+            varMap[':st_running'] = WorkSpec.ST_running
+            varMap[':st_idle'] = WorkSpec.ST_idle
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            tmpWorkers = set()
+            for workerID, configID, mapType in resW:
+                # ignore configID
+                if not core_utils.dynamic_plugin_change():
+                    configID = None
+                tmpWorkers.add((workerID, configID, mapType))
+            checkedIDs = set()
+            retVal = {}
+            for workerID, configID, mapType in tmpWorkers:
+                # skip
+                if workerID in checkedIDs:
+                    continue
+                # get associated workerIDs
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':st_submitted'] = WorkSpec.ST_submitted
+                varMap[':st_running'] = WorkSpec.ST_running
+                varMap[':st_idle'] = WorkSpec.ST_idle
+                self.execute(sqlA, varMap)
+                resA = self.cur.fetchall()
+                workerIDtoScan = set()
+                for tmpWorkID, in resA:
+                    workerIDtoScan.add(tmpWorkID)
+                # add original ID just in case since no relation when job is not yet bound
+                workerIDtoScan.add(workerID)
+                # use only the largest worker to avoid updating the same worker set concurrently
+                if mapType == WorkSpec.MT_MultiWorkers:
+                    if workerID != min(workerIDtoScan):
+                        continue
+                # get workers
+                queueName = None
+                workersList = []
+                for tmpWorkID in workerIDtoScan:
+                    checkedIDs.add(tmpWorkID)
+                    # get worker
+                    varMap = dict()
+                    varMap[':workerID'] = tmpWorkID
+                    self.execute(sqlG, varMap)
+                    resG = self.cur.fetchone()
+                    workSpec = WorkSpec()
+                    workSpec.pack(resG)
+                    if queueName is None:
+                        queueName = workSpec.computingSite
+                    workersList.append(workSpec)
+                    # get associated PandaIDs
+                    varMap = dict()
+                    varMap[':workerID'] = tmpWorkID
+                    self.execute(sqlP, varMap)
+                    resP = self.cur.fetchall()
+                    workSpec.pandaid_list = []
+                    for tmpPandaID, in resP:
+                        workSpec.pandaid_list.append(tmpPandaID)
+                    if len(workSpec.pandaid_list) > 0:
+                        workSpec.nJobs = len(workSpec.pandaid_list)
+                # commit
+                self.commit()
+                # add
+                if queueName is not None:
+                    retVal.setdefault(queueName, dict())
+                    retVal[queueName].setdefault(configID, [])
+                    retVal[queueName][configID].append(workersList)
+            tmpLog.debug('got {0}'.format(str(retVal)))
+            return retVal
         except Exception:
             # roll back
             self.rollback()

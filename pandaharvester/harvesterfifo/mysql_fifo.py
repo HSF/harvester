@@ -285,6 +285,40 @@ class MysqlFifo(PluginBase):
         else:
             return None
 
+    def _peek_many(self, mode='first', minscore=None, maxscore=None, count=None, skip_item=False):
+        minscore_str = '' if minscore is None else 'AND score >= {0}'.format(float(minscore))
+        maxscore_str = '' if maxscore is None else 'AND score <= {0}'.format(float(maxscore))
+        count_str = '' if count is None else 'LIMIT {0}'.format(int(count))
+        mode_rank_map = {
+                'first': '',
+                'last': 'DESC',
+            }
+        if skip_item:
+            columns_str = 'id, score'
+        else:
+            columns_str = 'id, item, score'
+        sql_peek_many = (
+                'SELECT {columns} FROM {table_name} '
+                'WHERE temporary = 0 '
+                '{minscore_str} '
+                '{maxscore_str} '
+                'ORDER BY score {rank} '
+                '{count_str} '
+            ).format(columns=columns_str, table_name=self.tableName,
+                minscore_str=minscore_str, maxscore_str=maxscore_str,
+                rank=mode_rank_map[mode], count_str=count_str)
+        self.execute(sql_peek_many)
+        res = self.cur.fetchall()
+        self.commit()
+        ret_list = []
+        for _rec in res:
+            if skip_item:
+                id, score = _rec
+                obj = None
+            else:
+                id, obj, score = _rec
+            ret_list.append((id, obj, score))
+        return ret_list
 
     # number of objects in queue
     def size(self):
@@ -339,6 +373,42 @@ class MysqlFifo(PluginBase):
             return self._peek(mode='idtemp', id=id, skip_item=skip_item)
         else:
             return self._peek(mode='id', id=id, skip_item=skip_item)
+
+    # get list of object tuples without dequeuing it
+    def peekmany(self, mode='first', minscore=None, maxscore=None, count=None, skip_item=False):
+        minscore_str = '' if minscore is None else 'AND score >= {0}'.format(float(minscore))
+        maxscore_str = '' if maxscore is None else 'AND score <= {0}'.format(float(maxscore))
+        count_str = '' if count is None else 'LIMIT {0}'.format(int(count))
+        mode_rank_map = {
+                'first': '',
+                'last': 'DESC',
+            }
+        if skip_item:
+            columns_str = 'id, score'
+        else:
+            columns_str = 'id, item, score'
+        sql_peek_many = (
+                'SELECT {columns} FROM {table_name} '
+                'WHERE temporary = 0 '
+                '{minscore_str} '
+                '{maxscore_str} '
+                'ORDER BY score {rank} '
+                '{count_str} '
+            ).format(columns=columns_str, table_name=self.tableName,
+                minscore_str=minscore_str, maxscore_str=maxscore_str,
+                rank=mode_rank_map[mode], count_str=count_str)
+        self.execute(sql_peek_many)
+        res = self.cur.fetchall()
+        self.commit()
+        ret_list = []
+        for _rec in res:
+            if skip_item:
+                id, score = _rec
+                obj = None
+            else:
+                id, obj, score = _rec
+            ret_list.append((id, obj, score))
+        return ret_list
 
     # drop all objects in queue and index and reset the table
     def clear(self):
