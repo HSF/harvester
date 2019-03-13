@@ -45,8 +45,10 @@ class ACTMonitor(PluginBase):
                 with open(jsonFilePath) as jsonFile:
                     jobreport = json.load(jsonFile)
             except:
-                tmpLog.error('failed to load {0}'.format(jsonFilePath))
-                return WorkSpec.ST_failed
+                # Assume no job report available means true pilot or push mode
+                # If job report is not available in full push mode aCT would have failed the job
+                tmpLog.debug('no job report at {0}'.format(jsonFilePath))
+                return WorkSpec.ST_finished
             tmpLog.debug("pilot info for {0}: {1}".format(pandaID, jobreport))
             # Check for pilot errors
             if jobreport.get('pilotErrorCode', 0):
