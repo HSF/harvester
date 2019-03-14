@@ -40,13 +40,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
-        catchall = queue_dict.get('catchall', '')
-        if 'useMaxRam' in catchall:
-            # ignore the job memory, it will default to the site setting later
-            job_memory = 0
-        else:
-            job_memory = job_spec.jobParams.get('minRamCount', 0) or 0
-
+        job_memory = job_spec.jobParams.get('minRamCount', 0) or 0
         job_corecount = job_spec.jobParams.get('coreCount', 1) or 1
 
         unified_queue = queue_dict.get('capability', '') == 'ucore'
