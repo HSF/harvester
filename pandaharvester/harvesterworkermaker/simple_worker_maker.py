@@ -15,8 +15,8 @@ _logger = core_utils.setup_logger('simple_worker_maker')
 class SimpleWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
-        BaseWorkerMaker.__init__(self, **kwarg)
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
+        BaseWorkerMaker.__init__(self, **kwarg)
         self.rt_mapper = ResourceTypeMapper()
         try:
             self.pilotTypeRandomWeightsPermille
