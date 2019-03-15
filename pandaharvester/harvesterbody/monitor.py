@@ -233,7 +233,7 @@ class Monitor(AgentBase):
                             mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                 # release protective dequeued objects
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
-                    monitor_fifo.release(ids=obj_dequeued_id_list)
+                    monitor_fifo.delete(ids=obj_dequeued_id_list)
                 mainLog.debug('put {0} worker chunks into FIFO'.format(n_chunk_put) + sw.get_elapsed_time())
                 # adjust adjusted_sleepTime
                 if n_chunk_peeked_stat > 0 and sum_overhead_time_stat > sleepTime:

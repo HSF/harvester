@@ -502,7 +502,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                         tmpLog.debug('nothing expired')
                         break
                     elif peeked_tuple.id is not None:
-                        retVal = cache_fifo.release([peeked_tuple.id])
+                        retVal = cache_fifo.delete([peeked_tuple.id])
                         if isinstance(retVal, int):
                             n_cleanup += retVal
                     else:
