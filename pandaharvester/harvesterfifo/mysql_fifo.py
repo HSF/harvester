@@ -151,22 +151,22 @@ class MysqlFifo(PluginBase):
             ).format(table_name=self.tableName)
         self.execute(sql_make_index)
 
-    def _push(self, obj, score):
+    def _push(self, item, score):
         sql_push = (
                 'INSERT INTO {table_name} '
                 '(item, score) '
                 'VALUES (%s, %s) '
             ).format(table_name=self.tableName)
-        params = (obj, score)
+        params = (item, score)
         self.execute(sql_push, params)
 
-    def _push_by_id(self, id, obj, score):
+    def _push_by_id(self, id, item, score):
         sql_push = (
                 'INSERT IGNORE INTO {table_name} '
                 '(id, item, score) '
                 'VALUES (%s, %s, %s) '
             ).format(table_name=self.tableName)
-        params = (id, obj, score)
+        params = (id, item, score)
         self.execute(sql_push, params)
         n_row = self.cur.rowcount
         if n_row == 1:
@@ -211,23 +211,23 @@ class MysqlFifo(PluginBase):
                 self.execute(sql_pop_get)
                 res = self.cur.fetchall()
                 if len(res) > 0:
-                    id, obj, score = res[0]
+                    id, item, score = res[0]
                     params = (id,)
                     if protective:
                         self.execute(sql_pop_to_temp, params)
                     else:
                         self.execute(sql_pop_del, params)
                     n_row = self.cur.rowcount
+                    self.commit()
                     if n_row >= 1:
                         got_object = True
-                    self.commit()
             except Exception as _e:
                 self.rollback()
                 _exc = _e
             else:
                 if got_object:
                     keep_polling = False
-                    return (id, obj, score)
+                    return (id, item, score)
             now_timestamp = time.time()
             if timeout is None or (now_timestamp - last_attempt_timestamp) >= timeout:
                 keep_polling = False
@@ -278,47 +278,47 @@ class MysqlFifo(PluginBase):
         if len(res) > 0:
             if skip_item:
                 id, score = res[0]
-                obj = None
+                item = None
             else:
-                id, obj, score = res[0]
-            return (id, obj, score)
+                id, item, score = res[0]
+            return (id, item, score)
         else:
             return None
 
-    def _peek_many(self, mode='first', minscore=None, maxscore=None, count=None, skip_item=False):
-        minscore_str = '' if minscore is None else 'AND score >= {0}'.format(float(minscore))
-        maxscore_str = '' if maxscore is None else 'AND score <= {0}'.format(float(maxscore))
-        count_str = '' if count is None else 'LIMIT {0}'.format(int(count))
-        mode_rank_map = {
-                'first': '',
-                'last': 'DESC',
+    def _update(self, id, item=None, score=None, temporary=None, cond_score=None):
+        cond_score_str_map = {
+                'gt': 'AND score < {0}',
+                'ge': 'AND score <= {0}',
+                'lt': 'AND score > {0}',
+                'le': 'AND score >= {0}',
             }
-        if skip_item:
-            columns_str = 'id, score'
+        cond_score_str = cond_score_str_map.get(cond_score, '').format(score)
+        attr_set_list = []
+        params = []
+        if item is not None:
+            attr_set_list.append('item = %s'.format(item))
+            params.append(item)
+        if score is not None:
+            attr_set_list.append('score = %s'.format(score))
+            params.append(score)
+        if temporary is not None:
+            attr_set_list.append('temporary = %s'.format(temporary))
+            params.append(temporary)
+        attr_set_str = ' , '.join(attr_set_list)
+        if not attr_set_str:
+            return False
+        sql_update = (
+                'UPDATE IGNORE {table_name} SET '
+                '{attr_set_str} '
+                'WHERE id = {id} '
+                '{cond_score_str} '
+            ).format(table_name=self.tableName, id=id, cond_score_str=cond_score_str)
+        self.execute(sql_update, params)
+        n_row = self.cur.rowcount
+        if n_row == 1:
+            return True
         else:
-            columns_str = 'id, item, score'
-        sql_peek_many = (
-                'SELECT {columns} FROM {table_name} '
-                'WHERE temporary = 0 '
-                '{minscore_str} '
-                '{maxscore_str} '
-                'ORDER BY score {rank} '
-                '{count_str} '
-            ).format(columns=columns_str, table_name=self.tableName,
-                minscore_str=minscore_str, maxscore_str=maxscore_str,
-                rank=mode_rank_map[mode], count_str=count_str)
-        self.execute(sql_peek_many)
-        res = self.cur.fetchall()
-        self.commit()
-        ret_list = []
-        for _rec in res:
-            if skip_item:
-                id, score = _rec
-                obj = None
-            else:
-                id, obj, score = _rec
-            ret_list.append((id, obj, score))
-        return ret_list
+            return False
 
     # number of objects in queue
     def size(self):
@@ -332,18 +332,18 @@ class MysqlFifo(PluginBase):
         return None
 
     # enqueue with priority score
-    def put(self, obj, score):
+    def put(self, item, score):
         try:
-            self._push(obj, score)
+            self._push(item, score)
             self.commit()
         except Exception as _e:
             self.rollback()
             raise _e
 
     # enqueue by id
-    def putbyid(self, id, obj, score):
+    def putbyid(self, id, item, score):
         try:
-            retVal = self._push_by_id(id, obj, score)
+            retVal = self._push_by_id(id, item, score)
             self.commit()
         except Exception as _e:
             self.rollback()
@@ -358,6 +358,59 @@ class MysqlFifo(PluginBase):
     # dequeue the last object
     def getlast(self, timeout=None, protective=False):
         return self._pop(timeout=timeout, protective=protective, mode='last')
+
+    # dequeue list of objects with some conditions
+    def getmany(self, mode='first', minscore=None, maxscore=None, count=None,
+                    protective=False, temporary=False):
+        temporary_str = 'temporary = 1' if temporary else 'temporary = 0'
+        minscore_str = '' if minscore is None else 'AND score >= {0}'.format(float(minscore))
+        maxscore_str = '' if maxscore is None else 'AND score <= {0}'.format(float(maxscore))
+        count_str = '' if count is None else 'LIMIT {0}'.format(int(count))
+        mode_rank_map = {
+                'first': '',
+                'last': 'DESC',
+            }
+        sql_get_many = (
+                'SELECT id, item, score FROM {table_name} '
+                'WHERE '
+                '{temporary_str} '
+                '{minscore_str} '
+                '{maxscore_str} '
+                'ORDER BY score {rank} '
+                '{count_str} '
+            ).format(table_name=self.tableName, temporary_str=temporary_str,
+                minscore_str=minscore_str, maxscore_str=maxscore_str,
+                rank=mode_rank_map[mode], count_str=count_str)
+        sql_pop_to_temp = (
+                'UPDATE {table_name} SET temporary = 1 '
+                'WHERE id = %s AND temporary = 0 '
+            ).format(table_name=self.tableName)
+        sql_pop_del = (
+                'DELETE FROM {table_name} '
+                'WHERE id = %s AND temporary = 0 '
+            ).format(table_name=self.tableName)
+        ret_list = []
+        try:
+            self.execute(sql_get_many)
+            res = self.cur.fetchall()
+            for _rec in res:
+                got_object =False
+                id, item, score = _rec
+                params = (id,)
+                if protective:
+                    self.execute(sql_pop_to_temp, params)
+                else:
+                    self.execute(sql_pop_del, params)
+                n_row = self.cur.rowcount
+                self.commit()
+                if n_row >= 1:
+                    got_object = True
+                if got_object:
+                    ret_list.append(_rec)
+        except Exception as _e:
+            self.rollback()
+            _exc = _e
+        return ret_list
 
     # get tuple of (id, item, score) of the first object without dequeuing it
     def peek(self, skip_item=False):
@@ -404,10 +457,10 @@ class MysqlFifo(PluginBase):
         for _rec in res:
             if skip_item:
                 id, score = _rec
-                obj = None
+                item = None
             else:
-                id, obj, score = _rec
-            ret_list.append((id, obj, score))
+                id, item, score = _rec
+            ret_list.append((id, item, score))
         return ret_list
 
     # drop all objects in queue and index and reset the table
@@ -456,3 +509,14 @@ class MysqlFifo(PluginBase):
         except Exception as _e:
             self.rollback()
             raise _e
+
+    # update a object by its id with some conditions
+    def update(self, id, item=None, score=None, temporary=None, cond_score=None):
+        try:
+            retVal = self._update(id, item, score, temporary, cond_score)
+            self.commit()
+        except Exception as _e:
+            self.rollback()
+            raise _e
+        else:
+            return retVal

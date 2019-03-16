@@ -231,7 +231,7 @@ class Monitor(AgentBase):
                                                 len(workSpecsToEnqueueToHead), queueName, score))
                         except Exception as errStr:
                             mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
-                # release protective dequeued objects
+                # delete protective dequeued objects
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
                     monitor_fifo.delete(ids=obj_dequeued_id_list)
                 mainLog.debug('put {0} worker chunks into FIFO'.format(n_chunk_put) + sw.get_elapsed_time())
