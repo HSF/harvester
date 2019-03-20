@@ -2011,7 +2011,7 @@ class DBProxy(object):
             sqlFU += "SET status=:status,zipFileID=:zipFileID "
             sqlFU += "WHERE fileID=:fileID "
             # sql to check event
-            sqlEC = "SELECT eventRangeID FROM {0} ".format(eventTableName)
+            sqlEC = "SELECT eventRangeID,eventStatus FROM {0} ".format(eventTableName)
             sqlEC += "WHERE PandaID=:PandaID AND eventRangeID IS NOT NULL "
             # sql to check associated file
             sqlEF = "SELECT eventRangeID,status FROM {0} ".format(fileTableName)
@@ -2052,6 +2052,7 @@ class DBProxy(object):
                         pass
                     else:
                         # get nWorkers
+                        tmpLog.debug('start')
                         activeWorkers = set()
                         if isMultiWorkers:
                             varMap = dict()
@@ -2210,14 +2211,18 @@ class DBProxy(object):
                         # get event ranges and file stat
                         eventFileStat = dict()
                         eventRangesSet = set()
+                        doneEventRangesSet = set()
                         if len(jobSpec.events) > 0:
                             # get event ranges
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
                             self.execute(sqlEC, varMap)
                             resEC = self.cur.fetchall()
-                            for tmpEventRangeID, in resEC:
-                                eventRangesSet.add(tmpEventRangeID)
+                            for tmpEventRangeID, tmpEventStatus in resEC:
+                                if tmpEventStatus in ['finished', 'failed']:
+                                    doneEventRangesSet.add(tmpEventRangeID)
+                                else:
+                                    eventRangesSet.add(tmpEventRangeID)
                             # check associated file
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
@@ -2229,6 +2234,9 @@ class DBProxy(object):
                         varMapsEI = []
                         varMapsEU = []
                         for eventSpec in jobSpec.events:
+                            # already done
+                            if eventSpec.eventRangeID in doneEventRangesSet:
+                                continue
                             # set subStatus
                             if eventSpec.eventStatus == 'finished':
                                 # check associated file
@@ -2276,6 +2284,7 @@ class DBProxy(object):
                             self.execute(sqlJ, varMap)
                             nRow = self.cur.rowcount
                             tmpLog.debug('done with {0}'.format(nRow))
+                        tmpLog.debug('all done for job')
                     # commit
                     self.commit()
             # update worker
@@ -2283,7 +2292,7 @@ class DBProxy(object):
             for idxW, workSpec in enumerate(workspec_list):
                 tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workSpec.workerID),
                                                 method_name='update_jobs_workers')
-                tmpLog.debug('update')
+                tmpLog.debug('update worker')
                 workSpec.lockedBy = None
                 if workSpec.status == WorkSpec.ST_running and workSpec.startTime is None:
                     workSpec.startTime = timeNow
@@ -2331,6 +2340,7 @@ class DBProxy(object):
                             varMapsIR.append(varMap)
                     if len(varMapsIR) > 0:
                         self.executemany(sqlIR, varMapsIR)
+                tmpLog.debug('all done for worker')
                 # commit
                 self.commit()
             # return
