@@ -67,6 +67,8 @@ class JobFetcher(AgentBase):
                         jobSpec.subStatus = 'fetched'
                         jobSpec.creationTime = timeNow
                         jobSpec.stateChangeTime = timeNow
+                        jobSpec.endTime = timeNow
+                        jobSpec.startTime = timeNow
                         jobSpec.configID = queueConfig.configID
                         jobSpec.set_one_attribute('schedulerID',
                                                   'harvester-{0}'.format(harvester_config.master.harvester_id))

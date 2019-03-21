@@ -8,6 +8,7 @@ except Exception:
     import subprocess
 
 import datetime
+import time
 
 # logger
 baseLogger = core_utils.setup_logger('titan_utils')
@@ -164,16 +165,18 @@ class TitanUtils(PluginBase):
             return None
         tmpLog.debug("Date to fix: {0}".format(date_str))
         format_str = '%a %b %d %H:%M:%S %Y'
-        date_str = " ".join([date_str, str(datetime.datetime.now().year)])
-        date = datetime.datetime.strptime(date_str, format_str)
+        datestr = " ".join([date_str, str(datetime.datetime.now().year)])
+        date = datetime.datetime.strptime(datestr, format_str)
         if date > datetime.datetime.now():
-            date_str = " ".join([date_str, str(datetime.datetime.now().year - 1)])
-        date = datetime.datetime.strptime(date_str, format_str)
+            datestr = " ".join([date_str, str(datetime.datetime.now().year - 1)])
+        date = datetime.datetime.strptime(datestr, format_str)
 
         tmpLog.debug("Full date: {0}".format(str(date)))
-        utc_offset = datetime.timedelta(0, 18000, 0) # 5H UTC offset for Oak-Ridge
+        #utc_offset = (datetime.datetime.now().hour - datetime.datetime.utcnow().hour) * 3600
+        #utc_offset = datetime.timedelta(0, utc_offset, 0)
+        utc_offset = datetime.timedelta(0, -14400, 0)
         tmpLog.debug("UTC offset: {0}".format(str(utc_offset)))
-        fixed_date = date + utc_offset
+        fixed_date = date - utc_offset
         tmpLog.debug("Fixed date: {0}".format(str(fixed_date)))
 
         return fixed_date

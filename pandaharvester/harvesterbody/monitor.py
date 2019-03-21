@@ -397,6 +397,8 @@ class Monitor(AgentBase):
                     tmpQueLog.debug('updating {0} jobs with {1} workers'.format(len(jobSpecs), len(workSpecs)))
                     core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs,
                                                                   filesToStageOutList, eventsToUpdateList)
+                for jobSpec in jobSpecs:
+                    tmpQueLog.debug('Timing check: job {0} [{3}] z  start time {1} end time {2}'.format(jobSpec.PandaID, str(jobSpec.startTime), str(jobSpec.endTime), jobSpec.status))
                 # update local database
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:

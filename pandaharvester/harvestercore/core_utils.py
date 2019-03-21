@@ -280,7 +280,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             if workSpec.status in [WorkSpec.ST_running]:
                 jobSpec.set_start_time()
             elif workSpec.is_final_status():
-                jobSpec.set_end_time()
+                jobSpec.set_end_time(endtime=workSpec.endTime)
             # core count
             if workSpec.nCore is not None and jobSpec.nCore is None:
                 try:

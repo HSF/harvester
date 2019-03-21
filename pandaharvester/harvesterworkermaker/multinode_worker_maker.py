@@ -42,7 +42,7 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
         # prepare executor
         try:
             if self.executor == "aprun":  # "aprun -n [number of required nodes/jobs] -d [number of cpu per node/job]" - for one multicore job per node
-                exe_str = self.executor + " -n {0} -d {1} ".format(self.nJobsPerWorker, self.nCorePerJob)
+                exe_str = self.executor + " -N 1 -n {0} -d {1} ".format(self.nJobsPerWorker, self.nCorePerJob)
                 exe_str += self.pilot
             else:
                 exe_str = self.executor + " " + self.pilot

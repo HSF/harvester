@@ -10,6 +10,9 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestersubmitter.saga_submitter import SAGASubmitter
+from pandaharvester.harvesterconfig import harvester_config
+from glob import glob
+import json
 
 # logger
 baseLogger = core_utils.setup_logger('saga_monitor')
@@ -80,8 +83,16 @@ class SAGAMonitor(PluginBase):
                                 harvester_job_state = workSpec.ST_finished
                             if not workSpec.startTime:
                                 workSpec.startTime = starttime
+                                tmpLog.debug('Propagate worker start time to jobs')
+                                workSpec.set_work_attributes(
+                                    {"startTime": workSpec.startTime.strftime("%Y-%m-%d %H:%M:%S")})
                             if endtime:
                                 workSpec.endTime = endtime
+                            else:
+                                workSpec.endTime = datetime.utcnow()
+                            attr_dict = {"endTime":workSpec.endTime.strftime("%Y-%m-%d %H:%M:%S")}
+                            tmpLog.debug('Propagate worker end time to jobs: {0}'.format(attr_dict))
+                            workSpec.set_work_attributes(attr_dict)
                             workSpec.set_status(harvester_job_state)
                         tmpLog.info('Worker {2} with BatchID={0} finished with exit code {1} and state {3}'.format(
                             workSpec.batchID, worker.exit_code, workSpec.workerID, worker.state))
@@ -100,12 +111,24 @@ class SAGAMonitor(PluginBase):
                             cur_time = datetime.now()
                             workSpec.startTime = cur_time
                             workSpec.endTime = cur_time
+                            tmpLog.debug("Set proper timing for jobs")
+                            jodSpecs = workSpec.get_jobspec_list()
+                            if jodSpecs:
+                                for job_spec in jodSpecs:
+                                    job_spec.startTime = cur_time
+                                    job_spec.endTime = cur_time
+                            else:
+                                tmpLog.debug("No job specs received")
+                                try:
+                                    self.publish_workattr_file(workSpec)
+                                except Exception, e:
+                                    tmpLog.debug("Publishing of worker reports failed: {0}".format(str(e)))
+
                             workSpec.set_pilot_closed()
                             workSpec.set_status(workSpec.ST_cancelled)
                             harvester_job_state = workSpec.ST_cancelled
                             tmpLog.info("Worker state: {0} worker exit code: {1}".format(harvester_job_state,
                                                                                          workSpec.nativeExitCode))
-                            # proper processing of jobs for worker will be required, to avoid 'fake' fails
                     del worker
                 except saga.SagaException as ex:
                     tmpLog.info('An exception occured during retriving worker information {0}'.format(workSpec.batchID))
@@ -142,6 +165,30 @@ class SAGAMonitor(PluginBase):
         tmpLog.debug('Results: {0}'.format(retList))
 
         return True, retList
+
+    def publish_workattr_file(self, workspec):
+        """
+        Publish job attribute files for canceled jobs
+        :param workspec:
+        """
+        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID), method_name='publish_workattr_file')
+        jsonAttrsFileName = harvester_config.payload_interaction.workerAttributesFile
+        tmpLog.debug("Attribute filename: {0}".format(jsonAttrsFileName))
+        dirs = os.path.join(workspec.accessPoint, "*/")
+        tmpLog.debug("Workdir pathes mask: {0}".format(dirs))
+        dirs_list = glob(dirs)
+        tmpLog.debug("Workdirs: {0}".format(dirs_list))
+        cur_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        work_report = {
+            "startTime" : cur_time,
+            "endTime" : cur_time,
+            "cpuConsumptionTime" : 0,
+            "timestamp" : cur_time
+            }
+        for dir in dirs_list:
+            with open(os.path.join(dir, jsonAttrsFileName), 'w') as outputfile:
+                json.dump(work_report, outputfile)
+        tmpLog.debug("Attributes were published")
 
     def deep_checkjob(self, batchid, workerid):
         """
