@@ -92,7 +92,7 @@ class RucioStagerHPC(BaseStager):
 
             executable_prefix = None
             pfn_prefix = None
-            if dstRSE in self.objectstore_additions:
+            if self.objectstore_additions and (dstRSE in self.objectstore_additions):
                 if 'storage_id' in self.objectstore_additions[dstRSE]:
                     fileSpec.objstoreID = self.objectstore_additions[dstRSE]['storage_id']
                 if 'access_key' in self.objectstore_additions[dstRSE] and \
