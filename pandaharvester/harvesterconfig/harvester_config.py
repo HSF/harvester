@@ -1,6 +1,7 @@
 import re
 import os
 import sys
+import json
 from future.utils import iteritems
 
 from liveconfigparser.LiveConfigParser import LiveConfigParser
@@ -51,6 +52,8 @@ for tmpSection in tmpConf.sections():
             tmpVal = None
         elif re.match('^\d+$', tmpVal):
             tmpVal = int(tmpVal)
+        elif '\n' in tmpVal and (re.match('^\[.*\]$') or re.match('^\{.*\}$')):
+            tmpVal = json.loads(tmpVal)
         elif '\n' in tmpVal:
             tmpVal = tmpVal.split('\n')
             # remove empty
