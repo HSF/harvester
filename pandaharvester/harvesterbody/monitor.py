@@ -12,7 +12,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
-from pandaharvester.harvestercore.fifos import MonitorFIFO
+from pandaharvester.harvestercore.fifos import MonitorFIFO, MonitorEventFIFO
 from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
@@ -29,7 +29,13 @@ class Monitor(AgentBase):
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
         self.monitor_fifo = MonitorFIFO()
+        self.monitor_event_fifo = MonitorEventFIFO()
         self.apfmon = Apfmon(self.queueConfigMapper)
+        self.eventBasedMonCoreList = []
+        if getattr(harvester_config.monitor, 'eventBasedEnable', False):
+            for pluginConf in harvester_config.monitor.eventBasedPlugins:
+                pluginFactory = PluginFactory()
+                self.eventBasedMonCoreList.append(pluginFactory.get_plugin(pluginConf))
 
     # main loop
     def run(self):
@@ -39,32 +45,26 @@ class Monitor(AgentBase):
             # just import for module initialization
             self.pluginFactory.get_plugin(queueConfig.messenger)
         # main
-        try:
-            fifoSleepTimeMilli = harvester_config.monitor.fifoSleepTimeMilli
-        except AttributeError:
-            fifoSleepTimeMilli = 5000
-        try:
-            fifoCheckDuration = harvester_config.monitor.fifoCheckDuration
-        except AttributeError:
-            fifoCheckDuration = 30
-        try:
-            fifoMaxWorkersPerChunk = harvester_config.monitor.fifoMaxWorkersPerChunk
-        except AttributeError:
-            fifoMaxWorkersPerChunk = 500
-        try:
-            fifoProtectiveDequeue = harvester_config.monitor.fifoProtectiveDequeue
-        except AttributeError:
-            fifoProtectiveDequeue = True
+        fifoSleepTimeMilli = getattr(harvester_config.monitor, 'fifoSleepTimeMilli', 5000)
+        fifoCheckDuration = getattr(harvester_config.monitor, 'fifoCheckDuration', 30)
+        fifoMaxWorkersPerChunk = getattr(harvester_config.monitor, 'fifoMaxWorkersPerChunk', 500)
+        fifoProtectiveDequeue = getattr(harvester_config.monitor, 'fifoProtectiveDequeue', True)
+        eventBasedCheckInterval = getattr(harvester_config.monitor, 'eventBasedCheckInterval', 300)
+        eventBasedTimeWindow = getattr(harvester_config.monitor, 'eventBasedTimeWindow', 450)
+        eventBasedMaxEvents = getattr(harvester_config.monitor, 'eventBasedMaxEvents', 500)
+        eventBasedEventLifetime = getattr(harvester_config.monitor, 'eventBasedEventLifetime', 1800)
         last_DB_cycle_timestamp = 0
+        last_event_delivery_timestamp = 0
+        last_event_digest_timestamp = 0
         monitor_fifo = self.monitor_fifo
         sleepTime = (fifoSleepTimeMilli / 1000.0) \
                         if monitor_fifo.enabled else harvester_config.monitor.sleepTime
         adjusted_sleepTime = sleepTime
         if monitor_fifo.enabled:
             monitor_fifo.restore()
+        mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
         while True:
             sw_main = core_utils.get_stopwatch()
-            mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('start a monitor cycle')
             if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and \
                     not (monitor_fifo.enabled and self.singleMode):
@@ -106,8 +106,9 @@ class Monitor(AgentBase):
                     mainLog.debug('done a DB cycle' + sw_db.get_elapsed_time())
                 mainLog.debug('ended run with DB')
             elif monitor_fifo.enabled:
-                # run with workers from FIFO
+                # with FIFO
                 sw = core_utils.get_stopwatch()
+                to_run_fifo_check = True
                 n_loops = 0
                 n_loops_hit = 0
                 last_fifo_cycle_timestamp = time.time()
@@ -118,96 +119,122 @@ class Monitor(AgentBase):
                 remaining_obj_to_enqueue_dict = {}
                 remaining_obj_to_enqueue_to_head_dict = {}
                 n_chunk_peeked_stat, sum_overhead_time_stat = 0, 0.0
-                while time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
-                    sw.reset()
-                    n_loops += 1
-                    retVal, overhead_time = monitor_fifo.to_check_workers()
-                    if overhead_time is not None:
-                        n_chunk_peeked_stat += 1
-                        sum_overhead_time_stat += overhead_time
-                    if retVal:
-                        # check fifo size
-                        fifo_size = monitor_fifo.size()
-                        mainLog.debug('FIFO size is {0}'.format(fifo_size))
-                        mainLog.debug('starting run with FIFO')
-                        try:
-                            obj_gotten = monitor_fifo.get(timeout=1, protective=fifoProtectiveDequeue)
-                        except Exception as errStr:
-                            mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
-                        else:
-                            if obj_gotten is not None:
-                                sw_fifo = core_utils.get_stopwatch()
-                                if fifoProtectiveDequeue:
-                                    obj_dequeued_id_list.append(obj_gotten.id)
-                                queueName, workSpecsList = obj_gotten.item
-                                mainLog.debug('got a chunk of {0} workers of {1} from FIFO'.format(len(workSpecsList), queueName) + sw.get_elapsed_time())
-                                sw.reset()
-                                configID = None
-                                for workSpecs in workSpecsList:
-                                    if configID is None and len(workSpecs) > 0:
-                                        configID = workSpecs[0].configID
-                                    for workSpec in workSpecs:
-                                        if workSpec.pandaid_list is None:
-                                            _jobspec_list = workSpec.get_jobspec_list()
-                                            if _jobspec_list is not None:
-                                                workSpec.pandaid_list = [j.PandaID for j in workSpec.get_jobspec_list()]
-                                            else:
-                                                workSpec.pandaid_list = []
-                                            workSpec.force_update('pandaid_list')
-                                retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
-                                                                 config_id=configID)
-                                if retVal is not None:
-                                    workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
-                                    try:
-                                        if len(obj_to_enqueue_dict[queueName][0]) + len(workSpecsToEnqueue) <= fifoMaxWorkersPerChunk:
-                                            obj_to_enqueue_dict[queueName][0].extend(workSpecsToEnqueue)
-                                            obj_to_enqueue_dict[queueName][1] = max(obj_to_enqueue_dict[queueName][1], timeNow_timestamp)
-                                            obj_to_enqueue_dict[queueName][2] = max(obj_to_enqueue_dict[queueName][2], fifoCheckInterval)
-                                        else:
-                                            to_break = True
-                                            remaining_obj_to_enqueue_dict[queueName] = [workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval]
-                                    except Exception as errStr:
-                                        mainLog.error('failed to gather workers for FIFO: {0}'.format(errStr))
-                                        to_break = True
-                                    try:
-                                        if len(obj_to_enqueue_to_head_dict[queueName][0]) + len(workSpecsToEnqueueToHead) <= fifoMaxWorkersPerChunk:
-                                            obj_to_enqueue_to_head_dict[queueName][0].extend(workSpecsToEnqueueToHead)
-                                            obj_to_enqueue_to_head_dict[queueName][1] = max(obj_to_enqueue_to_head_dict[queueName][1], timeNow_timestamp)
-                                            obj_to_enqueue_to_head_dict[queueName][2] = max(obj_to_enqueue_to_head_dict[queueName][2], fifoCheckInterval)
-                                        else:
-                                            to_break = True
-                                            remaining_obj_to_enqueue_to_head_dict[queueName] = [workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval]
-                                    except Exception as errStr:
-                                        mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
-                                        to_break = True
-                                    mainLog.debug('checked {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
-                                else:
-                                    mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
-                                if sw_fifo.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
-                                    mainLog.warning('a single FIFO cycle was longer than lockInterval ' + sw_fifo.get_elapsed_time())
-                                else:
-                                    mainLog.debug('done a FIFO cycle' + sw_fifo.get_elapsed_time())
-                                    n_loops_hit += 1
-                                if to_break:
-                                    break
-                            else:
-                                mainLog.debug('got nothing in FIFO')
-                    else:
-                        mainLog.debug('workers in FIFO too young to check. Skipped')
-                        if self.singleMode:
-                            break
+                # go get workers
+                if monitor_event_fifo.enabled:
+                    # run with workers reported from plugin (event-based check)
+                    to_deliver = time.time() >= last_event_delivery_timestamp + eventBasedCheckInterval
+                    to_digest = time.time() >= last_event_digest_timestamp + eventBasedCheckInterval/4
+                    to_dispose = to_deliver
+                    if to_deliver:
+                        # deliver events of worker update
+                        self.monitor_event_deliverer(time_window=eventBasedTimeWindow)
+                        last_event_delivery_timestamp = time.time()
+                    if to_digest:
+                        # digest events of worker update
+                        to_run_fifo_check = False
+                        retMap = self.monitor_event_digester(max_events=eventBasedMaxEvents)
+                        for qc_key, retVal in retMap:
+                            workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
+                            # only enqueue postprocessing workers to FIFO
+                            obj_to_enqueue_to_head_dict[qc_key][0].extend(workSpecsToEnqueueToHead)
+                            obj_to_enqueue_to_head_dict[qc_key][1] = max(obj_to_enqueue_to_head_dict[qc_key][1], timeNow_timestamp)
+                            obj_to_enqueue_to_head_dict[qc_key][2] = max(obj_to_enqueue_to_head_dict[qc_key][2], fifoCheckInterval)
+                        last_event_digest_timestamp = time.time()
+                    if to_dispose:
+                        # dispose of outdated events of worker update
+                        self.monitor_event_disposer(event_lifetime=eventBasedEventLifetime, max_events=eventBasedMaxEvents)
+                if to_run_fifo_check:
+                    # run with workers from FIFO
+                    while time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
+                        sw.reset()
+                        n_loops += 1
+                        retVal, overhead_time = monitor_fifo.to_check_workers()
                         if overhead_time is not None:
-                            time.sleep(max(-overhead_time*random.uniform(0.1, 1), adjusted_sleepTime))
+                            n_chunk_peeked_stat += 1
+                            sum_overhead_time_stat += overhead_time
+                        if retVal:
+                            # check fifo size
+                            fifo_size = monitor_fifo.size()
+                            mainLog.debug('FIFO size is {0}'.format(fifo_size))
+                            mainLog.debug('starting run with FIFO')
+                            try:
+                                obj_gotten = monitor_fifo.get(timeout=1, protective=fifoProtectiveDequeue)
+                            except Exception as errStr:
+                                mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
+                            else:
+                                if obj_gotten is not None:
+                                    sw_fifo = core_utils.get_stopwatch()
+                                    if fifoProtectiveDequeue:
+                                        obj_dequeued_id_list.append(obj_gotten.id)
+                                    queueName, workSpecsList = obj_gotten.item
+                                    mainLog.debug('got a chunk of {0} workers of {1} from FIFO'.format(len(workSpecsList), queueName) + sw.get_elapsed_time())
+                                    sw.reset()
+                                    configID = None
+                                    for workSpecs in workSpecsList:
+                                        if configID is None and len(workSpecs) > 0:
+                                            configID = workSpecs[0].configID
+                                        for workSpec in workSpecs:
+                                            if workSpec.pandaid_list is None:
+                                                _jobspec_list = workSpec.get_jobspec_list()
+                                                if _jobspec_list is not None:
+                                                    workSpec.pandaid_list = [j.PandaID for j in workSpec.get_jobspec_list()]
+                                                else:
+                                                    workSpec.pandaid_list = []
+                                                workSpec.force_update('pandaid_list')
+                                    retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
+                                                                     config_id=configID)
+                                    if retVal is not None:
+                                        workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
+                                        qc_key = (queueName, configID)
+                                        try:
+                                            if len(obj_to_enqueue_dict[qc_key][0]) + len(workSpecsToEnqueue) <= fifoMaxWorkersPerChunk:
+                                                obj_to_enqueue_dict[qc_key][0].extend(workSpecsToEnqueue)
+                                                obj_to_enqueue_dict[qc_key][1] = max(obj_to_enqueue_dict[qc_key][1], timeNow_timestamp)
+                                                obj_to_enqueue_dict[qc_key][2] = max(obj_to_enqueue_dict[qc_key][2], fifoCheckInterval)
+                                            else:
+                                                to_break = True
+                                                remaining_obj_to_enqueue_dict[qc_key] = [workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval]
+                                        except Exception as errStr:
+                                            mainLog.error('failed to gather workers for FIFO: {0}'.format(errStr))
+                                            to_break = True
+                                        try:
+                                            if len(obj_to_enqueue_to_head_dict[qc_key][0]) + len(workSpecsToEnqueueToHead) <= fifoMaxWorkersPerChunk:
+                                                obj_to_enqueue_to_head_dict[qc_key][0].extend(workSpecsToEnqueueToHead)
+                                                obj_to_enqueue_to_head_dict[qc_key][1] = max(obj_to_enqueue_to_head_dict[qc_key][1], timeNow_timestamp)
+                                                obj_to_enqueue_to_head_dict[qc_key][2] = max(obj_to_enqueue_to_head_dict[qc_key][2], fifoCheckInterval)
+                                            else:
+                                                to_break = True
+                                                remaining_obj_to_enqueue_to_head_dict[qc_key] = [workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval]
+                                        except Exception as errStr:
+                                            mainLog.error('failed to gather workers for FIFO head: {0}'.format(errStr))
+                                            to_break = True
+                                        mainLog.debug('checked {0} workers from FIFO'.format(len(workSpecsList)) + sw.get_elapsed_time())
+                                    else:
+                                        mainLog.debug('monitor_agent_core returned None. Skipped putting to FIFO')
+                                    if sw_fifo.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
+                                        mainLog.warning('a single FIFO cycle was longer than lockInterval ' + sw_fifo.get_elapsed_time())
+                                    else:
+                                        mainLog.debug('done a FIFO cycle' + sw_fifo.get_elapsed_time())
+                                        n_loops_hit += 1
+                                    if to_break:
+                                        break
+                                else:
+                                    mainLog.debug('got nothing in FIFO')
                         else:
-                            time.sleep(max(fifoCheckDuration*random.uniform(0.1, 1), adjusted_sleepTime))
-                mainLog.debug('run {0} loops, including {1} FIFO cycles'.format(n_loops, n_loops_hit))
-
+                            mainLog.debug('workers in FIFO too young to check. Skipped')
+                            if self.singleMode:
+                                break
+                            if overhead_time is not None:
+                                time.sleep(max(-overhead_time*random.uniform(0.1, 1), adjusted_sleepTime))
+                            else:
+                                time.sleep(max(fifoCheckDuration*random.uniform(0.1, 1), adjusted_sleepTime))
+                    mainLog.debug('run {0} loops, including {1} FIFO cycles'.format(n_loops, n_loops_hit))
                 # enqueue to fifo
                 sw.reset()
                 n_chunk_put = 0
                 mainLog.debug('putting worker chunks to FIFO')
                 for _dct in (obj_to_enqueue_dict, remaining_obj_to_enqueue_dict):
-                    for queueName, obj_to_enqueue in iteritems(_dct):
+                    for ((queueName, configID), obj_to_enqueue) in iteritems(_dct):
                         try:
                             workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue
                             if workSpecsToEnqueue:
@@ -220,7 +247,7 @@ class Monitor(AgentBase):
                             mainLog.error('failed to put object from FIFO: {0}'.format(errStr))
                 mainLog.debug('putting worker chunks to FIFO head')
                 for _dct in (obj_to_enqueue_to_head_dict, remaining_obj_to_enqueue_to_head_dict):
-                    for queueName, obj_to_enqueue_to_head in iteritems(_dct):
+                    for ((queueName, configID), obj_to_enqueue_to_head) in iteritems(_dct):
                         try:
                             workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue_to_head
                             if workSpecsToEnqueueToHead:
@@ -247,7 +274,6 @@ class Monitor(AgentBase):
                 mainLog.debug('ended run with FIFO')
             # time the cycle
             mainLog.debug('done a monitor cycle' + sw_main.get_elapsed_time())
-
             # check if being terminated
             if self.terminated(adjusted_sleepTime):
                 mainLog.debug('terminated')
@@ -678,3 +704,50 @@ class Monitor(AgentBase):
         except Exception:
             core_utils.dump_error_message(tmp_log)
             return False, None
+
+    # ask plugin for workers to update, get workspecs, and queue the event
+    def monitor_event_deliverer(self, time_window):
+        tmpLog = self.make_logger(_logger, 'id=monitor-{0}'.format(self.get_pid()), method_name='monitor_event_deliverer')
+        tmpLog.debug('start')
+        for mon_core in self.eventBasedMonCoreList:
+            tmpLog.debug('run with {0}'.format(mon_core.__class__.__name__))
+            worker_update_list = mon_core.report_updated_workers(time_window=time_window)
+            for workerID, updateTimestamp in worker_update_list:
+                retVal = self.monitor_event_fifo.putbyid(id=workerID, item=True, score=updateTimestamp)
+                if not retVal:
+                    retVal = self.monitor_event_fifo.update(id=workerID, score=updateTimestamp, temporary=0, cond_score='gt')
+                    tmpLog.debug('updated event with workerID={0}'.format(workerID))
+                else:
+                    tmpLog.debug('put event with workerID={0}'.format(workerID))
+        tmpLog.debug('done')
+
+    # get events and check workers
+    def monitor_event_digester(self, max_events):
+        tmpLog = self.make_logger(_logger, 'id=monitor-{0}'.format(self.get_pid()), method_name='monitor_event_digester')
+        tmpLog.debug('start')
+        timeNow_timestamp = time.time()
+        retMap = {}
+        obj_gotten_list = self.monitor_event_fifo.getmany(mode='first', count=max_events, protective=True)
+        workerID_list = [ obj_gotten.id for obj_gotten in obj_gotten_list ]
+        tmpLog.debug('got {0} worker events'.format(len(workerID_list)))
+        updated_workers_dict = self.dbProxy.get_workers_from_ids(workerID_list)
+        tmpLog.debug('got workspecs for worker events')
+        for queueName, _val in iteritems(updated_workers_dict):
+            for configID, workSpecsList in iteritems(_val):
+                qc_key = (queueName, configID)
+                tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
+                retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID)
+                retMap[qc_key] = retVal
+        tmpLog.debug('done')
+        return retMap
+
+    # remove outdated events
+    def monitor_event_disposer(self, event_lifetime, max_events):
+        tmpLog = self.make_logger(_logger, 'id=monitor-{0}'.format(self.get_pid()), method_name='monitor_event_disposer')
+        tmpLog.debug('start')
+        timeNow_timestamp = time.time()
+        obj_gotten_list = self.monitor_event_fifo.getmany(mode='first',
+                                                            maxscore=(timeNow_timestamp-event_lifetime),
+                                                            count=max_events, temporary=True)
+        tmpLog.debug('removed {0} events'.format(len(obj_gotten_list)))
+        tmpLog.debug('done')

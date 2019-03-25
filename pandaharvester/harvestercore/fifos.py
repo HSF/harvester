@@ -60,10 +60,12 @@ class FIFOBase(object):
         return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
 
     # intialize fifo from harvester configuration
-    def _initialize_fifo(self):
+    def _initialize_fifo(self, force_enable=False):
         self.fifoName = '{0}_fifo'.format(self.titleName)
         self.config = getattr(harvester_config, self.titleName)
-        if hasattr(self.config, 'fifoEnable') and self.config.fifoEnable:
+        if force_enable:
+            self.enabled = True
+        elif hasattr(self.config, 'fifoEnable') and self.config.fifoEnable:
             self.enabled = True
         else:
             self.enabled = False
@@ -384,3 +386,17 @@ class MonitorFIFO(FIFOBase):
         else:
             mainLog.debug('False. Got nothing in FIFO')
         return retVal, overhead_time
+
+
+class MonitorEventFIFO(FIFOBase):
+    titleName = 'monitor-event'
+
+    # constructor
+    def __init__(self, **kwarg):
+        self.config = getattr(harvester_config, 'monitor')
+        force_enable = False
+        if hasattr(self.config, 'fifoEnable') and self.config.fifoEnable \
+            and getattr(self.config, 'eventBasedEnable', False):
+            force_enable = True
+        FIFOBase.__init__(self, **kwarg)
+        self._initialize_fifo(force_enable)
