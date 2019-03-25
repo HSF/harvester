@@ -531,6 +531,8 @@ class HTCondorSubmitter(PluginBase):
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
+        pilot_version_orig = str(this_panda_queue_dict.get('pilot_version', ''))
+        pilot_version_suffix_str = '_pilot2' if pilot_version_orig == '2' else ''
 
         # get override requirements from queue configured
         try:
@@ -622,9 +624,11 @@ class HTCondorSubmitter(PluginBase):
                         if ce_flavour_str in default_port_map:
                             default_port = default_port_map[ce_flavour_str]
                             ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
-                    tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
+                    tmpLog.debug('For site {0} got pilot version: "{1}"; CE endpoint: "{2}", flavour: "{3}"'.format(
+                                    self.queueName, pilot_version_orig, ce_endpoint_from_queue, ce_flavour_str))
                     if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
-                        sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
+                        sdf_template_filename = '{ce_flavour_str}{pilot_version_suffix_str}.sdf'.format(
+                                                    ce_flavour_str=ce_flavour_str, pilot_version_suffix_str=pilot_version_suffix_str)
                         self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
                 else:
                     try:
