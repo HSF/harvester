@@ -36,7 +36,8 @@ setup(
                       'rpyc',
                       'paramiko',
                       'pexpect',
-                      'psutil >= 5.4.8'
+                      'psutil >= 5.4.8',
+                      'scandir; python_version < "3.5"'
                       ],
     data_files=[
         # config and cron files

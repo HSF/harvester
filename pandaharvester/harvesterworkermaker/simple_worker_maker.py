@@ -15,8 +15,8 @@ _logger = core_utils.setup_logger('simple_worker_maker')
 class SimpleWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
-        BaseWorkerMaker.__init__(self, **kwarg)
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
+        BaseWorkerMaker.__init__(self, **kwarg)
         self.rt_mapper = ResourceTypeMapper()
         try:
             self.pilotTypeRandomWeightsPermille
@@ -79,7 +79,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # case of unified queue: look at the resource type and queue configuration
         else:
             catchall = queue_dict.get('catchall', '')
-            if 'useMaxRamUcore' in catchall or queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified',
+            if 'useMaxRam' in catchall or queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified',
                                                                        'Taiwan-LCG2-HPC_Unified', 'DESY-ZN_UCORE'):
                 # temporary hack to debug killed workers in Taiwan queues
                 site_corecount = queue_dict.get('corecount', 1) or 1
@@ -127,6 +127,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 maxWalltime = queue_dict.get('maxtime', walltimeLimit_default)
             except Exception:
                 pass
+
             if (nCore > 0 and 'nCore' in self.jobAttributesToUse) \
                or unified_queue:
                 workSpec.nCore = nCore

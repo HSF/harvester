@@ -181,6 +181,8 @@ resolverClass = PandaQueuesDict
 # enable auto-blacklisting of resolver which returns status='offline' to blacklist the queue
 autoBlacklist = False
 
+# restrict to a certain pilot version (optional)
+pilotVersion = 1
 
 
 

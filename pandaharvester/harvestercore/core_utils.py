@@ -39,8 +39,9 @@ from pandaharvester.harvesterconfig import harvester_config
 with_memory_profile = False
 
 
-# lock for synchronizataion
+# lock for synchronization
 sync_lock = threading.Lock()
+
 
 # synchronize decorator
 def synchronize(func):

@@ -13,6 +13,12 @@ try:
 except ImportError:
     import subprocess
 
+try:
+    from os import scandir, walk
+except ImportError:
+    from scandir import scandir, walk
+
+import re
 import uuid
 import os.path
 import fnmatch
@@ -119,12 +125,43 @@ def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None):
     return com, retCode, stdOut, stdErr
 
 
+# scan files in a directory
+def scan_files_in_dir(dir_name, patterns=None):
+    fileList = []
+    for root, dirs, filenames in walk(dir_name):
+        for filename in filenames:
+            # check filename
+            if patterns is not None:
+                matched = False
+                for pattern in patterns:
+                    if re.search(pattern, filename) is not None:
+                        matched = True
+                        break
+                if not matched:
+                    continue
+            # make dict
+            tmpFileDict = dict()
+            pfn = os.path.join(root, filename)
+            lfn = os.path.basename(pfn)
+            tmpFileDict['path'] = pfn
+            tmpFileDict['fsize'] = os.stat(pfn).st_size
+            tmpFileDict['type'] = 'es_output'
+            tmpFileDict['guid'] = str(uuid.uuid4())
+            tmpFileDict['chksum'] = core_utils.calc_adler32(pfn)
+            tmpFileDict['eventRangeID'] = lfn.split('.')[-1]
+            tmpFileDict['eventStatus'] = "finished"
+            fileList.append(tmpFileDict)
+    return fileList
+
+
 # messenger with shared file system
 class SharedFileMessenger(BaseMessenger):
     # constructor
     def __init__(self, **kwarg):
         self.jobSpecFileFormat = 'json'
         self.stripJobParams = False
+        self.scanInPostProcess = False
+        self.leftOverPatterns = None
         BaseMessenger.__init__(self, **kwarg)
 
     # get access point
@@ -483,7 +520,7 @@ class SharedFileMessenger(BaseMessenger):
                     for tmpPandaID, tmpDict in iteritems(tmpOrigDict):
                         tmpPandaID = long(tmpPandaID)
                         retDict[tmpPandaID] = tmpDict
-                        nData += 1
+                        nData += len(tmpDict)
             except Exception:
                 tmpLog.error('failed to load json')
             # delete empty file
@@ -558,43 +595,81 @@ class SharedFileMessenger(BaseMessenger):
         try:
             for jobSpec in jobspec_list:
                 # check if log is already there
+                hasLog = False
                 for fileSpec in jobSpec.outFiles:
                     if fileSpec.fileType == 'log':
-                        continue
-                logFileInfo = jobSpec.get_logfile_info()
-                # make log.tar.gz
-                accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
-                logFilePath = os.path.join(accessPoint, logFileInfo['lfn'])
-                if map_type == WorkSpec.MT_MultiWorkers:
-                    # append suffix
-                    logFilePath += '._{0}'.format(workspec.workerID)
-                tmpLog.debug('making {0}'.format(logFilePath))
-                dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
-                        if os.path.isdir(os.path.join(accessPoint, name))]
-                # tar sub dirs
-                tmpLog.debug('tar for {0} sub dirs'.format(len(dirs)))
-                with Pool(max_workers=multiprocessing.cpu_count()) as pool:
-                    retValList = pool.map(tar_directory, dirs)
-                    for dirName, (comStr, retCode, stdOut, stdErr) in zip(dirs, retValList):
-                        if retCode != 0:
-                            tmpLog.warning('failed to sub-tar {0} with {1} -> {2}:{3}'.format(
-                                dirName, comStr, stdOut, stdErr))
-                # tar main dir
-                tmpLog.debug('tar for main dir')
-                comStr, retCode, stdOut, stdErr = tar_directory(accessPoint, logFilePath, 1, ["*.subdir.tar.gz"])
-                tmpLog.debug('used command : ' + comStr)
-                if retCode != 0:
-                    tmpLog.warning('failed to tar {0} with {1} -> {2}:{3}'.format(
-                        accessPoint, comStr, stdOut, stdErr))
-                # make json to stage-out the log file
+                        hasLog = True
+                        break
                 fileDict = dict()
-                fileDict[jobSpec.PandaID] = []
-                fileDict[jobSpec.PandaID].append({'path': logFilePath,
-                                                  'type': 'log',
-                                                  'isZip': 0})
-                jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
-                with open(jsonFilePath, 'w') as jsonFile:
-                    json.dump(fileDict, jsonFile)
+                accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
+                # make log
+                if not hasLog:
+                    logFileInfo = jobSpec.get_logfile_info()
+                    # make log.tar.gz
+                    logFilePath = os.path.join(accessPoint, logFileInfo['lfn'])
+                    if map_type == WorkSpec.MT_MultiWorkers:
+                        # append suffix
+                        logFilePath += '._{0}'.format(workspec.workerID)
+                    tmpLog.debug('making {0}'.format(logFilePath))
+                    dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
+                            if os.path.isdir(os.path.join(accessPoint, name))]
+                    # tar sub dirs
+                    tmpLog.debug('tar for {0} sub dirs'.format(len(dirs)))
+                    with Pool(max_workers=multiprocessing.cpu_count()) as pool:
+                        retValList = pool.map(tar_directory, dirs)
+                        for dirName, (comStr, retCode, stdOut, stdErr) in zip(dirs, retValList):
+                            if retCode != 0:
+                                tmpLog.warning('failed to sub-tar {0} with {1} -> {2}:{3}'.format(
+                                    dirName, comStr, stdOut, stdErr))
+                    # tar main dir
+                    tmpLog.debug('tar for main dir')
+                    comStr, retCode, stdOut, stdErr = tar_directory(accessPoint, logFilePath, 1, ["*.subdir.tar.gz"])
+                    tmpLog.debug('used command : ' + comStr)
+                    if retCode != 0:
+                        tmpLog.warning('failed to tar {0} with {1} -> {2}:{3}'.format(
+                            accessPoint, comStr, stdOut, stdErr))
+                    # make file dict
+                    fileDict.setdefault(jobSpec.PandaID, [])
+                    fileDict[jobSpec.PandaID].append({'path': logFilePath,
+                                                      'type': 'log',
+                                                      'isZip': 0})
+                # look for leftovers
+                if self.scanInPostProcess:
+                    tmpLog.debug('scanning leftovers in {0}'.format(accessPoint))
+                    dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
+                            if os.path.isdir(os.path.join(accessPoint, name))]
+                    if self.leftOverPatterns is None:
+                        patterns = None
+                    else:
+                        patterns = []
+                        for scanPat in self.leftOverPatterns:
+                            # replace placeholders
+                            if '%PANDAID' in scanPat:
+                                scanPat = scanPat.replace('%PANDAID', str(jobSpec.PandaID))
+                            if '%TASKID' in scanPat:
+                                scanPat = scanPat.replace('%TASKID', str(jobSpec.taskID))
+                            if '%OUTPUT_FILE' in scanPat:
+                                logFileName = jobSpec.get_logfile_info()['lfn']
+                                for outputName in jobSpec.get_output_file_attributes().keys():
+                                    if outputName == logFileName:
+                                        continue
+                                    patterns.append(scanPat.replace('%OUTPUT_FILE', outputName))
+                            else:
+                                patterns.append(scanPat)
+                    # scan files
+                    nLeftOvers = 0
+                    with Pool(max_workers=multiprocessing.cpu_count()) as pool:
+                        retValList = pool.map(scan_files_in_dir, dirs, [patterns] * len(dirs))
+                        for retVal in retValList:
+                            fileDict.setdefault(jobSpec.PandaID, [])
+                            fileDict[jobSpec.PandaID] += retVal
+                            nLeftOvers += len(retVal)
+                    tmpLog.debug('got {0} leftovers'.format(nLeftOvers))
+                # make json to stage-out
+                if len(fileDict) > 0:
+                    jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
+                    with open(jsonFilePath, 'w') as jsonFile:
+                        json.dump(fileDict, jsonFile)
                 tmpLog.debug('done')
             return True
         except Exception:

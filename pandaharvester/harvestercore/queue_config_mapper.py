@@ -13,6 +13,7 @@ except ImportError:
     JSONDecodeError = ValueError
 
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from .work_spec import WorkSpec
 from .panda_queue_spec import PandaQueueSpec
 from . import core_utils
@@ -258,6 +259,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             allQueuesNameList = set()
             getQueuesDynamic = False
             invalidQueueList = set()
+            pandaQueueDict = PandaQueuesDict()
             # get resolver
             resolver = self._get_resolver()
             if resolver is None:
@@ -539,6 +541,10 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 queueConfig.configID = dumpSpec.configID
                 # ignore offline
                 if queueConfig.queueStatus == 'offline':
+                    continue
+                # filter for pilot version
+                if hasattr(harvester_config.qconf, 'pilotVersion') and \
+                    pandaQueueDict[queueConfig.siteName].get('pilot_version') != str(harvester_config.qconf.pilotVersion):
                     continue
                 if 'ALL' not in harvester_config.qconf.queueList and \
                         'DYNAMIC' not in harvester_config.qconf.queueList and \
