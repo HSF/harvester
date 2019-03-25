@@ -202,7 +202,6 @@ class DBProxy(object):
     # wrapper for execute
     def execute(self, sql, varmap=None):
         sw = core_utils.get_stopwatch()
-        newSQL = ''
         if varmap is None:
             varmap = dict()
         # get lock if application side lock is used
@@ -272,7 +271,15 @@ class DBProxy(object):
                 paramList.append(params)
             # execute
             try:
-                retVal = self.cur.executemany(newSQL, paramList)
+                if harvester_config.db.engine == 'sqlite':
+                    retVal = []
+                    iList = 0
+                    nList = 5000
+                    while iList < len(paramList):
+                        retVal += self.cur.executemany(newSQL, paramList[iList:iList+nList])
+                        iList += nList
+                else:
+                    retVal = self.cur.executemany(newSQL, paramList)
             except Exception as e:
                 self._handle_exception(e)
                 if harvester_config.db.verbose:
@@ -2219,10 +2226,10 @@ class DBProxy(object):
                             self.execute(sqlEC, varMap)
                             resEC = self.cur.fetchall()
                             for tmpEventRangeID, tmpEventStatus in resEC:
-                                if tmpEventStatus in ['finished', 'failed']:
-                                    doneEventRangesSet.add(tmpEventRangeID)
-                                else:
+                                if tmpEventStatus in ['running']:
                                     eventRangesSet.add(tmpEventRangeID)
+                                else:
+                                    doneEventRangesSet.add(tmpEventRangeID)
                             # check associated file
                             varMap = dict()
                             varMap[':PandaID'] = jobSpec.PandaID
