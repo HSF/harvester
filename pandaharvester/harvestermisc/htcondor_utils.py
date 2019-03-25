@@ -363,7 +363,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             self.useCondorHistory = useCondorHistory
             tmpLog.debug('Initialize done')
 
-    def get_all(self, batchIDs_list=[]):
+    def get_all(self, batchIDs_list=[], allJobs=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.get_all')
         # Get all
@@ -371,7 +371,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                job_ads_all_dict = self.query_with_python(batchIDs_list)
+                job_ads_all_dict = self.query_with_python(batchIDs_list, allJobs)
             except Exception as e:
                 tmpLog.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
                 raise
@@ -447,7 +447,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         return job_ads_all_dict
 
     @CondorClient.renew_session_and_retry
-    def query_with_python(self, batchIDs_list=[]):
+    def query_with_python(self, batchIDs_list=[], allJobs=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.query_with_python')
         # Start query
@@ -589,11 +589,14 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         for query_method in query_method_list:
             # Make requirements
             clusterids_str = ','.join(list(clusterids_set))
-            if query_method is cache_query:
+            if query_method is cache_query or allJobs:
                 requirements = 'harvesterID =?= "{0}"'.format(harvesterID)
             else:
                 requirements = 'member(ClusterID, {{{0}}})'.format(clusterids_str)
-            tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
+            if allJobs:
+                tmpLog.debug('Query method: {0} ; allJobs'.format(query_method.__name__))
+            else:
+                tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
             # Query
             jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
@@ -602,11 +605,12 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = job_ads_dict
                 # Remove batch jobs already gotten from the list
-                batchIDs_set.discard(batchid)
-            if len(batchIDs_set) == 0:
+                if not allJobs:
+                    batchIDs_set.discard(batchid)
+            if len(batchIDs_set) == 0 or allJobs:
                 break
         # Remaining
-        if len(batchIDs_set) > 0:
+        if not allJobs and len(batchIDs_set) > 0:
             # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_set:
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)

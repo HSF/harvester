@@ -228,3 +228,40 @@ class HTCondorMonitor(PluginBase):
         retList = list(retIterator)
         tmpLog.debug('done')
         return True, retList
+
+    # report updated workers info to monitor to check
+    def report_updated_workers(self, time_window):
+        ## Make logger for batch job query
+        tmpLog = self.make_logger(baseLogger, method_name='report_updated_workers')
+        tmpLog.debug('start')
+        ## Get now timestamp
+        timeNow = time.time()
+        ## Loop over submissionHost and get all jobs
+        job_ads_all_dict = {}
+        cache_last_update = 0
+        for submissionHost in self.submissionHost_list:
+            job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
+                                        cacheRefreshInterval=self.cacheRefreshInterval,
+                                        useCondorHistory=self.useCondorHistory,
+                                        id=submissionHost)
+            job_ads_all_dict.update(job_query.get_all(allJobs=True))
+            ## Last update time of condor_q cache
+            try:
+                cache_last_update = max(job_query.cache[1], cache_last_update)
+            except Exception:
+                pass
+        ## Choose workers updated within a time window
+        workers_to_check_list = []
+        for condor_job_id, job_ads in job_ads_all_dict:
+            ## put in worker cache fifo, with lock mechanism
+            job_EnteredCurrentStatus = job_ads.get('EnteredCurrentStatus')
+            if not (job_EnteredCurrentStatus > timeNow - time_window):
+                continue
+            workerid = job_ads.get('harvesterWorkerID')
+            if workerid is None:
+                continue
+            else:
+                workerid = int(workerid)
+            workers_to_check_list.append((workerid, job_EnteredCurrentStatus))
+        tmpLog.debug('done')
+        return workers_to_check_list
