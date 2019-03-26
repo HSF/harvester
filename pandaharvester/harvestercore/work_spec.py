@@ -91,7 +91,8 @@ class WorkSpec(SpecBase):
                            'ioIntensity:integer',
                            'harvesterHost:text',
                            'pilotType:text',
-                           'eventFeedLock:text'
+                           'eventFeedLock:text',
+                           'errorCode:integer'
                            )
 
     # attributes to skip when slim reading
@@ -242,7 +243,8 @@ class WorkSpec(SpecBase):
                      'computingElement',
                      'syncLevel',
                      'submissionHost',
-                     'harvesterHost'
+                     'harvesterHost',
+                     'errorCode'
                      ]:
             val = getattr(self, attr)
             if val is not None:
