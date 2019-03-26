@@ -119,6 +119,10 @@ class SAGAMonitor(PluginBase):
                                     job_spec.endTime = cur_time
                             else:
                                 tmpLog.debug("No job specs received")
+                                # To Be tested
+                                #attr_dict = {"startTime": cur_time.strftime("%Y-%m-%d %H:%M:%S"),
+                                #             "endTime": cur_time.strftime("%Y-%m-%d %H:%M:%S")}
+                                #workSpec.set_work_attributes(attr_dict)
                                 try:
                                     self.publish_workattr_file(workSpec)
                                 except Exception, e:

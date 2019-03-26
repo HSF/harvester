@@ -8,7 +8,7 @@ except Exception:
     import subprocess
 
 import datetime
-import time
+from pytz import timezone
 
 # logger
 baseLogger = core_utils.setup_logger('titan_utils')
@@ -170,11 +170,17 @@ class TitanUtils(PluginBase):
         if date > datetime.datetime.now():
             datestr = " ".join([date_str, str(datetime.datetime.now().year - 1)])
         date = datetime.datetime.strptime(datestr, format_str)
-
+        eastern = timezone('US/Eastern')
         tmpLog.debug("Full date: {0}".format(str(date)))
-        #utc_offset = (datetime.datetime.now().hour - datetime.datetime.utcnow().hour) * 3600
-        #utc_offset = datetime.timedelta(0, utc_offset, 0)
-        utc_offset = datetime.timedelta(0, -14400, 0)
+        # Compute the utc offset for Oak Ridge
+        # utc_offset = (datetime.datetime.now().hour - datetime.datetime.utcnow().hour) * 3600
+        # utc_offset = datetime.timedelta(0, utc_offset, 0)
+        # utc_offset = datetime.timedelta(0, -14400, 0)
+        eastern = timezone('US/Eastern')
+        utc = timezone('UTC')
+        date_est = eastern.localize(date, is_dst=True)
+        date_utc = utc.localize(date, is_dst=True)
+        utc_offset = date_utc - date_est
         tmpLog.debug("UTC offset: {0}".format(str(utc_offset)))
         fixed_date = date - utc_offset
         tmpLog.debug("Fixed date: {0}".format(str(fixed_date)))
