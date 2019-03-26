@@ -12,6 +12,7 @@ from .base_messenger import BaseMessenger
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc import arc_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 
 # json for outputs
@@ -19,6 +20,18 @@ jsonOutputsFileName = harvester_config.payload_interaction.eventStatusDumpJsonFi
 
 # xml for outputs
 xmlOutputsBaseFileName = harvester_config.payload_interaction.eventStatusDumpXmlFile
+
+# json for event request
+jsonEventsRequestFileName = harvester_config.payload_interaction.eventRequestFile
+
+# json to feed events
+jsonEventsFeedFileName = harvester_config.payload_interaction.eventRangesFile
+
+# json to update events
+jsonEventsUpdateFileName = harvester_config.payload_interaction.updateEventsFile
+
+# suffix to read json
+suffixReadJson = '.read'
 
 # logger
 baselogger = core_utils.setup_logger()
@@ -36,6 +49,42 @@ class ARCMessenger(BaseMessenger):
         self.certs = dict(zip([r.split('=')[1] for r in list(harvester_config.credmanager.voms)],
                               list(harvester_config.credmanager.outCertFile)))
         self.cred_type = arc.initializeCredentialsType(arc.initializeCredentialsType.SkipCredentials)
+
+
+    def _setup_proxy(self, usercfg, workspec, jobid, log):
+        '''Set up UserConfig object with correct proxy'''
+
+        proxyrole = workspec.workAttributes['proxyrole']
+        try:
+            usercfg.ProxyPath(str(self.certs[proxyrole]))
+        except:
+            log.error("Job {0}: no proxy found with role {1}".format(jobid, proxyrole))
+            return False
+        return True
+
+
+    def _copy_file(self, source, destination, usercfg, log):
+        '''Copy a file from source to destination'''
+
+        log.info('Copying {0} to {1}'.format(source, destination))
+        source_datapoint = arc_utils.DataPoint(str(source), usercfg)
+        destination_datapoint = arc_utils.DataPoint(str(destination), usercfg)
+        dm = arc.DataMover()
+        dm.retry(False)
+        dm.passive(True)
+        dm.secure(False)
+
+        status = dm.Transfer(source_datapoint.h, destination_datapoint.h, arc.FileCache(), arc.URLMap())
+        return status
+
+
+    def _delete_file(self, filename, usercfg, log):
+        '''Delete a remote file on ARC CE'''
+        log.info('Deleting {0}'.format(filename))
+        datapoint = arc_utils.DataPoint(str(filename), usercfg)
+        datapoint.h.SetSecure(False)
+        status = datapoint.h.Remove()
+        return status
 
 
     def _list_url_recursive(self, url, log, fname='', filelist=[]):
@@ -131,6 +180,7 @@ class ARCMessenger(BaseMessenger):
 
         return (fetched, notfetched, notfetchedretry)
 
+
     def _extractAndFixPilotPickle(self, arcjob, pandaid, haveoutput, logurl, log):
         '''
         Extract the pilot pickle from jobSmallFiles.tgz, and fix attributes
@@ -173,6 +223,16 @@ class ARCMessenger(BaseMessenger):
 
         return jobinfo.dictionary()
 
+
+    def get_access_point(self, workspec, panda_id):
+        '''Get access point'''
+        if workspec.mapType == WorkSpec.MT_MultiJobs:
+            accessPoint = os.path.join(workspec.get_access_point(), str(panda_id))
+        else:
+            accessPoint = workspec.get_access_point()
+        return accessPoint
+
+
     def post_processing(self, workspec, jobspec_list, map_type):
         '''
         Fetch job output and process pilot info for sending in final heartbeat.
@@ -187,7 +247,6 @@ class ARCMessenger(BaseMessenger):
         tmplog = arclog.log
         tmplog.info('Post processing ARC job {0}'.format(workspec.batchID))
         job = workspec.workAttributes['arcjob']
-        proxyrole = workspec.workAttributes['proxyrole']
         arcid = job['JobID']
         tmplog.info('Job id {0}'.format(arcid))
 
@@ -200,12 +259,9 @@ class ARCMessenger(BaseMessenger):
         if not jobspec_list:
             return
 
-        # Set certificate
+        # Set certificate to use for interacting with ARC CE
         userconfig = arc.UserConfig(self.cred_type)
-        try:
-            userconfig.ProxyPath(str(self.certs[proxyrole]))
-        except:
-            tmplog.error("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
+        if not self._setup_proxy(usercfg, workspec, arcid, tmplog):
             return
 
         queueconfigmapper = QueueConfigMapper()
@@ -232,29 +288,205 @@ class ARCMessenger(BaseMessenger):
 
         tmplog.debug("pilot info for {0}: {1}".format(pandaid, workspec.workAttributes[long(pandaid)]))
 
+
     def get_work_attributes(self, workspec):
         '''Get info from the job to pass back to harvester'''
         # Just return existing attributes. Attributes are added to workspec for
         # finished jobs in post_processing
         return workspec.workAttributes
 
+
     def events_requested(self, workspec):
         '''Used to tell harvester that the worker requests events'''
 
-        # TODO for ARC + ES where getEventRanges is called before submitting job
-        return {}
+        # get logger
+        arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+        tmpLog = arclog.log
+
+        # Check for jobid/jsonEventsRequestFileName
+        job = workspec.workAttributes['arcjob']
+        arcid = job['JobID']
+        # Set certificate to use for interacting with ARC CE
+        usercfg = arc.UserConfig(self.cred_type)
+        if not self._setup_proxy(usercfg, workspec, arcid, tmpLog):
+            return {}
+
+        remoteJsonFilePath = '%s/%s' % (arcid, jsonEventsRequestFileName)
+        localJsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsRequestFileName)
+        tmpLog.debug('looking for event request file {0}'.format(remoteJsonFilePath))
+        # Try to copy the file
+        status = self._copy_file(remoteJsonFilePath, localJsonFilePath, usercfg, tmpLog)
+        if not status:
+            if status.GetErrno() == errno.ENOENT:
+                # Not found
+                tmpLog.debug('not found')
+                return {}
+            # Some other error
+            tmpLog.warning('Failed to copy {0}: {1}'.format(remoteJsonFilePath, str(status)))
+            return {}
+
+        try:
+            with open(localJsonFilePath) as jsonFile:
+                retDict = json.load(jsonFile)
+            os.remove(localJsonFilePath)
+        except Exception:
+            tmpLog.debug('failed to load json')
+            return {}
+        tmpLog.debug('found')
+        return retDict
+
 
     def feed_events(self, workspec, events_dict):
         '''Havester has an event range to pass to job'''
 
-        # TODO for ARC + ES pass event ranges in job desc
-        return True
+        # get logger
+        arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+        tmpLog = arclog.log
+
+        # Upload to jobid/jsonEventsFeedFileName, delete jobid/jsonEventsRequestFileName
+        job = workspec.workAttributes['arcjob']
+        arcid = job['JobID']
+        # Set certificate to use for interacting with ARC CE
+        usercfg = arc.UserConfig(self.cred_type)
+        if not self._setup_proxy(usercfg, workspec, arcid, tmpLog):
+            return False
+
+        retVal = True
+        if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
+            # put the json just under the access point then upload to ARC CE
+            localJsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsFeedFileName)
+            tmpLog.debug('feeding events to {0}'.format(localJsonFilePath))
+            try:
+                with open(localJsonFilePath, 'w') as jsonFile:
+                    json.dump(events_dict, jsonFile)
+            except Exception:
+                core_utils.dump_error_message(tmpLog)
+                retVal = False
+
+            remoteJsonFilePath = '%s/%s' % (arcid, jsonEventsFeedFileName)
+            # Try to copy the file
+            status = self._copy_file(localJsonFilePath, remoteJsonFilePath, usercfg, tmpLog)
+            if not status:
+                tmpLog.error('Failed to feed events to {0}: {1}'.format(remoteJsonFilePath, str(status)))
+                retVal = False
+            else:
+                remoteJsonEventsRequestFile = '%s/%s' % (arcid, jsonEventsRequestFileName)
+                status = self._delete_file(remoteJsonEventsRequestFile, usercfg, tmpLog)
+                if not status and status.GetErrno() != errno.ENOENT:
+                    tmpLog.error('Failed to delete event request file at {0}'.format(remoteJsonEventsRequestFile))
+
+        elif workspec.mapType == WorkSpec.MT_MultiJobs:
+            # TOBEFIXED
+            pass
+        # remove request file
+        try:
+            jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsFeedFileName)
+            os.remove(jsonFilePath)
+        except Exception:
+            pass
+        tmpLog.debug('done')
+        return retVal
+
 
     def events_to_update(self, workspec):
         '''Report events processed for harvester to update'''
 
-        # TODO implement for ARC + ES where job does not update event ranges itself
-        return {}
+        # get logger
+        arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+        tmpLog = arclog.log
+
+        job = workspec.workAttributes['arcjob']
+        arcid = job['JobID']
+        # Set certificate to use for interacting with ARC CE
+        usercfg = arc.UserConfig(self.cred_type)
+        if not self._setup_proxy(usercfg, workspec, arcid, tmpLog):
+            return False
+
+        # Check for jobid/jsonEventsUpdateFileName on CE, rename to .read
+        retDict = dict()
+        for pandaID in workspec.pandaid_list:
+
+            # first look for json.read which is not yet acknowledged
+            accessPoint = self.get_access_point(workspec, pandaID)
+            localJsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
+            remoteJsonFilePathRead = '%s/%s%s' % (arcid, jsonEventsUpdateFileName, suffixReadJson)
+            tmpLog.debug('looking for event update file {0}'.format(remoteJsonFilePathRead))
+
+            status = self._copy_file(remoteJsonFilePathRead, localJsonFilePath, usercfg, tmpLog)
+            if not status:
+                if status.GetErrno() != errno.ENOENT:
+                    tmpLog.warning('Failed checking {0}: {1}'.format(remoteJsonFilePathRead, str(status)))
+                    continue
+
+                # Look for new json
+                remoteJsonFilePath = '%s/%s' % (arcid, jsonEventsUpdateFileName)
+                status = self._copy_file(remoteJsonFilePath, localJsonFilePath, usercfg, tmpLog)
+                if not status:
+                    if status.GetErrno() != errno.ENOENT:
+                        tmpLog.warning('Failed checking {0}: {1}'.format(remoteJsonFilePath, str(status)))
+                    else:
+                        # not found
+                        tmpLog.debug('not found')
+                    continue
+
+                # Rename to prevent from being overwritten
+                # Gridftp does not support renaming so upload .read file and delete old one
+                status = self._copy_file(localJsonFilePath, remoteJsonFilePathRead, usercfg, tmpLog)
+                if not status:
+                    tmpLog.warning('Failed copying {0} to {1}: {2}'.format(localJsonFilePath, remoteJsonFilePathRead, str(status)))
+                # If rename fails, delete old file anyway
+                status = self._delete_file(remoteJsonFilePath, usercfg, tmpLog)
+                if not status:
+                    tmpLog.warning('Failed deleting {0}: {1}'.format(remoteJsonFilePath, str(status)))
+
+            # load json
+            nData = 0
+            try:
+                with open(localJsonFilePath) as jsonFile:
+                    tmpOrigDict = json.load(jsonFile)
+                    newDict = dict()
+                    # change the key from str to int
+                    for tmpPandaID, tmpDict in tmpOrigDict.iteritems():
+                        tmpPandaID = long(tmpPandaID)
+                        retDict[tmpPandaID] = tmpDict
+                        nData += 1
+            except Exception:
+                raise
+                tmpLog.error('failed to load json')
+            # delete local file
+            try:
+                os.remove(localJsonFilePath)
+            except Exception:
+                pass
+            tmpLog.debug('got {0} events for PandaID={1}'.format(nData, pandaID))
+        return retDict
+
+
+    def acknowledge_events_files(self, workspec):
+        '''Tell workers that harvester received events/files'''
+
+        # get logger
+        arclog = arc_utils.ARCLogger(baselogger, workspec.workerID)
+        tmpLog = arclog.log
+
+        job = workspec.workAttributes['arcjob']
+        arcid = job['JobID']
+        # Set certificate to use for interacting with ARC CE
+        usercfg = arc.UserConfig(self.cred_type)
+        if not self._setup_proxy(usercfg, workspec, arcid, tmpLog):
+            return False
+
+        # Delete jobid/jsonEventsUpdateFileName.read
+        for pandaID in workspec.pandaid_list:
+            accessPoint = self.get_access_point(workspec, pandaID)
+            remoteJsonFilePath = '%s/%s%s' % (arcid, jsonEventsUpdateFileName, suffixReadJson)
+            status = self._delete_file(remoteJsonFilePath, usercfg, tmpLog)
+            if not status and status.GetErrno() != errno.ENOENT:
+                 tmpLog.error('Failed deleting {0}: {1}'.format(remoteJsonFilePath, str(status)))
+
+        tmpLog.debug('done')
+        return
+
 
     # The remaining methods do not apply to ARC
     def feed_jobs(self, workspec, jobspec_list):
@@ -277,10 +509,6 @@ class ARCMessenger(BaseMessenger):
         '''For pull model, get panda IDs assigned to jobs'''
         return []
 
-    def acknowledge_events_files(self, workSpec):
-        '''Tell workers that harvester received events/files. No-op here'''
-        pass
-
     def kill_requested(self, workspec):
         '''Worker wants to kill itself (?)'''
         return False
@@ -291,7 +519,31 @@ class ARCMessenger(BaseMessenger):
 
 
 def test():
-    pass
+    from pandaharvester.harvestercore.work_spec import WorkSpec
+    wspec = WorkSpec()
+    jobid = "gsiftp://pcoslo5.cern.ch:2811/jobs/XkNNDmultdtn1ZPzno6AuCjpABFKDmABFKDmwqyLDmABFKDm8dOcOn"
+    wspec.batchID = jobid
+    workAttributes = {"arcjob": {}}
+    workAttributes["arcjob"]["JobID"] = wspec.batchID
+    workAttributes["arcjob"]["JobStatusURL"] = "ldap://{0}:2135/mds-vo-name=local,o=grid??sub?(nordugrid-job-globalid={1})".format(urlparse(jobid).netloc, jobid)
+    workAttributes["arcjob"]["JobStatusInterfaceName"] = "org.nordugrid.ldapng"
+    jobmanagementurl = arc.URL(wspec.batchID)
+    jobmanagementurl.ChangePath("/jobs")
+    workAttributes["arcjob"]["JobManagementURL"] = jobmanagementurl.str()
+    workAttributes["arcjob"]["JobManagementInterfaceName"] = "org.nordugrid.gridftpjob"
+    workAttributes["proxyrole"] = 'production'
+
+    wspec.workAttributes = workAttributes
+    wspec.accessPoint = '/tmp'
+    wspec.mapType = WorkSpec.MT_OneToOne
+    wspec.pandaid_list = [1234]
+    print wspec.workAttributes
+
+    messenger = ARCMessenger()
+    print messenger.events_requested(wspec)
+    print messenger.feed_events(wspec, {'event': 1234})
+    print messenger.events_to_update(wspec)
+    messenger.acknowledge_events_files(wspec)
 
 if __name__ == '__main__':
     test()

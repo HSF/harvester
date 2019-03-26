@@ -1,5 +1,5 @@
 executable = {executableFile}
-arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} -i {pilotType} {pilotResourceTypeOption}
+arguments = -s {computingSite} -h {pandaQueueName} -p 25443 -w https://pandaserver.cern.ch -u {prodSourceLabel} -i {pilotType} -f false -C 0
 initialdir = {accessPoint}
 universe = grid
 log = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).log
@@ -10,6 +10,7 @@ x509userproxy = {x509UserProxy}
 environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} GTAG={gtag} APFMON=http://apfmon.lancs.ac.uk/api APFFID={harvesterID} APFCID=$(Cluster).$(Process)"
 +harvesterID = "{harvesterID}"
 +harvesterWorkerID = "{workerID}"
+transfer_input_files = pandaJobData.out
 
 grid_resource = condor {ceHostname} {ceEndpoint}
 +remote_jobuniverse = 5
@@ -23,7 +24,6 @@ grid_resource = condor {ceHostname} {ceEndpoint}
 +ioIntensity = {ioIntensity}
 +xcount = {nCoreTotal}
 +maxMemory = {requestRam}
-+remote_queue = "{ceQueueName}"
 +maxWallTime = {requestWalltimeMinute}
 
 #+remote_Requirements = JobRunCount == 0

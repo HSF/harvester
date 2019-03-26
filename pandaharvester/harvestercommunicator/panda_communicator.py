@@ -10,6 +10,7 @@ except Exception:
     pass
 import sys
 import json
+import pickle
 import zlib
 import uuid
 import inspect
@@ -441,6 +442,25 @@ class PandaCommunicator(BaseCommunicator):
 
         return ret_val, ret_msg
 
+    # get job statistics
+    def get_job_stats(self):
+        tmp_log = self.make_logger(method_name='get_job_stats')
+        tmp_log.debug('start')
+
+        tmp_stat, tmp_res = self.post_ssl('getJobStatisticsPerSite', {})
+        stats = {}
+        if tmp_stat is False:
+            ret_msg = 'FAILED'
+            core_utils.dump_error_message(tmp_log, tmp_res)
+        else:
+            try:
+                stats = pickle.loads(tmp_res.content)
+                ret_msg = 'OK'
+            except Exception:
+                ret_msg = 'Exception'
+                core_utils.dump_error_message(tmp_log)
+
+        return stats, ret_msg
 
     # update workers
     def update_workers(self, workspec_list):
@@ -663,3 +683,29 @@ class PandaCommunicator(BaseCommunicator):
         if tmpStat:
             tmpLog.debug('done with {0}'.format(errStr))
         return tmpStat, errStr
+
+    # update service metrics
+    def update_service_metrics(self, service_metrics_list):
+        tmp_log = self.make_logger(method_name='update_service_metrics')
+        tmp_log.debug('start')
+        data = dict()
+        data['harvesterID'] = harvester_config.master.harvester_id
+        data['metrics'] = json.dumps(service_metrics_list)
+        tmp_log.debug('updating metrics...')
+        tmp_stat, tmp_res = self.post_ssl('updateServiceMetrics', data)
+        err_str = 'OK'
+        if tmp_stat is False:
+            err_str = core_utils.dump_error_message(tmp_log, tmp_res)
+        else:
+            try:
+                ret_code, ret_msg = tmp_res.json()
+                if not ret_code:
+                    tmp_stat = False
+                    err_str = core_utils.dump_error_message(tmp_log, ret_msg)
+            except Exception:
+                tmp_stat = False
+                err_str = core_utils.dump_error_message(tmp_log)
+                tmp_log.error('conversion failure from {0}'.format(tmp_res.text))
+        if tmp_stat:
+            tmp_log.debug('done with {0}:{1}'.format(tmp_stat, err_str))
+        return tmp_stat, err_str

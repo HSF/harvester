@@ -16,11 +16,17 @@ import inspect
 import datetime
 import threading
 import traceback
+import functools
 import Cryptodome.Random
 import Cryptodome.Hash.HMAC
 import Cryptodome.Cipher.AES
 from future.utils import iteritems
 from contextlib import contextmanager
+
+try:
+    from threading import get_ident
+except ImportError:
+    from thread import get_ident
 
 from .work_spec import WorkSpec
 from .file_spec import FileSpec
@@ -31,6 +37,20 @@ from pandaharvester.harvesterconfig import harvester_config
 
 
 with_memory_profile = False
+
+
+# lock for synchronization
+sync_lock = threading.Lock()
+
+
+# synchronize decorator
+def synchronize(func):
+    """ synchronize decorator """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with sync_lock:
+            return func(*args, **kwargs)
+    return wrapper
 
 
 # stopwatch class
@@ -59,7 +79,7 @@ class StopWatch(object):
 
 
 # map with lock
-class MapWithLock:
+class MapWithLock(object):
     def __init__(self):
         self.lock = threading.Lock()
         self.dataMap = dict()
@@ -90,10 +110,27 @@ class SingletonWithID(type):
     def __init__(cls, *args,**kwargs):
         cls.__instance = {}
         super(SingletonWithID, cls).__init__(*args, **kwargs)
+
+    @synchronize
     def __call__(cls, *args, **kwargs):
         obj_id = str(kwargs.get('id', ''))
         if obj_id not in cls.__instance:
             cls.__instance[obj_id] = super(SingletonWithID, cls).__call__(*args, **kwargs)
+        return cls.__instance.get(obj_id)
+
+
+# singleton distinguishable with each thread and id
+class SingletonWithThreadAndID(type):
+    def __init__(cls, *args,**kwargs):
+        cls.__instance = {}
+        super(SingletonWithThreadAndID, cls).__init__(*args, **kwargs)
+        
+    @synchronize
+    def __call__(cls, *args, **kwargs):
+        thread_id = get_ident()
+        obj_id = (thread_id, str(kwargs.get('id', '')))
+        if obj_id not in cls.__instance:
+            cls.__instance[obj_id] = super(SingletonWithThreadAndID, cls).__call__(*args, **kwargs)
         return cls.__instance.get(obj_id)
 
 

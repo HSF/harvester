@@ -1,0 +1,39 @@
+#!/bin/sh
+
+if [ "$1" == "-h" ] ; then
+    echo "Usage: `basename $0` [-h] <DB_FILE> <BACKUP_DIR> <NUM_BACKUP> 
+
+A script to backup sqlite3 database. Backup files are created when integrity_check is successful.
+Only the recent backup files are kept.
+
+    -h         show this help text
+    DB_FILE    path to the database file
+    BACKUP_DIR directory to store backup files
+    NUM_BACKUP the number of backup files to keep"
+    exit 0
+fi
+
+db_file=$1
+backup_dir=$2
+nbackup=$3
+
+mkdir -p $backup_dir
+now="$(date +'%Y-%m-%d-%H:%M')"
+backup_file="$backup_dir/$(basename $db_file).backup.$now"
+
+echo $now -- Start.
+
+sqlite3 $db_file 'pragma integrity_check;'
+has_integrity=$?
+
+if [ $has_integrity -eq 0 ]; then
+    sqlite3 $db_file ".backup $backup_file"
+    echo $now -- Backup successful in $backup_file.
+else 
+    # db is corrupt
+    echo $now -- Integrity_check faild.
+    exit 1
+fi
+
+# delete old files
+ls -tr $backup_dir/$(basename $db_file).* | head -n -$nbackup | xargs --no-run-if-empty rm 

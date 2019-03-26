@@ -39,7 +39,7 @@ class SqliteFifo(PluginBase):
     _write_lock_sql = 'BEGIN IMMEDIATE'
     _exclusive_lock_sql = 'BEGIN EXCLUSIVE'
     _push_sql = 'INSERT INTO queue_table (item,score) VALUES (?,?)'
-    _push_by_id_sql = 'INSERT INTO queue_table (id,item,score) VALUES (?,?,?)'
+    _push_by_id_sql = 'INSERT OR IGNORE INTO queue_table (id,item,score) VALUES (?,?,?)'
     _lpop_get_sql_template = (
             'SELECT {columns} FROM queue_table '
             'WHERE temporary = 0 '
@@ -170,6 +170,7 @@ class SqliteFifo(PluginBase):
         retVal = False
         obj_buf = memoryviewOrBuffer(obj)
         with self._get_conn() as conn:
+            conn.execute(self._write_lock_sql)
             cursor = conn.execute(self._push_sql, (obj_buf, score))
             n_row =  cursor.rowcount
             if n_row == 1:

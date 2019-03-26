@@ -181,6 +181,8 @@ resolverClass = PandaQueuesDict
 # enable auto-blacklisting of resolver which returns status='offline' to blacklist the queue
 autoBlacklist = False
 
+# restrict to a certain pilot version (optional)
+pilotVersion = 1
 
 
 
@@ -311,6 +313,9 @@ nQueues = 3
 # interval for queue lookup
 lookupTime = 60
 
+# interval for queue lock
+queueLockInterval = 300
+
 # lock interval in sec
 lockInterval = 600
 
@@ -370,13 +375,20 @@ fifoCheckDuration = 60
 fifoForceEnqueueInterval = 1500
 
 # max number of workers to be populated into fifo
-fifoMaxWorkersToPopulate = 10000
+#fifoMaxWorkersToPopulate = 100000
 
 # max number of workers in a chunk to enqueue
 fifoMaxWorkersPerChunk = 500
 
 # max interval in sec a post-processing worker can preempt in fifo
 fifoMaxPreemptInterval = 60
+
+# plugin cache parameters (used if monitor plugin supports)
+#pluginCacheEnable = True
+#pluginCacheRefreshInterval = 300
+
+# workers will be killed if stuck queuing (submitted) for longer than this
+workerQueueTimeLimit = 172800
 
 
 
@@ -514,6 +526,8 @@ data =
  agis_ddmendpoints.json||http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1
  proxy_pilot||file://path_to/FIXME_proxy_pilot
  proxy_production||file://path_to/FIXME_proxy_production
+ resource_types.json||panda_server:get_resource_types
+ job_statistics.json||panda_server:get_job_stats
 # BNL_key||panda_cache:BNL_ObjectStoreKey.pub&BNL_ObjectStoreKey
 # globus_secret||panda_cache:GlobusClientID_1&GlobusRefreshToken_1
 
@@ -687,7 +701,26 @@ mailFrom = example_from@example.com
 # a comma-concatenated list of email recipients
 mailTo = example_to_1@example.com,example_to_2@example.com
 
+##########################
+#
+# APF monitoring parameters
+#
+[apfmon]
+active = True
 
+##########################
+#
+# Service monitor parameters
+#
+
+[service_monitor]
+active = True
+
+# optional in case you want to monitor any disk volume
+disk_volumes = data
+
+# pidfile only necessary when running in uwsgi
+pidfile = /var/log/harvester/panda_harvester.pid
 
 ##########################
 #

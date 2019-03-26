@@ -35,7 +35,9 @@ setup(
                       'subprocess32; python_version == "2.*"',
                       'rpyc',
                       'paramiko',
-                      'pexpect'
+                      'pexpect',
+                      'psutil >= 5.4.8',
+                      'scandir; python_version < "3.5"'
                       ],
     data_files=[
         # config and cron files
@@ -61,5 +63,7 @@ setup(
                  ]
          ),
         ],
-    scripts=['templates/panda_jedi-renice']
+    scripts=['templates/panda_jedi-renice',
+             'templates/panda_harvester-sqlite3backup',
+             ]
     )

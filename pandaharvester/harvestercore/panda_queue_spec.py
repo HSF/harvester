@@ -14,6 +14,7 @@ class PandaQueueSpec(SpecBase):
                            'maxWorkers:integer',
                            'jobFetchTime:timestamp / index',
                            'submitTime:timestamp / index',
+                           'lockedBy:text',
                            'siteName:text / index',
                            'resourceType:text',
                            'nNewWorkers:integer',
@@ -21,6 +22,9 @@ class PandaQueueSpec(SpecBase):
                            'nQueueLimitJobRatio:integer',
                            'nQueueLimitJobMax:integer',
                            'nQueueLimitJobMin:integer',
+                           'nQueueLimitWorkerRatio:integer',
+                           'nQueueLimitWorkerMax:integer',
+                           'nQueueLimitWorkerMin:integer',
                            )
 
     # catchall resource type

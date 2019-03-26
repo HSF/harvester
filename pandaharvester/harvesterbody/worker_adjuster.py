@@ -12,7 +12,7 @@ _logger = core_utils.setup_logger('worker_adjuster')
 
 
 # class to define number of workers to submit
-class WorkerAdjuster:
+class WorkerAdjuster(object):
     # constructor
     def __init__(self, queue_config_mapper):
         self.queueConfigMapper = queue_config_mapper
@@ -39,14 +39,24 @@ class WorkerAdjuster:
             else:
                 queueStat = queueStat.data
 
+            # get job statistics
+            job_stats = self.dbProxy.get_cache("job_statistics.json", None)
+            if job_stats is None:
+                job_stats = dict()
+            else:
+                job_stats = job_stats.data
+
             # define num of new workers
             for queueName in static_num_workers:
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
-                nQueueLimit = queueConfig.nQueueLimitWorker
-                maxWorkers = queueConfig.maxWorkers
+                workerLimits_dict = self.dbProxy.get_worker_limits(queueName)
+                maxWorkers = workerLimits_dict.get('maxWorkers', 0)
+                nQueueLimit = workerLimits_dict.get('nQueueLimitWorker', 0)
+                nQueueLimitPerRT = workerLimits_dict['nQueueLimitWorkerPerRT']
                 nQueue_total, nReady_total, nRunning_total = 0, 0, 0
                 apf_msg = None
+                apf_data = None
                 for resource_type, tmpVal in iteritems(static_num_workers[queueName]):
                     tmpLog.debug('Processing queue {0} resource {1} with static_num_workers {2}'.
                                  format(queueName, resource_type, tmpVal))
@@ -106,9 +116,9 @@ class WorkerAdjuster:
 
                     # define num of new workers based on static site config
                     nNewWorkers = 0
-                    if nQueue >= nQueueLimit > 0:
+                    if nQueue >= nQueueLimitPerRT > 0:
                         # enough queued workers
-                        retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimit({1})'.format(nQueue, nQueueLimit)
+                        retMsg = 'No nNewWorkers since nQueue({0})>=nQueueLimitPerRT({1})'.format(nQueue, nQueueLimitPerRT)
                         tmpLog.debug(retMsg)
                         pass
                     elif (nQueue + nReady + nRunning) >= maxWorkers > 0:
@@ -123,15 +133,28 @@ class WorkerAdjuster:
 
                         maxQueuedWorkers = None
 
-                        if nQueueLimit > 0:  # there is a limit set for the queue
-                            maxQueuedWorkers = nQueueLimit
+                        if nQueueLimitPerRT > 0:  # there is a limit set for the queue
+                            maxQueuedWorkers = nQueueLimitPerRT
 
+                        # Reset the maxQueueWorkers according to particular
                         if nNewWorkersDef is not None:  # don't surpass limits given centrally
                             maxQueuedWorkers_slave = nNewWorkersDef + nQueue
                             if maxQueuedWorkers is not None:
                                 maxQueuedWorkers = min(maxQueuedWorkers_slave, maxQueuedWorkers)
                             else:
                                 maxQueuedWorkers = maxQueuedWorkers_slave
+
+                        elif queueConfig.mapType == 'NoJob': # for pull mode, limit to activated jobs
+                            # limit the queue to the number of activated jobs to avoid empty pilots
+                            try:
+                                n_activated = max(job_stats[queueName]['activated'], 1) # avoid no activity queues
+                                queue_limit = maxQueuedWorkers
+                                maxQueuedWorkers = min(n_activated, maxQueuedWorkers)
+                                tmpLog.debug('limiting maxQueuedWorkers to min(n_activated={0}, queue_limit={1})'.
+                                             format(n_activated, queue_limit))
+                            except KeyError:
+                                tmpLog.warning('n_activated not defined, defaulting to configured queue limits')
+                                pass
 
                         if maxQueuedWorkers is None:  # no value found, use default value
                             maxQueuedWorkers = 1
@@ -155,6 +178,12 @@ class WorkerAdjuster:
                     dyn_num_workers[queueName][resource_type]['nNewWorkers'] = nNewWorkers
 
                 # adjust nNewWorkers for UCORE to let aggregations over RT respect nQueueLimitWorker and maxWorkers
+                if queueConfig is None:
+                    maxNewWorkersPerCycle = 0
+                    retMsg = 'set maxNewWorkersPerCycle=0 in UCORE aggregation due to missing queueConfig'
+                    tmpLog.debug(retMsg)
+                else:
+                    maxNewWorkersPerCycle = queueConfig.maxNewWorkersPerCycle
                 if len(dyn_num_workers[queueName]) > 1:
                     total_new_workers_rts = sum( dyn_num_workers[queueName][_rt]['nNewWorkers']
                                                 if _rt != 'ANY' else 0
@@ -163,8 +192,8 @@ class WorkerAdjuster:
                                                 max(nQueueLimit - nQueue_total, 0),
                                                 max(maxWorkers - nQueue_total - nReady_total - nRunning_total, 0),
                                                 )
-                    if queueConfig.maxNewWorkersPerCycle > 0:
-                        nNewWorkers_max_agg = min(nNewWorkers_max_agg, queueConfig.maxNewWorkersPerCycle)
+                    if maxNewWorkersPerCycle >= 0:
+                        nNewWorkers_max_agg = min(nNewWorkers_max_agg, maxNewWorkersPerCycle)
                     if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
                         nNewWorkers_max_agg = min(nNewWorkers_max_agg, self.maxNewWorkers)
                     # exceeded max, to adjust
@@ -200,9 +229,9 @@ class WorkerAdjuster:
                                          .format(nNewWorkers, resource_type))
 
                 if not apf_msg:
-                    apf_msg = 'Attempting to submit new workers (across all CEs in the queue): {0}'.format(dyn_num_workers[queueName])
+                    apf_data = copy.deepcopy(dyn_num_workers[queueName])
 
-                self.apf_mon.update_label(queueName, apf_msg)
+                self.apf_mon.update_label(queueName, apf_msg, apf_data)
 
             # dump
             tmpLog.debug('defined {0}'.format(str(dyn_num_workers)))

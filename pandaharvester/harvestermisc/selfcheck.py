@@ -1,7 +1,7 @@
-import os
 import errno
 import json
 import hashlib
+import psutil
 
 from pandaharvester.commit_timestamp import timestamp as commitTimestamp
 from pandaharvester.panda_pkg_info import release_version as releaseVersion
@@ -9,7 +9,7 @@ from pandaharvester.panda_pkg_info import release_version as releaseVersion
 
 
 
-class harvesterPackageInfo:
+class harvesterPackageInfo(object):
     """
     """
     _attributes = ('commit_info', 'version', 'info_digest')

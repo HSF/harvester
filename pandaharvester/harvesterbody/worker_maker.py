@@ -7,7 +7,7 @@ _logger = core_utils.setup_logger('worker_maker')
 
 
 # class to make worker
-class WorkerMaker:
+class WorkerMaker(object):
     # constructor
     def __init__(self):
         self.pluginFactory = PluginFactory()
@@ -19,7 +19,7 @@ class WorkerMaker:
 
     # make workers
     def make_workers(self, jobchunk_list, queue_config, n_ready, resource_type, maker=None):
-        tmpLog = core_utils.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
+        tmpLog = core_utils.make_logger(_logger, 'queue={0} rtype={1}'.format(queue_config.queueName, resource_type),
                                         method_name='make_workers')
         tmpLog.debug('start')
         try:
@@ -91,3 +91,10 @@ class WorkerMaker:
         if maker is None:
             maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
         return maker.get_max_workers_per_job_in_total()
+
+    # get upper limit on the number of new workers per job in a cycle
+    def get_max_workers_per_job_per_cycle(self, queue_config, resource_type, maker=None):
+        # get plugin
+        if maker is None:
+            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+        return maker.get_max_workers_per_job_per_cycle()

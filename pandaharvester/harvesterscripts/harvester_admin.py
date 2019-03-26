@@ -56,7 +56,6 @@ def multithread_executer(func, n_object, n_thread):
         retIterator = _pool.map(func, range(n_object))
     return retIterator
 
-
 def get_harvester_attributes():
     attr_list = [
         'harvesterID',
@@ -82,7 +81,6 @@ def repopulate_fifos(*names):
         fifo.populate(clear_fifo=True)
         print('Repopulated {0} fifo'.format(fifo.titleName))
 
-
 # TODO
 
 #=== Command functions ========================================================
@@ -107,7 +105,6 @@ def get(arguments):
         print(hpi.commit_info)
     elif attr == 'harvesterID':
         print(harvester_config.master.harvester_id)
-
 
 def fifo_benchmark(arguments):
     n_object = arguments.n_object
@@ -176,12 +173,18 @@ def fifo_benchmark(arguments):
     print('Get protective : {0:.3f} ms / obj'.format(1000. * sum_dict['get_protective_time']/n_object))
     print('Clear          : {0:.3f} ms / obj'.format(1000. * sum_dict['clear_time']/n_object))
 
-
 def fifo_repopulate(arguments):
     if 'ALL' in arguments.name_list:
         repopulate_fifos()
     else:
         repopulate_fifos(*arguments.name_list)
+
+def cacher_refresh(arguments):
+    from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+    from pandaharvester.harvesterbody.cacher import Cacher
+    communicatorPool = CommunicatorPool()
+    cacher = Cacher(communicatorPool)
+    cacher.execute(force_update=True, skip_lock=True, n_thread=4)
 
 def qconf_list(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
@@ -193,6 +196,7 @@ def qconf_list(arguments):
 def qconf_refresh(arguments):
     from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
     qcm = QueueConfigMapper()
+    qcm.lastUpdate = None
     qcm.load_data()
 
 def qconf_dump(arguments):
@@ -239,6 +243,8 @@ commandMap = {
             # fifo commands
             'fifo_benchmark': fifo_benchmark,
             'fifo_repopulate': fifo_repopulate,
+            # cacher commands
+            'cacher_refresh': cacher_refresh,
             # qconf commands
             'qconf_list': qconf_list,
             'qconf_dump': qconf_dump,
@@ -272,6 +278,12 @@ def main():
     fifo_repopulate_parser = fifo_subparsers.add_parser('repopulate', help='Repopulate agent fifo')
     fifo_repopulate_parser.set_defaults(which='fifo_repopulate')
     fifo_repopulate_parser.add_argument('name_list', nargs='+', type=str, action='store', metavar='<agent_name>', help='Name of agent fifo, e.g. "monitor" ("ALL" for all)')
+    # cacher parser
+    cacher_parser = subparsers.add_parser('cacher', help='cacher related')
+    cacher_subparsers = cacher_parser.add_subparsers()
+    # cacher refresh command
+    cacher_refresh_parser = cacher_subparsers.add_parser('refresh', help='refresh cacher immediately')
+    cacher_refresh_parser.set_defaults(which='cacher_refresh')
     # qconf (queue configuration) parser
     qconf_parser = subparsers.add_parser('qconf', help='queue configuration')
     qconf_subparsers = qconf_parser.add_subparsers()

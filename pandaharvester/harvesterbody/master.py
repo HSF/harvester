@@ -155,6 +155,18 @@ class Master(object):
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+        # Service monitor
+        try:
+            sm_active = harvester_config.service_monitor.active
+        except:
+            sm_active = False
+
+        if sm_active:
+            from pandaharvester.harvesterbody.service_monitor import ServiceMonitor
+            thr = ServiceMonitor(options.pid, single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
+            thr.start()
+            thrList.append(thr)
 
         # Report itself to APF Mon
         apf_mon = Apfmon(self.queueConfigMapper)
@@ -205,11 +217,13 @@ class StdErrWrapper(object):
 
 # profiler
 prof = None
-
+# options
+options = None
 
 # main
 def main(daemon_mode=True):
     global prof
+    global options
     # parse option
     parser = argparse.ArgumentParser()
     parser.add_argument('--pid', action='store', dest='pid', default=None,

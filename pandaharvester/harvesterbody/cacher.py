@@ -4,6 +4,8 @@ import datetime
 import requests
 import requests.exceptions
 
+from concurrent.futures import ThreadPoolExecutor
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -31,7 +33,7 @@ class Cacher(AgentBase):
                 return
 
     # main
-    def execute(self, force_update=False, skip_lock=False):
+    def execute(self, force_update=False, skip_lock=False, n_thread=0):
         mainLog = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='execute')
         # get lock
         locked = self.dbProxy.get_process_lock('cacher', self.get_pid(), harvester_config.cacher.sleepTime)
@@ -40,7 +42,6 @@ class Cacher(AgentBase):
             timeLimit = datetime.datetime.utcnow() - \
                 datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
             itemsList = []
-            keysForceUpdate = []
             nItems = 4
             for tmpStr in harvester_config.cacher.data:
                 tmpItems = tmpStr.split('|')
@@ -49,25 +50,21 @@ class Cacher(AgentBase):
                 tmpItems += [None] * (nItems - len(tmpItems))
                 tmpItems = tmpItems[:nItems]
                 itemsList.append(tmpItems)
-            # add queues_config
-            if core_utils.get_queues_config_url() is not None:
-                tmpKey = 'queues_config_file'
-                itemsList.append((tmpKey, None, core_utils.get_queues_config_url()))
-                keysForceUpdate.append(tmpKey)
-            # loop over all items
-            for mainKey, subKey, infoURL, dumpFile in itemsList:
+            # refresh cache function
+            def _refresh_cache(inputs):
+                mainKey, subKey, infoURL, dumpFile = inputs
                 if subKey == '':
                     subKey = None
                 # check last update time
                 lastUpdateTime = self.dbProxy.get_cache_last_update_time(mainKey, subKey)
-                if (not force_update or mainKey not in keysForceUpdate) and lastUpdateTime is not None \
+                if (not force_update) and lastUpdateTime is not None \
                         and lastUpdateTime > timeLimit:
-                    continue
+                    return
                 # get information
                 tmpStat, newInfo = self.get_data(infoURL, mainLog)
                 if not tmpStat:
                     mainLog.error('failed to get info for key={0} subKey={1}'.format(mainKey, subKey))
-                    continue
+                    return
                 # update
                 tmpStat = self.dbProxy.refresh_cache(mainKey, subKey, newInfo)
                 if tmpStat:
@@ -82,6 +79,15 @@ class Cacher(AgentBase):
                             core_utils.dump_error_message(mainLog)
                 else:
                     mainLog.error('failed to refresh key={0} subKey={1} due to a DB error'.format(mainKey, subKey))
+            # loop over all items
+            if n_thread:
+                mainLog.debug('refresh cache with {0} threads'.format(n_thread))
+                with ThreadPoolExecutor(n_thread) as thread_pool:
+                    thread_pool.map(_refresh_cache, itemsList)
+            else:
+                mainLog.debug('refresh cache')
+                for inputs in itemsList:
+                    _refresh_cache(inputs)
             mainLog.debug('done')
 
 
@@ -125,7 +131,9 @@ class Cacher(AgentBase):
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith('panda_server:'):
             try:
-                retVal, outStr = self.communicator.get_resource_types()
+                method_name = info_url.split(':')[-1]
+                method_function = getattr(self.communicator, method_name)
+                retVal, outStr = method_function()
                 if not retVal:
                     tmp_log.error(outStr)
             except Exception:
