@@ -92,7 +92,8 @@ class WorkSpec(SpecBase):
                            'harvesterHost:text',
                            'pilotType:text',
                            'eventFeedLock:text',
-                           'errorCode:integer'
+                           'errorCode:integer',
+                           'errorDiag:text'
                            )
 
     # attributes to skip when slim reading
@@ -251,6 +252,8 @@ class WorkSpec(SpecBase):
                 if isinstance(val, datetime.datetime):
                     val = 'datetime/' + val.strftime('%Y-%m-%d %H:%M:%S.%f')
                 data[attr] = val
+        if self.errorCode not in [None, 0] and self.errorDiag not in [None, '']:
+            data['diagMessage'] = self.errorDiag
         if self.pandaid_list is not None:
             data['pandaid_list'] = self.pandaid_list
         if self.workAttributes is not None:
@@ -387,3 +390,8 @@ class WorkSpec(SpecBase):
     # set pilot_closed
     def set_pilot_closed(self):
         self.pilot_closed = True
+
+    # set supplemental error
+    def set_supplemental_error(self, error_code, error_diag):
+        self.errorCode = error_code
+        self.errorDiag = error_diag
