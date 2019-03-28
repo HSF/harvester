@@ -111,7 +111,7 @@ def _choose_ce(weighting):
         cur += _w
         if cur >= lucky_number:
             return _ce
-    if ce_weight_dict.get(ce_now) > 0.:
+    if ce_weight_dict.get(ce_now, -1) > 0.:
         return ce_now
     else:
         return None
@@ -174,13 +174,16 @@ def _condor_macro_replace(string, **kwarg):
 
 
 # Parse resource type from string for Unified PanDA Queue
-def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
+def _get_resource_type(string, is_unified_queue, is_pilot_option=False, pilot_version='1'):
     string = str(string)
     if not is_unified_queue:
         ret = ''
     elif string in set(['SCORE', 'MCORE', 'SCORE_HIMEM', 'MCORE_HIMEM']):
         if is_pilot_option:
-            ret = '-R {0}'.format(string)
+            if pilot_version == '2':
+                ret = '--resource-type {0}'.format(string)
+            else:
+                ret = '-R {0}'.format(string)
         else:
             ret = string
     else:
@@ -308,7 +311,7 @@ def submit_bag_of_workers(data_list):
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
-                special_par='', harvester_queue_config=None, is_unified_queue=False, **kwarg):
+                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='1', **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -379,7 +382,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=prod_source_label,
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
-        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
+        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True, pilot_version),
         ioIntensity=io_intensity,
         pilotType=workspec.pilotType,
         )
@@ -731,6 +734,7 @@ class HTCondorSubmitter(PluginBase):
                         'condor_schedd': condor_schedd,
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
+                        'pilot_version': pilot_version_orig,
                         })
             return data
 
