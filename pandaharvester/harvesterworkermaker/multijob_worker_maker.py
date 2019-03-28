@@ -73,7 +73,7 @@ class MultiJobWorkerMaker(BaseWorkerMaker):
                 #         workSpec.maxWalltime = max(workSpec.maxWalltime, jobSpec.jobParams['maxWalltime'])
                 # except Exception:
                 #     pass
-
-            workSpec.workParams = self._get_executable(queue_config)
+            executable_str = self._get_executable(queue_config)
+            workSpec.set_work_params({'executable': executable_str})
 
         return workSpec

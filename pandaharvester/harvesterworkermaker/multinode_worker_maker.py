@@ -71,7 +71,8 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
         workSpec.minRamCount = 0
         workSpec.maxDiskCount = 0
         workSpec.maxWalltime = self.walltimelimit
-        workSpec.workParams = self._get_executable()
+        executable_str = self._get_executable()
+        workSpec.set_work_params({'executable': executable_str})
 
         if len(jobspec_list) > 0:
             # push case: we know the job and set the parameters of the job

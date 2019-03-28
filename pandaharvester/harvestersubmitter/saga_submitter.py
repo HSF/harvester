@@ -85,14 +85,12 @@ class SAGASubmitter (PluginBase):
             # launching job at HPC
 
             jd.wall_time_limit = work_spec.maxWalltime / 60  # minutes
-            if work_spec.workParams in (None, "NULL"):
-                jd.executable = "\n".join(self._get_executable(work_spec.jobspec_list))
-            else:
-                tmpLog.debug("Work params (executable templatae): \n{0}".format(work_spec.workParams))
-                exe_str = work_spec.workParams
-                exe_str = exe_str.format(work_dir=work_spec.accessPoint)
-                jd.executable = exe_str
-                # jd.executable = work_spec.workParams.format(work_dir=work_spec.accessPoint)
+            jd.executable = "\n".join(self._get_executable(work_spec.jobspec_list))
+            if work_spec.has_work_params('executable'):
+                tmpLog.debug("Work params (executable templatae): \n{0}".format(work_spec.get_work_params('executable')))
+                exe_str = work_spec.get_work_params('executable')[1]
+                if exe_str:
+                    jd.executable = exe_str.format(work_dir=work_spec.accessPoint)
 
             tmpLog.debug("Command to be launched: \n{0}".format(jd.executable))
             jd.total_cpu_count = work_spec.nCore  # one node with 16 cores for one job
