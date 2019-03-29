@@ -9,6 +9,7 @@ import random
 import multiprocessing
 import tempfile
 import functools
+import traceback
 import xml.etree.ElementTree as ET
 
 try:
@@ -577,7 +578,8 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                                 time.sleep(2)
                         continue
             except Exception as _e:
-                tmpLog.error('Error querying from cache fifo; {0}'.format(_e))
+                tb_str = traceback.format_exc()
+                tmpLog.error('Error querying from cache fifo; {0} ; {1}'.format(_e, tb_str))
             return jobs_iter
         # query method options
         query_method_list = [self.schedd.xquery]
