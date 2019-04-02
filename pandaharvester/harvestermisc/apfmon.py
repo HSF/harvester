@@ -125,17 +125,17 @@ class Apfmon(object):
                         if not site_info:
                             tmp_log.warning('No site info for {0}'.format(site))
                             continue
-
-                        if not site_info['queues']:
-                            # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
-                            # in local configuration, otherwise set it to a dummy value
-                            try:
-                                ce = self.queue_config_mapper.queueConfig[site].submitter['ceEndpoint']
-                            except:
-                                ce = NO_CE
+                   
+                        # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
+                        # in local configuration, otherwise set it to a dummy value
+                        try:
+                            ce = self.queue_config_mapper.queueConfig[site].submitter['ceEndpoint']
                             queues = [{'ce_endpoint': ce}]
-                        else:
-                            queues = site_info['queues']
+                        except KeyError:
+                            if site_info['queues']:
+                                queues = site_info['queues']
+                            else:
+                                queues = [{'ce_endpoint': NO_CE}]
 
                         for queue in queues:
                             try:
@@ -221,16 +221,16 @@ class Apfmon(object):
                 tmp_log.warning('No site info for {0}'.format(site))
                 return
 
-            if not site_info['queues']:
-                # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
-                # in local configuration, otherwise set it to a dummy value
-                try:
-                    ce = self.queue_config_mapper.queueConfig[site].submitter['ceEndpoint']
-                except:
-                    ce = NO_CE
+            # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
+            # in local configuration, otherwise set it to a dummy value
+            try:
+                ce = self.queue_config_mapper.queueConfig[site].submitter['ceEndpoint']
                 queues = [{'ce_endpoint': ce}]
-            else:
-                queues = site_info['queues']
+            except KeyError:
+                if site_info['queues']:
+                    queues = site_info['queues']
+                else:
+                    queues = [{'ce_endpoint': NO_CE}]
 
             for queue in queues:
                 try:
@@ -285,7 +285,7 @@ class Apfmon(object):
                         ce = clean_ce(worker_spec.computingElement)
                     except AttributeError:
                         tmp_log.debug('no CE found for workerID {0} batchID {1}'.format(worker_id, batch_id))
-                        ce = ''
+                        ce = NO_CE
 
                     # extract the log URLs
                     stdout_url = ''
