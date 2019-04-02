@@ -390,8 +390,8 @@ class MysqlFifo(PluginBase):
             ).format(table_name=self.tableName)
         sql_pop_del = (
                 'DELETE FROM {table_name} '
-                'WHERE id = %s AND temporary = 0 '
-            ).format(table_name=self.tableName)
+                'WHERE id = %s AND temporary = {temporary} '
+            ).format(table_name=self.tableName, temporary=(1 if temporary else 0))
         ret_list = []
         try:
             self.execute(sql_get_many)
