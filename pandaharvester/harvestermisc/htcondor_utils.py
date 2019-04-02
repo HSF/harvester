@@ -470,7 +470,13 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                     # acquired lock, update from condor schedd
                     tmpLog.debug('got lock, updating cache')
                     jobs_iter_orig = self.schedd.xquery(requirements=requirements, projection=projection)
-                    jobs_iter = [ dict(job) for job in jobs_iter_orig ]
+                    jobs_iter = []
+                    for job in jobs_iter_orig:
+                        try:
+                            jobs_iter.append(dict(job))
+                        except Exception as e:
+                            tmpLog.error('In updating cache schedd xquery; got exception {0}: {1} ; {2}'.format(
+                                e.__class__.__name__, e, repr(job)))
                     timeNow = time.time()
                     cache_fifo.put(jobs_iter, timeNow)
                     self.cache = (jobs_iter, timeNow)
