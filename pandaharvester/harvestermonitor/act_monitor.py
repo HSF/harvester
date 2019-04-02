@@ -68,7 +68,7 @@ class ACTMonitor(PluginBase):
                                             method_name='check_workers')
             try:
                 tmpLog.debug('Querying aCT for id {0}'.format(workSpec.batchID))
-                columns = ['actpandastatus', 'pandastatus', 'computingElement']
+                columns = ['actpandastatus', 'pandastatus', 'computingElement', 'node']
                 actjobs = self.actDB.getJobs("id={0}".format(workSpec.batchID), columns)
             except Exception as e:
                 tmpLog.error("Failed to query aCT DB: {0}".format(str(e)))
@@ -100,6 +100,12 @@ class ACTMonitor(PluginBase):
 
             if actjobs[0]['computingElement']:
                 workSpec.computingElement = actjobs[0]['computingElement']
+            if actjobs[0]['node']:
+                try:
+                    pandaid = workSpec.get_jobspec_list()[0].PandaID
+                    workSpec.set_work_attributes({pandaid: {'node': actjobs[0]['node']}})
+                except:
+                    tmpLog.warning('Could not extract panda ID for worker {0}'.format(workSpec.batchID))
 
             retList.append((newStatus, ''))
 

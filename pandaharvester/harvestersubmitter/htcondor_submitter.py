@@ -111,7 +111,7 @@ def _choose_ce(weighting):
         cur += _w
         if cur >= lucky_number:
             return _ce
-    if ce_weight_dict.get(ce_now) > 0.:
+    if ce_weight_dict.get(ce_now, -1) > 0.:
         return ce_now
     else:
         return None
@@ -174,13 +174,16 @@ def _condor_macro_replace(string, **kwarg):
 
 
 # Parse resource type from string for Unified PanDA Queue
-def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
+def _get_resource_type(string, is_unified_queue, is_pilot_option=False, pilot_version='1'):
     string = str(string)
     if not is_unified_queue:
         ret = ''
     elif string in set(['SCORE', 'MCORE', 'SCORE_HIMEM', 'MCORE_HIMEM']):
         if is_pilot_option:
-            ret = '-R {0}'.format(string)
+            if pilot_version == '2':
+                ret = '--resource-type {0}'.format(string)
+            else:
+                ret = '-R {0}'.format(string)
         else:
             ret = string
     else:
@@ -308,7 +311,7 @@ def submit_bag_of_workers(data_list):
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
-                special_par='', harvester_queue_config=None, is_unified_queue=False, **kwarg):
+                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='1', **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -379,7 +382,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=prod_source_label,
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
-        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
+        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True, pilot_version),
         ioIntensity=io_intensity,
         pilotType=workspec.pilotType,
         )
@@ -531,6 +534,8 @@ class HTCondorSubmitter(PluginBase):
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
+        pilot_version_orig = str(this_panda_queue_dict.get('pilot_version', ''))
+        pilot_version_suffix_str = '_pilot2' if pilot_version_orig == '2' else ''
 
         # get override requirements from queue configured
         try:
@@ -622,9 +627,11 @@ class HTCondorSubmitter(PluginBase):
                         if ce_flavour_str in default_port_map:
                             default_port = default_port_map[ce_flavour_str]
                             ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
-                    tmpLog.debug('For site {0} got CE endpoint: "{1}", flavour: "{2}"'.format(self.queueName, ce_endpoint_from_queue, ce_flavour_str))
+                    tmpLog.debug('For site {0} got pilot version: "{1}"; CE endpoint: "{2}", flavour: "{3}"'.format(
+                                    self.queueName, pilot_version_orig, ce_endpoint_from_queue, ce_flavour_str))
                     if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
-                        sdf_template_filename = '{ce_flavour_str}.sdf'.format(ce_flavour_str=ce_flavour_str)
+                        sdf_template_filename = '{ce_flavour_str}{pilot_version_suffix_str}.sdf'.format(
+                                                    ce_flavour_str=ce_flavour_str, pilot_version_suffix_str=pilot_version_suffix_str)
                         self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
                 else:
                     try:
@@ -727,6 +734,7 @@ class HTCondorSubmitter(PluginBase):
                         'condor_schedd': condor_schedd,
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
+                        'pilot_version': pilot_version_orig,
                         })
             return data
 

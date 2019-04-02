@@ -466,7 +466,7 @@ class Monitor(AgentBase):
                     monStatus = tmpOut['monStatus']
                     if newStatus in [WorkSpec.ST_submitted, WorkSpec.ST_running, WorkSpec.ST_idle] \
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers \
-                        and workSpec.workAttributes is not None:
+                            and workSpec.workAttributes is not None:
                         timeNow = datetime.datetime.utcnow()
                         timeNow_timestamp = time.time()
                         # get lastCheckAt
@@ -481,8 +481,9 @@ class Monitor(AgentBase):
                             lastForceEnqueueAt = 0
                         # notification
                         intolerable_delay = max(forceEnqueueInterval*2, harvester_config.monitor.checkInterval * 4)
-                        if _bool and lastCheckAt is not None and last_check_period > harvester_config.monitor.checkInterval \
-                            and timeNow_timestamp - harvester_config.monitor.checkInterval > self.startTimestamp:
+                        if _bool and lastCheckAt is not None \
+                                and last_check_period > harvester_config.monitor.checkInterval \
+                                and timeNow_timestamp - harvester_config.monitor.checkInterval > self.startTimestamp:
                             if last_check_period > intolerable_delay:
                                 tmpQueLog.error('last check period of workerID={0} is {1} sec, intolerably longer than monitor checkInterval. Will NOT enquque worker by force. Please check why monitor checks worker slowly'.format(
                                                     workSpec.workerID, last_check_period))
