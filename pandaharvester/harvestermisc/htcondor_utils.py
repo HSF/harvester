@@ -54,6 +54,7 @@ CONDOR_JOB_ADS_LIST = [
     'ClusterId', 'ProcId', 'JobStatus', 'LastJobStatus',
     'JobStartDate', 'EnteredCurrentStatus', 'ExitCode',
     'HoldReason', 'LastHoldReason', 'RemoveReason',
+    'harvesterWorkerID',
 ]
 
 
@@ -224,7 +225,7 @@ class CondorQCacheFifo(six.with_metaclass(SingletonWithID, SpecialFIFOBase)):
         if peeked_tuple.score is None or peeked_tuple.item is None:
             return True
         elif force or self.decode(peeked_tuple.item) == key:
-            self.release([self.global_lock_id])
+            self.delete([self.global_lock_id])
             return True
         else:
             return False

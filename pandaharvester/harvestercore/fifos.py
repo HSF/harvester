@@ -388,15 +388,14 @@ class MonitorFIFO(FIFOBase):
         return retVal, overhead_time
 
 
-class MonitorEventFIFO(FIFOBase):
-    titleName = 'monitor-event'
+class MonitorEventFIFO(SpecialFIFOBase):
+    titleName = 'monitorEvent'
 
     # constructor
     def __init__(self, **kwarg):
         self.config = getattr(harvester_config, 'monitor')
-        force_enable = False
+        self.enabled = False
         if hasattr(self.config, 'fifoEnable') and self.config.fifoEnable \
             and getattr(self.config, 'eventBasedEnable', False):
-            force_enable = True
-        FIFOBase.__init__(self, **kwarg)
-        self._initialize_fifo(force_enable)
+            self.enabled = True
+        SpecialFIFOBase.__init__(self, **kwarg)

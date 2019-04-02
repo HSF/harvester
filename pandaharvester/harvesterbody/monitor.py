@@ -3,6 +3,7 @@ import datetime
 import collections
 import random
 import itertools
+import threading
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -120,20 +121,25 @@ class Monitor(AgentBase):
                 remaining_obj_to_enqueue_to_head_dict = {}
                 n_chunk_peeked_stat, sum_overhead_time_stat = 0, 0.0
                 # go get workers
-                if monitor_event_fifo.enabled:
+                if self.monitor_event_fifo.enabled:
                     # run with workers reported from plugin (event-based check)
                     to_deliver = time.time() >= last_event_delivery_timestamp + eventBasedCheckInterval
                     to_digest = time.time() >= last_event_digest_timestamp + eventBasedCheckInterval/4
                     to_dispose = to_deliver
                     if to_deliver:
                         # deliver events of worker update
-                        self.monitor_event_deliverer(time_window=eventBasedTimeWindow)
+                        got_lock = self.dbProxy.get_process_lock('monitor_event_deliverer', lockedBy,
+                                                                   eventBasedCheckInterval)
+                        if got_lock:
+                            self.monitor_event_deliverer(time_window=eventBasedTimeWindow)
+                        else:
+                            mainLog.debug('did not get lock. Skip monitor_event_deliverer')
                         last_event_delivery_timestamp = time.time()
                     if to_digest:
                         # digest events of worker update
                         to_run_fifo_check = False
-                        retMap = self.monitor_event_digester(max_events=eventBasedMaxEvents)
-                        for qc_key, retVal in retMap:
+                        retMap = self.monitor_event_digester(locked_by=lockedBy, max_events=eventBasedMaxEvents)
+                        for qc_key, retVal in iteritems(retMap):
                             workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                             # only enqueue postprocessing workers to FIFO
                             obj_to_enqueue_to_head_dict[qc_key][0].extend(workSpecsToEnqueueToHead)
@@ -716,13 +722,13 @@ class Monitor(AgentBase):
                 retVal = self.monitor_event_fifo.putbyid(id=workerID, item=True, score=updateTimestamp)
                 if not retVal:
                     retVal = self.monitor_event_fifo.update(id=workerID, score=updateTimestamp, temporary=0, cond_score='gt')
-                    tmpLog.debug('updated event with workerID={0}'.format(workerID))
+                    tmpLog.debug('updated event with workerID={0} retVal={1}'.format(workerID, retVal))
                 else:
                     tmpLog.debug('put event with workerID={0}'.format(workerID))
         tmpLog.debug('done')
 
     # get events and check workers
-    def monitor_event_digester(self, max_events):
+    def monitor_event_digester(self, locked_by, max_events):
         tmpLog = self.make_logger(_logger, 'id=monitor-{0}'.format(self.get_pid()), method_name='monitor_event_digester')
         tmpLog.debug('start')
         timeNow_timestamp = time.time()
@@ -730,14 +736,16 @@ class Monitor(AgentBase):
         obj_gotten_list = self.monitor_event_fifo.getmany(mode='first', count=max_events, protective=True)
         workerID_list = [ obj_gotten.id for obj_gotten in obj_gotten_list ]
         tmpLog.debug('got {0} worker events'.format(len(workerID_list)))
-        updated_workers_dict = self.dbProxy.get_workers_from_ids(workerID_list)
-        tmpLog.debug('got workspecs for worker events')
-        for queueName, _val in iteritems(updated_workers_dict):
-            for configID, workSpecsList in iteritems(_val):
-                qc_key = (queueName, configID)
-                tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
-                retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID)
-                retMap[qc_key] = retVal
+        if len(workerID_list) > 0:
+            updated_workers_dict = self.dbProxy.get_workers_from_ids(workerID_list)
+            tmpLog.debug('got workspecs for worker events')
+            for queueName, _val in iteritems(updated_workers_dict):
+                for configID, workSpecsList in iteritems(_val):
+                    qc_key = (queueName, configID)
+                    tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
+                    retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
+                                                        from_fifo=True, config_id=configID)
+                    retMap[qc_key] = retVal
         tmpLog.debug('done')
         return retMap
 

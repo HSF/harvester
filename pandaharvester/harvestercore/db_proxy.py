@@ -5201,8 +5201,9 @@ class DBProxy(object):
             # sql to get workers
             sqlW = (
                 "SELECT workerID,configID,mapType FROM {workTableName} "
-                "WHERE status IN ({ids_str}) "
-                ).format(workTableName=workTableName, ids_str=','.join(ids))
+                "WHERE workerID IN ({ids_str}) "
+                "AND status IN (:st_submitted,:st_running,:st_idle) "
+                ).format(workTableName=workTableName, ids_str=','.join([ str(_) for _ in ids]))
             # sql to get associated workerIDs
             sqlA = (
                 "SELECT t.workerID FROM {jobWorkerTableName} t, {jobWorkerTableName} s, {workTableName} w "

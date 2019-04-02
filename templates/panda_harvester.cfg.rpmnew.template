@@ -392,10 +392,17 @@ workerQueueTimeLimit = 172800
 eventBasedEnable = False
 
 # list of plugins for event-based check. Mandatory when eventBasedEnable is True
-#eventBasedPlugins = [
+#eventBasedPlugins =
+#  [
 #    {
 #      "module": "pandaharvester.harvestermonitor.htcondor_monitor",
-#      "name": "HTCondorMonitor"
+#      "name": "HTCondorMonitor",
+#      "submissionHost_list": [
+#          "aipanda023.cern.ch,aipanda023.cern.ch:19618",
+#          "aipanda024.cern.ch,aipanda024.cern.ch:19618",
+#          "aipanda183.cern.ch,aipanda183.cern.ch:19618",
+#          "aipanda184.cern.ch,aipanda184.cern.ch:19618"
+#        ]
 #    }
 #  ]
 
@@ -410,6 +417,8 @@ eventBasedEnable = False
 
 # lifetime of an event in event-based check, in sec
 #eventBasedEventLifetime = 1800
+
+
 
 
 ##########################

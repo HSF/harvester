@@ -289,38 +289,41 @@ class SqliteFifo(PluginBase):
 
     # update a object by its id with some conditions
     def update(self, id, item=None, score=None, temporary=None, cond_score=None):
-        item_buf = memoryviewOrBuffer(item)
         cond_score_str_map = {
-                'gt': 'AND score < {0}',
-                'ge': 'AND score <= {0}',
-                'lt': 'AND score > {0}',
-                'le': 'AND score >= {0}',
+                'gt': 'AND score < ?',
+                'ge': 'AND score <= ?',
+                'lt': 'AND score > ?',
+                'le': 'AND score >= ?',
             }
-        cond_score_str = cond_score_str_map.get(cond_score, '').format(score)
+        cond_score_str = cond_score_str_map.get(cond_score, '')
         attr_set_list = []
         params = []
         if item is not None:
-            attr_set_list.append('item = ?'.format(item))
+            item_buf = memoryviewOrBuffer(item)
+            attr_set_list.append('item = ?')
             params.append(item_buf)
         if score is not None:
-            attr_set_list.append('score = ?'.format(score))
+            attr_set_list.append('score = ?')
             params.append(score)
         if temporary is not None:
-            attr_set_list.append('temporary = ?'.format(temporary))
+            attr_set_list.append('temporary = ?')
             params.append(temporary)
         attr_set_str = ' , '.join(attr_set_list)
         if not attr_set_str:
             return False
         sql_update = (
-                'UPDATE OR IGNORE {table_name} SET '
+                'UPDATE OR IGNORE queue_table SET '
                 '{attr_set_str} '
-                'WHERE id = {id} '
+                'WHERE id = ? '
                 '{cond_score_str} '
-            ).format(table_name=self.tableName, id=id, cond_score_str=cond_score_str)
+            ).format(attr_set_str=attr_set_str, id=id, cond_score_str=cond_score_str)
+        params.append(id)
+        if cond_score_str:
+            params.append(score)
         retVal = False
         with self._get_conn() as conn:
             cursor = conn.execute(sql_update, params)
             n_row =  cursor.rowcount
-            if n_row == 1:
+            if n_row >= 1:
                 retVal = True
         return retVal

@@ -287,22 +287,22 @@ class MysqlFifo(PluginBase):
 
     def _update(self, id, item=None, score=None, temporary=None, cond_score=None):
         cond_score_str_map = {
-                'gt': 'AND score < {0}',
-                'ge': 'AND score <= {0}',
-                'lt': 'AND score > {0}',
-                'le': 'AND score >= {0}',
+                'gt': 'AND score < %s',
+                'ge': 'AND score <= %s',
+                'lt': 'AND score > %s',
+                'le': 'AND score >= %s',
             }
-        cond_score_str = cond_score_str_map.get(cond_score, '').format(score)
+        cond_score_str = cond_score_str_map.get(cond_score, '')
         attr_set_list = []
         params = []
         if item is not None:
-            attr_set_list.append('item = %s'.format(item))
+            attr_set_list.append('item = %s')
             params.append(item)
         if score is not None:
-            attr_set_list.append('score = %s'.format(score))
+            attr_set_list.append('score = %s')
             params.append(score)
         if temporary is not None:
-            attr_set_list.append('temporary = %s'.format(temporary))
+            attr_set_list.append('temporary = %s')
             params.append(temporary)
         attr_set_str = ' , '.join(attr_set_list)
         if not attr_set_str:
@@ -310,9 +310,12 @@ class MysqlFifo(PluginBase):
         sql_update = (
                 'UPDATE IGNORE {table_name} SET '
                 '{attr_set_str} '
-                'WHERE id = {id} '
+                'WHERE id = %s '
                 '{cond_score_str} '
-            ).format(table_name=self.tableName, id=id, cond_score_str=cond_score_str)
+            ).format(table_name=self.tableName, attr_set_str=attr_set_str, cond_score_str=cond_score_str)
+        params.append(id)
+        if cond_score_str:
+            params.append(score)
         self.execute(sql_update, params)
         n_row = self.cur.rowcount
         if n_row == 1:
