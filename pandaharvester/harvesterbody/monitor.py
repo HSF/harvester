@@ -81,7 +81,7 @@ class Monitor(AgentBase):
                 # loop over all workers
                 for queueName, configIdWorkSpecs in iteritems(workSpecsPerQueue):
                     for configID, workSpecsList in iteritems(configIdWorkSpecs):
-                        retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID)
+                        retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID, check_source='DB')
                         if monitor_fifo.enabled and retVal is not None:
                             workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                             if workSpecsToEnqueue:
@@ -188,7 +188,7 @@ class Monitor(AgentBase):
                                                     workSpec.pandaid_list = []
                                                 workSpec.force_update('pandaid_list')
                                     retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
-                                                                     config_id=configID)
+                                                                     config_id=configID, check_source='FIFO')
                                     if retVal is not None:
                                         workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                                         qc_key = (queueName, configID)
@@ -286,7 +286,7 @@ class Monitor(AgentBase):
                 return
 
     # core of monitor agent to check workers in workSpecsList of queueName
-    def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False, config_id=None):
+    def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False, config_id=None, check_source=None):
         tmpQueLog = self.make_logger(_logger, 'id={0} queue={1}'.format(lockedBy, queueName),
                                      method_name='run')
         # check queue
@@ -336,8 +336,9 @@ class Monitor(AgentBase):
                 # loop over workSpecs
                 for workSpec in workSpecs:
                     tmpLog = self.make_logger(_logger,
-                                              'id={0} workerID={1}'.format(lockedBy, workSpec.workerID),
-                                              method_name='run')
+                                              'id={0} workerID={1} from={2}'.format(
+                                                    lockedBy, workSpec.workerID, check_source),
+                                                    method_name='run')
                     tmpOut = tmpRetMap[workSpec.workerID]
                     oldStatus = tmpOut['oldStatus']
                     newStatus = tmpOut['newStatus']
@@ -723,7 +724,10 @@ class Monitor(AgentBase):
                 retVal = self.monitor_event_fifo.putbyid(id=workerID, item=True, score=updateTimestamp)
                 if not retVal:
                     retVal = self.monitor_event_fifo.update(id=workerID, score=updateTimestamp, temporary=0, cond_score='gt')
-                    tmpLog.debug('updated event with workerID={0} retVal={1}'.format(workerID, retVal))
+                    if retVal:
+                        tmpLog.debug('updated event with workerID={0}'.format(workerID))
+                    else:
+                        tmpLog.debug('event with workerID={0} is updated. Skipped'.format(workerID))
                 else:
                     tmpLog.debug('put event with workerID={0}'.format(workerID))
         tmpLog.debug('done')
@@ -745,7 +749,8 @@ class Monitor(AgentBase):
                     qc_key = (queueName, configID)
                     tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
                     retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
-                                                        from_fifo=True, config_id=configID)
+                                                        from_fifo=True, config_id=configID,
+                                                        check_source='Event')
                     retMap[qc_key] = retVal
         tmpLog.debug('done')
         return retMap
