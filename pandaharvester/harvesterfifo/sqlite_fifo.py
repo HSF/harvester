@@ -34,7 +34,7 @@ class SqliteFifo(PluginBase):
             'CREATE INDEX IF NOT EXISTS score_index ON queue_table '
             '(score)'
             )
-    _count_sql = 'SELECT COUNT(id) FROM queue_table WHERE temporary = 0'
+    _count_sql = 'SELECT COUNT(id) FROM queue_table'
     _iterate_sql = 'SELECT id, item, score FROM queue_table'
     _write_lock_sql = 'BEGIN IMMEDIATE'
     _exclusive_lock_sql = 'BEGIN EXCLUSIVE'

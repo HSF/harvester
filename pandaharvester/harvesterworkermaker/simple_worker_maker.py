@@ -146,8 +146,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             # randomize pilot type with weighting
             workSpec.pilotType = random.choice(self.pilotTypeRandomList)
             if workSpec.pilotType in ['RC', 'ALRB', 'PT']:
-                tmpLog.info('a worker of {0} has pilotType={1}'.format(
-                    workSpec.computingSite, workSpec.pilotType))
+                tmpLog.info('a worker has pilotType={0}'.format(workSpec.pilotType))
         # TODO: this needs to be improved with real resource types
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type

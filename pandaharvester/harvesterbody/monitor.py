@@ -765,4 +765,6 @@ class Monitor(AgentBase):
                                                             maxscore=(timeNow_timestamp-event_lifetime),
                                                             count=max_events, temporary=True)
         tmpLog.debug('removed {0} events'.format(len(obj_gotten_list)))
+        n_events = self.monitor_event_fifo.size()
+        tmpLog.debug('now {0} events in monitor-event fifo'.format(n_events))
         tmpLog.debug('done')
