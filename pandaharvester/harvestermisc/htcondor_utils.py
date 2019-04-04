@@ -474,9 +474,22 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                     for job in jobs_iter_orig:
                         try:
                             jobs_iter.append(dict(job))
+                        except UnicodeDecodeError:
+                            # handle non utf-8 string (probably in HoldReason or LastHoldReason)
+                            tmp_dict = {}
+                            for _k, _v in six.iteritems(job):
+                                try:
+                                    tmp_dict[_k] = _v
+                                except UnicodeDecodeError:
+                                    _v_good = repr(_v)
+                                    tmp_dict[_k] = _v_good
+                                except Exception as e:
+                                    tmpLog.error('In updating cache schedd xquery; got exception {0}: {1} ; {2}'.format(
+                                                    e.__class__.__name__, e, repr(job)))
+                            jobs_iter.append(tmp_dict)
                         except Exception as e:
                             tmpLog.error('In updating cache schedd xquery; got exception {0}: {1} ; {2}'.format(
-                                e.__class__.__name__, e, repr(job)))
+                                            e.__class__.__name__, e, repr(job)))
                     timeNow = time.time()
                     cache_fifo.put(jobs_iter, timeNow)
                     self.cache = (jobs_iter, timeNow)
@@ -607,7 +620,23 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             # Query
             jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
-                job_ads_dict = dict(job)
+                try:
+                    job_ads_dict = dict(job)
+                except UnicodeDecodeError:
+                    # handle non utf-8 string (probably in HoldReason or LastHoldReason)
+                    job_ads_dict = {}
+                    for _k, _v in six.iteritems(job):
+                        try:
+                            job_ads_dict[_k] = _v
+                        except UnicodeDecodeError:
+                            _v_good = repr(_v)
+                            job_ads_dict[_k] = _v_good
+                        except Exception as e:
+                            tmpLog.error('In doing schedd xquery or history; got exception {0}: {1} ; {2}'.format(
+                                            e.__class__.__name__, e, repr(job)))
+                except Exception as e:
+                    tmpLog.error('In doing schedd xquery or history; got exception {0}: {1} ; {2}'.format(
+                                    e.__class__.__name__, e, repr(job)))
                 batchid = get_batchid_from_job(job_ads_dict)
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = job_ads_dict
