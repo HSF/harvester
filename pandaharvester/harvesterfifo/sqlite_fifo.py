@@ -34,7 +34,7 @@ class SqliteFifo(PluginBase):
             'CREATE INDEX IF NOT EXISTS score_index ON queue_table '
             '(score)'
             )
-    _count_sql = 'SELECT COUNT(id) FROM queue_table WHERE temporary = 0'
+    _count_sql = 'SELECT COUNT(id) FROM queue_table'
     _iterate_sql = 'SELECT id, item, score FROM queue_table'
     _write_lock_sql = 'BEGIN IMMEDIATE'
     _exclusive_lock_sql = 'BEGIN EXCLUSIVE'
@@ -55,8 +55,18 @@ class SqliteFifo(PluginBase):
             'WHERE id = ? '
             'AND temporary = {temp}'
             )
+    _get_many_template = (
+            'SELECT id, item, score FROM queue_table '
+            'WHERE '
+            '{temporary_str} '
+            '{minscore_str} '
+            '{maxscore_str} '
+            'ORDER BY score {rank} '
+            '{count_str} '
+            )
     _pop_del_sql = 'DELETE FROM queue_table WHERE id = ?'
     _move_to_temp_sql = 'UPDATE queue_table SET temporary = 1 WHERE id = ?'
+    _move_many_to_temp_sql_template = 'UPDATE queue_table SET temporary = 1 WHERE id in ({0})'
     _del_sql_template = 'DELETE FROM queue_table WHERE id in ({0})'
     _clear_delete_table_sql = 'DELETE FROM queue_table'
     _clear_drop_table_sql = 'DROP TABLE IF EXISTS queue_table'
@@ -96,8 +106,8 @@ class SqliteFifo(PluginBase):
 
     def __iter__(self):
         with self._get_conn() as conn:
-            for id, obj_buf, score in conn.execute(self._iterate_sql):
-                yield bytes(obj_buf)
+            for id, item_buf, score in conn.execute(self._iterate_sql):
+                yield bytes(item_buf)
 
     def _get_conn(self):
         id = get_ident()
@@ -117,7 +127,7 @@ class SqliteFifo(PluginBase):
                 conn.execute(self._write_lock_sql)
                 cursor = conn.execute(get_sql)
                 try:
-                    id, obj_buf, score = next(cursor)
+                    id, item_buf, score = next(cursor)
                     keep_polling = False
                 except StopIteration:
                     # unlock the database
@@ -135,7 +145,7 @@ class SqliteFifo(PluginBase):
                 else:
                     conn.execute(self._pop_del_sql, (id,))
                 conn.commit()
-                return (id, bytes(obj_buf), score)
+                return (id, bytes(item_buf), score)
         return None
 
     def _peek(self, peek_sql_template, skip_item=False, id=None, temporary=False):
@@ -156,8 +166,8 @@ class SqliteFifo(PluginBase):
                     id, score = next(cursor)
                     return id, None, score
                 else:
-                    id, obj_buf, score = next(cursor)
-                    return id, bytes(obj_buf), score
+                    id, item_buf, score = next(cursor)
+                    return id, bytes(item_buf), score
             except StopIteration:
                 return None
 
@@ -166,23 +176,23 @@ class SqliteFifo(PluginBase):
         return len(self)
 
     # enqueue with priority score
-    def put(self, obj, score):
+    def put(self, item, score):
         retVal = False
-        obj_buf = memoryviewOrBuffer(obj)
+        item_buf = memoryviewOrBuffer(item)
         with self._get_conn() as conn:
             conn.execute(self._write_lock_sql)
-            cursor = conn.execute(self._push_sql, (obj_buf, score))
+            cursor = conn.execute(self._push_sql, (item_buf, score))
             n_row =  cursor.rowcount
             if n_row == 1:
                 retVal = True
         return retVal
 
     # enqueue by id
-    def putbyid(self, id, obj, score):
+    def putbyid(self, id, item, score):
         retVal = False
-        obj_buf = memoryviewOrBuffer(obj)
+        item_buf = memoryviewOrBuffer(item)
         with self._get_conn() as conn:
-            cursor = conn.execute(self._push_by_id_sql, (id, obj_buf, score))
+            cursor = conn.execute(self._push_by_id_sql, (id, item_buf, score))
             n_row =  cursor.rowcount
             if n_row == 1:
                 retVal = True
@@ -197,6 +207,36 @@ class SqliteFifo(PluginBase):
     def getlast(self, timeout=None, protective=False):
         sql_str = self._rpop_get_sql_template.format(columns='id, item, score')
         return self._pop(get_sql=sql_str, timeout=timeout, protective=protective)
+
+    # dequeue list of objects with some conditions
+    def getmany(self, mode='first', minscore=None, maxscore=None, count=None,
+                    protective=False, temporary=False):
+        temporary_str = 'temporary = 1' if temporary else 'temporary = 0'
+        minscore_str = '' if minscore is None else 'AND score >= {0}'.format(float(minscore))
+        maxscore_str = '' if maxscore is None else 'AND score <= {0}'.format(float(maxscore))
+        count_str = '' if count is None else 'LIMIT {0}'.format(int(count))
+        mode_rank_map = {
+                'first': '',
+                'last': 'DESC',
+            }
+        get_many_sql = self._get_many_template.format(temporary_str=temporary_str,
+                        minscore_str=minscore_str, maxscore_str=maxscore_str,
+                        rank=mode_rank_map[mode], count_str=count_str)
+        ret_list = []
+        with self._get_conn() as conn:
+            conn.execute(self._write_lock_sql)
+            cursor = conn.execute(get_many_sql)
+            ids = []
+            for id, item_buf, score in cursor:
+                ret_list.append((id, bytes(item_buf), score))
+                ids.append(id)
+            placeholders_str = ','.join('?' * len(ids))
+            if protective:
+                conn.execute(self._move_many_to_temp_sql_template.format(placeholders_str), ids)
+            else:
+                conn.execute(self._del_sql_template.format(placeholders_str), ids)
+            conn.commit()
+        return ret_list
 
     # get tuple of (id, item, score) of the first object without dequeuing it
     def peek(self, skip_item=False):
@@ -246,3 +286,44 @@ class SqliteFifo(PluginBase):
                 conn.execute(self._restore_sql_template.format(placeholders_str), ids)
             else:
                 raise TypeError('ids should be list or tuple or None')
+
+    # update a object by its id with some conditions
+    def update(self, id, item=None, score=None, temporary=None, cond_score=None):
+        cond_score_str_map = {
+                'gt': 'AND score < ?',
+                'ge': 'AND score <= ?',
+                'lt': 'AND score > ?',
+                'le': 'AND score >= ?',
+            }
+        cond_score_str = cond_score_str_map.get(cond_score, '')
+        attr_set_list = []
+        params = []
+        if item is not None:
+            item_buf = memoryviewOrBuffer(item)
+            attr_set_list.append('item = ?')
+            params.append(item_buf)
+        if score is not None:
+            attr_set_list.append('score = ?')
+            params.append(score)
+        if temporary is not None:
+            attr_set_list.append('temporary = ?')
+            params.append(temporary)
+        attr_set_str = ' , '.join(attr_set_list)
+        if not attr_set_str:
+            return False
+        sql_update = (
+                'UPDATE OR IGNORE queue_table SET '
+                '{attr_set_str} '
+                'WHERE id = ? '
+                '{cond_score_str} '
+            ).format(attr_set_str=attr_set_str, id=id, cond_score_str=cond_score_str)
+        params.append(id)
+        if cond_score_str:
+            params.append(score)
+        retVal = False
+        with self._get_conn() as conn:
+            cursor = conn.execute(sql_update, params)
+            n_row =  cursor.rowcount
+            if n_row >= 1:
+                retVal = True
+        return retVal

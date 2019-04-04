@@ -390,7 +390,38 @@ fifoMaxPreemptInterval = 60
 # workers will be killed if stuck queuing (submitted) for longer than this
 workerQueueTimeLimit = 172800
 
+# enable event-based monitor check. Only works when fifoEnable is True
+eventBasedEnable = False
 
+# list of plugins for event-based check. Mandatory when eventBasedEnable is True
+#eventBasedPlugins =
+#  [
+#    {
+#      "module": "pandaharvester.harvestermonitor.htcondor_monitor",
+#      "name": "HTCondorMonitor",
+#      "submissionHost_list": [
+#          "aipanda023.cern.ch,aipanda023.cern.ch:19618",
+#          "aipanda024.cern.ch,aipanda024.cern.ch:19618",
+#          "aipanda183.cern.ch,aipanda183.cern.ch:19618",
+#          "aipanda184.cern.ch,aipanda184.cern.ch:19618"
+#        ]
+#    }
+#  ]
+
+# interval of event-based check to query with plugin, in sec
+#eventBasedCheckInterval = 300
+
+# time window of event-based check to check within, in sec
+#eventBasedTimeWindow = 450
+
+# max number of events of event-based check to handle in one cycle
+#eventBasedCheckMaxEvents = 500
+
+# lifetime of an event in event-based check, in sec
+#eventBasedEventLifetime = 1800
+
+# max number of expired events to remove in one cycle
+#eventBasedRemoveMaxEvents = 2000
 
 
 ##########################
