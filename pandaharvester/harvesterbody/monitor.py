@@ -3,7 +3,6 @@ import datetime
 import collections
 import random
 import itertools
-import threading
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -58,6 +57,7 @@ class Monitor(AgentBase):
         last_DB_cycle_timestamp = 0
         last_event_delivery_timestamp = 0
         last_event_digest_timestamp = 0
+        last_event_dispose_timestamp = 0
         monitor_fifo = self.monitor_fifo
         sleepTime = (fifoSleepTimeMilli / 1000.0) \
                         if monitor_fifo.enabled else harvester_config.monitor.sleepTime
@@ -126,7 +126,7 @@ class Monitor(AgentBase):
                     # run with workers reported from plugin (event-based check)
                     to_deliver = time.time() >= last_event_delivery_timestamp + eventBasedCheckInterval
                     to_digest = time.time() >= last_event_digest_timestamp + eventBasedCheckInterval/4
-                    to_dispose = to_deliver
+                    to_dispose = time.time() >= last_event_dispose_timestamp + eventBasedCheckInterval/2
                     if to_deliver:
                         # deliver events of worker update
                         got_lock = self.dbProxy.get_process_lock('monitor_event_deliverer', lockedBy,
@@ -150,6 +150,7 @@ class Monitor(AgentBase):
                     if to_dispose:
                         # dispose of outdated events of worker update
                         self.monitor_event_disposer(event_lifetime=eventBasedEventLifetime, max_events=eventBasedRemoveMaxEvents)
+                        last_event_dispose_timestamp = time.time()
                 if to_run_fifo_check:
                     # run with workers from FIFO
                     while time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
