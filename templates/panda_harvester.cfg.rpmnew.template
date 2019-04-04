@@ -415,12 +415,13 @@ eventBasedEnable = False
 #eventBasedTimeWindow = 450
 
 # max number of events of event-based check to handle in one cycle
-#eventBasedMaxEvents = 500
+#eventBasedCheckMaxEvents = 500
 
 # lifetime of an event in event-based check, in sec
 #eventBasedEventLifetime = 1800
 
-
+# max number of expired events to remove in one cycle
+#eventBasedRemoveMaxEvents = 2000
 
 
 ##########################

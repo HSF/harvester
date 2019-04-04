@@ -52,8 +52,9 @@ class Monitor(AgentBase):
         fifoProtectiveDequeue = getattr(harvester_config.monitor, 'fifoProtectiveDequeue', True)
         eventBasedCheckInterval = getattr(harvester_config.monitor, 'eventBasedCheckInterval', 300)
         eventBasedTimeWindow = getattr(harvester_config.monitor, 'eventBasedTimeWindow', 450)
-        eventBasedMaxEvents = getattr(harvester_config.monitor, 'eventBasedMaxEvents', 500)
+        eventBasedCheckMaxEvents = getattr(harvester_config.monitor, 'eventBasedCheckMaxEvents', 500)
         eventBasedEventLifetime = getattr(harvester_config.monitor, 'eventBasedEventLifetime', 1800)
+        eventBasedRemoveMaxEvents = getattr(harvester_config.monitor, 'eventBasedRemoveMaxEvents', 2000)
         last_DB_cycle_timestamp = 0
         last_event_delivery_timestamp = 0
         last_event_digest_timestamp = 0
@@ -138,7 +139,7 @@ class Monitor(AgentBase):
                     if to_digest:
                         # digest events of worker update
                         to_run_fifo_check = False
-                        retMap = self.monitor_event_digester(locked_by=lockedBy, max_events=eventBasedMaxEvents)
+                        retMap = self.monitor_event_digester(locked_by=lockedBy, max_events=eventBasedCheckMaxEvents)
                         for qc_key, retVal in iteritems(retMap):
                             workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                             # only enqueue postprocessing workers to FIFO
@@ -148,7 +149,7 @@ class Monitor(AgentBase):
                         last_event_digest_timestamp = time.time()
                     if to_dispose:
                         # dispose of outdated events of worker update
-                        self.monitor_event_disposer(event_lifetime=eventBasedEventLifetime, max_events=eventBasedMaxEvents)
+                        self.monitor_event_disposer(event_lifetime=eventBasedEventLifetime, max_events=eventBasedRemoveMaxEvents)
                 if to_run_fifo_check:
                     # run with workers from FIFO
                     while time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
