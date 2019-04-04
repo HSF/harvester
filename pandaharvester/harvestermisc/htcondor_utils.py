@@ -54,6 +54,7 @@ CONDOR_JOB_ADS_LIST = [
     'ClusterId', 'ProcId', 'JobStatus', 'LastJobStatus',
     'JobStartDate', 'EnteredCurrentStatus', 'ExitCode',
     'HoldReason', 'LastHoldReason', 'RemoveReason',
+    'harvesterWorkerID',
 ]
 
 
@@ -224,7 +225,7 @@ class CondorQCacheFifo(six.with_metaclass(SingletonWithID, SpecialFIFOBase)):
         if peeked_tuple.score is None or peeked_tuple.item is None:
             return True
         elif force or self.decode(peeked_tuple.item) == key:
-            self.release([self.global_lock_id])
+            self.delete([self.global_lock_id])
             return True
         else:
             return False
@@ -363,7 +364,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             self.useCondorHistory = useCondorHistory
             tmpLog.debug('Initialize done')
 
-    def get_all(self, batchIDs_list=[]):
+    def get_all(self, batchIDs_list=[], allJobs=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.get_all')
         # Get all
@@ -371,7 +372,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         job_ads_all_dict = {}
         if self.condor_api == 'python':
             try:
-                job_ads_all_dict = self.query_with_python(batchIDs_list)
+                job_ads_all_dict = self.query_with_python(batchIDs_list, allJobs)
             except Exception as e:
                 tmpLog.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
                 raise
@@ -447,7 +448,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         return job_ads_all_dict
 
     @CondorClient.renew_session_and_retry
-    def query_with_python(self, batchIDs_list=[]):
+    def query_with_python(self, batchIDs_list=[], allJobs=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.query_with_python')
         # Start query
@@ -469,7 +470,26 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                     # acquired lock, update from condor schedd
                     tmpLog.debug('got lock, updating cache')
                     jobs_iter_orig = self.schedd.xquery(requirements=requirements, projection=projection)
-                    jobs_iter = [ dict(job) for job in jobs_iter_orig ]
+                    jobs_iter = []
+                    for job in jobs_iter_orig:
+                        try:
+                            jobs_iter.append(dict(job))
+                        except UnicodeDecodeError:
+                            # handle non utf-8 string (probably in HoldReason or LastHoldReason)
+                            tmp_dict = {}
+                            for _k, _v in six.iteritems(job):
+                                try:
+                                    tmp_dict[_k] = _v
+                                except UnicodeDecodeError:
+                                    _v_good = repr(_v)
+                                    tmp_dict[_k] = _v_good
+                                except Exception as e:
+                                    tmpLog.error('In updating cache schedd xquery; got exception {0}: {1} ; {2}'.format(
+                                                    e.__class__.__name__, e, repr(job)))
+                            jobs_iter.append(tmp_dict)
+                        except Exception as e:
+                            tmpLog.error('In updating cache schedd xquery; got exception {0}: {1} ; {2}'.format(
+                                            e.__class__.__name__, e, repr(job)))
                     timeNow = time.time()
                     cache_fifo.put(jobs_iter, timeNow)
                     self.cache = (jobs_iter, timeNow)
@@ -502,7 +522,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                         tmpLog.debug('nothing expired')
                         break
                     elif peeked_tuple.id is not None:
-                        retVal = cache_fifo.release([peeked_tuple.id])
+                        retVal = cache_fifo.delete([peeked_tuple.id])
                         if isinstance(retVal, int):
                             n_cleanup += retVal
                     else:
@@ -589,24 +609,44 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         for query_method in query_method_list:
             # Make requirements
             clusterids_str = ','.join(list(clusterids_set))
-            if query_method is cache_query:
+            if query_method is cache_query or allJobs:
                 requirements = 'harvesterID =?= "{0}"'.format(harvesterID)
             else:
                 requirements = 'member(ClusterID, {{{0}}})'.format(clusterids_str)
-            tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
+            if allJobs:
+                tmpLog.debug('Query method: {0} ; allJobs'.format(query_method.__name__))
+            else:
+                tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
             # Query
             jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
-                job_ads_dict = dict(job)
+                try:
+                    job_ads_dict = dict(job)
+                except UnicodeDecodeError:
+                    # handle non utf-8 string (probably in HoldReason or LastHoldReason)
+                    job_ads_dict = {}
+                    for _k, _v in six.iteritems(job):
+                        try:
+                            job_ads_dict[_k] = _v
+                        except UnicodeDecodeError:
+                            _v_good = repr(_v)
+                            job_ads_dict[_k] = _v_good
+                        except Exception as e:
+                            tmpLog.error('In doing schedd xquery or history; got exception {0}: {1} ; {2}'.format(
+                                            e.__class__.__name__, e, repr(job)))
+                except Exception as e:
+                    tmpLog.error('In doing schedd xquery or history; got exception {0}: {1} ; {2}'.format(
+                                    e.__class__.__name__, e, repr(job)))
                 batchid = get_batchid_from_job(job_ads_dict)
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)
                 job_ads_all_dict[condor_job_id] = job_ads_dict
                 # Remove batch jobs already gotten from the list
-                batchIDs_set.discard(batchid)
-            if len(batchIDs_set) == 0:
+                if not allJobs:
+                    batchIDs_set.discard(batchid)
+            if len(batchIDs_set) == 0 or allJobs:
                 break
         # Remaining
-        if len(batchIDs_set) > 0:
+        if not allJobs and len(batchIDs_set) > 0:
             # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_set:
                 condor_job_id = '{0}#{1}'.format(self.submissionHost, batchid)

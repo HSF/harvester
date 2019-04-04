@@ -60,10 +60,12 @@ class FIFOBase(object):
         return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
 
     # intialize fifo from harvester configuration
-    def _initialize_fifo(self):
+    def _initialize_fifo(self, force_enable=False):
         self.fifoName = '{0}_fifo'.format(self.titleName)
         self.config = getattr(harvester_config, self.titleName)
-        if hasattr(self.config, 'fifoEnable') and self.config.fifoEnable:
+        if force_enable:
+            self.enabled = True
+        elif hasattr(self.config, 'fifoEnable') and self.config.fifoEnable:
             self.enabled = True
         else:
             self.enabled = False
@@ -82,14 +84,14 @@ class FIFOBase(object):
         self.fifo = pluginFactory.get_plugin(pluginConf)
 
     # encode
-    def encode(self, obj):
-        obj_serialized = pickle.dumps(obj, -1)
-        return obj_serialized
+    def encode(self, item):
+        item_serialized = pickle.dumps(item, -1)
+        return item_serialized
 
     # decode
-    def decode(self, obj_serialized):
-        obj = pickle.loads(obj_serialized)
-        return obj
+    def decode(self, item_serialized):
+        item = pickle.loads(item_serialized)
+        return item
 
     # size of queue
     def size(self):
@@ -99,30 +101,28 @@ class FIFOBase(object):
         return retVal
 
     # enqueue
-    def put(self, obj, score=None, encode_item=True):
+    def put(self, item, score=None, encode_item=True):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='put')
         if encode_item:
-            # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
-            obj_serialized = self.encode(obj)
+            item_serialized = self.encode(item)
         else:
-            obj_serialized = obj
+            item_serialized = item
         if score is None:
             score = time.time()
-        retVal = self.fifo.put(obj_serialized, score)
+        retVal = self.fifo.put(item_serialized, score)
         mainLog.debug('score={0}'.format(score))
         return retVal
 
     # enqueue by id, which is unique
-    def putbyid(self, id, obj, score=None, encode_item=True):
+    def putbyid(self, id, item, score=None, encode_item=True):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='putbyid')
         if encode_item:
-            # obj_serialized = json.dumps(obj, cls=PythonObjectEncoder)
-            obj_serialized = self.encode(obj)
+            item_serialized = self.encode(item)
         else:
-            obj_serialized = obj
+            item_serialized = item
         if score is None:
             score = time.time()
-        retVal = self.fifo.putbyid(id, obj_serialized, score)
+        retVal = self.fifo.putbyid(id, item_serialized, score)
         mainLog.debug('id={0} score={1}'.format(id, score))
         return retVal
 
@@ -130,35 +130,53 @@ class FIFOBase(object):
     def get(self, timeout=None, protective=False, decode_item=True):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='get')
         object_tuple = self.fifo.get(timeout, protective)
-        # retVal = json.loads(obj_serialized, object_hook=as_python_object)
         if object_tuple is None:
             retVal = None
         else:
-            id, obj_serialized, score = object_tuple
-            if obj_serialized is not None and decode_item:
-                obj = self.decode(obj_serialized)
+            id, item_serialized, score = object_tuple
+            if item_serialized is not None and decode_item:
+                item = self.decode(item_serialized)
             else:
-                obj = obj_serialized
-            retVal = FifoObject(id, obj, score)
-        mainLog.debug('called. protective={0}'.format(protective))
+                item = item_serialized
+            retVal = FifoObject(id, item, score)
+        mainLog.debug('called. protective={0} decode_item={1}'.format(protective, decode_item))
         return retVal
 
     # dequeue to get the last fifo object
     def getlast(self, timeout=None, protective=False, decode_item=True):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='getlast')
         object_tuple = self.fifo.getlast(timeout, protective)
-        # retVal = json.loads(obj_serialized, object_hook=as_python_object)
         if object_tuple is None:
             retVal = None
         else:
-            id, obj_serialized, score = object_tuple
-            if obj_serialized is not None and decode_item:
-                obj = self.decode(obj_serialized)
+            id, item_serialized, score = object_tuple
+            if item_serialized is not None and decode_item:
+                item = self.decode(item_serialized)
             else:
-                obj = obj_serialized
-            retVal = FifoObject(id, obj, score)
-        mainLog.debug('called. protective={0}'.format(protective))
+                item = item_serialized
+            retVal = FifoObject(id, item, score)
+        mainLog.debug('called. protective={0} decode_item={1}'.format(protective, decode_item))
         return retVal
+
+    # dequeue list of objects with some conditions
+    def getmany(self, mode='first', minscore=None, maxscore=None, count=None,
+                    protective=False, temporary=False, decode_item=True):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='getmany')
+        object_tuple_list = self.fifo.getmany(mode, minscore, maxscore, count, protective, temporary)
+        if not object_tuple_list:
+            mainLog.debug('empty list')
+        ret_list = []
+        for object_tuple in object_tuple_list:
+            id, item_serialized, score = object_tuple
+            if item_serialized is not None and decode_item:
+                item = self.decode(item_serialized)
+            else:
+                item = item_serialized
+            val_tuple = FifoObject(id, item, score)
+            ret_list.append(val_tuple)
+        mainLog.debug('mode={0} minscore={1} maxscore={2} count={3} protective={4} temporary={5} decode_item={6}'.format(
+                        mode, minscore, maxscore, count, protective, temporary, decode_item))
+        return ret_list
 
     # get tuple of the first object and its score without dequeuing
     # If item is large un unnecessary to show int peek, set skip_item=True
@@ -169,14 +187,13 @@ class FIFOBase(object):
             retVal = None
             mainLog.debug('fifo empty')
         else:
-            id, obj_serialized, score = object_tuple
-            # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
-            if obj_serialized is None and score is None:
+            id, item_serialized, score = object_tuple
+            if item_serialized is None and score is None:
                 retVal = FifoObject(None, None, None)
             else:
                 if score is None:
                     score = time.time()
-                retVal = FifoObject(id, obj_serialized, score)
+                retVal = FifoObject(id, item_serialized, score)
             mainLog.debug('score={0}'.format(score))
         return retVal
 
@@ -188,14 +205,13 @@ class FIFOBase(object):
             retVal = None
             mainLog.debug('fifo empty')
         else:
-            id, obj_serialized, score = object_tuple
-            # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
-            if obj_serialized is None and score is None:
+            id, item_serialized, score = object_tuple
+            if item_serialized is None and score is None:
                 retVal = FifoObject(None, None, None)
             else:
                 if score is None:
                     score = time.time()
-                retVal = FifoObject(id, obj_serialized, score)
+                retVal = FifoObject(id, item_serialized, score)
             mainLog.debug('score={0}'.format(score))
         return retVal
 
@@ -207,19 +223,37 @@ class FIFOBase(object):
             retVal = None
             mainLog.debug('fifo empty')
         else:
-            id_gotten, obj_serialized, score = object_tuple
-            # retVal = (json.loads(obj_serialized, object_hook=as_python_object), score)
-            if obj_serialized is None and score is None:
+            id_gotten, item_serialized, score = object_tuple
+            if item_serialized is None and score is None:
                 retVal = FifoObject(None, None, None)
             else:
                 if score is None:
                     score = time.time()
-                retVal = FifoObject(id, obj_serialized, score)
+                retVal = FifoObject(id, item_serialized, score)
             mainLog.debug('id={0} score={1} temporary={2}'.format(id, score, temporary))
         return retVal
 
-    # remove objects by list of ids from temporary space, return the number of objects successfully removed
-    def release(self, ids):
+    # get list of object tuples without dequeuing
+    def peekmany(self, mode='first', minscore=None, maxscore=None, count=None, skip_item=False):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='peekmany')
+        object_tuple_list = self.fifo.peekmany(mode, minscore, maxscore, count, skip_item)
+        if not object_tuple_list:
+            mainLog.debug('empty list')
+        ret_list = []
+        for object_tuple in object_tuple_list:
+            id_gotten, item_serialized, score = object_tuple
+            if item_serialized is None and score is None:
+                val_tuple = FifoObject(None, None, None)
+            else:
+                if score is None:
+                    score = time.time()
+                val_tuple = FifoObject(id, item_serialized, score)
+            ret_list.append(val_tuple)
+        mainLog.debug('mode={0} minscore={1} maxscore={2} count={3}'.format(mode, minscore, maxscore, count))
+        return ret_list
+
+    # delete objects by list of ids from temporary space, return the number of objects successfully deleted
+    def delete(self, ids):
         mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='release')
         retVal = self.fifo.delete(ids)
         mainLog.debug('released {0} objects in {1}'.format(retVal, ids))
@@ -233,6 +267,21 @@ class FIFOBase(object):
             mainLog.debug('restored all objects')
         else:
             mainLog.debug('restored objects in {0}'.format(ids))
+        return retVal
+
+    # update a object by its id with some conditions
+    def update(self, id, item=None, score=None, temporary=None, cond_score='gt'):
+        mainLog = self.make_logger(_logger, 'id={0}-{1}'.format(self.fifoName, self.get_pid()), method_name='update')
+        retVal = self.fifo.update(id, item, score, temporary, cond_score)
+        update_report_list = []
+        if item is not None:
+            update_report_list.append('item={0}'.format(item))
+        if score is not None:
+            update_report_list.append('score={0}'.format(score))
+        if temporary is not None:
+            update_report_list.append('temporary={0}'.format(temporary))
+        update_report = ' '.join(update_report_list)
+        mainLog.debug('update id={0} cond_score={1}: return={2}, {3}'.format(id, cond_score, retVal, update_report))
         return retVal
 
 
@@ -321,19 +370,6 @@ class MonitorFIFO(FIFOBase):
         timeNow_timestamp = time.time()
         peeked_tuple = self.peek(skip_item=True)
         if peeked_tuple is not None:
-            # if False:
-            #     mainLog.warning('False. Got a null object but with score in FIFO')
-            #     try:
-            #         obj_gotten = self.get(timeout=1, protective=False, decode_item=False)
-            #         if obj_gotten is None:
-            #             mainLog.debug('Got nothing. Skipped')
-            #         elif obj_gotten.item is None:
-            #             mainLog.info('Removed a null object')
-            #         else:
-            #             self.put(obj_gotten.item, score=obj_gotten.score, encode_item=False)
-            #             mainLog.debug('Released an non-null object and put it back')
-            #         except Exception as _e:
-            #             mainLog.warning('Error when trying to remove a null object: {0} . Skipped'.format(_e))
             score = peeked_tuple.score
             overhead_time = timeNow_timestamp - score
             if overhead_time > 0:
@@ -350,3 +386,16 @@ class MonitorFIFO(FIFOBase):
         else:
             mainLog.debug('False. Got nothing in FIFO')
         return retVal, overhead_time
+
+
+class MonitorEventFIFO(SpecialFIFOBase):
+    titleName = 'monitorEvent'
+
+    # constructor
+    def __init__(self, **kwarg):
+        self.config = getattr(harvester_config, 'monitor')
+        self.enabled = False
+        if hasattr(self.config, 'fifoEnable') and self.config.fifoEnable \
+            and getattr(self.config, 'eventBasedEnable', False):
+            self.enabled = True
+        SpecialFIFOBase.__init__(self, **kwarg)
