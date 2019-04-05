@@ -475,19 +475,6 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                     for job in jobs_iter_orig:
                         try:
                             jobs_iter.append(dict(job))
-                        except UnicodeDecodeError:
-                            # handle non utf-8 string (probably in HoldReason or LastHoldReason)
-                            tmp_dict = {}
-                            for _k, _v in six.iteritems(job):
-                                try:
-                                    tmp_dict[_k] = _v
-                                except UnicodeDecodeError:
-                                    _v_good = repr(_v)
-                                    tmp_dict[_k] = _v_good
-                                except Exception as e:
-                                    tmpLog.error('In updating cache schedd xquery; got exception {0}: {1} ; {2}'.format(
-                                                    e.__class__.__name__, e, repr(job)))
-                            jobs_iter.append(tmp_dict)
                         except Exception as e:
                             tmpLog.error('In updating cache schedd xquery; got exception {0}: {1} ; {2}'.format(
                                             e.__class__.__name__, e, repr(job)))
@@ -624,18 +611,6 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             for job in jobs_iter:
                 try:
                     job_ads_dict = dict(job)
-                except UnicodeDecodeError:
-                    # handle non utf-8 string (probably in HoldReason or LastHoldReason)
-                    job_ads_dict = {}
-                    for _k, _v in six.iteritems(job):
-                        try:
-                            job_ads_dict[_k] = _v
-                        except UnicodeDecodeError:
-                            _v_good = repr(_v)
-                            job_ads_dict[_k] = _v_good
-                        except Exception as e:
-                            tmpLog.error('In doing schedd xquery or history; got exception {0}: {1} ; {2}'.format(
-                                            e.__class__.__name__, e, repr(job)))
                 except Exception as e:
                     tmpLog.error('In doing schedd xquery or history; got exception {0}: {1} ; {2}'.format(
                                     e.__class__.__name__, e, repr(job)))
