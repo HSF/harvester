@@ -686,7 +686,7 @@ class SharedFileMessenger(BaseMessenger):
             return True
         except Exception:
             core_utils.dump_error_message(tmpLog)
-            return False
+            return None
 
     # get PandaIDs for pull model
     def get_panda_ids(self, workspec):

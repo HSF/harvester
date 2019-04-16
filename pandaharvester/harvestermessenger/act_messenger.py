@@ -61,7 +61,7 @@ class ACTMessenger(BaseMessenger):
                 except:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             tmpLog.debug("pilot info for {0}: {1}".format(pandaID, workspec.workAttributes[pandaID]))
-
+        return True
 
     def get_work_attributes(self, workspec):
         '''Get info from the job to pass back to harvester'''

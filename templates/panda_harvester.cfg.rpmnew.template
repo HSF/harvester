@@ -423,6 +423,12 @@ eventBasedEnable = False
 # max number of expired events to remove in one cycle
 #eventBasedRemoveMaxEvents = 2000
 
+# timeout for post-processing in minutes. 0 to give up immediately
+postProcessTimeout = 0
+
+
+
+
 
 ##########################
 #
