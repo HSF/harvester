@@ -703,12 +703,14 @@ class Monitor(AgentBase):
                                 # post processing
                                 tmpStat = messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
                                 if tmpStat is None:
-                                    ppTimeOut = getattr(harvester_config.monitor, 'postProcessTimeout', 30)
-                                    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=ppTimeOut)
-                                    if workSpec.endTime is None or workSpec.endTime > timeLimit:
-                                        isOK = False
-                                        # set end time just in case for timeout
-                                        workSpec.set_end_time()
+                                    # retry
+                                    ppTimeOut = getattr(harvester_config.monitor, 'postProcessTimeout', 0)
+                                    if ppTimeOut > 0:
+                                        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=ppTimeOut)
+                                        if workSpec.endTime is None or workSpec.endTime > timeLimit:
+                                            isOK = False
+                                            # set end time just in case for timeout
+                                            workSpec.set_end_time()
                             if isOK:
                                 workSpec.post_processed()
                             if workSpec.status == WorkSpec.ST_running:
