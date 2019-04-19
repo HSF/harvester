@@ -32,7 +32,6 @@ FifoObject = collections.namedtuple('FifoObject', _attribute_list, verbose=False
 # logger
 _logger = core_utils.setup_logger('fifos')
 
-
 # base class of fifo message queue
 class FIFOBase(object):
     # constructor

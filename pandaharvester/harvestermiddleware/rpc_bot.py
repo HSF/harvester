@@ -113,7 +113,8 @@ def main():
     dc = daemon.DaemonContext(pidfile=daemon.pidfile.PIDLockFile(options.pid))
     with dc:
         from rpyc.utils.server import ThreadedServer
-        t = ThreadedServer(RpcBot, port=options.port, backlog=options.backlog)
+        t = ThreadedServer(RpcBot, port=options.port, backlog=options.backlog,
+                            protocol_config={"allow_all_attrs": True})
         t.start()
 
 

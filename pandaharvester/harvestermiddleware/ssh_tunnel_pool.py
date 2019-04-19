@@ -75,7 +75,7 @@ class SshTunnelPool(object):
                              jump_port=jump_port, local_bind_port=local_bind_port)
             s.close()
             # list of expected strings
-            loginString = 'login_to_be_confirmed_with ' + uuid.uuid4().get_hex()
+            loginString = 'login_to_be_confirmed_with ' + uuid.uuid4().hex
             expected_list = [
                 pexpect.EOF,
                 pexpect.TIMEOUT,
@@ -84,7 +84,7 @@ class SshTunnelPool(object):
                 '(?i)enter passphrase for key.*',
                 loginString,
                 ]
-            c = pexpect.spawn(com, echo=False)
+            c = pexpect.spawnu(com, echo=False)
             c.logfile_read = baseLogger.handlers[0].stream
             isOK = False
             for iTry in range(3):

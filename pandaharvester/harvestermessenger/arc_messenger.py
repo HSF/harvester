@@ -252,17 +252,17 @@ class ARCMessenger(BaseMessenger):
 
         if 'arcdownloadfiles' not in workspec.workAttributes:
             tmplog.error('No files to download')
-            return
+            return True
 
         # Assume one-to-one mapping of workers to jobs. If jobspec_list is empty
         # it means the job was cancelled by panda or otherwise forgotten
         if not jobspec_list:
-            return
+            return True
 
         # Set certificate to use for interacting with ARC CE
         userconfig = arc.UserConfig(self.cred_type)
         if not self._setup_proxy(usercfg, workspec, arcid, tmplog):
-            return
+            return True
 
         queueconfigmapper = QueueConfigMapper()
         queueconfig = queueconfigmapper.get_queue(jobspec_list[0].computingSite)
@@ -287,6 +287,7 @@ class ARCMessenger(BaseMessenger):
         workspec.workAttributes[long(pandaid)] = self._extractAndFixPilotPickle(job, pandaid, (arcid in fetched), logurl, tmplog)
 
         tmplog.debug("pilot info for {0}: {1}".format(pandaid, workspec.workAttributes[long(pandaid)]))
+        return True
 
 
     def get_work_attributes(self, workspec):
