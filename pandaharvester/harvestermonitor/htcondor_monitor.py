@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor as Pool
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.htcondor_utils import condor_job_id_from_workspec, get_host_batchid_map
 from pandaharvester.harvestermisc.htcondor_utils import CondorJobQuery, CondorJobManage
@@ -162,7 +163,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             tmpLog.warning(errStr)
             newStatus = None
     # Set supplemental error message
-    workspec.set_supplemental_error(error_code=None, error_diag=errStr)
+    workspec.set_supplemental_error(error_code=WorkerErrors.error_codes.get('GENERAL_ERROR'),
+                                    error_diag=errStr)
     # Return
     return (newStatus, errStr)
 

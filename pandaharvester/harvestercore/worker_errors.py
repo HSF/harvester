@@ -7,4 +7,5 @@ class WorkerErrors (object):
         'SUCCEEDED': 0,
         'UNKNOWN': 1000,
         'PREEMPTED': 1001,
+        'GENERAL_ERROR': 9000,
     }
