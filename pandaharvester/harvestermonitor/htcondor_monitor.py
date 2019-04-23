@@ -163,8 +163,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             tmpLog.warning(errStr)
             newStatus = None
     # Set supplemental error message
-    workspec.set_supplemental_error(error_code=WorkerErrors.error_codes.get('GENERAL_ERROR'),
-                                    error_diag=errStr)
+    error_code = WorkerErrors.error_codes.get('GENERAL_ERROR') if errStr else WorkerErrors.error_codes.get('SUCCEEDED')
+    workspec.set_supplemental_error(error_code=error_code, error_diag=errStr)
     # Return
     return (newStatus, errStr)
 
