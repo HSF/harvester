@@ -114,6 +114,8 @@ class Sweeper(AgentBase):
                     except AttributeError:
                         # fall back to single-worker method
                         for workspec in workspec_list:
+                            tmpLog = self.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                                      method_name='run')
                             try:
                                 tmpStat, tmpOut = sweeperCore.kill_worker(workspec)
                             except Exception:

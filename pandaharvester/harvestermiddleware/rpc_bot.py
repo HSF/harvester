@@ -7,6 +7,11 @@ import logging
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 
+# rpyc configuration
+rpyc.core.protocol.DEFAULT_CONFIG['allow_pickle'] = True
+rpyc.core.protocol.DEFAULT_CONFIG['sync_request_timeout'] = 1800
+
+
 # RPC bot running on remote node
 class RpcBot(rpyc.Service):
 
@@ -71,6 +76,11 @@ class RpcBot(rpyc.Service):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.get_files_to_stage_out(workspec)
 
+    # feed events
+    def exposed_feed_events(self, plugin_config, workspec, events_dict):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.feed_events(workspec, events_dict)
+
     # get events
     def exposed_events_to_update(self, plugin_config, workspec):
         core = self.pluginFactory.get_plugin(plugin_config)
@@ -108,14 +118,27 @@ def main():
                         help='the TCP port to bind to')
     parser.add_argument('--backlog', dest='backlog', type=int, default=10,
                         help='backlog for the port')
+    parser.add_argument('--stdout', action='store', dest='stdout', default='/var/tmp/harvester_rpc.out',
+                        help='stdout filename')
+    parser.add_argument('--stderr', action='store', dest='stderr', default='/var/tmp/harvester_rpc.err',
+                        help='stderr filename')
     options = parser.parse_args()
     # make daemon context
-    dc = daemon.DaemonContext(pidfile=daemon.pidfile.PIDLockFile(options.pid))
+    outfile = open(options.stdout, 'w+')
+    errfile = open(options.stderr, 'w+')
+    dc = daemon.DaemonContext(
+                pidfile=daemon.pidfile.PIDLockFile(options.pid),
+                stdout=outfile,
+                stderr=errfile)
+    # run thread server
     with dc:
         from rpyc.utils.server import ThreadedServer
         t = ThreadedServer(RpcBot, port=options.port, backlog=options.backlog,
                             protocol_config={"allow_all_attrs": True})
         t.start()
+    # finalize
+    outfile.close()
+    errfile.close()
 
 
 if __name__ == "__main__":

@@ -2,10 +2,16 @@ import random
 import threading
 import uuid
 import socket
+
+import six
 import pexpect
 
 from pandaharvester.harvestercore import core_utils
 
+if six.PY2:
+    pexpect_spawn = pexpect.spawn
+else:
+    pexpect_spawn = pexpect.spawnu
 
 # logger
 baseLogger = core_utils.setup_logger('ssh_tunnel_pool')
@@ -84,7 +90,7 @@ class SshTunnelPool(object):
                 '(?i)enter passphrase for key.*',
                 loginString,
                 ]
-            c = pexpect.spawnu(com, echo=False)
+            c = pexpect_spawn(com, echo=False)
             c.logfile_read = baseLogger.handlers[0].stream
             isOK = False
             for iTry in range(3):
