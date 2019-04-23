@@ -161,6 +161,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                             workspec.submissionHost, workspec.batchID)
             tmpLog.warning(errStr)
             newStatus = None
+    # Set supplemental error message
+    workspec.set_supplemental_error(error_code=None, error_diag=errStr)
     # Return
     return (newStatus, errStr)
 
