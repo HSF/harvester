@@ -66,6 +66,12 @@ class K8sSubmitter(PluginBase):
             tmpRetVal = (False, errStr)
         else:
             work_spec.batchID = yaml_content['metadata']['name']
+
+            # set the log files
+            work_spec.set_log_file('batch_log', '{0}/{1}.log'.format(self.logBaseURL, work_spec.batchID))
+            work_spec.set_log_file('stdout', '{0}/{1}.out'.format(self.logBaseURL, work_spec.batchID))
+            work_spec.set_log_file('stderr', '{0}/{1}.err'.format(self.logBaseURL, work_spec.batchID))
+
             tmp_log.debug('Created worker {0} with batchID={1}'.format(work_spec.workerID, work_spec.batchID))
             tmpRetVal = (True, '')
 
