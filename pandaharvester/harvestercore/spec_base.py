@@ -7,6 +7,8 @@ import json
 import pickle
 from future.utils import iteritems
 
+import rpyc
+
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -17,7 +19,16 @@ except ImportError:
 class PythonObjectEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, (set, dict, list, bytearray)):
-            return json.JSONEncoder.default(self, obj)
+            try:
+                retVal = json.JSONEncoder.default(self, obj)
+                return retVal
+            except Exception as e:
+                if isinstance(obj, rpyc.core.netref.BaseNetref):
+                    obj_copied = rpyc.utils.classic.obtain(obj)
+                    retVal = json.dumps(obj_copied)
+                    return retVal
+                else:
+                    raise e
         return {'_non_json_object': pickle.dumps(obj)}
 
 
