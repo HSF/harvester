@@ -1,8 +1,10 @@
+import os
+import argparse
+import logging
+
 import rpyc
 import daemon
 import daemon.pidfile
-import argparse
-import logging
 
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
@@ -10,6 +12,22 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 # rpyc configuration
 rpyc.core.protocol.DEFAULT_CONFIG['allow_pickle'] = True
 rpyc.core.protocol.DEFAULT_CONFIG['sync_request_timeout'] = 1800
+
+
+# logger setup
+def setupLogger(logger, pid=None, to_file=None):
+    if to_file is not None:
+        hdlr = logging.FileHandler(to_file)
+    else:
+        hdlr = logging.StreamHandler()
+    def emit_decorator(fn):
+        def func(*args):
+            formatter = logging.Formatter('%(asctime)s %(levelname)s]({0})(%(name)s.%(funcName)s) %(message)s'.format(pid))
+            hdlr.setFormatter(formatter)
+            return fn(*args)
+        return func
+    hdlr.emit = emit_decorator(hdlr.emit)
+    logger.addHandler(hdlr)
 
 
 # RPC bot running on remote node
@@ -109,8 +127,7 @@ class RpcBot(rpyc.Service):
 
 # main body
 def main():
-    logging.basicConfig()
-
+    # arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--pid', action='store', dest='pid', default='/var/tmp/harvester_rpc.pid',
                         help='pid filename')
@@ -123,17 +140,21 @@ def main():
     parser.add_argument('--stderr', action='store', dest='stderr', default='/var/tmp/harvester_rpc.err',
                         help='stderr filename')
     options = parser.parse_args()
+    # logger
+    _logger = logging.getLogger('rpc_bot')
+    setupLogger(_logger, pid=os.getpid())
     # make daemon context
-    outfile = open(options.stdout, 'w+')
-    errfile = open(options.stderr, 'w+')
+    outfile = open(options.stdout, 'a+')
+    errfile = open(options.stderr, 'a+')
     dc = daemon.DaemonContext(
                 pidfile=daemon.pidfile.PIDLockFile(options.pid),
                 stdout=outfile,
                 stderr=errfile)
     # run thread server
     with dc:
-        from rpyc.utils.server import ThreadedServer
-        t = ThreadedServer(RpcBot, port=options.port, backlog=options.backlog,
+        from rpyc.utils.server import ThreadPoolServer
+        t = ThreadPoolServer(RpcBot, port=options.port, backlog=options.backlog,
+                            logger=_logger,
                             protocol_config={"allow_all_attrs": True})
         t.start()
     # finalize
