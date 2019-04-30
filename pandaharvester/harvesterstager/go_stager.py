@@ -70,10 +70,10 @@ class GlobusStager(PluginBase):
             fileSpec.status = status
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         # make logger
         tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='check_status')
+                                  method_name='check_stage_out_status')
         tmpLog.debug('start')
         # get label
         label = self.make_label(jobspec)

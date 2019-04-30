@@ -25,12 +25,12 @@ class GlobusRucioStager(GlobusBulkStager):
         self.changeFileStatusOnSuccess = False
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         # make logger
         tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='check_status')
-        tmpLog.debug('executing base check_status')
-        tmpStat, tmpMsg = GlobusBulkStager.check_status(self, jobspec)
+                                  method_name='check_stage_out_status')
+        tmpLog.debug('executing base check_stage_out_status')
+        tmpStat, tmpMsg = GlobusBulkStager.check_stage_out_status(self, jobspec)
         tmpLog.debug('got {0} {1}'.format(tmpStat, tmpMsg))
         if tmpStat is not True:
             return tmpStat, tmpMsg

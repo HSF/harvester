@@ -79,12 +79,12 @@ class YodaRucioRseDirectStager(BaseStager):
             fileSpec.status = status
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         tmpStat = True
         tmpMsg = ''
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
-                                  method_name='check_status')
+                                  method_name='check_stage_out_status')
         tmpLog.debug('start')
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:

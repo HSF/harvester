@@ -12,7 +12,7 @@ class DummyStager(BaseStager):
         BaseStager.__init__(self, **kwarg)
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         """Check the status of stage-out procedure. If staging-out is done synchronously in trigger_stage_out
         this method should always return True.
         Output files are available through jobspec.get_outfile_specs(skip_done=False) which gives

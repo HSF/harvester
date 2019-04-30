@@ -106,6 +106,23 @@ class RpcBot(rpyc.Service):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.acknowledge_events_files(workspec)
 
+    ######################
+    # stager section
+
+    # check stage out status
+    def exposed_check_stage_out_status(self, plugin_config, jobspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.check_stage_out_status(jobspec)
+
+    # trigger stage out
+    def exposed_trigger_stage_out(self, plugin_config, jobspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.trigger_stage_out(jobspec)
+
+    # zip output files
+    def exposed_zip_output(self, plugin_config, jobspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.zip_output(jobspec)
 
 # main body
 def main():

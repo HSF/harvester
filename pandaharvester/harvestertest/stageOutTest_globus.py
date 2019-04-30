@@ -115,7 +115,7 @@ print "sleep {0} seconds".format(globus_sleep_time)
 time.sleep(globus_sleep_time)
 
 print "checking status for transfer"
-tmpStat, tmpOut = stagerCore.check_status(jobSpec)
+tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
 if tmpStat:
     print " OK"
 else:

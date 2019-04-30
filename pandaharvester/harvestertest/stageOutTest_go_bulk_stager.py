@@ -223,7 +223,7 @@ for jobSpec in jobSpec_list:
    files = stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
    msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
    tmpLog.debug(msgStr)
-   tmpStat, tmpOut = stagerCore.check_status(jobSpec)
+   tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
    if tmpStat:
       msgStr = " OK"
       tmpLog.debug(msgStr)
@@ -249,7 +249,7 @@ for jobSpec in jobSpec_list:
    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
    tmpLog.debug(msgStr)
    msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
-   tmpStat, tmpOut = stagerCore.check_status(jobSpec)
+   tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
    if tmpStat:
       msgStr = " OK"
       tmpLog.debug(msgStr)
@@ -273,7 +273,7 @@ for jobSpec in jobSpec_list:
    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
    tmpLog.debug(msgStr)
    msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
-   tmpStat, tmpOut = stagerCore.check_status(jobSpec)
+   tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
    if tmpStat:
       msgStr = " OK"
       tmpLog.debug(msgStr)
