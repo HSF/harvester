@@ -18,18 +18,11 @@ except ImportError:
 # encoder for non-native json objects
 class PythonObjectEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, (set, dict, list, bytearray)):
-            try:
-                retVal = json.JSONEncoder.default(self, obj)
-                return retVal
-            except Exception as e:
-                if isinstance(obj, rpyc.core.netref.BaseNetref):
-                    obj_copied = rpyc.utils.classic.obtain(obj)
-                    retVal = json.dumps(obj_copied)
-                    return retVal
-                else:
-                    raise e
-        return {'_non_json_object': pickle.dumps(obj)}
+        if isinstance(obj, rpyc.core.netref.BaseNetref):
+            retVal = rpyc.utils.classic.obtain(obj)
+        else:
+            retVal = {'_non_json_object': pickle.dumps(obj_to_encode)}
+        return retVal
 
 
 # hook for decoder
