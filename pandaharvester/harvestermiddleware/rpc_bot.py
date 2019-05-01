@@ -57,6 +57,25 @@ class RpcBot(rpyc.Service):
 
 
     ######################
+    # sweeper section
+
+    # kill worker
+    def exposed_kill_worker(self, plugin_config, workspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.kill_worker(workspec)
+
+    # kill workers
+    def exposed_kill_workers(self, plugin_config, workspec_list):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.kill_workers(workspec_list)
+
+    # cleanup for a worker
+    def exposed_sweep_worker(self, plugin_config, workspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.sweep_worker(workspec)
+
+
+    ######################
     # messenger section
 
     # setup access points
