@@ -48,7 +48,7 @@ class PluginFactory(object):
         cls = self.classMap[pluginKey]
         impl = cls(**args)
         # bare instance when middleware is used
-        if 'original_config' in plugin_conf:
-            bare_impl = plugin_conf['original_config']
+        if 'original_config' in plugin_conf and 'bareFunctions' in plugin_conf:
+            bare_impl = self.get_plugin(plugin_conf['original_config'])
             impl.bare_impl = bare_impl
         return impl
