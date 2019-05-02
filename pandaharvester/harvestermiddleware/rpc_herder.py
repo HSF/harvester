@@ -23,7 +23,9 @@ class RpcHerder(PluginBase):
     def require_alive(func):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            if self.is_connected:
+            if self.bareFunctions is not None and func.__name__ in self.bareFunctions:
+                return getattr(self.bare_impl, func.__name__)(*args, **kwargs)
+            elif self.is_connected:
                 return func(self, *args, **kwargs)
             else:
                 tmpLog = core_utils.make_logger(_logger, method_name=func.__name__)
@@ -42,6 +44,7 @@ class RpcHerder(PluginBase):
         self.jumpHost = getattr(self, 'jumpHost', None)
         self.jumpPort = getattr(self, 'jumpPort', 22)
         self.remotePort = getattr(self, 'remotePort', 22)
+        self.bareFunctions = getattr(self, 'bareFunctions', list())
         # is connected only if ssh forwarding works
         self.is_connected = False
         try:
@@ -323,6 +326,51 @@ class RpcHerder(PluginBase):
         tmpLog.debug('start')
         try:
             ret = self.conn.root.acknowledge_events_files(self.original_config, workspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    ######################
+    # stager section
+
+    # check status
+    @require_alive
+    def check_stage_out_status(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='check_stage_out_status')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.check_stage_out_status(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    # trigger stage out
+    @require_alive
+    def trigger_stage_out(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='trigger_stage_out')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.trigger_stage_out(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    # zip output files
+    @require_alive
+    def zip_output(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='zip_output')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.zip_output(self.original_config, jobspec)
         except Exception:
             core_utils.dump_error_message(tmpLog)
             ret = None

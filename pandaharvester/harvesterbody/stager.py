@@ -66,7 +66,7 @@ class Stager(AgentBase):
                     if not lockedAgain:
                         tmpLog.debug('skip since locked by another thread')
                         continue
-                    tmpStat, tmpStr = stagerCore.check_status(jobSpec)
+                    tmpStat, tmpStr = stagerCore.check_stage_out_status(jobSpec)
                     # check result
                     if tmpStat is True:
                         # succeeded

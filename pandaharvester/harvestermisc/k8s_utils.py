@@ -76,6 +76,8 @@ class k8s_Client(six.with_metaclass(SingletonWithID, object)):
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
+            {'name': 'HARVESTER_WORKER_ID', 'value': str(work_spec.workerID)},
+            {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id}
             ])
 
         if 'affinity' not in yaml_content['spec']['template']['spec']:

@@ -23,10 +23,10 @@ class FtsStager(BaseStager):
         BaseStager.__init__(self, **kwarg)
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='check_status')
+                                  method_name='check_stage_out_status')
         tmpLog.debug('start')
         # loop over all files
         allChecked = True

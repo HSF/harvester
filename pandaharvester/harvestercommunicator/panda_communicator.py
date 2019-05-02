@@ -169,7 +169,7 @@ class PandaCommunicator(BaseCommunicator):
         data['nJobs'] = n_jobs
         data['schedulerID'] = 'harvester-{0}'.format(harvester_config.master.harvester_id)
         if additional_criteria is not None:
-            for tmpKey, tmpVal in additional_criteria:
+            for tmpKey, tmpVal in iteritems(additional_criteria):
                 data[tmpKey] = tmpVal
         sw = core_utils.get_stopwatch()
         tmpStat, tmpRes = self.post_ssl('getJob', data)

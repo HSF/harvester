@@ -78,7 +78,7 @@ else:
 print ()
 
 print ("checking status for transferID={0}".format(transferID))
-tmpStat, tmpOut = stagerCore.check_status(jobSpec)
+tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
 if tmpStat:
     print (" OK")
 else:
