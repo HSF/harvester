@@ -1,6 +1,6 @@
 try:
     import subprocess32 as subprocess
-except:
+except ImportError:
     import subprocess
 import uuid
 import os
@@ -92,7 +92,7 @@ class RucioStagerHPC(BaseStager):
 
             executable_prefix = None
             pfn_prefix = None
-            if dstRSE in self.objectstore_additions:
+            if self.objectstore_additions and dstRSE in self.objectstore_additions:
                 if 'storage_id' in self.objectstore_additions[dstRSE]:
                     fileSpec.objstoreID = self.objectstore_additions[dstRSE]['storage_id']
                 if 'access_key' in self.objectstore_additions[dstRSE] and \
@@ -147,6 +147,11 @@ class RucioStagerHPC(BaseStager):
                 rucio_sessions_limit_error = False
                 for line in stdout.split('\n'):
                     if 'File name in specified scope already exists' in line:
+                        file_exists = True
+                        break
+                    elif 'File already exists on RSE' in line:
+                        # can skip if file exist on RSE since no register
+                        tmpLog.warning('rucio skipped upload and returned stdout: %s' % stdout)
                         file_exists = True
                         break
                     elif 'exceeded simultaneous SESSIONS_PER_USER limit' in line:

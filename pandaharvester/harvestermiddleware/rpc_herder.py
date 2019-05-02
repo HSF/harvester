@@ -103,6 +103,52 @@ class RpcHerder(PluginBase):
         return ret
 
     ######################
+    # sweeper section
+
+    # kill worker
+    @require_alive
+    def kill_worker(self, workspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='kill_worker')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.kill_worker(self.original_config, workspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    # FIXME: cannot have this yet otherwise sweeper agent see this method while the real plugin may not implemented this method yet...
+    # kill workers
+    # @require_alive
+    # def kill_workers(self, workspec_list):
+    #     tmpLog = core_utils.make_logger(_logger, method_name='kill_workers')
+    #     tmpLog.debug('start')
+    #     try:
+    #         ret = self.conn.root.kill_workers(self.original_config, workspec_list)
+    #     except Exception:
+    #         core_utils.dump_error_message(tmpLog)
+    #         ret = None
+    #     else:
+    #         tmpLog.debug('done')
+    #     return ret
+
+    # cleanup for a worker
+    @require_alive
+    def sweep_worker(self, workspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='sweep_worker')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.sweep_worker(self.original_config, workspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    ######################
     # messenger section
 
     # setup access points

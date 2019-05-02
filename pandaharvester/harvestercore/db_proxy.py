@@ -2759,6 +2759,14 @@ class DBProxy(object):
                     # commit
                     self.commit()
                     nRow = self.cur.rowcount
+                    # check just in case since nRow can be 0 if two lock actions are too close in time
+                    if nRow == 0:
+                        varMap = dict()
+                        varMap[':PandaID'] = jobspec.PandaID
+                        self.execute(sqlLC, varMap)
+                        resLC = self.cur.fetchone()
+                        if resLC is not None and resLC[0] == locked_by:
+                            nRow = 1
                     if nRow == 0:
                         tmpLog.debug('skip since locked by another')
                         return None

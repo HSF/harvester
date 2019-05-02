@@ -147,7 +147,7 @@ class SshTunnelPool(object):
                 someClosed = True
         if someClosed:
             self.make_tunnel_server(remote_host, remote_port, reconnect=True, with_lock=False)
-            active_tunnels = [item for item in self.pool[dict_key] if item[1].islive()]
+            active_tunnels = [item for item in self.pool[dict_key] if item[1].isalive()]
         if len(active_tunnels) > 0:
             port, child = random.choice(active_tunnels)
         else:
