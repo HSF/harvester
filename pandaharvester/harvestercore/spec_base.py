@@ -21,7 +21,7 @@ class PythonObjectEncoder(json.JSONEncoder):
         if isinstance(obj, rpyc.core.netref.BaseNetref):
             retVal = rpyc.utils.classic.obtain(obj)
         else:
-            retVal = {'_non_json_object': pickle.dumps(obj_to_encode)}
+            retVal = {'_non_json_object': pickle.dumps(obj)}
         return retVal
 
 
