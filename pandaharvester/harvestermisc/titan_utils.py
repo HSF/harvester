@@ -33,7 +33,7 @@ class TitanUtils(PluginBase):
         """
         tmpLog = self.make_logger(baseLogger, method_name='get_batchjob_info')
         res = {}
-        tmpLog.info("Collect job info for batchid {}".format(batchid))
+        tmpLog.info("Collect job info for batchid {0}".format(batchid))
         info_dict = self.get_moabjob_info(batchid)
         tmpLog.info("Got: {0}".format(info_dict))
         if info_dict:
@@ -53,13 +53,13 @@ class TitanUtils(PluginBase):
         :return job_info dictonary:
         """
         tmpLog = self.make_logger(baseLogger, method_name='get_moabjob_info')
-
+        tmpLog.info("Get job info from moab")
         job_info = {
             'state': "",
             'exit_code': None,
             'queued_time': None,
             'start_time': None,
-            'finish_time': None
+            'finish_time': None,
         }
 
         cmd = 'checkjob -v {0}'.format(batchid)
@@ -88,6 +88,8 @@ class TitanUtils(PluginBase):
                 elif l.startswith('StartTime: '):
                     job_info['start_time'] = l[11:]
                 elif l.startswith('WallTime: '):
+                    tmpLog.info(l)
+                elif l.startswith('Message'):
                     tmpLog.info(l)
         tmpLog.debug("checkjob parsing results: {0}".format(job_info))
         return job_info

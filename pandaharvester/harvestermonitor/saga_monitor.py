@@ -136,9 +136,10 @@ class SAGAMonitor(PluginBase):
                     del worker
                 except saga.SagaException as ex:
                     tmpLog.info('An exception occured during retriving worker information {0}'.format(workSpec.batchID))
-                    tmpLog.info(ex.get_message())
+                    # tmpLog.info(ex.get_message())
                     # probably 'fnished' is not proper state in this case, 'undefined' looks a bit better
                     # some more work for SAGA to get proper state
+                    tmpLog.info('Deep check will be performed for batchID {0}'.format(workSpec.batchID))
                     harvester_job_state, workSpec.nativeExitCode, workSpec.nativeStatus, starttime, endtime, errStr = self.deep_checkjob(
                         workSpec.batchID, workSpec.workerID)
                     if harvester_job_state == "":
