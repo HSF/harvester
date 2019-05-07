@@ -587,7 +587,7 @@ def get_queues_config_url():
 
 # get unique queue name
 def get_unique_queue_name(queue_name, resource_type):
-    return '{0}:{1}'.format(queue_name, resource_type)
+    return '{0}:{1}:{2}'.format(queue_name, resource_type)
 
 
 # capability to dynamically change plugins

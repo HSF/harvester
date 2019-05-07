@@ -28,7 +28,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
         self.dyn_resources = None
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config, resource_type):
+    def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
         tmpLog = self.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
                                   method_name='make_worker')
 
@@ -201,7 +201,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
         tmpLog.info("Available backfill resources after adjusting: %s" % ret_resources)
         return ret_resources
 
-    def get_dynamic_resource(self, queue_name, resource_type):
+    def get_dynamic_resource(self, queue_name, job_type, resource_type):
         resources = self.get_bf_resources()
         if resources:
             resources = self.adjust_resources(resources)

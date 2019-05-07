@@ -58,7 +58,7 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
         return exe_str
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config, resource_type):
+    def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
         tmpLog = core_utils.make_logger(baseLogger, 'queue={0}'.format(queue_config.queueName),
                                         method_name='make_worker')
 
