@@ -2680,11 +2680,11 @@ class DBProxy(object):
             sqlEU += "WHERE eventRangeID=:eventRangeID "
             sqlEU += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
             # sql to update associated events
+            sqlAE1 = "SELECT eventRangeID FROM {0} ".format(fileTableName)
+            sqlAE1 += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
             sqlAE = "UPDATE {0} ".format(eventTableName)
             sqlAE += "SET eventStatus=:eventStatus,subStatus=:subStatus "
-            sqlAE += "WHERE eventRangeID IN "
-            sqlAE += "(SELECT eventRangeID FROM {0} ".format(fileTableName)
-            sqlAE += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID) "
+            sqlAE += "WHERE eventRangeID=:eventRangeID "
             sqlAE += "AND eventStatus<>:statusFailed AND subStatus<>:statusDone "
             # sql to lock job again
             sqlLJ = "UPDATE {0} SET stagerTime=:timeNow ".format(jobTableName)
@@ -2741,11 +2741,16 @@ class DBProxy(object):
                         varMap = dict()
                         varMap[':PandaID'] = fileSpec.PandaID
                         varMap[':zipFileID'] = fileSpec.fileID
-                        varMap[':eventStatus'] = fileSpec.status
-                        varMap[':subStatus'] = fileSpec.status
-                        varMap[':statusFailed'] = 'failed'
-                        varMap[':statusDone'] = 'done'
-                        self.execute(sqlAE, varMap)
+                        self.execute(sqlAE1, varMap)
+                        resAE1 = self.cur.fetchall()
+                        for eventRangeID, in resAE1:
+                            varMap = dict()
+                            varMap[':eventRangeID'] = eventRangeID
+                            varMap[':eventStatus'] = fileSpec.status
+                            varMap[':subStatus'] = fileSpec.status
+                            varMap[':statusFailed'] = 'failed'
+                            varMap[':statusDone'] = 'done'
+                            self.execute(sqlAE, varMap)
                         updated = True
                         nRow = self.cur.rowcount
                         tmpLog.debug('updated {0} events'.format(nRow))
