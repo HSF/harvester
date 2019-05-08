@@ -38,7 +38,7 @@ class Submitter(AgentBase):
     def run(self):
         locked_by = 'submitter-{0}'.format(self.get_pid())
         monitor_fifo = self.monitor_fifo
-        queue_lock_interval = getattr(harvester_config.submitter, 'queue_lock_interval',
+        queue_lock_interval = getattr(harvester_config.submitter, 'queueLockInterval',
                                     harvester_config.submitter.lockInterval)
         while True:
             sw_main = core_utils.get_stopwatch()
