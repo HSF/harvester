@@ -143,6 +143,11 @@ class RpcBot(rpyc.Service):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.acknowledge_events_files(workspec)
 
+    # clean up
+    def exposed_clean_up(self, plugin_config, workspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.clean_up(workspec)
+
     ######################
     # stager section
 

@@ -333,10 +333,24 @@ class RpcHerder(PluginBase):
             tmpLog.debug('done')
         return ret
 
+    # clean up
+    @require_alive
+    def clean_up(self, workspec):
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID), method_name='clean_up')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.clean_up(self.original_config, workspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
     ######################
     # stager section
 
-    # check status
+    # check stage out status
     @require_alive
     def check_stage_out_status(self, jobspec):
         tmpLog = core_utils.make_logger(_logger, method_name='check_stage_out_status')
