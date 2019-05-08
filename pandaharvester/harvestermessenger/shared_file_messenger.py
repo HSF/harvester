@@ -764,7 +764,7 @@ class SharedFileMessenger(BaseMessenger):
     def clean_up(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='cleanup_accesspoint')
+                                        method_name='clean_up')
         # Remove from top directory of access point of worker
         errStr = ''
         worker_accessPoint = workspec.get_access_point()
