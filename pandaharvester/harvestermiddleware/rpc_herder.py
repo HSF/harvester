@@ -26,7 +26,8 @@ class RpcHerder(PluginBase):
             if self.bareFunctions is not None and func.__name__ in self.bareFunctions:
                 return getattr(self.bare_impl, func.__name__)(*args, **kwargs)
             elif self.is_connected:
-                return func(self, *args, **kwargs)
+                retVal = func(self, *args, **kwargs)
+                return rpyc.utils.classic.obtain(retVal)
             else:
                 tmpLog = core_utils.make_logger(_logger, method_name=func.__name__)
                 tmpLog.warning('instance not alive; method {0} returns None'.format(func.__name__))

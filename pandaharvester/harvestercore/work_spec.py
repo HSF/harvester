@@ -396,4 +396,4 @@ class WorkSpec(SpecBase):
         if error_code is not None:
             self.errorCode = error_code
         if error_diag not in (None, ''):
-            self.errorDiag = error_diag
+            self.errorDiag = str(error_diag)[:256]
