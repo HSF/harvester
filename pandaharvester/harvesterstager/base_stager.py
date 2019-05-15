@@ -144,22 +144,15 @@ class BaseStager(PluginBase):
         self.zip_tmp_log = tmp_log
         self.zip_jobSpec = jobspec
         argDictList = []
+        outFiles_list = list(jobspec.outFiles)
         try:
-            for fileSpec in jobspec.outFiles:
-                if self.zipDir == "${SRCDIR}":
-                    # the same directory as src
-                    zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
-                elif self.zipDir == "${WORKDIR}":
-                    # work dir
-                    workSpec = jobspec.get_workspec_list()[0]
-                    zipDir = workSpec.get_access_point()
-                else:
-                    zipDir = self.zipDir
-                zipPath = os.path.join(zipDir, fileSpec.lfn)
-                argDict = dict()
-                argDict['zipPath'] = zipPath
-                argDict['associatedFiles'] = []
-                # check existence of files
+            try:
+                nThreadsForZip = harvester_config.stager.nThreadsForZip
+            except Exception:
+                nThreadsForZip = multiprocessing.cpu_count()
+            # check associate file existence
+            def _check_assfile_existence(fileSpec):
+                existence_set = set()
                 ass_file_paths_str = ' '.join([ assFileSpec.path for assFileSpec in fileSpec.associatedFiles ])
                 # make command
                 com = ( 'ssh '
@@ -188,21 +181,40 @@ class BaseStager(PluginBase):
                         if len(fileSpec.associatedFiles) == len(ret_list):
                             for (assFileSpec, retVal) in zip(fileSpec.associatedFiles, ret_list):
                                 if retVal == 'T':
-                                    argDict['associatedFiles'].append(assFileSpec.path)
-                                else:
-                                    assFileSpec.status = 'failed'
+                                    existence_set.add(assFileSpec.path)
                         else:
                             msgStr = 'returned number of files inconsistent! Skipped...'
                             tmp_log.error(msgStr)
                     except Exception:
                         core_utils.dump_error_message(tmp_log)
+                return existence_set
+            # parallel execution of check existence
+            with Pool(max_workers=nThreadsForZip) as pool:
+                existence_set_list = pool.map(_check_assfile_existence, outFiles_list)
+            # loop
+            for fileSpec, existence_set in zip(outFiles_list, existence_set_list):
+                if self.zipDir == "${SRCDIR}":
+                    # the same directory as src
+                    zipDir = os.path.dirname(next(iter(fileSpec.associatedFiles)).path)
+                elif self.zipDir == "${WORKDIR}":
+                    # work dir
+                    workSpec = jobspec.get_workspec_list()[0]
+                    zipDir = workSpec.get_access_point()
+                else:
+                    zipDir = self.zipDir
+                zipPath = os.path.join(zipDir, fileSpec.lfn)
+                argDict = dict()
+                argDict['zipPath'] = zipPath
+                argDict['associatedFiles'] = []
+                # check existence of files
+                for assFileSpec in fileSpec.associatedFiles:
+                    if assFileSpec.path in existence_set:
+                        argDict['associatedFiles'].append(assFileSpec.path)
+                    else:
+                        assFileSpec.status = 'failed'
                 # append
                 argDictList.append(argDict)
-            # parallel execution
-            try:
-                nThreadsForZip = harvester_config.stager.nThreadsForZip
-            except Exception:
-                nThreadsForZip = multiprocessing.cpu_count()
+            # parallel execution of zip
             with Pool(max_workers=nThreadsForZip) as pool:
                 retValList = pool.map(self.ssh_make_one_zip, argDictList)
                 # check returns
