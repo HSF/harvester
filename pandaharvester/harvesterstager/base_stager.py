@@ -2,6 +2,7 @@ import os
 import uuid
 import time
 import multiprocessing
+import tempfile
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 try:
@@ -152,18 +153,26 @@ class BaseStager(PluginBase):
                 nThreadsForZip = multiprocessing.cpu_count()
             # check associate file existence
             def _check_assfile_existence(fileSpec):
+                # ass_file_paths_str = ' '.join([ assFileSpec.path for assFileSpec in fileSpec.associatedFiles ])
+                # tmpfile over shared fs
+                tmpArgFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_check-exist.tmp',
+                                                        dir=os.path.dirname(next(iter(fileSpec.associatedFiles)).path))
+                for assFileSpec in fileSpec.associatedFiles:
+                    tmpArgFile.write('{0}\n'.format(assFileSpec.path))
+                tmpArgFile.close()
+                # record set
                 existence_set = set()
-                ass_file_paths_str = ' '.join([ assFileSpec.path for assFileSpec in fileSpec.associatedFiles ])
                 # make command
+                # '"for i in $(cat {arg_file}); do test -f $i && echo \'T\' || echo \'F\'; done" '
                 com = ( 'ssh '
                         '-o StrictHostKeyChecking=no '
                         '-i {sshkey} '
                         '{userhost} '
-                        '"for i in {ass_file_paths_str}; do test -f $i && echo \'T\' || echo \'F\'; done" '
+                        '"cat {arg_file} | xargs -I%% sh -c \' test -f %% && echo T || echo F \' " '
                     ).format(
                             sshkey=self.sshkey,
                             userhost=self.userhost,
-                            ass_file_paths_str=ass_file_paths_str,
+                            arg_file=tmpArgFile.name,
                         )
                 # execute
                 p = subprocess.Popen(com,
@@ -187,6 +196,7 @@ class BaseStager(PluginBase):
                             tmp_log.error(msgStr)
                     except Exception:
                         core_utils.dump_error_message(tmp_log)
+                os.remove(tmpArgFile.name)
                 return existence_set
             # parallel execution of check existence
             with Pool(max_workers=nThreadsForZip) as pool:
@@ -244,18 +254,24 @@ class BaseStager(PluginBase):
             lfn = os.path.basename(zipPath)
             self.zip_tmp_log.debug('{0} start zipPath={1} with {2} files'.format(lfn, zipPath,
                                                                                  len(arg_dict['associatedFiles'])))
-            # tmp file names
+             # tmp arg file
+            tmpArgFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_tar-name.tmp',
+                                                    dir=os.path.dirname(zipPath))
+            for path in arg_dict['associatedFiles']:
+                tmpArgFile.write('{0}\n'.format(path))
+            tmpArgFile.close()
+            # tmp zip file names
             tmpZipPath = zipPath + '.' + str(uuid.uuid4())
             com1 = ('ssh '
                     '-o StrictHostKeyChecking=no '
                     '-i {sshkey} '
                     '{userhost} '
-                    '"test -f {tmpZipPath} || tar -cf {tmpZipPath} --transform \'s;.*/;;\' {paths_in}"'
+                    '"test -f {tmpZipPath} || tar -cf {tmpZipPath} -T {arg_file} --transform \'s;.*/;;\' "'
                 ).format(
                         sshkey=self.sshkey,
                         userhost=self.userhost,
                         tmpZipPath=tmpZipPath,
-                        paths_in=' '.join(arg_dict['associatedFiles']),
+                        arg_file=tmpArgFile.name,
                     )
             # execute
             p1 = subprocess.Popen(com1,
@@ -268,6 +284,7 @@ class BaseStager(PluginBase):
                 msgStr = 'failed to make zip for {0} with {1}:{2}'.format(lfn, stdOut, stdErr)
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
+            os.remove(tmpArgFile.name)
             # avoid overwriting
             lockName = 'zip.lock.{0}'.format(lfn)
             lockInterval = 60
