@@ -193,7 +193,7 @@ if len(jobSpec_list) > 0 :
            tmpLog.debug("preparatorCore.dbInterface.get_files_with_group_id(preparatorCore.get_dummy_transfer_id()) = {0}".format(files))
            msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
            tmpLog.debug(msgStr)
-           tmpStat, tmpOut = preparatorCore.check_status(jobSpec)
+           tmpStat, tmpOut = preparatorCore.check_stage_in_status(jobSpec)
            if tmpStat:
               msgStr = " OK"
               tmpLog.debug(msgStr)

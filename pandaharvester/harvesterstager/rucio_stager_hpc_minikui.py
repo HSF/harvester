@@ -4,6 +4,7 @@ except ImportError:
     import subprocess
 import uuid
 import os
+import gc
 
 from concurrent.futures import ThreadPoolExecutor as Pool
 
@@ -46,10 +47,14 @@ class RucioStagerHPC(BaseStager):
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
+        # let gc clean up memory
+        gc.collect()
+
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='trigger_stage_out')
         tmpLog.debug('start')
+
         # loop over all files
         zip_datasetName = 'harvester_stage_out.{0}'.format(str(uuid.uuid4()))
         fileAttrs = jobspec.get_output_file_attributes()
@@ -203,7 +208,11 @@ class RucioStagerHPC(BaseStager):
 
     # zip output files
     def zip_output(self, jobspec):
+        # let gc clean up memory
+        gc.collect()
+        
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='zip_output')
+
         return self.ssh_zip_output(jobspec, tmpLog)
