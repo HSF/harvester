@@ -30,7 +30,7 @@ class PilotmoverMTPreparator(PluginBase):
             self.n_threads = 1
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_in_status(self, jobspec):
         return True, ''
 
     def stage_in(self, tmpLog, jobspec, files):

@@ -34,7 +34,7 @@ class DummyBulkPreparator(PluginBase):
 
     # trigger preparation
     def trigger_preparation(self, jobspec):
-        # set the dummy transfer ID which will be replaced with a real ID in check_status()
+        # set the dummy transfer ID which will be replaced with a real ID in check_stage_in_status()
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         lfns = inFiles.keys()
         for inLFN in inFiles.keys():
@@ -46,7 +46,7 @@ class DummyBulkPreparator(PluginBase):
         return True, ''
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_in_status(self, jobspec):
         # get groups of input files except ones already in ready state
         groups = jobspec.get_groups_of_input_files(skip_ready=True)
         # lock if the dummy transfer ID is used to avoid submitting duplicated transfer requests

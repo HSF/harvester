@@ -57,7 +57,7 @@ class DummyPreparator(PluginBase):
         return True, ''
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_in_status(self, jobspec):
         """Check status of the stage-in procedure.
         If the return code of this method is True, the job goes to the next step. If it is False,
         preparator immediately gives up the job. If it is None, the job is retried later.

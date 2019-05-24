@@ -65,7 +65,7 @@ class Preparator(AgentBase):
                     if not lockedAgain:
                         tmpLog.debug('skip since locked by another thread')
                         continue
-                    tmpStat, tmpStr = preparatorCore.check_status(jobSpec)
+                    tmpStat, tmpStr = preparatorCore.check_stage_in_status(jobSpec)
                     # still running
                     if tmpStat is None:
                         # update job

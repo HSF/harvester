@@ -363,7 +363,7 @@ for jobSpec in jobSpec_list:
    files = preparatorCore.dbInterface.get_files_with_group_id(preparatorCore.get_dummy_transfer_id())
    msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
    tmpLog.debug(msgStr)
-   tmpStat, tmpOut = preparatorCore.check_status(jobSpec)
+   tmpStat, tmpOut = preparatorCore.check_stage_in_status(jobSpec)
    if tmpStat:
       msgStr = " OK"
       tmpLog.debug(msgStr)
@@ -389,7 +389,7 @@ for jobSpec in jobSpec_list:
    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
    tmpLog.debug(msgStr)
    msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
-   tmpStat, tmpOut = preparatorCore.check_status(jobSpec)
+   tmpStat, tmpOut = preparatorCore.check_stage_in_status(jobSpec)
    if tmpStat:
       msgStr = " OK"
       tmpLog.debug(msgStr)
@@ -413,7 +413,7 @@ for jobSpec in jobSpec_list:
    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
    tmpLog.debug(msgStr)
    msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
-   tmpStat, tmpOut = preparatorCore.check_status(jobSpec)
+   tmpStat, tmpOut = preparatorCore.check_stage_in_status(jobSpec)
    if tmpStat:
       msgStr = " OK"
       tmpLog.debug(msgStr)
