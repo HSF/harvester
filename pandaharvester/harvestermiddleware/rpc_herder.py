@@ -392,3 +392,48 @@ class RpcHerder(PluginBase):
         else:
             tmpLog.debug('done')
         return ret
+
+    ######################
+    # preparator section
+
+    # check stage in status
+    @require_alive
+    def check_stage_in_status(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='check_stage_in_status')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.check_stage_in_status(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    # trigger preparation
+    @require_alive
+    def trigger_preparation(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='trigger_preparation')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.trigger_preparation(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    # resolve input file paths
+    @require_alive
+    def resolve_input_paths(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='resolve_input_paths')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.resolve_input_paths(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
