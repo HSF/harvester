@@ -270,8 +270,8 @@ class Stager(AgentBase):
                             newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False, lockedBy)
                             tmpLog.debug('post-zipped new subStatus={0}'.format(newSubStatus))
                         else:
-                            # failed
-                            tmpLog.debug('failed to zip with {0}'.format(tmpStr))
+                            # on-going
+                            tmpLog.debug('try to post-zip later since {0}'.format(tmpStr))
                     except Exception:
                         core_utils.dump_error_message(tmpLog)
 
