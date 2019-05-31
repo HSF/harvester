@@ -282,6 +282,12 @@ maxJobsToCheck = 100
 # max number of jobs to trigger in one cycle
 maxJobsToTrigger = 100
 
+# max number of files per job to check in one cycle : 0 to be unlimited
+maxFilesPerJobToCheck = 0
+
+# max number of files per job to prepare in one cycle : 0 to be unlimited
+maxFilesPerJobToPrepare = 0
+
 # lock interval in sec
 lockInterval = 600
 

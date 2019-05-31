@@ -1095,7 +1095,8 @@ class DBProxy(object):
     # get jobs in sub status
     def get_jobs_in_sub_status(self, sub_status, max_jobs, time_column=None, lock_column=None,
                                interval_without_lock=None, interval_with_lock=None,
-                               locked_by=None, new_sub_status=None):
+                               locked_by=None, new_sub_status=None, max_files_per_job=None,
+                               file_status_list=None):
         try:
             # get logger
             if locked_by is None:
@@ -1154,6 +1155,15 @@ class DBProxy(object):
             # sql to get file
             sqlGF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlGF += "WHERE PandaID=:PandaID AND fileType=:type "
+            if file_status_list is not None:
+                sqlGF += "AND status IN ("
+                for tmpStatus in file_status_list:
+                    tmpKey = ':status_{0}'.format(tmpStatus)
+                    sqlGF += "{0},".format(tmpKey)
+                sqlGF = sqlGF[:-1]
+                sqlGF += ") "
+            if max_files_per_job is not None and max_files_per_job > 0:
+                sqlGF += "LIMIT {0} ".format(max_files_per_job)
             # get jobs
             varMap = dict()
             varMap[':subStatus'] = sub_status
@@ -1207,6 +1217,10 @@ class DBProxy(object):
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
                     varMap[':type'] = 'input'
+                    if file_status_list is not None:
+                        for tmpStatus in file_status_list:
+                            tmpKey = ':status_{0}'.format(tmpStatus)
+                            varMap[tmpKey] = tmpStatus
                     self.execute(sqlGF, varMap)
                     resGF = self.cur.fetchall()
                     for resFile in resGF:

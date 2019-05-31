@@ -140,6 +140,10 @@ class JobSpec(SpecBase):
     def trigger_propagation(self):
         self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 
+    # trigger preparation
+    def trigger_preparation(self):
+        self.preparatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+
     # set attributes
     def set_attributes(self, attrs):
         if attrs is None:
