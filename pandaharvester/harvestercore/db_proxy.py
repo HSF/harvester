@@ -2532,7 +2532,7 @@ class DBProxy(object):
 
     # get jobs to trigger or check output transfer or zip output
     def get_jobs_for_stage_out(self, max_jobs, interval_without_lock, interval_with_lock, locked_by,
-                               sub_status, has_out_file_flag, bad_has_out_file_flag=None,
+                               sub_status, has_out_file_flag, bad_has_out_file_flag_list=None,
                                max_files_per_job=None):
         try:
             # get logger
@@ -2543,8 +2543,13 @@ class DBProxy(object):
             sql = "SELECT PandaID FROM {0} ".format(jobTableName)
             sql += "WHERE "
             sql += "(subStatus=:subStatus OR hasOutFile=:hasOutFile) "
-            if bad_has_out_file_flag is not None:
-                sql += "AND (hasOutFile IS NULL OR hasOutFile<>:badHasOutFile) "
+            if bad_has_out_file_flag_list is not None:
+                sql += "AND (hasOutFile IS NULL OR hasOutFile NOT IN ("
+                for badFlag in bad_has_out_file_flag_list:
+                    tmpKey = ':badHasOutFile{0}'.format(badFlag)
+                    sql += "{0},".format(tmpKey)
+                sql = sql[:-1]
+                sql += ")) "
             sql += "AND (stagerTime IS NULL "
             sql += "OR (stagerTime<:lockTimeLimit AND stagerLock IS NOT NULL) "
             sql += "OR (stagerTime<:updateTimeLimit AND stagerLock IS NULL) "
@@ -2555,8 +2560,13 @@ class DBProxy(object):
             sqlL = "UPDATE {0} SET stagerTime=:timeNow,stagerLock=:lockedBy ".format(jobTableName)
             sqlL += "WHERE PandaID=:PandaID AND "
             sqlL += "(subStatus=:subStatus OR hasOutFile=:hasOutFile) "
-            if bad_has_out_file_flag is not None:
-                sqlL += "AND (hasOutFile IS NULL OR hasOutFile<>:badHasOutFile) "
+            if bad_has_out_file_flag_list is not None:
+                sqlL += "AND (hasOutFile IS NULL OR hasOutFile NOT IN ("
+                for badFlag in bad_has_out_file_flag_list:
+                    tmpKey = ':badHasOutFile{0}'.format(badFlag)
+                    sqlL += "{0},".format(tmpKey)
+                sqlL = sqlL[:-1]
+                sqlL += ")) "
             sqlL += "AND (stagerTime IS NULL "
             sqlL += "OR (stagerTime<:lockTimeLimit AND stagerLock IS NOT NULL) "
             sqlL += "OR (stagerTime<:updateTimeLimit AND stagerLock IS NULL) "
@@ -2584,8 +2594,10 @@ class DBProxy(object):
             varMap = dict()
             varMap[':subStatus'] = sub_status
             varMap[':hasOutFile'] = has_out_file_flag
-            if bad_has_out_file_flag is not None:
-                varMap[':badHasOutFile'] = bad_has_out_file_flag
+            if bad_has_out_file_flag_list is not None:
+                for badFlag in bad_has_out_file_flag_list:
+                    tmpKey = ':badHasOutFile{0}'.format(badFlag)
+                    varMap[tmpKey] = badFlag
             varMap[':lockTimeLimit'] = lockTimeLimit
             varMap[':updateTimeLimit'] = updateTimeLimit
             self.execute(sql, varMap)
@@ -2601,8 +2613,10 @@ class DBProxy(object):
                 varMap[':updateTimeLimit'] = updateTimeLimit
                 varMap[':subStatus'] = sub_status
                 varMap[':hasOutFile'] = has_out_file_flag
-                if bad_has_out_file_flag is not None:
-                    varMap[':badHasOutFile'] = bad_has_out_file_flag
+                if bad_has_out_file_flag_list is not None:
+                    for badFlag in bad_has_out_file_flag_list:
+                        tmpKey = ':badHasOutFile{0}'.format(badFlag)
+                        varMap[tmpKey] = badFlag
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
                 # commit
@@ -2635,6 +2649,8 @@ class DBProxy(object):
                         varMap[':status'] = 'defined'
                     elif has_out_file_flag == JobSpec.HO_hasZipOutput:
                         varMap[':status'] = 'zipping'
+                    elif has_out_file_flag == JobSpec.HO_hasPostZipOutput:
+                        varMap[':status'] = 'post_zipping'
                     else:
                         varMap[':status'] = 'transferring'
                     self.execute(sqlF, varMap)
@@ -2653,7 +2669,7 @@ class DBProxy(object):
                     if len(resFileList) > 0:
                         self.commit()
                     # get associated files
-                    if has_out_file_flag == JobSpec.HO_hasZipOutput:
+                    if has_out_file_flag in [JobSpec.HO_hasZipOutput, JobSpec.HO_hasPostZipOutput]:
                         for fileSpec in jobSpec.outFiles:
                             varMap = dict()
                             varMap[':PandaID'] = fileSpec.PandaID
@@ -2803,6 +2819,8 @@ class DBProxy(object):
             jobspec.stagerLock = None
             if 'zipping' in cntMap:
                 jobspec.hasOutFile = JobSpec.HO_hasZipOutput
+            elif 'post_zipping' in cntMap:
+                jobspec.hasOutFile = JobSpec.HO_hasPostZipOutput
             elif 'defined' in cntMap:
                 jobspec.hasOutFile = JobSpec.HO_hasOutput
             elif 'transferring' in cntMap:
@@ -2811,7 +2829,8 @@ class DBProxy(object):
                 jobspec.hasOutFile = JobSpec.HO_noOutput
             if jobspec.subStatus == 'to_transfer':
                 # change subStatus when no more files to trigger transfer
-                if jobspec.hasOutFile not in [JobSpec.HO_hasOutput, JobSpec.HO_hasZipOutput]:
+                if jobspec.hasOutFile not in \
+                        [JobSpec.HO_hasOutput, JobSpec.HO_hasZipOutput, JobSpec.HO_hasPostZipOutput]:
                     jobspec.subStatus = 'transferring'
                 jobspec.stagerTime = None
             elif jobspec.subStatus == 'transferring':
