@@ -288,9 +288,6 @@ maxFilesPerJobToCheck = 0
 # max number of files per job to prepare in one cycle : 0 to be unlimited
 maxFilesPerJobToPrepare = 0
 
-# use two staged zipping
-usePostZipping = False
-
 # lock interval in sec
 lockInterval = 600
 
@@ -508,6 +505,9 @@ maxFilesPerJobToTrigger = 0
 
 # max number of files per job to zip in one cycle : 0 to be unlimited
 maxFilesPerJobToZip = 0
+
+# use two staged zipping
+usePostZipping = False
 
 # lock interval in sec
 lockInterval = 600
