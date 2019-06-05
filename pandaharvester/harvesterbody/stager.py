@@ -156,21 +156,25 @@ class Stager(AgentBase):
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to zip output
+            if hasattr(harvester_config, 'zipper'):
+                pluginConf = harvester_config.zipper
+            else:
+                pluginConf = harvester_config.stager
             try:
-                maxFilesPerJob = harvester_config.stager.maxFilesPerJobToZip
+                maxFilesPerJob = pluginConf.maxFilesPerJobToZip
             except Exception:
                 maxFilesPerJob = None
             try:
-                zipInterval = harvester_config.stager.zipInterval
+                zipInterval = pluginConf.zipInterval
             except Exception:
-                zipInterval = harvester_config.stager.triggerInterval
+                zipInterval = pluginConf.triggerInterval
             try:
-                usePostZipping = harvester_config.stager.usePostZipping
+                usePostZipping = pluginConf.usePostZipping
             except Exception:
                 usePostZipping = False
-            jobsToZip = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToZip,
+            jobsToZip = self.dbProxy.get_jobs_for_stage_out(pluginConf.maxJobsToZip,
                                                             zipInterval,
-                                                            harvester_config.stager.lockInterval,
+                                                            pluginConf.lockInterval,
                                                             lockedBy, 'to_transfer',
                                                             JobSpec.HO_hasZipOutput,
                                                             [JobSpec.HO_hasOutput, JobSpec.HO_hasPostZipOutput],
@@ -193,8 +197,11 @@ class Stager(AgentBase):
                         continue
                     queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     # get plugin
-                    stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
-                    if stagerCore is None:
+                    if hasattr(queueConfig, 'zipper'):
+                        zipperCore = self.pluginFactory.get_plugin(queueConfig.zipper)
+                    else:
+                        zipperCore = self.pluginFactory.get_plugin(queueConfig.stager)
+                    if zipperCore is None:
                         # not found
                         tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                         continue
@@ -205,9 +212,9 @@ class Stager(AgentBase):
                         continue
                     # zipping
                     if usePostZipping:
-                        tmpStat, tmpStr = stagerCore.async_zip_output(jobSpec)
+                        tmpStat, tmpStr = zipperCore.async_zip_output(jobSpec)
                     else:
-                        tmpStat, tmpStr = stagerCore.zip_output(jobSpec)
+                        tmpStat, tmpStr = zipperCore.zip_output(jobSpec)
                     # succeeded
                     if tmpStat is True:
                         # update job
@@ -218,15 +225,26 @@ class Stager(AgentBase):
                             tmpLog.debug('async zipped new subStatus={0}'.format(newSubStatus))
                         else:
                             tmpLog.debug('zipped new subStatus={0}'.format(newSubStatus))
+                    elif tmpStat is None:
+                        tmpLog.debug('try later since {0}'.format(tmpStr))
                     else:
                         # failed
-                        tmpLog.debug('failed to zip with {0}'.format(tmpStr))
+                        tmpLog.debug('fatal error to zip with {0}'.format(tmpStr))
+                        # update job
+                        for fileSpec in jobSpec.outFiles:
+                            if fileSpec.status == 'zipping':
+                                fileSpec.status = 'failed'
+                        errStr = 'zip-output failed with {0}'.format(tmpStr)
+                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                        jobSpec.trigger_propagation()
+                        newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
+                        tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             if usePostZipping:
-                jobsToPostZip = self.dbProxy.get_jobs_for_stage_out(harvester_config.stager.maxJobsToZip,
+                jobsToPostZip = self.dbProxy.get_jobs_for_stage_out(pluginConf.maxJobsToZip,
                                                                     zipInterval,
-                                                                    harvester_config.stager.lockInterval,
+                                                                    pluginConf.lockInterval,
                                                                     lockedBy, 'to_transfer',
                                                                     JobSpec.HO_hasPostZipOutput,
                                                                     [JobSpec.HO_hasOutput, JobSpec.HO_hasZipOutput],
@@ -249,8 +267,11 @@ class Stager(AgentBase):
                             continue
                         queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                         # get plugin
-                        stagerCore = self.pluginFactory.get_plugin(queueConfig.stager)
-                        if stagerCore is None:
+                        if hasattr(queueConfig, 'zipper'):
+                            zipperCore = self.pluginFactory.get_plugin(queueConfig.zipper)
+                        else:
+                            zipperCore = self.pluginFactory.get_plugin(queueConfig.stager)
+                        if zipperCore is None:
                             # not found
                             tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                             continue
@@ -261,7 +282,7 @@ class Stager(AgentBase):
                             tmpLog.debug('skip since locked by another thread')
                             continue
                         # post-zipping
-                        tmpStat, tmpStr = stagerCore.post_zip_output(jobSpec)
+                        tmpStat, tmpStr = zipperCore.post_zip_output(jobSpec)
                         # succeeded
                         if tmpStat is True:
                             # update job
@@ -269,9 +290,21 @@ class Stager(AgentBase):
                             jobSpec.all_files_zipped()
                             newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, False, lockedBy)
                             tmpLog.debug('post-zipped new subStatus={0}'.format(newSubStatus))
-                        else:
-                            # on-going
+                        elif tmpStat is None:
+                            # pending
                             tmpLog.debug('try to post-zip later since {0}'.format(tmpStr))
+                        else:
+                            # fatal error
+                            tmpLog.debug('fatal error to post-zip since {0}'.format(tmpStr))
+                            # update job
+                            for fileSpec in jobSpec.outFiles:
+                                if fileSpec.status == 'post_zipping':
+                                    fileSpec.status = 'failed'
+                            errStr = 'post-zipping failed with {0}'.format(tmpStr)
+                            jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                            jobSpec.trigger_propagation()
+                            newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
+                            tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
                     except Exception:
                         core_utils.dump_error_message(tmpLog)
 

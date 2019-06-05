@@ -494,7 +494,7 @@ maxJobsToCheck = 100
 # max number of jobs to trigger in one cycle
 maxJobsToTrigger = 100
 
-# max number of jobs to zip in one cycle
+# max number of jobs to zip in one cycle : OBSOLETE, should be set in [zipper]
 maxJobsToZip = 100
 
 # max number of files per job to check in one cycle : 0 to be unlimited
@@ -503,10 +503,10 @@ maxFilesPerJobToCheck = 0
 # max number of files per job to trigger stage-out in one cycle : 0 to be unlimited
 maxFilesPerJobToTrigger = 0
 
-# max number of files per job to zip in one cycle : 0 to be unlimited
+# max number of files per job to zip in one cycle : 0 to be unlimited : OBSOLETE, should be set in [zipper]
 maxFilesPerJobToZip = 0
 
-# use two staged zipping
+# use two staged zipping : OBSOLETE, should be set in [zipper]
 usePostZipping = False
 
 # lock interval in sec
@@ -518,14 +518,43 @@ checkInterval = 180
 # trigger interval in sec
 triggerInterval = 180
 
+# zip interval in sec : OBSOLETE, should be set in [zipper]
+zipInterval = 180
+
+# number of threads for zip making : OBSOLETE, should be set in [zipper]
+nThreadsForZip = 4
+
+# sleep interval in sec
+sleepTime = 60
+
+
+
+
+
+##########################
+#
+# Zipper parameters
+#
+
+[zipper]
+
+# max number of jobs to zip in one cycle
+maxJobsToZip = 100
+
+# max number of files per job to zip in one cycle : 0 to be unlimited
+maxFilesPerJobToZip = 0
+
+# use two staged zipping
+usePostZipping = False
+
+# lock interval in sec
+lockInterval = 600
+
 # zip interval in sec
 zipInterval = 180
 
 # number of threads for zip making
 nThreadsForZip = 4
-
-# sleep interval in sec
-sleepTime = 60
 
 
 

@@ -55,7 +55,8 @@ class DummyStager(BaseStager):
 
     # zip output files
     def zip_output(self, jobspec):
-        """Zip output files. This method loops over jobspec.outFiles, which is a list of zip file's FileSpecs,
+        """OBSOLETE : zip functions should be implemented in zipper plugins.
+        Zip output files. This method loops over jobspec.outFiles, which is a list of zip file's FileSpecs,
         to make a zip file for each zip file's FileSpec. FileSpec.associatedFiles is a list of FileSpecs of
         associated files to be zipped. The path of each associated file is available in associated
         file's FileSpec.path. Once zip files are made, their FileSpec.path, FileSpec.fsize and
@@ -73,7 +74,8 @@ class DummyStager(BaseStager):
 
     # asynchronous zip output
     def async_zip_output(self, jobspec):
-        """Zip output files asynchronously. This method is followed by post_zip_output(),
+        """OBSOLETE : zip functions should be implemented in zipper plugins.
+        Zip output files asynchronously. This method is followed by post_zip_output(),
         which is typically useful to trigger an asynchronous zipping mechanism such as batch job.
         This method loops over jobspec.outFiles, which is a list of zip file's FileSpecs, to make
         a zip file for each zip file's FileSpec. FileSpec.associatedFiles is a list of FileSpecs
@@ -101,7 +103,8 @@ class DummyStager(BaseStager):
 
     # post zipping
     def post_zip_output(self, jobspec):
-        """This method is executed after async_zip_output(), to do post-processing for zipping.
+        """OBSOLETE : zip functions should be implemented in zipper plugins.
+        This method is executed after async_zip_output(), to do post-processing for zipping.
         Once zip files are made, this method needs to look over jobspec.outFiles to set their
         FileSpec.path, FileSpec.fsize, and FileSpec.chksum.
 
