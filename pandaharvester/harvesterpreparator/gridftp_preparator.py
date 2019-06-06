@@ -14,13 +14,28 @@ baseLogger = core_utils.setup_logger('gridftp_preparator')
 
 
 # preparator plugin with GridFTP
+"""
+  -- Example of plugin config
+    "preparator": {
+        "name": "GridFtpPreparator",
+        "module": "pandaharvester.harvesterpreparator.gridftp_preparator",
+        # base path for source GridFTP server 
+        "srcBasePath": "gsiftp://dcdum02.aglt2.org/pnfs/aglt2.org/atlasdatadisk/rucio/",
+        # base path for destination GridFTP server
+        "dstBasePath": "gsiftp://dcgftp.usatlas.bnl.gov:2811/pnfs/usatlas.bnl.gov/atlasscratchdisk/rucio/",
+        # base path for local access to the copied files
+        "localBasePath": "/data/rucio",
+        # max number of attempts
+        maxAttempts: 3,
+        # options for globus-url-copy
+        "gulOpts": "-cred /tmp/x509_u1234 -sync -sync-level 3 -verify-checksum -v"
+    }
+"""
 class GridFtpPreparator(PluginBase):
     # constructor
     def __init__(self, **kwarg):
-        self.parallel = None
-        self.stripe = None
+        self.gulOpts = None
         self.maxAttempts = 3
-        self.cred = None
         PluginBase.__init__(self, **kwarg)
 
     # trigger preparation
@@ -34,10 +49,13 @@ class GridFtpPreparator(PluginBase):
         gucInput = None
         for tmpFileSpec in jobspec.inFiles:
             # construct source and destination paths
-            srcPath = mover_utils.construct_file_path(self.srcBasePath, inFileInfo['scope'], tmpFileSpec.lfn)
-            dstPath = mover_utils.construct_file_path(self.dstBasePath, inFileInfo['scope'], tmpFileSpec.lfn)
+            srcPath = mover_utils.construct_file_path(self.srcBasePath, inFileInfo[tmpFileSpec.lfn]['scope'],
+                                                      tmpFileSpec.lfn)
+            dstPath = mover_utils.construct_file_path(self.dstBasePath, inFileInfo[tmpFileSpec.lfn]['scope'],
+                                                      tmpFileSpec.lfn)
             # local access path
-            accPath = mover_utils.construct_file_path(self.localBasePath, inFileInfo['scope'], tmpFileSpec.lfn)
+            accPath = mover_utils.construct_file_path(self.localBasePath, inFileInfo[tmpFileSpec.lfn]['scope'],
+                                                      tmpFileSpec.lfn)
             # check if already exits
             if os.path.exists(accPath):
                 # calculate checksum
@@ -60,23 +78,28 @@ class GridFtpPreparator(PluginBase):
         # transfer
         tmpLog.debug('execute globus-url-copy')
         gucInput.close()
-        args = ['globus-url-copy', '-f', gucInput.name]
-        if self.parallel is not None:
-            args += ['-p', self.parallel]
-        if self.stripe is not None:
-            args += ['-stripe', self.stripe]
-        if self.cred is not None:
-            args += ['-cred', self.cred]
-        p = subprocess.Popen(args)
-        stdout, stderr = p.communicate()
+        if self.gulOpts is not None:
+            args += self.gulOpts.split()
+        try:
+            tmpLog.debug('execute globus-url-copy' + ' '.join(args))
+            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            return_code = p.returncode
+            if stdout is not None:
+                stdout = stdout.replace('\n', ' ')
+            if stderr is not None:
+                stderr = stderr.replace('\n', ' ')
+            tmpLog.debug("stdout: %s" % stdout)
+            tmpLog.debug("stderr: %s" % stderr)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            return_code = 1
         os.remove(gucInput.name)
-        tmpLog.debug("stdout: %s" % stdout)
-        tmpLog.debug("stderr: %s" % stderr)
-        if p.returncode == 0:
+        if return_code == 0:
             tmpLog.debug('succeeded')
             return True, ''
         else:
-            errMsg = 'failed with {0}'.format(p.returncode)
+            errMsg = 'failed with {0}'.format(return_code)
             tmpLog.error(errMsg)
             # check attemptNr
             for tmpFileSpec in jobspec.inFiles:
@@ -96,7 +119,8 @@ class GridFtpPreparator(PluginBase):
         inFileInfo = jobspec.get_input_file_attributes()
         pathInfo = dict()
         for tmpFileSpec in jobspec.inFiles:
-            accPath = mover_utils.construct_file_path(self.localBasePath, inFileInfo['scope'], tmpFileSpec.lfn)
+            accPath = mover_utils.construct_file_path(self.localBasePath, inFileInfo[tmpFileSpec.lfn]['scope'],
+                                                      tmpFileSpec.lfn)
             pathInfo[tmpFileSpec.lfn] = {'path': accPath}
         jobspec.set_input_file_paths(pathInfo)
         return True, ''
