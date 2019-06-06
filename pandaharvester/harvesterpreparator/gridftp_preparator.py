@@ -78,6 +78,7 @@ class GridFtpPreparator(PluginBase):
         # transfer
         tmpLog.debug('execute globus-url-copy')
         gucInput.close()
+        args = ['globus-url-copy', '-f', gucInput.name, '-cd']
         if self.gulOpts is not None:
             args += self.gulOpts.split()
         try:
