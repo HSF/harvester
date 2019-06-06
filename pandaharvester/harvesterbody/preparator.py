@@ -30,12 +30,24 @@ class Preparator(AgentBase):
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
             mainLog.debug('try to get jobs to check')
             # get jobs to check preparation
+            try:
+                maxFilesPerJob = harvester_config.preparator.maxFilesPerJobToCheck
+                if maxFilesPerJob <= 0:
+                    maxFilesPerJob = None
+            except Exception:
+                maxFilesPerJob = None
+            if maxFilesPerJob is not None:
+                fileStatusList = ['triggered']
+            else:
+                fileStatusList = None
             jobsToCheck = self.dbProxy.get_jobs_in_sub_status('preparing',
                                                               harvester_config.preparator.maxJobsToCheck,
                                                               'preparatorTime', 'lockedBy',
                                                               harvester_config.preparator.checkInterval,
                                                               harvester_config.preparator.lockInterval,
-                                                              lockedBy)
+                                                              lockedBy,
+                                                              max_files_per_job=maxFilesPerJob,
+                                                              file_status_list=fileStatusList)
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
@@ -85,14 +97,24 @@ class Preparator(AgentBase):
                             tmpLog.error('failed to resolve input file paths : {0}'.format(tmpStr))
                             continue
                         # update job
-                        jobSpec.subStatus = 'prepared'
                         jobSpec.lockedBy = None
-                        jobSpec.preparatorTime = None
                         jobSpec.set_all_input_ready()
+                        if maxFilesPerJob is None or len(jobSpec.inFiles) == 0:
+                            # all done
+                            allDone = True
+                            jobSpec.subStatus = 'prepared'
+                            jobSpec.preparatorTime = None
+                        else:
+                            # immediate next lookup since there could be more files to check
+                            allDone = False
+                            jobSpec.trigger_preparation()
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus},
                                                 update_in_file=True)
-                        tmpLog.debug('succeeded')
+                        if allDone:
+                            tmpLog.debug('succeeded')
+                        else:
+                            tmpLog.debug('partially succeeded')
                     else:
                         # update job
                         jobSpec.status = 'failed'
@@ -110,13 +132,25 @@ class Preparator(AgentBase):
                     core_utils.dump_error_message(tmpLog)
             # get jobs to trigger preparation
             mainLog.debug('try to get jobs to prepare')
+            try:
+                maxFilesPerJob = harvester_config.preparator.maxFilesPerJobToPrepare
+                if maxFilesPerJob <= 0:
+                    maxFilesPerJob = None
+            except Exception:
+                maxFilesPerJob = None
+            if maxFilesPerJob is not None:
+                fileStatusList = ['preparing', 'to_prepare']
+            else:
+                fileStatusList = None
             jobsToTrigger = self.dbProxy.get_jobs_in_sub_status('fetched',
                                                                 harvester_config.preparator.maxJobsToTrigger,
                                                                 'preparatorTime', 'lockedBy',
                                                                 harvester_config.preparator.triggerInterval,
                                                                 harvester_config.preparator.lockInterval,
                                                                 lockedBy,
-                                                                'preparing')
+                                                                'preparing',
+                                                                max_files_per_job=maxFilesPerJob,
+                                                                file_status_list=fileStatusList)
             mainLog.debug('got {0} jobs to prepare'.format(len(jobsToTrigger)))
             # loop over all jobs
             fileStatMap = dict()
@@ -170,7 +204,8 @@ class Preparator(AgentBase):
                                     fileSpec.groupStatus = groupInfo['groupStatus']
                                     fileSpec.groupUpdateTime = groupInfo['groupUpdateTime']
                                 updateStatus = True
-                            elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                            elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] or \
+                                    'triggered' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                                 # the file is being prepared by another
                                 toWait = True
                             else:
@@ -198,13 +233,28 @@ class Preparator(AgentBase):
                     # check result
                     if tmpStat is True:
                         # succeeded
-                        jobSpec.subStatus = 'preparing'
                         jobSpec.lockedBy = None
-                        jobSpec.preparatorTime = None
+                        if maxFilesPerJob is None or len(jobSpec.inFiles) == 0:
+                            # all done
+                            allDone = True
+                            jobSpec.subStatus = 'preparing'
+                            jobSpec.preparatorTime = None
+                        else:
+                            # change file status but not change job sub status since
+                            # there could be more files to prepare
+                            allDone = False
+                            for fileSpec in jobSpec.inFiles:
+                                if fileSpec.status == 'to_prepare':
+                                    fileSpec.status = 'triggered'
+                            # immediate next lookup
+                            jobSpec.trigger_preparation()
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus},
                                                 update_in_file=True)
-                        tmpLog.debug('triggered')
+                        if allDone:
+                            tmpLog.debug('triggered')
+                        else:
+                            tmpLog.debug('partially triggered')
                     elif tmpStat is False:
                         # fatal error
                         jobSpec.status = 'failed'

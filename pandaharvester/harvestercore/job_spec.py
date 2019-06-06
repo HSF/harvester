@@ -17,6 +17,7 @@ class JobSpec(SpecBase):
     HO_hasOutput = 1
     HO_hasZipOutput = 2
     HO_hasTransfer = 3
+    HO_hasPostZipOutput = 4
 
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
@@ -140,6 +141,14 @@ class JobSpec(SpecBase):
     def trigger_propagation(self):
         self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 
+    # trigger preparation
+    def trigger_preparation(self):
+        self.preparatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+
+    # trigger stage out
+    def trigger_stage_out(self):
+        self.stagerTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+
     # set attributes
     def set_attributes(self, attrs):
         if attrs is None:
@@ -215,11 +224,17 @@ class JobSpec(SpecBase):
                 fileSpec.attemptNr = 0
 
     # all files are zipped
-    def all_files_zipped(self):
+    def all_files_zipped(self, use_post_zipping=False):
         for fileSpec in self.outFiles:
             if fileSpec.status not in ['finished', 'failed']:
-                fileSpec.status = 'defined'
                 fileSpec.attemptNr = 0
+                if use_post_zipping:
+                    fileSpec.status = 'post_zipping'
+                else:
+                    fileSpec.status = 'defined'
+                    fileSpec.groupID = None
+                    fileSpec.groupStatus = None
+                    fileSpec.groupUpdateTime = None
 
     # convert to event data
     def to_event_data(self, max_events=None):
