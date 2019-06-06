@@ -3,6 +3,7 @@ import uuid
 import time
 import multiprocessing
 import tempfile
+import gc
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 try:
@@ -177,6 +178,7 @@ class BaseZipper(PluginBase):
                 # execute
                 p = subprocess.Popen(com,
                                      shell=True,
+                                     close_fds=True,
                                      stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
                 stdOut, stdErr = p.communicate()
@@ -197,6 +199,8 @@ class BaseZipper(PluginBase):
                     except Exception:
                         core_utils.dump_error_message(tmp_log)
                 os.remove(tmpArgFile.name)
+                del p, stdOut, stdErr
+                gc.collect()
                 return existence_set
             # parallel execution of check existence
             with Pool(max_workers=nThreadsForZip) as pool:
@@ -276,6 +280,7 @@ class BaseZipper(PluginBase):
             # execute
             p1 = subprocess.Popen(com1,
                                  shell=True,
+                                 close_fds=True,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p1.communicate()
@@ -284,6 +289,8 @@ class BaseZipper(PluginBase):
                 msgStr = 'failed to make zip for {0} with {1}:{2}'.format(lfn, stdOut, stdErr)
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
+            del p1, stdOut, stdErr
+            gc.collect()
             os.remove(tmpArgFile.name)
             # avoid overwriting
             lockName = 'zip.lock.{0}'.format(lfn)
@@ -314,9 +321,12 @@ class BaseZipper(PluginBase):
                     )
             p2 = subprocess.Popen(com2,
                                  shell=True,
+                                 close_fds=True,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             p2.communicate()
+            del p2
+            gc.collect()
             # release lock
             self.dbInterface.release_object_lock(lockName)
             # make return
@@ -337,6 +347,7 @@ class BaseZipper(PluginBase):
                     )
             p3 = subprocess.Popen(com3,
                                  shell=True,
+                                 close_fds=True,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p3.communicate()
@@ -348,6 +359,8 @@ class BaseZipper(PluginBase):
             else:
                 file_size = int(stdOut.strip('\n'))
                 fileInfo['fsize'] = file_size
+            del p3, stdOut, stdErr
+            gc.collect()
             # get checksum
             # fileInfo['chksum'] = core_utils.calc_adler32(zipPath)
             com4 = ('ssh '
@@ -363,6 +376,7 @@ class BaseZipper(PluginBase):
                     )
             p4 = subprocess.Popen(com4,
                                  shell=True,
+                                 close_fds=True,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p4.communicate()
@@ -374,6 +388,8 @@ class BaseZipper(PluginBase):
             else:
                 file_chksum = stdOut.strip('\n')
                 fileInfo['chksum'] = file_chksum
+            del p4, stdOut, stdErr
+            gc.collect()
         except Exception:
             errMsg = core_utils.dump_error_message(self.zip_tmp_log)
             return False, 'failed to zip with {0}'.format(errMsg)
