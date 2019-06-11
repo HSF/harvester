@@ -4,21 +4,17 @@ utilities routines associated with Kubernetes python client
 """
 import os
 import copy
-import datetime
 import base64
-
-import six
 import yaml
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 
-class k8s_Client(six.with_metaclass(SingletonWithID, object)):
+class k8s_Client(object):
 
     def __init__(self, namespace, config_file=None):
         config.load_kube_config(config_file=config_file)
