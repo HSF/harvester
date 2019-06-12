@@ -1,6 +1,8 @@
 from pandaharvester.harvestercore import core_utils
 from .base_stager import BaseStager
 
+import uuid
+
 # logger
 _logger = core_utils.setup_logger('dummy_stager')
 
@@ -12,7 +14,7 @@ class DummyStager(BaseStager):
         BaseStager.__init__(self, **kwarg)
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         """Check the status of stage-out procedure. If staging-out is done synchronously in trigger_stage_out
         this method should always return True.
         Output files are available through jobspec.get_outfile_specs(skip_done=False) which gives
@@ -53,10 +55,12 @@ class DummyStager(BaseStager):
 
     # zip output files
     def zip_output(self, jobspec):
-        """Zip output files. This method loops over jobspec.get_output_file_specs(skip_done=False) to make a zip
-        file for each outFileSpec from FileSpec.associatedFiles which is a list of toZipFileSpec to be zipped.
-        The file path is available in toZipFileSpec. One zip files are made, their toZipFileSpec.path,
-        toZipFileSpec.fsize, and toZipFileSpec.chksum need to be set.
+        """OBSOLETE : zip functions should be implemented in zipper plugins.
+        Zip output files. This method loops over jobspec.outFiles, which is a list of zip file's FileSpecs,
+        to make a zip file for each zip file's FileSpec. FileSpec.associatedFiles is a list of FileSpecs of
+        associated files to be zipped. The path of each associated file is available in associated
+        file's FileSpec.path. Once zip files are made, their FileSpec.path, FileSpec.fsize and
+        FileSpec.chksum need to be set.
 
         :param jobspec: job specifications
         :type jobspec: JobSpec
@@ -67,3 +71,58 @@ class DummyStager(BaseStager):
         tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='zip_output')
         return self.simple_zip_output(jobspec, tmpLog)
+
+    # asynchronous zip output
+    def async_zip_output(self, jobspec):
+        """OBSOLETE : zip functions should be implemented in zipper plugins.
+        Zip output files asynchronously. This method is followed by post_zip_output(),
+        which is typically useful to trigger an asynchronous zipping mechanism such as batch job.
+        This method loops over jobspec.outFiles, which is a list of zip file's FileSpecs, to make
+        a zip file for each zip file's FileSpec. FileSpec.associatedFiles is a list of FileSpecs
+        of associated files to be zipped. The path of each associated file is available in associated
+        file's FileSpec.path.
+
+        :param jobspec: job specifications
+        :type jobspec: JobSpec
+        :return: A tuple of return code (True for success, False otherwise) and error dialog
+        :rtype: (bool, string)
+        """
+        # make logger
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='zip_output')
+        # set some ID which can be used for lookup in post_zip_output()
+        groupID = str(uuid.uuid4())
+        lfns = []
+        for fileSpec in jobspec.outFiles:
+            lfns.append(fileSpec.lfn)
+        jobspec.set_groups_to_files({groupID: {'lfns': lfns,
+                                               'groupStatus': 'zipping'}
+                                     }
+                                    )
+        return True, ''
+
+    # post zipping
+    def post_zip_output(self, jobspec):
+        """OBSOLETE : zip functions should be implemented in zipper plugins.
+        This method is executed after async_zip_output(), to do post-processing for zipping.
+        Once zip files are made, this method needs to look over jobspec.outFiles to set their
+        FileSpec.path, FileSpec.fsize, and FileSpec.chksum.
+
+        :param jobspec: job specifications
+        :type jobspec: JobSpec
+        :return: A tuple of return code (True for success, False otherwise) and error dialog
+        :rtype: (bool, string)
+        """
+        # make logger
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='zip_output')
+        # get groups for lookup
+        groups = jobspec.get_groups_of_output_files()
+        # do something with groupIDs
+        pass
+        # update file attributes
+        for fileSpec in jobspec.outFiles:
+            fileSpec.path = '/path/to/zip'
+            fileSpec.fsize = 12345
+            fileSpec.chksum = '66bb0985'
+        return True, ''

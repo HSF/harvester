@@ -35,12 +35,12 @@ class RucioRseDirectStager(YodaRseDirectStager):
 
     # check status of Rucio transfer
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         tmpStat = True
         tmpMsg = ''
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
-                                  method_name='check_status')
+                                  method_name='check_stage_out_status')
         tmpLog.debug('start')
         # Get the files grouped by Rucio Rule ID 
         groups = jobspec.get_groups_of_output_files()

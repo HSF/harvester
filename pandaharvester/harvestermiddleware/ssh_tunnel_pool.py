@@ -2,10 +2,16 @@ import random
 import threading
 import uuid
 import socket
+
+import six
 import pexpect
 
 from pandaharvester.harvestercore import core_utils
 
+if six.PY2:
+    pexpect_spawn = pexpect.spawn
+else:
+    pexpect_spawn = pexpect.spawnu
 
 # logger
 baseLogger = core_utils.setup_logger('ssh_tunnel_pool')
@@ -75,7 +81,7 @@ class SshTunnelPool(object):
                              jump_port=jump_port, local_bind_port=local_bind_port)
             s.close()
             # list of expected strings
-            loginString = 'login_to_be_confirmed_with ' + uuid.uuid4().get_hex()
+            loginString = 'login_to_be_confirmed_with ' + uuid.uuid4().hex
             expected_list = [
                 pexpect.EOF,
                 pexpect.TIMEOUT,
@@ -84,7 +90,7 @@ class SshTunnelPool(object):
                 '(?i)enter passphrase for key.*',
                 loginString,
                 ]
-            c = pexpect.spawn(com, echo=False)
+            c = pexpect_spawn(com, echo=False)
             c.logfile_read = baseLogger.handlers[0].stream
             isOK = False
             for iTry in range(3):
@@ -141,7 +147,7 @@ class SshTunnelPool(object):
                 someClosed = True
         if someClosed:
             self.make_tunnel_server(remote_host, remote_port, reconnect=True, with_lock=False)
-            active_tunnels = [item for item in self.pool[dict_key] if item[1].islive()]
+            active_tunnels = [item for item in self.pool[dict_key] if item[1].isalive()]
         if len(active_tunnels) > 0:
             port, child = random.choice(active_tunnels)
         else:

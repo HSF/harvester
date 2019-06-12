@@ -14,7 +14,7 @@ class RseDirectStager(BaseStager):
         BaseStager.__init__(self, **kwarg)
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             fileSpec.status = 'finished'
         return True, ''

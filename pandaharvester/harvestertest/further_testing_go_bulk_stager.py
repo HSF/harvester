@@ -153,7 +153,7 @@ if len(jobSpec_list) > 0 :
            tmpLog.debug("Number stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id()) = {0}".format(len(files)))
            msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
            tmpLog.debug(msgStr)
-           tmpStat, tmpOut = stagerCore.check_status(jobSpec)
+           tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
            if tmpStat:
               msgStr = " OK"
               tmpLog.debug(msgStr)

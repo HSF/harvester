@@ -636,8 +636,20 @@ class SharedFileMessenger(BaseMessenger):
                 # look for leftovers
                 if self.scanInPostProcess:
                     tmpLog.debug('scanning leftovers in {0}'.format(accessPoint))
-                    dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
-                            if os.path.isdir(os.path.join(accessPoint, name))]
+                    # set the directory paths to scan for left over files
+                    dirs = []
+                    if self.outputSubDir is None:
+                        #tmpLog.debug('self.outputSubDir not set dirs- {0}'.format(dirs))
+                        dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
+                                if os.path.isdir(os.path.join(accessPoint, name))]
+                    else:
+                        # loop over directories first level from accessPoint and then add subdirectory name.
+                        upperdirs=[]
+                        upperdirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
+                                if os.path.isdir(os.path.join(accessPoint, name))]
+                        dirs = [os.path.join(dirname, self.outputSubDir) for dirname in upperdirs
+                                if os.path.isdir(os.path.join(dirname, self.outputSubDir))]
+                        #tmpLog.debug('self.outputSubDir = {0} upperdirs - {1} dirs -{2}'.format(self.outputSubDir,upperdirs,dirs))
                     if self.leftOverPatterns is None:
                         patterns = None
                     else:
@@ -674,7 +686,7 @@ class SharedFileMessenger(BaseMessenger):
             return True
         except Exception:
             core_utils.dump_error_message(tmpLog)
-            return False
+            return None
 
     # get PandaIDs for pull model
     def get_panda_ids(self, workspec):
@@ -752,7 +764,7 @@ class SharedFileMessenger(BaseMessenger):
     def clean_up(self, workspec):
         # get logger
         tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='cleanup_accesspoint')
+                                        method_name='clean_up')
         # Remove from top directory of access point of worker
         errStr = ''
         worker_accessPoint = workspec.get_access_point()

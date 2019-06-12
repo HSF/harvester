@@ -4,14 +4,19 @@ except ImportError:
     import subprocess
 import uuid
 import os
+import gc
+
+from concurrent.futures import ThreadPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils
 from .base_stager import BaseStager
 
-# TODO: retry of failed transfers
+### Meant to put all heavy file operations on hpc side via ssh and use multithreading to accelerate.
+### Other file operations require shared fs (e.g. sshfs) with the same path of all files.
+### Works for MareNostrums
 
 # logger
-baseLogger = core_utils.setup_logger('rucio_stager_hpc')
+baseLogger = core_utils.setup_logger('rucio_stager_hpc_minikui')
 
 
 # plugin for stage-out with Rucio on an HPC site that must copy output elsewhere
@@ -29,6 +34,8 @@ class RucioStagerHPC(BaseStager):
             self.maxAttempts = 3
         if not hasattr(self, 'objectstore_additions'):
             self.objectstore_additions = None
+        if not hasattr(self, 'nThreadsForUpload'):
+            self.nThreadsForUpload = 4
 
     # check status
     def check_stage_out_status(self, jobspec):
@@ -40,21 +47,27 @@ class RucioStagerHPC(BaseStager):
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
+        # let gc clean up memory
+        gc.collect()
+
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='trigger_stage_out')
         tmpLog.debug('start')
+
         # loop over all files
-        allChecked = True
-        ErrMsg = 'These files failed to upload : '
         zip_datasetName = 'harvester_stage_out.{0}'.format(str(uuid.uuid4()))
         fileAttrs = jobspec.get_output_file_attributes()
-        for fileSpec in jobspec.outFiles:
+
+        def _stage_one_file(fileSpec):
+            isChecked = True
+            # ErrMsg = 'These files failed to upload : '
+            ErrMsg = ''
             # fileSpec.fileAttributes['transferID'] = None  # synchronius transfer
             # skip already done
             tmpLog.debug('file: %s status: %s' % (fileSpec.lfn, fileSpec.status))
             if fileSpec.status in ['finished', 'failed']:
-                continue
+                return False, 'file {0} already {1}'.format(fileSpec.lfn, fileSpec.status)
 
             fileSpec.pathConvention = self.pathConvention
             fileSpec.objstoreID = self.objstoreID
@@ -64,12 +77,12 @@ class RucioStagerHPC(BaseStager):
             elif fileSpec.fileType == 'log':
                 dstRSE = self.dstRSE_Log
             else:
-                errMsg = 'unsupported file type {0}'.format(fileSpec.fileType)
+                errMsg = '{0} unsupported file type {1}'.format(fileSpec.lfn, fileSpec.fileType)
                 tmpLog.error(errMsg)
                 return (False, errMsg)
             # skip if destination is None
             if dstRSE is None:
-                continue
+                return False, 'file {0} dstRSE is None'.format(fileSpec.lfn)
 
             # get/set scope and dataset name
             if fileSpec.fileType == 'log':
@@ -128,9 +141,11 @@ class RucioStagerHPC(BaseStager):
                 process = subprocess.Popen(cmd,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.STDOUT,
+                                           close_fds=True,
                                            shell=True)
             else:
                 process = subprocess.Popen(executable,
+                                           close_fds=True,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.STDOUT)
 
@@ -163,12 +178,11 @@ class RucioStagerHPC(BaseStager):
                     # do nothing
                     tmpLog.warning('rucio returned error, will retry: stdout: %s' % stdout)
                     # do not change fileSpec.status and Harvester will retry if this function returns False
-                    allChecked = False
-                    continue
+                    return False, 'rucio returned error'
                 else:
                     tmpLog.error('rucio upload failed with stdout: %s' % stdout)
                     ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn, stdout)
-                    allChecked = False
+                    isChecked = False
                     if fileSpec.attemptNr >= self.maxAttempts:
                         tmpLog.error('reached maxattempts: %s, marked it as failed' % self.maxAttempts)
                         fileSpec.status = 'failed'
@@ -178,16 +192,32 @@ class RucioStagerHPC(BaseStager):
 
             tmpLog.debug('file: %s status: %s' % (fileSpec.lfn, fileSpec.status))
 
+            del process, stdout, stderr
+
+            return isChecked, ErrMsg
+
+        # multithreading
+        with Pool(max_workers=self.nThreadsForUpload) as pool:
+            ret_list = list(pool.map(_stage_one_file, list(jobspec.outFiles)))
+
+        isChecked_list, ErrMsg_list = zip(*ret_list) if ret_list else ([], '')
+        allChecked = all(isChecked_list)
+        ErrMsg_all = ';'.join(ErrMsg_list)
+
         # return
         tmpLog.debug('done')
         if allChecked:
             return True, ''
         else:
-            return False, ErrMsg
+            return False, ErrMsg_all
 
     # zip output files
     def zip_output(self, jobspec):
+        # let gc clean up memory
+        gc.collect()
+
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='zip_output')
-        return self.simple_zip_output(jobspec, tmpLog)
+
+        return self.ssh_zip_output(jobspec, tmpLog)

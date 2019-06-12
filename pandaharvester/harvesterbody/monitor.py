@@ -29,7 +29,10 @@ class Monitor(AgentBase):
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
         self.monitor_fifo = MonitorFIFO()
-        self.monitor_event_fifo = MonitorEventFIFO()
+        if self.monitor_fifo.enabled:
+            self.monitor_event_fifo = MonitorEventFIFO()
+        else:
+            self.monitor_event_fifo = None
         self.apfmon = Apfmon(self.queueConfigMapper)
         self.eventBasedMonCoreList = []
         if getattr(harvester_config.monitor, 'eventBasedEnable', False):
@@ -683,8 +686,9 @@ class Monitor(AgentBase):
                     retMap[workerID]['monStatus'] = newStatus
                     # set running or idle while there are events to update or files to stage out
                     if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                        isOK = True
                         if len(retMap[workerID]['filesToStageOut']) > 0 or \
-                                        len(retMap[workerID]['eventsToUpdate']) > 0:
+                                len(retMap[workerID]['eventsToUpdate']) > 0:
                             if workSpec.status == WorkSpec.ST_running:
                                 newStatus = WorkSpec.ST_running
                             else:
@@ -697,14 +701,24 @@ class Monitor(AgentBase):
                                                                                 only_running=True,
                                                                                 slim=True)
                                 # post processing
-                                messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
-                            workSpec.post_processed()
+                                tmpStat = messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
+                                if tmpStat is None:
+                                    # retry
+                                    ppTimeOut = getattr(harvester_config.monitor, 'postProcessTimeout', 0)
+                                    if ppTimeOut > 0:
+                                        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=ppTimeOut)
+                                        if workSpec.endTime is None or workSpec.endTime > timeLimit:
+                                            isOK = False
+                                            # set end time just in case for timeout
+                                            workSpec.set_end_time()
+                            if isOK:
+                                workSpec.post_processed()
                             if workSpec.status == WorkSpec.ST_running:
                                 newStatus = WorkSpec.ST_running
                             else:
                                 newStatus = WorkSpec.ST_idle
                         # reset modification time to immediately trigger subsequent lookup
-                        if not self.monitor_fifo.enabled:
+                        if isOK and not self.monitor_fifo.enabled:
                             workSpec.trigger_next_lookup()
                     retMap[workerID]['newStatus'] = newStatus
                     retMap[workerID]['diagMessage'] = diagMessage

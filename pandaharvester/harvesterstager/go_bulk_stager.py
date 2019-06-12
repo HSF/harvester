@@ -121,10 +121,10 @@ class GlobusBulkStager(BaseStager):
             fileSpec.status = status
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         # make logger
         tmpLog = self.make_logger(_logger, 'PandaID={0} ThreadID={1}'.format(jobspec.PandaID,threading.current_thread().ident),
-                                  method_name='check_status')
+                                  method_name='check_stage_out_status')
         tmpLog.debug('start')
         # show the dummy transfer id and set to a value with the PandaID if needed.
         tmpLog.debug('self.dummy_transfer_id = {}'.format(self.dummy_transfer_id))
@@ -369,7 +369,7 @@ class GlobusBulkStager(BaseStager):
         tmpLog.debug('transfer groups any state - {0}'.format(groups))
         if len(groups) == 0:
             tmpLog.debug("jobspec.get_groups_of_output_files(skip_done=True) returned no files ")
-            tmpLog.debug("check_status return status - True ")
+            tmpLog.debug("check_stage_out_status return status - True ")
             return True,''
 
         for transferID in groups:
@@ -405,7 +405,7 @@ class GlobusBulkStager(BaseStager):
                 tmpLog.debug(tmpStr)
                 return None, ''
         # end of loop over transfer groups
-        tmpLog.debug('End of loop over transfers groups - ending check_status function')
+        tmpLog.debug('End of loop over transfers groups - ending check_stage_out_status function')
         return None,'no valid transfer id found'
 
     # trigger stage out
@@ -435,7 +435,7 @@ class GlobusBulkStager(BaseStager):
             old_dummy_transfer_id = self.dummy_transfer_id
             self.dummy_transfer_id = '{0}_{1}'.format(dummy_transfer_id_base,jobspec.PandaID)
             tmpLog.debug('Change self.dummy_transfer_id  from {0} to {1}'.format(old_dummy_transfer_id,self.dummy_transfer_id))
-        # set the dummy transfer ID which will be replaced with a real ID in check_status()
+        # set the dummy transfer ID which will be replaced with a real ID in check_stage_out_status()
         lfns = []
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             lfns.append(fileSpec.lfn)

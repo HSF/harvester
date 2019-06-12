@@ -393,5 +393,7 @@ class WorkSpec(SpecBase):
 
     # set supplemental error
     def set_supplemental_error(self, error_code, error_diag):
-        self.errorCode = error_code
-        self.errorDiag = error_diag
+        if error_code is not None:
+            self.errorCode = error_code
+        if error_diag not in (None, ''):
+            self.errorDiag = str(error_diag)[:256]

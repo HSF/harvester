@@ -163,6 +163,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             'sweeper',
             'workerMaker',
             'throttler',
+            'zipper',
         ])
 
     # constructor

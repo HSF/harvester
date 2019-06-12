@@ -6,17 +6,17 @@ except:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
 # logger
 baseLogger = core_utils.setup_logger('slurm_sweeper')
 
 
 # plugin for sweeper with SLURM
-class SlurmSweeper(PluginBase):
+class SlurmSweeper(BaseSweeper):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseSweeper.__init__(self, **kwarg)
 
     # kill a worker
     def kill_worker(self, workspec):

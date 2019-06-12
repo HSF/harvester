@@ -19,10 +19,10 @@ class DummyBulkStager(BaseStager):
         BaseStager.__init__(self, **kwarg)
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_out_status(self, jobspec):
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='check_status')
+                                  method_name='check_stage_out_status')
         tmpLog.debug('start')
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
@@ -74,7 +74,7 @@ class DummyBulkStager(BaseStager):
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
-        # set the dummy transfer ID which will be replaced with a real ID in check_status()
+        # set the dummy transfer ID which will be replaced with a real ID in check_stage_out_status()
         lfns = []
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             lfns.append(fileSpec.lfn)
