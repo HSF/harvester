@@ -292,9 +292,14 @@ def submit_bag_of_workers(data_list):
                 batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid)
                 batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid)
                 batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid)
+                try:
+                    batch_jdl = '{0}.jdl'.format(batch_stderr[:-4])
+                except:
+                    batch_jdl = None
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
                 workspec.set_log_file('stderr', batch_stderr)
+                workspec.set_log_file('jdl', batch_jdl)
                 if not workspec.get_jobspec_list():
                     tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
                 else:
