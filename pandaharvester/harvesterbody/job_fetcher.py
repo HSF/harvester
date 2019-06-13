@@ -1,5 +1,6 @@
 import socket
 import datetime
+import random
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -47,11 +48,15 @@ class JobFetcher(AgentBase):
                 if nJobs > harvester_config.jobfetcher.maxJobs:
                     nJobs = harvester_config.jobfetcher.maxJobs
                 # get jobs
-                tmpLog.debug('getting {0} jobs'.format(nJobs))
+                default_prodSourceLabel = queueConfig.get_source_label()
+                pdpm = getattr(queueConfig, 'prodSourceLabelRandomWeightsPermille', {})
+                choice_list = core_utils.make_choice_list(pdpm=pdpm, default=default_prodSourceLabel)
+                prodSourceLabel = random.choice(choice_list)
+                tmpLog.debug('getting {0} jobs for prodSourceLabel {1}'.format(nJobs, prodSourceLabel))
                 sw = core_utils.get_stopwatch()
                 siteName = queueConfig.siteName
                 jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
-                                                          queueConfig.get_source_label(),
+                                                          prodSourceLabel,
                                                           self.nodeName, nJobs,
                                                           queueConfig.getJobCriteria)
                 tmpLog.info('got {0} jobs with {1} {2}'.format(len(jobs), errStr, sw.get_elapsed_time()))
