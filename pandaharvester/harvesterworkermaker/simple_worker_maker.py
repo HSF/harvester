@@ -1,6 +1,7 @@
 import random
 
 from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
@@ -18,13 +19,6 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
         BaseWorkerMaker.__init__(self, **kwarg)
         self.rt_mapper = ResourceTypeMapper()
-        try:
-            self.pilotTypeRandomWeightsPermille
-        except AttributeError:
-            self.pilotTypeRandomWeightsPermille = {}
-        finally:
-            self.pilotTypeRandomList = core_utils.make_choice_list(
-                                            pdpm=self.pilotTypeRandomWeightsPermille, default='PR')
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
@@ -132,7 +126,14 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         else:
             # when no job
             # randomize pilot type with weighting
-            workSpec.pilotType = random.choice(self.pilotTypeRandomList)
+            pdpm = getattr(queue_config, 'prodSourceLabelRandomWeightsPermille', {})
+            choice_list = core_utils.make_choice_list(pdpm=pdpm, default='managed')
+            tmp_prodsourcelabel = random.choice(choice_list)
+            fake_job = JobSpec()
+            fake_job.jobParams = {}
+            fake_job.jobParams['prodSourceLabel'] = tmp_prodsourcelabel
+            workSpec.pilotType = fake_job.get_pilot_type()
+            del fake_job
             if workSpec.pilotType in ['RC', 'ALRB', 'PT']:
                 tmpLog.info('a worker has pilotType={0}'.format(workSpec.pilotType))
         # TODO: this needs to be improved with real resource types
