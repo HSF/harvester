@@ -25,7 +25,7 @@ class k8s_Client(object):
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
-            yaml_content = yaml.load(f)
+            yaml_content = yaml.load(f, Loader=yaml.FullLoader)
 
         return yaml_content
 
