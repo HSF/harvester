@@ -93,10 +93,10 @@ class DummyPreparator(PluginBase):
         """
         # Here is an example to set file paths
         # -- get input files
-        # inFiles = jobspec.get_input_file_attributes()
+        inFiles = jobspec.get_input_file_attributes()
         # -- set path to each file
-        # for inLFN, inFile in iteritems(inFiles):
-        #     inFile['path'] = 'dummypath/{0}'.format(inLFN)
+        for inLFN, inFile in iteritems(inFiles):
+            inFile['path'] = 'dummypath/{0}'.format(inLFN)
         # -- set
-        # jobspec.set_input_file_paths(inFiles)
+        jobspec.set_input_file_paths(inFiles)
         return True, ''

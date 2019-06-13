@@ -19,7 +19,6 @@ class Stager(AgentBase):
         self.queueConfigMapper = queue_config_mapper
         self.pluginFactory = PluginFactory()
 
-
     # main loop
     def run(self):
         lockedBy = 'stager-{0}'.format(self.get_pid())
@@ -66,6 +65,7 @@ class Stager(AgentBase):
                     if not lockedAgain:
                         tmpLog.debug('skip since locked by another thread')
                         continue
+                    tmpLog.debug("plugin={0}".format(stagerCore.__class__.__name__))
                     tmpStat, tmpStr = stagerCore.check_stage_out_status(jobSpec)
                     # check result
                     if tmpStat is True:
@@ -130,6 +130,7 @@ class Stager(AgentBase):
                         tmpLog.debug('skip since locked by another thread')
                         continue
                     # trigger stage-out
+                    tmpLog.debug("plugin={0}".format(stagerCore.__class__.__name__))
                     tmpStat, tmpStr = stagerCore.trigger_stage_out(jobSpec)
                     # check result
                     if tmpStat is True:
@@ -211,6 +212,7 @@ class Stager(AgentBase):
                         tmpLog.debug('skip since locked by another thread')
                         continue
                     # zipping
+                    tmpLog.debug("plugin={0}".format(zipperCore.__class__.__name__))
                     if usePostZipping:
                         tmpStat, tmpStr = zipperCore.async_zip_output(jobSpec)
                     else:
@@ -282,6 +284,7 @@ class Stager(AgentBase):
                             tmpLog.debug('skip since locked by another thread')
                             continue
                         # post-zipping
+                        tmpLog.debug("plugin={0}".format(zipperCore.__class__.__name__))
                         tmpStat, tmpStr = zipperCore.post_zip_output(jobSpec)
                         # succeeded
                         if tmpStat is True:

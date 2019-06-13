@@ -9,6 +9,7 @@ from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger
 _logger = core_utils.setup_logger('job_fetcher')
@@ -23,6 +24,7 @@ class JobFetcher(AgentBase):
         self.communicator = communicator
         self.nodeName = socket.gethostname()
         self.queueConfigMapper = queue_config_mapper
+        self.pluginFactory = PluginFactory()
 
     # main loop
     def run(self):
@@ -60,6 +62,11 @@ class JobFetcher(AgentBase):
                 tmpLog.info('got {0} jobs with {1} {2}'.format(len(jobs), errStr, sw.get_elapsed_time()))
                 # convert to JobSpec
                 if len(jobs) > 0:
+                    # get extractor plugin
+                    if hasattr(queueConfig, 'extractor'):
+                        extractorCore = self.pluginFactory.get_plugin(queueConfig.extractor)
+                    else:
+                        extractorCore = None
                     jobSpecs = []
                     fileStatMap = dict()
                     sw_startconvert = core_utils.get_stopwatch()
@@ -77,30 +84,40 @@ class JobFetcher(AgentBase):
                                                   'harvester-{0}'.format(harvester_config.master.harvester_id))
                         if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                             jobSpec.zipPerMB = queueConfig.zipPerMB
-                        for tmpLFN, fileAttrs in iteritems(jobSpec.get_input_file_attributes()):
-                            # check file status
-                            if tmpLFN not in fileStatMap:
-                                fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, 'input',
-                                                                                   queueConfig.ddmEndpointIn,
-                                                                                   'starting')
-                            # make file spec
-                            fileSpec = FileSpec()
-                            fileSpec.PandaID = jobSpec.PandaID
-                            fileSpec.taskID = jobSpec.taskID
-                            fileSpec.lfn = tmpLFN
-                            fileSpec.endpoint = queueConfig.ddmEndpointIn
-                            fileSpec.scope = fileAttrs['scope']
-                            # set preparing to skip stage-in if the file is (being) taken care of by another job
-                            if 'ready' in fileStatMap[tmpLFN] or 'preparing' in fileStatMap[tmpLFN] \
-                                    or 'to_prepare' in fileStatMap[tmpLFN]:
-                                fileSpec.status = 'preparing'
-                            else:
-                                fileSpec.status = 'to_prepare'
-                            if fileSpec.status not in fileStatMap[tmpLFN]:
-                                fileStatMap[tmpLFN][fileSpec.status] = 0
-                            fileStatMap[tmpLFN][fileSpec.status] += 1
-                            fileSpec.fileType = 'input'
-                            jobSpec.add_in_file(fileSpec)
+                        fileGroupDictList = [jobSpec.get_input_file_attributes()]
+                        if extractorCore is not None:
+                            fileGroupDictList.append(extractorCore.get_aux_inputs(jobSpec))
+                        for fileGroupDict in fileGroupDictList:
+                            for tmpLFN, fileAttrs in iteritems(fileGroupDict):
+                                # check file status
+                                if tmpLFN not in fileStatMap:
+                                    fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, 'input',
+                                                                                       queueConfig.ddmEndpointIn,
+                                                                                       'starting')
+                                # make file spec
+                                fileSpec = FileSpec()
+                                fileSpec.PandaID = jobSpec.PandaID
+                                fileSpec.taskID = jobSpec.taskID
+                                fileSpec.lfn = tmpLFN
+                                fileSpec.endpoint = queueConfig.ddmEndpointIn
+                                fileSpec.scope = fileAttrs['scope']
+                                # set preparing to skip stage-in if the file is (being) taken care of by another job
+                                if 'ready' in fileStatMap[tmpLFN] or 'preparing' in fileStatMap[tmpLFN] \
+                                        or 'to_prepare' in fileStatMap[tmpLFN]:
+                                    fileSpec.status = 'preparing'
+                                else:
+                                    fileSpec.status = 'to_prepare'
+                                if fileSpec.status not in fileStatMap[tmpLFN]:
+                                    fileStatMap[tmpLFN][fileSpec.status] = 0
+                                fileStatMap[tmpLFN][fileSpec.status] += 1
+                                if 'INTERNAL_FileType' in fileAttrs:
+                                    fileSpec.fileType = fileAttrs['INTERNAL_FileType']
+                                    jobSpec.auxInput = JobSpec.AUX_hasAuxInput
+                                else:
+                                    fileSpec.fileType = 'input'
+                                if 'INTERNAL_URL' in fileAttrs:
+                                    fileSpec.url = fileAttrs['INTERNAL_URL']
+                                jobSpec.add_in_file(fileSpec)
                         jobSpec.trigger_propagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB

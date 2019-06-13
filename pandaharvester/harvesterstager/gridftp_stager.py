@@ -67,7 +67,9 @@ class GridFtpStager(BaseStager):
             if fileSpec.fileType in ['es_output', 'zip_output']:
                 scope = self.scopeForTmp
             else:
-                scope = fileSpec.fileAttributes['scope']
+                scope = fileSpec.fileAttributes.get('scope')
+                if scope is None:
+                    scope = fileSpec.scope
             # construct source and destination paths
             srcPath = re.sub(self.srcOldBasePath, self.srcNewBasePath, fileSpec.path)
             dstPath = mover_utils.construct_file_path(self.dstBasePath, scope, fileSpec.lfn)

@@ -705,10 +705,11 @@ class DBProxy(object):
                     if jobspec.is_final_status():
                         varMap = dict()
                         varMap[':PandaID'] = jobspec.PandaID
-                        varMap[':type'] = 'input'
+                        varMap[':type1'] = 'input'
+                        varMap[':type2'] = FileSpec.AUX_INPUT
                         varMap[':status'] = 'done'
                         sqlF = "UPDATE {0} SET status=:status ".format(fileTableName)
-                        sqlF += "WHERE PandaID=:PandaID AND fileType=:type "
+                        sqlF += "WHERE PandaID=:PandaID AND fileType IN (:type1,:type2) "
                         self.execute(sqlF, varMap)
                 # set to_delete flag
                 if jobspec.subStatus == 'done':
@@ -1096,7 +1097,7 @@ class DBProxy(object):
     def get_jobs_in_sub_status(self, sub_status, max_jobs, time_column=None, lock_column=None,
                                interval_without_lock=None, interval_with_lock=None,
                                locked_by=None, new_sub_status=None, max_files_per_job=None,
-                               file_status_list=None):
+                               ng_file_status_list=None):
         try:
             # get logger
             if locked_by is None:
@@ -1155,9 +1156,9 @@ class DBProxy(object):
             # sql to get file
             sqlGF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlGF += "WHERE PandaID=:PandaID AND fileType=:type "
-            if file_status_list is not None:
-                sqlGF += "AND status IN ("
-                for tmpStatus in file_status_list:
+            if ng_file_status_list is not None:
+                sqlGF += "AND status NOT IN ("
+                for tmpStatus in ng_file_status_list:
                     tmpKey = ':status_{0}'.format(tmpStatus)
                     sqlGF += "{0},".format(tmpKey)
                 sqlGF = sqlGF[:-1]
@@ -1216,9 +1217,12 @@ class DBProxy(object):
                     # get files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':type'] = 'input'
-                    if file_status_list is not None:
-                        for tmpStatus in file_status_list:
+                    if jobSpec.auxInput in [None, JobSpec.AUX_hasAuxInput, JobSpec.AUX_allTriggered]:
+                        varMap[':type'] = 'input'
+                    else:
+                        varMap[':type'] = FileSpec.AUX_INPUT
+                    if ng_file_status_list is not None:
+                        for tmpStatus in ng_file_status_list:
                             tmpKey = ':status_{0}'.format(tmpStatus)
                             varMap[tmpKey] = tmpStatus
                     self.execute(sqlGF, varMap)
@@ -1571,7 +1575,7 @@ class DBProxy(object):
             checkTimeLimit = timeNow - datetime.timedelta(seconds=check_interval)
             # sql to get file
             sqlGF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlGF += "WHERE PandaID=:PandaID AND fileType=:type "
+            sqlGF += "WHERE PandaID=:PandaID AND fileType IN (:type1,:type2) "
             jobChunkList = []
             # count jobs for nJobsPerWorker>1
             nAvailableJobs = None
@@ -1646,7 +1650,8 @@ class DBProxy(object):
                         # get files
                         varMap = dict()
                         varMap[':PandaID'] = pandaID
-                        varMap[':type'] = 'input'
+                        varMap[':type1'] = 'input'
+                        varMap[':type2'] = FileSpec.AUX_INPUT
                         self.execute(sqlGF, varMap)
                         resGF = self.cur.fetchall()
                         for resFile in resGF:
@@ -2579,12 +2584,13 @@ class DBProxy(object):
             sqlJJ += "WHERE PandaID=:PandaID "
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType<>:type "
+            sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType NOT IN (:type1,:type2) "
             if max_files_per_job is not None and max_files_per_job > 0:
                 sqlF += "LIMIT {0} ".format(max_files_per_job)
             # sql to get associated files
             sqlAF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID AND fileType<>:type "
+            sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
+            sqlAF += "AND fileType NOT IN (:type1,:type2) "
             # sql to increment attempt number
             sqlFU = "UPDATE {0} SET attemptNr=attemptNr+1 WHERE fileID=:fileID ".format(fileTableName)
             # get jobs
@@ -2644,7 +2650,8 @@ class DBProxy(object):
                     # get files
                     varMap = dict()
                     varMap[':PandaID'] = jobSpec.PandaID
-                    varMap[':type'] = 'input'
+                    varMap[':type1'] = 'input'
+                    varMap[':type2'] = FileSpec.AUX_INPUT
                     if has_out_file_flag == JobSpec.HO_hasOutput:
                         varMap[':status'] = 'defined'
                     elif has_out_file_flag == JobSpec.HO_hasZipOutput:
@@ -2674,7 +2681,8 @@ class DBProxy(object):
                             varMap = dict()
                             varMap[':PandaID'] = fileSpec.PandaID
                             varMap[':zipFileID'] = fileSpec.fileID
-                            varMap[':type'] = 'input'
+                            varMap[':type1'] = 'input'
+                            varMap[':type2'] = FileSpec.AUX_INPUT
                             self.execute(sqlAF, varMap)
                             resAFs = self.cur.fetchall()
                             for resAF in resAFs:
@@ -3510,7 +3518,7 @@ class DBProxy(object):
             sqlF += "WHERE PandaID=:PandaID "
             # sql to get files not to be deleted. b.todelete is not used to use index on b.lfn
             sqlD = "SELECT b.lfn,b.todelete  FROM {0} a, {0} b ".format(fileTableName)
-            sqlD += "WHERE a.PandaID=:PandaID AND a.fileType=:fileType AND b.lfn=a.lfn "
+            sqlD += "WHERE a.PandaID=:PandaID AND a.fileType IN (:fileType1,:fileType2) AND b.lfn=a.lfn "
             # get workerIDs
             timeNow = datetime.datetime.utcnow()
             self.execute(sqlW, varMap)
@@ -3568,7 +3576,8 @@ class DBProxy(object):
                         # get LFNs not to be deleted
                         varMap = dict()
                         varMap[':PandaID'] = pandaID
-                        varMap[':fileType'] = 'input'
+                        varMap[':fileType1'] = 'input'
+                        varMap[':fileType2'] = FileSpec.AUX_INPUT
                         self.execute(sqlD, varMap)
                         resDs = self.cur.fetchall()
                         for tmpLFN, tmpTodelete in resDs:
