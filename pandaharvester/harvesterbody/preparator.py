@@ -6,6 +6,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
+from pandaharvester.harvestercore.job_spec import JobSpec
 
 # logger
 _logger = core_utils.setup_logger('preparator')
@@ -36,10 +37,6 @@ class Preparator(AgentBase):
                     maxFilesPerJob = None
             except Exception:
                 maxFilesPerJob = None
-            if maxFilesPerJob is not None:
-                fileStatusList = ['triggered']
-            else:
-                fileStatusList = None
             jobsToCheck = self.dbProxy.get_jobs_in_sub_status('preparing',
                                                               harvester_config.preparator.maxJobsToCheck,
                                                               'preparatorTime', 'lockedBy',
@@ -47,7 +44,7 @@ class Preparator(AgentBase):
                                                               harvester_config.preparator.lockInterval,
                                                               lockedBy,
                                                               max_files_per_job=maxFilesPerJob,
-                                                              file_status_list=fileStatusList)
+                                                              ng_file_status_list=['ready'])
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
@@ -67,11 +64,15 @@ class Preparator(AgentBase):
                     queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, jobSpec.configID)
                     oldSubStatus = jobSpec.subStatus
                     # get plugin
-                    preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                    if jobSpec.auxInput in [None, JobSpec.AUX_allTriggered]:
+                        preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                    else:
+                        preparatorCore = self.pluginFactory.get_plugin(queueConfig.aux_preparator)
                     if preparatorCore is None:
                         # not found
                         tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                         continue
+                    tmpLog.debug("plugin={0}".format(preparatorCore.__class__.__name__))
                     # lock job again
                     lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
                     if not lockedAgain:
@@ -99,15 +100,21 @@ class Preparator(AgentBase):
                         # update job
                         jobSpec.lockedBy = None
                         jobSpec.set_all_input_ready()
-                        if maxFilesPerJob is None or len(jobSpec.inFiles) == 0:
+                        if (maxFilesPerJob is None and jobSpec.auxInput is None) or \
+                                (len(jobSpec.inFiles) == 0 and jobSpec.auxInput in [None, JobSpec.AUX_inReady]):
                             # all done
                             allDone = True
                             jobSpec.subStatus = 'prepared'
                             jobSpec.preparatorTime = None
+                            if jobSpec.auxInput is not None:
+                                jobSpec.auxInput = JobSpec.AUX_allReady
                         else:
                             # immediate next lookup since there could be more files to check
                             allDone = False
                             jobSpec.trigger_preparation()
+                            # change auxInput flag to check auxiliary inputs
+                            if len(jobSpec.inFiles) == 0 and jobSpec.auxInput == JobSpec.AUX_allTriggered:
+                                jobSpec.auxInput = JobSpec.AUX_inReady
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus},
                                                 update_in_file=True)
@@ -138,10 +145,6 @@ class Preparator(AgentBase):
                     maxFilesPerJob = None
             except Exception:
                 maxFilesPerJob = None
-            if maxFilesPerJob is not None:
-                fileStatusList = ['preparing', 'to_prepare']
-            else:
-                fileStatusList = None
             jobsToTrigger = self.dbProxy.get_jobs_in_sub_status('fetched',
                                                                 harvester_config.preparator.maxJobsToTrigger,
                                                                 'preparatorTime', 'lockedBy',
@@ -150,7 +153,7 @@ class Preparator(AgentBase):
                                                                 lockedBy,
                                                                 'preparing',
                                                                 max_files_per_job=maxFilesPerJob,
-                                                                file_status_list=fileStatusList)
+                                                                ng_file_status_list=['triggered'])
             mainLog.debug('got {0} jobs to prepare'.format(len(jobsToTrigger)))
             # loop over all jobs
             fileStatMap = dict()
@@ -171,11 +174,15 @@ class Preparator(AgentBase):
                     queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     oldSubStatus = jobSpec.subStatus
                     # get plugin
-                    preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                    if jobSpec.auxInput in [None, JobSpec.AUX_hasAuxInput]:
+                        preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                    else:
+                        preparatorCore = self.pluginFactory.get_plugin(queueConfig.aux_preparator)
                     if preparatorCore is None:
                         # not found
                         tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
                         continue
+                    tmpLog.debug("plugin={0}".format(preparatorCore.__class__.__name__))
                     # lock job again
                     lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, 'preparatorTime', 'lockedBy', lockedBy)
                     if not lockedAgain:
@@ -186,7 +193,10 @@ class Preparator(AgentBase):
                         fileStatMap[queueConfig.ddmEndpointIn] = dict()
                     newFileStatusData = []
                     toWait = False
+                    newInFiles = []
                     for fileSpec in jobSpec.inFiles:
+                        if fileSpec.status in ['preparing', 'to_prepare']:
+                            newInFiles.append(fileSpec)
                         if fileSpec.status == 'preparing':
                             updateStatus = False
                             if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
@@ -234,11 +244,14 @@ class Preparator(AgentBase):
                     if tmpStat is True:
                         # succeeded
                         jobSpec.lockedBy = None
-                        if maxFilesPerJob is None or len(jobSpec.inFiles) == 0:
+                        if (maxFilesPerJob is None and jobSpec.auxInput is None) or \
+                                (len(jobSpec.inFiles) == 0 and jobSpec.auxInput in [None, JobSpec.AUX_inTriggered]):
                             # all done
                             allDone = True
                             jobSpec.subStatus = 'preparing'
                             jobSpec.preparatorTime = None
+                            if jobSpec.auxInput is not None:
+                                jobSpec.auxInput = JobSpec.AUX_allTriggered
                         else:
                             # change file status but not change job sub status since
                             # there could be more files to prepare
@@ -248,6 +261,9 @@ class Preparator(AgentBase):
                                     fileSpec.status = 'triggered'
                             # immediate next lookup
                             jobSpec.trigger_preparation()
+                            # change auxInput flag to prepare auxiliary inputs
+                            if len(jobSpec.inFiles) == 0 and jobSpec.auxInput == JobSpec.AUX_hasAuxInput:
+                                jobSpec.auxInput = JobSpec.AUX_inTriggered
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus},
                                                 update_in_file=True)

@@ -7,6 +7,10 @@ from .spec_base import SpecBase
 
 
 class FileSpec(SpecBase):
+
+    # file type
+    AUX_INPUT = 'aux_input'
+
     # attributes
     attributesWithTypes = ('fileID:integer primary key autoincrement',
                            'PandaID:integer / index',
@@ -32,7 +36,8 @@ class FileSpec(SpecBase):
                            'scope:text',
                            'pathConvention:integer',
                            'provenanceID:text / index',
-                           'workerID:integer / index'
+                           'workerID:integer / index',
+                           'url:text'
                            )
 
     # attributes initialized with 0

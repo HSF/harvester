@@ -399,15 +399,14 @@ class SharedFileMessenger(BaseMessenger):
                 with open(xmlFilePath, 'w') as pfcFile:
                     pfcFile.write(pfc)
                 # make symlink
-                inFiles = jobSpec.get_input_file_attributes()
-                for inLFN, inFile in iteritems(inFiles):
-                    dstPath = os.path.join(accessPoint, inLFN)
-                    if 'path' in inFile and inFile['path'] != dstPath:
+                for fileSpec in jobSpec.inFiles:
+                    dstPath = os.path.join(accessPoint, fileSpec.lfn)
+                    if fileSpec.path != dstPath:
                         # test if symlink exists if so remove it
                         if os.path.exists(dstPath):
                             os.unlink(dstPath)
                             tmpLog.debug("removing existing symlink %s" % dstPath)
-                        os.symlink(inFile['path'], dstPath)
+                        os.symlink(fileSpec.path, dstPath)
                 pandaIDs.append(jobSpec.PandaID)
             except Exception:
                 core_utils.dump_error_message(tmpLog)
