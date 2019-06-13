@@ -23,20 +23,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         except AttributeError:
             self.pilotTypeRandomWeightsPermille = {}
         finally:
-            # randomize pilot type with weighting
-            weight_rc = self.pilotTypeRandomWeightsPermille.get('RC', 0)
-            weight_alrb = self.pilotTypeRandomWeightsPermille.get('ALRB', 0)
-            weight_pt = self.pilotTypeRandomWeightsPermille.get('PT', 0)
-            weight_tmp_sum = weight_rc + weight_alrb + weight_pt
-            if weight_tmp_sum > 1000:
-                weight_rc = weight_rc*1000/weight_tmp_sum
-                weight_alrb = weight_alrb*1000/weight_tmp_sum
-                weight_pt = weight_pt*1000/weight_tmp_sum
-            weight_pr = 1000 - (weight_rc + weight_alrb + weight_pt)
-            self.pilotTypeRandomList = ['PR'] * weight_pr \
-                + ['RC'] * weight_rc \
-                + ['ALRB'] * weight_alrb \
-                + ['PT'] * weight_pt
+            self.pilotTypeRandomList = core_utils.make_choice_list(
+                                            pdpm=self.pilotTypeRandomWeightsPermille, default='PR')
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
