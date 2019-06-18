@@ -209,7 +209,7 @@ class ARCSubmitter(PluginBase):
                 # Set true pilot or not
                 queueconfigmapper = QueueConfigMapper()
                 queueconfig = queueconfigmapper.get_queue(jobspec.computingSite)
-                pandaqueues[jobspec.computingSite]['truepilot'] = 'running' in queueconfig.noHeartbeat
+                pandaqueues[jobspec.computingSite]['truepilot'] = queueconfig.truePilot
 
                 # Set log URL for GTAG env in job description
                 logbaseurl = queueconfig.submitter.get('logBaseURL')

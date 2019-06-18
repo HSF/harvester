@@ -69,8 +69,15 @@ class ACTSubmitter(PluginBase):
                 tmpLog.debug("JobSpec: {0}".format(jobSpec.values_map()))
 
             desc = {}
-            desc['pandastatus'] = 'sent'
-            desc['actpandastatus'] = 'sent'
+            # If we need to prefetch events, set aCT status waiting.
+            # feed_events in act_messenger will fill events and release the job
+            if queueConfig.prefetchEvents:
+                desc['pandastatus'] = 'waiting'
+                desc['actpandastatus'] = 'waiting'
+                desc['arcjobid'] = -1 # dummy id to prevent submission
+            else:
+                desc['pandastatus'] = 'sent'
+                desc['actpandastatus'] = 'sent'
             desc['siteName'] = workSpec.computingSite
             desc['proxyid'] = self.proxymap['pilot' if prodSourceLabel == 'user' else 'production']
             desc['sendhb'] = 0
