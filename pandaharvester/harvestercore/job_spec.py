@@ -17,6 +17,14 @@ class JobSpec(SpecBase):
     HO_hasOutput = 1
     HO_hasZipOutput = 2
     HO_hasTransfer = 3
+    HO_hasPostZipOutput = 4
+
+    # auxiliary input
+    AUX_hasAuxInput = 0
+    AUX_inTriggered = 1
+    AUX_allTriggered = 2
+    AUX_inReady = 3
+    AUX_allReady = 4
 
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
@@ -56,7 +64,8 @@ class JobSpec(SpecBase):
                            'maxWorkersInTotal:integer',
                            'nWorkersInTotal:integer',
                            'jobParamsExtForOutput:blob',
-                           'jobParamsExtForLog:blob'
+                           'jobParamsExtForLog:blob',
+                           'auxInput:integer'
                            )
 
     # attributes initialized with 0
@@ -140,6 +149,14 @@ class JobSpec(SpecBase):
     def trigger_propagation(self):
         self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 
+    # trigger preparation
+    def trigger_preparation(self):
+        self.preparatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+
+    # trigger stage out
+    def trigger_stage_out(self):
+        self.stagerTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+
     # set attributes
     def set_attributes(self, attrs):
         if attrs is None:
@@ -215,11 +232,17 @@ class JobSpec(SpecBase):
                 fileSpec.attemptNr = 0
 
     # all files are zipped
-    def all_files_zipped(self):
+    def all_files_zipped(self, use_post_zipping=False):
         for fileSpec in self.outFiles:
             if fileSpec.status not in ['finished', 'failed']:
-                fileSpec.status = 'defined'
                 fileSpec.attemptNr = 0
+                if use_post_zipping:
+                    fileSpec.status = 'post_zipping'
+                else:
+                    fileSpec.status = 'defined'
+                    fileSpec.groupID = None
+                    fileSpec.groupStatus = None
+                    fileSpec.groupUpdateTime = None
 
     # convert to event data
     def to_event_data(self, max_events=None):
@@ -507,6 +530,8 @@ class JobSpec(SpecBase):
         if 'prodSourceLabel' not in self.jobParams:
             return None
         if self.jobParams['prodSourceLabel'] == 'rc_test':
+            return 'RC'
+        elif self.jobParams['prodSourceLabel'] == 'rc_test2':
             return 'RC'
         elif self.jobParams['prodSourceLabel'] == 'rc_alrb':
             return 'ALRB'

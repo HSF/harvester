@@ -310,7 +310,7 @@ time.sleep(globus_sleep_time)
 
 print "testing status check"
 while True:
-    tmpStat, tmpOut = preparatorCore.check_status(jobSpec)
+    tmpStat, tmpOut = preparatorCore.check_stage_in_status(jobSpec)
     if tmpStat == True:
         print " OK"
         break

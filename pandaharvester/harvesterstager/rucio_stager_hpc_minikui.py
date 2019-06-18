@@ -4,6 +4,7 @@ except ImportError:
     import subprocess
 import uuid
 import os
+import gc
 
 from concurrent.futures import ThreadPoolExecutor as Pool
 
@@ -46,22 +47,27 @@ class RucioStagerHPC(BaseStager):
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
+        # let gc clean up memory
+        gc.collect()
+
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='trigger_stage_out')
         tmpLog.debug('start')
+
         # loop over all files
         zip_datasetName = 'harvester_stage_out.{0}'.format(str(uuid.uuid4()))
         fileAttrs = jobspec.get_output_file_attributes()
 
         def _stage_one_file(fileSpec):
             isChecked = True
-            ErrMsg = 'These files failed to upload : '
+            # ErrMsg = 'These files failed to upload : '
+            ErrMsg = ''
             # fileSpec.fileAttributes['transferID'] = None  # synchronius transfer
             # skip already done
             tmpLog.debug('file: %s status: %s' % (fileSpec.lfn, fileSpec.status))
             if fileSpec.status in ['finished', 'failed']:
-                return False, ErrMsg
+                return False, 'file {0} already {1}'.format(fileSpec.lfn, fileSpec.status)
 
             fileSpec.pathConvention = self.pathConvention
             fileSpec.objstoreID = self.objstoreID
@@ -71,12 +77,12 @@ class RucioStagerHPC(BaseStager):
             elif fileSpec.fileType == 'log':
                 dstRSE = self.dstRSE_Log
             else:
-                errMsg = 'unsupported file type {0}'.format(fileSpec.fileType)
+                errMsg = '{0} unsupported file type {1}'.format(fileSpec.lfn, fileSpec.fileType)
                 tmpLog.error(errMsg)
                 return (False, errMsg)
             # skip if destination is None
             if dstRSE is None:
-                return False, ErrMsg
+                return False, 'file {0} dstRSE is None'.format(fileSpec.lfn)
 
             # get/set scope and dataset name
             if fileSpec.fileType == 'log':
@@ -135,9 +141,11 @@ class RucioStagerHPC(BaseStager):
                 process = subprocess.Popen(cmd,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.STDOUT,
+                                           close_fds=True,
                                            shell=True)
             else:
                 process = subprocess.Popen(executable,
+                                           close_fds=True,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.STDOUT)
 
@@ -170,7 +178,7 @@ class RucioStagerHPC(BaseStager):
                     # do nothing
                     tmpLog.warning('rucio returned error, will retry: stdout: %s' % stdout)
                     # do not change fileSpec.status and Harvester will retry if this function returns False
-                    return False, ErrMsg
+                    return False, 'rucio returned error'
                 else:
                     tmpLog.error('rucio upload failed with stdout: %s' % stdout)
                     ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn, stdout)
@@ -183,6 +191,8 @@ class RucioStagerHPC(BaseStager):
             fileSpec.force_update('status')
 
             tmpLog.debug('file: %s status: %s' % (fileSpec.lfn, fileSpec.status))
+
+            del process, stdout, stderr
 
             return isChecked, ErrMsg
 
@@ -203,7 +213,11 @@ class RucioStagerHPC(BaseStager):
 
     # zip output files
     def zip_output(self, jobspec):
+        # let gc clean up memory
+        gc.collect()
+
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='zip_output')
+
         return self.ssh_zip_output(jobspec, tmpLog)

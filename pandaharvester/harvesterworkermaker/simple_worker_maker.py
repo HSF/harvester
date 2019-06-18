@@ -1,6 +1,7 @@
 import random
 
 from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
@@ -18,25 +19,6 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         self.jobAttributesToUse = ['nCore', 'minRamCount', 'maxDiskCount', 'maxWalltime', 'ioIntensity']
         BaseWorkerMaker.__init__(self, **kwarg)
         self.rt_mapper = ResourceTypeMapper()
-        try:
-            self.pilotTypeRandomWeightsPermille
-        except AttributeError:
-            self.pilotTypeRandomWeightsPermille = {}
-        finally:
-            # randomize pilot type with weighting
-            weight_rc = self.pilotTypeRandomWeightsPermille.get('RC', 0)
-            weight_alrb = self.pilotTypeRandomWeightsPermille.get('ALRB', 0)
-            weight_pt = self.pilotTypeRandomWeightsPermille.get('PT', 0)
-            weight_tmp_sum = weight_rc + weight_alrb + weight_pt
-            if weight_tmp_sum > 1000:
-                weight_rc = weight_rc*1000/weight_tmp_sum
-                weight_alrb = weight_alrb*1000/weight_tmp_sum
-                weight_pt = weight_pt*1000/weight_tmp_sum
-            weight_pr = 1000 - (weight_rc + weight_alrb + weight_pt)
-            self.pilotTypeRandomList = ['PR'] * weight_pr \
-                + ['RC'] * weight_rc \
-                + ['ALRB'] * weight_alrb \
-                + ['PT'] * weight_pt
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
 
@@ -144,7 +126,14 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         else:
             # when no job
             # randomize pilot type with weighting
-            workSpec.pilotType = random.choice(self.pilotTypeRandomList)
+            pdpm = getattr(queue_config, 'prodSourceLabelRandomWeightsPermille', {})
+            choice_list = core_utils.make_choice_list(pdpm=pdpm, default='managed')
+            tmp_prodsourcelabel = random.choice(choice_list)
+            fake_job = JobSpec()
+            fake_job.jobParams = {}
+            fake_job.jobParams['prodSourceLabel'] = tmp_prodsourcelabel
+            workSpec.pilotType = fake_job.get_pilot_type()
+            del fake_job
             if workSpec.pilotType in ['RC', 'ALRB', 'PT']:
                 tmpLog.info('a worker has pilotType={0}'.format(workSpec.pilotType))
         # TODO: this needs to be improved with real resource types
