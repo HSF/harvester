@@ -1,5 +1,5 @@
 import os
-import tempfile
+import shutil
 try:
     import subprocess32 as subprocess
 except Exception:
@@ -73,6 +73,12 @@ class AnalysisAuxPreparator(PluginBase):
                         stderr = stderr.replace('\n', ' ')
                     tmpLog.debug("stdout: %s" % stdout)
                     tmpLog.debug("stderr: %s" % stderr)
+                except Exception:
+                    core_utils.dump_error_message(tmpLog)
+            elif url.startswith('/'):
+                try:
+                    shutil.copyfile(url, accPath)
+                    return_code = 0
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             else:
