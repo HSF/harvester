@@ -468,7 +468,7 @@ outCertFile =
 
 # voms
 voms =
-atlas:/atlas/Role=production
+ atlas:/atlas/Role=production
  atlas:/atlas/Role=pilot
 
 # sleep interval in sec
