@@ -473,12 +473,11 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         queueConfig.getJobCriteria = None
                     else:
                         queueConfig.getJobCriteria = tmpCriteria
-                # removal of some attributes based on mapType
+                # nullify job attributes if NoJob mapType
                 if queueConfig.mapType == WorkSpec.MT_NoJob:
                     for attName in ['nQueueLimitJob', 'nQueueLimitJobRatio',
                                     'nQueueLimitJobMax', 'nQueueLimitJobMin']:
-                        if hasattr(queueConfig, attName):
-                            delattr(queueConfig, attName)
+                        setattr(queueConfig, attName, None)
                 # heartbeat suppression
                 if queueConfig.truePilot and queueConfig.noHeartbeat == '':
                     queueConfig.noHeartbeat = 'running,transferring,finished,failed'
