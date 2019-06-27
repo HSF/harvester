@@ -294,7 +294,7 @@ def submit_bag_of_workers(data_list):
                 batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid)
                 try:
                     batch_jdl = '{0}.jdl'.format(batch_stderr[:-4])
-                except:
+                except Exception:
                     batch_jdl = None
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
