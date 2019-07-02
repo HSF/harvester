@@ -73,7 +73,7 @@ class ACTSubmitter(PluginBase):
             desc = {}
             # If we need to prefetch events, set aCT status waiting.
             # feed_events in act_messenger will fill events and release the job
-            if queueConfig.prefetchEvents:
+            if queueconfig.prefetchEvents:
                 desc['pandastatus'] = 'waiting'
                 desc['actpandastatus'] = 'waiting'
                 desc['arcjobid'] = -1 # dummy id to prevent submission
