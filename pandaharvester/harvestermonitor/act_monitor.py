@@ -83,6 +83,7 @@ class ACTMonitor(PluginBase):
                 continue
 
             actstatus = actjobs[0]['actpandastatus']
+            workspec.nativeStatus = actstatus
             newStatus = WorkSpec.ST_running
             if actstatus in ['sent', 'starting']:
                 newStatus = WorkSpec.ST_submitted
