@@ -104,8 +104,8 @@ class ACTSubmitter(PluginBase):
             else:
                 tmpLog.info("aCT batch id {0}".format(batchid))
                 workSpec.batchID = str(batchid)
-                workspec.submissionHost = self.hostname
-                workspec.nativeStatus = desc['actpandastatus']
+                workSpec.submissionHost = self.hostname
+                workSpec.nativeStatus = desc['actpandastatus']
                 # Set log files in workSpec
                 today = time.strftime('%Y-%m-%d', time.gmtime())
                 logurl = '/'.join([queueconfig.submitter.get('logBaseURL'), today, workSpec.computingSite, str(pandaid)])
