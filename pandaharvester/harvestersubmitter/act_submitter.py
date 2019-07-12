@@ -112,6 +112,7 @@ class ACTSubmitter(PluginBase):
                 workSpec.set_log_file('batch_log', '{0}.log'.format(logurl))
                 workSpec.set_log_file('stdout', '{0}.out'.format(logurl))
                 workSpec.set_log_file('stderr', '{0}.err'.format(logurl))
+                workSpec.set_log_file('jdl', '{0}.jdl'.format(logurl))
                 result = (True, '')
             retList.append(result)
 
