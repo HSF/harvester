@@ -1,6 +1,6 @@
 # Harvester
 
-Harvester is a resource-facing service between the PanDA server and collection of pilots.
+Harvester is a resource-facing service between WFMS and the collection of pilots.
 It is a lightweight stateless service running on a VObox or an edge node of HPC centers
 to provide a uniform view for various resources.
 
