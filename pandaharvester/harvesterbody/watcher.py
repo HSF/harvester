@@ -58,6 +58,7 @@ class Watcher(AgentBase):
                 logDuration = None
                 lastTimeName = None
                 logDurationName = None
+                actionsList = harvester_config.watcher.actions.split(',')
                 for logFileName in logFileNameList:
                     logFilePath = os.path.join(logDir, logFileName)
                     timeNow = datetime.datetime.utcnow()
@@ -107,7 +108,7 @@ class Watcher(AgentBase):
                     # take action
                     if doAction:
                         # email
-                        if 'email' in harvester_config.watcher.actions.split(','):
+                        if 'email' in actionsList:
                             # get pass phrase
                             toSkip = False
                             mailUser = None
@@ -147,13 +148,16 @@ class Watcher(AgentBase):
                                                 message.as_string())
                                 server.quit()
                         # kill
-                        if 'kill' in harvester_config.watcher.actions.split(','):
+                        if 'kill' in actionsList:
                             # send USR2 fist
                             mainLog.debug('sending SIGUSR2')
                             os.killpg(os.getpgrp(), signal.SIGUSR2)
                             time.sleep(60)
                             mainLog.debug('sending SIGKILL')
                             os.killpg(os.getpgrp(), signal.SIGKILL)
+                        elif 'terminate' in actionsList:
+                            mainLog.debug('sending SIGTERM')
+                            os.killpg(os.getpgrp(), signal.SIGTERM)
                     else:
                         mainLog.debug('No action needed for {0}'.format(logFileName))
         except IOError:
