@@ -735,6 +735,9 @@ keepMissed = 24
 
 [watcher]
 
+# a comma-concatenated list of file name of logs to watch (default: panda-db_proxy.log)
+logFileNameList = panda-db_proxy.log
+
 # action is taken when the last message is older than maxStalled sec. set 0 to disable the action
 maxStalled = 300
 
