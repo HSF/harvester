@@ -20,7 +20,7 @@ baseLogger = core_utils.setup_logger('gridftp_stager')
   "stager":{
         "name":"GridFtpStager",
         "module":"pandaharvester.harvesterstager.gridftp_stager",
-        "objstoreID_ES":117,
+        "objstoreID":117,
         # base path for local access to the files to be copied
         "srcOldBasePath":"/tmp/workdirs",
         # base path for access through source GridFTP server to the files to be copied
@@ -28,7 +28,7 @@ baseLogger = core_utils.setup_logger('gridftp_stager')
         # base path for destination GridFTP server
         "dstBasePath":"gsiftp://dcgftp.usatlas.bnl.gov:2811/pnfs/usatlas.bnl.gov/atlasscratchdisk/rucio",
         # max number of attempts
-        maxAttempts: 3,
+        "maxAttempts": 3,
         # options for globus-url-copy
         "gulOpts":"-verify-checksum -v"
     }

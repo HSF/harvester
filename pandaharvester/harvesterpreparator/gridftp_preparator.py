@@ -19,14 +19,14 @@ baseLogger = core_utils.setup_logger('gridftp_preparator')
     "preparator": {
         "name": "GridFtpPreparator",
         "module": "pandaharvester.harvesterpreparator.gridftp_preparator",
-        # base path for source GridFTP server 
+        # base path for source GridFTP server
         "srcBasePath": "gsiftp://dcdum02.aglt2.org/pnfs/aglt2.org/atlasdatadisk/rucio/",
         # base path for destination GridFTP server
         "dstBasePath": "gsiftp://dcgftp.usatlas.bnl.gov:2811/pnfs/usatlas.bnl.gov/atlasscratchdisk/rucio/",
         # base path for local access to the copied files
         "localBasePath": "/data/rucio",
         # max number of attempts
-        maxAttempts: 3,
+        "maxAttempts": 3,
         # options for globus-url-copy
         "gulOpts": "-cred /tmp/x509_u1234 -sync -sync-level 3 -verify-checksum -v"
     }
