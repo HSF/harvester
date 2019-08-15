@@ -753,7 +753,7 @@ checkInterval = 180
 # sleep interval in sec
 sleepTime = 60
 
-# a comma-concatenated list of actions (email: to send alarms, kill: to be killed). or empty if no action
+# a comma-concatenated list of actions (email: to send alarms, kill: to kill forcefully, terminate: to kill with SIGTERM). or empty if no action
 actions =
 
 # name of env variable to keep pass-phrase

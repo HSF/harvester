@@ -41,6 +41,7 @@ class GridFtpStager(BaseStager):
         self.objstoreID = None
         self.gulOpts = None
         self.maxAttempts = 3
+        self.timeout = None
         BaseStager.__init__(self, **kwarg)
 
     # check status
@@ -88,13 +89,22 @@ class GridFtpStager(BaseStager):
         if self.gulOpts is not None:
             args += self.gulOpts.split()
         try:
-            tmpLog.debug('execute globus-url-copy' + ' '.join(args))
+            tmpLog.debug('execute: ' + ' '.join(args))
             p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = p.communicate()
+            try:
+                stdout, stderr = p.communicate(timeout=self.timeout)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                stdout, stderr = p.communicate()
+                tmpLog.warning('command timeout')
             return_code = p.returncode
             if stdout is not None:
+                if not isinstance(stdout, str):
+                    stdout = stdout.decode()
                 stdout = stdout.replace('\n', ' ')
             if stderr is not None:
+                if not isinstance(stderr, str):
+                    stderr = stderr.decode()
                 stderr = stderr.replace('\n', ' ')
             tmpLog.debug("stdout: %s" % stdout)
             tmpLog.debug("stderr: %s" % stderr)
