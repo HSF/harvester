@@ -47,7 +47,10 @@ def update_object(old_obj, new_obj):
             except KeyError:
                 pass
             else:
-                if is_mutable(old_obj.__dict__[k]):
+                if k in ['isNew', 'new_status']:
+                    # skip attributes omitted in workspec pickling
+                    pass
+                elif is_mutable(old_obj.__dict__[k]):
                     update_object(old_obj.__dict__[k], new_obj.__dict__[k])
                 else:
                     old_obj.__dict__[k] = new_obj.__dict__[k]
