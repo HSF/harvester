@@ -10,6 +10,7 @@ import zlib
 import uuid
 import math
 import fcntl
+import codecs
 import base64
 import random
 import inspect
@@ -27,6 +28,11 @@ try:
     from threading import get_ident
 except ImportError:
     from thread import get_ident
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from .work_spec import WorkSpec
 from .file_spec import FileSpec
@@ -621,3 +627,13 @@ def make_choice_list(pdpm={}, default=None):
         weight_defualt -= real_weight
     ret_list.extend([default]*weight_defualt)
     return ret_list
+
+
+# pickle to text
+def pickle_to_text(data):
+    return codecs.encode(pickle.dumps(data), 'base64').decode()
+
+
+# unpickle from text
+def unpickle_from_text(text):
+    return pickle.loads(codecs.decode(text.encode(), 'base64'))

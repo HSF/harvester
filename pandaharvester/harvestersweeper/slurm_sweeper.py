@@ -2,7 +2,7 @@ import os
 import shutil
 try:
     import subprocess32 as subprocess
-except:
+except ImportError:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
