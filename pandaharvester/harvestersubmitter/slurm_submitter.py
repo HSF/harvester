@@ -22,10 +22,6 @@ class SlurmSubmitter(PluginBase):
         self.uploadLog = False
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
-        # template for batch script
-        tmpFile = open(self.templateFile)
-        self.template = tmpFile.read()
-        tmpFile.close()
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -77,6 +73,11 @@ class SlurmSubmitter(PluginBase):
 
     # make batch script
     def make_batch_script(self, workspec):
+        # template for batch script
+        tmpFile = open(self.templateFile)
+        self.template = tmpFile.read()
+        tmpFile.close()
+        del tmpFile
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(six.b(self.template.format(nCorePerNode=self.nCorePerNode,
                                            nNode=workspec.nCore // self.nCorePerNode,
