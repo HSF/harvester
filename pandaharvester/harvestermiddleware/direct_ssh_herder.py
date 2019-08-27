@@ -1,10 +1,7 @@
 import json
 import types
 
-try:
-    import cPickle as pickle
-except Exception:
-    import pickle
+import six
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
@@ -12,6 +9,51 @@ from .ssh_master_pool import sshMasterPool
 
 # logger
 _logger = core_utils.setup_logger('direct_ssh_herder')
+
+
+# is mutable object to handle
+def is_mutable(obj):
+    return isinstance(obj, (list, dict)) or hasattr(obj, '__dict__')
+
+
+# update changes recursively of an object from a new object
+def update_object(old_obj, new_obj):
+    if isinstance(old_obj, list):
+        for i in range(len(old_obj)):
+            try:
+                new_obj[i]
+            except IndexError:
+                pass
+            else:
+                if is_mutable(old_obj[i]):
+                    update_object(old_obj[i], new_obj[i])
+                else:
+                    old_obj[i] = new_obj[i]
+    elif isinstance(old_obj, dict):
+        for k in old_obj:
+            try:
+                new_obj[k]
+            except KeyError:
+                pass
+            else:
+                if is_mutable(old_obj[k]):
+                    update_object(old_obj[k], new_obj[k])
+                else:
+                    old_obj[k] = new_obj[k]
+    elif hasattr(old_obj, '__dict__'):
+        for k in old_obj.__dict__:
+            try:
+                new_obj.__dict__[k]
+            except KeyError:
+                pass
+            else:
+                if k in ['isNew', 'new_status']:
+                    # skip attributes omitted in workspec pickling
+                    pass
+                elif is_mutable(old_obj.__dict__[k]):
+                    update_object(old_obj.__dict__[k], new_obj.__dict__[k])
+                else:
+                    old_obj.__dict__[k] = new_obj.__dict__[k]
 
 
 # function class
@@ -32,39 +74,25 @@ class Method(object):
             return None
         params = {'plugin_config': self.plugin_config,
                   'function_name': self.function_name,
-                  'args': pickle.dumps(args),
-                  'kwargs': pickle.dumps(kwargs)}
-        stdout, stderr = self.conn.communicate(input=json.dumps(params))
+                  'args': core_utils.pickle_to_text(args),
+                  'kwargs': core_utils.pickle_to_text(kwargs)}
+        stdout, stderr = self.conn.communicate(input=six.b(json.dumps(params)))
         if self.conn.returncode == 0:
             return_dict = json.loads(stdout)
             if 'exception' in return_dict:
-                errMsg = pickle.loads(str(return_dict['dialog']))
+                errMsg = core_utils.unpickle_from_text(str(return_dict['dialog']))
                 tmpLog.error('Exception from remote : ' + errMsg)
-                raise pickle.loads(str(return_dict['exception']))
+                raise core_utils.unpickle_from_text(str(return_dict['exception']))
             # propagate changes in mutable args
-            new_args = pickle.loads(str(return_dict['args']))
+            new_args = core_utils.unpickle_from_text(str(return_dict['args']))
             for old_arg, new_arg in zip(args, new_args):
-                if isinstance(old_arg, types.ListType):
-                    del old_arg[:]
-                    old_arg += new_arg
-                elif isinstance(old_arg, types.DictionaryType):
-                    old_arg.clear()
-                    old_arg.update(new_arg)
-                elif hasattr(old_arg, '__dict__'):
-                    old_arg.__dict__ = new_arg.__dict__
-            new_kwargs = pickle.loads(str(return_dict['kwargs']))
+                update_object(old_arg, new_arg)
+            new_kwargs = core_utils.unpickle_from_text(str(return_dict['kwargs']))
             for key in kwargs:
                 old_kwarg = kwargs[key]
                 new_kwarg = new_kwargs[key]
-                if isinstance(old_kwarg, types.ListType):
-                    del old_kwarg[:]
-                    old_kwarg += new_kwarg
-                elif isinstance(old_kwarg, types.DictionaryType):
-                    old_kwarg.clear()
-                    old_kwarg.update(new_kwarg)
-                elif hasattr(old_kwarg, '__dict__'):
-                    old_kwarg.__dict__ = new_kwarg.__dict__
-            return pickle.loads(str(return_dict['return']))
+                update_object(old_kwarg, new_kwarg)
+            return core_utils.unpickle_from_text(str(return_dict['return']))
         else:
             tmpLog.error('execution failed with {0}; method={1} returns None'.format(self.conn.returncode,
                                                                                      self.function_name))
