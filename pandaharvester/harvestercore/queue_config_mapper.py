@@ -82,7 +82,7 @@ class QueueConfig(object):
 
     # set unique name
     def set_unique_name(self):
-        self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType)
+        self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType, self.prodSourceLabel)
 
     # update attributes
     def update_attributes(self, data):

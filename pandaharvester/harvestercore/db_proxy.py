@@ -3698,7 +3698,7 @@ class DBProxy(object):
                     elif attribute == 'nNewWorkers':
                         var_map[attr_binding] = new_workers
                     elif attribute == 'uniqueName':
-                        var_map[attr_binding] = core_utils.get_unique_queue_name(queue_name, resource_type)
+                        var_map[attr_binding] = core_utils.get_unique_queue_name(queue_name, resource_type, job_type)
                     else:
                         var_map[attr_binding] = value
                     attribute_list.append(attribute)
