@@ -56,6 +56,7 @@ class QueueConfig(object):
         self.noHeartbeat = ''
         self.runMode = 'self'
         self.resourceType = PandaQueueSpec.RT_catchall
+        self.jobType = PandaQueueSpec.JT_catchall
         self.getJobCriteria = None
         self.ddmEndpointIn = None
         self.allowJobMixture = False
