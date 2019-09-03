@@ -18,7 +18,7 @@ class WorkerMaker(object):
         return self.pluginFactory.get_plugin(queue_config.workerMaker)
 
     # make workers
-    def make_workers(self, jobchunk_list, queue_config, n_ready, resource_type, maker=None):
+    def make_workers(self, jobchunk_list, queue_config, n_ready, job_type, resource_type, maker=None):
         tmpLog = core_utils.make_logger(_logger, 'queue={0} rtype={1}'.format(queue_config.queueName, resource_type),
                                         method_name='make_workers')
         tmpLog.debug('start')
@@ -38,7 +38,7 @@ class WorkerMaker(object):
             for iChunk, jobChunk in enumerate(jobchunk_list):
                 # make a worker
                 if iChunk >= n_ready:
-                    workSpec = maker.make_worker(jobChunk, queue_config, resource_type)
+                    workSpec = maker.make_worker(jobChunk, queue_config, job_type, resource_type)
                 else:
                     # use ready worker
                     if iChunk < len(readyWorkers):
