@@ -169,9 +169,9 @@ class WorkerAdjuster(object):
                                 n_new_workers = min(n_new_workers, max(max_workers - n_queue - n_ready - n_running, 0))
                                 tmp_log.debug('setting n_new_workers to {0} to respect max_workers'
                                               .format(n_new_workers))
-                        if queue_config.max_new_workers_per_cycle > 0:
-                            n_new_workers = min(n_new_workers, queue_config.max_new_workers_per_cycle)
-                            tmp_log.debug('setting n_new_workers to {0} in order to respect max_new_workers_per_cycle'
+                        if queue_config.maxNewWorkersPerCycle > 0:
+                            n_new_workers = min(n_new_workers, queue_config.maxNewWorkersPerCycle)
+                            tmp_log.debug('setting n_new_workers to {0} in order to respect maxNewWorkersPerCycle'
                                           .format(n_new_workers))
                         if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
                             n_new_workers = min(n_new_workers, self.maxNewWorkers)
@@ -185,7 +185,7 @@ class WorkerAdjuster(object):
                     ret_msg = 'set max_new_workers_per_cycle=0 in UCORE aggregation due to missing queue_config'
                     tmp_log.debug(ret_msg)
                 else:
-                    max_new_workers_per_cycle = queue_config.max_new_workers_per_cycle
+                    max_new_workers_per_cycle = queue_config.maxNewWorkersPerCycle
                 if len(dyn_num_workers[queue_name]) > 1:
                     total_new_workers_rts = sum(dyn_num_workers[queue_name][_rt]['n_new_workers']
                                                 if _rt != 'ANY' else 0
