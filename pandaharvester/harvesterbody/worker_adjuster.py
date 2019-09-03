@@ -177,7 +177,7 @@ class WorkerAdjuster(object):
                             n_new_workers = min(n_new_workers, self.maxNewWorkers)
                             tmp_log.debug('setting n_new_workers to {0} in order to respect universal maxNewWorkers'
                                           .format(n_new_workers))
-                        dyn_num_workers[queue_name][job_type][resource_type]['n_new_workers'] = n_new_workers
+                        dyn_num_workers[queue_name][job_type][resource_type]['nNewWorkers'] = n_new_workers
 
                 # adjust n_new_workers for UCORE to let aggregations over RT respect nQueueLimitWorker and max_workers
                 if queue_config is None:
@@ -187,7 +187,7 @@ class WorkerAdjuster(object):
                 else:
                     max_new_workers_per_cycle = queue_config.maxNewWorkersPerCycle
                 if len(dyn_num_workers[queue_name]) > 1:
-                    total_new_workers_rts = sum(dyn_num_workers[queue_name][_rt]['n_new_workers']
+                    total_new_workers_rts = sum(dyn_num_workers[queue_name][_rt]['nNewWorkers']
                                                 if _rt != 'ANY' else 0
                                                 for _rt in dyn_num_workers[queue_name])
                     n_new_workers_max_agg = min(max(n_queue_limit - n_queue_total, 0),
@@ -213,7 +213,7 @@ class WorkerAdjuster(object):
                             simple_rt_nw_list = []
                             for _jt in _d: # jt: job type
                                 for _rt in _d[_jt]: # rt: resource type
-                                    simple_rt_nw_list.append = [_d[_jt][_rt].get('n_new_workers', 0), 0]
+                                    simple_rt_nw_list.append = [_d[_jt][_rt].get('nNewWorkers', 0), 0]
 
                             _countdown = n_new_workers_max_agg
                             for _rt_list in simple_rt_nw_list:
