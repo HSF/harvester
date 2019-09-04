@@ -83,8 +83,9 @@ class ACTMonitor(PluginBase):
                 continue
 
             actstatus = actjobs[0]['actpandastatus']
+            workSpec.nativeStatus = actstatus
             newStatus = WorkSpec.ST_running
-            if actstatus in ['sent', 'starting']:
+            if actstatus in ['waiting', 'sent', 'starting']:
                 newStatus = WorkSpec.ST_submitted
             elif actstatus == 'done':
                 newStatus = self.check_pilot_status(workSpec, tmpLog)

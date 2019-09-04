@@ -17,7 +17,7 @@ class RseDirectPreparator(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_in_status(self, jobspec):
         return True, ''
 
     # trigger preparation

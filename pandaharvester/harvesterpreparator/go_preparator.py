@@ -56,10 +56,10 @@ class GoPreparator(PluginBase):
         tmpLog.debug('__init__ finished')
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_in_status(self, jobspec):
         # get logger
         tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='check_status')
+                                  method_name='check_stage_in_status')
         # get groups of input files except ones already in ready state
         transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
         #print type(transferGroups)," ",transferGroups

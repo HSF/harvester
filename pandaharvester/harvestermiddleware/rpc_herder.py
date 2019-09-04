@@ -26,7 +26,8 @@ class RpcHerder(PluginBase):
             if self.bareFunctions is not None and func.__name__ in self.bareFunctions:
                 return getattr(self.bare_impl, func.__name__)(*args, **kwargs)
             elif self.is_connected:
-                return func(self, *args, **kwargs)
+                retVal = func(self, *args, **kwargs)
+                return rpyc.utils.classic.obtain(retVal)
             else:
                 tmpLog = core_utils.make_logger(_logger, method_name=func.__name__)
                 tmpLog.warning('instance not alive; method {0} returns None'.format(func.__name__))
@@ -333,10 +334,24 @@ class RpcHerder(PluginBase):
             tmpLog.debug('done')
         return ret
 
+    # clean up
+    @require_alive
+    def clean_up(self, workspec):
+        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID), method_name='clean_up')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.clean_up(self.original_config, workspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
     ######################
     # stager section
 
-    # check status
+    # check stage out status
     @require_alive
     def check_stage_out_status(self, jobspec):
         tmpLog = core_utils.make_logger(_logger, method_name='check_stage_out_status')
@@ -371,6 +386,51 @@ class RpcHerder(PluginBase):
         tmpLog.debug('start')
         try:
             ret = self.conn.root.zip_output(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    ######################
+    # preparator section
+
+    # check stage in status
+    @require_alive
+    def check_stage_in_status(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='check_stage_in_status')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.check_stage_in_status(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    # trigger preparation
+    @require_alive
+    def trigger_preparation(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='trigger_preparation')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.trigger_preparation(self.original_config, jobspec)
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+            ret = None
+        else:
+            tmpLog.debug('done')
+        return ret
+
+    # resolve input file paths
+    @require_alive
+    def resolve_input_paths(self, jobspec):
+        tmpLog = core_utils.make_logger(_logger, method_name='resolve_input_paths')
+        tmpLog.debug('start')
+        try:
+            ret = self.conn.root.resolve_input_paths(self.original_config, jobspec)
         except Exception:
             core_utils.dump_error_message(tmpLog)
             ret = None

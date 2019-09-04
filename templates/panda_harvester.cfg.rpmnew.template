@@ -282,6 +282,12 @@ maxJobsToCheck = 100
 # max number of jobs to trigger in one cycle
 maxJobsToTrigger = 100
 
+# max number of files per job to check in one cycle : 0 to be unlimited
+maxFilesPerJobToCheck = 0
+
+# max number of files per job to prepare in one cycle : 0 to be unlimited
+maxFilesPerJobToPrepare = 0
+
 # lock interval in sec
 lockInterval = 600
 
@@ -402,6 +408,7 @@ eventBasedEnable = False
 #      "submissionHost_list": [
 #          "aipanda023.cern.ch,aipanda023.cern.ch:19618",
 #          "aipanda024.cern.ch,aipanda024.cern.ch:19618",
+#          "aipanda156.cern.ch,aipanda156.cern.ch:19618",
 #          "aipanda183.cern.ch,aipanda183.cern.ch:19618",
 #          "aipanda184.cern.ch,aipanda184.cern.ch:19618"
 #        ]
@@ -462,7 +469,7 @@ outCertFile =
 
 # voms
 voms =
-atlas:/atlas/Role=production
+ atlas:/atlas/Role=production
  atlas:/atlas/Role=pilot
 
 # sleep interval in sec
@@ -488,17 +495,20 @@ maxJobsToCheck = 100
 # max number of jobs to trigger in one cycle
 maxJobsToTrigger = 100
 
-# max number of jobs to zip in one cycle
+# max number of jobs to zip in one cycle : OBSOLETE, should be set in [zipper]
 maxJobsToZip = 100
 
 # max number of files per job to check in one cycle : 0 to be unlimited
 maxFilesPerJobToCheck = 0
 
-# max number of files per job to transfer in one cycle : 0 to be unlimited
-maxFilesPerJobToTransfer = 0
+# max number of files per job to trigger stage-out in one cycle : 0 to be unlimited
+maxFilesPerJobToTrigger = 0
 
-# max number of files per job to zip in one cycle : 0 to be unlimited
+# max number of files per job to zip in one cycle : 0 to be unlimited : OBSOLETE, should be set in [zipper]
 maxFilesPerJobToZip = 0
+
+# use two staged zipping : OBSOLETE, should be set in [zipper]
+usePostZipping = False
 
 # lock interval in sec
 lockInterval = 600
@@ -509,14 +519,43 @@ checkInterval = 180
 # trigger interval in sec
 triggerInterval = 180
 
+# zip interval in sec : OBSOLETE, should be set in [zipper]
+zipInterval = 180
+
+# number of threads for zip making : OBSOLETE, should be set in [zipper]
+nThreadsForZip = 4
+
+# sleep interval in sec
+sleepTime = 60
+
+
+
+
+
+##########################
+#
+# Zipper parameters
+#
+
+[zipper]
+
+# max number of jobs to zip in one cycle
+maxJobsToZip = 100
+
+# max number of files per job to zip in one cycle : 0 to be unlimited
+maxFilesPerJobToZip = 0
+
+# use two staged zipping
+usePostZipping = False
+
+# lock interval in sec
+lockInterval = 600
+
 # zip interval in sec
 zipInterval = 180
 
 # number of threads for zip making
 nThreadsForZip = 4
-
-# sleep interval in sec
-sleepTime = 60
 
 
 
@@ -696,6 +735,9 @@ keepMissed = 24
 
 [watcher]
 
+# a comma-concatenated list of file name of logs to watch (default: panda-db_proxy.log)
+logFileNameList = panda-db_proxy.log
+
 # action is taken when the last message is older than maxStalled sec. set 0 to disable the action
 maxStalled = 300
 
@@ -711,7 +753,7 @@ checkInterval = 180
 # sleep interval in sec
 sleepTime = 60
 
-# a comma-concatenated list of actions (email: to send alarms, kill: to be killed). or empty if no action
+# a comma-concatenated list of actions (email: to send alarms, kill: to kill forcefully, terminate: to kill with SIGTERM). or empty if no action
 actions =
 
 # name of env variable to keep pass-phrase

@@ -37,7 +37,6 @@ class RpcBot(rpyc.Service):
     def on_connect(self, conn):
         self.pluginFactory = PluginFactory(no_db=True)
 
-
     ######################
     # submitter section
 
@@ -46,7 +45,6 @@ class RpcBot(rpyc.Service):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.submit_workers(workspec_list)
 
-
     ######################
     # monitor section
 
@@ -54,7 +52,6 @@ class RpcBot(rpyc.Service):
     def exposed_check_workers(self, plugin_config, workspec_list):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.check_workers(workspec_list)
-
 
     ######################
     # sweeper section
@@ -73,7 +70,6 @@ class RpcBot(rpyc.Service):
     def exposed_sweep_worker(self, plugin_config, workspec):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.sweep_worker(workspec)
-
 
     ######################
     # messenger section
@@ -143,6 +139,11 @@ class RpcBot(rpyc.Service):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.acknowledge_events_files(workspec)
 
+    # clean up
+    def exposed_clean_up(self, plugin_config, workspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.clean_up(workspec)
+
     ######################
     # stager section
 
@@ -160,6 +161,25 @@ class RpcBot(rpyc.Service):
     def exposed_zip_output(self, plugin_config, jobspec):
         core = self.pluginFactory.get_plugin(plugin_config)
         return core.zip_output(jobspec)
+
+    ######################
+    # preparator section
+
+    # check stage in status
+    def exposed_check_stage_in_status(self, plugin_config, jobspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.check_stage_in_status(jobspec)
+
+    # trigger preparation
+    def exposed_trigger_preparation(self, plugin_config, jobspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.trigger_preparation(jobspec)
+
+    # resolve input file paths
+    def exposed_resolve_input_paths(self, plugin_config, jobspec):
+        core = self.pluginFactory.get_plugin(plugin_config)
+        return core.resolve_input_paths(jobspec)
+
 
 # main body
 def main():

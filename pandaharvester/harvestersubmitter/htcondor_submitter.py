@@ -191,15 +191,26 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False, pilot_ve
     return ret
 
 
-# Map pilotType to prodSourceLabel
-def _get_prod_source_label(pilot_type):
-    pt_psl_map = {
-        'RC': 'rc_test',
-        'ALRB': 'rc_alrb',
-        'PT': 'ptest',
-    }
-    prod_source_label = pt_psl_map.get(pilot_type, None)
-    return prod_source_label
+# Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
+# and piloturl (pilot option --piloturl)
+# Depending on pilot version 1 or 2
+def _get_prodsourcelabel_pilotypeopt_piloturlstr(pilot_type, pilot_version='1'):
+    if pilot_version == '2':
+        # pilot 2
+        pt_psl_map = {
+            'RC': ('rc_test2', 'RC', '--piloturl http://project-atlas-gmsb.web.cern.ch/project-atlas-gmsb/pilot2-dev.tar.gz'),
+            'ALRB': ('rc_alrb', 'ALRB', ''),
+            'PT': ('ptest', 'PR', ''),
+        }
+    else:
+        # pilot 1, need not piloturl since wrapper covers it
+        pt_psl_map = {
+            'RC': ('rc_test', 'RC', ''),
+            'ALRB': ('rc_alrb', 'ALRB', ''),
+            'PT': ('ptest', 'PR', ''),
+        }
+    pilot_opt_tuple = pt_psl_map.get(pilot_type, None)
+    return pilot_opt_tuple
 
 
 # submit a bag of workers
@@ -279,9 +290,14 @@ def submit_bag_of_workers(data_list):
                 batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid)
                 batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid)
                 batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid)
+                try:
+                    batch_jdl = '{0}.jdl'.format(batch_stderr[:-4])
+                except Exception:
+                    batch_jdl = None
                 workspec.set_log_file('batch_log', batch_log)
                 workspec.set_log_file('stdout', batch_stdout)
                 workspec.set_log_file('stderr', batch_stderr)
+                workspec.set_log_file('jdl', batch_jdl)
                 if not workspec.get_jobspec_list():
                     tmpLog.debug('No jobspec associated in the worker of workerID={0}'.format(workspec.workerID))
                 else:
@@ -344,9 +360,13 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
     # decide prodSourceLabel
-    prod_source_label = _get_prod_source_label(workspec.pilotType)
-    if prod_source_label is None:
+    pilot_opt_tuple = _get_prodsourcelabel_pilotypeopt_piloturlstr(workspec.pilotType, pilot_version)
+    if pilot_opt_tuple is None:
         prod_source_label = harvester_queue_config.get_source_label()
+        pilot_type_opt = workspec.pilotType
+        pilot_url_str = ''
+    else:
+        prod_source_label, pilot_type_opt, pilot_url_str = pilot_opt_tuple
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
     # fill in template string
@@ -382,7 +402,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
         pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True, pilot_version),
         ioIntensity=io_intensity,
-        pilotType=workspec.pilotType,
+        pilotType=pilot_type_opt,
+        pilotUrlOption=pilot_url_str,
         )
     # save jdl to submit description file
     tmpFile.write(jdl_str)

@@ -161,7 +161,7 @@ if __name__ == "__main__":
     # heartbeat_thread.start()
 
     # the pilot should propagate the download link via the pilotId field in the job table
-    destination_name = '{0}.log'.format(worker_id)
+    destination_name = '{0}.out'.format(worker_id)
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
     os.environ['GTAG'] = log_download_url # GTAG env variable is read by pilot
 

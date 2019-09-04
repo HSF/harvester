@@ -1,7 +1,11 @@
 import tempfile
+import re
+
+import six
+
 try:
     import subprocess32 as subprocess
-except:
+except ImportError:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
@@ -18,10 +22,6 @@ class SlurmSubmitter(PluginBase):
         self.uploadLog = False
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
-        # template for batch script
-        tmpFile = open(self.templateFile)
-        self.template = tmpFile.read()
-        tmpFile.close()
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -49,7 +49,7 @@ class SlurmSubmitter(PluginBase):
             tmpLog.debug('retCode={0}'.format(retCode))
             if retCode == 0:
                 # extract batchID
-                workSpec.batchID = stdOut.split()[-1]
+                workSpec.batchID = re.search('[^0-9]*([0-9]+)[^0-9]*', '{0}'.format(stdOut)).group(1)
                 tmpLog.debug('batchID={0}'.format(workSpec.batchID))
                 # set log files
                 if self.uploadLog:
@@ -65,7 +65,7 @@ class SlurmSubmitter(PluginBase):
                 tmpRetVal = (True, '')
             else:
                 # failed
-                errStr = stdOut + ' ' + stdErr
+                errStr = '{0} {1}'.format(stdOut, stdErr)
                 tmpLog.error(errStr)
                 tmpRetVal = (False, errStr)
             retList.append(tmpRetVal)
@@ -73,11 +73,16 @@ class SlurmSubmitter(PluginBase):
 
     # make batch script
     def make_batch_script(self, workspec):
+        # template for batch script
+        tmpFile = open(self.templateFile)
+        self.template = tmpFile.read()
+        tmpFile.close()
+        del tmpFile
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
-        tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
-                                           nNode=workspec.nCore / self.nCorePerNode,
+        tmpFile.write(six.b(self.template.format(nCorePerNode=self.nCorePerNode,
+                                           nNode=workspec.nCore // self.nCorePerNode,
                                            accessPoint=workspec.accessPoint,
-                                           workerID=workspec.workerID)
+                                           workerID=workspec.workerID))
                       )
         tmpFile.close()
         return tmpFile.name

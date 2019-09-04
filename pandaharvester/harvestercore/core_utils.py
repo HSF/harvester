@@ -10,6 +10,7 @@ import zlib
 import uuid
 import math
 import fcntl
+import codecs
 import base64
 import random
 import inspect
@@ -27,6 +28,11 @@ try:
     from threading import get_ident
 except ImportError:
     from thread import get_ident
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from .work_spec import WorkSpec
 from .file_spec import FileSpec
@@ -124,7 +130,7 @@ class SingletonWithThreadAndID(type):
     def __init__(cls, *args,**kwargs):
         cls.__instance = {}
         super(SingletonWithThreadAndID, cls).__init__(*args, **kwargs)
-        
+
     @synchronize
     def __call__(cls, *args, **kwargs):
         thread_id = get_ident()
@@ -605,3 +611,29 @@ class DictTupleHybrid(tuple):
 
     def _asdict(self):
         return dict(zip(self.attributes, self))
+
+
+# Make a list of choice candidates accroding to permille weight
+def make_choice_list(pdpm={}, default=None):
+    weight_sum = sum(pdpm.values())
+    weight_defualt = 1000
+    ret_list = []
+    for candidate, weight in iteritems(pdpm):
+        if weight_sum > 1000:
+            real_weight = int(weight * 1000 / weight_sum)
+        else:
+            real_weight = int(weight)
+        ret_list.extend([candidate]*real_weight)
+        weight_defualt -= real_weight
+    ret_list.extend([default]*weight_defualt)
+    return ret_list
+
+
+# pickle to text
+def pickle_to_text(data):
+    return codecs.encode(pickle.dumps(data), 'base64').decode()
+
+
+# unpickle from text
+def unpickle_from_text(text):
+    return pickle.loads(codecs.decode(text.encode(), 'base64'))

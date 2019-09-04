@@ -297,11 +297,13 @@ class Apfmon(object):
                     if work_attribs:
                         if 'stdOut' in work_attribs:
                             stdout_url = work_attribs['stdOut']
-                            jdl_url = '{0}.jdl'.format(stdout_url[:-4])
+                            # jdl_url = '{0}.jdl'.format(stdout_url[:-4])
                         if 'stdErr' in work_attribs:
                             stderr_url = work_attribs['stdErr']
                         if 'batchLog' in work_attribs:
                             log_url = work_attribs['batchLog']
+                        if 'jdl' in work_attribs:
+                            jdl_url = work_attribs['jdl']
 
                     apfmon_worker = {'cid': batch_id,
                                      'factory': factory,

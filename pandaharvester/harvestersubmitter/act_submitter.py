@@ -1,5 +1,6 @@
 import arc
 import json
+import socket
 import time
 import urllib
 
@@ -21,6 +22,7 @@ class ACTSubmitter(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
+        self.hostname = socket.getfqdn()
         # Set up aCT DB connection
         self.log = core_utils.make_logger(baseLogger, 'aCT submitter', method_name='__init__')
         self.actDB = aCTDBPanda(self.log)
@@ -69,8 +71,15 @@ class ACTSubmitter(PluginBase):
                 tmpLog.debug("JobSpec: {0}".format(jobSpec.values_map()))
 
             desc = {}
-            desc['pandastatus'] = 'sent'
-            desc['actpandastatus'] = 'sent'
+            # If we need to prefetch events, set aCT status waiting.
+            # feed_events in act_messenger will fill events and release the job
+            if queueconfig.prefetchEvents:
+                desc['pandastatus'] = 'waiting'
+                desc['actpandastatus'] = 'waiting'
+                desc['arcjobid'] = -1 # dummy id to prevent submission
+            else:
+                desc['pandastatus'] = 'sent'
+                desc['actpandastatus'] = 'sent'
             desc['siteName'] = workSpec.computingSite
             desc['proxyid'] = self.proxymap['pilot' if prodSourceLabel == 'user' else 'production']
             desc['sendhb'] = 0
@@ -95,12 +104,15 @@ class ACTSubmitter(PluginBase):
             else:
                 tmpLog.info("aCT batch id {0}".format(batchid))
                 workSpec.batchID = str(batchid)
+                workSpec.submissionHost = self.hostname
+                workSpec.nativeStatus = desc['actpandastatus']
                 # Set log files in workSpec
                 today = time.strftime('%Y-%m-%d', time.gmtime())
                 logurl = '/'.join([queueconfig.submitter.get('logBaseURL'), today, workSpec.computingSite, str(pandaid)])
                 workSpec.set_log_file('batch_log', '{0}.log'.format(logurl))
                 workSpec.set_log_file('stdout', '{0}.out'.format(logurl))
                 workSpec.set_log_file('stderr', '{0}.err'.format(logurl))
+                workSpec.set_log_file('jdl', '{0}.jdl'.format(logurl))
                 result = (True, '')
             retList.append(result)
 

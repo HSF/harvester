@@ -57,7 +57,7 @@ class DummyPreparator(PluginBase):
         return True, ''
 
     # check status
-    def check_status(self, jobspec):
+    def check_stage_in_status(self, jobspec):
         """Check status of the stage-in procedure.
         If the return code of this method is True, the job goes to the next step. If it is False,
         preparator immediately gives up the job. If it is None, the job is retried later.
@@ -93,10 +93,10 @@ class DummyPreparator(PluginBase):
         """
         # Here is an example to set file paths
         # -- get input files
-        # inFiles = jobspec.get_input_file_attributes()
+        inFiles = jobspec.get_input_file_attributes()
         # -- set path to each file
-        # for inLFN, inFile in iteritems(inFiles):
-        #     inFile['path'] = 'dummypath/{0}'.format(inLFN)
+        for inLFN, inFile in iteritems(inFiles):
+            inFile['path'] = 'dummypath/{0}'.format(inLFN)
         # -- set
-        # jobspec.set_input_file_paths(inFiles)
+        jobspec.set_input_file_paths(inFiles)
         return True, ''

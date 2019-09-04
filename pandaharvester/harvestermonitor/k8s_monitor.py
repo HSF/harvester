@@ -53,7 +53,9 @@ class K8sMonitor(PluginBase):
         else:
             if all(item == 'Pending' for item in pods_status_list):
                 newStatus = WorkSpec.ST_submitted
-            elif all(item == 'Succeeded' for item in pods_status_list):
+            # elif all(item == 'Succeeded' for item in pods_status_list):
+            #    newStatus = WorkSpec.ST_finished
+            elif 'Succeeded' in pods_status_list:
                 newStatus = WorkSpec.ST_finished
             elif 'Running' in pods_status_list:
                 newStatus = WorkSpec.ST_running
