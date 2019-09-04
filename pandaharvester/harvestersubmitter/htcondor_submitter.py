@@ -7,7 +7,7 @@ import random
 
 from concurrent.futures import ThreadPoolExecutor
 import re
-from math import sqrt, log1p
+from math import log1p
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -227,8 +227,6 @@ def submit_bag_of_workers(data_list):
             worker_retval_map[workerID] = (tmpRetVal, workspec.get_changed_attributes())
         # attributes
         try:
-            ce_info_dict = data['ce_info_dict']
-            batch_log_dict = data['batch_log_dict']
             use_spool = data['use_spool']
         except KeyError:
             errStr = '{0} not submitted due to incomplete data of the worker'.format(workerID)
@@ -591,8 +589,6 @@ class HTCondorSubmitter(PluginBase):
             else:
                 tmpLog.error('No valid CE endpoint found')
                 to_submit_any = False
-
-
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
