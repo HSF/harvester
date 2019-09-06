@@ -43,7 +43,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
                             for _ce in worker_ce_backend_throughput_dict))
     thruput_avg = (log1p(Q_good_init) - log1p(Q_good_fin))
     n_new_workers = float(n_new_workers)
-    def _get_thruput(_ce_endpoint):
+
+    def _get_thruput(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_backend_throughput_dict:
             q_good_init = 0.
             q_good_fin = 0.
@@ -54,7 +55,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
                                     for _st in ('submitted',)))
         thruput = (log1p(q_good_init) - log1p(q_good_fin))
         return thruput
-    def _get_thruput_adj_ratio(thruput):
+
+    def _get_thruput_adj_ratio(thruput):  # inner function
         try:
             thruput_adj_ratio = thruput/thruput_avg + 1/N
         except ZeroDivisionError:
@@ -65,7 +67,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
         return thruput_adj_ratio
     ce_base_weight_sum = sum((_get_thruput_adj_ratio(_get_thruput(_ce))
                                 for _ce in ce_endpoint_list))
-    def _get_init_weight(_ce_endpoint):
+
+    def _get_init_weight(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_stats_dict:
             q = 0.
             r = 0.
@@ -454,11 +457,16 @@ class HTCondorSubmitter(PluginBase):
             self.logDir
         except AttributeError:
             self.logDir = os.getenv('TMPDIR') or '/tmp'
-        # x509 proxy
+        # Default x509 proxy for a queue
         try:
             self.x509UserProxy
         except AttributeError:
             self.x509UserProxy = os.getenv('X509_USER_PROXY')
+        # x509 proxy for analysis jobs in grandly unified queues
+        try:
+            self.x509UserProxyAnalysis
+        except AttributeError:
+            self.x509UserProxyAnalysis = os.getenv('X509_USER_PROXY_ANAL')
         # ATLAS AGIS
         try:
             self.useAtlasAGIS = bool(self.useAtlasAGIS)
@@ -732,6 +740,10 @@ class HTCondorSubmitter(PluginBase):
                         batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
                         tmpLog.debug('Done set_log_file before submission')
                     tmpLog.debug('Done jobspec attribute setting')
+
+                # choose the x509 certificate based on the type of job (analysis or production)
+                proxy = _choose_proxy(workspec)
+
                 # set data dict
                 data.update({
                         'workspec': workspec,
@@ -742,7 +754,7 @@ class HTCondorSubmitter(PluginBase):
                         'log_subdir': log_subdir,
                         'n_core_per_node': n_core_per_node,
                         'panda_queue_name': panda_queue_name,
-                        'x509_user_proxy': self.x509UserProxy,
+                        'x509_user_proxy': proxy,
                         'ce_info_dict': ce_info_dict,
                         'batch_log_dict': batch_log_dict,
                         'special_par': special_par,
@@ -754,6 +766,20 @@ class HTCondorSubmitter(PluginBase):
                         'pilot_version': pilot_version_orig,
                         })
             return data
+
+        def _choose_proxy(workspec):
+            """
+            Choose the proxy based on the job type
+            """
+            job_type = workspec.job_type
+            proxy = self.x509UserProxy
+            if (job_type == 'user' or job_type == 'analysis') and self.x509UserProxyAnalysis:
+                tmpLog.debug('Taking analysis proxy')
+                proxy = self.x509UserProxyAnalysis
+            else:
+                tmpLog.debug('Taking default proxy')
+
+            return proxy
 
         def _propagate_attributes(workspec, tmpVal):
             # make logger
