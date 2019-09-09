@@ -69,7 +69,7 @@ class PandaQueuesDict(dict, PluginBase):
         names = set()
         for queue_name, queue_dict in iteritems(self):
             if queue_dict.get('pilot_manager') in ['Harvester'] \
-                and queue_dict.get('harvester') == harvesterID:
+                    and queue_dict.get('harvester') == harvesterID:
                 names.add(queue_name)
         return names
 
@@ -81,6 +81,20 @@ class PandaQueuesDict(dict, PluginBase):
         if panda_queue_dict.get('capability') == 'ucore' \
             and panda_queue_dict.get('workflow') == 'pull_ups':
             return True
+        return False
+
+    # is grandly unified queue, i.e. runs analysis and production
+    def is_grandly_unified_queue(self, panda_resource):
+        panda_queue_dict = self.get(panda_resource)
+        if panda_queue_dict is None:
+            return False
+
+        # initial, temporary nomenclature
+        if 'grandly_unified' in panda_queue_dict.get('catchall'):
+            return True
+
+        # TODO: implement the final nomenclature
+
         return False
 
     # get harvester params

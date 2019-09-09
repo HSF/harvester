@@ -19,7 +19,7 @@ class WorkerMaker(object):
 
     # make workers
     def make_workers(self, jobchunk_list, queue_config, n_ready, job_type, resource_type, maker=None):
-        tmpLog = core_utils.make_logger(_logger, 'queue={0} rtype={1}'.format(queue_config.queueName, resource_type),
+        tmpLog = core_utils.make_logger(_logger, 'queue={0} rtype={1} jtype={2}'.format(queue_config.queueName, resource_type, job_type),
                                         method_name='make_workers')
         tmpLog.debug('start')
         try:
