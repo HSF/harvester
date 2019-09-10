@@ -773,7 +773,7 @@ class HTCondorSubmitter(PluginBase):
             """
             Choose the proxy based on the job type
             """
-            job_type = workspec.job_type
+            job_type = workspec.jobType
             proxy = self.x509UserProxy
             if is_grandly_unified_queue and (job_type == 'user' or job_type == 'analysis') and self.x509UserProxyAnalysis:
                 tmpLog.debug('Taking analysis proxy')
