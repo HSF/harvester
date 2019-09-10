@@ -19,6 +19,13 @@ class JobSpec(SpecBase):
     HO_hasTransfer = 3
     HO_hasPostZipOutput = 4
 
+    # auxiliary input
+    AUX_hasAuxInput = 0
+    AUX_inTriggered = 1
+    AUX_allTriggered = 2
+    AUX_inReady = 3
+    AUX_allReady = 4
+
     # attributes
     attributesWithTypes = ('PandaID:integer primary key',
                            'taskID:integer / index',
@@ -57,7 +64,8 @@ class JobSpec(SpecBase):
                            'maxWorkersInTotal:integer',
                            'nWorkersInTotal:integer',
                            'jobParamsExtForOutput:blob',
-                           'jobParamsExtForLog:blob'
+                           'jobParamsExtForLog:blob',
+                           'auxInput:integer'
                            )
 
     # attributes initialized with 0
@@ -522,6 +530,8 @@ class JobSpec(SpecBase):
         if 'prodSourceLabel' not in self.jobParams:
             return None
         if self.jobParams['prodSourceLabel'] == 'rc_test':
+            return 'RC'
+        elif self.jobParams['prodSourceLabel'] == 'rc_test2':
             return 'RC'
         elif self.jobParams['prodSourceLabel'] == 'rc_alrb':
             return 'ALRB'

@@ -50,48 +50,65 @@ class Watcher(AgentBase):
         # get file lock
         try:
             with core_utils.get_file_lock(lockFileName, harvester_config.watcher.checkInterval):
-                logFileName = os.path.join(logDir, 'panda-db_proxy.log')
-                timeNow = datetime.datetime.utcnow()
-                if os.path.exists(logFileName):
-                    # get latest timestamp
-                    try:
-                        p = subprocess.Popen(['tail', '-1', logFileName],
-                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        line = p.stdout.readline()
-                        lastTime = datetime.datetime.strptime(line[:23], "%Y-%m-%d %H:%M:%S,%f")
-                    except Exception:
-                        lastTime = None
-                    # get processing time for last 1000 queries
-                    logDuration = None
-                    try:
-                        p = subprocess.Popen('tail -{0} {1} | head -1'.format(harvester_config.watcher.nMessages,
-                                                                              logFileName),
-                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-                        line = p.stdout.readline()
-                        firstTime = datetime.datetime.strptime(line[:23], "%Y-%m-%d %H:%M:%S,%f")
-                        if lastTime is not None:
-                            logDuration = lastTime - firstTime
-                    except Exception:
-                        pass
-                    tmpMsg = 'last log message at {0}. '.format(lastTime)
-                    if logDuration is not None:
-                        tmpMsg += '{0} messages took {1} sec'.format(harvester_config.watcher.nMessages,
-                                                                     logDuration.total_seconds())
-                    mainLog.debug(tmpMsg)
+                try:
+                    logFileNameList = harvester_config.watcher.logFileNameList.split(',')
+                except Exception:
+                    logFileNameList = ['panda-db_proxy.log']
+                lastTime = None
+                logDuration = None
+                lastTimeName = None
+                logDurationName = None
+                actionsList = harvester_config.watcher.actions.split(',')
+                for logFileName in logFileNameList:
+                    logFilePath = os.path.join(logDir, logFileName)
+                    timeNow = datetime.datetime.utcnow()
+                    if os.path.exists(logFilePath):
+                        # get latest timestamp
+                        tmpLogDuration = None
+                        try:
+                            p = subprocess.Popen(['tail', '-1', logFilePath],
+                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            line = p.communicate()[0]
+                            tmpLastTime = datetime.datetime.strptime(str(line[:23], 'utf-8'), "%Y-%m-%d %H:%M:%S,%f")
+                        except Exception:
+                            tmpLastTime = None
+                        # get processing time for last 1000 queries
+                        try:
+                            p = subprocess.Popen('tail -{0} {1} | head -1'.format(harvester_config.watcher.nMessages,
+                                                                                  logFilePath),
+                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+                            line = p.communicate()[0]
+                            firstTime = datetime.datetime.strptime(str(line[:23], 'utf-8'), "%Y-%m-%d %H:%M:%S,%f")
+                            if tmpLastTime is not None:
+                                tmpLogDuration = tmpLastTime - firstTime
+                        except Exception as e:
+                            mainLog.warning('Skip with error {0}: {1}'.format(e.__class__.__name__, e))
+                        tmpMsg = 'log={0} : last message at {0}. '.format(logFileName, tmpLastTime)
+                        if tmpLogDuration is not None:
+                            tmpMsg += '{0} messages took {1} sec'.format(harvester_config.watcher.nMessages,
+                                                                         tmpLogDuration.total_seconds())
+                        mainLog.debug(tmpMsg)
+                        if tmpLastTime is not None and (lastTime is None or lastTime > tmpLastTime):
+                            lastTime = tmpLastTime
+                            lastTimeName = logFileName
+                        if tmpLogDuration is not None and (logDuration is None or logDuration < tmpLogDuration):
+                            logDuration = tmpLogDuration
+                            logDurationName = logFileName
                     # check timestamp
                     doAction = False
                     if harvester_config.watcher.maxStalled > 0 and lastTime is not None and \
                             timeNow - lastTime > datetime.timedelta(seconds=harvester_config.watcher.maxStalled):
-                        mainLog.warning('last log message is too old. seems to be stalled')
+                        mainLog.warning('last log message is too old in {0}. seems to be stalled'.format(lastTimeName))
                         doAction = True
                     elif harvester_config.watcher.maxDuration > 0 and logDuration is not None and \
                             logDuration.total_seconds() > harvester_config.watcher.maxDuration:
-                        mainLog.warning('slow message generation. seems to be a performance issue')
+                        mainLog.warning('slow message generation in {0}. seems to be a performance issue'.format(
+                            logDurationName))
                         doAction = True
                     # take action
                     if doAction:
                         # email
-                        if 'email' in harvester_config.watcher.actions.split(','):
+                        if 'email' in actionsList:
                             # get pass phrase
                             toSkip = False
                             mailUser = None
@@ -131,15 +148,18 @@ class Watcher(AgentBase):
                                                 message.as_string())
                                 server.quit()
                         # kill
-                        if 'kill' in harvester_config.watcher.actions.split(','):
+                        if 'kill' in actionsList:
                             # send USR2 fist
                             mainLog.debug('sending SIGUSR2')
                             os.killpg(os.getpgrp(), signal.SIGUSR2)
                             time.sleep(60)
                             mainLog.debug('sending SIGKILL')
                             os.killpg(os.getpgrp(), signal.SIGKILL)
-                else:
-                    mainLog.debug('skip as {0} is missing'.format(logFileName))
+                        elif 'terminate' in actionsList:
+                            mainLog.debug('sending SIGTERM')
+                            os.killpg(os.getpgrp(), signal.SIGTERM)
+                    else:
+                        mainLog.debug('No action needed for {0}'.format(logFileName))
         except IOError:
             mainLog.debug('skip as locked by another thread or too early to check')
         except Exception:

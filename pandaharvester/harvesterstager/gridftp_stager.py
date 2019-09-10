@@ -20,7 +20,7 @@ baseLogger = core_utils.setup_logger('gridftp_stager')
   "stager":{
         "name":"GridFtpStager",
         "module":"pandaharvester.harvesterstager.gridftp_stager",
-        "objstoreID_ES":117,
+        "objstoreID":117,
         # base path for local access to the files to be copied
         "srcOldBasePath":"/tmp/workdirs",
         # base path for access through source GridFTP server to the files to be copied
@@ -28,7 +28,7 @@ baseLogger = core_utils.setup_logger('gridftp_stager')
         # base path for destination GridFTP server
         "dstBasePath":"gsiftp://dcgftp.usatlas.bnl.gov:2811/pnfs/usatlas.bnl.gov/atlasscratchdisk/rucio",
         # max number of attempts
-        maxAttempts: 3,
+        "maxAttempts": 3,
         # options for globus-url-copy
         "gulOpts":"-verify-checksum -v"
     }
@@ -41,6 +41,7 @@ class GridFtpStager(BaseStager):
         self.objstoreID = None
         self.gulOpts = None
         self.maxAttempts = 3
+        self.timeout = None
         BaseStager.__init__(self, **kwarg)
 
     # check status
@@ -67,7 +68,9 @@ class GridFtpStager(BaseStager):
             if fileSpec.fileType in ['es_output', 'zip_output']:
                 scope = self.scopeForTmp
             else:
-                scope = fileSpec.fileAttributes['scope']
+                scope = fileSpec.fileAttributes.get('scope')
+                if scope is None:
+                    scope = fileSpec.scope
             # construct source and destination paths
             srcPath = re.sub(self.srcOldBasePath, self.srcNewBasePath, fileSpec.path)
             dstPath = mover_utils.construct_file_path(self.dstBasePath, scope, fileSpec.lfn)
@@ -86,13 +89,22 @@ class GridFtpStager(BaseStager):
         if self.gulOpts is not None:
             args += self.gulOpts.split()
         try:
-            tmpLog.debug('execute globus-url-copy' + ' '.join(args))
+            tmpLog.debug('execute: ' + ' '.join(args))
             p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = p.communicate()
+            try:
+                stdout, stderr = p.communicate(timeout=self.timeout)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                stdout, stderr = p.communicate()
+                tmpLog.warning('command timeout')
             return_code = p.returncode
             if stdout is not None:
+                if not isinstance(stdout, str):
+                    stdout = stdout.decode()
                 stdout = stdout.replace('\n', ' ')
             if stderr is not None:
+                if not isinstance(stderr, str):
+                    stderr = stderr.decode()
                 stderr = stderr.replace('\n', ' ')
             tmpLog.debug("stdout: %s" % stdout)
             tmpLog.debug("stderr: %s" % stderr)

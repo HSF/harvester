@@ -19,14 +19,14 @@ baseLogger = core_utils.setup_logger('gridftp_preparator')
     "preparator": {
         "name": "GridFtpPreparator",
         "module": "pandaharvester.harvesterpreparator.gridftp_preparator",
-        # base path for source GridFTP server 
+        # base path for source GridFTP server
         "srcBasePath": "gsiftp://dcdum02.aglt2.org/pnfs/aglt2.org/atlasdatadisk/rucio/",
         # base path for destination GridFTP server
         "dstBasePath": "gsiftp://dcgftp.usatlas.bnl.gov:2811/pnfs/usatlas.bnl.gov/atlasscratchdisk/rucio/",
         # base path for local access to the copied files
         "localBasePath": "/data/rucio",
         # max number of attempts
-        maxAttempts: 3,
+        "maxAttempts": 3,
         # options for globus-url-copy
         "gulOpts": "-cred /tmp/x509_u1234 -sync -sync-level 3 -verify-checksum -v"
     }
@@ -36,6 +36,7 @@ class GridFtpPreparator(PluginBase):
     def __init__(self, **kwarg):
         self.gulOpts = None
         self.maxAttempts = 3
+        self.timeout = None
         PluginBase.__init__(self, **kwarg)
 
     # trigger preparation
@@ -82,13 +83,22 @@ class GridFtpPreparator(PluginBase):
         if self.gulOpts is not None:
             args += self.gulOpts.split()
         try:
-            tmpLog.debug('execute globus-url-copy' + ' '.join(args))
+            tmpLog.debug('execute: ' + ' '.join(args))
             p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = p.communicate()
+            try:
+                stdout, stderr = p.communicate(timeout=self.timeout)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                stdout, stderr = p.communicate()
+                tmpLog.warning('command timeout')
             return_code = p.returncode
             if stdout is not None:
+                if not isinstance(stdout, str):
+                    stdout = stdout.decode()
                 stdout = stdout.replace('\n', ' ')
             if stderr is not None:
+                if not isinstance(stderr, str):
+                    stderr = stderr.decode()
                 stderr = stderr.replace('\n', ' ')
             tmpLog.debug("stdout: %s" % stdout)
             tmpLog.debug("stderr: %s" % stderr)

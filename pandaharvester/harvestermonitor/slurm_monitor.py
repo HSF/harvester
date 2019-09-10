@@ -1,7 +1,7 @@
 import re
 try:
     import subprocess32 as subprocess
-except:
+except ImportError:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
@@ -41,7 +41,11 @@ class SlurmMonitor(PluginBase):
             errStr = ''
             if retCode == 0:
                 # parse
-                for tmpLine in stdOut.split('\n'):
+                if isinstance(stdOut, str):
+                    stdout_str = stdOut
+                else:
+                    stdout_str = stdOut.decode()
+                for tmpLine in stdout_str.split('\n'):
                     tmpMatch = re.search('{0} '.format(workSpec.batchID), tmpLine)
                     if tmpMatch is not None:
                         errStr = tmpLine
@@ -62,7 +66,7 @@ class SlurmMonitor(PluginBase):
                 retList.append((newStatus, errStr))
             else:
                 # failed
-                errStr = stdOut + ' ' + stdErr
+                errStr = '{0} {1}'.format(stdOut, stdErr)
                 tmpLog.error(errStr)
                 if 'slurm_load_jobs error: Invalid job id specified' in errStr:
                     newStatus = WorkSpec.ST_failed

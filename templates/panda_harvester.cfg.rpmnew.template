@@ -408,6 +408,7 @@ eventBasedEnable = False
 #      "submissionHost_list": [
 #          "aipanda023.cern.ch,aipanda023.cern.ch:19618",
 #          "aipanda024.cern.ch,aipanda024.cern.ch:19618",
+#          "aipanda156.cern.ch,aipanda156.cern.ch:19618",
 #          "aipanda183.cern.ch,aipanda183.cern.ch:19618",
 #          "aipanda184.cern.ch,aipanda184.cern.ch:19618"
 #        ]
@@ -468,7 +469,7 @@ outCertFile =
 
 # voms
 voms =
-atlas:/atlas/Role=production
+ atlas:/atlas/Role=production
  atlas:/atlas/Role=pilot
 
 # sleep interval in sec
@@ -734,6 +735,9 @@ keepMissed = 24
 
 [watcher]
 
+# a comma-concatenated list of file name of logs to watch (default: panda-db_proxy.log)
+logFileNameList = panda-db_proxy.log
+
 # action is taken when the last message is older than maxStalled sec. set 0 to disable the action
 maxStalled = 300
 
@@ -749,7 +753,7 @@ checkInterval = 180
 # sleep interval in sec
 sleepTime = 60
 
-# a comma-concatenated list of actions (email: to send alarms, kill: to be killed). or empty if no action
+# a comma-concatenated list of actions (email: to send alarms, kill: to kill forcefully, terminate: to kill with SIGTERM). or empty if no action
 actions =
 
 # name of env variable to keep pass-phrase
