@@ -1,3 +1,6 @@
+from __future__ import division
+
+import math
 import threading
 import datetime
 
@@ -85,6 +88,7 @@ class ResourceTypeMapper(object):
                                     (site_maxrss / site_corecount) * worker_cores)
             else:
                 worker_memory = (site_maxrss / site_corecount) * worker_cores
+            worker_memory = int(math.ceil(worker_memory))
 
         except KeyError:
             pass
