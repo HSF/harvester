@@ -119,6 +119,7 @@ class DirectSshHerder(PluginBase):
         self.sockDir = getattr(self, 'sockDir', '/tmp')
         self.numMasters = getattr(self, 'numMasters', 1)
         self.execStr = getattr(self, 'execStr', '')
+        self.connectionLifetime = getattr(self, 'connectionLifetime', None)
         try:
             self._get_connection()
         except Exception as e:
@@ -151,7 +152,8 @@ class DirectSshHerder(PluginBase):
         sshMasterPool.make_control_master(self.remoteHost, self.remotePort, self.numMasters,
                                           ssh_username=self.sshUserName, ssh_password=self.sshPassword,
                                           private_key=self.privateKey, pass_phrase=self.passPhrase,
-                                          jump_host=self.jumpHost, jump_port=self.jumpPort, sock_dir=self.sockDir)
+                                          jump_host=self.jumpHost, jump_port=self.jumpPort, sock_dir=self.sockDir,
+                                          connection_lifetime=self.connectionLifetime)
         conn = sshMasterPool.get_connection(self.remoteHost, self.remotePort, self.execStr)
         if conn is not None:
             tmpLog.debug('connected successfully')
