@@ -3800,10 +3800,10 @@ class DBProxy(object):
             varMap = dict()
             varMap[':siteName'] = site_name
             self.execute(sql_get_job_resource, varMap)
-            res_res = self.cur.fetchall()
+            results = self.cur.fetchall()
             job_resource_type_list = set()
-            for tmp_res, in res_res:
-                job_resource_type_list.add(tmp_res)
+            for tmp_job_type, tmp_resource_type in results:
+                job_resource_type_list.add(tmp_job_type, tmp_resource_type)
 
             # set all queues
             nUp = 0
