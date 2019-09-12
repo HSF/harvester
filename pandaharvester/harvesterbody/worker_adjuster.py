@@ -213,9 +213,9 @@ class WorkerAdjuster(object):
 
                             # TODO: needs to be recalculated
                             simple_rt_nw_list = []
-                            for _jt in _d: # jt: job type
-                                for _rt in _d[_jt]: # rt: resource type
-                                    simple_rt_nw_list.append([_rt, _d[_jt][_rt].get('nNewWorkers', 0), 0])
+                            for job_type in _d: # jt: job type
+                                for resource_type in _d[job_type]: # rt: resource type
+                                    simple_rt_nw_list.append([resource_type, _d[job_type][resource_type].get('nNewWorkers', 0), 0])
 
                             _countdown = n_new_workers_max_agg
                             for _rt_list in simple_rt_nw_list:
@@ -232,13 +232,13 @@ class WorkerAdjuster(object):
                                     break
                                 dyn_num_workers[queue_name][job_type][resource_type]['nNewWorkers'] += 1
                                 _countdown -= 1
-
-                        for resource_type in dyn_num_workers[queue_name]:
-                            if resource_type == 'ANY':
-                                continue
-                            n_new_workers = dyn_num_workers[queue_name][job_type][resource_type]['nNewWorkers']
-                            tmp_log.debug('setting n_new_workers to {0} of job_type {1} resource_type {2} in order to respect RT aggregations for UCORE'
-                                          .format(n_new_workers, job_type, resource_type))
+                        for job_type in dyn_num_workers[queue_name]:
+                            for resource_type in dyn_num_workers[queue_name][job_type]:
+                                if job_type == 'ANY' or resource_type == 'ANY':
+                                    continue
+                                n_new_workers = dyn_num_workers[queue_name][job_type][resource_type]['nNewWorkers']
+                                tmp_log.debug('setting n_new_workers to {0} of job_type {1} resource_type {2} in order to respect RT aggregations for UCORE'
+                                              .format(n_new_workers, job_type, resource_type))
 
                 if not apf_msg:
                     apf_data = copy.deepcopy(dyn_num_workers[queue_name])
