@@ -187,9 +187,11 @@ class WorkerAdjuster(object):
                 else:
                     max_new_workers_per_cycle = queue_config.maxNewWorkersPerCycle
                 if len(dyn_num_workers[queue_name]) > 1:
-                    total_new_workers_rts = sum(dyn_num_workers[queue_name][_rt]['nNewWorkers']
-                                                if _rt != 'ANY' else 0
-                                                for _rt in dyn_num_workers[queue_name])
+                    total_new_workers_rts = 0
+                    for _jt in dyn_num_workers[queue_name];
+                        for _rt in dyn_num_workers[queue_name][_jt]:
+                            if _jt != 'ANY' and _rt != 'ANY':
+                                total_new_workers_rts = total_new_workers_rts + dyn_num_workers[queue_name][_jt][_rt]['nNewWorkers']
                     n_new_workers_max_agg = min(max(n_queue_limit - n_queue_total, 0),
                                                 max(max_workers - n_queue_total - n_ready_total - n_running_total, 0))
                     if max_new_workers_per_cycle >= 0:
