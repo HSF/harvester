@@ -3787,7 +3787,7 @@ class DBProxy(object):
             # sql to get num of submitted workers
             sql_count_workers = "SELECT COUNT(*) cnt "
             sql_count_workers += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
-            sql_count_workers += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status"
+            sql_count_workers += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
             sql_count_workers += "AND pq.jobType=:jobType AND pq.resourceType=:resourceType "
 
             # reset nqueued for all job & resource types
