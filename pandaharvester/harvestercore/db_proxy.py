@@ -3803,7 +3803,7 @@ class DBProxy(object):
             results = self.cur.fetchall()
             job_resource_type_list = set()
             for tmp_job_type, tmp_resource_type in results:
-                job_resource_type_list.add(tmp_job_type, tmp_resource_type)
+                job_resource_type_list.add((tmp_job_type, tmp_resource_type))
 
             # set all queues
             nUp = 0
