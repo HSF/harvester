@@ -1524,7 +1524,8 @@ class DBProxy(object):
                     nReFill, = self.cur.fetchone()
                     nReady += nReFill
                     # add
-                    retMap.setdefault(queueName, {jobType: {}})
+                    retMap.setdefault(queueName, {})
+                    retMap[queueName].setdefault(jobType, {})
                     retMap[queueName][jobType][resourceType] = {'nReady': nReady,
                                                                 'nRunning': nRunning,
                                                                 'nQueue': nQueue,
