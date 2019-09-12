@@ -3841,8 +3841,8 @@ class DBProxy(object):
                         ret_map[job_type][resource_type] = value
                     else:
                         # no queue was updated, we need to create a new one for the resource type
-                        cloned = self.clone_queue_with_new_resource_type(site_name, queue_name, job_type,
-                                                                         resource_type, value)
+                        cloned = self.clone_queue_with_new_job_and_resource_type(site_name, queue_name, job_type,
+                                                                                 resource_type, value)
                         if cloned:
                             ret_map[job_type][resource_type] = value
                             iUp = 1
