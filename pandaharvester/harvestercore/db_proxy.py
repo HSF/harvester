@@ -1416,7 +1416,7 @@ class DBProxy(object):
             sqlS += "OR (submitTime<:lookupTimeLimit AND lockedBy IS NULL) "
             sqlS += "ORDER BY submitTime "
             # sql to get queues
-            sqlQ = "SELECT queueName, resourceType, jobType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName, jobType, resourceType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName "
             # sql to get orphaned workers
             sqlO = "SELECT workerID FROM {0} ".format(workTableName)
