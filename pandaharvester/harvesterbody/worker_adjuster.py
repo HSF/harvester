@@ -215,7 +215,7 @@ class WorkerAdjuster(object):
                             simple_rt_nw_list = []
                             for _jt in _d: # jt: job type
                                 for _rt in _d[_jt]: # rt: resource type
-                                    simple_rt_nw_list.append([_d[_jt][_rt].get('nNewWorkers', 0), 0])
+                                    simple_rt_nw_list.append([_rt, _d[_jt][_rt].get('nNewWorkers', 0), 0])
 
                             _countdown = n_new_workers_max_agg
                             for _rt_list in simple_rt_nw_list:
