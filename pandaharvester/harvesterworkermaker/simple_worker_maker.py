@@ -61,7 +61,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
-        tmpLog = self.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
+        tmpLog = self.make_logger(_logger, 'queue={0}:{1}:{2}'.format(queue_config.queueName, job_type, resource_type),
                                   method_name='make_worker')
 
         tmpLog.debug('jobspec_list: {0}'.format(jobspec_list))
@@ -160,15 +160,13 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 tmpLog.info('a worker has pilotType={0}'.format(workSpec.pilotType))
 
             workSpec.jobType = self.get_job_type(None, job_type, queue_dict)
+            tmpLog.debug('get_job_type decided for job_type: {0}'.format(workSpec.jobType))
 
-        # TODO: this needs to be improved with real resource types
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type
         elif workSpec.nCore == 1:
             workSpec.resourceType = 'SCORE'
         else:
             workSpec.resourceType = 'MCORE'
-
-
 
         return workSpec

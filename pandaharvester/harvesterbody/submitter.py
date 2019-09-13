@@ -82,9 +82,9 @@ class Submitter(AgentBase):
                 else:
                     # loop over all queues and resource types
                     for queue_name in n_workers_per_queue_jt_rt:
-                        for job_type, tmp_job_vals in iteritems(n_workers_per_queue_jt_rt[queue_name]):
-                            for resource_type, tmp_val in iteritems(tmp_job_vals):
-
+                        for job_type in n_workers_per_queue_jt_rt[queue_name]:
+                            for resource_type in n_workers_per_queue_jt_rt[queue_name][job_type]:
+                                tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][resource_type]
                                 tmp_log = self.make_logger(_logger, 'id={0} queue={1} jtype={2} rtype={3}'.format(
                                     locked_by, queue_name, job_type, resource_type), method_name='run')
                                 try:
@@ -196,6 +196,7 @@ class Submitter(AgentBase):
                                     okChunks, ngChunks = self.workerMaker.make_workers(jobChunks, queue_config,
                                                                                        nReady, job_type, resource_type,
                                                                                        maker=workerMakerCore)
+
                                     if len(ngChunks) == 0:
                                         tmp_log.debug('successfully made {0} workers'.format(len(okChunks)))
                                     else:
