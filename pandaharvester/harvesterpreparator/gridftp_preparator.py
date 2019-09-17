@@ -27,6 +27,9 @@ baseLogger = core_utils.setup_logger('gridftp_preparator')
         "localBasePath": "/data/rucio",
         # max number of attempts
         "maxAttempts": 3,
+        # check paths under localBasePath. Choose false if destination on remote node
+        "checkLocalPath": true,
+        "maxAttempts": 3,
         # options for globus-url-copy
         "gulOpts": "-cred /tmp/x509_u1234 -sync -sync-level 3 -verify-checksum -v"
     }
@@ -37,6 +40,7 @@ class GridFtpPreparator(PluginBase):
         self.gulOpts = None
         self.maxAttempts = 3
         self.timeout = None
+        self.checkLocalPath = True
         PluginBase.__init__(self, **kwarg)
 
     # trigger preparation
@@ -57,16 +61,17 @@ class GridFtpPreparator(PluginBase):
             # local access path
             accPath = mover_utils.construct_file_path(self.localBasePath, inFileInfo[tmpFileSpec.lfn]['scope'],
                                                       tmpFileSpec.lfn)
-            # check if already exits
-            if os.path.exists(accPath):
-                # calculate checksum
-                checksum = core_utils.calc_adler32(accPath)
-                checksum = 'ad:{0}'.format(checksum)
-                if checksum == inFileInfo[tmpFileSpec.lfn]['checksum']:
-                    continue
-            # make directories if needed
-            if not os.path.isdir(os.path.dirname(accPath)):
-                os.makedirs(os.path.dirname(accPath))
+            if self.checkLocalPath:
+                # check if already exits
+                if os.path.exists(accPath):
+                    # calculate checksum
+                    checksum = core_utils.calc_adler32(accPath)
+                    checksum = 'ad:{0}'.format(checksum)
+                    if checksum == inFileInfo[tmpFileSpec.lfn]['checksum']:
+                        continue
+                # make directories if needed
+                if not os.path.isdir(os.path.dirname(accPath)):
+                    os.makedirs(os.path.dirname(accPath))
             # make input for globus-url-copy
             if gucInput is None:
                 gucInput = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_guc_in.tmp')
