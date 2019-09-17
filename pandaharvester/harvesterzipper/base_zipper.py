@@ -154,12 +154,6 @@ class BaseZipper(PluginBase):
                 nThreadsForZip = multiprocessing.cpu_count()
             # check associate file existence
             def _check_assfile_existence(fileSpec):
-                # ass_file_paths_str = ' '.join([ assFileSpec.path for assFileSpec in fileSpec.associatedFiles ])
-                # tmpArgFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_check-exist.tmp',
-                #                                         dir=os.path.dirname(next(iter(fileSpec.associatedFiles)).path))
-                # for assFileSpec in fileSpec.associatedFiles:
-                #     tmpArgFile.write('{0}\n'.format(assFileSpec.path))
-                # tmpArgFile.close()
                 in_data = '\\n'.join(['{0}'.format(assFileSpec.path) for assFileSpec in fileSpec.associatedFiles])
                 com1 = ('ssh '
                         '-o StrictHostKeyChecking=no '
@@ -192,7 +186,6 @@ class BaseZipper(PluginBase):
                 # record set
                 existence_set = set()
                 # make command
-                # '"for i in $(cat {arg_file}); do test -f $i && echo \'T\' || echo \'F\'; done" '
                 com2 = ( 'ssh '
                         '-o StrictHostKeyChecking=no '
                         '-i {sshkey} '
@@ -310,12 +303,6 @@ class BaseZipper(PluginBase):
             lfn = os.path.basename(zipPath)
             self.zip_tmp_log.debug('{0} start zipPath={1} with {2} files'.format(lfn, zipPath,
                                                                                  len(arg_dict['associatedFiles'])))
-             # tmp arg file
-            # tmpArgFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_tar-name.tmp',
-            #                                         dir=os.path.dirname(zipPath))
-            # for path in arg_dict['associatedFiles']:
-            #     tmpArgFile.write('{0}\n'.format(path))
-            # tmpArgFile.close()
             in_data = '\\n'.join(['{0}'.format(path) for path in arg_dict['associatedFiles']])
             com0 = ('ssh '
                     '-o StrictHostKeyChecking=no '
@@ -437,8 +424,6 @@ class BaseZipper(PluginBase):
             fileInfo = dict()
             fileInfo['path'] = zipPath
             # get size
-            # statInfo = os.stat(zipPath)
-            # fileInfo['fsize'] = statInfo.st_size
             com3 = ('ssh '
                     '-o StrictHostKeyChecking=no '
                     '-i {sshkey} '
@@ -467,7 +452,6 @@ class BaseZipper(PluginBase):
             del p3, stdOut, stdErr
             gc.collect()
             # get checksum
-            # fileInfo['chksum'] = core_utils.calc_adler32(zipPath)
             com4 = ('ssh '
                     '-o StrictHostKeyChecking=no '
                     '-i {sshkey} '

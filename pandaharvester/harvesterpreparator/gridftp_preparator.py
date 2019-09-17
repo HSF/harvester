@@ -29,7 +29,6 @@ baseLogger = core_utils.setup_logger('gridftp_preparator')
         "maxAttempts": 3,
         # check paths under localBasePath. Choose false if destination on remote node
         "checkLocalPath": true,
-        "maxAttempts": 3,
         # options for globus-url-copy
         "gulOpts": "-cred /tmp/x509_u1234 -sync -sync-level 3 -verify-checksum -v"
     }
