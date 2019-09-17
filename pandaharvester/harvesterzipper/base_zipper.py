@@ -154,18 +154,39 @@ class BaseZipper(PluginBase):
                 nThreadsForZip = multiprocessing.cpu_count()
             # check associate file existence
             def _check_assfile_existence(fileSpec):
-                # ass_file_paths_str = ' '.join([ assFileSpec.path for assFileSpec in fileSpec.associatedFiles ])
-                # tmpfile over shared fs
-                tmpArgFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_check-exist.tmp',
-                                                        dir=os.path.dirname(next(iter(fileSpec.associatedFiles)).path))
-                for assFileSpec in fileSpec.associatedFiles:
-                    tmpArgFile.write('{0}\n'.format(assFileSpec.path))
-                tmpArgFile.close()
+                in_data = '\\n'.join(['{0}'.format(assFileSpec.path) for assFileSpec in fileSpec.associatedFiles])
+                com1 = ('ssh '
+                        '-o StrictHostKeyChecking=no '
+                        '-i {sshkey} '
+                        '{userhost} '
+                        '"{fileop_script} write_tmpfile --suffix {suffix} --dir {dir} \\"{data}\\" "'
+                    ).format(
+                            sshkey=self.sshkey,
+                            userhost=self.userhost,
+                            fileop_script=self.fileop_script,
+                            suffix='_check-exist.tmp',
+                            dir=os.path.dirname(next(iter(fileSpec.associatedFiles)).path),
+                            data=in_data,
+                        )
+                # execute
+                p1 = subprocess.Popen(com1,
+                                     shell=True,
+                                     close_fds=True,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+                stdOut, stdErr = p1.communicate()
+                retCode = p1.returncode
+                if retCode != 0:
+                    msgStr = 'failed to make tmpargfile remotely with {0}:{1}'.format(stdOut, stdErr)
+                    tmp_log.error(msgStr)
+                    return False, 'failed to zip with {0}'.format(msgStr)
+                stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
+                tmpargfile_name = stdOut_str.strip('\n')
+                del p1, stdOut, stdErr
                 # record set
                 existence_set = set()
                 # make command
-                # '"for i in $(cat {arg_file}); do test -f $i && echo \'T\' || echo \'F\'; done" '
-                com = ( 'ssh '
+                com2 = ( 'ssh '
                         '-o StrictHostKeyChecking=no '
                         '-i {sshkey} '
                         '{userhost} '
@@ -173,22 +194,23 @@ class BaseZipper(PluginBase):
                     ).format(
                             sshkey=self.sshkey,
                             userhost=self.userhost,
-                            arg_file=tmpArgFile.name,
+                            arg_file=tmpargfile_name,
                         )
                 # execute
-                p = subprocess.Popen(com,
+                p2 = subprocess.Popen(com2,
                                      shell=True,
                                      close_fds=True,
                                      stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
-                stdOut, stdErr = p.communicate()
-                retCode = p.returncode
+                stdOut, stdErr = p2.communicate()
+                retCode = p2.returncode
                 if retCode != 0:
                     msgStr = 'failed to existence of associate files with {0}:{1}'.format(stdOut, stdErr)
                     tmp_log.error(msgStr)
                 else:
                     try:
-                        ret_list = stdOut.strip('\n').split('\n')
+                        stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
+                        ret_list = stdOut_str.strip('\n').split('\n')
                         if len(fileSpec.associatedFiles) == len(ret_list):
                             for (assFileSpec, retVal) in zip(fileSpec.associatedFiles, ret_list):
                                 if retVal == 'T':
@@ -198,8 +220,31 @@ class BaseZipper(PluginBase):
                             tmp_log.error(msgStr)
                     except Exception:
                         core_utils.dump_error_message(tmp_log)
-                os.remove(tmpArgFile.name)
-                del p, stdOut, stdErr
+                del p2, stdOut, stdErr, com2
+                # delete tmpargfile
+                com3 = ('ssh '
+                        '-o StrictHostKeyChecking=no '
+                        '-i {sshkey} '
+                        '{userhost} '
+                        '"{fileop_script} remove_file {file_path} "'
+                    ).format(
+                            sshkey=self.sshkey,
+                            userhost=self.userhost,
+                            fileop_script=self.fileop_script,
+                            file_path=tmpargfile_name,
+                        )
+                # execute
+                p3 = subprocess.Popen(com3,
+                                     shell=True,
+                                     close_fds=True,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+                stdOut, stdErr = p3.communicate()
+                retCode = p3.returncode
+                if retCode != 0:
+                    msgStr = 'failed to delete tmpargfile remotely with {0}:{1}'.format(stdOut, stdErr)
+                    tmp_log.error(msgStr)
+                del p3, stdOut, stdErr
                 gc.collect()
                 return existence_set
             # parallel execution of check existence
@@ -258,12 +303,35 @@ class BaseZipper(PluginBase):
             lfn = os.path.basename(zipPath)
             self.zip_tmp_log.debug('{0} start zipPath={1} with {2} files'.format(lfn, zipPath,
                                                                                  len(arg_dict['associatedFiles'])))
-             # tmp arg file
-            tmpArgFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_tar-name.tmp',
-                                                    dir=os.path.dirname(zipPath))
-            for path in arg_dict['associatedFiles']:
-                tmpArgFile.write('{0}\n'.format(path))
-            tmpArgFile.close()
+            in_data = '\\n'.join(['{0}'.format(path) for path in arg_dict['associatedFiles']])
+            com0 = ('ssh '
+                    '-o StrictHostKeyChecking=no '
+                    '-i {sshkey} '
+                    '{userhost} '
+                    '"{fileop_script} write_tmpfile --suffix {suffix} --dir {dir} \\"{data}\\" "'
+                ).format(
+                        sshkey=self.sshkey,
+                        userhost=self.userhost,
+                        fileop_script=self.fileop_script,
+                        suffix='_tar-name.tmp',
+                        dir=os.path.dirname(zipPath),
+                        data=in_data,
+                    )
+            # execute
+            p0 = subprocess.Popen(com0,
+                                 shell=True,
+                                 close_fds=True,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            stdOut, stdErr = p0.communicate()
+            retCode = p0.returncode
+            if retCode != 0:
+                msgStr = 'failed to make tmpargfile remotely with {0}:{1}'.format(stdOut, stdErr)
+                tmp_log.error(msgStr)
+                return False, 'failed to zip with {0}'.format(msgStr)
+            stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
+            tmpargfile_name = stdOut_str.strip('\n')
+            del p0, stdOut, stdErr
             # tmp zip file names
             tmpZipPath = zipPath + '.' + str(uuid.uuid4())
             com1 = ('ssh '
@@ -275,7 +343,7 @@ class BaseZipper(PluginBase):
                         sshkey=self.sshkey,
                         userhost=self.userhost,
                         tmpZipPath=tmpZipPath,
-                        arg_file=tmpArgFile.name,
+                        arg_file=tmpargfile_name,
                     )
             # execute
             p1 = subprocess.Popen(com1,
@@ -290,8 +358,31 @@ class BaseZipper(PluginBase):
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
             del p1, stdOut, stdErr
+            # delete tmpargfile
+            com1a = ('ssh '
+                    '-o StrictHostKeyChecking=no '
+                    '-i {sshkey} '
+                    '{userhost} '
+                    '"{fileop_script} remove_file {file_path} "'
+                ).format(
+                        sshkey=self.sshkey,
+                        userhost=self.userhost,
+                        fileop_script=self.fileop_script,
+                        file_path=tmpargfile_name,
+                    )
+            # execute
+            p1a = subprocess.Popen(com1a,
+                                 shell=True,
+                                 close_fds=True,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            stdOut, stdErr = p1a.communicate()
+            retCode = p1a.returncode
+            if retCode != 0:
+                msgStr = 'failed to delete tmpargfile remotely with {0}:{1}'.format(stdOut, stdErr)
+                tmp_log.error(msgStr)
+            del p1a, stdOut, stdErr
             gc.collect()
-            os.remove(tmpArgFile.name)
             # avoid overwriting
             lockName = 'zip.lock.{0}'.format(lfn)
             lockInterval = 60
@@ -333,8 +424,6 @@ class BaseZipper(PluginBase):
             fileInfo = dict()
             fileInfo['path'] = zipPath
             # get size
-            # statInfo = os.stat(zipPath)
-            # fileInfo['fsize'] = statInfo.st_size
             com3 = ('ssh '
                     '-o StrictHostKeyChecking=no '
                     '-i {sshkey} '
@@ -357,12 +446,12 @@ class BaseZipper(PluginBase):
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
             else:
-                file_size = int(stdOut.strip('\n'))
+                stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
+                file_size = int(stdOut_str.strip('\n'))
                 fileInfo['fsize'] = file_size
             del p3, stdOut, stdErr
             gc.collect()
             # get checksum
-            # fileInfo['chksum'] = core_utils.calc_adler32(zipPath)
             com4 = ('ssh '
                     '-o StrictHostKeyChecking=no '
                     '-i {sshkey} '
@@ -386,7 +475,8 @@ class BaseZipper(PluginBase):
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
             else:
-                file_chksum = stdOut.strip('\n')
+                stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
+                file_chksum = stdOut_str.strip('\n')
                 fileInfo['chksum'] = file_chksum
             del p4, stdOut, stdErr
             gc.collect()
