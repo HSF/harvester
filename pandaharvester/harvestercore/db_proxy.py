@@ -5370,3 +5370,64 @@ class DBProxy(object):
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # send kill command to workers by query
+    def kill_workers_by_query(self, status_in=(WorkSpec.ST_submitted,), computingSite_in=tuple(),
+                                    computingElement_in=tuple(), submissionHost_in=tuple()):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='kill_workers_by_query')
+            tmpLog.debug('start')
+            tmpLog.debug('status in {0} and computingSite in {1} and computingElement in {2} and submissionHost in {3}'.format(
+                            status_in, computingSite_in, computingElement_in, submissionHost_in))
+            # sql to set killTime
+            sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
+            # sql to get workers
+            constranits_query_string_list = []
+            tmp_varMap = {}
+            constraint_map = {'status': status_in, 'computingSite': computingSite_in,
+                                'computingElement': computingElement_in, 'submissionHost': submissionHost_in}
+            for attribute, match_tuple in iteritems(constraint_map):
+                if match_tuple == 'ALL':
+                    pass
+                elif not match_tuple:
+                    tmpLog.debug('{0} constraint is not specified in the query. Skipped'.format(attribute))
+                    return 0
+                else:
+                    one_param_list = [ ':param_{0}_{1}'.format(attribute, v_i) for v_i in range(len(match_tuple)) ]
+                    tmp_varMap.update(zip(one_param_list, match_tuple))
+                    params_string = '(' + ','.join(one_param_list) + ')'
+                    constranits_query_string_list.append('{0} IN {1}'.format(attribute, params_string))
+            constranits_query_string = ' AND '.join(constranits_query_string_list)
+            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW += "WHERE {0} ".format(constranits_query_string)
+            # set an older time to trigger sweeper
+            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # get workers
+            varMap = dict()
+            varMap.update(tmp_varMap)
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            nRow = 0
+            for workerID, in resW:
+                # set killTime
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':setTime'] = setTime
+                varMap[':st1'] = WorkSpec.ST_finished
+                varMap[':st2'] = WorkSpec.ST_failed
+                varMap[':st3'] = WorkSpec.ST_cancelled
+                self.execute(sqlL, varMap)
+                nRow += self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('set killTime to {0} workers'.format(nRow))
+            return nRow
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None

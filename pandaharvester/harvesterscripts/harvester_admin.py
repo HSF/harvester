@@ -233,6 +233,26 @@ def qconf_purge(arguments):
     else:
         mainLogger.critical('Failed to purge {0} . See panda-db_proxy.log'.format(queueName))
 
+def kill_workers(arguments):
+    status_in = 'ALL' if (len(arguments.status) == 1 and arguments.status[0] == 'ALL') else tuple(arguments.status)
+    computingSite_in = 'ALL' if (len(arguments.sites) == 1 and arguments.sites[0] == 'ALL') else tuple(arguments.sites)
+    computingElement_in = 'ALL' if (len(arguments.ces) == 1 and arguments.ces[0] == 'ALL') else tuple(arguments.ces)
+    submissionHost_in = 'ALL' if (len(arguments.submissionhosts) == 1 and arguments.submissionhosts[0] == 'ALL') else tuple(arguments.submissionhosts)
+    dbProxy = DBProxy()
+    retVal = dbProxy.kill_workers_by_query(status_in, computingSite_in, computingElement_in, submissionHost_in)
+    if retVal is not None:
+        msg_temp = (
+            'Sweeper will soon kill {n_workers} workers, with '
+            'status in {status_in}, '
+            'computingSite in {computingSite_in}, '
+            'computingElement in {computingElement_in}, '
+            'submissionHost in {submissionHost_in}'
+            )
+        print(msg_temp.format(n_workers=retVal, status_in=status_in, computingSite_in=computingSite_in,
+                                computingElement_in=computingElement_in, submissionHost_in=submissionHost_in))
+    else:
+        mainLogger.critical('Failed to kill workers. See panda-db_proxy.log')
+
 #=== Command map =======================================================
 
 commandMap = {
@@ -250,6 +270,8 @@ commandMap = {
             'qconf_dump': qconf_dump,
             'qconf_refresh': qconf_refresh,
             'qconf_purge': qconf_purge,
+            # kill commands
+            'kill_workers': kill_workers,
             }
 
 #=== Main ======================================================
@@ -305,7 +327,16 @@ def main():
     qconf_purge_parser = qconf_subparsers.add_parser('purge', help='Purge the queue thoroughly from harvester DB (Be careful !!)')
     qconf_purge_parser.set_defaults(which='qconf_purge')
     qconf_purge_parser.add_argument('queue', type=str, action='store', metavar='<queue_name>', help='Name of panda queue to purge')
-
+    # kill parser
+    kill_parser = subparsers.add_parser('kill', help='kill something alive')
+    kill_subparsers = kill_parser.add_subparsers()
+    # kill workers command
+    kill_workers_parser = kill_subparsers.add_parser('workers', help='Kill active workers by query')
+    kill_workers_parser.set_defaults(which='kill_workers')
+    kill_workers_parser.add_argument('--status', nargs='+', dest='status', action='store', metavar='<status>', default=['submitted'], help='worker status (only "submitted", "idle", "running" are valid)')
+    kill_workers_parser.add_argument('--sites', nargs='+', dest='sites', action='store', metavar='<site>', required=True, help='site (computingSite); "ALL" for all sites')
+    kill_workers_parser.add_argument('--ces', nargs='+', dest='ces', action='store', metavar='<ce>', required=True, help='CE (computingElement); "ALL" for all CEs')
+    kill_workers_parser.add_argument('--submissionhosts', nargs='+', dest='submissionhosts', action='store', metavar='<submission_host>', required=True, help='submission host (submissionHost); "ALL" for all submission hosts')
 
     # start parsing
     if len(sys.argv) == 1:
