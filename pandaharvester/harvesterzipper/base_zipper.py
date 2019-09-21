@@ -54,7 +54,10 @@ class BaseZipper(PluginBase):
                 argDictList.append(argDict)
             # parallel execution
             try:
-                nThreadsForZip = harvester_config.stager.nThreadsForZip
+                if hasattr(harvester_config, 'zipper'):
+                    nThreadsForZip = harvester_config.zipper.nThreadsForZip
+                else:
+                    nThreadsForZip = harvester_config.stager.nThreadsForZip
             except Exception:
                 nThreadsForZip = multiprocessing.cpu_count()
             with Pool(max_workers=nThreadsForZip) as pool:
@@ -149,7 +152,10 @@ class BaseZipper(PluginBase):
         outFiles_list = list(jobspec.outFiles)
         try:
             try:
-                nThreadsForZip = harvester_config.stager.nThreadsForZip
+                if hasattr(harvester_config, 'zipper'):
+                    nThreadsForZip = harvester_config.zipper.nThreadsForZip
+                else:
+                    nThreadsForZip = harvester_config.stager.nThreadsForZip
             except Exception:
                 nThreadsForZip = multiprocessing.cpu_count()
             # check associate file existence

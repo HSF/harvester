@@ -98,13 +98,13 @@ class GridFtpStager(BaseStager):
                     guc_input = guc_inputs_list[ibp_i]
                     if ibp_i == 0:
                         guc_input.write("{0} {1}\n".format(srcPath, tmp_dest_path))
-                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i, srcPath, tmp_dest_path))
+                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i + 1, srcPath, tmp_dest_path))
                     elif ibp_i == len(self.intermediateBasePaths):
                         guc_input.write("{0} {1}\n".format(tmp_src_path, dstPath))
-                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i, tmp_src_path, dstPath))
+                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i + 1, tmp_src_path, dstPath))
                     else:
                         guc_input.write("{0} {1}\n".format(tmp_src_path, tmp_dest_path))
-                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i, tmp_src_path, tmp_dest_path))
+                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i + 1, tmp_src_path, tmp_dest_path))
             else:
                 # single-step transfer
                 # make input for globus-url-copy
