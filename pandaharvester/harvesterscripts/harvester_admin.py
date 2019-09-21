@@ -234,12 +234,15 @@ def qconf_purge(arguments):
         mainLogger.critical('Failed to purge {0} . See panda-db_proxy.log'.format(queueName))
 
 def kill_workers(arguments):
-    status_in = 'ALL' if (len(arguments.status) == 1 and arguments.status[0] == 'ALL') else tuple(arguments.status)
-    computingSite_in = 'ALL' if (len(arguments.sites) == 1 and arguments.sites[0] == 'ALL') else tuple(arguments.sites)
-    computingElement_in = 'ALL' if (len(arguments.ces) == 1 and arguments.ces[0] == 'ALL') else tuple(arguments.ces)
-    submissionHost_in = 'ALL' if (len(arguments.submissionhosts) == 1 and arguments.submissionhosts[0] == 'ALL') else tuple(arguments.submissionhosts)
+    status_in = 'ALL' if (len(arguments.status) == 1 and arguments.status[0] == 'ALL') else arguments.status
+    computingSite_in = 'ALL' if (len(arguments.sites) == 1 and arguments.sites[0] == 'ALL') else arguments.sites
+    computingElement_in = 'ALL' if (len(arguments.ces) == 1 and arguments.ces[0] == 'ALL') else arguments.ces
+    submissionHost_in = 'ALL' if (len(arguments.submissionhosts) == 1 and arguments.submissionhosts[0] == 'ALL') else arguments.submissionhosts
     dbProxy = DBProxy()
-    retVal = dbProxy.kill_workers_by_query(status_in, computingSite_in, computingElement_in, submissionHost_in)
+    retVal = dbProxy.kill_workers_by_query({'status': status_in,
+                                            'computingSite': computingSite_in,
+                                            'computingElement': computingElement_in,
+                                            'submissionHost': submissionHost_in})
     if retVal is not None:
         msg_temp = (
             'Sweeper will soon kill {n_workers} workers, with '
