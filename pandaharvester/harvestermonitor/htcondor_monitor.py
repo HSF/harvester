@@ -211,11 +211,11 @@ class HTCondorMonitor(PluginBase):
         job_ads_all_dict = {}
         for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map(workspec_list)):
             # Record batch job query result to this dict, with key = batchID
-            job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
-                                        cacheRefreshInterval=self.cacheRefreshInterval,
-                                        useCondorHistory=self.useCondorHistory,
-                                        id=submissionHost)
             try:
+                job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
+                                            cacheRefreshInterval=self.cacheRefreshInterval,
+                                            useCondorHistory=self.useCondorHistory,
+                                            id=submissionHost)
                 host_job_ads_dict = job_query.get_all(batchIDs_list=batchIDs_list)
             except Exception as e:
                 host_job_ads_dict = {}
@@ -243,11 +243,15 @@ class HTCondorMonitor(PluginBase):
         ## Loop over submissionHost and get all jobs
         job_ads_all_dict = {}
         for submissionHost in self.submissionHost_list:
-            job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
-                                        cacheRefreshInterval=self.cacheRefreshInterval,
-                                        useCondorHistory=self.useCondorHistory,
-                                        id=submissionHost)
-            job_ads_all_dict.update(job_query.get_all(allJobs=True))
+            try:
+                job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
+                                            cacheRefreshInterval=self.cacheRefreshInterval,
+                                            useCondorHistory=self.useCondorHistory,
+                                            id=submissionHost)
+                job_ads_all_dict.update(job_query.get_all(allJobs=True))
+            except Exception as e:
+                ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
+                tmpLog.error(ret_err_str)
         ## Choose workers updated within a time window
         workers_to_check_list = []
         for condor_job_id, job_ads in six.iteritems(job_ads_all_dict):

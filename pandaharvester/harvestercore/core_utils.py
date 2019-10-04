@@ -277,7 +277,7 @@ def get_output_file_report(jobspec):
             chksum = fileSpec.chksum.split(':')[-1]
         else:
             chksum = fileSpec.chksum
-        xml += """"<File ID="{guid}">
+        xml += """<File ID="{guid}">
         <logical>
         <lfn name="{lfn}"/>
         </logical>

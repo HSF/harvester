@@ -4,6 +4,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.command_spec import CommandSpec
 
 # logger
 _logger = core_utils.setup_logger('sweeper')
@@ -25,6 +26,16 @@ class Sweeper(AgentBase):
         while True:
             sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
+            # get commands to kill
+            sw_getcomm = core_utils.get_stopwatch()
+            mainLog.debug('try to get commands')
+            comStr = CommandSpec.COM_killWorkers
+            commandSpecs = self.dbProxy.get_commands_for_receiver('sweeper', comStr)
+            mainLog.debug('got {0} {1} commands'.format(len(commandSpecs), comStr))
+            for commandSpec in commandSpecs:
+                n_to_kill = self.dbProxy.kill_workers_by_query(commandSpec.params)
+                mainLog.debug('will kill {0} workers with {1}'.format(n_to_kill, commandSpec.params))
+            mainLog.debug('done handling commands' + sw_getcomm.get_elapsed_time())
             # killing stage
             sw_kill = core_utils.get_stopwatch()
             mainLog.debug('try to get workers to kill')

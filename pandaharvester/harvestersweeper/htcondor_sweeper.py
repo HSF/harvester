@@ -92,8 +92,8 @@ class HTCondorSweeper(BaseSweeper):
         retList = []
         # Kill
         for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map(workspec_list)):
-            condor_job_manage = CondorJobManage(id=submissionHost)
             try:
+                condor_job_manage = CondorJobManage(id=submissionHost)
                 ret_map = condor_job_manage.remove(batchIDs_list)
             except Exception as e:
                 ret_map = {}

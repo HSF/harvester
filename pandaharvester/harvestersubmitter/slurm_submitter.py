@@ -47,9 +47,11 @@ class SlurmSubmitter(PluginBase):
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
             tmpLog.debug('retCode={0}'.format(retCode))
+            stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
+            stdErr_str = stdErr if (isinstance(stdErr, str) or stdErr is None) else stdErr.decode()
             if retCode == 0:
                 # extract batchID
-                workSpec.batchID = re.search('[^0-9]*([0-9]+)[^0-9]*', '{0}'.format(stdOut)).group(1)
+                workSpec.batchID = re.search('[^0-9]*([0-9]+)[^0-9]*', '{0}'.format(stdOut_str)).group(1)
                 tmpLog.debug('batchID={0}'.format(workSpec.batchID))
                 # set log files
                 if self.uploadLog:
@@ -65,7 +67,7 @@ class SlurmSubmitter(PluginBase):
                 tmpRetVal = (True, '')
             else:
                 # failed
-                errStr = '{0} {1}'.format(stdOut, stdErr)
+                errStr = '{0} {1}'.format(stdOut_str, stdErr_str)
                 tmpLog.error(errStr)
                 tmpRetVal = (False, errStr)
             retList.append(tmpRetVal)
