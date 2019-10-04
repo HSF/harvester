@@ -3032,7 +3032,7 @@ class DBProxy(object):
             return False
 
     # get a cached info
-    def get_cache(self, main_key, sub_key=None):
+    def get_cache(self, main_key, sub_key=None, from_local_cache=True):
         useDB = False
         try:
             # get logger
@@ -3045,7 +3045,7 @@ class DBProxy(object):
             # lock dict
             globalDict.acquire()
             # found
-            if cacheKey in globalDict:
+            if from_local_cache and cacheKey in globalDict:
                 # release dict
                 globalDict.release()
                 # make spec

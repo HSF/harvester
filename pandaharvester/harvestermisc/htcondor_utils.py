@@ -249,10 +249,14 @@ class CondorClient(object):
             try:
                 self.schedd
             except AttributeError:
-                errStr = 'failed to communicate with {0}'.format(self.submissionHost)
-                tmpLog.error(errStr)
-                raise Exception(errStr)
-                return
+                if self.lock.acquire(False):
+                    is_renewed = self.renew_session()
+                    self.lock.release()
+                    if not is_renewed:
+                        errStr = 'failed to communicate with {0}'.format(self.submissionHost)
+                        tmpLog.error(errStr)
+                        tmpLog.debug('got RuntimeError: {0}'.format(e))
+                        raise Exception(errStr)
             try:
                 ret = func(self, *args, **kwargs)
             except RuntimeError as e:
