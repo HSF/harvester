@@ -1,3 +1,6 @@
+from __future__ import division
+
+import math
 import random
 
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -32,7 +35,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             site_corecount = queue_dict.get('corecount', 1) or 1
 
             if job_corecount == 1:
-                job_memory = site_maxrss / site_corecount
+                job_memory = int(math.ceil(site_maxrss / site_corecount))
             else:
                 job_memory = site_maxrss
 
@@ -92,7 +95,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 if 'SCORE' in resource_type:
                     # the usual pilot streaming use case
                     workSpec.nCore = 1
-                    workSpec.minRamCount = site_maxrss / site_corecount
+                    workSpec.minRamCount = int(math.ceil(site_maxrss / site_corecount))
                 else:
                     # default values
                     workSpec.nCore = site_corecount

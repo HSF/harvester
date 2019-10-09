@@ -27,7 +27,7 @@ from pandaharvester.harvestercore.db_interface import DBInterface
 _attribute_list = ['id', 'item', 'score']
 
 # fifo object spec
-FifoObject = collections.namedtuple('FifoObject', _attribute_list, verbose=False, rename=False)
+FifoObject = collections.namedtuple('FifoObject', _attribute_list, rename=False)
 
 # logger
 _logger = core_utils.setup_logger('fifos')

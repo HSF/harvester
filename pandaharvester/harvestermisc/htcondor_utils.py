@@ -245,17 +245,32 @@ class CondorClient(object):
             tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorClient.renew_session_if_error')
             func_name = func.__name__
             try:
+                self.schedd
+            except AttributeError:
+                if self.lock.acquire(False):
+                    is_renewed = self.renew_session()
+                    self.lock.release()
+                    if not is_renewed:
+                        errStr = 'failed to communicate with {0}'.format(self.submissionHost)
+                        tmpLog.error(errStr)
+                        tmpLog.debug('got RuntimeError: {0}'.format(e))
+                        raise Exception(errStr)
+            try:
                 ret = func(self, *args, **kwargs)
             except RuntimeError as e:
                 tmpLog.debug('got RuntimeError: {0}'.format(e))
                 if self.lock.acquire(False):
-                    self.renew_session()
+                    is_renewed = self.renew_session()
                     self.lock.release()
-                    if to_retry:
-                        tmpLog.debug('condor session renewed. Retrying {0}'.format(func_name))
-                        ret = func(self, *args, **kwargs)
+                    if is_renewed:
+                        if to_retry:
+                            tmpLog.debug('condor session renewed. Retrying {0}'.format(func_name))
+                            ret = func(self, *args, **kwargs)
+                        else:
+                            tmpLog.debug('condor session renewed')
+                            raise
                     else:
-                        tmpLog.debug('condor session renewed')
+                        tmpLog.error('failed to renew condor session')
                         raise
                 else:
                     tmpLog.debug('another thread is renewing condor session; skipped...')
@@ -322,11 +337,13 @@ class CondorClient(object):
                     tmpLog.warning('Failed. Retry...')
                 else:
                     tmpLog.warning('Retry {0} times. Still failed. Skipped'.format(i_try))
+                    return False
                 i_try += 1
                 self.secman.invalidateAllSessions()
                 time.sleep(3)
         # Sleep
         time.sleep(3)
+        return True
 
 
 # Condor job query

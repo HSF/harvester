@@ -3046,7 +3046,7 @@ class DBProxy(object):
             return False
 
     # get a cached info
-    def get_cache(self, main_key, sub_key=None):
+    def get_cache(self, main_key, sub_key=None, from_local_cache=True):
         useDB = False
         try:
             # get logger
@@ -3059,7 +3059,7 @@ class DBProxy(object):
             # lock dict
             globalDict.acquire()
             # found
-            if cacheKey in globalDict:
+            if from_local_cache and cacheKey in globalDict:
                 # release dict
                 globalDict.release()
                 # make spec
@@ -5399,3 +5399,64 @@ class DBProxy(object):
             core_utils.dump_error_message(_logger)
             # return
             return {}
+
+    # send kill command to workers by query
+    def kill_workers_by_query(self, params):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='kill_workers_by_query')
+            tmpLog.debug('start')
+            # sql to set killTime
+            sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
+            sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
+            # sql to get workers
+            constraints_query_string_list = []
+            tmp_varMap = {}
+            constraint_map = {'status': params.get('status', [WorkSpec.ST_submitted]),
+                                'computingSite': params.get('computingSite', []),
+                                'computingElement': params.get('computingElement', []),
+                                'submissionHost': params.get('submissionHost', [])}
+            tmpLog.debug('query {0}'.format(constraint_map))
+            for attribute, match_list in iteritems(constraint_map):
+                if match_list == 'ALL':
+                    pass
+                elif not match_list:
+                    tmpLog.debug('{0} constraint is not specified in the query. Skipped'.format(attribute))
+                    return 0
+                else:
+                    one_param_list = [ ':param_{0}_{1}'.format(attribute, v_i) for v_i in range(len(match_list)) ]
+                    tmp_varMap.update(zip(one_param_list, match_list))
+                    params_string = '(' + ','.join(one_param_list) + ')'
+                    constraints_query_string_list.append('{0} IN {1}'.format(attribute, params_string))
+            constranits_query_string = ' AND '.join(constraints_query_string_list)
+            sqlW = "SELECT workerID FROM {0} ".format(workTableName)
+            sqlW += "WHERE {0} ".format(constranits_query_string)
+            # set an older time to trigger sweeper
+            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # get workers
+            varMap = dict()
+            varMap.update(tmp_varMap)
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            nRow = 0
+            for workerID, in resW:
+                # set killTime
+                varMap = dict()
+                varMap[':workerID'] = workerID
+                varMap[':setTime'] = setTime
+                varMap[':st1'] = WorkSpec.ST_finished
+                varMap[':st2'] = WorkSpec.ST_failed
+                varMap[':st3'] = WorkSpec.ST_cancelled
+                self.execute(sqlL, varMap)
+                nRow += self.cur.rowcount
+            # commit
+            self.commit()
+            tmpLog.debug('set killTime to {0} workers'.format(nRow))
+            return nRow
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None

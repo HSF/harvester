@@ -1,6 +1,7 @@
 import os
 import json
 import copy
+import time
 import datetime
 import threading
 import importlib
@@ -179,6 +180,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             self.configFromCacher = harvester_config.qconf.configFromCacher
         except AttributeError:
             self.configFromCacher = False
+        self.updateInterval = 600
 
     # load config from DB cache of URL with validation
     def _load_config_from_cache(self):
@@ -243,15 +245,43 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             resolver = None
         return resolver
 
+    # update last reload time
+    def _update_last_reload_time(self):
+        new_info = '{0:.3f}'.format(time.time())
+        return self.dbProxy.refresh_cache('_qconf_last_reload', '_universal', new_info)
+
+    # get last reload time
+    def _get_last_reload_time(self):
+        cacheSpec = self.dbProxy.get_cache('_qconf_last_reload', '_universal', from_local_cache=False)
+        if cacheSpec is None:
+            return None
+        timestamp = float(cacheSpec.data)
+        return timestamp
+
     # load data
     def load_data(self):
         mainLog = _make_logger(method_name='QueueConfigMapper.load_data')
-        # check interval
-        timeNow = datetime.datetime.utcnow()
-        if self.lastUpdate is not None and timeNow - self.lastUpdate < datetime.timedelta(minutes=10):
-            return
+        with self.lock:
+            # check if to update
+            timeNow_timestamp = time.time()
+            if self.lastUpdate is not None:
+                last_reload_timestamp = self._get_last_reload_time()
+                if (last_reload_timestamp is not None and self.lastUpdate is not None
+                    and datetime.datetime.utcfromtimestamp(last_reload_timestamp) < self.lastUpdate
+                    and timeNow_timestamp - last_reload_timestamp < self.updateInterval):
+                    return
         # start
         with self.lock:
+            # update timesatmp of last reload, lock with check interval
+            got_timesatmp_update_lock = self.dbProxy.get_process_lock('qconf_reload', 'qconf_universal', self.updateInterval)
+            if got_timesatmp_update_lock:
+                retVal = self._update_last_reload_time()
+                if retVal:
+                    mainLog.debug('updated last reload timestamp')
+                else:
+                    mainLog.warning('failed to update last reload timestamp. Skipped')
+            else:
+                mainLog.debug('did not get qconf_reload timestamp lock. Skipped to update last reload timestamp')
             # init
             newQueueConfig = dict()
             localTemplatesDict = dict()
