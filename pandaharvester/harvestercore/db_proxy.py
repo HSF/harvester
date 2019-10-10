@@ -4407,7 +4407,7 @@ class DBProxy(object):
     def get_worker_limits(self, site_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_limits')
+            tmpLog = core_utils.make_logger(_logger, token='site_name={0}'.format(site_name), method_name='get_worker_limits')
             tmpLog.debug('start')
 
             # sql to get queue limits
