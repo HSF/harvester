@@ -4413,7 +4413,7 @@ class DBProxy(object):
             # sql to get queue limits
             sqlQ = "SELECT maxWorkers, nQueueLimitWorker, nQueueLimitWorkerRatio,"
             sqlQ += "nQueueLimitWorkerMax,nQueueLimitWorkerMin FROM {0} ".format(pandaQueueTableName)
-            sqlQ += "WHERE siteName=:siteName AND jobType='ANY' AND resourceType='ANY'"
+            sqlQ += "WHERE siteName=:siteName AND resourceType='ANY' AND (jobType='ANY' OR jobType IS NULL) "
 
             # sql to count resource types
             sqlNT = "SELECT COUNT(*) cnt FROM {0} ".format(pandaQueueTableName)
