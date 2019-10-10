@@ -39,13 +39,10 @@ class SlurmMonitor(PluginBase):
             retCode = p.returncode
             tmpLog.debug('retCode={0}'.format(retCode))
             errStr = ''
+            stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
+            stdErr_str = stdErr if (isinstance(stdErr, str) or stdErr is None) else stdErr.decode()
             if retCode == 0:
-                # parse
-                if isinstance(stdOut, str):
-                    stdout_str = stdOut
-                else:
-                    stdout_str = stdOut.decode()
-                for tmpLine in stdout_str.split('\n'):
+                for tmpLine in stdOut_str.split('\n'):
                     tmpMatch = re.search('{0} '.format(workSpec.batchID), tmpLine)
                     if tmpMatch is not None:
                         errStr = tmpLine
@@ -66,7 +63,7 @@ class SlurmMonitor(PluginBase):
                 retList.append((newStatus, errStr))
             else:
                 # failed
-                errStr = '{0} {1}'.format(stdOut, stdErr)
+                errStr = '{0} {1}'.format(stdOut_str, stdErr_str)
                 tmpLog.error(errStr)
                 if 'slurm_load_jobs error: Invalid job id specified' in errStr:
                     newStatus = WorkSpec.ST_failed

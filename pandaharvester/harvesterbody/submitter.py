@@ -57,7 +57,7 @@ class Submitter(AgentBase):
                 # get commands from panda server
                 com_str = '{0}:{1}'.format(CommandSpec.COM_setNWorkers, site_name)
                 command_specs = self.dbProxy.get_commands_for_receiver('submitter', com_str)
-                main_log.debug('got {0} {1} commands'.format(command_specs, com_str))
+                main_log.debug('got {0} {1} commands'.format(len(command_specs), com_str))
                 for command_spec in command_specs:
                     new_limits = self.dbProxy.set_queue_limit(site_name, command_spec.params)
                     for tmp_job_type, tmp_jt_vals in iteritems(new_limits):

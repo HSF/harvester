@@ -57,7 +57,7 @@ class WorkSpec(SpecBase):
                            'workParams:blob',
                            'workAttributes:blob',
                            'eventsRequestParams:blob',
-                           'eventsRequest:integer',
+                           'eventsRequest:integer / index',
                            'computingSite:text / index',
                            'creationTime:timestamp',
                            'submitTime:timestamp / index',
