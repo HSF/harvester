@@ -250,7 +250,11 @@ class GlobusBulkPreparator(PluginBase):
                         if fileSpec.scope is not None :
                             scope = fileSpec.scope
                         hash = hashlib.md5()
-                        hash.update('%s:%s' % (scope, fileSpec.lfn))
+                        if sys.version_info.major == 2:
+                            hash.update('%s:%s' % (scope, fileSpec.lfn))
+                        if sys.version_info.major == 3:
+                            hash_string = "{0}:{1}".format(scope, fileSpec.lfn)
+                            hash.update(bytes(hash_string, 'utf-8'))
                         hash_hex = hash.hexdigest()
                         correctedscope = "/".join(scope.split('.'))
                         #srcURL = fileSpec.path
@@ -410,7 +414,7 @@ class GlobusBulkPreparator(PluginBase):
             tmpLog.debug('Change self.dummy_transfer_id  from {0} to {1}'.format(old_dummy_transfer_id,self.dummy_transfer_id))
         # set the dummy transfer ID which will be replaced with a real ID in check_stage_in_status()
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
-        lfns = inFiles.keys()
+        lfns = list(inFiles.keys())
         #for inLFN in inFiles.keys():
         #    lfns.append(inLFN)
         tmpLog.debug('number of lfns - {0} type(lfns) - {1}'.format(len(lfns),type(lfns)))
