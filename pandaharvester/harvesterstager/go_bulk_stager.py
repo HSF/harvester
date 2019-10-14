@@ -170,7 +170,7 @@ class GlobusBulkStager(BaseStager):
         # get the scope of the log files
         outfileattrib = jobspec.get_output_file_attributes()
         scopeLog = 'xxxx'
-        for key in outfileattrib.keys():
+        for key in list(outfileattrib.keys()):
             if "log.tgz" in key :
                 scopeLog = outfileattrib[key]['scope']
         # get transfer groups
@@ -274,7 +274,11 @@ class GlobusBulkStager(BaseStager):
                             msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
                         hash = hashlib.md5()
-                        hash.update('%s:%s' % (scope, fileSpec.lfn))
+                        if sys.version_info.major == 2:
+                            hash.update('%s:%s' % (scope, fileSpec.lfn))
+                        if sys.version_info.major == 3:
+                            hash_string = "{0}:{1}".format(scope, fileSpec.lfn)
+                            hash.update(bytes(hash_string, 'utf-8'))
                         hash_hex = hash.hexdigest()
                         correctedscope = "/".join(scope.split('.'))
                         srcURL = fileSpec.path
