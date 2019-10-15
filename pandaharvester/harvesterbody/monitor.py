@@ -374,10 +374,10 @@ class Monitor(AgentBase):
                         workSpec.checkTime = datetime.datetime.utcnow()
                     isCheckedList.append(isChecked)
                     if monStatus == WorkSpec.ST_failed:
-                        if not workSpec.has_pilot_error():
+                        if not workSpec.has_pilot_error() and workSpec.errorCode is None:
                             workSpec.set_pilot_error(PilotErrors.ERR_GENERALERROR, diagMessage)
                     elif monStatus == WorkSpec.ST_cancelled:
-                        if not workSpec.has_pilot_error():
+                        if not workSpec.has_pilot_error() and workSpec.errorCode is None:
                             workSpec.set_pilot_error(PilotErrors.ERR_PANDAKILL, diagMessage)
                     if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
                         workSpec.set_work_params({'finalMonStatus': monStatus})
