@@ -16,7 +16,7 @@ class CommandSpec(SpecBase):
                            )
     # commands
     COM_reportWorkerStats = 'REPORT_WORKER_STATS'
-    COM_setNWorkers = 'SET_N_WORKERS'
+    COM_setNWorkers = 'SET_N_WORKERS_JOBTYPE'
     COM_killWorkers = 'KILL_WORKERS'
     # mapping between command and receiver
     receiver_map = {
