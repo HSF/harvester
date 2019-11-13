@@ -361,6 +361,20 @@ class DBProxy(object):
                 isUnique = True
         return isIndex, isUnique
 
+    def initialize_jobType(self, table_name):
+        # initialize old NULL entries to ANY in pq_table and work_table
+        # get logger
+        tmp_log = core_utils.make_logger(_logger, method_name='initialize_jobType')
+
+        sql_update = "UPDATE {0} SET jobType = 'ANY' WHERE jobType is NULL ".format(table_name)
+        try:
+            self.execute(sql_update)
+            # commit
+            self.commit()
+            tmp_log.debug('initialized entries in {0}'.format(table_name))
+        except Exception:
+            core_utils.dump_error_message(tmp_log)
+
     # make table
     def make_table(self, cls, table_name):
         try:
@@ -430,6 +444,12 @@ class DBProxy(object):
                             tmpLog.debug('added {0} to {1}'.format(attr, table_name))
                         except Exception:
                             core_utils.dump_error_message(tmpLog)
+
+                        # if we just added the jobType, old entries need to be initialized
+                        if (table_name == pandaQueueTableName and attrName == 'jobType') \
+                                or (table_name == pandaQueueTableName and attrName == 'jobType'):
+                            self.initialize_jobType(table_name)
+
             # make indexes
             for index in indexes:
                 indexName = 'idx_{0}_{1}'.format(index, table_name)
@@ -479,6 +499,10 @@ class DBProxy(object):
             for outStr in outStrs:
                 print (outStr)
             sys.exit(1)
+
+        # initialize the job types to ANY when NULL
+        self.initialize_jobType()
+
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
         self.add_seq_number('SEQ_configID', 1)
