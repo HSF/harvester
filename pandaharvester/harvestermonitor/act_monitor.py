@@ -4,6 +4,7 @@ import json
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvesterconfig import harvester_config
 
 from act.common.aCTConfig import aCTConfigARC
@@ -24,7 +25,11 @@ class ACTMonitor(PluginBase):
 
         # Set up aCT DB connection
         self.log = core_utils.make_logger(baseLogger, 'aCT submitter', method_name='__init__')
-        self.actDB = aCTDBPanda(self.log)
+        try:
+            self.actDB = aCTDBPanda(self.log)
+        except Exception as e:
+            self.log.error('Could not connect to aCT database: {0}'.format(str(e)))
+            self.actDB = None
 
     # get access point
     def get_access_point(self, workspec, panda_id):
@@ -68,10 +73,11 @@ class ACTMonitor(PluginBase):
                                             method_name='check_workers')
             try:
                 tmpLog.debug('Querying aCT for id {0}'.format(workSpec.batchID))
-                columns = ['actpandastatus', 'pandastatus', 'computingElement', 'node']
+                columns = ['actpandastatus', 'pandastatus', 'computingElement', 'node', 'error']
                 actjobs = self.actDB.getJobs("id={0}".format(workSpec.batchID), columns)
             except Exception as e:
-                tmpLog.error("Failed to query aCT DB: {0}".format(str(e)))
+                if self.actDB:
+                    tmpLog.error("Failed to query aCT DB: {0}".format(str(e)))
                 # send back current status
                 retList.append((workSpec.status, ''))
                 continue
@@ -85,12 +91,16 @@ class ACTMonitor(PluginBase):
             actstatus = actjobs[0]['actpandastatus']
             workSpec.nativeStatus = actstatus
             newStatus = WorkSpec.ST_running
+            errorMsg = ''
             if actstatus in ['waiting', 'sent', 'starting']:
                 newStatus = WorkSpec.ST_submitted
             elif actstatus == 'done':
                 newStatus = self.check_pilot_status(workSpec, tmpLog)
             elif actstatus == 'donefailed':
                 newStatus = WorkSpec.ST_failed
+                errorMsg = actjobs[0]['error'] or 'Unknown error'
+                error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
+                workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
             elif actstatus == 'donecancelled':
                 newStatus = WorkSpec.ST_cancelled
 
@@ -108,6 +118,6 @@ class ACTMonitor(PluginBase):
                 except:
                     tmpLog.warning('Could not extract panda ID for worker {0}'.format(workSpec.batchID))
 
-            retList.append((newStatus, ''))
+            retList.append((newStatus, errorMsg))
 
         return True, retList

@@ -172,7 +172,8 @@ class HttpHandler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 message = core_utils.dump_error_message(_logger)
         if harvester_config.frontend.verbose:
-            self.tmpLog.debug('method={0} json={1} msg={2}'.format(methodName, dataStr, message))
+            self.tmpLog.debug('ip={3} - method={0} json={1} msg={2}'.format(methodName, dataStr, message,
+                                                                            self.client_address[0]))
         # set the response
         self.do_postprocessing(message)
         return
