@@ -500,9 +500,6 @@ class DBProxy(object):
                 print (outStr)
             sys.exit(1)
 
-        # initialize the job types to ANY when NULL
-        self.initialize_jobType()
-
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
         self.add_seq_number('SEQ_configID', 1)
