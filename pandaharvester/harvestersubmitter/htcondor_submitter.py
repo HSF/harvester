@@ -201,7 +201,7 @@ def _get_prodsourcelabel_pilotypeopt_piloturlstr(pilot_type, pilot_version='1'):
     if pilot_version == '2':
         # pilot 2
         pt_psl_map = {
-            'RC': ('rc_test2', 'RC', '--piloturl http://project-atlas-gmsb.web.cern.ch/project-atlas-gmsb/pilot2-dev.tar.gz'),
+            'RC': ('rc_test2', 'RC', '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz'),
             'ALRB': ('rc_alrb', 'ALRB', ''),
             'PT': ('ptest', 'PR', ''),
         }
