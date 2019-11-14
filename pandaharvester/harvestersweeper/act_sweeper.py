@@ -18,7 +18,11 @@ class ACTSweeper(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         self.log = core_utils.make_logger(baseLogger, 'aCT sweeper', method_name='__init__')
-        self.actDB = aCTDBPanda(self.log)
+        try:
+            self.actDB = aCTDBPanda(self.log)
+        except Exception as e:
+            self.log.error('Could not connect to aCT database: {0}'.format(str(e)))
+            self.actDB = None
 
 
     # kill a worker
@@ -44,7 +48,8 @@ class ACTSweeper(PluginBase):
             self.actDB.updateJobs("id={0} AND actpandastatus IN ('sent', 'starting', 'running')".format(workspec.batchID),
                                   {'actpandastatus': 'tobekilled', 'pandastatus': None})
         except Exception as e:
-            tmpLog.error('Failed to cancel job {0} in aCT: {1}'.format(workspec.batchID, str(e)))
+            if self.actDB:
+                tmpLog.error('Failed to cancel job {0} in aCT: {1}'.format(workspec.batchID, str(e)))
             return False, str(e)
 
         tmpLog.info('Job {0} cancelled in aCT'.format(workspec.batchID))

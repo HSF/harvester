@@ -684,6 +684,9 @@ verbose = False
 # type : simple or apache
 type = simple
 
+# enable token authentication of apache frontend; default is True
+authEnable = True
+
 # file of secret used in token signature
 secretFile = /FIXME
 
