@@ -222,6 +222,7 @@ class WorkerAdjuster(object):
                                 resource_type, n_new_workers_orig, _r = _rt_list
                                 n_new_workers, remainder = divmod(n_new_workers_orig * n_new_workers_max_agg,
                                                                   total_new_workers_rts)
+                                dyn_num_workers[queue_name][job_type].setdefault(resource_type, {})
                                 dyn_num_workers[queue_name][job_type][resource_type]['nNewWorkers'] = n_new_workers
                                 _rt_list[2] = remainder
                                 _countdown -= n_new_workers
