@@ -69,6 +69,8 @@ class ACTSubmitter(PluginBase):
             if jobSpec:
                 jobSpec = jobSpec[0]
                 tmpLog.debug("JobSpec: {0}".format(jobSpec.values_map()))
+                # Unified queues: take prodsourcelabel from job
+                prodSourceLabel = jobSpec.jobParams.get('prodSourceLabel', prodSourceLabel)
 
             desc = {}
             # If we need to prefetch events, set aCT status waiting.
