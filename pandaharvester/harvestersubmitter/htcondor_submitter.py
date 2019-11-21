@@ -7,7 +7,7 @@ import random
 
 from concurrent.futures import ThreadPoolExecutor
 import re
-from math import sqrt, log1p
+from math import log1p
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper

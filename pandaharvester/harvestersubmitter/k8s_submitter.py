@@ -5,10 +5,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-
+from pandaharvester.harvesterconfig import harvester_config
 
 # logger
-baseLogger = core_utils.setup_logger('k8s_submitter')
+base_logger = core_utils.setup_logger('k8s_submitter')
 
 
 # submitter for K8S
@@ -18,7 +18,7 @@ class K8sSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(self.k8s_namespace, base_logger, config_file=self.k8s_config_file)
 
         # number of processes
         try:
@@ -47,53 +47,91 @@ class K8sSubmitter(PluginBase):
         except AttributeError:
             self.memoryAdjustRatio = 100
 
-    def submit_a_job(self, work_spec):
-        tmp_log = self.make_logger(baseLogger, method_name='submit_a_job')
-        tmpRetVal = (None, 'Nothing done')
+    def decide_container_image(self, work_spec):
+        """
+        Decide container image:
+        - job defined image: if we are running in push mode and the job specified an image, use it
+        - production images: take SLC6 or CentOS7
+        - otherwise take default image specified for the queue
+        """
+
+        # job defined image
+        job_spec_list = work_spec.get_jobspec_list()
+        if job_spec_list:
+            job_spec = job_spec_list[0]
+            container_image = 'ABC' # TODO: parse the container image from the job parameters
+            return container_image
+
+        # production images
+        # TODO: figure out how this is decided in the pilot
+        container_image = 'DEF'
+        return container_image
+
+        # take default image for the queue
+        container_image = 'GHI'
+        return container_image
+
+        # take the overal default image
+        container_image = 'JKL'
+        return container_image
+
+    def submit_k8s_worker(self, work_spec):
+        tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
 
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
 
         try:
+
+            # decide container image to run
+            container_image = self.decide_container_image(work_spec)
+
             if hasattr(self, 'proxySecretPath'):
-                rsp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.proxySecretPath, True, self.cpuAdjustRatio, self.memoryAdjustRatio)
+                cert = self.proxySecretPath
+                use_secret = True
             elif hasattr(self, 'x509UserProxy'):
-                rsp = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, self.x509UserProxy, False, self.cpuAdjustRatio, self.memoryAdjustRatio)
+                cert = self.x509UserProxy
+                use_secret = False
             else:
                 errStr = 'No proxy specified in proxySecretPath or x509UserProxy; not submitted'
-                tmpRetVal = (False, errStr)
+                tmp_return_value = (False, errStr)
+                return tmp_return_value
+
+            rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
+                                                                           cert, use_secret, self.cpuAdjustRatio,
+                                                                           self.memoryAdjustRatio)
         except Exception as _e:
-            errStr = 'Failed to create a JOB; {0}'.format(_e)
-            tmpRetVal = (False, errStr)
+            err_str = 'Failed to create a JOB; {0}'.format(_e)
+            tmp_return_value = (False, err_str)
         else:
             work_spec.batchID = yaml_content['metadata']['name']
 
-            # set the log files
+            # set the log file
             work_spec.set_log_file('stdout', '{0}/{1}.out'.format(self.logBaseURL, work_spec.workerID))
+            # TODO: consider if we want to upload the yaml file to PanDA cache
 
             tmp_log.debug('Created worker {0} with batchID={1}'.format(work_spec.workerID, work_spec.batchID))
-            tmpRetVal = (True, '')
+            tmp_return_value = (True, '')
 
-        return tmpRetVal
-
+        return tmp_return_value
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmp_log = self.make_logger(baseLogger, method_name='submit_workers')
+        tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
 
-        nWorkers = len(workspec_list)
-        tmp_log.debug('start, nWorkers={0}'.format(nWorkers))
+        n_workers = len(workspec_list)
+        tmp_log.debug('start, n_workers={0}'.format(n_workers))
 
-        retList = list()
+        ret_list = list()
         if not workspec_list:
             tmp_log.debug('empty workspec_list')
-            return retList
+            return ret_list
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            retValList = thread_pool.map(self.submit_a_job, workspec_list)
-            tmp_log.debug('{0} workers submitted'.format(nWorkers))
+            ret_val_list = thread_pool.map(self.submit_a_k8s_job, workspec_list)
+            tmp_log.debug('{0} workers submitted'.format(n_workers))
 
-        retList = list(retValList)
+        ret_list = list(ret_val_list)
 
         tmp_log.debug('done')
 
-        return retList
+        return ret_list

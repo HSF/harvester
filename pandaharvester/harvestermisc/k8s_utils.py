@@ -1,6 +1,5 @@
 """
 utilities routines associated with Kubernetes python client
-
 """
 import os
 import copy
@@ -13,15 +12,15 @@ from kubernetes.client.rest import ApiException
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
-
 class k8s_Client(object):
 
-    def __init__(self, namespace, config_file=None):
+    def __init__(self, namespace, logger, config_file=None):
         config.load_kube_config(config_file=config_file)
         self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
+        self.logger = logger
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
@@ -29,39 +28,57 @@ class k8s_Client(object):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, work_spec, cert, cert_in_secret=True, cpuadjustratio=100, memoryadjustratio=100):
+    def create_job_from_yaml(self, yaml_content, work_spec, container_image, cert, cert_in_secret=True,
+                             cpu_adjust_ratio=100, memory_adjust_ratio=100):
+
+        # retrieve panda queue information
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
 
+        # set the worker name
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
 
+        # set the resource type and other metadata to filter the pods
         yaml_content['spec']['template'].setdefault('metadata', {})
-        yaml_content['spec']['template']['metadata'].update({
-            'labels': {'resourceType': str(work_spec.resourceType)}})
+        yaml_content['spec']['template']['metadata'].update({'labels':
+                                                                 {'resourceType': str(work_spec.resourceType)}
+                                                             })
 
+        # fill the container details. we can only handle one container (take the first, delete the rest)
         yaml_containers = yaml_content['spec']['template']['spec']['containers']
         del(yaml_containers[1:len(yaml_containers)])
-
         container_env = yaml_containers[0]
 
-        container_env.setdefault('resources', {})
+        # set the container image
+        # TODO: decide if we should overwrite or not the default value
+        if 'image' not in container_env:
+            container_env['image'] = container_image
 
+        # set the resources (CPU and memory) we need for the container
         # note that predefined values in the yaml template will NOT be overwritten
+        container_env.setdefault('resources', {})
         if work_spec.nCore > 0:
-            container_env['resources'].setdefault('limits', {
-                'cpu': str(work_spec.nCore)})
-            container_env['resources'].setdefault('requests', {
-                'cpu': str(work_spec.nCore*cpuadjustratio/100.0)})
+            # CPU limits
+            container_env['resources'].setdefault('limits', {})
+            if 'cpu' not in container_env['resources']['limits']:
+                container_env['resources']['limits']['cpu'] = str(work_spec.nCore)
+            # CPU requests
+            container_env['resources'].setdefault('requests', {})
+            if 'cpu' not in container_env['resources']['requests']:
+                container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpu_adjust_ratio / 100.0)
 
-        if work_spec.minRamCount > 4:
-            # K8S minimum memory limit = 4 MB
-            container_env['resources'].setdefault('limits', {
-                'memory': str(work_spec.minRamCount) + 'M'})
-            container_env['resources'].setdefault('requests', {
-                'memory': str(work_spec.minRamCount*memoryadjustratio/100.0) + 'M'})
+        if work_spec.minRamCount > 4: # K8S minimum memory limit = 4 MB
+            # memory limits
+            container_env['resources'].setdefault('limits', {})
+            if 'memory' not in container_env['resources']['limits']:
+                container_env['resources']['limits']['memory'] = str(work_spec.minRamCount) + 'M'
+            # memory requests
+            container_env['resources'].setdefault('requests', {})
+            if 'memory' not in container_env['resources']['requests']:
+                container_env['resources']['requests']['memory'] = str(work_spec.minRamCount * memory_adjust_ratio / 100.0) + 'M'
 
+        # set the environment variables
         container_env.setdefault('env', [])
-
         container_env['env'].extend([
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
@@ -76,11 +93,12 @@ class k8s_Client(object):
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id}
             ])
 
+        # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content)
 
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
-        return rsp
+        return rsp, yaml_content
 
     def get_pods_info(self):
         pods_list = list()
@@ -88,13 +106,14 @@ class k8s_Client(object):
         ret = self.corev1.list_namespaced_pod(namespace=self.namespace)
 
         for i in ret.items:
-            pod_info = {}
-            pod_info['name'] = i.metadata.name
-            pod_info['start_time'] = i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time
-            pod_info['status'] = i.status.phase
-            pod_info['status_reason'] = i.status.conditions[0].reason if i.status.conditions else None
-            pod_info['status_message'] = i.status.conditions[0].message if i.status.conditions else None
-            pod_info['job_name'] = i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None
+            pod_info = {
+                'name': i.metadata.name,
+                'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
+                'status': i.status.phase,
+                'status_reason': i.status.conditions[0].reason if i.status.conditions else None,
+                'status_message': i.status.conditions[0].message if i.status.conditions else None,
+                'job_name': i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None
+            }
             pods_list.append(pod_info)
 
         return pods_list
@@ -111,16 +130,17 @@ class k8s_Client(object):
         ret = self.batchv1.list_namespaced_job(namespace=self.namespace, field_selector=field_selector)
 
         for i in ret.items:
-            job_info = {}
-            job_info['name'] = i.metadata.name
-            job_info['status'] = i.status.conditions[0].type
-            job_info['status_reason'] = i.status.conditions[0].reason
-            job_info['status_message'] = i.status.conditions[0].message
+            job_info = {
+                'name': i.metadata.name,
+                'status': i.status.conditions[0].type,
+                'status_reason': i.status.conditions[0].reason,
+                'status_message': i.status.conditions[0].message
+            }
             jobs_list.append(job_info)
         return jobs_list
 
     def delete_pods(self, pod_name_list):
-        retList = list()
+        ret_list = list()
 
         for pod_name in pod_name_list:
             rsp = {}
@@ -131,9 +151,9 @@ class k8s_Client(object):
                 rsp['errMsg'] = '' if _e.status == 404 else _e.reason
             else:
                 rsp['errMsg'] = ''
-            retList.append(rsp)
+            ret_list.append(rsp)
 
-        return retList
+        return ret_list
 
     def delete_job(self, job_name):
         self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1, grace_period_seconds=0)
@@ -173,15 +193,25 @@ class k8s_Client(object):
         # type='kubernetes.io/tls'
         metadata = {'name': secret_name, 'namespace': self.namespace}
         data = {}
-        for file in file_list:
-            filename = os.path.basename(file)
-            with open(file, 'rb') as f:
-                str = f.read()
-            data[filename] = base64.b64encode(str).decode()
+        for file_name in file_list:
+            filename = os.path.basename(file_name)
+            with open(file_name, 'rb') as f:
+                content = f.read()
+            data[filename] = base64.b64encode(content).decode()
         body = client.V1Secret(data=data, metadata=metadata)
         try:
             rsp = self.corev1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
         except ApiException as e:
-            print('Exception when patch secret: {0} . Try to create secret instead...'.format(e))
+            self.logger.debug('Exception when patching secret: {0} . Try to create secret instead...'.format(e))
             rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
         return rsp
+
+    def retrieve_pod_log(self, job_id):
+        try:
+            log_content = self.corev1.read_namespaced_pod_log(name=job_id, namespace=self.namespace)
+            # TODO: figure out what to do with the log. Ideally store it in file and let communicator take care of it
+            return log_content
+        except ApiException as e:
+            self.logger.debug('Exception retrieving logs for pod {0}: {1}'.format(job_id, e))
+            return None
+

@@ -12,7 +12,7 @@ from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 
 
 # logger
-baseLogger = core_utils.setup_logger('k8s_monitor')
+base_logger = core_utils.setup_logger('k8s_monitor')
 
 
 # monitor for K8S
@@ -21,7 +21,7 @@ class K8sMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(self.k8s_namespace, base_logger, config_file=self.k8s_config_file)
 
         try:
             self.nProcesses
@@ -68,7 +68,7 @@ class K8sMonitor(PluginBase):
 
     def check_a_job(self, workspec):
         # set logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
+        tmpLog = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
                                   method_name='check_a_job')
 
         ## initialization
@@ -117,7 +117,7 @@ class K8sMonitor(PluginBase):
 
     # check workers
     def check_workers(self, workspec_list):
-        tmpLog = self.make_logger(baseLogger, 'k8s query', method_name='check_workers')
+        tmpLog = self.make_logger(base_logger, 'k8s query', method_name='check_workers')
         tmpLog.debug('start')
 
         retList = list()
