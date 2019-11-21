@@ -21,6 +21,7 @@ import httplib
 import mimetypes
 import ssl
 import urlparse
+import urllib2
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
                     filename='/tmp/vm_script.log', filemode='w')
@@ -96,14 +97,11 @@ def upload_logs(url, log_file_name, destination_name, proxy_cert):
 def get_url(url, headers=None):
     """
     get content from specified URL
+    TODO: error handling
     """
-    reply = requests.get(url, headers=headers)
-    if reply.status_code != 200:
-        logging.debug('[get_attribute] Failed to open {0}'.format(url))
-        return None
-    else:
-        return reply.content
-
+    response = urllib2.urlopen(wrapper_url)
+    content = response.read()
+    return content
 
 def get_configuration():
 
