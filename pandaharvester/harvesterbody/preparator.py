@@ -43,8 +43,7 @@ class Preparator(AgentBase):
                                                               harvester_config.preparator.checkInterval,
                                                               harvester_config.preparator.lockInterval,
                                                               lockedBy,
-                                                              max_files_per_job=maxFilesPerJob,
-                                                              ng_file_status_list=['ready'])
+                                                              max_files_per_job=maxFilesPerJob)
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
