@@ -160,8 +160,8 @@ if __name__ == "__main__":
     os.environ['GTAG'] = log_download_url # GTAG env variable is read by pilot
 
     # get the pilot wrapper
-    wrapper_path = "/tmp/runpilot3-wrapper.sh"
-    wrapper_url = "https://raw.githubusercontent.com/fbarreir/adc/master/runpilot3-wrapper.sh"
+    wrapper_path = "/tmp/runpilot2-wrapper.sh"
+    wrapper_url = "https://raw.githubusercontent.com/ptrlv/adc/master/runpilot2-wrapper.sh"
     wrapper_string = get_url(wrapper_url)
     with open(wrapper_path, "w") as wrapper_file:
         wrapper_file.write(wrapper_string)
@@ -172,13 +172,13 @@ if __name__ == "__main__":
     logging.debug('[main] starting pilot wrapper...')
     resource_type_option = ''
     if resource_type:
-        resource_type_option = '-R {0}'.format(resource_type)
-    wrapper_params = '-s {0} -h {1} {2}'.format(panda_site, panda_queue, resource_type_option)
+        resource_type_option = '--resource-type {0}'.format(resource_type)
+    wrapper_params = '-s {0} -r {1} -q {2} {3}'.format(panda_site, panda_queue, panda_queue, resource_type_option)
     if 'ANALY' in panda_queue:
-        wrapper_params = '{0} -u user'.format(wrapper_params)
+        wrapper_params = '{0} -j user'.format(wrapper_params)
     else:
-        wrapper_params = '{0} -u managed'.format(wrapper_params)
-    command = "/tmp/runpilot3-wrapper.sh {0} -p 25443 -w https://pandaserver.cern.ch >& /tmp/wrapper-wid.log".\
+        wrapper_params = '{0} -j managed'.format(wrapper_params)
+    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode=PULL --allow-same-user=False >& /tmp/wrapper-wid.log".\
         format(wrapper_params, worker_id)
     subprocess.call(command, shell=True)
     logging.debug('[main] pilot wrapper done...')
