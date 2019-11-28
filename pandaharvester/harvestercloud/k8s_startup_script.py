@@ -178,9 +178,13 @@ if __name__ == "__main__":
         wrapper_params = '{0} -j user'.format(wrapper_params)
     else:
         wrapper_params = '{0} -j managed'.format(wrapper_params)
-    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode=PULL --allow-same-user=False >& /tmp/wrapper-wid.log".\
+    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode=PULL --allow-same-user=False | tee /tmp/wrapper-wid.log".\
         format(wrapper_params, worker_id)
-    subprocess.call(command, shell=True)
+    try:
+        subprocess.call(command, shell=True)
+    except:
+        import traceback
+        print traceback.format_exc()
     logging.debug('[main] pilot wrapper done...')
 
     # upload logs to e.g. panda cache or similar
