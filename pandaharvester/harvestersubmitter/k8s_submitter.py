@@ -127,7 +127,7 @@ class K8sSubmitter(PluginBase):
             return ret_list
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            ret_val_list = thread_pool.map(self.submit_a_k8s_job, workspec_list)
+            ret_val_list = thread_pool.map(self.submit_k8s_worker, workspec_list)
             tmp_log.debug('{0} workers submitted'.format(n_workers))
 
         ret_list = list(ret_val_list)
