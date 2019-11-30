@@ -41,7 +41,8 @@ setup(
                       ],
     # optional pip dependencies
     extras_require={
-        'kubernetes':  ['kubernetes', 'pyyaml']
+        'kubernetes':  ['kubernetes', 'pyyaml'],
+        'mysql':  ['mysqlclient']
     },
     data_files=[
         # config and cron files
