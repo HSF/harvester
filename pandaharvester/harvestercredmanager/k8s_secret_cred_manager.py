@@ -46,7 +46,7 @@ class K8sSecretCredManager(PluginBase):
                                 e.__class__.__name__, e))
             raise
         # k8s client
-        self.k8s_client = k8s_Client(self.k8s_namespace, _logger, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(self.k8s_namespace, config_file=self.k8s_config_file)
 
     # check proxy
     def check_credential(self):

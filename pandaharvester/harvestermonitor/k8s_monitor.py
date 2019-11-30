@@ -21,7 +21,7 @@ class K8sMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(self.k8s_namespace, base_logger, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(self.k8s_namespace, config_file=self.k8s_config_file)
 
         try:
             self.nProcesses

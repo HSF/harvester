@@ -12,7 +12,7 @@ class K8sSweeper(BaseSweeper):
     def __init__(self, **kwarg):
         BaseSweeper.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(self.k8s_namespace, base_logger, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(self.k8s_namespace, config_file=self.k8s_config_file)
 
         self._all_pods_list = []
 
