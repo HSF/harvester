@@ -13,7 +13,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
-base_logger = core_utils.setup_logger('k8s_submitter')
+base_logger = core_utils.setup_logger('k8s_utils')
 
 
 class k8s_Client(object):
