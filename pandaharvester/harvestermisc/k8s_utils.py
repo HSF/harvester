@@ -9,6 +9,7 @@ import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
