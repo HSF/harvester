@@ -195,7 +195,7 @@ class k8s_Client(object):
         # kind = 'Secret'
         # type='kubernetes.io/tls'
 
-        tmp_log = self.make_logger(base_logger, method_name='create_or_patch_secret')
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_or_patch_secret')
 
         metadata = {'name': secret_name, 'namespace': self.namespace}
         data = {}
@@ -214,7 +214,7 @@ class k8s_Client(object):
 
     def retrieve_pod_log(self, job_id):
 
-        tmp_log = self.make_logger(base_logger, method_name='retrieve_pod_log')
+        tmp_log = core_utils.make_logger(base_logger, method_name='retrieve_pod_log')
 
         try:
             log_content = self.corev1.read_namespaced_pod_log(name=job_id, namespace=self.namespace)
