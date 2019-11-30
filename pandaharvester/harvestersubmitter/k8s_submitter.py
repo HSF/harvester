@@ -18,7 +18,7 @@ class K8sSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(self.k8s_namespace, base_logger, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(self.k8s_namespace, config_file=self.k8s_config_file)
 
         # number of processes
         try:
@@ -116,7 +116,7 @@ class K8sSubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
+        tmp_log = self.make_logger(base_logger, method_name='submit_workers')
 
         n_workers = len(workspec_list)
         tmp_log.debug('start, n_workers={0}'.format(n_workers))

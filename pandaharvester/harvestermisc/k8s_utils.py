@@ -12,15 +12,17 @@ from kubernetes.client.rest import ApiException
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
+base_logger = core_utils.setup_logger('k8s_submitter')
+
+
 class k8s_Client(object):
 
-    def __init__(self, namespace, logger, config_file=None):
+    def __init__(self, namespace, config_file=None):
         config.load_kube_config(config_file=config_file)
         self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
-        self.logger = logger
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
@@ -191,6 +193,9 @@ class k8s_Client(object):
         # api_version = 'v1'
         # kind = 'Secret'
         # type='kubernetes.io/tls'
+
+        tmp_log = self.make_logger(base_logger, method_name='create_or_patch_secret')
+
         metadata = {'name': secret_name, 'namespace': self.namespace}
         data = {}
         for file_name in file_list:
@@ -202,16 +207,19 @@ class k8s_Client(object):
         try:
             rsp = self.corev1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
         except ApiException as e:
-            self.logger.debug('Exception when patching secret: {0} . Try to create secret instead...'.format(e))
+            tmp_log.debug('Exception when patching secret: {0} . Try to create secret instead...'.format(e))
             rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
         return rsp
 
     def retrieve_pod_log(self, job_id):
+
+        tmp_log = self.make_logger(base_logger, method_name='retrieve_pod_log')
+
         try:
             log_content = self.corev1.read_namespaced_pod_log(name=job_id, namespace=self.namespace)
             # TODO: figure out what to do with the log. Ideally store it in file and let communicator take care of it
             return log_content
         except ApiException as e:
-            self.logger.debug('Exception retrieving logs for pod {0}: {1}'.format(job_id, e))
+            tmp_log.debug('Exception retrieving logs for pod {0}: {1}'.format(job_id, e))
             return None
 
