@@ -27,9 +27,9 @@ class K8sSweeper(BaseSweeper):
     #     try:
     #         self.k8s_client.delete_job(job_id)
     #     except Exception as _e:
-    #         errStr = 'Failed to delete a JOB with id={0} ; {1}'.format(job_id, _e)
-    #         tmp_log.error(errStr)
-    #         tmp_ret_val = (False, errStr)
+    #         err_str = 'Failed to delete a JOB with id={0} ; {1}'.format(job_id, _e)
+    #         tmp_log.error(err_str)
+    #         tmp_ret_val = (False, err_str)
     #
     #     self._all_pods_list = self.k8s_client.get_pods_info()
     #     pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
@@ -45,9 +45,9 @@ class K8sSweeper(BaseSweeper):
     #             err_str_list = list()
     #             for item in ret_list:
     #                 if item['errMsg']:
-    #                     errStr = 'Failed to delete a POD with id={0} ; {1}'.format(item['name'], item['errMsg'])
-    #                     tmp_log.error(errStr)
-    #                     err_str_list.append(errStr)
+    #                     err_str = 'Failed to delete a POD with id={0} ; {1}'.format(item['name'], item['errMsg'])
+    #                     tmp_log.error(err_str)
+    #                     err_str_list.append(err_str)
     #             tmp_ret_val = (False, ','.join(err_str_list))
     #
     #     return tmp_ret_val
@@ -66,12 +66,12 @@ class K8sSweeper(BaseSweeper):
             try:
                 self.k8s_client.delete_job(job_id)
             except Exception as _e:
-                errStr = 'Failed to delete a JOB with id={0} ; {1}'.format(job_id, _e)
-                tmp_log.error(errStr)
-                tmp_ret_val = (False, errStr)
+                err_str = 'Failed to delete a JOB with id={0} ; {1}'.format(job_id, _e)
+                tmp_log.error(err_str)
+                tmp_ret_val = (False, err_str)
 
             pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
-            pods_name = [ pods_info['name'] for pods_info in pods_list ]
+            pods_name = [pods_info['name'] for pods_info in pods_list]
             job_info = self.k8s_client.get_jobs_info(job_id)
 
             if not job_info:
@@ -83,9 +83,9 @@ class K8sSweeper(BaseSweeper):
                     err_str_list = list()
                     for item in ret_list:
                         if item['errMsg']:
-                            errStr = 'Failed to delete a POD with id={0} ; {1}'.format(item['name'], item['errMsg'])
-                            tmp_log.error(errStr)
-                            err_str_list.append(errStr)
+                            err_str = 'Failed to delete a POD with id={0} ; {1}'.format(item['name'], item['errMsg'])
+                            tmp_log.error(err_str)
+                            err_str_list.append(err_str)
                     tmp_ret_val = (False, ','.join(err_str_list))
 
             ret_list.append(tmp_ret_val)

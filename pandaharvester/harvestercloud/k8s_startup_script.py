@@ -16,7 +16,6 @@ except Exception:
 import os
 import sys
 import logging
-import traceback
 import httplib
 import mimetypes
 import ssl
