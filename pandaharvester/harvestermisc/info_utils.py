@@ -121,5 +121,7 @@ class PandaQueuesDict(dict, PluginBase):
             workflow = None
         else:
             pq_type = panda_queue_dict.get('type')
+            if pq_type == 'unified': # use production templates
+                pq_type = 'production'
             workflow = panda_queue_dict.get('workflow')
         return pq_type, workflow
