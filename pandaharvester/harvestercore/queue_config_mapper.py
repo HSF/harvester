@@ -77,9 +77,15 @@ class QueueConfig(object):
         return status in self.get_no_heartbeat_status()
 
     # get prodSourceLabel
-    def get_source_label(self):
+    def get_source_label(self, job_type=None):
+        # if queue is in test status, only submit workers for HC jobs
         if self.queueStatus == 'test':
             return 'test'
+
+        # grandly unified queues: prodsourcelabel in job has precedence over queue prodsourcelabel
+        if job_type == 'user':
+            return job_type
+
         return self.prodSourceLabel
 
     # set unique name

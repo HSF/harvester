@@ -365,7 +365,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     # decide prodSourceLabel
     pilot_opt_tuple = _get_prodsourcelabel_pilotypeopt_piloturlstr(workspec.pilotType, pilot_version)
     if pilot_opt_tuple is None:
-        prod_source_label = harvester_queue_config.get_source_label()
+        prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
         pilot_url_str = ''
     else:
