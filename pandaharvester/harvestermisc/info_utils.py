@@ -90,10 +90,9 @@ class PandaQueuesDict(dict, PluginBase):
             return False
 
         # initial, temporary nomenclature
-        if 'grandly_unified' in panda_queue_dict.get('catchall'):
+        if 'grandly_unified' in panda_queue_dict.get('catchall') \
+                or panda_queue_dict.get('type') == 'unified':
             return True
-
-        # TODO: implement the final nomenclature
 
         return False
 
