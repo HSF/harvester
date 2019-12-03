@@ -83,8 +83,8 @@ class QueueConfig(object):
             return 'test'
 
         # grandly unified queues: prodsourcelabel in job has precedence over queue prodsourcelabel
-        if job_type == 'user':
-            return job_type
+        if job_type in ('user', 'panda'):
+            return 'user'
 
         return self.prodSourceLabel
 
