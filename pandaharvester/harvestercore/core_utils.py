@@ -592,8 +592,8 @@ def get_queues_config_url():
 
 
 # get unique queue name
-def get_unique_queue_name(queue_name, resource_type):
-    return '{0}:{1}'.format(queue_name, resource_type)
+def get_unique_queue_name(queue_name, resource_type, job_type):
+    return '{0}:{1}:{2}'.format(queue_name, resource_type, job_type)
 
 
 # capability to dynamically change plugins
@@ -613,10 +613,10 @@ class DictTupleHybrid(tuple):
         return dict(zip(self.attributes, self))
 
 
-# Make a list of choice candidates accroding to permille weight
+# Make a list of choice candidates according to permille weight
 def make_choice_list(pdpm={}, default=None):
     weight_sum = sum(pdpm.values())
-    weight_defualt = 1000
+    weight_default = 1000
     ret_list = []
     for candidate, weight in iteritems(pdpm):
         if weight_sum > 1000:
@@ -624,8 +624,8 @@ def make_choice_list(pdpm={}, default=None):
         else:
             real_weight = int(weight)
         ret_list.extend([candidate]*real_weight)
-        weight_defualt -= real_weight
-    ret_list.extend([default]*weight_defualt)
+        weight_default -= real_weight
+    ret_list.extend([default]*weight_default)
     return ret_list
 
 

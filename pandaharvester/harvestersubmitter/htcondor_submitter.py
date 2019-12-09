@@ -7,7 +7,7 @@ import random
 
 from concurrent.futures import ThreadPoolExecutor
 import re
-from math import sqrt, log1p
+from math import log1p
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -43,7 +43,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
                             for _ce in worker_ce_backend_throughput_dict))
     thruput_avg = (log1p(Q_good_init) - log1p(Q_good_fin))
     n_new_workers = float(n_new_workers)
-    def _get_thruput(_ce_endpoint):
+
+    def _get_thruput(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_backend_throughput_dict:
             q_good_init = 0.
             q_good_fin = 0.
@@ -54,7 +55,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
                                     for _st in ('submitted',)))
         thruput = (log1p(q_good_init) - log1p(q_good_fin))
         return thruput
-    def _get_thruput_adj_ratio(thruput):
+
+    def _get_thruput_adj_ratio(thruput):  # inner function
         try:
             thruput_adj_ratio = thruput/thruput_avg + 1/N
         except ZeroDivisionError:
@@ -65,7 +67,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
         return thruput_adj_ratio
     ce_base_weight_sum = sum((_get_thruput_adj_ratio(_get_thruput(_ce))
                                 for _ce in ce_endpoint_list))
-    def _get_init_weight(_ce_endpoint):
+
+    def _get_init_weight(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_stats_dict:
             q = 0.
             r = 0.
@@ -238,8 +241,6 @@ def submit_bag_of_workers(data_list):
             worker_retval_map[workerID] = (tmpRetVal, workspec.get_changed_attributes())
         # attributes
         try:
-            ce_info_dict = data['ce_info_dict']
-            batch_log_dict = data['batch_log_dict']
             use_spool = data['use_spool']
         except KeyError:
             errStr = '{0} not submitted due to incomplete data of the worker'.format(workerID)
@@ -364,7 +365,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     # decide prodSourceLabel
     pilot_opt_tuple = _get_prodsourcelabel_pilotypeopt_piloturlstr(workspec.pilotType, pilot_version)
     if pilot_opt_tuple is None:
-        prod_source_label = harvester_queue_config.get_source_label()
+        prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
         pilot_url_str = ''
     else:
@@ -456,11 +457,16 @@ class HTCondorSubmitter(PluginBase):
             self.logDir
         except AttributeError:
             self.logDir = os.getenv('TMPDIR') or '/tmp'
-        # x509 proxy
+        # Default x509 proxy for a queue
         try:
             self.x509UserProxy
         except AttributeError:
             self.x509UserProxy = os.getenv('X509_USER_PROXY')
+        # x509 proxy for analysis jobs in grandly unified queues
+        try:
+            self.x509UserProxyAnalysis
+        except AttributeError:
+            self.x509UserProxyAnalysis = os.getenv('X509_USER_PROXY_ANAL')
         # ATLAS AGIS
         try:
             self.useAtlasAGIS = bool(self.useAtlasAGIS)
@@ -541,11 +547,13 @@ class HTCondorSubmitter(PluginBase):
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
 
+        is_grandly_unified_queue = False
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
             panda_queues_dict = PandaQueuesDict()
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
+            is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
         else:
             panda_queues_dict = dict()
@@ -612,8 +620,6 @@ class HTCondorSubmitter(PluginBase):
             else:
                 tmpLog.error('No valid CE endpoint found')
                 to_submit_any = False
-
-
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
@@ -736,6 +742,10 @@ class HTCondorSubmitter(PluginBase):
                         batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
                         tmpLog.debug('Done set_log_file before submission')
                     tmpLog.debug('Done jobspec attribute setting')
+
+                # choose the x509 certificate based on the type of job (analysis or production)
+                proxy = _choose_proxy(workspec)
+
                 # set data dict
                 data.update({
                         'workspec': workspec,
@@ -746,7 +756,7 @@ class HTCondorSubmitter(PluginBase):
                         'log_subdir': log_subdir,
                         'n_core_per_node': n_core_per_node,
                         'panda_queue_name': panda_queue_name,
-                        'x509_user_proxy': self.x509UserProxy,
+                        'x509_user_proxy': proxy,
                         'ce_info_dict': ce_info_dict,
                         'batch_log_dict': batch_log_dict,
                         'special_par': special_par,
@@ -758,6 +768,20 @@ class HTCondorSubmitter(PluginBase):
                         'pilot_version': pilot_version_orig,
                         })
             return data
+
+        def _choose_proxy(workspec):
+            """
+            Choose the proxy based on the job type
+            """
+            job_type = workspec.jobType
+            proxy = self.x509UserProxy
+            if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis') and self.x509UserProxyAnalysis:
+                tmpLog.debug('Taking analysis proxy')
+                proxy = self.x509UserProxyAnalysis
+            else:
+                tmpLog.debug('Taking default proxy')
+
+            return proxy
 
         def _propagate_attributes(workspec, tmpVal):
             # make logger

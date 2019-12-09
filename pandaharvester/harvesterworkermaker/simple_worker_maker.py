@@ -41,9 +41,30 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         return job_corecount, job_memory
 
+    def get_job_type(self, job_spec, job_type, queue_dict):
+
+        # 1. get prodSourceLabel from job (push)
+        if job_spec and 'prodSourceLabel' in job_spec.jobParams:
+            job_type_final = job_spec.jobParams['prodSourceLabel']
+        # 2. get prodSourceLabel from the specified job_type (pull UPS)
+        elif job_type:
+            job_type_final = job_type
+        # 3. convert the prodSourcelabel from the queue configuration or leave it empty
+        else: # 3. get prodSourceLabel from the queue definition (pull)
+            queue_type = queue_dict.get('type', None)
+            # map AGIS types to PanDA types
+            if queue_type == 'analysis':
+                job_type_final = 'user'
+            elif queue_type == 'production':
+                job_type_final = 'managed'
+            else:
+                job_type_final = None
+
+        return job_type_final
+
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config, resource_type):
-        tmpLog = self.make_logger(_logger, 'queue={0}'.format(queue_config.queueName),
+    def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
+        tmpLog = self.make_logger(_logger, 'queue={0}:{1}:{2}'.format(queue_config.queueName, job_type, resource_type),
                                   method_name='make_worker')
 
         tmpLog.debug('jobspec_list: {0}'.format(jobspec_list))
@@ -61,7 +82,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             workSpec.nCore = queue_dict.get('corecount', 1) or 1
             workSpec.minRamCount = queue_dict.get('maxrss', 1) or 1
 
-        # case of unified queue: look at the resource type and queue configuration
+        # case of unified queue: look at the job & resource type and queue configuration
         else:
             catchall = queue_dict.get('catchall', '')
             if 'useMaxRam' in catchall or queue_config.queueName in ('Taiwan-LCG2-HPC2_Unified',
@@ -113,11 +134,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             except Exception:
                 pass
 
-            if (nCore > 0 and 'nCore' in self.jobAttributesToUse) \
-               or unified_queue:
+            if (nCore > 0 and 'nCore' in self.jobAttributesToUse) or unified_queue:
                 workSpec.nCore = nCore
-            if (minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse) \
-               or unified_queue:
+            if (minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse) or unified_queue:
                 workSpec.minRamCount = minRamCount
             if maxDiskCount > 0 and 'maxDiskCount' in self.jobAttributesToUse:
                 workSpec.maxDiskCount = maxDiskCount
@@ -125,7 +144,10 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 workSpec.maxWalltime = maxWalltime
             if ioIntensity > 0 and 'ioIntensity' in self.jobAttributesToUse:
                 workSpec.ioIntensity = ioIntensity
+
             workSpec.pilotType = jobspec_list[0].get_pilot_type()
+            workSpec.jobType = self.get_job_type(jobspec_list[0], job_type, queue_dict)
+
         else:
             # when no job
             # randomize pilot type with weighting
@@ -139,7 +161,10 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             del fake_job
             if workSpec.pilotType in ['RC', 'ALRB', 'PT']:
                 tmpLog.info('a worker has pilotType={0}'.format(workSpec.pilotType))
-        # TODO: this needs to be improved with real resource types
+
+            workSpec.jobType = self.get_job_type(None, job_type, queue_dict)
+            tmpLog.debug('get_job_type decided for job_type: {0}'.format(workSpec.jobType))
+
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type
         elif workSpec.nCore == 1:

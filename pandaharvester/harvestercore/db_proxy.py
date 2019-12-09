@@ -361,6 +361,20 @@ class DBProxy(object):
                 isUnique = True
         return isIndex, isUnique
 
+    def initialize_jobType(self, table_name):
+        # initialize old NULL entries to ANY in pq_table and work_table
+        # get logger
+        tmp_log = core_utils.make_logger(_logger, method_name='initialize_jobType')
+
+        sql_update = "UPDATE {0} SET jobType = 'ANY' WHERE jobType is NULL ".format(table_name)
+        try:
+            self.execute(sql_update)
+            # commit
+            self.commit()
+            tmp_log.debug('initialized entries in {0}'.format(table_name))
+        except Exception:
+            core_utils.dump_error_message(tmp_log)
+
     # make table
     def make_table(self, cls, table_name):
         try:
@@ -430,6 +444,12 @@ class DBProxy(object):
                             tmpLog.debug('added {0} to {1}'.format(attr, table_name))
                         except Exception:
                             core_utils.dump_error_message(tmpLog)
+
+                        # if we just added the jobType, old entries need to be initialized
+                        if (table_name == pandaQueueTableName and attrName == 'jobType') \
+                                or (table_name == pandaQueueTableName and attrName == 'jobType'):
+                            self.initialize_jobType(table_name)
+
             # make indexes
             for index in indexes:
                 indexName = 'idx_{0}_{1}'.format(index, table_name)
@@ -479,6 +499,7 @@ class DBProxy(object):
             for outStr in outStrs:
                 print (outStr)
             sys.exit(1)
+
         # add sequential numbers
         self.add_seq_number('SEQ_workerID', 1)
         self.add_seq_number('SEQ_configID', 1)
@@ -1416,7 +1437,7 @@ class DBProxy(object):
             sqlS += "OR (submitTime<:lookupTimeLimit AND lockedBy IS NULL) "
             sqlS += "ORDER BY submitTime "
             # sql to get queues
-            sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName, jobType, resourceType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName "
             # sql to get orphaned workers
             sqlO = "SELECT workerID FROM {0} ".format(workTableName)
@@ -1426,7 +1447,7 @@ class DBProxy(object):
             sqlD = "DELETE FROM {0} ".format(workTableName)
             sqlD += "WHERE workerID=:workerID "
             # sql to count nQueue
-            sqlN = "SELECT status,COUNT(*) cnt FROM {0} ".format(workTableName)
+            sqlN = "SELECT status, COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlN += "WHERE computingSite=:computingSite "
             # sql to count re-fillers
             sqlR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
@@ -1462,13 +1483,17 @@ class DBProxy(object):
                 varMap[':siteName'] = siteName
                 self.execute(sqlQ, varMap)
                 resQ = self.cur.fetchall()
-                for queueName, resourceType, nNewWorkers in resQ:
+                for queueName, jobType, resourceType, nNewWorkers in resQ:
+
                     # delete orphaned workers
                     varMap = dict()
                     varMap[':computingSite'] = queueName
                     varMap[':status'] = WorkSpec.ST_pending
                     varMap[':timeLimit'] = timeNow - datetime.timedelta(seconds=lock_interval)
                     sqlO_tmp = sqlO
+                    if jobType != 'ANY':
+                        varMap[':jobType'] = jobType
+                        sqlO_tmp += "AND jobType=:jobType "
                     if resourceType != 'ANY':
                         varMap[':resourceType'] = resourceType
                         sqlO_tmp += "AND resourceType=:resourceType "
@@ -1480,11 +1505,15 @@ class DBProxy(object):
                         self.execute(sqlD, varMap)
                         # commit
                         self.commit()
+
                     # count nQueue
                     varMap = dict()
                     varMap[':computingSite'] = queueName
                     varMap[':resourceType'] = resourceType
                     sqlN_tmp = sqlN
+                    if jobType != 'ANY':
+                        varMap[':jobType'] = jobType
+                        sqlN_tmp += "AND jobType=:jobType "
                     if resourceType != 'ANY':
                         varMap[':resourceType'] = resourceType
                         sqlN_tmp += "AND resourceType=:resourceType "
@@ -1500,11 +1529,15 @@ class DBProxy(object):
                             nReady += tmpNum
                         elif workerStatus in [WorkSpec.ST_running]:
                             nRunning += tmpNum
+
                     # count nFillers
                     varMap = dict()
                     varMap[':computingSite'] = queueName
                     varMap[':status'] = WorkSpec.ST_running
                     sqlR_tmp = sqlR
+                    if jobType != 'ANY':
+                        varMap[':jobType'] = jobType
+                        sqlR_tmp += "AND jobType=:jobType "
                     if resourceType != 'ANY':
                         varMap[':resourceType'] = resourceType
                         sqlR_tmp += "AND resourceType=:resourceType "
@@ -1513,11 +1546,13 @@ class DBProxy(object):
                     nReady += nReFill
                     # add
                     retMap.setdefault(queueName, {})
-                    retMap[queueName][resourceType] = {'nReady': nReady,
-                                                       'nRunning': nRunning,
-                                                       'nQueue': nQueue,
-                                                       'nNewWorkers': nNewWorkers}
-                    resourceMap[resourceType] = queueName
+                    retMap[queueName].setdefault(jobType, {})
+                    retMap[queueName][jobType][resourceType] = {'nReady': nReady,
+                                                                'nRunning': nRunning,
+                                                                'nQueue': nQueue,
+                                                                'nNewWorkers': nNewWorkers}
+                    resourceMap.setdefault(jobType, {})
+                    resourceMap[jobType][resourceType] = queueName
                 # enough queues
                 if len(retMap) >= 0:
                     break
@@ -3297,7 +3332,7 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats')
             tmpLog.debug('start')
             # sql to get nQueueLimit
-            sqlQ = "SELECT queueName,resourceType,nNewWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName, jobType, resourceType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
             sqlQ += "WHERE siteName=:siteName "
             # get nQueueLimit
             varMap = dict()
@@ -3305,18 +3340,18 @@ class DBProxy(object):
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
             retMap = dict()
-            for computingSite, resourceType, nNewWorkers in resQ:
-                if resourceType not in retMap:
-                    retMap[resourceType] = {
-                        'running': 0,
-                        'submitted': 0,
-                        'to_submit': nNewWorkers
-                    }
+            for computingSite, jobType, resourceType, nNewWorkers in resQ:
+                retMap.setdefault(jobType, {})
+                if resourceType not in retMap[jobType]:
+                    retMap[jobType][resourceType] = {'running': 0,
+                                                     'submitted': 0,
+                                                     'to_submit': nNewWorkers}
+
             # get worker stats
-            sqlW = "SELECT wt.status, wt.computingSite, pq.resourceType, COUNT(*) cnt "
+            sqlW = "SELECT wt.status, wt.computingSite, pq.jobType, pq.resourceType, COUNT(*) cnt "
             sqlW += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
             sqlW += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2) "
-            sqlW += "GROUP BY wt.status, wt.computingSite, pq.resourceType "
+            sqlW += "GROUP BY wt.status, wt.computingSite, pq.jobType, pq.resourceType "
             # get worker stats
             varMap = dict()
             varMap[':siteName'] = site_name
@@ -3324,14 +3359,14 @@ class DBProxy(object):
             varMap[':st2'] = 'submitted'
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
-            for workerStatus, computingSite, resourceType, cnt in resW:
+            for workerStatus, computingSite, jobType, resourceType, cnt in resW:
+                retMap.setdefault(jobType, {})
                 if resourceType not in retMap:
-                    retMap[resourceType] = {
-                        'running': 0,
-                        'submitted': 0,
-                        'to_submit': 0
-                    }
-                retMap[resourceType][workerStatus] = cnt
+                    retMap[jobType][resourceType] = {'running': 0,
+                                                     'submitted': 0,
+                                                     'to_submit': 0
+                                                     }
+                retMap[jobType][resourceType][workerStatus] = cnt
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))
@@ -3351,40 +3386,46 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats_bulk')
             tmpLog.debug('start')
             # sql to get nQueueLimit
-            sqlQ = "SELECT queueName, resourceType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
+            sqlQ = "SELECT queueName, jobType, resourceType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
 
             # get nQueueLimit
             self.execute(sqlQ)
             resQ = self.cur.fetchall()
             retMap = dict()
-            for computingSite, resourceType, nNewWorkers in resQ:
+            for computingSite, jobType, resourceType, nNewWorkers in resQ:
                 retMap.setdefault(computingSite, {})
-                if resourceType and resourceType != 'ANY' and resourceType not in retMap[computingSite]:
-                    retMap[computingSite][resourceType] = {'running': 0, 'submitted': 0, 'to_submit': nNewWorkers}
+                retMap[computingSite].setdefault(jobType, {})
+                if resourceType and resourceType != 'ANY' and resourceType not in retMap[computingSite][jobType]:
+                    retMap[computingSite][jobType][resourceType] = {'running': 0,
+                                                                    'submitted': 0,
+                                                                    'to_submit': nNewWorkers}
 
             # get worker stats
-            sqlW = "SELECT wt.status, wt.computingSite, wt.resourceType, COUNT(*) cnt "
+            sqlW = "SELECT wt.status, wt.computingSite, wt.jobType, wt.resourceType, COUNT(*) cnt "
             sqlW += "FROM {0} wt ".format(workTableName)
             sqlW += "WHERE wt.status IN (:st1,:st2) "
-            sqlW += "GROUP BY wt.status,wt.computingSite, wt.resourceType "
+            sqlW += "GROUP BY wt.status,wt.computingSite, wt.jobType, wt.resourceType "
             # get worker stats
             varMap = dict()
             varMap[':st1'] = 'running'
             varMap[':st2'] = 'submitted'
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
-            for workerStatus, computingSite, resourceType, cnt in resW:
+            for workerStatus, computingSite, jobType, resourceType, cnt in resW:
                 if resourceType and resourceType != 'ANY':
                     retMap.setdefault(computingSite, {})
-                    retMap[computingSite].setdefault(resourceType, {'running': 0, 'submitted': 0, 'to_submit': 0})
-                    retMap[computingSite][resourceType][workerStatus] = cnt
+                    retMap[computingSite].setdefault(jobType, {})
+                    retMap[computingSite][jobType].setdefault(resourceType, {'running': 0,
+                                                                             'submitted': 0,
+                                                                             'to_submit': 0})
+                    retMap[computingSite][jobType][resourceType][workerStatus] = cnt
 
             # if there are no jobs for an active UPS queue, it needs to be initialized so that the pilot streaming
             # on panda server starts processing the queue
             if active_ups_queues:
                 for ups_queue in active_ups_queues:
-                    if ups_queue not in retMap or not retMap[ups_queue]:
-                        retMap[ups_queue] = {'SCORE': {'running': 0, 'submitted': 0, 'to_submit': 0}}
+                    if ups_queue not in retMap or not retMap[ups_queue] or retMap[ups_queue] == {'ANY': {}}:
+                        retMap[ups_queue] = {'managed': {'SCORE': {'running': 0, 'submitted': 0, 'to_submit': 0}}}
 
             # commit
             self.commit()
@@ -3698,11 +3739,11 @@ class DBProxy(object):
             return False
 
     # clone queue
-    def clone_queue_with_new_resource_type(self, site_name, queue_name, resource_type, new_workers):
+    def clone_queue_with_new_job_and_resource_type(self, site_name, queue_name, job_type, resource_type, new_workers):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'site_name={0} queue_name={1}'.format(site_name, queue_name),
-                                            method_name='clone_queue_with_new_resource_type')
+                                            method_name='clone_queue_with_new_job_and_resource_type')
             tmpLog.debug('start')
 
             # get the values from one of the existing queues
@@ -3721,10 +3762,12 @@ class DBProxy(object):
                     attr_binding = ':{0}'.format(attribute)
                     if attribute == 'resourceType':
                         var_map[attr_binding] = resource_type
+                    elif attribute == 'jobType':
+                        var_map[attr_binding] = job_type
                     elif attribute == 'nNewWorkers':
                         var_map[attr_binding] = new_workers
                     elif attribute == 'uniqueName':
-                        var_map[attr_binding] = core_utils.get_unique_queue_name(queue_name, resource_type)
+                        var_map[attr_binding] = core_utils.get_unique_queue_name(queue_name, resource_type, job_type)
                     else:
                         var_map[attr_binding] = value
                     attribute_list.append(attribute)
@@ -3754,85 +3797,87 @@ class DBProxy(object):
             sql_reset += "SET nNewWorkers=:zero WHERE siteName=:siteName "
 
             # sql to get resource types
-            sql_get_resource = "SELECT resourceType FROM {0} ".format(pandaQueueTableName)
-            sql_get_resource += "WHERE siteName=:siteName "
-            sql_get_resource += "FOR UPDATE "
+            sql_get_job_resource = "SELECT jobType, resourceType FROM {0} ".format(pandaQueueTableName)
+            sql_get_job_resource += "WHERE siteName=:siteName "
+            sql_get_job_resource += "FOR UPDATE "
 
             # sql to update nQueueLimit
             sql_update_queue = "UPDATE {0} ".format(pandaQueueTableName)
-            sql_update_queue += "SET nNewWorkers=:nQueue WHERE siteName=:siteName AND resourceType=:resourceType "
+            sql_update_queue += "SET nNewWorkers=:nQueue "
+            sql_update_queue += "WHERE siteName=:siteName AND jobType=:jobType AND resourceType=:resourceType "
 
             # sql to get num of submitted workers
             sql_count_workers = "SELECT COUNT(*) cnt "
             sql_count_workers += "FROM {0} wt, {1} pq ".format(workTableName, pandaQueueTableName)
             sql_count_workers += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
-            sql_count_workers += "ANd pq.resourceType=:resourceType "
+            sql_count_workers += "AND pq.jobType=:jobType AND pq.resourceType=:resourceType "
 
-            # reset nqueued for all resource types
+            # reset nqueued for all job & resource types
             varMap = dict()
             varMap[':zero'] = 0
             varMap[':siteName'] = site_name
             self.execute(sql_reset, varMap)
 
-            # get resource types
+            # get job & resource types
             varMap = dict()
             varMap[':siteName'] = site_name
-            self.execute(sql_get_resource, varMap)
-            resRes = self.cur.fetchall()
-            resource_type_list = set()
-            for tmpRes, in resRes:
-                resource_type_list.add(tmpRes)
+            self.execute(sql_get_job_resource, varMap)
+            results = self.cur.fetchall()
+            job_resource_type_list = set()
+            for tmp_job_type, tmp_resource_type in results:
+                job_resource_type_list.add((tmp_job_type, tmp_resource_type))
 
             # set all queues
             nUp = 0
-            retMap = dict()
+            ret_map = dict()
             queue_name = site_name
 
-            for resource_type, value in iteritems(params):
-                tmpLog.debug('Processing rt {0} -> {1}'.format(resource_type, value))
+            for job_type, job_values in iteritems(params):
+                ret_map.setdefault(job_type, {})
+                for resource_type, value in iteritems(job_values):
+                    tmpLog.debug('Processing rt {0} -> {1}'.format(resource_type, value))
 
-                # get num of submitted workers
-                varMap = dict()
-                varMap[':siteName'] = site_name
-                varMap[':resourceType'] = resource_type
-                varMap[':status'] = 'submitted'
-                self.execute(sql_count_workers, varMap)
-                res = self.cur.fetchone()
-                tmpLog.debug('{0} has {1} submitted workers'.format(resource_type, res))
-                nSubmittedWorkers = 0
-                if res is not None:
-                    nSubmittedWorkers, = res
+                    # get num of submitted workers
+                    varMap = dict()
+                    varMap[':siteName'] = site_name
+                    varMap[':jobType'] = job_type
+                    varMap[':resourceType'] = resource_type
+                    varMap[':status'] = 'submitted'
+                    self.execute(sql_count_workers, varMap)
+                    res = self.cur.fetchone()
+                    tmpLog.debug('{0} has {1} submitted workers'.format(resource_type, res))
 
-                # set new value
-                # value = max(value - nSubmittedWorkers, 0)
-                if value is None:
-                    value = 0
-                varMap = dict()
-                varMap[':nQueue'] = value
-                varMap[':siteName'] = site_name
-                varMap[':resourceType'] = resource_type
-                self.execute(sql_update_queue, varMap)
-                iUp = self.cur.rowcount
+                    if value is None:
+                        value = 0
+                    varMap = dict()
+                    varMap[':nQueue'] = value
+                    varMap[':siteName'] = site_name
+                    varMap[':jobType'] = job_type
+                    varMap[':resourceType'] = resource_type
+                    self.execute(sql_update_queue, varMap)
+                    iUp = self.cur.rowcount
 
-                # iUp is 0 when nQueue is not changed
-                if iUp > 0 or resource_type in resource_type_list:
-                    # a queue was updated, add the values to the map
-                    retMap[resource_type] = value
-                else:
-                    # no queue was updated, we need to create a new one for the resource type
-                    cloned = self.clone_queue_with_new_resource_type(site_name, queue_name, resource_type, value)
-                    if cloned:
-                        retMap[resource_type] = value
-                        iUp = 1
+                    # iUp is 0 when nQueue is not changed
+                    if iUp > 0 or (job_type, resource_type) in job_resource_type_list:
+                        # a queue was updated, add the values to the map
+                        ret_map[job_type][resource_type] = value
+                    else:
+                        # no queue was updated, we need to create a new one for the resource type
+                        cloned = self.clone_queue_with_new_job_and_resource_type(site_name, queue_name, job_type,
+                                                                                 resource_type, value)
+                        if cloned:
+                            ret_map[job_type][resource_type] = value
+                            iUp = 1
 
-                nUp += iUp
-                tmpLog.debug('set nNewWorkers={0} to {1}:{2} with {3}'.format(value, queue_name, resource_type, iUp))
+                    nUp += iUp
+                    tmpLog.debug('set nNewWorkers={0} to {1}:{2}:{3} with {4}'.format(value, queue_name, job_type,
+                                                                                      resource_type, iUp))
 
             # commit
             self.commit()
             tmpLog.debug('updated {0} queues'.format(nUp))
 
-            return retMap
+            return ret_map
         except Exception:
             # roll back
             self.rollback()
@@ -4383,18 +4428,22 @@ class DBProxy(object):
     def get_worker_limits(self, site_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_limits')
+            tmpLog = core_utils.make_logger(_logger, token='site_name={0}'.format(site_name), method_name='get_worker_limits')
             tmpLog.debug('start')
-            # sql to get
-            sqlQ = "SELECT maxWorkers,nQueueLimitWorker,nQueueLimitWorkerRatio,"
+
+            # sql to get queue limits
+            sqlQ = "SELECT maxWorkers, nQueueLimitWorker, nQueueLimitWorkerRatio,"
             sqlQ += "nQueueLimitWorkerMax,nQueueLimitWorkerMin FROM {0} ".format(pandaQueueTableName)
-            sqlQ += "WHERE siteName=:siteName AND resourceType='ANY'"
+            sqlQ += "WHERE siteName=:siteName AND resourceType='ANY' AND (jobType='ANY' OR jobType IS NULL) "
+
             # sql to count resource types
             sqlNT = "SELECT COUNT(*) cnt FROM {0} ".format(pandaQueueTableName)
             sqlNT += "WHERE siteName=:siteName AND resourceType!='ANY'"
+
             # sql to count running workers
             sqlNR = "SELECT COUNT(*) cnt FROM {0} ".format(workTableName)
             sqlNR += "WHERE computingSite=:computingSite AND status IN (:status1)"
+
             # get
             varMap = dict()
             varMap[':siteName'] = site_name
@@ -4412,6 +4461,7 @@ class DBProxy(object):
             varMap[':status1'] = 'running'
             self.execute(sqlNR, varMap)
             resNR = self.cur.fetchall()
+
             # dynamic nQueueLimitWorker
             retMap = dict()
             nRunning = 0

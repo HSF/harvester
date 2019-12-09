@@ -16,6 +16,7 @@ class PandaQueueSpec(SpecBase):
                            'submitTime:timestamp / index',
                            'lockedBy:text',
                            'siteName:text / index',
+                           'jobType:text',
                            'resourceType:text',
                            'nNewWorkers:integer',
                            'uniqueName:text / unique',
@@ -29,7 +30,7 @@ class PandaQueueSpec(SpecBase):
 
     # catchall resource type
     RT_catchall = 'ANY'
-
+    JT_catchall = 'ANY'
     # constructor
     def __init__(self):
         SpecBase.__init__(self)

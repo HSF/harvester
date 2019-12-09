@@ -57,6 +57,7 @@ class QueueConfig(object):
         self.noHeartbeat = ''
         self.runMode = 'self'
         self.resourceType = PandaQueueSpec.RT_catchall
+        self.jobType = PandaQueueSpec.JT_catchall
         self.getJobCriteria = None
         self.ddmEndpointIn = None
         self.allowJobMixture = False
@@ -76,14 +77,20 @@ class QueueConfig(object):
         return status in self.get_no_heartbeat_status()
 
     # get prodSourceLabel
-    def get_source_label(self):
+    def get_source_label(self, job_type=None):
+        # if queue is in test status, only submit workers for HC jobs
         if self.queueStatus == 'test':
             return 'test'
+
+        # grandly unified queues: prodsourcelabel in job has precedence over queue prodsourcelabel
+        if job_type in ('user', 'panda'):
+            return 'user'
+
         return self.prodSourceLabel
 
     # set unique name
     def set_unique_name(self):
-        self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType)
+        self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType, self.prodSourceLabel)
 
     # update attributes
     def update_attributes(self, data):

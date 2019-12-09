@@ -11,7 +11,7 @@ class DummyDynamicWorkerMaker(BaseWorkerMaker):
         BaseWorkerMaker.__init__(self, **kwarg)
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config, resource_type):
+    def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
         workSpec = WorkSpec()
         workSpec.resourceType = resource_type
         if len(jobspec_list) > 0:

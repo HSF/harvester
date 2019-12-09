@@ -1,0 +1,101 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cvmfs-atlas
+provisioner: cvmfs.csi.cern.ch
+parameters:
+  repository: atlas.cern.ch
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cvmfs-sft
+provisioner: cvmfs.csi.cern.ch
+parameters:
+  repository: sft.cern.ch
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cvmfs-grid
+provisioner: cvmfs.csi.cern.ch
+parameters:
+  repository: grid.cern.ch
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cvmfs-atlas-condb
+provisioner: cvmfs.csi.cern.ch
+parameters:
+  repository: atlas-condb.cern.ch
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-cvmfs-atlas-nightlies
+provisioner: cvmfs.csi.cern.ch
+parameters:
+  repository: atlas-nightlies.cern.ch
+---
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-cvmfs-atlas-pvc
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-cvmfs-atlas
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-cvmfs-sft-pvc
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-cvmfs-sft
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-cvmfs-grid-pvc
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-cvmfs-grid
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-cvmfs-atlas-condb-pvc
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-cvmfs-atlas-condb
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-cvmfs-atlas-nightlies-pvc
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-cvmfs-atlas-nightlies

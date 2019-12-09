@@ -48,10 +48,8 @@ class k8s_Client(object):
 
         # note that predefined values in the yaml template will NOT be overwritten
         if work_spec.nCore > 0:
-            container_env['resources'].setdefault('limits', {
-                'cpu': str(work_spec.nCore)})
-            container_env['resources'].setdefault('requests', {
-                'cpu': str(work_spec.nCore*cpuadjustratio/100.0)})
+            container_env['resources'].setdefault('limits', {'cpu': str(work_spec.nCore)})
+            container_env['resources'].setdefault('requests', {'cpu': str(work_spec.nCore * cpuadjustratio / 100.0)})
 
         if work_spec.minRamCount > 4:
             # K8S minimum memory limit = 4 MB

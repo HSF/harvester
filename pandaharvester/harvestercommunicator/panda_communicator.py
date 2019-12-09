@@ -530,7 +530,7 @@ class PandaCommunicator(BaseCommunicator):
         data['siteName'] = site_name
         data['paramsList'] = json.dumps(stats)
         tmpLog.debug('update stats for {0}, stats: {1}'.format(site_name, stats))
-        tmpStat, tmpRes = self.post_ssl('reportWorkerStats', data)
+        tmpStat, tmpRes = self.post_ssl('reportWorkerStats_jobtype', data)
         errStr = 'OK'
         if tmpStat is False:
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)
