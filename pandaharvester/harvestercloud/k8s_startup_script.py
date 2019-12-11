@@ -134,6 +134,10 @@ def get_configuration():
     resource_type = os.environ.get('resourceType')
     logging.debug('[main] got resource type: {0}'.format(resource_type))
 
+    # get the Harvester ID
+    harvester_id = os.environ.get('HARVESTER_ID')
+    logging.debug('[main] got url to download logs')
+
     # get the worker id
     worker_id = os.environ.get('workerID')
     logging.debug('[main] got worker id: {0}'.format(worker_id))
@@ -146,16 +150,16 @@ def get_configuration():
     logs_frontend_r = os.environ.get('logs_frontend_r')
     logging.debug('[main] got url to download logs')
 
-    return proxy_path, panda_site, panda_queue, resource_type, worker_id, logs_frontend_w, logs_frontend_r
+    return proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r
 
 
 if __name__ == "__main__":
 
     # get all the configuration from environment
-    proxy_path, panda_site, panda_queue, resource_type, worker_id, logs_frontend_w, logs_frontend_r = get_configuration()
+    proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
-    destination_name = '{0}.out'.format(worker_id)
+    destination_name = '{0}_{1}.out'.format(harvester_id, worker_id)
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
     os.environ['GTAG'] = log_download_url # GTAG env variable is read by pilot
 
