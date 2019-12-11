@@ -151,7 +151,7 @@ def get_configuration():
 
 if __name__ == "__main__":
 
-    # get all the configuration from the GCE metadata server
+    # get all the configuration from the environment
     proxy_path, panda_site, panda_queue, resource_type, worker_id, logs_frontend_w, logs_frontend_r = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     # get the pilot wrapper
     wrapper_path = "/tmp/runpilot2-wrapper.sh"
-    wrapper_url = "https://raw.githubusercontent.com/ptrlv/adc/master/runpilot2-wrapper.sh"
+    wrapper_url = "https://raw.githubusercontent.com/PanDAWMS/pilot-wrapper/master/runpilot2-wrapper.sh"
     wrapper_string = get_url(wrapper_url)
     with open(wrapper_path, "w") as wrapper_file:
         wrapper_file.write(wrapper_string)
