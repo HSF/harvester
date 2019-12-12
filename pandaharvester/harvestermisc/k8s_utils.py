@@ -34,6 +34,8 @@ class k8s_Client(object):
     def create_job_from_yaml(self, yaml_content, work_spec, container_image, cert, cert_in_secret=True,
                              cpu_adjust_ratio=100, memory_adjust_ratio=100):
 
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
+
         # retrieve panda queue information
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
@@ -82,8 +84,9 @@ class k8s_Client(object):
 
         # try to retrieve the stdout log file name
         try:
-            log_file_name = self.workAttributes['stdout']
-        except KeyError:
+            log_file_name = work_spec.workAttributes['stdout']
+        except (KeyError, AttributeError):
+            tmp_log.error('work_spec does not have workAttributes field: {0}'.format(work_spec))
             log_file_name = ''
 
         # set the environment variables
