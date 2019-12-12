@@ -103,6 +103,7 @@ def get_url(url, headers=None):
     content = response.read()
     return content
 
+
 def get_configuration():
 
     # get the proxy certificate and save it
@@ -136,11 +137,11 @@ def get_configuration():
 
     # get the Harvester ID
     harvester_id = os.environ.get('HARVESTER_ID')
-    logging.debug('[main] got url to download logs')
+    logging.debug('[main] got Harvester ID: {0}'.format(harvester_id))
 
     # get the worker id
     worker_id = os.environ.get('workerID')
-    logging.debug('[main] got worker id: {0}'.format(worker_id))
+    logging.debug('[main] got worker ID: {0}'.format(worker_id))
 
     # get the URL (e.g. panda cache) to upload logs
     logs_frontend_w = os.environ.get('logs_frontend_w')
@@ -150,16 +151,23 @@ def get_configuration():
     logs_frontend_r = os.environ.get('logs_frontend_r')
     logging.debug('[main] got url to download logs')
 
-    return proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r
+    # get the filename to use for the stdout log
+    stdout_name = os.environ.get('stdout_name')
+    if not stdout_name:
+        stdout_name = '{0}_{1}.out'.format(harvester_id, worker_id)
+
+    logging.debug('[main] got filename for the stdout log')
+
+    return proxy_path, panda_site, panda_queue, resource_type, harvester_id, \
+           worker_id, logs_frontend_w, logs_frontend_r, stdout_name
 
 
 if __name__ == "__main__":
 
     # get all the configuration from environment
-    proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r = get_configuration()
+    proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, destination_name = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
-    destination_name = '{0}_{1}.out'.format(harvester_id, worker_id)
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
     os.environ['GTAG'] = log_download_url # GTAG env variable is read by pilot
 
@@ -187,7 +195,7 @@ if __name__ == "__main__":
     try:
         subprocess.call(command, shell=True)
     except:
-        print(traceback.format_exc())
+        logging.error(traceback.format_exc())
     logging.debug('[main] pilot wrapper done...')
 
     # upload logs to e.g. panda cache or similar
