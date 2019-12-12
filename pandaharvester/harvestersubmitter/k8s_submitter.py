@@ -71,7 +71,7 @@ class K8sSubmitter(PluginBase):
         tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
 
         # set the stdout log file
-        log_file_name = '{1}_{2}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
+        log_file_name = '{0}_{1}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
         work_spec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, log_file_name))
         # TODO: consider if we want to upload the yaml file to PanDA cache
 
