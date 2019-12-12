@@ -121,7 +121,7 @@ class k8s_Client(object):
         for i in ret.items:
             pod_info = {
                 'name': i.metadata.name,
-                'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
+                'start_time': i.status.start_time.replace(tzinfo=None),
                 'status': i.status.phase,
                 'status_reason': i.status.conditions[0].reason if i.status.conditions else None,
                 'status_message': i.status.conditions[0].message if i.status.conditions else None,
