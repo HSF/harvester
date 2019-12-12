@@ -59,7 +59,7 @@ class K8sSubmitter(PluginBase):
         job_spec_list = work_spec.get_jobspec_list()
         if job_spec_list:
             job_spec = job_spec_list[0]
-            container_image = 'ABC' # TODO: parse the container image from the job parameters
+            container_image = 'ABC'  # TODO: parse the container image from the job parameters
             return container_image
 
         # production images
@@ -67,19 +67,15 @@ class K8sSubmitter(PluginBase):
         container_image = 'DEF'
         return container_image
 
-        # take default image for the queue
-        container_image = 'GHI'
-        return container_image
-
-        # take the overal default image
-        container_image = 'JKL'
-        return container_image
-
     def submit_k8s_worker(self, work_spec):
         tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
 
-        yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
+        # set the stdout log file
+        log_file_name = '{1}_{2}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
+        work_spec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, log_file_name))
+        # TODO: consider if we want to upload the yaml file to PanDA cache
 
+        yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
         try:
 
             # decide container image to run
@@ -92,8 +88,8 @@ class K8sSubmitter(PluginBase):
                 cert = self.x509UserProxy
                 use_secret = False
             else:
-                errStr = 'No proxy specified in proxySecretPath or x509UserProxy; not submitted'
-                tmp_return_value = (False, errStr)
+                err_str = 'No proxy specified in proxySecretPath or x509UserProxy; not submitted'
+                tmp_return_value = (False, err_str)
                 return tmp_return_value
 
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
@@ -104,11 +100,6 @@ class K8sSubmitter(PluginBase):
             tmp_return_value = (False, err_str)
         else:
             work_spec.batchID = yaml_content['metadata']['name']
-
-            # set the log file
-            work_spec.set_log_file('stdout', '{0}/{1}.out'.format(self.logBaseURL, work_spec.workerID))
-            # TODO: consider if we want to upload the yaml file to PanDA cache
-
             tmp_log.debug('Created worker {0} with batchID={1}'.format(work_spec.workerID, work_spec.batchID))
             tmp_return_value = (True, '')
 

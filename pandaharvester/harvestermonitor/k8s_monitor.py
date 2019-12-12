@@ -1,7 +1,4 @@
-import os
-import time
 import datetime
-import re
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -41,99 +38,95 @@ class K8sMonitor(PluginBase):
         self._all_pods_list = []
 
     def check_pods_status(self, pods_status_list):
-        newStatus = ''
-
         if 'Unknown' in pods_status_list:
             if all(item == 'Unknown' for item in pods_status_list):
-                newStatus = None
+                new_status = None
             elif 'Running' in pods_status_list:
-                newStatus = WorkSpec.ST_running
+                new_status = WorkSpec.ST_running
             else:
-                newStatus = WorkSpec.ST_idle
+                new_status = WorkSpec.ST_idle
         else:
             if all(item == 'Pending' for item in pods_status_list):
-                newStatus = WorkSpec.ST_submitted
+                new_status = WorkSpec.ST_submitted
             # elif all(item == 'Succeeded' for item in pods_status_list):
-            #    newStatus = WorkSpec.ST_finished
+            #    new_status = WorkSpec.ST_finished
             elif 'Succeeded' in pods_status_list:
-                newStatus = WorkSpec.ST_finished
+                new_status = WorkSpec.ST_finished
             elif 'Running' in pods_status_list:
-                newStatus = WorkSpec.ST_running
+                new_status = WorkSpec.ST_running
             elif 'Failed' in pods_status_list:
-                newStatus = WorkSpec.ST_failed
+                new_status = WorkSpec.ST_failed
             else:
-                newStatus = WorkSpec.ST_idle
+                new_status = WorkSpec.ST_idle
 
-        return newStatus
+        return new_status
 
     def check_a_job(self, workspec):
         # set logger
-        tmpLog = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
+        tmp_log = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
                                   method_name='check_a_job')
 
         ## initialization
         job_id = workspec.batchID
-        newStatus = workspec.status
-        errStr = ''
+        err_str = ''
 
         try:
             pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
-            timeNow = datetime.datetime.utcnow()
+            time_now = datetime.datetime.utcnow()
             pods_status_list = []
             pods_name_to_delete_list = []
             for pods_info in pods_list:
                 if pods_info['status'] in ['Pending', 'Unknown'] and pods_info['start_time'] \
-                    and timeNow - pods_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
+                 and time_now - pods_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
                     # fetch queuing too long pods
                     pods_name_to_delete_list.append(pods_info['name'])
                 pods_status_list.append(pods_info['status'])
         except Exception as _e:
-            errStr = 'Failed to get POD status of JOB id={0} ; {1}'.format(job_id, _e)
-            tmpLog.error(errStr)
-            newStatus = None
+            err_str = 'Failed to get POD status of JOB id={0} ; {1}'.format(job_id, _e)
+            tmp_log.error(err_str)
+            new_status = None
         else:
             if not pods_status_list:
-                errStr = 'JOB id={0} not found'.format(job_id)
-                tmpLog.error(errStr)
-                tmpLog.info('Force to cancel the worker due to JOB not found')
-                newStatus = WorkSpec.ST_cancelled
+                err_str = 'JOB id={0} not found'.format(job_id)
+                tmp_log.error(err_str)
+                tmp_log.info('Force to cancel the worker due to JOB not found')
+                new_status = WorkSpec.ST_cancelled
             else:
-                tmpLog.debug('pods_status_list={0}'.format(pods_status_list))
-                newStatus = self.check_pods_status(pods_status_list)
-                tmpLog.debug('new_status={0}'.format(newStatus))
+                tmp_log.debug('pods_status_list={0}'.format(pods_status_list))
+                new_status = self.check_pods_status(pods_status_list)
+                tmp_log.debug('new_status={0}'.format(new_status))
             # delete queuing too long pods
             if pods_name_to_delete_list:
-                tmpLog.debug('Deleting pods queuing too long')
-                retList = self.k8s_client.delete_pods(pods_name_to_delete_list)
+                tmp_log.debug('Deleting pods queuing too long')
+                ret_list = self.k8s_client.delete_pods(pods_name_to_delete_list)
                 deleted_pods_list = []
-                for item in retList:
+                for item in ret_list:
                     if item['errMsg'] == '':
                         deleted_pods_list.append(item['name'])
-                tmpLog.debug('Deleted pods queuing too long: {0}'.format(
+                tmp_log.debug('Deleted pods queuing too long: {0}'.format(
                                 ','.join(deleted_pods_list)))
 
-        return (newStatus, errStr)
-
+        return new_status, err_str
 
     # check workers
     def check_workers(self, workspec_list):
-        tmpLog = self.make_logger(base_logger, 'k8s query', method_name='check_workers')
-        tmpLog.debug('start')
+        tmp_log = self.make_logger(base_logger, 'k8s query', method_name='check_workers')
+        tmp_log.debug('start')
 
-        retList = list()
+        ret_list = list()
         if not workspec_list:
-            errStr = 'empty workspec_list'
-            tmpLog.debug(errStr)
-            retList.append(('', errStr))
-            return False, retList
+            err_str = 'empty workspec_list'
+            tmp_log.debug(err_str)
+            ret_list.append(('', err_str))
+            return False, ret_list
 
         self._all_pods_list = self.k8s_client.get_pods_info()
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            retIterator = thread_pool.map(self.check_a_job, workspec_list)
+            ret_iterator = thread_pool.map(self.check_a_job, workspec_list)
 
-        retList = list(retIterator)
+        ret_list = list(ret_iterator)
 
-        tmpLog.debug('done')
+        tmp_log.debug('done')
 
-        return True, retList
+        return True, ret_list

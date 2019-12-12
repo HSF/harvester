@@ -80,6 +80,12 @@ class k8s_Client(object):
             if 'memory' not in container_env['resources']['requests']:
                 container_env['resources']['requests']['memory'] = str(work_spec.minRamCount * memory_adjust_ratio / 100.0) + 'M'
 
+        # try to retrieve the stdout log file name
+        try:
+            log_file_name = self.workAttributes['stdout']
+        except KeyError:
+            log_file_name = ''
+
         # set the environment variables
         container_env.setdefault('env', [])
         container_env['env'].extend([
@@ -91,6 +97,7 @@ class k8s_Client(object):
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
+            {'name': 'stdout_name', 'value': log_file_name},
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
             {'name': 'HARVESTER_WORKER_ID', 'value': str(work_spec.workerID)},
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id}
