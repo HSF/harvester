@@ -438,6 +438,7 @@ class HTCondorSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         self.logBaseURL = None
+        self.templateFile = None
         PluginBase.__init__(self, **kwarg)
         # number of processes
         try:
@@ -479,7 +480,7 @@ class HTCondorSubmitter(PluginBase):
             self.useAtlasGridCE = False
         finally:
             self.useAtlasAGIS = self.useAtlasAGIS or self.useAtlasGridCE
-        # sdf template directories of CEs
+        # sdf template directories of CEs; ignored if templateFile is set
         try:
             self.CEtemplateDir
         except AttributeError:
@@ -639,8 +640,8 @@ class HTCondorSubmitter(PluginBase):
                     except KeyError:
                         tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                    # go on info of the CE
-                    ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
+                    # go on info of the CE; ignore protocol prefix in ce_endpoint
+                    ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
                     ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
@@ -656,7 +657,7 @@ class HTCondorSubmitter(PluginBase):
                             ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('For site {0} got pilot version: "{1}"; CE endpoint: "{2}", flavour: "{3}"'.format(
                                     self.queueName, pilot_version_orig, ce_endpoint_from_queue, ce_flavour_str))
-                    if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                    if not self.templateFile and os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                         sdf_template_filename = '{ce_flavour_str}{pilot_version_suffix_str}.sdf'.format(
                                                     ce_flavour_str=ce_flavour_str, pilot_version_suffix_str=pilot_version_suffix_str)
                         self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
