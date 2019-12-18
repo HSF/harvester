@@ -388,6 +388,11 @@ class JobSpec(SpecBase):
         if self.endTime is None or force is True:
             self.endTime = datetime.datetime.utcnow()
 
+    # reset start and end time
+    def reset_start_end_time(self):
+        self.startTime = datetime.datetime.utcnow()
+        self.endTime = self.startTime
+
     # add work spec list
     def add_workspec_list(self, workspec_list):
         self.workspec_list = workspec_list

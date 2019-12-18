@@ -322,6 +322,8 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             # set start and end times
             if workSpec.status in [WorkSpec.ST_running]:
                 jobSpec.set_start_time()
+            elif workSpec.pilot_closed:
+                jobSpec.reset_start_end_time()
             elif workSpec.is_final_status():
                 jobSpec.set_end_time()
             # core count
