@@ -30,7 +30,7 @@ setup(
                       'future',
                       'futures; python_version == "2.*"',
                       'pycryptodomex',
-                      'panda-common-s >= 0.0.11',
+                      'panda-common',
                       'pyjwt',
                       'subprocess32; python_version == "2.*"',
                       'rpyc',
