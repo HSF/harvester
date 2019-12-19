@@ -318,6 +318,7 @@ class Submitter(AgentBase):
                                                 work_spec.set_status(WorkSpec.ST_missed)
                                                 work_spec.set_dialog_message(tmpStr)
                                                 work_spec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                                work_spec.set_pilot_closed()
                                                 if jobList is not None:
                                                     # increment attempt number
                                                     newJobList = []
