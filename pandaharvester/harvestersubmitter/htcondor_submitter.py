@@ -675,6 +675,12 @@ class HTCondorSubmitter(PluginBase):
                             ce_info_dict['ce_endpoint'] = self.ceEndpoint
                     except AttributeError:
                         pass
+                    try:
+                        # Manually define ceQueueName
+                        if self.ceQueueName:
+                            ce_info_dict['ce_queue_name'] = self.ceQueueName
+                    except AttributeError:
+                        pass
                 # template for batch script
                 try:
                     tmpFile = open(self.templateFile)
