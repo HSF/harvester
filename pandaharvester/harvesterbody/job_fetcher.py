@@ -60,7 +60,7 @@ class JobFetcher(AgentBase):
                 default_prodSourceLabel = queueConfig.get_source_label(is_gu=is_grandly_unified_queue)
 
                 pdpm = getattr(queueConfig, 'prodSourceLabelRandomWeightsPermille', {})
-                choice_list = core_utils.make_choice_list(pdpm=pdpm, default=default_prodSourceLabel, gu=is_grandly_unified_queue)
+                choice_list = core_utils.make_choice_list(pdpm=pdpm, default=default_prodSourceLabel)
                 prodSourceLabel = random.choice(choice_list)
                 tmpLog.debug('getting {0} jobs for prodSourceLabel {1}'.format(nJobs, prodSourceLabel))
                 sw = core_utils.get_stopwatch()
