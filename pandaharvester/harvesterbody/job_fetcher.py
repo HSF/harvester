@@ -39,7 +39,6 @@ class JobFetcher(AgentBase):
             mainLog.debug('got {0} queues'.format(len(nJobsPerQueue)))
             # loop over all queues
             for queueName, nJobs in iteritems(nJobsPerQueue):
-                siteName = queueConfig.siteName
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     continue
@@ -47,6 +46,7 @@ class JobFetcher(AgentBase):
                                           method_name='run')
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
+                siteName = queueConfig.siteName
                 # upper limit
                 if nJobs > harvester_config.jobfetcher.maxJobs:
                     nJobs = harvester_config.jobfetcher.maxJobs
