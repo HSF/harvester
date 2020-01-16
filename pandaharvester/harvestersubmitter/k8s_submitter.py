@@ -1,4 +1,5 @@
 import os
+import re
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -9,6 +10,10 @@ from pandaharvester.harvesterconfig import harvester_config
 
 # logger
 base_logger = core_utils.setup_logger('k8s_submitter')
+
+DEF_SLC6_IMAGE = 'atlasadc/atlas-grid-slc6'
+DEF_CENTOS7_IMAGE = 'atlasadc/atlas-grid-centos7'
+DEF_IMAGE = DEF_CENTOS7_IMAGE
 
 
 # submitter for K8S
@@ -47,6 +52,47 @@ class K8sSubmitter(PluginBase):
         except AttributeError:
             self.memoryAdjustRatio = 100
 
+    def extract_container_image_from_params(self, job_params):
+        """
+        Based on P. Nilsson pilot 2 code:
+            https://github.com/PanDAWMS/pilot2/blob/fd71c5010f789d408d366594793f025caba02ab3/pilot/info/jobdata.py#L536
+        Extract the container image from the job parameters if present, and remove it.
+        :param jobparams: job parameters (string).
+        :return: extracted image name (string).
+        """
+        tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
+
+        # define regexp pattern for the full container image option
+        _pattern = r'(\ \-\-containerImage\=?\s?[\S]+)'
+        pattern = re.compile(_pattern)
+        image_option = re.findall(pattern, job_params)
+
+        if image_option and image_option[0]:
+
+            image_pattern = re.compile(r" \'?\-\-containerImage\=?\ ?([\S]+)\ ?\'?")
+            image = re.findall(image_pattern, job_params)
+            if image and image[0]:
+                image_name = image[0]
+                tmp_log.info('Extracted image from jobparams: {0}'.format(image_name))
+            else:
+                image_name = None
+                tmp_log.warning("Image could not be extracted from jobparams:".format(job_params))
+
+        return image_name
+
+    def extract_container_image_from_cmtconfig(self, cmt_config):
+        try:
+            requested_os = cmt_config.split('@')[1]
+            if 'slc6' in requested_os.lower():
+                container_image = DEF_SLC6_IMAGE
+            else:
+                container_image = DEF_CENTOS7_IMAGE
+        except KeyError:
+            container_image = DEF_IMAGE
+
+        if container_image:
+            return container_image
+
     def decide_container_image(self, work_spec):
         """
         Decide container image:
@@ -55,17 +101,28 @@ class K8sSubmitter(PluginBase):
         - otherwise take default image specified for the queue
         """
 
-        # job defined image
         job_spec_list = work_spec.get_jobspec_list()
         if job_spec_list:
             job_spec = job_spec_list[0]
-            container_image = 'ABC'  # TODO: parse the container image from the job parameters
-            return container_image
 
-        # production images
-        # TODO: figure out how this is decided in the pilot
-        container_image = 'DEF'
-        return container_image
+            # look for a job defined image
+            job_params = job_spec.jobParams
+            container_image = self.extract_container_image_from_params(job_params)
+            if container_image:
+                return container_image
+
+            # check the CMTconfig field
+            if 'cmtconfig' in job_spec.jobAttributes:
+                cmt_config = job_spec.jobAttributes['cmtconfig']
+                container_image = self.extract_container_image_from_cmtconfig(cmt_config)
+                return container_image
+
+        # we didn't figure out which image to use, just use the default image
+        return DEF_IMAGE
+
+    def build_executable(self, work_spec):
+
+        return executable
 
     def submit_k8s_worker(self, work_spec):
         tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
@@ -80,6 +137,9 @@ class K8sSubmitter(PluginBase):
 
             # decide container image to run
             container_image = self.decide_container_image(work_spec)
+
+            # build executable
+            executable = self.build_executable(work_spec)
 
             if hasattr(self, 'proxySecretPath'):
                 cert = self.proxySecretPath
