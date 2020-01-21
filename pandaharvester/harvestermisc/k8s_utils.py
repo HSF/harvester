@@ -15,6 +15,8 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 base_logger = core_utils.setup_logger('k8s_utils')
 
+DEF_COMMAND = ["/usr/bin/bash"]
+DEF_ARGS: ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/k8s_analysis/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 
 class k8s_Client(object):
 
@@ -32,7 +34,7 @@ class k8s_Client(object):
         return yaml_content
 
     def create_job_from_yaml(self, yaml_content, work_spec, container_image, cert, cert_in_secret=True,
-                             cpu_adjust_ratio=100, memory_adjust_ratio=100):
+                             cpu_adjust_ratio=100, memory_adjust_ratio=100, executable=None):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
@@ -55,9 +57,19 @@ class k8s_Client(object):
         container_env = yaml_containers[0]
 
         # set the container image
-        # TODO: decide if we should overwrite or not the default value
         if 'image' not in container_env:
             container_env['image'] = container_image
+
+        if executable:
+            command = executable
+            args = ''
+        else:
+            command = DEF_COMMAND
+            args = DEF_ARGS
+
+        if 'command' not in container_env:
+            container_env['command'] = command
+            container_env['args'] = args
 
         # set the resources (CPU and memory) we need for the container
         # note that predefined values in the yaml template will NOT be overwritten

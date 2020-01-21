@@ -1,5 +1,10 @@
 import os
 import re
+import argparse
+try:
+    from urllib import unquote  # Python 2.X
+except ImportError:
+    from urllib.parse import unquote  # Python 3+
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -15,7 +20,6 @@ DEF_SLC6_IMAGE = 'atlasadc/atlas-grid-slc6'
 DEF_CENTOS7_IMAGE = 'atlasadc/atlas-grid-centos7'
 DEF_IMAGE = DEF_CENTOS7_IMAGE
 
-
 # submitter for K8S
 class K8sSubmitter(PluginBase):
     # constructor
@@ -24,6 +28,11 @@ class K8sSubmitter(PluginBase):
         PluginBase.__init__(self, **kwarg)
 
         self.k8s_client = k8s_Client(self.k8s_namespace, config_file=self.k8s_config_file)
+
+        # required for parsing jobParams
+        self.parser = argparse.ArgumentParser()
+        self.parser.add_argument('-p', dest='executable', type=unquote)
+        self.parser.add_argument('--containerImage', dest='container_image')
 
         # number of processes
         try:
@@ -52,48 +61,28 @@ class K8sSubmitter(PluginBase):
         except AttributeError:
             self.memoryAdjustRatio = 100
 
-    def extract_container_image_from_params(self, job_params):
-        """
-        Based on P. Nilsson pilot 2 code:
-            https://github.com/PanDAWMS/pilot2/blob/fd71c5010f789d408d366594793f025caba02ab3/pilot/info/jobdata.py#L536
-        Extract the container image from the job parameters if present, and remove it.
-        :param jobparams: job parameters (string).
-        :return: extracted image name (string).
-        """
-        tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
+    def parse_params(self, job_params):
+        tmp_log = self.make_logger(base_logger, method_name='parse_params')
 
-        # define regexp pattern for the full container image option
-        _pattern = r'(\ \-\-containerImage\=?\s?[\S]+)'
-        pattern = re.compile(_pattern)
-        image_option = re.findall(pattern, job_params)
+        job_params_list = job_params.split(' ')
+        args, unknown = self.parser.parse_known_args(job_params_list)
 
-        if image_option and image_option[0]:
+        tmp_log.info('Parsed params: {0}'.format(args))
+        return args
 
-            image_pattern = re.compile(r" \'?\-\-containerImage\=?\ ?([\S]+)\ ?\'?")
-            image = re.findall(image_pattern, job_params)
-            if image and image[0]:
-                image_name = image[0]
-                tmp_log.info('Extracted image from jobparams: {0}'.format(image_name))
-            else:
-                image_name = None
-                tmp_log.warning("Image could not be extracted from jobparams:".format(job_params))
+    def read_job_configuration(self, work_spec):
 
-        return image_name
+        job_spec_list = work_spec.get_jobspec_list()
+        if job_spec_list:
+            job_spec = job_spec_list[0]
+            job_params = job_spec.jobParams
+            job_attribs = job_spec.jobAttributes
+            job_params_parsed = self.parse_params(job_params)
+            return job_attribs, job_params_parsed
 
-    def extract_container_image_from_cmtconfig(self, cmt_config):
-        try:
-            requested_os = cmt_config.split('@')[1]
-            if 'slc6' in requested_os.lower():
-                container_image = DEF_SLC6_IMAGE
-            else:
-                container_image = DEF_CENTOS7_IMAGE
-        except KeyError:
-            container_image = DEF_IMAGE
+        return None, None
 
-        if container_image:
-            return container_image
-
-    def decide_container_image(self, work_spec):
+    def decide_container_image(self, job_attribs, job_params_parsed):
         """
         Decide container image:
         - job defined image: if we are running in push mode and the job specified an image, use it
@@ -101,26 +90,32 @@ class K8sSubmitter(PluginBase):
         - otherwise take default image specified for the queue
         """
 
-        job_spec_list = work_spec.get_jobspec_list()
-        if job_spec_list:
-            job_spec = job_spec_list[0]
+        try:
+            container_image = job_params_parsed.container_image
+            return container_image
+        except AttributeError:
+            pass
 
-            # look for a job defined image
-            job_params = job_spec.jobParams
-            container_image = self.extract_container_image_from_params(job_params)
-            if container_image:
-                return container_image
+        container_image = DEF_IMAGE
+        try:
+            cmt_config = job_attribs['cmtconfig']
+            requested_os = cmt_config.split('@')[1]
+            if 'slc6' in requested_os.lower():
+                container_image = DEF_SLC6_IMAGE
+            else:
+                container_image = DEF_CENTOS7_IMAGE
+        except KeyError:
+            pass
 
-            # check the CMTconfig field
-            if 'cmtconfig' in job_spec.jobAttributes:
-                cmt_config = job_spec.jobAttributes['cmtconfig']
-                container_image = self.extract_container_image_from_cmtconfig(cmt_config)
-                return container_image
+        return container_image
 
-        # we didn't figure out which image to use, just use the default image
-        return DEF_IMAGE
-
-    def build_executable(self, work_spec):
+    def build_executable(self, job_attribs, job_params_parsed):
+        # TODO: figure out details about PoolFileCatalog and any input/output changes
+        try:
+            if 'runcontainer' in job_attribs['transformation']:
+                executable = job_params_parsed.executable
+        except AttributeError:
+            executable = None
 
         return executable
 
@@ -135,11 +130,14 @@ class K8sSubmitter(PluginBase):
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
         try:
 
+            # read the job configuration (if available, only push model)
+            job_attribs, job_params_parsed = self.read_job_configuration(work_spec)
+
             # decide container image to run
-            container_image = self.decide_container_image(work_spec)
+            container_image = self.decide_container_image(job_attribs, job_params_parsed)
 
             # build executable
-            executable = self.build_executable(work_spec)
+            executable = self.build_executable(job_attribs, job_params_parsed)
 
             if hasattr(self, 'proxySecretPath'):
                 cert = self.proxySecretPath
@@ -153,8 +151,10 @@ class K8sSubmitter(PluginBase):
                 return tmp_return_value
 
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
-                                                                           cert, use_secret, self.cpuAdjustRatio,
-                                                                           self.memoryAdjustRatio)
+                                                                           cert, cert_in_secret=use_secret,
+                                                                           cpu_adjust_ratio=self.cpuAdjustRatio,
+                                                                           memory_adjust_ratio=self.memoryAdjustRatio,
+                                                                           executable=executable)
         except Exception as _e:
             err_str = 'Failed to create a JOB; {0}'.format(_e)
             tmp_return_value = (False, err_str)
