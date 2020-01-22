@@ -118,7 +118,7 @@ class K8sSubmitter(PluginBase):
         try:
             if 'runcontainer' in job_attribs['transformation']:
                 executable = job_params_parsed.executable
-        except AttributeError:
+        except (AttributeError, TypeError):
             executable = None
 
         return executable
