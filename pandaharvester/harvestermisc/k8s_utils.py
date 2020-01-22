@@ -124,7 +124,7 @@ class k8s_Client(object):
 
         # mount the configmap
         container_env.setdefault('volumeMounts', [])
-        container_env['volumeMounts'].extend({'name': '123456', 'mountPath': '/etc/config'})
+        container_env['volumeMounts'].append({'name': '123456', 'mountPath': '/etc/config'})
 
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
