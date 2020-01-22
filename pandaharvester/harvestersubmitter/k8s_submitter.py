@@ -104,7 +104,7 @@ class K8sSubmitter(PluginBase):
                 container_image = DEF_SLC6_IMAGE
             else:
                 container_image = DEF_CENTOS7_IMAGE
-        except KeyError:
+        except (KeyError, TypeError):
             pass
 
         return container_image
