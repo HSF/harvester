@@ -122,9 +122,12 @@ class k8s_Client(object):
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id}
             ])
 
-        # mount the configmap
+        # add the configmap as a volume to the pod
+        container_env.setdefault('volumes', [])
+        container_env['volumes'].append({'name': 'job_config', 'configMap': {'name': '123456'}})
+        # mount the volume to the filesystem
         container_env.setdefault('volumeMounts', [])
-        container_env['volumeMounts'].append({'name': '123456', 'mountPath': '/etc/config'})
+        container_env['volumeMounts'].append({'name': 'job_config', 'mountPath': '/etc/config'})
 
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
