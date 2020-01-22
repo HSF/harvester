@@ -89,14 +89,14 @@ class K8sSubmitter(PluginBase):
         - production images: take SLC6 or CentOS7
         - otherwise take default image specified for the queue
         """
-
+        tmp_log = self.make_logger(base_logger, method_name='decide_container_image')
         try:
             container_image = job_params_parsed.container_image
+            tmp_log.debug('Taking container image from job params: {0}'.format(container_image))
             return container_image
         except AttributeError:
             pass
 
-        container_image = DEF_IMAGE
         try:
             cmt_config = job_attribs['cmtconfig']
             requested_os = cmt_config.split('@')[1]
@@ -104,9 +104,13 @@ class K8sSubmitter(PluginBase):
                 container_image = DEF_SLC6_IMAGE
             else:
                 container_image = DEF_CENTOS7_IMAGE
+            tmp_log.debug('Taking container image from cmtconfig: {0}'.format(container_image))
+            return container_image
         except (KeyError, TypeError):
             pass
 
+        container_image = DEF_IMAGE
+        tmp_log.debug('Taking default container image: {0}'.format(container_image))
         return container_image
 
     def build_executable(self, job_attribs, job_params_parsed):
