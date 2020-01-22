@@ -123,8 +123,9 @@ class k8s_Client(object):
             ])
 
         # add the configmap as a volume to the pod
-        container_env.setdefault('volumes', [])
-        container_env['volumes'].append({'name': 'job_config', 'configMap': {'name': '123456'}})
+        yaml_content['spec']['template']['spec'].setdefault('volumes', [])
+        yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+        yaml_volumes.append({'name': 'job_config', 'configMap': {'name': '123456'}})
         # mount the volume to the filesystem
         container_env.setdefault('volumeMounts', [])
         container_env['volumeMounts'].append({'name': 'job_config', 'mountPath': '/etc/config'})
