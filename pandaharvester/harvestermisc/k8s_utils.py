@@ -38,6 +38,10 @@ class k8s_Client(object):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
+        # create the configmap
+        # TODO: this needs to be done only in pilot push model
+        self.create_configmap(work_spec)
+
         # retrieve panda queue information
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
@@ -245,4 +249,33 @@ class k8s_Client(object):
         except ApiException as e:
             tmp_log.debug('Exception retrieving logs for pod {0}: {1}'.format(job_id, e))
             return None
+
+    def create_configmap(self, work_spec):
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
+
+        try:
+            job_spec_list = work_spec.get_jobspec_list()
+            if job_spec_list:
+                job_spec = job_spec_list[0]
+                panda_id = job_spec.PandaID
+
+            # TODO: prepare job file for pilot
+            job_file = 'PANDAID=12345'
+
+            # instantiate the configmap object
+            metadata = {'name': panda_id, 'namespace': self.namespace}
+            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap",
+                                            data=dict(jobfile=job_file), metadata=metadata)
+
+            # create the configmap object in K8s
+            api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
+            return True
+
+        except ApiException as e:
+            tmp_log.error('Could not create configmap with: {0}'.format(e))
+            return False
+
+
+
 
