@@ -122,6 +122,10 @@ class k8s_Client(object):
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id}
             ])
 
+        # mount the configmap
+        container_env.setdefault('volumeMounts', [])
+        container_env['volumeMounts'].extend({'name': '123456', 'mountPath': '/etc/config'})
+
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content)
@@ -256,9 +260,8 @@ class k8s_Client(object):
 
         try:
             job_spec_list = work_spec.get_jobspec_list()
-            if job_spec_list:
-                job_spec = job_spec_list[0]
-                panda_id = job_spec.PandaID
+            job_spec = job_spec_list[0]
+            panda_id = job_spec.PandaID
 
             # TODO: prepare job file for pilot
             job_file = 'PANDAID=12345'
@@ -272,7 +275,7 @@ class k8s_Client(object):
             api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
             return True
 
-        except ApiException as e:
+        except (ApiException, TypeError) as e:
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
