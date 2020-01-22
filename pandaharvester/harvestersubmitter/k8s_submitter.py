@@ -1,6 +1,6 @@
 import os
-import re
 import argparse
+import traceback
 try:
     from urllib import unquote  # Python 2.X
 except ImportError:
@@ -156,6 +156,7 @@ class K8sSubmitter(PluginBase):
                                                                            memory_adjust_ratio=self.memoryAdjustRatio,
                                                                            executable=executable)
         except Exception as _e:
+            tmp_log.error(traceback.format_exc())
             err_str = 'Failed to create a JOB; {0}'.format(_e)
             tmp_return_value = (False, err_str)
         else:
