@@ -72,17 +72,17 @@ class K8sSubmitter(PluginBase):
 
     def read_job_configuration(self, work_spec):
 
-        job_spec_list = work_spec.get_jobspec_list()
-        if job_spec_list:
-            job_spec = job_spec_list[0]
-            job_params = job_spec.jobParams
-            job_attribs = job_spec.jobAttributes
-            job_params_parsed = self.parse_params(job_params)
-            return job_attribs, job_params_parsed
+        try:
+            job_spec_list = work_spec.get_jobspec_list()
+            if job_spec_list:
+                job_spec = job_spec_list[0]
+                job_fields = job_spec.jobParams
+                job_pars_parsed = self.parse_params(job_fields['jobPars'])
+                return job_fields, job_pars_parsed
+        except (KeyError, AttributeError):
+            return None, None
 
-        return None, None
-
-    def decide_container_image(self, job_attribs, job_params_parsed):
+    def decide_container_image(self, job_fields, job_pars_parsed):
         """
         Decide container image:
         - job defined image: if we are running in push mode and the job specified an image, use it
@@ -91,14 +91,14 @@ class K8sSubmitter(PluginBase):
         """
         tmp_log = self.make_logger(base_logger, method_name='decide_container_image')
         try:
-            container_image = job_params_parsed.container_image
+            container_image = job_pars_parsed.container_image
             tmp_log.debug('Taking container image from job params: {0}'.format(container_image))
             return container_image
         except AttributeError:
             pass
 
         try:
-            cmt_config = job_attribs['cmtconfig']
+            cmt_config = job_fields['cmtconfig']
             requested_os = cmt_config.split('@')[1]
             if 'slc6' in requested_os.lower():
                 container_image = DEF_SLC6_IMAGE
@@ -113,11 +113,11 @@ class K8sSubmitter(PluginBase):
         tmp_log.debug('Taking default container image: {0}'.format(container_image))
         return container_image
 
-    def build_executable(self, job_attribs, job_params_parsed):
+    def build_executable(self, job_fields, job_pars_parsed):
         # TODO: figure out details about PoolFileCatalog and any input/output changes
         try:
-            if 'runcontainer' in job_attribs['transformation']:
-                executable = job_params_parsed.executable
+            if 'runcontainer' in job_fields['transformation']:
+                executable = job_pars_parsed.executable
         except (AttributeError, TypeError):
             executable = None
 
@@ -135,13 +135,13 @@ class K8sSubmitter(PluginBase):
         try:
 
             # read the job configuration (if available, only push model)
-            job_attribs, job_params_parsed = self.read_job_configuration(work_spec)
+            job_fields, job_pars_parsed = self.read_job_configuration(work_spec)
 
             # decide container image to run
-            container_image = self.decide_container_image(job_attribs, job_params_parsed)
+            container_image = self.decide_container_image(job_fields, job_pars_parsed)
 
             # build executable
-            executable = self.build_executable(job_attribs, job_params_parsed)
+            executable = self.build_executable(job_fields, job_pars_parsed)
 
             if hasattr(self, 'proxySecretPath'):
                 cert = self.proxySecretPath
