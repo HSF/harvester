@@ -38,9 +38,13 @@ class k8s_Client(object):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
-        # create the configmap
-        # TODO: this needs to be done only in pilot push model
-        self.create_configmap(work_spec)
+        # create the configmap in push mode
+        panda_id = None
+        job_spec_list = work_spec.get_jobspec_list()
+        if job_spec_list:
+            job_spec = job_spec_list[0]
+            panda_id = str(job_spec.PandaID)
+            self.create_configmap(work_spec)
 
         # retrieve panda queue information
         panda_queues_dict = PandaQueuesDict()
@@ -122,13 +126,14 @@ class k8s_Client(object):
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id}
             ])
 
-        # add the configmap as a volume to the pod
-        yaml_content['spec']['template']['spec'].setdefault('volumes', [])
-        yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
-        yaml_volumes.append({'name': 'job-config', 'configMap': {'name': '123456'}})
-        # mount the volume to the filesystem
-        container_env.setdefault('volumeMounts', [])
-        container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/etc/config'})
+        # in push mode, add the configmap as a volume to the pod
+        if panda_id:
+            yaml_content['spec']['template']['spec'].setdefault('volumes', [])
+            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+            yaml_volumes.append({'name': 'job-config', 'configMap': {'name': str(panda_id)}})
+            # mount the volume to the filesystem
+            container_env.setdefault('volumeMounts', [])
+            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/etc/config'})
 
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
@@ -259,6 +264,7 @@ class k8s_Client(object):
             return None
 
     def create_configmap(self, work_spec):
+        # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
 
@@ -284,11 +290,12 @@ class k8s_Client(object):
             data = {pjd: job_data_contents, pfc: pool_file_catalog_contents}
 
             # instantiate the configmap object
-            metadata = {'name': panda_id, 'namespace': self.namespace}
+            metadata = {'name': str(panda_id), 'namespace': self.namespace}
             config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
 
             # create the configmap object in K8s
             api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
+            tmp_log.error('Created configmap for pandaID: {0}'.format(panda_id))
             return True
 
         except (ApiException, TypeError) as e:
