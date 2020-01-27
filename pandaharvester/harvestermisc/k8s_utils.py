@@ -267,13 +267,25 @@ class k8s_Client(object):
             job_spec = job_spec_list[0]
             panda_id = job_spec.PandaID
 
-            # TODO: prepare job file for pilot
-            job_file = 'PANDAID=12345'
+            # Get the access point. The messenger should have dropped the input files for the pilot here
+            # TODO: NOT SURE IF worker_pandaids.json IS NEEDED BY THE PILOT IN THE GRID WORLD
+            access_point = work_spec.get_access_point()
+            pjd = 'pandaJobData.out'
+            job_data_file = os.path.join(access_point, pjd)
+            with open(job_data_file) as f:
+                job_data_contents = f.read()
+
+            pfc = 'PoolFileCatalog_H.xml'
+            pool_file_catalog_file = os.path.join(access_point, pfc)
+            with open(pool_file_catalog_file) as f:
+                pool_file_catalog_contents = f.read()
+
+            # put the job data and PFC into a dictionary
+            data = {pjd: job_data_contents, pfc: pool_file_catalog_contents}
 
             # instantiate the configmap object
             metadata = {'name': panda_id, 'namespace': self.namespace}
-            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap",
-                                            data=dict(jobfile=job_file), metadata=metadata)
+            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
 
             # create the configmap object in K8s
             api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
