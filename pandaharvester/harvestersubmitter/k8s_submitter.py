@@ -114,7 +114,7 @@ class K8sSubmitter(PluginBase):
         return container_image
 
     def build_executable(self, job_fields, job_pars_parsed):
-        # TODO: figure out details about PoolFileCatalog and any input/output changes
+        executable = None
         try:
             if 'runcontainer' in job_fields['transformation']:
                 executable = job_pars_parsed.executable
