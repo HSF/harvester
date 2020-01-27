@@ -61,7 +61,20 @@ class K8sSweeper(BaseSweeper):
         ret_list = []
         for work_spec in work_spec_list:
             tmp_ret_val = (None, 'Nothing done')
+            job_spec_list = work_spec.get_jobspec_list()
 
+            # if push mode, delete the configmap
+            if job_spec_list:
+                job_spec = job_spec_list[0]
+                panda_id = str(job_spec.PandaID)
+                try:
+                    self.k8s_client.delete_config_map(panda_id)
+                except Exception as _e:
+                    err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(panda_id, _e)
+                    tmp_log.error(err_str)
+                    tmp_ret_val = (False, err_str)
+
+            # delete the job
             job_id = work_spec.batchID
             try:
                 self.k8s_client.delete_job(job_id)
@@ -70,6 +83,7 @@ class K8sSweeper(BaseSweeper):
                 tmp_log.error(err_str)
                 tmp_ret_val = (False, err_str)
 
+            # delete the pods
             pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
             pods_name = [pods_info['name'] for pods_info in pods_list]
             job_info = self.k8s_client.get_jobs_info(job_id)
