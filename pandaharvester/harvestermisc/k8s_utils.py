@@ -16,7 +16,7 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 base_logger = core_utils.setup_logger('k8s_utils')
 
 DEF_COMMAND = ["/usr/bin/bash"]
-DEF_ARGS = ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/k8s_analysis/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
+DEF_ARGS = ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/k8s_analysis/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py; sleep 300 || true"]
 
 class k8s_Client(object):
 
