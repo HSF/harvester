@@ -111,8 +111,8 @@ class K8sSweeper(BaseSweeper):
         tmp_log = self.make_logger(base_logger, 'workerID={0}'.format(work_spec.workerID), method_name='sweep_worker')
 
         # retrieve and upload the logs to panda cache
-        job_id = work_spec.batchID
-        log_content = self.k8s_client.retrieve_pod_log(job_id)
+        # job_id = work_spec.batchID
+        # log_content = self.k8s_client.retrieve_pod_log(job_id)
 
         # nothing to do
         return True, ''
