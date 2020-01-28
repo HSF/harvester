@@ -61,24 +61,22 @@ class K8sSweeper(BaseSweeper):
         ret_list = []
         for work_spec in work_spec_list:
             tmp_ret_val = (None, 'Nothing done')
-            job_spec_list = work_spec.get_jobspec_list()
-
-            # if push mode, delete the configmap
-            if job_spec_list:
-                job_spec = job_spec_list[0]
-                panda_id = str(job_spec.PandaID)
-                try:
-                    self.k8s_client.delete_config_map(panda_id)
-                    tmp_log.debug('Deleted configmap {0}'.format(panda_id))
-                except Exception as _e:
-                    err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(panda_id, _e)
-                    tmp_log.error(err_str)
-                    tmp_ret_val = (False, err_str)
-            else:
-                tmp_log.debug('No job/configmap associated to worker {0}'.format(work_spec.workerID))
 
             job_id = work_spec.batchID
             if job_id:  # sometimes there are missed workers that were not submitted
+
+                # if push mode, delete the configmap
+                job_spec_list = work_spec.get_jobspec_list()
+                if job_spec_list:
+                    try:
+                        self.k8s_client.delete_config_map(job_id)
+                        tmp_log.debug('Deleted configmap {0}'.format(job_id))
+                    except Exception as _e:
+                        err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(job_id, _e)
+                        tmp_log.error(err_str)
+                        tmp_ret_val = (False, err_str)
+                else:
+                    tmp_log.debug('No job/configmap associated to worker {0}'.format(work_spec.workerID))
 
                 # delete the job
                 try:

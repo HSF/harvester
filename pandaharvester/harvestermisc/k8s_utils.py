@@ -41,12 +41,11 @@ class k8s_Client(object):
         submit_mode = 'PULL'
 
         # create the configmap in push mode
-        panda_id = None
         job_spec_list = work_spec.get_jobspec_list()
+        batch_id = None
         if job_spec_list:
             submit_mode = 'PUSH'
-            job_spec = job_spec_list[0]
-            panda_id = str(job_spec.PandaID)
+            batch_id = str(work_spec.batchID)
             self.create_configmap(work_spec)
 
         # retrieve panda queue information
@@ -131,10 +130,10 @@ class k8s_Client(object):
             ])
 
         # in push mode, add the configmap as a volume to the pod
-        if panda_id:
+        if submit_mode == 'PUSH' and batch_id:
             yaml_content['spec']['template']['spec'].setdefault('volumes', [])
             yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
-            yaml_volumes.append({'name': 'job-config', 'configMap': {'name': str(panda_id)}})
+            yaml_volumes.append({'name': 'job-config', 'configMap': {'name': batch_id}})
             # mount the volume to the filesystem
             container_env.setdefault('volumeMounts', [])
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/scratch'})
@@ -278,9 +277,7 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
 
         try:
-            job_spec_list = work_spec.get_jobspec_list()
-            job_spec = job_spec_list[0]
-            panda_id = job_spec.PandaID
+            batch_id = str(work_spec.batchID)
 
             # Get the access point. The messenger should have dropped the input files for the pilot here
             access_point = work_spec.get_access_point()
@@ -298,12 +295,12 @@ class k8s_Client(object):
             data = {pjd: job_data_contents, pfc: pool_file_catalog_contents}
 
             # instantiate the configmap object
-            metadata = {'name': str(panda_id), 'namespace': self.namespace}
+            metadata = {'name': batch_id, 'namespace': self.namespace}
             config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
 
             # create the configmap object in K8s
             api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
-            tmp_log.error('Created configmap for pandaID: {0}'.format(panda_id))
+            tmp_log.error('Created configmap for pandaID: {0}'.format(batch_id))
             return True
 
         except (ApiException, TypeError) as e:
