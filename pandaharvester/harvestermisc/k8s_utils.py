@@ -38,10 +38,13 @@ class k8s_Client(object):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
+        submit_mode = 'PULL'
+
         # create the configmap in push mode
         panda_id = None
         job_spec_list = work_spec.get_jobspec_list()
         if job_spec_list:
+            submit_mode = 'PUSH'
             job_spec = job_spec_list[0]
             panda_id = str(job_spec.PandaID)
             self.create_configmap(work_spec)
@@ -123,7 +126,8 @@ class k8s_Client(object):
             {'name': 'stdout_name', 'value': log_file_name},
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
             {'name': 'HARVESTER_WORKER_ID', 'value': str(work_spec.workerID)},
-            {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id}
+            {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id},
+            {'name': 'submit-mode', 'value': submit_mode}
             ])
 
         # in push mode, add the configmap as a volume to the pod
@@ -133,7 +137,7 @@ class k8s_Client(object):
             yaml_volumes.append({'name': 'job-config', 'configMap': {'name': str(panda_id)}})
             # mount the volume to the filesystem
             container_env.setdefault('volumeMounts', [])
-            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/etc/config'})
+            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/scratch'})
 
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
@@ -306,7 +310,4 @@ class k8s_Client(object):
         except (ApiException, TypeError) as e:
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
-
-
-
 
