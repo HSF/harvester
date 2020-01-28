@@ -42,10 +42,10 @@ class k8s_Client(object):
 
         # create the configmap in push mode
         job_spec_list = work_spec.get_jobspec_list()
-        batch_id = None
+        worker_id = None
         if job_spec_list:
             submit_mode = 'PUSH'
-            batch_id = str(work_spec.batchID)
+            worker_id = str(work_spec.workerID)
             self.create_configmap(work_spec)
 
         # retrieve panda queue information
@@ -277,7 +277,7 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
 
         try:
-            batch_id = str(work_spec.batchID)
+            worker_id = work_spec.workerID
 
             # Get the access point. The messenger should have dropped the input files for the pilot here
             access_point = work_spec.get_access_point()
@@ -295,12 +295,12 @@ class k8s_Client(object):
             data = {pjd: job_data_contents, pfc: pool_file_catalog_contents}
 
             # instantiate the configmap object
-            metadata = {'name': batch_id, 'namespace': self.namespace}
+            metadata = {'name': worker_id, 'namespace': self.namespace}
             config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
 
             # create the configmap object in K8s
             api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
-            tmp_log.error('Created configmap for pandaID: {0}'.format(batch_id))
+            tmp_log.debug('Created configmap for worker id: {0}'.format(worker_id))
             return True
 
         except (ApiException, TypeError) as e:
