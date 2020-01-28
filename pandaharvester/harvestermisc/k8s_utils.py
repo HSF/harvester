@@ -127,7 +127,7 @@ class k8s_Client(object):
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
             {'name': 'HARVESTER_WORKER_ID', 'value': str(work_spec.workerID)},
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id},
-            {'name': 'submit-mode', 'value': submit_mode}
+            {'name': 'submit_mode', 'value': submit_mode}
             ])
 
         # in push mode, add the configmap as a volume to the pod
@@ -283,7 +283,6 @@ class k8s_Client(object):
             panda_id = job_spec.PandaID
 
             # Get the access point. The messenger should have dropped the input files for the pilot here
-            # TODO: NOT SURE IF worker_pandaids.json IS NEEDED BY THE PILOT IN THE GRID WORLD
             access_point = work_spec.get_access_point()
             pjd = 'pandaJobData.out'
             job_data_file = os.path.join(access_point, pjd)
