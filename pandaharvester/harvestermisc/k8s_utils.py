@@ -46,7 +46,9 @@ class k8s_Client(object):
         if job_spec_list:
             submit_mode = 'PUSH'
             worker_id = str(work_spec.workerID)
-            self.create_configmap(work_spec)
+            res = self.create_configmap(work_spec)
+            if not res:  # if the configmap creation failed, don't submit a job because the pod creation will hang
+                return res, 'Failed to create a configmap'
 
         # retrieve panda queue information
         panda_queues_dict = PandaQueuesDict()
