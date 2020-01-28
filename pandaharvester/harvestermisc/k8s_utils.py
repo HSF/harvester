@@ -138,7 +138,7 @@ class k8s_Client(object):
             yaml_volumes.append({'name': 'job-config', 'configMap': {'name': worker_id}})
             # mount the volume to the filesystem
             container_env.setdefault('volumeMounts', [])
-            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/scratch', 'readOnly': False})
+            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/scratch/workdir', 'readOnly': False})
 
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:

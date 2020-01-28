@@ -198,7 +198,7 @@ if __name__ == "__main__":
         wrapper_params = '{0} -j managed'.format(wrapper_params)
 
     if submit_mode == 'PUSH':
-        wrapper_params = '{0} -a /scratch'.format(wrapper_params)
+        wrapper_params = '{0} -a /scratch/workdir'.format(wrapper_params)
         
     command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False | tee /tmp/wrapper-wid.log".\
         format(wrapper_params, submit_mode)
