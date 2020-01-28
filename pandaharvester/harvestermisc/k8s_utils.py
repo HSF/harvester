@@ -132,10 +132,10 @@ class k8s_Client(object):
             ])
 
         # in push mode, add the configmap as a volume to the pod
-        if submit_mode == 'PUSH' and batch_id:
+        if submit_mode == 'PUSH' and worker_id:
             yaml_content['spec']['template']['spec'].setdefault('volumes', [])
             yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
-            yaml_volumes.append({'name': 'job-config', 'configMap': {'name': batch_id}})
+            yaml_volumes.append({'name': 'job-config', 'configMap': {'name': worker_id}})
             # mount the volume to the filesystem
             container_env.setdefault('volumeMounts', [])
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/scratch'})
