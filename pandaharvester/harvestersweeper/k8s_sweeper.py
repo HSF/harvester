@@ -69,38 +69,44 @@ class K8sSweeper(BaseSweeper):
                 panda_id = str(job_spec.PandaID)
                 try:
                     self.k8s_client.delete_config_map(panda_id)
+                    tmp_log.debug('Deleted configmap {0}'.format(panda_id))
                 except Exception as _e:
                     err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(panda_id, _e)
                     tmp_log.error(err_str)
                     tmp_ret_val = (False, err_str)
 
-            # delete the job
             job_id = work_spec.batchID
-            try:
-                self.k8s_client.delete_job(job_id)
-            except Exception as _e:
-                err_str = 'Failed to delete a JOB with id={0} ; {1}'.format(job_id, _e)
-                tmp_log.error(err_str)
-                tmp_ret_val = (False, err_str)
+            if job_id:  # sometimes there are missed workers that were not submitted
 
-            # delete the pods
-            pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
-            pods_name = [pods_info['name'] for pods_info in pods_list]
-            job_info = self.k8s_client.get_jobs_info(job_id)
+                # delete the job
+                try:
+                    self.k8s_client.delete_job(job_id)
+                    tmp_log.debug('Deleted job {0}'.format(job_id))
+                except Exception as _e:
+                    err_str = 'Failed to delete a JOB with id={0} ; {1}'.format(job_id, _e)
+                    tmp_log.error(err_str)
+                    tmp_ret_val = (False, err_str)
 
-            if not job_info:
-                ret_list = self.k8s_client.delete_pods(pods_name)
-                if all(item['errMsg'] == '' for item in ret_list):
-                    tmp_log.info('Deleted a JOB & POD with id={0}'.format(job_id))
-                    tmp_ret_val = (True, '')
-                else:
-                    err_str_list = list()
-                    for item in ret_list:
-                        if item['errMsg']:
-                            err_str = 'Failed to delete a POD with id={0} ; {1}'.format(item['name'], item['errMsg'])
-                            tmp_log.error(err_str)
-                            err_str_list.append(err_str)
-                    tmp_ret_val = (False, ','.join(err_str_list))
+                # retrieve the associated pods
+                pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
+                pods_name = [pods_info['name'] for pods_info in pods_list]
+                job_info = self.k8s_client.get_jobs_info(job_id)
+                # retrieve the associated pods
+                if not job_info:
+                    ret_list = self.k8s_client.delete_pods(pods_name)
+                    if all(item['errMsg'] == '' for item in ret_list):
+                        tmp_log.info('Deleted a JOB & POD with id={0}'.format(job_id))
+                        tmp_ret_val = (True, '')
+                    else:
+                        err_str_list = list()
+                        for item in ret_list:
+                            if item['errMsg']:
+                                err_str = 'Failed to delete a POD with id={0} ; {1}'.format(item['name'], item['errMsg'])
+                                tmp_log.error(err_str)
+                                err_str_list.append(err_str)
+                        tmp_ret_val = (False, ','.join(err_str_list))
+            else:  # the worker cannot be cleaned
+                tmp_ret_val = (True, '')
 
             ret_list.append(tmp_ret_val)
 
