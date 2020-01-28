@@ -63,7 +63,7 @@ class K8sSweeper(BaseSweeper):
             tmp_ret_val = (None, 'Nothing done')
 
             batch_id = work_spec.batchID
-            worker_id = work_spec.workerID
+            worker_id = str(work_spec.workerID)
             if batch_id:  # sometimes there are missed workers that were not submitted
 
                 # if push mode, delete the configmap

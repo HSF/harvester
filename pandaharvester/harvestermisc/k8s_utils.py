@@ -277,7 +277,7 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
 
         try:
-            worker_id = work_spec.workerID
+            worker_id = str(work_spec.workerID)
 
             # Get the access point. The messenger should have dropped the input files for the pilot here
             access_point = work_spec.get_access_point()
