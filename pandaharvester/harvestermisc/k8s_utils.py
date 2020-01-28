@@ -206,7 +206,7 @@ class k8s_Client(object):
                                            grace_period_seconds=0)
 
     def delete_config_map(self, config_map_name):
-        self.batchv1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.deletev1,
+        self.corev1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.deletev1,
                                                   grace_period_seconds=0)
 
     def set_proxy(self, proxy_path):
