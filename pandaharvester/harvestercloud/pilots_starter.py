@@ -26,6 +26,9 @@ import traceback
 
 WORK_DIR = '/scratch'
 CONFIG_DIR = '/scratch/jobconfig'
+PJD = 'pandaJobData.out'
+PFC = 'PoolFileCatalog_H.xml'
+CONFIG_FILES = [PJD, PFC]
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
                     filename='/tmp/vm_script.log', filemode='w')
@@ -109,8 +112,8 @@ def get_url(url, headers=None):
 
 
 def copy_files_in_dir(src_dir, dst_dir):
-    src_files = os.listdir(src_dir)
-    for file_name in src_files:
+    #src_files = os.listdir(src_dir)
+    for file_name in CONFIG_FILES:
         full_file_name = os.path.join(src_dir, file_name)
         shutil.copy(full_file_name, dst_dir)
 
