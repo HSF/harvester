@@ -15,6 +15,7 @@ except Exception:
     import subprocess
 import os
 import sys
+import shutil
 import logging
 import httplib
 import mimetypes
@@ -22,6 +23,9 @@ import ssl
 import urlparse
 import urllib2
 import traceback
+
+WORK_DIR = '/scratch'
+CONFIG_DIR = '/scratch/jobconfig'
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
                     filename='/tmp/vm_script.log', filemode='w')
@@ -102,6 +106,13 @@ def get_url(url, headers=None):
     response = urllib2.urlopen(wrapper_url)
     content = response.read()
     return content
+
+
+def copy_files_in_dir(src_dir, dst_dir):
+    src_files = os.listdir(src_dir)
+    for file_name in src_files:
+        full_file_name = os.path.join(src_dir, file_name)
+        shutil.copy(full_file_name, dst_dir)
 
 
 def get_configuration():
@@ -191,14 +202,16 @@ if __name__ == "__main__":
     resource_type_option = ''
     if resource_type:
         resource_type_option = '--resource-type {0}'.format(resource_type)
-    wrapper_params = '-s {0} -r {1} -q {2} {3}'.format(panda_site, panda_queue, panda_queue, resource_type_option)
+    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4}'.format(WORK_DIR, panda_site, panda_queue, panda_queue, resource_type_option)
     if 'ANALY' in panda_queue:
         wrapper_params = '{0} -j user'.format(wrapper_params)
     else:
         wrapper_params = '{0} -j managed'.format(wrapper_params)
 
     if submit_mode == 'PUSH':
-        wrapper_params = '{0} -a /scratch/workdir'.format(wrapper_params)
+        # job configuration files need to be copied, because k8s configmap mounts as read-only file system
+        # and therefore the pilot cannot execute in the same directory
+        copy_files_in_dir(CONFIG_DIR, WORK_DIR)
         
     command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False | tee /tmp/wrapper-wid.log".\
         format(wrapper_params, submit_mode)
