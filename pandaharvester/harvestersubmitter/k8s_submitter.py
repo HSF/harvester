@@ -92,8 +92,9 @@ class K8sSubmitter(PluginBase):
         tmp_log = self.make_logger(base_logger, method_name='decide_container_image')
         try:
             container_image = job_pars_parsed.container_image
-            tmp_log.debug('Taking container image from job params: {0}'.format(container_image))
-            return container_image
+            if container_image:
+                tmp_log.debug('Taking container image from job params: {0}'.format(container_image))
+                return container_image
         except AttributeError:
             pass
 
