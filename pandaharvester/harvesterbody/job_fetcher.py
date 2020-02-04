@@ -10,6 +10,7 @@ from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 _logger = core_utils.setup_logger('job_fetcher')
@@ -24,6 +25,7 @@ class JobFetcher(AgentBase):
         self.communicator = communicator
         self.nodeName = socket.gethostname()
         self.queueConfigMapper = queue_config_mapper
+        self.pandaQueueDict = PandaQueuesDict()
         self.pluginFactory = PluginFactory()
 
     # main loop
@@ -44,17 +46,24 @@ class JobFetcher(AgentBase):
                                           method_name='run')
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
+                siteName = queueConfig.siteName
                 # upper limit
                 if nJobs > harvester_config.jobfetcher.maxJobs:
                     nJobs = harvester_config.jobfetcher.maxJobs
+
                 # get jobs
-                default_prodSourceLabel = queueConfig.get_source_label()
+                try:
+                    is_grandly_unified_queue = self.pandaQueueDict.is_grandly_unified_queue(siteName)
+                except Exception:
+                    is_grandly_unified_queue = False
+
+                default_prodSourceLabel = queueConfig.get_source_label(is_gu=is_grandly_unified_queue)
+
                 pdpm = getattr(queueConfig, 'prodSourceLabelRandomWeightsPermille', {})
                 choice_list = core_utils.make_choice_list(pdpm=pdpm, default=default_prodSourceLabel)
                 prodSourceLabel = random.choice(choice_list)
                 tmpLog.debug('getting {0} jobs for prodSourceLabel {1}'.format(nJobs, prodSourceLabel))
                 sw = core_utils.get_stopwatch()
-                siteName = queueConfig.siteName
                 jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName,
                                                           prodSourceLabel,
                                                           self.nodeName, nJobs,
