@@ -15,6 +15,7 @@ except Exception:
     import subprocess
 import os
 import sys
+import shutil
 import logging
 import httplib
 import mimetypes
@@ -22,6 +23,12 @@ import ssl
 import urlparse
 import urllib2
 import traceback
+
+WORK_DIR = '/scratch'
+CONFIG_DIR = '/scratch/jobconfig'
+PJD = 'pandaJobData.out'
+PFC = 'PoolFileCatalog_H.xml'
+CONFIG_FILES = [PJD, PFC]
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s',
                     filename='/tmp/vm_script.log', filemode='w')
@@ -104,6 +111,13 @@ def get_url(url, headers=None):
     return content
 
 
+def copy_files_in_dir(src_dir, dst_dir):
+    #src_files = os.listdir(src_dir)
+    for file_name in CONFIG_FILES:
+        full_file_name = os.path.join(src_dir, file_name)
+        shutil.copy(full_file_name, dst_dir)
+
+
 def get_configuration():
 
     # get the proxy certificate and save it
@@ -156,16 +170,22 @@ def get_configuration():
     if not stdout_name:
         stdout_name = '{0}_{1}.out'.format(harvester_id, worker_id)
 
+    # get the submission mode (push/pull) for the pilot
+    submit_mode = os.environ.get('submit_mode')
+    if not submit_mode:
+        submit_mode = 'PULL'
+
     logging.debug('[main] got filename for the stdout log')
 
     return proxy_path, panda_site, panda_queue, resource_type, harvester_id, \
-           worker_id, logs_frontend_w, logs_frontend_r, stdout_name
+           worker_id, logs_frontend_w, logs_frontend_r, stdout_name, submit_mode
 
 
 if __name__ == "__main__":
 
     # get all the configuration from environment
-    proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, destination_name = get_configuration()
+    proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, \
+    destination_name, submit_mode = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
@@ -185,13 +205,19 @@ if __name__ == "__main__":
     resource_type_option = ''
     if resource_type:
         resource_type_option = '--resource-type {0}'.format(resource_type)
-    wrapper_params = '-s {0} -r {1} -q {2} {3}'.format(panda_site, panda_queue, panda_queue, resource_type_option)
+    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4}'.format(WORK_DIR, panda_site, panda_queue, panda_queue, resource_type_option)
     if 'ANALY' in panda_queue:
         wrapper_params = '{0} -j user'.format(wrapper_params)
     else:
         wrapper_params = '{0} -j managed'.format(wrapper_params)
-    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode=PULL --allow-same-user=False | tee /tmp/wrapper-wid.log".\
-        format(wrapper_params, worker_id)
+
+    if submit_mode == 'PUSH':
+        # job configuration files need to be copied, because k8s configmap mounts as read-only file system
+        # and therefore the pilot cannot execute in the same directory
+        copy_files_in_dir(CONFIG_DIR, WORK_DIR)
+        
+    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False | tee /tmp/wrapper-wid.log".\
+        format(wrapper_params, submit_mode)
     try:
         subprocess.call(command, shell=True)
     except:

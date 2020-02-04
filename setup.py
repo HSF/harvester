@@ -37,6 +37,11 @@ setup(
                       'psutil >= 5.4.8',
                       'scandir; python_version < "3.5"'
                       ],
+    # optional pip dependencies
+    extras_require={
+        'kubernetes':  ['kubernetes', 'pyyaml'],
+        'mysql':  ['mysqlclient']
+    },
     data_files=[
         # config and cron files
         ('etc/panda', ['templates/panda_harvester.cfg.rpmnew.template',
