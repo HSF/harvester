@@ -67,8 +67,7 @@ class K8sSweeper(BaseSweeper):
             if batch_id:  # sometimes there are missed workers that were not submitted
 
                 # if push mode, delete the configmap
-                job_spec_list = work_spec.get_jobspec_list()
-                if job_spec_list:
+                if work_spec.mapType != 'NoJob':
                     try:
                         self.k8s_client.delete_config_map(worker_id)
                         tmp_log.debug('Deleted configmap {0}'.format(worker_id))

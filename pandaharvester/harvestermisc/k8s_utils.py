@@ -15,6 +15,7 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 base_logger = core_utils.setup_logger('k8s_utils')
 
+CONFIG_DIR = '/scratch/jobconfig'
 DEF_COMMAND = ["/usr/bin/bash"]
 DEF_ARGS = ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/k8s_analysis/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py; sleep 300 || true"]
 
@@ -41,9 +42,8 @@ class k8s_Client(object):
         submit_mode = 'PULL'
 
         # create the configmap in push mode
-        job_spec_list = work_spec.get_jobspec_list()
         worker_id = None
-        if job_spec_list:
+        if work_spec.mapType != 'NoJob':
             submit_mode = 'PUSH'
             worker_id = str(work_spec.workerID)
             res = self.create_configmap(work_spec)
@@ -110,7 +110,7 @@ class k8s_Client(object):
         try:
             log_file_name = work_spec.workAttributes['stdout']
         except (KeyError, AttributeError):
-            tmp_log.error('work_spec does not have workAttributes field: {0}'.format(work_spec))
+            tmp_log.debug('work_spec does not have workAttributes field: {0}'.format(work_spec))
             log_file_name = ''
 
         # set the environment variables
@@ -138,7 +138,7 @@ class k8s_Client(object):
             yaml_volumes.append({'name': 'job-config', 'configMap': {'name': worker_id}})
             # mount the volume to the filesystem
             container_env.setdefault('volumeMounts', [])
-            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': '/scratch/jobconfig'})
+            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': CONFIG_DIR})
 
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
