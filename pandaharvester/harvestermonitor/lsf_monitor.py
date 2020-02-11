@@ -9,7 +9,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
-baseLogger = core_utils.setup_logger('pbs_monitor')
+baseLogger = core_utils.setup_logger('lsf_monitor')
 
 
 # monitor for LSF batch system
