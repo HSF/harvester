@@ -11,6 +11,7 @@ from future.utils import iteritems
 from .spec_base import SpecBase
 
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
 
 
 # work spec
@@ -380,13 +381,15 @@ class WorkSpec(SpecBase):
     # set dialog message
     def set_dialog_message(self, msg):
         if msg not in (None, ''):
+            msg = core_utils.remove_non_latins(msg)
             msg = msg[:500]
             self.diagMessage = msg
 
     # set pilot error
     def set_pilot_error(self, error_code, error_dialog):
+        diag = core_utils.remove_non_latins(error_dialog)
         self.set_work_attributes({'pilotErrorCode': error_code,
-                                  'pilotErrorDiag': error_dialog})
+                                  'pilotErrorDiag': diag})
 
     # check if has pilot error
     def has_pilot_error(self):
@@ -401,4 +404,4 @@ class WorkSpec(SpecBase):
         if error_code is not None:
             self.errorCode = error_code
         if error_diag not in (None, ''):
-            self.errorDiag = str(error_diag)[:256]
+            self.errorDiag = core_utils.remove_non_latins(str(error_diag))[:256]

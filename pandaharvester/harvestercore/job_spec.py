@@ -9,6 +9,7 @@ from past.builtins import long
 from future.utils import iteritems
 
 from .spec_base import SpecBase
+from pandaharvester.harvestercore import core_utils
 
 
 class JobSpec(SpecBase):
@@ -501,7 +502,8 @@ class JobSpec(SpecBase):
         if not self.has_attribute('pilotErrorCode'):
             self.set_one_attribute('pilotErrorCode', error_code)
         if not self.has_attribute('pilotErrorDiag'):
-            self.set_one_attribute('pilotErrorDiag', error_dialog)
+            diag = core_utils.remove_non_latins(error_dialog)
+            self.set_one_attribute('pilotErrorDiag', diag)
 
     # not to suppress heartbeat
     def not_suppress_heartbeat(self):
