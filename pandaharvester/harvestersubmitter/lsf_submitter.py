@@ -34,7 +34,7 @@ class LSFSubmitter(PluginBase):
             # make batch script
             batchFile = self.make_batch_script(workSpec)
             # command
-            comStr = "qsub {0}".format(batchFile)
+            comStr = "bsub {0}".format(batchFile)
             # submit
             tmpLog.debug('submit with {0}'.format(comStr))
             p = subprocess.Popen(comStr.split(),
@@ -80,7 +80,7 @@ class LSFSubmitter(PluginBase):
         #    yodaWallClockLimit = self.maxWalltime / 60
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
-                                           localQueue=self.localQueue,
+                                           #localQueue=self.localQueue,
                                            projectName=self.projectName,
                                            nNode=workspec.nCore / self.nCorePerNode,
                                            accessPoint=workspec.accessPoint,
