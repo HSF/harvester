@@ -40,7 +40,6 @@ class ACTSubmitter(PluginBase):
             uc.ProxyPath(str(proxy))
             cred = arc.Credential(uc)
             dn = cred.GetIdentityName()
-            self.log.info("Proxy {0} with DN {1} and role {2}".format(proxy, dn, role))
     
             actp = aCTProxy(self.log)
             attr = '/atlas/Role='+role
@@ -83,7 +82,8 @@ class ACTSubmitter(PluginBase):
                 desc['pandastatus'] = 'sent'
                 desc['actpandastatus'] = 'sent'
             desc['siteName'] = workSpec.computingSite
-            desc['proxyid'] = self.proxymap['pilot' if prodSourceLabel == 'user' else 'production']
+            desc['proxyid'] = self.proxymap['pilot' if prodSourceLabel in ['user', 'panda'] else 'production']
+            desc['prodSourceLabel'] = prodSourceLabel
             desc['sendhb'] = 0
             metadata = {'harvesteraccesspoint': workSpec.get_access_point(),
                         'schedulerid': 'harvester-{}'.format(harvester_config.master.harvester_id)}
