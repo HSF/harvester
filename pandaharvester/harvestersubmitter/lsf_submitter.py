@@ -71,21 +71,20 @@ class LSFSubmitter(PluginBase):
 
     # make batch script
     def make_batch_script(self, workspec):
-        if hasattr(self, 'dynamicSizing') and self.dynamicSizing is True:
-            maxWalltime = str(datetime.timedelta(seconds=workspec.maxWalltime))
-            yodaWallClockLimit = workspec.maxWalltime / 60
-        else:
-            workspec.nCore = self.nCore
-            maxWalltime = str(datetime.timedelta(seconds=self.maxWalltime))
-            yodaWallClockLimit = self.maxWalltime / 60
+        #if hasattr(self, 'dynamicSizing') and self.dynamicSizing is True:
+        #    maxWalltime = str(datetime.timedelta(seconds=workspec.maxWalltime))
+        #    yodaWallClockLimit = workspec.maxWalltime / 60
+        #else:
+        #    workspec.nCore = self.nCore
+        #    maxWalltime = str(datetime.timedelta(seconds=self.maxWalltime))
+        #    yodaWallClockLimit = self.maxWalltime / 60
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            localQueue=self.localQueue,
                                            projectName=self.projectName,
                                            nNode=workspec.nCore / self.nCorePerNode,
                                            accessPoint=workspec.accessPoint,
-                                           walltime=maxWalltime,
-                                           yodaWallClockLimit=yodaWallClockLimit,
+                                           #walltime=maxWalltime,
                                            workerID=workspec.workerID)
                       )
         tmpFile.close()
