@@ -78,13 +78,27 @@ class LSFSubmitter(PluginBase):
         #    workspec.nCore = self.nCore
         #    maxWalltime = str(datetime.timedelta(seconds=self.maxWalltime))
         #    yodaWallClockLimit = self.maxWalltime / 60
+
+        # set number of nodes  - Note Ultimately will need to something more sophisticated
+        if hasattr(self,'nGpuPerNode'):
+            if int(self.nGpuPerNode) > 0:
+                numnodes = int(workspec.nJobs/self.nGpuPerNode)
+                if numnodes <= 0:
+                    numnodes = 1
+                else:
+                    if (workspec.nJobs % self.nGpuPerNode) != 0 :
+                        numnodes += 1
+        else:
+            numnodes=workspec.nCore / self.nCorePerNode
+
         tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            #localQueue=self.localQueue,
                                            #projectName=self.projectName,
-                                           nNode=workspec.nCore / self.nCorePerNode,
+                                           nNode=numnodes,
                                            accessPoint=workspec.accessPoint,
                                            #walltime=maxWalltime,
+                                           #yodaWallClockLimit=yodaWallClockLimit,
                                            workerID=workspec.workerID)
                       )
         tmpFile.close()
