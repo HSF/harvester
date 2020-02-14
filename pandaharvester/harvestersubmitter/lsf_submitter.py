@@ -81,7 +81,7 @@ class LSFSubmitter(PluginBase):
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            #localQueue=self.localQueue,
-                                           projectName=self.projectName,
+                                           #projectName=self.projectName,
                                            nNode=workspec.nCore / self.nCorePerNode,
                                            accessPoint=workspec.accessPoint,
                                            #walltime=maxWalltime,
