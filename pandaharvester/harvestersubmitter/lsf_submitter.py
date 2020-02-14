@@ -78,7 +78,7 @@ class LSFSubmitter(PluginBase):
         #    workspec.nCore = self.nCore
         #    maxWalltime = str(datetime.timedelta(seconds=self.maxWalltime))
         #    yodaWallClockLimit = self.maxWalltime / 60
-        tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
+        tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            #localQueue=self.localQueue,
                                            #projectName=self.projectName,
