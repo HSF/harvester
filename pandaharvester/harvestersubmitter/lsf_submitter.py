@@ -34,13 +34,14 @@ class LSFSubmitter(PluginBase):
             # make batch script
             batchFile = self.make_batch_script(workSpec)
             # command
-            comStr = "bsub {0}".format(batchFile)
+            comStr = "bsub -L /bin/sh"
             # submit
-            tmpLog.debug('submit with {0}'.format(comStr))
+            tmpLog.debug('submit with {0} and LSF options file {1}'.format(comStr,batchFile))
             p = subprocess.Popen(comStr.split(),
                                  shell=False,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE,
+                                 stdin=open(batchFile,'r'))
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
@@ -114,7 +115,9 @@ class LSFSubmitter(PluginBase):
                     continue
                 items = line.split()
                 if '-o' in items:
-                    stdOut = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    #stdOut = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    stdOut = items[-1].replace('%J', batch_id)
                 elif '-e' in items:
-                    stdErr = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    #stdErr = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    stdErr = items[-1].replace('%J', batch_id)
         return stdOut, stdErr
