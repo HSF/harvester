@@ -104,7 +104,7 @@ class DBProxy(object):
 
                 self.con = MySQLdb.connect(user=harvester_config.db.user, passwd=harvester_config.db.password,
                                            db=harvester_config.db.schema, host=host, port=port,
-                                           cursorclass=MyCursor)
+                                           cursorclass=MyCursor, charset='utf8')
                 self.cur = self.con.cursor()
             else:
                 import mysql.connector
