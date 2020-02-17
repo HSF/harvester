@@ -4,7 +4,6 @@ utilities
 """
 
 import os
-import re
 import sys
 import time
 import zlib
@@ -640,9 +639,3 @@ def pickle_to_text(data):
 # unpickle from text
 def unpickle_from_text(text):
     return pickle.loads(codecs.decode(text.encode(), 'base64'))
-
-
-# remove non-latin characters and return string
-def remove_non_latins(text):
-    ret = re.sub(r'[^\x00-\x7F\x80-\xFF\u0100-\u017F\u0180-\u024F\u1E00-\u1EFF]', '', text)
-    return ret
