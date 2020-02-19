@@ -13,7 +13,7 @@ baseLogger = core_utils.setup_logger('lsf_sweeper')
 
 
 # plugin for sweeper with LSF
-class LFSSweeper(PluginBase):
+class LSFSweeper(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
