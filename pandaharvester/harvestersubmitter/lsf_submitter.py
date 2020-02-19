@@ -1,5 +1,6 @@
 import datetime
 import tempfile
+import re
 try:
     import subprocess32 as subprocess
 except:
@@ -34,20 +35,26 @@ class LSFSubmitter(PluginBase):
             # make batch script
             batchFile = self.make_batch_script(workSpec)
             # command
-            comStr = "bsub {0}".format(batchFile)
+            comStr = "bsub -L /bin/sh"
             # submit
-            tmpLog.debug('submit with {0}'.format(comStr))
+            tmpLog.debug('submit with {0} and LSF options file {1}'.format(comStr,batchFile))
             p = subprocess.Popen(comStr.split(),
                                  shell=False,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE,
+                                 stdin=open(batchFile,'r'))
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
             tmpLog.debug('retCode={0}'.format(retCode))
+            tmpLog.debug('stdOut={0}'.format(stdOut))
+            tmpLog.debug('stdErr={0}'.format(stdErr))
             if retCode == 0:
                 # extract batchID
-                workSpec.batchID = stdOut.split()[-1]
+                batchID = str(stdOut.split()[1],'utf-8')
+                result = re.sub('[^0-9]','', batchID)
+                tmpLog.debug('strip out non-numberic charactors from {0} - result {1}'.format(batchID,result))
+                workSpec.batchID = result
                 tmpLog.debug('batchID={0}'.format(workSpec.batchID))
                 # set log files
                 if self.uploadLog:
@@ -78,13 +85,27 @@ class LSFSubmitter(PluginBase):
         #    workspec.nCore = self.nCore
         #    maxWalltime = str(datetime.timedelta(seconds=self.maxWalltime))
         #    yodaWallClockLimit = self.maxWalltime / 60
+
+        # set number of nodes  - Note Ultimately will need to something more sophisticated
+        if hasattr(self,'nGpuPerNode'):
+            if int(self.nGpuPerNode) > 0:
+                numnodes = int(workspec.nJobs/self.nGpuPerNode)
+                if numnodes <= 0:
+                    numnodes = 1
+                else:
+                    if (workspec.nJobs % self.nGpuPerNode) != 0 :
+                        numnodes += 1
+        else:
+            numnodes=workspec.nCore / self.nCorePerNode
+
         tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            #localQueue=self.localQueue,
                                            #projectName=self.projectName,
-                                           nNode=workspec.nCore / self.nCorePerNode,
+                                           nNode=numnodes,
                                            accessPoint=workspec.accessPoint,
                                            #walltime=maxWalltime,
+                                           #yodaWallClockLimit=yodaWallClockLimit,
                                            workerID=workspec.workerID)
                       )
         tmpFile.close()
@@ -100,7 +121,9 @@ class LSFSubmitter(PluginBase):
                     continue
                 items = line.split()
                 if '-o' in items:
-                    stdOut = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    #stdOut = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    stdOut = items[-1].replace('%J', batch_id)
                 elif '-e' in items:
-                    stdErr = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    #stdErr = items[-1].replace('$LSB_BATCH_JID', batch_id)
+                    stdErr = items[-1].replace('%J', batch_id)
         return stdOut, stdErr
