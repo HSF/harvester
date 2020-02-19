@@ -52,8 +52,8 @@ class MysqlFifo(PluginBase):
             except ImportError:
                 raise Exception('No available MySQL DB API installed. Please pip install mysqlclient or mysql-connection-python')
             else:
-                self.con = mysql.connector.connect(user=db_user, passwd=db_password,
-                                                    db=db_schema, host=db_host, port=db_port)
+                self.con = mysql.connector.connect(user=db_user, passwd=db_password, db=db_schema,
+                                                    host=db_host, port=db_port, charset='utf8')
                 self.cur = self.con.cursor(buffered=True)
                 self.OperationalError = mysql.connector.errors.OperationalError
         else:
