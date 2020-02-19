@@ -1,5 +1,6 @@
 import datetime
 import tempfile
+import re
 try:
     import subprocess32 as subprocess
 except:
@@ -46,9 +47,14 @@ class LSFSubmitter(PluginBase):
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
             tmpLog.debug('retCode={0}'.format(retCode))
+            tmpLog.debug('stdOut={0}'.format(stdOut))
+            tmpLog.debug('stdErr={0}'.format(stdErr))
             if retCode == 0:
                 # extract batchID
-                workSpec.batchID = stdOut.split()[-1]
+                batchID = str(stdOut.split()[1],'utf-8')
+                result = re.sub('[^0-9]','', batchID)
+                tmpLog.debug('strip out non-numberic charactors from {0} - result {1}'.format(batchID,result))
+                workSpec.batchID = result
                 tmpLog.debug('batchID={0}'.format(workSpec.batchID))
                 # set log files
                 if self.uploadLog:
