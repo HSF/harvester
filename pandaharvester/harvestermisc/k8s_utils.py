@@ -183,3 +183,12 @@ class k8s_Client(object):
             print('Exception when patch secret: {0} . Try to create secret instead...'.format(e))
             rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
         return rsp
+
+    def get_pod_logs(self, pod_name, previous=False):
+        try:
+            rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
+        except ApiException as e:
+            print('Exception when getting logs from pod {0} : {1} . Skipped'.format(e))
+            raise
+        else:
+            return rsp
