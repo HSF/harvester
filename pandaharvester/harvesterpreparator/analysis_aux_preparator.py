@@ -37,8 +37,15 @@ class AnalysisAuxPreparator(PluginBase):
             # local access path
             url = tmpFileSpec.url
             accPath = self.make_local_access_path(tmpFileSpec.scope, tmpFileSpec.lfn)
+            tmpLog.debug('url : {0} accPath : {1}'.format(url,accPath))
             # check if already exits
             if os.path.exists(accPath):
+                # test its size if 0 size remove file
+                tmpLog.debug('accPath - {0} file size - {1}'.format(accPath,os.path.getsize(accPath)))
+                if os.path.getsize(accPath) == 0 :
+                    tmpLog.debug('Remove file - {0}'.format(accPath))
+                    os.remove(accPath)
+                else:
                     continue
             # make directories if needed
             if not os.path.isdir(os.path.dirname(accPath)):
@@ -52,35 +59,50 @@ class AnalysisAuxPreparator(PluginBase):
                     if res.status_code == 200:
                         tmpLog.debug('res.headers = {0}'.format(res.headers))
                         # Should we check the returned size if too small through error?
-                        if res.headers['content-type'] == 'application/gzip' :
-                            with open(accPath, 'wb') as f:
-                                f.write(res.content)
+                        with open(accPath, 'wb') as f:
+                            f.write(res.content)
+                        # if accPath file exists and zero size remove
+                        if os.path.exists(accPath) and os.path.getsize(accPath) == 0 :
+                            tmpLog.debug('Remove file - {0} size - {1}'.format(accPath,os.path.getsize(accPath)))
+                            os.remove(accPath)
                         else:
-                            with open(accPath, 'w') as f:
-                                f.write(res.content)
-                        return_code = 0
+                            tmpLog.debug('Successfully fetched file - {0}'.format(accPath))
+                            return_code = 0
                     else:
                         errMsg = 'failed to get {0} with StatusCode={1} {2}'.format(url, res.status_code, res.text)
                         tmpLog.error(errMsg)
                 except requests.exceptions.ReadTimeout:
                     tmpLog.error('read timeout when getting data from {0}'.format(url))
                 except Exception:
+                    # if accPath file exists and zero size remove
+                    if os.path.exists(accPath) and os.path.getsize(accPath) == 0 :
+                        tmpLog.debug('Remove file - {0} size - {1}'.format(accPath,os.path.getsize(accPath)))
+                        os.remove(accPath)
                     core_utils.dump_error_message(tmpLog)
             elif url.startswith('docker'):
-                args = ['docker', 'save', '-o', accPath, url.split('://')[-1]]
-                try:
-                    tmpLog.debug('executing ' + ' '.join(args))
-                    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    stdout, stderr = p.communicate()
-                    return_code = p.returncode
-                    if stdout is not None:
-                        stdout = stdout.replace('\n', ' ')
-                    if stderr is not None:
-                        stderr = stderr.replace('\n', ' ')
-                    tmpLog.debug("stdout: %s" % stdout)
-                    tmpLog.debug("stderr: %s" % stderr)
-                except Exception:
-                    core_utils.dump_error_message(tmpLog)
+                # test if docker command exists
+                # else test if singularity command exists
+                args = None
+                if shutil.which('docker') is not None:
+                    args = ['docker', 'save', '-o', accPath, url.split('://')[-1]]
+                elif shutil.which('singularity') is not None:
+                    # extract image name
+                    args = ['singularity', 'build', '--sandbox', accPath, url ]
+                # test if we are at Summit - container needs to be built elsewhere
+                if args is not None:
+                    try:
+                        tmpLog.debug('executing ' + ' '.join(args))
+                        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        stdout, stderr = p.communicate()
+                        return_code = p.returncode
+                        if stdout is not None:
+                            stdout = stdout.replace('\n', ' ')
+                        if stderr is not None:
+                            stderr = stderr.replace('\n', ' ')
+                        tmpLog.debug("stdout: {0}".format(stdout))
+                        tmpLog.debug("stderr: [0}".format(stderr))
+                    except Exception:
+                        core_utils.dump_error_message(tmpLog)
             elif url.startswith('/'):
                 try:
                     shutil.copyfile(url, accPath)
