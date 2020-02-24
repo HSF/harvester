@@ -17,6 +17,8 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 class k8s_Client(object):
 
     def __init__(self, namespace, config_file=None):
+        if not os.path.isfile(config_file):
+            raise RuntimeError('Cannot find k8s config file: {0}'.format(config_file))
         config.load_kube_config(config_file=config_file)
         self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
