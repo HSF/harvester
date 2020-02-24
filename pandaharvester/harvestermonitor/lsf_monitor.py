@@ -1,4 +1,7 @@
 import re
+from shlex import quote
+from shlex import split
+
 try:
     import subprocess32 as subprocess
 except:
@@ -26,10 +29,10 @@ class LSFMonitor(PluginBase):
             tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                       method_name='check_workers')
             # command
-            comStr = "bjobs -noheader -o 'jobid:10 stat:10' {0}".format(workSpec.batchID)
+            comStr = 'bjobs -a -noheader -o {0} {1} '.format(quote("jobid:10 stat:10"),workSpec.batchID)
+            comStr_split = split(comStr)
             # check
-            tmpLog.debug('check with {0}'.format(comStr))
-            p = subprocess.Popen(comStr.split(),
+            p = subprocess.Popen(comStr_split,
                                  shell=False,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
@@ -37,24 +40,42 @@ class LSFMonitor(PluginBase):
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
+            tmpLog.debug('len(stdOut) = {0} stdOut={1}'.format(len(str(stdOut)),stdOut))
+            tmpLog.debug('len(stdErr) = {0}  stdErr={1}'.format(len(str(stdErr)),stdErr))
             tmpLog.debug('retCode={0}'.format(retCode))
             errStr = ''
             if retCode == 0:
+                # check if any came back on stdOut otherwise check stdErr
+                tempresponse = ""
+                if len(str(stdOut)) >= len(str(stdErr)):
+                    tempresponse = str(stdOut)
+                else:
+                    tempresponse = str(stdErr)
+                #tmpLog.debug('tempresponse = {0}'.format(tempresponse))
                 # parse
-                for tmpLine in stdOut.split('\n'):
-                    tmpMatch = re.search('{0} '.format(workSpec.batchID), tmpLine)
+                for tmpLine in tempresponse.split('\n'):
+                    tmpMatch = re.search('{0}'.format(workSpec.batchID), tmpLine)
+                    tmpLog.debug('tmpLine = {0} tmpMatch = {1}'.format(tmpLine,tmpMatch))
                     if tmpMatch is not None:
                         errStr = tmpLine
-                        batchStatus = tmpLine.split()[-2]
-                        if batchStatus in ['RUN']:
-                            newStatus = WorkSpec.ST_running
-                        elif batchStatus in ['DONE']:
-                            newStatus = WorkSpec.ST_finished
-                        elif batchStatus in ['PEND', 'PROV','WAIT']:
-                            newStatus = WorkSpec.ST_submitted
-                        else:
+                        # search for phrase  is not found
+                        tmpMatch = re.search('is not found', tmpLine)
+                        if tmpMatch is not None:
+                            batchStatus = 'Job {0} is not found'.format(workSpec.batchID)
                             newStatus = WorkSpec.ST_failed
-                        tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus,
+                            tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus,
+                            retCode))
+                        else:
+                            batchStatus = tmpLine.split()[-2]
+                            if batchStatus in ['RUN']:
+                                newStatus = WorkSpec.ST_running
+                            elif batchStatus in ['DONE']:
+                                newStatus = WorkSpec.ST_finished
+                            elif batchStatus in ['PEND', 'PROV','WAIT']:
+                                newStatus = WorkSpec.ST_submitted
+                            else:
+                                newStatus = WorkSpec.ST_failed
+                            tmpLog.debug('batchStatus {0} -> workerStatus {1}'.format(batchStatus,
                                                                                   newStatus))
                         break
                 retList.append((newStatus, errStr))
