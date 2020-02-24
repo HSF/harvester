@@ -50,8 +50,14 @@ class AnalysisAuxPreparator(PluginBase):
                     tmpLog.debug('getting via http from {0} to {1}'.format(url, accPath))
                     res = requests.get(url, timeout=180, verify=False)
                     if res.status_code == 200:
-                        with open(accPath, 'w') as f:
-                            f.write(res.content)
+                        tmpLog.debug('res.headers = {0}'.format(res.headers))
+                        # Should we check the returned size if too small through error?
+                        if res.headers['content-type'] == 'application/gzip' :
+                            with open(accPath, 'wb') as f:
+                                f.write(res.content)
+                        else:
+                            with open(accPath, 'w') as f:
+                                f.write(res.content)
                         return_code = 0
                     else:
                         errMsg = 'failed to get {0} with StatusCode={1} {2}'.format(url, res.status_code, res.text)
