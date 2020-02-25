@@ -17,6 +17,8 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 class k8s_Client(object):
 
     def __init__(self, namespace, config_file=None):
+        if not os.path.isfile(config_file):
+            raise RuntimeError('Cannot find k8s config file: {0}'.format(config_file))
         config.load_kube_config(config_file=config_file)
         self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
@@ -183,3 +185,12 @@ class k8s_Client(object):
             print('Exception when patch secret: {0} . Try to create secret instead...'.format(e))
             rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
         return rsp
+
+    def get_pod_logs(self, pod_name, previous=False):
+        try:
+            rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
+        except ApiException as e:
+            print('Exception when getting logs from pod {0} : {1} . Skipped'.format(e))
+            raise
+        else:
+            return rsp
