@@ -11,7 +11,6 @@ import requests.exceptions
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermover import mover_utils
-from pandaharvester.harvesterconfig import harvester_config
 
 # logger
 baseLogger = core_utils.setup_logger('analysis_aux_preparator')
@@ -21,7 +20,7 @@ baseLogger = core_utils.setup_logger('analysis_aux_preparator')
 class AnalysisAuxPreparator(PluginBase):
     # constructor
     def __init__(self, **kwarg):
-        self.gulOpts = None
+        self.containerRuntime = None
         self.maxAttempts = 3
         PluginBase.__init__(self, **kwarg)
 
@@ -37,9 +36,11 @@ class AnalysisAuxPreparator(PluginBase):
             # local access path
             url = tmpFileSpec.url
             accPath = self.make_local_access_path(tmpFileSpec.scope, tmpFileSpec.lfn)
+            accPathTmp = accPath + '.tmp'
+            tmpLog.debug('url : {0} accPath : {1}'.format(url,accPath))
             # check if already exits
             if os.path.exists(accPath):
-                    continue
+                continue
             # make directories if needed
             if not os.path.isdir(os.path.dirname(accPath)):
                 os.makedirs(os.path.dirname(accPath))
@@ -47,11 +48,12 @@ class AnalysisAuxPreparator(PluginBase):
             return_code = 1
             if url.startswith('http'):
                 try:
-                    tmpLog.debug('getting via http from {0} to {1}'.format(url, accPath))
+                    tmpLog.debug('getting via http from {0} to {1}'.format(url, accPathTmp))
                     res = requests.get(url, timeout=180, verify=False)
                     if res.status_code == 200:
-                        with open(accPath, 'w') as f:
+                        with open(accPath, 'wb') as f:
                             f.write(res.content)
+                        tmpLog.debug('Successfully fetched file - {0}'.format(accPathTmp))
                         return_code = 0
                     else:
                         errMsg = 'failed to get {0} with StatusCode={1} {2}'.format(url, res.status_code, res.text)
@@ -61,7 +63,16 @@ class AnalysisAuxPreparator(PluginBase):
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             elif url.startswith('docker'):
-                args = ['docker', 'save', '-o', accPath, url.split('://')[-1]]
+                if self.containerRuntime is None:
+                    tmpLog.debug('container downloading is disabled')
+                    continue
+                if self.containerRuntime == 'docker':
+                    args = ['docker', 'save', '-o', accPathTmp, url.split('://')[-1]]
+                elif self.containerRuntime == 'singularity':
+                    args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
+                else:
+                    tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
+                #
                 try:
                     tmpLog.debug('executing ' + ' '.join(args))
                     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -71,18 +82,33 @@ class AnalysisAuxPreparator(PluginBase):
                         stdout = stdout.replace('\n', ' ')
                     if stderr is not None:
                         stderr = stderr.replace('\n', ' ')
-                    tmpLog.debug("stdout: %s" % stdout)
-                    tmpLog.debug("stderr: %s" % stderr)
+                    tmpLog.debug("stdout: {0}".format(stdout))
+                    tmpLog.debug("stderr: [0}".format(stderr))
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             elif url.startswith('/'):
                 try:
-                    shutil.copyfile(url, accPath)
+                    shutil.copyfile(url, accPathTmp)
                     return_code = 0
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             else:
                 tmpLog.error('unsupported protocol in {0}'.format(url))
+            # remove empty files
+            if os.path.exists(accPathTmp) and os.path.getsize(accPathTmp) == 0:
+                return_code = 1
+                tmpLog.debug('remove empty file - {0}'.format(accPathTmp))
+                try:
+                    os.remove(accPathTmp)
+                except Exception:
+                    core_utils.dump_error_message(tmpLog)
+            # rename
+            if return_code == 0:
+                try:
+                    os.rename(accPathTmp, accPath)
+                except Exception:
+                    return_code = 1
+                    core_utils.dump_error_message(tmpLog)
             if return_code != 0:
                 allDone = False
         if allDone:
