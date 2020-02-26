@@ -48,17 +48,29 @@ class k8s_Client(object):
 
         container_env.setdefault('resources', {})
 
+        # set the resources (CPU and memory) we need for the container
         # note that predefined values in the yaml template will NOT be overwritten
+        container_env.setdefault('resources', {})
         if work_spec.nCore > 0:
-            container_env['resources'].setdefault('limits', {'cpu': str(work_spec.nCore)})
-            container_env['resources'].setdefault('requests', {'cpu': str(work_spec.nCore * cpuadjustratio / 100.0)})
 
-        if work_spec.minRamCount > 4:
-            # K8S minimum memory limit = 4 MB
-            container_env['resources'].setdefault('limits', {
-                'memory': str(work_spec.minRamCount) + 'M'})
-            container_env['resources'].setdefault('requests', {
-                'memory': str(work_spec.minRamCount*memoryadjustratio/100.0) + 'M'})
+            # CPU limits
+            container_env['resources'].setdefault('limits', {})
+            if 'cpu' not in container_env['resources']['limits']:
+                container_env['resources']['limits']['cpu'] = str(work_spec.nCore)
+            # CPU requests
+            container_env['resources'].setdefault('requests', {})
+            if 'cpu' not in container_env['resources']['requests']:
+                container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpuadjustratio / 100.0)
+
+        if work_spec.minRamCount > 4: # K8S minimum memory limit = 4 MB
+            # memory limits
+            container_env['resources'].setdefault('limits', {})
+            if 'memory' not in container_env['resources']['limits']:
+                container_env['resources']['limits']['memory'] = str(work_spec.minRamCount) + 'M'
+            # memory requests
+            container_env['resources'].setdefault('requests', {})
+            if 'memory' not in container_env['resources']['requests']:
+                container_env['resources']['requests']['memory'] = str(work_spec.minRamCount * memoryadjustratio / 100.0) + 'M'
 
         container_env.setdefault('env', [])
 
