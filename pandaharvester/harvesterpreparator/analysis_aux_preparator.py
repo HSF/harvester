@@ -78,7 +78,7 @@ class AnalysisAuxPreparator(PluginBase):
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
                 #
-             elif url.startswith('/'):
+            elif url.startswith('/'):
                 try:
                     shutil.copyfile(url, accPathTmp)
                     return_code = 0
