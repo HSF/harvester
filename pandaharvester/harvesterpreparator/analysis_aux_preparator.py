@@ -31,6 +31,8 @@ class AnalysisAuxPreparator(PluginBase):
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='trigger_preparation')
         tmpLog.debug('start')
+        tmpLog.debug("from queueconfig file - containerRuntime : {0}".format(self.containerRuntime))
+        tmpLog.debug("from queueconfig file - localContainerPath: {0}".format(self.localContainerPath))
         # loop over all inputs
         allDone = True
         for tmpFileSpec in jobspec.inFiles:
@@ -69,12 +71,12 @@ class AnalysisAuxPreparator(PluginBase):
                     continue
                 if self.containerRuntime == 'docker':
                     args = ['docker', 'save', '-o', accPathTmp, url.split('://')[-1]]
-                    return_code = make_container(tmpLog,args)
+                    return_code = self.make_container(tmpLog,args)
                 elif self.containerRuntime == 'singularity':
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
-                    return_code = make_container(tmpLog,args)
+                    return_code = self.make_container(tmpLog,args)
                 elif self.containerRuntime == 'Summit_singularity':
-                    return_code = make_container_script(tmpLog, accPathTmp, url)
+                    return_code = self.make_container_script(tmpLog, accPathTmp, url)
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
                 #
@@ -160,6 +162,7 @@ class AnalysisAuxPreparator(PluginBase):
         container_name = url.rsplit('/',1)[1]
         # construct path to container
         containerPath = "{basePath}/{name}".format(basePath=self.localContainerPath, name=container_name)
+        tmpLog.debug("accPathTmp : {0} url : {1} containerPath : {2}".format(accPathTmp,url,containerPath))
         # check if container already exits
         if os.path.exists(containerPath):
             return_code = 0
