@@ -1,4 +1,5 @@
 import os
+import stat
 import shutil
 try:
     import subprocess32 as subprocess
@@ -51,7 +52,7 @@ class AnalysisAuxPreparator(PluginBase):
                     tmpLog.debug('getting via http from {0} to {1}'.format(url, accPathTmp))
                     res = requests.get(url, timeout=180, verify=False)
                     if res.status_code == 200:
-                        with open(accPath, 'wb') as f:
+                        with open(accPathTmp, 'wb') as f:
                             f.write(res.content)
                         tmpLog.debug('Successfully fetched file - {0}'.format(accPathTmp))
                         return_code = 0
@@ -68,25 +69,16 @@ class AnalysisAuxPreparator(PluginBase):
                     continue
                 if self.containerRuntime == 'docker':
                     args = ['docker', 'save', '-o', accPathTmp, url.split('://')[-1]]
+                    return_code = make_container(tmpLog,args)
                 elif self.containerRuntime == 'singularity':
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
+                    return_code = make_container(tmpLog,args)
+                elif self.containerRuntime == 'Summit_singularity':
+                    return_code = make_container_script(tmpLog, accPathTmp, url)
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
                 #
-                try:
-                    tmpLog.debug('executing ' + ' '.join(args))
-                    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    stdout, stderr = p.communicate()
-                    return_code = p.returncode
-                    if stdout is not None:
-                        stdout = stdout.replace('\n', ' ')
-                    if stderr is not None:
-                        stderr = stderr.replace('\n', ' ')
-                    tmpLog.debug("stdout: {0}".format(stdout))
-                    tmpLog.debug("stderr: [0}".format(stderr))
-                except Exception:
-                    core_utils.dump_error_message(tmpLog)
-            elif url.startswith('/'):
+             elif url.startswith('/'):
                 try:
                     shutil.copyfile(url, accPathTmp)
                     return_code = 0
@@ -142,3 +134,52 @@ class AnalysisAuxPreparator(PluginBase):
     # make local access path
     def make_local_access_path(self, scope, lfn):
         return mover_utils.construct_file_path(self.localBasePath, scope, lfn)
+
+    # execute commands to make container in subprocess
+    def make_container(self, tmpLog, args):
+        return_code = 1
+        try:
+            tmpLog.debug('executing ' + ' '.join(args))
+            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            return_code = p.returncode
+            if stdout is not None:
+                stdout = stdout.replace('\n', ' ')
+            if stderr is not None:
+                stderr = stderr.replace('\n', ' ')
+            tmpLog.debug("stdout: {0}".format(stdout))
+            tmpLog.debug("stderr: [0}".format(stderr))
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+        return return_code
+
+    # create file to be used to create container
+    def make_container_script(self, tmpLog, accPathTmp, url):
+        return_code = 1
+        # extract container name from url
+        container_name = url.rsplit('/',1)[1]
+        # construct path to container
+        containerPath = "{basePath}/{name}".format(basePath=self.localContainerPath, name=container_name)
+        # check if container already exits
+        if os.path.exists(containerPath):
+            return_code = 0
+        else:
+            try:
+                # create the directory
+                os.makedirs(containerPath)
+                # now create the command file for creating Singularity sandbox container
+                with open(accPathTmp, 'w') as f:
+                    f.write("#!/bin/sh\n")
+                    f.write("\n")
+                    f.write("# this file creates the Singularity sandbox container {0}\n".format(containerPath))
+                    f.write("\n")
+                    f.write("singularity build --sandbox {path} {url}\n".format(path=containerPath,url=url))
+                    f.write("\n")
+                # change permissions on script to executable
+                st = os.stat(accPathTmp)
+                os.chmod(accPathTmp, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH )
+                tmpLog.debug('Successfully fetched file - {0}'.format(accPathTmp))
+                return_code = 0
+            except Exception:
+                core_utils.dump_error_message(tmpLog)
+        return return_code
