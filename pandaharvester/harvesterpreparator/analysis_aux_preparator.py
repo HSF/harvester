@@ -168,16 +168,18 @@ class AnalysisAuxPreparator(PluginBase):
             return_code = 0
         else:
             try:
-                # create the directory
-                os.makedirs(containerPath)
+                # make directories if needed
+                if not os.path.isdir(containerPath):
+                    os.makedirs(containerPath)
+                if not os.path.isdir(os.path.dirname(accPathTmp)):
+                    os.makedirs(os.path.dirname(accPathTmp))
                 # now create the command file for creating Singularity sandbox container
                 with open(accPathTmp, 'w') as f:
                     f.write("#!/bin/sh\n")
-                    f.write("\n")
                     f.write("# this file creates the Singularity sandbox container {0}\n".format(containerPath))
-                    f.write("\n")
-                    f.write("singularity build --sandbox {path} {url}\n".format(path=containerPath,url=url))
-                    f.write("\n")
+                    f.write("set -x \n")
+                    f.write("singularity build --force --sandbox {path} {url}\n".format(path=containerPath,url=url))
+                    f.write("set +x \n")
                 # change permissions on script to executable
                 st = os.stat(accPathTmp)
                 os.chmod(accPathTmp, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH )
