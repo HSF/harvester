@@ -21,6 +21,7 @@ class AnalysisAuxPreparator(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         self.containerRuntime = None
+        self.externalCommand = {}
         self.maxAttempts = 3
         PluginBase.__init__(self, **kwarg)
 
@@ -32,6 +33,7 @@ class AnalysisAuxPreparator(PluginBase):
         tmpLog.debug('start')
         # loop over all inputs
         allDone = True
+        bulkExtCommand = {}
         for tmpFileSpec in jobspec.inFiles:
             # local access path
             url = tmpFileSpec.url
@@ -44,14 +46,28 @@ class AnalysisAuxPreparator(PluginBase):
             # make directories if needed
             if not os.path.isdir(os.path.dirname(accPath)):
                 os.makedirs(os.path.dirname(accPath))
-            # get
+            # check if use an external command
+            extCommand = None
+            for protocol in self.externalCommand:
+                if url.startswith(protocol):
+                    extCommand = self.externalCommand[protocol]
+                    # collect file info to execute the command later
+                    bulkExtCommand.setdefault(protocol, {'command': extCommand, 'url': [], 'dst': [], 'lfn': []})
+                    bulkExtCommand[protocol]['url'].append(url)
+                    bulkExtCommand[protocol]['dst'].append(accPath)
+                    bulkExtCommand[protocol]['lfn'].append(tmpFileSpec.lfn)
+                    break
+            # execute the command later
+            if extCommand is not None:
+                continue
+            # execute
             return_code = 1
             if url.startswith('http'):
                 try:
                     tmpLog.debug('getting via http from {0} to {1}'.format(url, accPathTmp))
                     res = requests.get(url, timeout=180, verify=False)
                     if res.status_code == 200:
-                        with open(accPath, 'wb') as f:
+                        with open(accPathTmp, 'wb') as f:
                             f.write(res.content)
                         tmpLog.debug('Successfully fetched file - {0}'.format(accPathTmp))
                         return_code = 0
@@ -72,7 +88,6 @@ class AnalysisAuxPreparator(PluginBase):
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
-                #
                 try:
                     tmpLog.debug('executing ' + ' '.join(args))
                     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -83,7 +98,7 @@ class AnalysisAuxPreparator(PluginBase):
                     if stderr is not None:
                         stderr = stderr.replace('\n', ' ')
                     tmpLog.debug("stdout: {0}".format(stdout))
-                    tmpLog.debug("stderr: [0}".format(stderr))
+                    tmpLog.debug("stderr: {0}".format(stderr))
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             elif url.startswith('/'):
@@ -111,6 +126,45 @@ class AnalysisAuxPreparator(PluginBase):
                     core_utils.dump_error_message(tmpLog)
             if return_code != 0:
                 allDone = False
+        # execute external command
+        execIdMap = {}
+        for protocol in bulkExtCommand:
+            args = []
+            for arg in bulkExtCommand[protocol]['command']['trigger']['args']:
+                if arg == '{src}':
+                    arg = ','.join(bulkExtCommand[protocol]['url'])
+                elif arg == '{dst}':
+                    arg = ','.join(bulkExtCommand[protocol]['dst'])
+                args.append(arg)
+            # execute
+            try:
+                tmpLog.debug('executing external command: ' + ' '.join(args))
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = p.communicate()
+                return_code = p.returncode
+                if stdout is None:
+                    stdout = ''
+                if stderr is None:
+                    stderr = ''
+                # get ID of command execution such as transfer ID and batch job ID
+                executionID = None
+                if return_code == 0 and 'check' in bulkExtCommand[protocol]['command']:
+                    executionID = [s for s in stdout.split('\n') if s][-1]
+                    executionID = '{0}:{1}'.format(protocol, executionID)
+                    execIdMap[executionID] = {'lfns': bulkExtCommand[protocol]['lfn'], 'groupStatus': 'active'}
+                stdout = stdout.replace('\n', ' ')
+                stderr = stderr.replace('\n', ' ')
+                tmpLog.debug("stdout: {0}".format(stdout))
+                tmpLog.debug("stderr: {0}".format(stderr))
+                if executionID is not None:
+                    tmpLog.debug("execution ID: {0}".format(executionID))
+            except Exception:
+                core_utils.dump_error_message(tmpLog)
+                allDone = False
+        # keep execution ID to check later
+        if execIdMap:
+            jobspec.set_groups_to_files(execIdMap)
+        # done
         if allDone:
             tmpLog.debug('succeeded')
             return True, ''
@@ -127,6 +181,46 @@ class AnalysisAuxPreparator(PluginBase):
 
     # check status
     def check_stage_in_status(self, jobspec):
+        # make logger
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_stage_in_status')
+        tmpLog.debug('start')
+        allDone = True
+        errMsg = ''
+        transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
+        for tmpGroupID in transferGroups:
+            if tmpGroupID is None:
+                continue
+            protocol, executionID = tmpGroupID.split(':')
+            args = []
+            for arg in self.externalCommand[protocol]['check']['args']:
+                if arg == '{id}':
+                    arg = executionID
+                args.append(arg)
+            # execute
+            try:
+                tmpLog.debug('executing external command: ' + ' '.join(args))
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = p.communicate()
+                return_code = p.returncode
+                if stdout is None:
+                    stdout = ''
+                if stderr is None:
+                    stderr = ''
+                stdout = stdout.replace('\n', ' ')
+                stderr = stderr.replace('\n', ' ')
+                tmpLog.debug("stdout: {0}".format(stdout))
+                tmpLog.debug("stderr: {0}".format(stderr))
+                if return_code != 0:
+                    errMsg = '{0} is not ready'.format(tmpGroupID)
+                    allDone = False
+                    break
+            except Exception:
+                errMsg = core_utils.dump_error_message(tmpLog)
+                allDone = False
+                break
+        if not allDone:
+            return None, errMsg
         return True, ''
 
     # resolve input file paths
