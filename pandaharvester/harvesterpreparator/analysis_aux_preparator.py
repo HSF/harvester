@@ -1,5 +1,4 @@
 import os
-import stat
 import shutil
 try:
     import subprocess32 as subprocess
@@ -22,6 +21,7 @@ class AnalysisAuxPreparator(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         self.containerRuntime = None
+        self.externalCommand = {}
         self.maxAttempts = 3
         PluginBase.__init__(self, **kwarg)
 
@@ -31,10 +31,9 @@ class AnalysisAuxPreparator(PluginBase):
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
                                   method_name='trigger_preparation')
         tmpLog.debug('start')
-        tmpLog.debug("from queueconfig file - containerRuntime : {0}".format(self.containerRuntime))
-        tmpLog.debug("from queueconfig file - localContainerPath: {0}".format(self.localContainerPath))
         # loop over all inputs
         allDone = True
+        bulkExtCommand = {}
         for tmpFileSpec in jobspec.inFiles:
             # local access path
             url = tmpFileSpec.url
@@ -47,7 +46,21 @@ class AnalysisAuxPreparator(PluginBase):
             # make directories if needed
             if not os.path.isdir(os.path.dirname(accPath)):
                 os.makedirs(os.path.dirname(accPath))
-            # get
+            # check if use an external command
+            extCommand = None
+            for protocol in self.externalCommand:
+                if url.startswith(protocol):
+                    extCommand = self.externalCommand[protocol]
+                    # collect file info to execute the command later
+                    bulkExtCommand.setdefault(protocol, {'command': extCommand, 'url': [], 'dst': [], 'lfn': []})
+                    bulkExtCommand[protocol]['url'].append(url)
+                    bulkExtCommand[protocol]['dst'].append(accPath)
+                    bulkExtCommand[protocol]['lfn'].append(tmpFileSpec.lfn)
+                    break
+            # execute the command later
+            if extCommand is not None:
+                continue
+            # execute
             return_code = 1
             if url.startswith('http'):
                 try:
@@ -71,15 +84,23 @@ class AnalysisAuxPreparator(PluginBase):
                     continue
                 if self.containerRuntime == 'docker':
                     args = ['docker', 'save', '-o', accPathTmp, url.split('://')[-1]]
-                    return_code = self.make_container(tmpLog,args)
                 elif self.containerRuntime == 'singularity':
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
-                    return_code = self.make_container(tmpLog,args)
-                elif self.containerRuntime == 'Summit_singularity':
-                    return_code = self.make_container_script(tmpLog, accPathTmp, url)
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
-                #
+                try:
+                    tmpLog.debug('executing ' + ' '.join(args))
+                    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    stdout, stderr = p.communicate()
+                    return_code = p.returncode
+                    if stdout is not None:
+                        stdout = stdout.replace('\n', ' ')
+                    if stderr is not None:
+                        stderr = stderr.replace('\n', ' ')
+                    tmpLog.debug("stdout: {0}".format(stdout))
+                    tmpLog.debug("stderr: {0}".format(stderr))
+                except Exception:
+                    core_utils.dump_error_message(tmpLog)
             elif url.startswith('/'):
                 try:
                     shutil.copyfile(url, accPathTmp)
@@ -105,6 +126,45 @@ class AnalysisAuxPreparator(PluginBase):
                     core_utils.dump_error_message(tmpLog)
             if return_code != 0:
                 allDone = False
+        # execute external command
+        execIdMap = {}
+        for protocol in bulkExtCommand:
+            args = []
+            for arg in bulkExtCommand[protocol]['command']['trigger']['args']:
+                if arg == '{src}':
+                    arg = ','.join(bulkExtCommand[protocol]['url'])
+                elif arg == '{dst}':
+                    arg = ','.join(bulkExtCommand[protocol]['dst'])
+                args.append(arg)
+            # execute
+            try:
+                tmpLog.debug('executing external command: ' + ' '.join(args))
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = p.communicate()
+                return_code = p.returncode
+                if stdout is None:
+                    stdout = ''
+                if stderr is None:
+                    stderr = ''
+                # get ID of command execution such as transfer ID and batch job ID
+                executionID = None
+                if return_code == 0 and 'check' in bulkExtCommand[protocol]['command']:
+                    executionID = [s for s in stdout.split('\n') if s][-1]
+                    executionID = '{0}:{1}'.format(protocol, executionID)
+                    execIdMap[executionID] = {'lfns': bulkExtCommand[protocol]['lfn'], 'groupStatus': 'active'}
+                stdout = stdout.replace('\n', ' ')
+                stderr = stderr.replace('\n', ' ')
+                tmpLog.debug("stdout: {0}".format(stdout))
+                tmpLog.debug("stderr: {0}".format(stderr))
+                if executionID is not None:
+                    tmpLog.debug("execution ID: {0}".format(executionID))
+            except Exception:
+                core_utils.dump_error_message(tmpLog)
+                allDone = False
+        # keep execution ID to check later
+        if execIdMap:
+            jobspec.set_groups_to_files(execIdMap)
+        # done
         if allDone:
             tmpLog.debug('succeeded')
             return True, ''
@@ -121,6 +181,46 @@ class AnalysisAuxPreparator(PluginBase):
 
     # check status
     def check_stage_in_status(self, jobspec):
+        # make logger
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='check_stage_in_status')
+        tmpLog.debug('start')
+        allDone = True
+        errMsg = ''
+        transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
+        for tmpGroupID in transferGroups:
+            if tmpGroupID is None:
+                continue
+            protocol, executionID = tmpGroupID.split(':')
+            args = []
+            for arg in self.externalCommand[protocol]['check']['args']:
+                if arg == '{id}':
+                    arg = executionID
+                args.append(arg)
+            # execute
+            try:
+                tmpLog.debug('executing external command: ' + ' '.join(args))
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = p.communicate()
+                return_code = p.returncode
+                if stdout is None:
+                    stdout = ''
+                if stderr is None:
+                    stderr = ''
+                stdout = stdout.replace('\n', ' ')
+                stderr = stderr.replace('\n', ' ')
+                tmpLog.debug("stdout: {0}".format(stdout))
+                tmpLog.debug("stderr: {0}".format(stderr))
+                if return_code != 0:
+                    errMsg = '{0} is not ready'.format(tmpGroupID)
+                    allDone = False
+                    break
+            except Exception:
+                errMsg = core_utils.dump_error_message(tmpLog)
+                allDone = False
+                break
+        if not allDone:
+            return None, errMsg
         return True, ''
 
     # resolve input file paths
@@ -136,55 +236,3 @@ class AnalysisAuxPreparator(PluginBase):
     # make local access path
     def make_local_access_path(self, scope, lfn):
         return mover_utils.construct_file_path(self.localBasePath, scope, lfn)
-
-    # execute commands to make container in subprocess
-    def make_container(self, tmpLog, args):
-        return_code = 1
-        try:
-            tmpLog.debug('executing ' + ' '.join(args))
-            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = p.communicate()
-            return_code = p.returncode
-            if stdout is not None:
-                stdout = stdout.replace('\n', ' ')
-            if stderr is not None:
-                stderr = stderr.replace('\n', ' ')
-            tmpLog.debug("stdout: {0}".format(stdout))
-            tmpLog.debug("stderr: [0}".format(stderr))
-        except Exception:
-            core_utils.dump_error_message(tmpLog)
-        return return_code
-
-    # create file to be used to create container
-    def make_container_script(self, tmpLog, accPathTmp, url):
-        return_code = 1
-        # extract container name from url
-        container_name = url.rsplit('/',1)[1]
-        # construct path to container
-        containerPath = "{basePath}/{name}".format(basePath=self.localContainerPath, name=container_name)
-        tmpLog.debug("accPathTmp : {0} url : {1} containerPath : {2}".format(accPathTmp,url,containerPath))
-        # check if container already exits
-        if os.path.exists(containerPath):
-            return_code = 0
-        else:
-            try:
-                # make directories if needed
-                if not os.path.isdir(containerPath):
-                    os.makedirs(containerPath)
-                if not os.path.isdir(os.path.dirname(accPathTmp)):
-                    os.makedirs(os.path.dirname(accPathTmp))
-                # now create the command file for creating Singularity sandbox container
-                with open(accPathTmp, 'w') as f:
-                    f.write("#!/bin/sh\n")
-                    f.write("# this file creates the Singularity sandbox container {0}\n".format(containerPath))
-                    f.write("set -x \n")
-                    f.write("singularity build --force --sandbox {path} {url}\n".format(path=containerPath,url=url))
-                    f.write("set +x \n")
-                # change permissions on script to executable
-                st = os.stat(accPathTmp)
-                os.chmod(accPathTmp, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH )
-                tmpLog.debug('Successfully fetched file - {0}'.format(accPathTmp))
-                return_code = 0
-            except Exception:
-                core_utils.dump_error_message(tmpLog)
-        return return_code
