@@ -8,7 +8,6 @@ except:
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermover import mover_utils
 
 # logger
 baseLogger = core_utils.setup_logger('lsf_submitter')
@@ -99,35 +98,12 @@ class LSFSubmitter(PluginBase):
         else:
             numnodes=workspec.nCore / self.nCorePerNode
 
-        # create the string of files to execute to create the containers for the jobs
-        containerscripts = ""
-        scope = "aux_input"
-        container_command_files = []
-        # loop over the jobspec's associated with the workerspec
-        jobspec_list = workspec.get_jobspec_list()
-        for jobSpec in jobspec_list:
-            jobPars = jobSpec.jobParams['jobPars']
-            trf = jobSpec.jobParams['transformation']
-            container = None
-            tmpM = re.search(' --containerImage\s+([^\s]+)', jobPars)
-            if tmpM is not None:
-                container = tmpM.group(1)
-                container_name = container.rsplit('/',1)[1]
-                path = mover_utils.construct_file_path(self.localBasePath, scope, container_name)
-                container_command_files.append("/bin/sh {0}\n".format(path))
-
-        if len(container_command_files) > 0:
-            # remove duplicates
-            container_command_files = list( dict.fromkeys(container_command_files) ) 
-            containerscripts = ' '.join(container_command_files)
-
         tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         tmpFile.write(self.template.format(nCorePerNode=self.nCorePerNode,
                                            #localQueue=self.localQueue,
                                            #projectName=self.projectName,
                                            nNode=numnodes,
                                            accessPoint=workspec.accessPoint,
-                                           containerscripts=containerscripts,
                                            #walltime=maxWalltime,
                                            #yodaWallClockLimit=yodaWallClockLimit,
                                            workerID=workspec.workerID)
