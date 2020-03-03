@@ -1,4 +1,5 @@
 import os
+import stat 
 import shutil
 try:
     import subprocess32 as subprocess
@@ -84,23 +85,15 @@ class AnalysisAuxPreparator(PluginBase):
                     continue
                 if self.containerRuntime == 'docker':
                     args = ['docker', 'save', '-o', accPathTmp, url.split('://')[-1]]
+                    return_code = self.make_image(jobspec,args)
                 elif self.containerRuntime == 'singularity':
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
+                    return_code = self.make_image(jobspec,args)
+                elif self.containerRuntime == 'Summit_singularity':
+                    retCode = self.make_image_Summit(jobspec, accPath, url)
+                    tmpLog.debug('self.make_image_Summit(tmpLog, accPath, url) return value : {0}'.format(retCode))
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
-                try:
-                    tmpLog.debug('executing ' + ' '.join(args))
-                    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    stdout, stderr = p.communicate()
-                    return_code = p.returncode
-                    if stdout is not None:
-                        stdout = stdout.replace('\n', ' ')
-                    if stderr is not None:
-                        stderr = stderr.replace('\n', ' ')
-                    tmpLog.debug("stdout: {0}".format(stdout))
-                    tmpLog.debug("stderr: {0}".format(stderr))
-                except Exception:
-                    core_utils.dump_error_message(tmpLog)
             elif url.startswith('/'):
                 try:
                     shutil.copyfile(url, accPathTmp)
@@ -236,3 +229,94 @@ class AnalysisAuxPreparator(PluginBase):
     # make local access path
     def make_local_access_path(self, scope, lfn):
         return mover_utils.construct_file_path(self.localBasePath, scope, lfn)
+
+    # run the command to create the image
+    def make_image(self, jobspec, args):
+        # make logger
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='make_image')
+        tmpLog.debug('start')
+        return_code = 1
+        try:
+            tmpLog.debug('executing ' + ' '.join(args))
+            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            return_code = p.returncode
+            if stdout is not None:
+                stdout = stdout.replace('\n', ' ')
+            if stderr is not None:
+                stderr = stderr.replace('\n', ' ')
+            tmpLog.debug("stdout: {0}".format(stdout))
+            tmpLog.debug("stderr: [0}".format(stderr))
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+        tmpLog.debug('end with return code {0}'.format(return_code))
+        return return_code
+
+   # create and submit the job make the image runs on the Summit Launch nodes                                                       
+    def make_image_Summit(self, jobspec, accPath, url):
+        # make logger
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='make_image')
+        tmpLog.debug('start')
+        return_code = 1
+        tmpLog.debug('make_container_Summit container: {0} url : {1}'.format(accPath,url))
+        # extract container name from url                                                                                           
+        container_name = url.rsplit('/',1)[1]
+        # check if batch script for creating container exists                                                                       
+        batchscriptname = 'build_singularity_image_{0}.bsub'.format(container_name)
+        batchscriptPath = os.join.path(self.localContainerPath,batchscriptname)
+        if not os.path.exists(batchscriptPath):
+            try:
+                # Open template for batch script                                                                                    
+                tmpFile = open(self.containertemplateFile)
+                self.template = tmpFile.read()
+                tmpFile.close()
+                # fill in the new values to the template and write the template to the batchscript file                             
+                # now create the command file for creating Singularity sandbox container                                            
+                with open(batchscriptPath, 'w') as f:
+                    f.write(self.template.format(container = accPath,
+                                                 container_name = container_name,
+                                                 source_url = url))
+                # change permissions on script to executable                                                                        
+                st = os.stat(batchscriptPath)
+                os.chmod(batchscriptPath, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH )
+                tmpLog.debug('Successfully created batch file to create singularity container - {0}'.format(batchscriptPath))
+            except Exception:
+                core_utils.dump_error_message(tmpLog)
+
+        # check if container exists                                                                                                 
+        if os.path.exists(accPath):
+            return_code = 0
+        else:
+            try:
+                # make directories if needed                                                                                        
+                if not os.path.isdir(accPath):
+                    os.makedirs(accPath)
+                # submit batch script to create container                                                                           
+                comStr = "bsub -L /bin/sh"
+                # submit                                                                                                            
+                tmpLog.debug('submit with {0} and LSF options file {1}'.format(comStr,batchscriptPath))
+                p = subprocess.Popen(comStr.split(),
+                                     shell=False,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE,
+                                     stdin=open(batchscriptPath,'r'))
+                # check return code                                                                                                 
+                stdOut, stdErr = p.communicate()
+                return_code = p.returncode
+                tmpLog.debug('retCode={0}'.format(return_code))
+                tmpLog.debug('stdOut={0}'.format(stdOut))
+                if return_code == 0:
+                    # extract batchID                                                                                               
+                    batchID = str(stdOut.split()[1],'utf-8')
+                    result = re.sub('[^0-9]','', batchID)
+                    tmpLog.debug('strip out non-numberic charactors from {0} - result {1}'.format(batchID,result))
+                else:
+                    # failed                                                                                                        
+                    errStr = stdOut + ' ' + stdErr
+                    tmpLog.error(errStr)
+            except Exception:
+                core_utils.dump_error_message(tmpLog)
+        tmpLog.debug('end with return code {0}'.format(return_code))
+        return return_code
