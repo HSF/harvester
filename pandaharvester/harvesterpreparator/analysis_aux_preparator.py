@@ -1,4 +1,5 @@
 import os
+import re
 import stat 
 import shutil
 try:
@@ -257,7 +258,7 @@ class AnalysisAuxPreparator(PluginBase):
     def make_image_Summit(self, jobspec, accPath, url):
         # make logger
         tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='make_image')
+                                  method_name='make_image_Summit')
         tmpLog.debug('start')
         return_code = 1
         tmpLog.debug('make_container_Summit container: {0} url : {1}'.format(accPath,url))
@@ -265,8 +266,12 @@ class AnalysisAuxPreparator(PluginBase):
         container_name = url.rsplit('/',1)[1]
         # check if batch script for creating container exists                                                                       
         batchscriptname = 'build_singularity_image_{0}.bsub'.format(container_name)
-        batchscriptPath = os.join.path(self.localContainerPath,batchscriptname)
-        if not os.path.exists(batchscriptPath):
+        batchscriptPath = os.path.join(self.localContainerPath,batchscriptname)
+        # use batch script file as a lock to avoid double submissions
+        if os.path.exists(batchscriptPath):
+            tmpLog.debug('batch script to create image exists- {0} Skipping submission'.format(batchscriptPath))
+        else:
+            tmpLog.debug('Create batch script to create image - {0}'.format(batchscriptPath))
             try:
                 # Open template for batch script                                                                                    
                 tmpFile = open(self.containertemplateFile)
@@ -282,18 +287,6 @@ class AnalysisAuxPreparator(PluginBase):
                 st = os.stat(batchscriptPath)
                 os.chmod(batchscriptPath, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH )
                 tmpLog.debug('Successfully created batch file to create singularity container - {0}'.format(batchscriptPath))
-            except Exception:
-                core_utils.dump_error_message(tmpLog)
-
-        # check if container exists                                                                                                 
-        if os.path.exists(accPath):
-            return_code = 0
-        else:
-            try:
-                # make directories if needed                                                                                        
-                if not os.path.isdir(accPath):
-                    os.makedirs(accPath)
-                # submit batch script to create container                                                                           
                 comStr = "bsub -L /bin/sh"
                 # submit                                                                                                            
                 tmpLog.debug('submit with {0} and LSF options file {1}'.format(comStr,batchscriptPath))
@@ -311,11 +304,13 @@ class AnalysisAuxPreparator(PluginBase):
                     # extract batchID                                                                                               
                     batchID = str(stdOut.split()[1],'utf-8')
                     result = re.sub('[^0-9]','', batchID)
-                    tmpLog.debug('strip out non-numberic charactors from {0} - result {1}'.format(batchID,result))
+                    tmpLog.debug('LSF job id : {0} - result {1}'.format(batchID,result))
                 else:
                     # failed                                                                                                        
                     errStr = stdOut + ' ' + stdErr
                     tmpLog.error(errStr)
+                    if os.path.exists(batchscriptPath):
+                        os.remove(batchscriptPath)
             except Exception:
                 core_utils.dump_error_message(tmpLog)
         tmpLog.debug('end with return code {0}'.format(return_code))
