@@ -2,7 +2,7 @@ import arc
 import json
 import socket
 import time
-import urllib
+import urllib.parse
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -92,7 +92,7 @@ class ACTSubmitter(PluginBase):
             if jobSpec:
                 # push mode: aCT takes the url-encoded job description (like it gets from panda server)
                 pandaid = jobSpec.PandaID
-                actjobdesc = urllib.urlencode(jobSpec.jobParams)
+                actjobdesc = urllib.parse.urlencode(jobSpec.jobParams)
             else:
                 # pull mode: just set pandaid (to workerid) and prodsourcelabel
                 pandaid = workSpec.workerID
