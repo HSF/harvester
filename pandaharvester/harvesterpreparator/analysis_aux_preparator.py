@@ -90,9 +90,6 @@ class AnalysisAuxPreparator(PluginBase):
                 elif self.containerRuntime == 'singularity':
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
                     return_code = self.make_image(jobspec,args)
-                elif self.containerRuntime == 'Summit_singularity':
-                    retCode = self.make_image_Summit(jobspec, accPath, url)
-                    tmpLog.debug('self.make_image_Summit(tmpLog, accPath, url) return value : {0}'.format(retCode))
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
             elif url.startswith('/'):
@@ -254,64 +251,3 @@ class AnalysisAuxPreparator(PluginBase):
         tmpLog.debug('end with return code {0}'.format(return_code))
         return return_code
 
-   # create and submit the job make the image runs on the Summit Launch nodes                                                       
-    def make_image_Summit(self, jobspec, accPath, url):
-        # make logger
-        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='make_image_Summit')
-        tmpLog.debug('start')
-        return_code = 1
-        tmpLog.debug('make_container_Summit container: {0} url : {1}'.format(accPath,url))
-        # extract container name from url                                                                                           
-        container_name = url.rsplit('/',1)[1]
-        # check if batch script for creating container exists                                                                       
-        batchscriptname = 'build_singularity_image_{0}.bsub'.format(container_name)
-        batchscriptPath = os.path.join(self.localContainerPath,batchscriptname)
-        # use batch script file as a lock to avoid double submissions
-        if os.path.exists(batchscriptPath):
-            tmpLog.debug('batch script to create image exists- {0} Skipping submission'.format(batchscriptPath))
-        else:
-            tmpLog.debug('Create batch script to create image - {0}'.format(batchscriptPath))
-            try:
-                # Open template for batch script                                                                                    
-                tmpFile = open(self.containertemplateFile)
-                self.template = tmpFile.read()
-                tmpFile.close()
-                # fill in the new values to the template and write the template to the batchscript file                             
-                # now create the command file for creating Singularity sandbox container                                            
-                with open(batchscriptPath, 'w') as f:
-                    f.write(self.template.format(container = accPath,
-                                                 container_name = container_name,
-                                                 source_url = url))
-                # change permissions on script to executable                                                                        
-                st = os.stat(batchscriptPath)
-                os.chmod(batchscriptPath, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH )
-                tmpLog.debug('Successfully created batch file to create singularity container - {0}'.format(batchscriptPath))
-                comStr = "bsub -L /bin/sh"
-                # submit                                                                                                            
-                tmpLog.debug('submit with {0} and LSF options file {1}'.format(comStr,batchscriptPath))
-                p = subprocess.Popen(comStr.split(),
-                                     shell=False,
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE,
-                                     stdin=open(batchscriptPath,'r'))
-                # check return code                                                                                                 
-                stdOut, stdErr = p.communicate()
-                return_code = p.returncode
-                tmpLog.debug('retCode={0}'.format(return_code))
-                tmpLog.debug('stdOut={0}'.format(stdOut))
-                if return_code == 0:
-                    # extract batchID                                                                                               
-                    batchID = str(stdOut.split()[1],'utf-8')
-                    result = re.sub('[^0-9]','', batchID)
-                    tmpLog.debug('LSF job id : {0} - result {1}'.format(batchID,result))
-                else:
-                    # failed                                                                                                        
-                    errStr = stdOut + ' ' + stdErr
-                    tmpLog.error(errStr)
-                    if os.path.exists(batchscriptPath):
-                        os.remove(batchscriptPath)
-            except Exception:
-                core_utils.dump_error_message(tmpLog)
-        tmpLog.debug('end with return code {0}'.format(return_code))
-        return return_code
