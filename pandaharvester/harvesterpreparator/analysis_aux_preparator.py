@@ -1,4 +1,6 @@
 import os
+import re
+import stat 
 import shutil
 try:
     import subprocess32 as subprocess
@@ -84,23 +86,12 @@ class AnalysisAuxPreparator(PluginBase):
                     continue
                 if self.containerRuntime == 'docker':
                     args = ['docker', 'save', '-o', accPathTmp, url.split('://')[-1]]
+                    return_code = self.make_image(jobspec,args)
                 elif self.containerRuntime == 'singularity':
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
+                    return_code = self.make_image(jobspec,args)
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
-                try:
-                    tmpLog.debug('executing ' + ' '.join(args))
-                    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    stdout, stderr = p.communicate()
-                    return_code = p.returncode
-                    if stdout is not None:
-                        stdout = stdout.replace('\n', ' ')
-                    if stderr is not None:
-                        stderr = stderr.replace('\n', ' ')
-                    tmpLog.debug("stdout: {0}".format(stdout))
-                    tmpLog.debug("stderr: {0}".format(stderr))
-                except Exception:
-                    core_utils.dump_error_message(tmpLog)
             elif url.startswith('/'):
                 try:
                     shutil.copyfile(url, accPathTmp)
@@ -236,3 +227,27 @@ class AnalysisAuxPreparator(PluginBase):
     # make local access path
     def make_local_access_path(self, scope, lfn):
         return mover_utils.construct_file_path(self.localBasePath, scope, lfn)
+
+    # run the command to create the image
+    def make_image(self, jobspec, args):
+        # make logger
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='make_image')
+        tmpLog.debug('start')
+        return_code = 1
+        try:
+            tmpLog.debug('executing ' + ' '.join(args))
+            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            return_code = p.returncode
+            if stdout is not None:
+                stdout = stdout.replace('\n', ' ')
+            if stderr is not None:
+                stderr = stderr.replace('\n', ' ')
+            tmpLog.debug("stdout: {0}".format(stdout))
+            tmpLog.debug("stderr: [0}".format(stderr))
+        except Exception:
+            core_utils.dump_error_message(tmpLog)
+        tmpLog.debug('end with return code {0}'.format(return_code))
+        return return_code
+
