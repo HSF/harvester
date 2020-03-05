@@ -1,6 +1,4 @@
 import os
-import re
-import stat 
 import shutil
 try:
     import subprocess32 as subprocess
@@ -130,7 +128,7 @@ class AnalysisAuxPreparator(PluginBase):
             # execute
             try:
                 tmpLog.debug('executing external command: ' + ' '.join(args))
-                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
                 stdout, stderr = p.communicate()
                 return_code = p.returncode
                 if stdout is None:
@@ -191,7 +189,7 @@ class AnalysisAuxPreparator(PluginBase):
             # execute
             try:
                 tmpLog.debug('executing external command: ' + ' '.join(args))
-                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
                 stdout, stderr = p.communicate()
                 return_code = p.returncode
                 if stdout is None:
@@ -237,7 +235,7 @@ class AnalysisAuxPreparator(PluginBase):
         return_code = 1
         try:
             tmpLog.debug('executing ' + ' '.join(args))
-            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             stdout, stderr = p.communicate()
             return_code = p.returncode
             if stdout is not None:
