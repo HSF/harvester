@@ -7,6 +7,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.file_spec import FileSpec
 
 # logger
 _logger = core_utils.setup_logger('preparator')
@@ -176,8 +177,10 @@ class Preparator(AgentBase):
                     # get plugin
                     if jobSpec.auxInput in [None, JobSpec.AUX_hasAuxInput]:
                         preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                        fileType = 'input'
                     else:
                         preparatorCore = self.pluginFactory.get_plugin(queueConfig.aux_preparator)
+                        fileType = FileSpec.AUX_INPUT
                     if preparatorCore is None:
                         # not found
                         tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
@@ -201,13 +204,13 @@ class Preparator(AgentBase):
                             updateStatus = False
                             if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
                                 fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
-                                    = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn,
+                                    = self.dbProxy.get_file_status(fileSpec.lfn, fileType, queueConfig.ddmEndpointIn,
                                                                    'starting')
                             if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                                 # the file is ready
                                 fileSpec.status = 'ready'
                                 # set group info if any
-                                groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, 'input',
+                                groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, fileType,
                                                                             queueConfig.ddmEndpointIn)
                                 if groupInfo is not None:
                                     fileSpec.groupID = groupInfo['groupID']

@@ -98,11 +98,6 @@ class JobFetcher(AgentBase):
                             fileGroupDictList.append(extractorCore.get_aux_inputs(jobSpec))
                         for fileGroupDict in fileGroupDictList:
                             for tmpLFN, fileAttrs in iteritems(fileGroupDict):
-                                # check file status
-                                if tmpLFN not in fileStatMap:
-                                    fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, 'input',
-                                                                                       queueConfig.ddmEndpointIn,
-                                                                                       'starting')
                                 # make file spec
                                 fileSpec = FileSpec()
                                 fileSpec.PandaID = jobSpec.PandaID
@@ -110,20 +105,25 @@ class JobFetcher(AgentBase):
                                 fileSpec.lfn = tmpLFN
                                 fileSpec.endpoint = queueConfig.ddmEndpointIn
                                 fileSpec.scope = fileAttrs['scope']
+                                if 'INTERNAL_FileType' in fileAttrs:
+                                    fileSpec.fileType = fileAttrs['INTERNAL_FileType']
+                                    jobSpec.auxInput = JobSpec.AUX_hasAuxInput
+                                else:
+                                    fileSpec.fileType = 'input'
+                                # check file status
+                                if tmpLFN not in fileStatMap:
+                                    fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, fileSpec.fileType,
+                                                                                       queueConfig.ddmEndpointIn,
+                                                                                       'starting')
                                 # set preparing to skip stage-in if the file is (being) taken care of by another job
-                                if 'ready' in fileStatMap[tmpLFN] or 'preparing' in fileStatMap[tmpLFN] \
-                                        or 'to_prepare' in fileStatMap[tmpLFN]:
+                                if [x for x in ['ready', 'preparing', 'to_prepare', 'triggered']
+                                        if x in fileStatMap[tmpLFN]]:
                                     fileSpec.status = 'preparing'
                                 else:
                                     fileSpec.status = 'to_prepare'
                                 if fileSpec.status not in fileStatMap[tmpLFN]:
                                     fileStatMap[tmpLFN][fileSpec.status] = 0
                                 fileStatMap[tmpLFN][fileSpec.status] += 1
-                                if 'INTERNAL_FileType' in fileAttrs:
-                                    fileSpec.fileType = fileAttrs['INTERNAL_FileType']
-                                    jobSpec.auxInput = JobSpec.AUX_hasAuxInput
-                                else:
-                                    fileSpec.fileType = 'input'
                                 if 'INTERNAL_URL' in fileAttrs:
                                     fileSpec.url = fileAttrs['INTERNAL_URL']
                                 jobSpec.add_in_file(fileSpec)
