@@ -154,7 +154,8 @@ class Preparator(AgentBase):
                                                                 lockedBy,
                                                                 'preparing',
                                                                 max_files_per_job=maxFilesPerJob,
-                                                                ng_file_status_list=['triggered'])
+                                                                ng_file_status_list=['triggered',
+                                                                                     'ready'])
             mainLog.debug('got {0} jobs to prepare'.format(len(jobsToTrigger)))
             # loop over all jobs
             fileStatMap = dict()
