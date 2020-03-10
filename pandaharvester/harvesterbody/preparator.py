@@ -210,6 +210,9 @@ class Preparator(AgentBase):
                             if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                                 # the file is ready
                                 fileSpec.status = 'ready'
+                                if fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['path']:
+                                    fileSpec.path = list(
+                                        fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['path'])[0]
                                 # set group info if any
                                 groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, fileType,
                                                                             queueConfig.ddmEndpointIn)
@@ -229,9 +232,7 @@ class Preparator(AgentBase):
                             # set new status
                             if updateStatus:
                                 newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
-                                if fileSpec.status not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
-                                    fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] = 0
-                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] += 1
+                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn].setdefault(fileSpec.status, None)
                     if len(newFileStatusData) > 0:
                         self.dbProxy.change_file_status(jobSpec.PandaID, newFileStatusData, lockedBy)
                     # wait since files are being prepared by another

@@ -4087,12 +4087,12 @@ class DBProxy(object):
                                             method_name='get_file_status')
             tmpLog.debug('start')
             # sql to get files
-            sqlF = "SELECT f.status, COUNT(*) cnt FROM {0} f, {1} j ".format(fileTableName, jobTableName)
+            sqlF = "SELECT f.status, f.path, COUNT(*) cnt FROM {0} f, {1} j ".format(fileTableName, jobTableName)
             sqlF += "WHERE j.PandaID=f.PandaID AND j.status=:jobStatus "
             sqlF += "AND f.lfn=:lfn AND f.fileType=:type "
             if endpoint is not None:
                 sqlF += "AND f.endpoint=:endpoint "
-            sqlF += "GROUP BY f.status "
+            sqlF += "GROUP BY f.status, f.path "
             # get files
             varMap = dict()
             varMap[':lfn'] = lfn
@@ -4102,8 +4102,10 @@ class DBProxy(object):
                 varMap[':endpoint'] = endpoint
             self.execute(sqlF, varMap)
             retMap = dict()
-            for status, cnt in self.cur.fetchall():
-                retMap[status] = cnt
+            for status, path, cnt in self.cur.fetchall():
+                retMap.setdefault(status, {'cnt': 0, 'path': set()})
+                retMap[status]['cnt'] += cnt
+                retMap[status]['path'].add(path)
             # commit
             self.commit()
             tmpLog.debug('got {0}'.format(str(retMap)))

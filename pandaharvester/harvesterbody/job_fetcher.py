@@ -121,9 +121,7 @@ class JobFetcher(AgentBase):
                                     fileSpec.status = 'preparing'
                                 else:
                                     fileSpec.status = 'to_prepare'
-                                if fileSpec.status not in fileStatMap[tmpLFN]:
-                                    fileStatMap[tmpLFN][fileSpec.status] = 0
-                                fileStatMap[tmpLFN][fileSpec.status] += 1
+                                fileStatMap[tmpLFN].setdefault(fileSpec.status, None)
                                 if 'INTERNAL_URL' in fileAttrs:
                                     fileSpec.url = fileAttrs['INTERNAL_URL']
                                 jobSpec.add_in_file(fileSpec)
