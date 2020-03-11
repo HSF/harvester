@@ -34,6 +34,7 @@ class AnalysisAuxPreparator(PluginBase):
         # loop over all inputs
         allDone = True
         bulkExtCommand = {}
+        tmpLog.debug('number of inFiles : {0}'.format(len(jobspec.inFiles)))
         for tmpFileSpec in jobspec.inFiles:
             # local access path
             url = tmpFileSpec.url
@@ -117,6 +118,7 @@ class AnalysisAuxPreparator(PluginBase):
                 allDone = False
         # execute external command
         execIdMap = {}
+        tmpLog.debug('bulkExtCommand : {0}'.format(bulkExtCommand))
         for protocol in bulkExtCommand:
             args = []
             for arg in bulkExtCommand[protocol]['command']['trigger']['args']:
@@ -139,7 +141,9 @@ class AnalysisAuxPreparator(PluginBase):
                 executionID = None
                 if return_code == 0 and 'check' in bulkExtCommand[protocol]['command']:
                     executionID = [s for s in stdout.split('\n') if s][-1]
-                    executionID = '{0}:{1}'.format(protocol, executionID)
+                    dst = bulkExtCommand[protocol]['dst'][0]
+                    executionID = '{0}:{1}:{2}'.format(protocol, executionID, dst)
+                    tmpLog.debug('executionID - {0}'.format(executionID))
                     execIdMap[executionID] = {'lfns': bulkExtCommand[protocol]['lfn'], 'groupStatus': 'active'}
                 stdout = stdout.replace('\n', ' ')
                 stderr = stderr.replace('\n', ' ')
@@ -151,6 +155,7 @@ class AnalysisAuxPreparator(PluginBase):
                 core_utils.dump_error_message(tmpLog)
                 allDone = False
         # keep execution ID to check later
+        tmpLog.debug('execIdMap : {0}'.format(execIdMap))
         if execIdMap:
             jobspec.set_groups_to_files(execIdMap)
         # done
@@ -180,11 +185,13 @@ class AnalysisAuxPreparator(PluginBase):
         for tmpGroupID in transferGroups:
             if tmpGroupID is None:
                 continue
-            protocol, executionID = tmpGroupID.split(':')
+            protocol, executionID, dst = tmpGroupID.split(':')
             args = []
             for arg in self.externalCommand[protocol]['check']['args']:
                 if arg == '{id}':
                     arg = executionID
+                elif arg == '{dst}':
+                    arg = dst
                 args.append(arg)
             # execute
             try:
@@ -198,6 +205,7 @@ class AnalysisAuxPreparator(PluginBase):
                     stderr = ''
                 stdout = stdout.replace('\n', ' ')
                 stderr = stderr.replace('\n', ' ')
+                tmpLog.debug("return_code: {0}".format(return_code))
                 tmpLog.debug("stdout: {0}".format(stdout))
                 tmpLog.debug("stderr: {0}".format(stderr))
                 if return_code != 0:
@@ -209,7 +217,9 @@ class AnalysisAuxPreparator(PluginBase):
                 allDone = False
                 break
         if not allDone:
+            tmpLog.debug("check_stage_in_status: Return : None errMsg : {0}".format(errMsg))
             return None, errMsg
+        tmpLog.debug("check_stage_in_status: Return : True")
         return True, ''
 
     # resolve input file paths
