@@ -141,7 +141,7 @@ class AnalysisAuxPreparator(PluginBase):
                 executionID = None
                 if return_code == 0 and 'check' in bulkExtCommand[protocol]['command']:
                     executionID = [s for s in stdout.split('\n') if s][-1]
-                    dst = bulkExtCommand[protocol]['dst'][0]
+                    dst = ','.join(bulkExtCommand[protocol]['dst'])
                     executionID = '{0}:{1}:{2}'.format(protocol, executionID, dst)
                     tmpLog.debug('executionID - {0}'.format(executionID))
                     execIdMap[executionID] = {'lfns': bulkExtCommand[protocol]['lfn'], 'groupStatus': 'active'}
