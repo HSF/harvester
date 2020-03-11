@@ -210,9 +210,9 @@ class Preparator(AgentBase):
                             if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                                 # the file is ready
                                 fileSpec.status = 'ready'
-                                if fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['path']:
+                                if fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['ready']['path']:
                                     fileSpec.path = list(
-                                        fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['path'])[0]
+                                        fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['ready']['path'])[0]
                                 # set group info if any
                                 groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, fileType,
                                                                             queueConfig.ddmEndpointIn)
