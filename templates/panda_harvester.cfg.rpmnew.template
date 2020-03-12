@@ -182,7 +182,7 @@ resolverClass = PandaQueuesDict
 autoBlacklist = False
 
 # restrict to a certain pilot version (optional)
-pilotVersion = 1
+#pilotVersion = 2
 
 
 
