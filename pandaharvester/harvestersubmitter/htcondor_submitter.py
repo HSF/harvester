@@ -403,6 +403,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         logSubdir=log_subdir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=prod_source_label,
+        jobType=workspec.jobType,
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
         pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True, pilot_version),
         ioIntensity=io_intensity,
