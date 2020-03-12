@@ -4,6 +4,7 @@ import datetime
 import tempfile
 import threading
 import random
+import json
 
 from concurrent.futures import ThreadPoolExecutor
 import re
@@ -437,6 +438,7 @@ def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
 class HTCondorSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
+        tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         self.logBaseURL = None
         self.templateFile = None
         PluginBase.__init__(self, **kwarg)
@@ -485,7 +487,7 @@ class HTCondorSubmitter(PluginBase):
             self.CEtemplateDir
         except AttributeError:
             self.CEtemplateDir = ''
-        # remote condor schedd and pool name (collector), and spool option
+        # remote condor schedd and pool name (collector)
         try:
             self.condorSchedd
         except AttributeError:
@@ -494,6 +496,32 @@ class HTCondorSubmitter(PluginBase):
             self.condorPool
         except AttributeError:
             self.condorPool = None
+        # json config file of remote condor host: schedd/pool and weighting. If set, condorSchedd and condorPool are overwritten
+        try:
+            self.condorHostConfig
+        except AttributeError:
+            self.condorHostConfig = False
+        if self.condorHostConfig:
+            try:
+                self.condorSchedd = []
+                self.condorPool = []
+                self.condorHostWeight = []
+                with open(self.condorHostConfig, 'r') as f:
+                    condor_host_config_map = json.load(f)
+                    for _schedd, _cm in condor_host_config_map.items():
+                        _pool = _cm['pool']
+                        _weight = int(_cm['weight'])
+                        self.condorSchedd.append(_schedd)
+                        self.condorPool.append(_pool)
+                        self.condorHostWeight.append(_weight)
+            except Exception as e:
+                tmpLog.error('error when parsing condorHostConfig json file; {0}: {1}'.format(e.__class__.__name__, e))
+                raise
+        else:
+            if isinstance(self.condorSchedd, list):
+                self.condorHostWeight = [1] * len(self.condorSchedd)
+            else:
+                self.condorHostWeight = [1]
         # condor spool mechanism. If False, need shared FS across remote schedd
         try:
             self.useSpool
@@ -576,10 +604,13 @@ class HTCondorSubmitter(PluginBase):
         # deal with Condor schedd and central managers; make a random list the choose
         n_bulks = _div_round_up(nWorkers, self.minBulkToRamdomizedSchedd)
         if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
+            orig_list = []
             if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
-                orig_list = list(zip(self.condorSchedd, self.condorPool))
+                for _schedd, _pool, _weight in zip(self.condorSchedd, self.condorPool, self.condorHostWeight):
+                    orig_list.extend([(_schedd, _pool)] * _weight)
             else:
-                orig_list = [ (_schedd, self.condorPool) for _schedd in self.condorSchedd ]
+                for _schedd, _weight in zip(self.condorSchedd, self.condorHostWeight):
+                    orig_list.extend([(_schedd, self.condorPool)] * _weight)
             if n_bulks < len(orig_list):
                 schedd_pool_choice_list = random.sample(orig_list, n_bulks)
             else:
