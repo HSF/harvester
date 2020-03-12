@@ -4796,6 +4796,10 @@ class DBProxy(object):
             sqlW += "WHERE status IN (:st_submitted,:st_running,:st_idle) "
             sqlW += "AND modificationTime<:timeLimit "
             sqlW += "ORDER BY modificationTime,computingSite LIMIT {0} ".format(n_workers)
+            # sql to get jobs
+            sqlJ = "SELECT j.{columns} FROM {jobWorkerTableName} jw, {jobTableName} j ".format(columns=JobSpec.column_names(), jobTableName=jobTableName, jobWorkerTableName=jobWorkerTableName)
+            sqlJ += "WHERE j.PandaID=jw.PandaID AND jw.workerID=:workerID "
+            # parameter map
             varMap = dict()
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(seconds=seconds_ago)
             varMap[':st_submitted'] = WorkSpec.ST_submitted
@@ -4806,7 +4810,18 @@ class DBProxy(object):
             def _get_workspec_from_record(rec):
                 workspec = WorkSpec()
                 workspec.pack(rec)
+                jobspec_list = []
                 workspec.pandaid_list = []
+                varMap = dict()
+                varMap[':workerID'] = workspec.workerID
+                self.execute(sqlJ, varMap)
+                resJ = self.cur.fetchall()
+                for one_job in resJ:
+                    jobspec = JobSpec()
+                    jobspec.pack(one_job)
+                    jobspec_list.append(jobspec)
+                    workspec.pandaid_list.append(jobspec.PandaID)
+                workspec.set_jobspec_list(jobspec_list)
                 return workspec
             retVal = map(_get_workspec_from_record, resW)
             tmpLog.debug('got {0} workers'.format(len(resW)))
