@@ -587,7 +587,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     continue
                 # filter for pilot version
                 if hasattr(harvester_config.qconf, 'pilotVersion') and \
-                    pandaQueueDict[queueConfig.siteName].get('pilot_version') != str(harvester_config.qconf.pilotVersion):
+                    pandaQueueDict.get(queueConfig.siteName) is not None and \
+                    pandaQueueDict.get(queueConfig.siteName).get('pilot_version') != str(harvester_config.qconf.pilotVersion):
                     continue
                 if 'ALL' not in harvester_config.qconf.queueList and \
                         'DYNAMIC' not in harvester_config.qconf.queueList and \
