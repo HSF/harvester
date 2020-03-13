@@ -185,7 +185,9 @@ class AnalysisAuxPreparator(PluginBase):
         for tmpGroupID in transferGroups:
             if tmpGroupID is None:
                 continue
-            protocol, executionID, dst = tmpGroupID.split(':')
+            tmpGroupID_parts = tmpGroupID.split(':',maxsplit=2)
+            tmpLog.debug('transfer group ID : {0} components: {1}'.format(tmpGroupID, tmpGroupID_parts))            
+            protocol, executionID, dst = tmpGroupID.split(':',maxsplit=2)
             args = []
             for arg in self.externalCommand[protocol]['check']['args']:
                 if arg == '{id}':
@@ -224,11 +226,15 @@ class AnalysisAuxPreparator(PluginBase):
 
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
+        # make logger
+        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='resolve_input_paths')
         pathInfo = dict()
         for tmpFileSpec in jobspec.inFiles:
             url = tmpFileSpec.lfn
             accPath = self.make_local_access_path(tmpFileSpec.scope, tmpFileSpec.lfn)
             pathInfo[tmpFileSpec.lfn] = {'path': accPath}
+            tmpLog.debug('lfn: {0} scope : {1} accPath : {2} pathInfo : {3}'.format(url, tmpFileSpec.scope, accPath, pathInfo))
         jobspec.set_input_file_paths(pathInfo)
         return True, ''
 
