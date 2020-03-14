@@ -334,7 +334,9 @@ class JobSpec(SpecBase):
         lfns = self.get_input_file_attributes().keys()
         paths = []
         for lfn in lfns:
-            paths.append(in_files[lfn]['path'])
+            # check for consistency 
+            if lfn in in_files: 
+                paths.append(in_files[lfn]['path']) 
         self.jobParams['inFilePaths'] = ','.join(paths)
         # trigger updating
         self.force_update('jobParams')
