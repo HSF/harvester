@@ -74,8 +74,11 @@ class CredManager(AgentBase):
             # do nothing
             if exeCore is None:
                 continue
-                # make logger
-            mainLog = self.make_logger(_logger, "{0} {1}".format(exeCore.__class__.__name__, exeCore.outCertFile),
+
+            # make logger
+            mainLog = self.make_logger(_logger, "{0} {1} {2}".format(exeCore.__class__.__name__,
+                                                                     exeCore.inCertFile,
+                                                                     exeCore.outCertFile),
                                        method_name='execute')
             try:
                 # check credential
