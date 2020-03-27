@@ -178,16 +178,13 @@ def _condor_macro_replace(string, **kwarg):
 
 
 # Parse resource type from string for Unified PanDA Queue
-def _get_resource_type(string, is_unified_queue, is_pilot_option=False, pilot_version='1'):
+def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
     string = str(string)
     if not is_unified_queue:
         ret = ''
     elif string in set(['SCORE', 'MCORE', 'SCORE_HIMEM', 'MCORE_HIMEM']):
         if is_pilot_option:
-            if pilot_version == '2':
-                ret = '--resource-type {0}'.format(string)
-            else:
-                ret = '-R {0}'.format(string)
+            ret = '--resource-type {0}'.format(string)
         else:
             ret = string
     else:
@@ -196,23 +193,13 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False, pilot_ve
 
 
 # Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
-# and piloturl (pilot option --piloturl)
-# Depending on pilot version 1 or 2
-def _get_prodsourcelabel_pilotypeopt_piloturlstr(pilot_type, pilot_version='1'):
-    if pilot_version == '2':
-        # pilot 2
-        pt_psl_map = {
-            'RC': ('rc_test2', 'RC', '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz'),
-            'ALRB': ('rc_alrb', 'ALRB', ''),
-            'PT': ('ptest', 'PR', ''),
-        }
-    else:
-        # pilot 1, need not piloturl since wrapper covers it
-        pt_psl_map = {
-            'RC': ('rc_test', 'RC', ''),
-            'ALRB': ('rc_alrb', 'ALRB', ''),
-            'PT': ('ptest', 'PR', ''),
-        }
+# and piloturl (pilot option --piloturl) for pilot 2
+def _get_complicated_pilot_options(pilot_type):
+    pt_psl_map = {
+        'RC': ('rc_test2', 'RC', '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz'),
+        'ALRB': ('rc_alrb', 'ALRB', ''),
+        'PT': ('ptest', 'PR', ''),
+    }
     pilot_opt_tuple = pt_psl_map.get(pilot_type, None)
     return pilot_opt_tuple
 
@@ -329,7 +316,7 @@ def submit_bag_of_workers(data_list):
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
-                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='1', **kwarg):
+                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='unknown', **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -364,7 +351,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
     # decide prodSourceLabel
-    pilot_opt_tuple = _get_prodsourcelabel_pilotypeopt_piloturlstr(workspec.pilotType, pilot_version)
+    pilot_opt_tuple = _get_complicated_pilot_options(workspec.pilotType)
     if pilot_opt_tuple is None:
         prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
@@ -405,10 +392,11 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         prodSourceLabel=prod_source_label,
         jobType=workspec.jobType,
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
-        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True, pilot_version),
+        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
         ioIntensity=io_intensity,
         pilotType=pilot_type_opt,
         pilotUrlOption=pilot_url_str,
+        pilotVersion=pilot_version,
         )
     # save jdl to submit description file
     tmpFile.write(jdl_str)
@@ -593,8 +581,8 @@ class HTCondorSubmitter(PluginBase):
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
-        pilot_version_orig = str(this_panda_queue_dict.get('pilot_version', ''))
-        pilot_version_suffix_str = '_pilot2' if pilot_version_orig == '2' else ''
+        pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
+        sdf_suffix_str = '_pilot2'
 
         # get override requirements from queue configured
         try:
@@ -688,10 +676,10 @@ class HTCondorSubmitter(PluginBase):
                             default_port = default_port_map[ce_flavour_str]
                             ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('For site {0} got pilot version: "{1}"; CE endpoint: "{2}", flavour: "{3}"'.format(
-                                    self.queueName, pilot_version_orig, ce_endpoint_from_queue, ce_flavour_str))
+                                    self.queueName, pilot_version, ce_endpoint_from_queue, ce_flavour_str))
                     if not self.templateFile and os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
-                        sdf_template_filename = '{ce_flavour_str}{pilot_version_suffix_str}.sdf'.format(
-                                                    ce_flavour_str=ce_flavour_str, pilot_version_suffix_str=pilot_version_suffix_str)
+                        sdf_template_filename = '{ce_flavour_str}{sdf_suffix_str}.sdf'.format(
+                                                    ce_flavour_str=ce_flavour_str, sdf_suffix_str=sdf_suffix_str)
                         self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
                 else:
                     try:
@@ -804,7 +792,7 @@ class HTCondorSubmitter(PluginBase):
                         'condor_schedd': condor_schedd,
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
-                        'pilot_version': pilot_version_orig,
+                        'pilot_version': pilot_version,
                         })
             return data
 
