@@ -113,7 +113,7 @@ class k8s_Client(object):
         try:
             log_file_name = work_spec.workAttributes['stdout']
         except (KeyError, AttributeError):
-            tmp_log.debug('work_spec does not have workAttributes field: {0}'.format(work_spec))
+            tmp_log.debug('work_spec does not have stdout workAttribute, using default')
             log_file_name = ''
 
         container_env['env'].extend([
