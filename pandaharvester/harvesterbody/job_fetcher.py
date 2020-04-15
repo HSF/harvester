@@ -25,7 +25,6 @@ class JobFetcher(AgentBase):
         self.communicator = communicator
         self.nodeName = socket.gethostname()
         self.queueConfigMapper = queue_config_mapper
-        self.pandaQueueDict = PandaQueuesDict()
         self.pluginFactory = PluginFactory()
 
     # main loop
@@ -37,6 +36,10 @@ class JobFetcher(AgentBase):
             nJobsPerQueue = self.dbProxy.get_num_jobs_to_fetch(harvester_config.jobfetcher.nQueues,
                                                                harvester_config.jobfetcher.lookupTime)
             mainLog.debug('got {0} queues'.format(len(nJobsPerQueue)))
+
+            # get up to date queue configuration
+            pandaQueueDict = PandaQueuesDict()
+
             # loop over all queues
             for queueName, nJobs in iteritems(nJobsPerQueue):
                 # check queue
@@ -53,7 +56,7 @@ class JobFetcher(AgentBase):
 
                 # get jobs
                 try:
-                    is_grandly_unified_queue = self.pandaQueueDict.is_grandly_unified_queue(siteName)
+                    is_grandly_unified_queue = pandaQueueDict.is_grandly_unified_queue(siteName)
                 except Exception:
                     is_grandly_unified_queue = False
 
@@ -128,8 +131,8 @@ class JobFetcher(AgentBase):
                         jobSpec.trigger_propagation()
                         jobSpecs.append(jobSpec)
                     # insert to DB
-                    tmpLog.debug("Converting of {0} jobs {1}".format(len(jobs),sw_startconvert.get_elapsed_time()))
-                    sw_insertdb =core_utils.get_stopwatch()
+                    tmpLog.debug("Converting of {0} jobs {1}".format(len(jobs), sw_startconvert.get_elapsed_time()))
+                    sw_insertdb = core_utils.get_stopwatch()
                     self.dbProxy.insert_jobs(jobSpecs)
                     tmpLog.debug('Insert of {0} jobs {1}'.format(len(jobSpecs), sw_insertdb.get_elapsed_time()))
             mainLog.debug('done')
