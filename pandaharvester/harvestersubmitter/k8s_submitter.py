@@ -83,6 +83,8 @@ class K8sSubmitter(PluginBase):
         except (KeyError, AttributeError):
             return None, None
 
+        return None, None
+
     def decide_container_image(self, job_fields, job_pars_parsed):
         """
         Decide container image:
