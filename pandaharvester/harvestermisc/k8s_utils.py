@@ -267,9 +267,11 @@ class k8s_Client(object):
         body = client.V1Secret(data=data, metadata=metadata)
         try:
             rsp = self.corev1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
+            tmp_log.debug('Patched secret')
         except ApiException as e:
             tmp_log.debug('Exception when patching secret: {0} . Try to create secret instead...'.format(e))
             rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
+            tmp_log.debug('Created secret')
         return rsp
 
     def create_configmap(self, work_spec):
@@ -312,6 +314,7 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, method_name='get_pod_logs')
         try:
             rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
+            tmp_log.debug('Log file retrieved for {0}'.format(pod_name))
         except ApiException as e:
             tmp_log.debug('Exception when getting logs for pod {0} : {1}. Skipped'.format(pod_name, e))
             raise
