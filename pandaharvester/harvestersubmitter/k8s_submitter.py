@@ -171,7 +171,7 @@ class K8sSubmitter(PluginBase):
                 return tmp_return_value
 
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
-                                                                           executable, args
+                                                                           executable, args,
                                                                            cert, cert_in_secret=use_secret,
                                                                            cpu_adjust_ratio=self.cpu_adjust_ratio,
                                                                            memory_adjust_ratio=self.memory_adjust_ratio)
