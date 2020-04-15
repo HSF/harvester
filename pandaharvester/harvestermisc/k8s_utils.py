@@ -17,8 +17,7 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
-DEF_COMMAND = ["/usr/bin/bash"]
-DEF_ARGS = ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/k8s_analysis/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
+
 
 class k8s_Client(object):
 
@@ -37,8 +36,8 @@ class k8s_Client(object):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, work_spec, container_image, cert, cert_in_secret=True,
-                             cpu_adjust_ratio=100, memory_adjust_ratio=100, executable=[], args=[]):
+    def create_job_from_yaml(self, yaml_content, work_spec, container_image,  executable, args,
+                             cert, cert_in_secret=True, cpu_adjust_ratio=100, memory_adjust_ratio=100,):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
@@ -77,11 +76,6 @@ class k8s_Client(object):
         # set the container image
         if 'image' not in container_env:
             container_env['image'] = container_image
-
-        # if there is no user defined executable, run the default executable
-        if not executable:
-            executable = DEF_COMMAND
-            args = DEF_ARGS
 
         if 'command' not in container_env:
             container_env['command'] = executable
@@ -151,7 +145,7 @@ class k8s_Client(object):
         if 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content)
 
-        # tmp_log.debug('creating job {0}'.format(yaml_content))
+        tmp_log.debug('creating job {0}'.format(yaml_content))
 
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
         return rsp, yaml_content
@@ -205,8 +199,7 @@ class k8s_Client(object):
         ret_list = list()
 
         for pod_name in pod_name_list:
-            rsp = {}
-            rsp['name'] = pod_name
+            rsp = {'name': pod_name}
             try:
                 self.corev1.delete_namespaced_pod(name=pod_name, namespace=self.namespace, body=self.deletev1,
                                                   grace_period_seconds=0)
@@ -224,7 +217,7 @@ class k8s_Client(object):
 
     def delete_config_map(self, config_map_name):
         self.corev1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.deletev1,
-                                                  grace_period_seconds=0)
+                                                 grace_period_seconds=0)
 
     def set_proxy(self, proxy_path):
         with open(proxy_path) as f:

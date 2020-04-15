@@ -16,9 +16,14 @@ from pandaharvester.harvesterconfig import harvester_config
 # logger
 base_logger = core_utils.setup_logger('k8s_submitter')
 
+# image defaults
 DEF_SLC6_IMAGE = 'atlasadc/atlas-grid-slc6'
 DEF_CENTOS7_IMAGE = 'atlasadc/atlas-grid-centos7'
 DEF_IMAGE = DEF_CENTOS7_IMAGE
+
+# command defaults
+DEF_COMMAND = ["/usr/bin/bash"]
+DEF_ARGS = ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 
 
 # submitter for K8S
@@ -118,8 +123,8 @@ class K8sSubmitter(PluginBase):
         return container_image
 
     def build_executable(self, job_fields, job_pars_parsed):
-        executable = []
-        args = []
+        executable = DEF_COMMAND
+        args = DEF_ARGS
         try:
             if 'runcontainer' in job_fields['transformation']:
                 # remove any quotes
@@ -130,8 +135,7 @@ class K8sSubmitter(PluginBase):
                 if len(exec_list) > 1:
                     args = [' '.join(exec_list[1:])]
         except (AttributeError, TypeError):
-            executable = []
-            args = []
+            pass
 
         return executable, args
 
@@ -167,10 +171,10 @@ class K8sSubmitter(PluginBase):
                 return tmp_return_value
 
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
+                                                                           executable, args
                                                                            cert, cert_in_secret=use_secret,
                                                                            cpu_adjust_ratio=self.cpu_adjust_ratio,
-                                                                           memory_adjust_ratio=self.memory_adjust_ratio,
-                                                                           executable=executable, args=args)
+                                                                           memory_adjust_ratio=self.memory_adjust_ratio)
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
             err_str = 'Failed to create a JOB; {0}'.format(_e)
