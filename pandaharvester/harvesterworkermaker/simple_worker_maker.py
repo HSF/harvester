@@ -172,7 +172,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
             workSpec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prodsourcelabel)
             tmpLog.debug('get_job_type decided for job_type: {0} (input job_type: {1}, queue_type: {2}, tmp_prodsourcelabel: {3})'
-                         .format(workSpec.jobType, job_type, queue_type = queue_dict.get('type', None), tmp_prodsourcelabel))
+                         .format(workSpec.jobType, job_type, queue_dict.get('type', None), tmp_prodsourcelabel))
 
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type
