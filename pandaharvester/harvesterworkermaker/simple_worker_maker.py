@@ -41,17 +41,27 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         return job_corecount, job_memory
 
-    def get_job_type(self, job_spec, job_type, queue_dict):
+    def get_job_type(self, job_spec, job_type, queue_dict, tmp_prodsourcelabel=None):
 
-        # 1. get prodSourceLabel from job (push)
+        queue_type = queue_dict.get('type', None)
+
+        # 1. get prodSourceLabel from job (PUSH)
         if job_spec and 'prodSourceLabel' in job_spec.jobParams:
             job_type_final = job_spec.jobParams['prodSourceLabel']
-        # 2. get prodSourceLabel from the specified job_type (pull UPS)
+
+        # 2. get prodSourceLabel from the specified job_type (PULL UPS)
         elif job_type:
-            job_type_final = job_type
-        # 3. convert the prodSourcelabel from the queue configuration or leave it empty
-        else: # 3. get prodSourceLabel from the queue definition (pull)
-            queue_type = queue_dict.get('type', None)
+
+            if tmp_prodsourcelabel:
+                if queue_type != 'analysis' and tmp_prodsourcelabel not in ('user', 'panda'):
+                    # for production, unified or other types of queues we need to run neutral prodsourcelabels
+                    # with production proxy since they can't be distinguished and can fail
+                    job_type_final = 'managed'
+                else:
+                    job_type_final = job_type
+
+        # 3. convert the prodSourcelabel from the queue configuration or leave it empty (PULL)
+        else:
             # map AGIS types to PanDA types
             if queue_type == 'analysis':
                 job_type_final = 'user'
