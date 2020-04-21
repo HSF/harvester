@@ -13,6 +13,11 @@ warnings.simplefilter("ignore")
 class MysqlFifo(PluginBase):
     # constructor
     def __init__(self, **kwarg):
+        self.reconnectTimeout = 300
+        if hasattr(harvester_config, 'fifo') and hasattr(harvester_config.fifo, 'reconnectTimeout'):
+            self.reconnectTimeout = harvester_config.db.reconnectTimeout
+        elif hasattr(harvester_config.db, 'reconnectTimeout'):
+            self.reconnectTimeout = harvester_config.db.reconnectTimeout
         PluginBase.__init__(self, **kwarg)
         self.tableName = '{title}_FIFO'.format(title=self.titleName)
         # DB access attribues
@@ -81,7 +86,7 @@ class MysqlFifo(PluginBase):
             raise _e
 
     # decorator exception handler for type of DBs
-    def _handle_exception(method, retry_time=30):
+    def _handle_exception(method):
         def _decorator(_method, *args, **kwargs):
             @functools.wraps(_method)
             def _wrapped_method(self, *args, **kwargs):
@@ -94,13 +99,19 @@ class MysqlFifo(PluginBase):
                         isOperationalError = True
                     if isOperationalError:
                         try_timestamp = time.time()
-                        while time.time() - try_timestamp < retry_time:
+                        n_retry = 1
+                        while time.time() - try_timestamp < self.reconnectTimeout:
                             try:
                                 self.__init__()
                                 return
                             except Exception as _e:
                                 exc = _e
-                                time.sleep(1)
+                                sleep_time = core_utils.retry_period_sec(n_retry, increment=2, max_seconds=300, min_seconds=1)
+                                if not sleep_time:
+                                    break
+                                else:
+                                    time.sleep(sleep_time)
+                                    n_retry += 1
                         raise exc
                     else:
                         raise exc
