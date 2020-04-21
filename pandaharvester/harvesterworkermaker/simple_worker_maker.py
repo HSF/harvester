@@ -41,17 +41,25 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         return job_corecount, job_memory
 
-    def get_job_type(self, job_spec, job_type, queue_dict):
+    def get_job_type(self, job_spec, job_type, queue_dict, tmp_prodsourcelabel=None):
 
-        # 1. get prodSourceLabel from job (push)
+        queue_type = queue_dict.get('type', None)
+
+        # 1. get prodSourceLabel from job (PUSH)
         if job_spec and 'prodSourceLabel' in job_spec.jobParams:
             job_type_final = job_spec.jobParams['prodSourceLabel']
-        # 2. get prodSourceLabel from the specified job_type (pull UPS)
+
+        # 2. get prodSourceLabel from the specified job_type (PULL UPS)
         elif job_type:
             job_type_final = job_type
-        # 3. convert the prodSourcelabel from the queue configuration or leave it empty
-        else: # 3. get prodSourceLabel from the queue definition (pull)
-            queue_type = queue_dict.get('type', None)
+            if tmp_prodsourcelabel:
+                if queue_type != 'analysis' and tmp_prodsourcelabel not in ('user', 'panda'):
+                    # for production, unified or other types of queues we need to run neutral prodsourcelabels
+                    # with production proxy since they can't be distinguished and can fail
+                    job_type_final = 'managed'
+
+        # 3. convert the prodSourcelabel from the queue configuration or leave it empty (PULL)
+        else:
             # map AGIS types to PanDA types
             if queue_type == 'analysis':
                 job_type_final = 'user'
@@ -162,8 +170,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             if workSpec.pilotType in ['RC', 'ALRB', 'PT']:
                 tmpLog.info('a worker has pilotType={0}'.format(workSpec.pilotType))
 
-            workSpec.jobType = self.get_job_type(None, job_type, queue_dict)
-            tmpLog.debug('get_job_type decided for job_type: {0}'.format(workSpec.jobType))
+            workSpec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prodsourcelabel)
+            tmpLog.debug('get_job_type decided for job_type: {0} (input job_type: {1}, queue_type: {2}, tmp_prodsourcelabel: {3})'
+                         .format(workSpec.jobType, job_type, queue_dict.get('type', None), tmp_prodsourcelabel))
 
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type

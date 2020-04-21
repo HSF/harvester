@@ -1,0 +1,80 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grid-job
+spec:
+  ttlSecondsAfterFinished: 172800
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: atlas-grid-centos7
+          image: atlasadc/atlas-grid-centos7
+          env:
+            - name: computingSite
+              value: "$computingSite"
+            - name: pandaQueueName
+              value: "$pandaQueueName"
+            - name: proxySecretPath
+              value: "$proxySecretPath"
+            - name: proxyContent
+              value: "$proxyContent"
+            - name: workerID
+              value: "$workerID"
+            - name: logs_frontend_w
+              value: "$logs_frontend_w"
+            - name: logs_frontend_r
+              value: "$logs_frontend_r"
+            - name: resourceType
+              value: "$resourceType"
+            - name: HARVESTER_WORKER_ID
+              value: "$HARVESTER_WORKER_ID"
+            - name: HARVESTER_ID
+              value: "$HARVESTER_ID"
+            - name: PANDA_JSID
+              value: "$PANDA_JSID"
+            - name: TMPDIR
+              value: "/root"
+            - name: PILOT_NOKILL
+              value: "True"
+          command: ["/usr/bin/bash"]
+          args: ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/k8s_analysis/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
+          volumeMounts:
+            - name: atlas
+              mountPath: /cvmfs/atlas.cern.ch
+            - name: atlas-condb
+              mountPath: /cvmfs/atlas-condb.cern.ch
+            - name: atlas-nightlies
+              mountPath: /cvmfs/atlas-nightlies.cern.ch
+            - name: sft
+              mountPath: /cvmfs/sft.cern.ch
+            - name: grid
+              mountPath: /cvmfs/grid.cern.ch
+            - name: proxy-secret
+              mountPath: /proxy
+      volumes:
+        - name: atlas
+          persistentVolumeClaim:
+            claimName: csi-cvmfs-atlas-pvc
+            readOnly: true
+        - name: atlas-condb
+          persistentVolumeClaim:
+            claimName: csi-cvmfs-atlas-condb-pvc
+            readOnly: true
+        - name: atlas-nightlies
+          persistentVolumeClaim:
+            claimName: csi-cvmfs-atlas-nightlies-pvc
+            readOnly: true
+        - name: sft
+          persistentVolumeClaim:
+            claimName: csi-cvmfs-sft-pvc
+            readOnly: true
+        - name: grid
+          persistentVolumeClaim:
+            claimName: csi-cvmfs-grid-pvc
+            readOnly: true
+        - name: proxy-secret
+          secret:
+              secretName: proxy-secret
