@@ -60,6 +60,9 @@ class DBProxy(object):
         self.thrName = thr_name
         self.verbLog = None
         self.useInspect = False
+        self.reconnectTimeout = 300
+        if hasattr(harvester_config.db, 'reconnectTimeout'):
+            self.reconnectTimeout = harvester_config.db.reconnectTimeout
         if harvester_config.db.verbose:
             self.verbLog = core_utils.make_logger(_logger, method_name='execute')
             if self.thrName is None:
@@ -139,7 +142,7 @@ class DBProxy(object):
             self.usingAppLock = True
 
     # exception handler for type of DBs
-    def _handle_exception(self, exc, retry_time=30):
+    def _handle_exception(self, exc):
         tmpLog = core_utils.make_logger(_logger, 'thr={0}'.format(self.thrName), method_name='_handle_exception')
         if harvester_config.db.engine == 'mariadb':
             tmpLog.warning('exception of mysql {0} occurred'.format(exc.__class__.__name__))
@@ -155,14 +158,20 @@ class DBProxy(object):
                     isOperationalError = True
             if isOperationalError:
                 try_timestamp = time.time()
-                while time.time() - try_timestamp < retry_time:
+                n_retry = 1
+                while time.time() - try_timestamp < self.reconnectTimeout:
                     try:
                         self.__init__()
                         tmpLog.info('renewed connection')
                         break
                     except Exception as e:
-                        tmpLog.error('failed to renew connection; {0}'.format(e))
-                        time.sleep(1)
+                        tmpLog.error('failed to renew connection ({0} retries); {1}'.format(n_retry, e))
+                        sleep_time = core_utils.retry_period_sec(n_retry, increment=2, max_seconds=300, min_seconds=1)
+                        if not sleep_time:
+                            break
+                        else:
+                            time.sleep(sleep_time)
+                            n_retry += 1
 
     # convert param dict to list
     def convert_params(self, sql, varmap):
