@@ -53,7 +53,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         elif job_type:
             job_type_final = job_type
             if tmp_prodsourcelabel:
-                if queue_type != 'analysis' and tmp_prodsourcelabel not in ('user', 'panda'):
+                if queue_type != 'analysis' and tmp_prodsourcelabel not in ('user', 'panda', 'managed'):
                     # for production, unified or other types of queues we need to run neutral prodsourcelabels
                     # with production proxy since they can't be distinguished and can fail
                     job_type_final = 'managed'
