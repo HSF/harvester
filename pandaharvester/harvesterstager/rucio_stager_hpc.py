@@ -136,7 +136,7 @@ class RucioStagerHPC(BaseStager):
 
             stdout, stderr = process.communicate()
             fileSpec.attemptNr += 1
-            stdout = stdout + " attemptNr: %s" % fileSpec.attemptNr
+            stdout = stdout.decode() + " attemptNr: %s" % fileSpec.attemptNr
             tmpLog.debug("stdout: %s" % stdout)
             tmpLog.debug("stderr: %s" % stderr)
             if process.returncode == 0:
