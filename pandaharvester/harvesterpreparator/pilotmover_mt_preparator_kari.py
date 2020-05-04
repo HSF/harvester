@@ -133,7 +133,7 @@ class PilotmoverMTPreparator(PluginBase):
         ErrMsg = 'These files failed to download : '
         if files:
             threads = []
-            n_files_per_thread = (len(files) + self.n_threads - 1) / self.n_threads
+            n_files_per_thread = (len(files) + self.n_threads - 1) // self.n_threads
             tmpLog.debug('num files per thread: %s' % n_files_per_thread)
             for i in range(0, len(files), n_files_per_thread):
                 sub_files = files[i:i + n_files_per_thread]
