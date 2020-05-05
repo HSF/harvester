@@ -53,7 +53,10 @@ class Propagator(AgentBase):
                     if tmpJobSpec.computingSite not in hbSuppressMap:
                         queueConfig = self.queueConfigMapper.get_queue(tmpJobSpec.computingSite,
                                                                        tmpJobSpec.configID)
-                        hbSuppressMap[tmpJobSpec.computingSite] = queueConfig.get_no_heartbeat_status()
+                        if queueConfig:
+                            hbSuppressMap[tmpJobSpec.computingSite] = queueConfig.get_no_heartbeat_status()
+                        else: # assume truepilot
+                            hbSuppressMap[tmpJobSpec.computingSite] = ['running', 'transferring', 'finished', 'failed']
                     # heartbeat is suppressed
                     if tmpJobSpec.get_status() in hbSuppressMap[tmpJobSpec.computingSite] and \
                             not tmpJobSpec.not_suppress_heartbeat():
