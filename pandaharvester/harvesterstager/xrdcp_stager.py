@@ -89,8 +89,8 @@ class XrdcpStager(BaseStager):
         gc.collect()
 
         # make logger
-        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='trigger_preparation')
+        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
+                                  method_name='trigger_stage_out')
         tmpLog.debug('start')
         # get the environment
         harvester_env = os.environ.copy()
