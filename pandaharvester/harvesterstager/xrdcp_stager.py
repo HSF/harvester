@@ -9,7 +9,7 @@ except Exception:
 
 from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestercore import core_utils
-from .base_stager import BaseStager
+from pandaharvester.harvesterstager.base_stager import BaseStager
 
 import uuid
 
