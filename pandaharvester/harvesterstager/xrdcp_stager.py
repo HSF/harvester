@@ -110,6 +110,8 @@ class XrdcpStager(BaseStager):
             # local path
             localPath = mover_utils.construct_file_path(self.localBasePath, fileAttrs[fileSpec.lfn]['scope'],
                                                       fileSpec.lfn)
+            tmpLog.debug('fileSpec.path - {0} fileSpec.lfn = {1}'.format(fileSpec.path,fileSpec.lfn))
+            localPath = fileSpec.path
             if self.checkLocalPath:
                 # check if already exits
                 if os.path.exists(localPath):
