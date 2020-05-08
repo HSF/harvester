@@ -124,7 +124,8 @@ class XrdcpStager(BaseStager):
             if xrdcpOutput is None:
                 xrdcpOutput = [dstPath]
             else:
-                xrdcpOutput.append[dstPath]
+                if dstPath not in xrdcpOutput :
+                    xrdcpOutput.append(dstPath)
             # transfer using xrdcp one file at a time
             tmpLog.debug('execute xrdcp')
             args = ['xrdcp', '--nopbar', '--force']
