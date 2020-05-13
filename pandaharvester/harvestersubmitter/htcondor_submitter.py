@@ -194,14 +194,28 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
 
 # Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
 # and piloturl (pilot option --piloturl) for pilot 2
-def _get_complicated_pilot_options(pilot_type):
+def _get_complicated_pilot_options(pilot_type, pilot_url=None):
     pt_psl_map = {
-        'RC': ('rc_test2', 'RC', '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz'),
-        'ALRB': ('rc_alrb', 'ALRB', ''),
-        'PT': ('ptest', 'PR', ''),
-    }
-    pilot_opt_tuple = pt_psl_map.get(pilot_type, None)
-    return pilot_opt_tuple
+            'RC': {
+                    'prod_source_label': 'rc_test2',
+                    'pilot_type_opt': 'RC',
+                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz',
+                },
+            'ALRB': {
+                    'prod_source_label': 'rc_alrb',
+                    'pilot_type_opt': 'ALRB',
+                    'pilot_url_str': '',
+                },
+            'PT': {
+                    'prod_source_label': 'ptest',
+                    'pilot_type_opt': 'PR',
+                    'pilot_url_str': '',
+                },
+        }
+    pilot_opt_dict = pt_psl_map.get(pilot_type, None)
+    if pilot_url and pilot_opt_dict:
+        pilot_opt_dict['pilot_url_str'] = '--piloturl {0}'.format(pilot_url)
+    return pilot_opt_dict
 
 
 # submit a bag of workers
@@ -315,7 +329,7 @@ def submit_bag_of_workers(data_list):
 
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
-                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
+                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), pilot_url=None,
                 special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='unknown', **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
@@ -351,13 +365,15 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
     # decide prodSourceLabel
-    pilot_opt_tuple = _get_complicated_pilot_options(workspec.pilotType)
-    if pilot_opt_tuple is None:
+    pilot_opt_dict = _get_complicated_pilot_options(workspec.pilotType, pilot_url=pilot_url)
+    if pilot_opt_dict is None:
         prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
-        pilot_url_str = ''
+        pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
     else:
-        prod_source_label, pilot_type_opt, pilot_url_str = pilot_opt_tuple
+        prod_source_label = pilot_opt_dict['prod_source_label']
+        pilot_type_opt = pilot_opt_dict['pilot_type_opt']
+        pilot_url_str = pilot_opt_dict['pilot_url_str']
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
     # fill in template string
@@ -524,6 +540,10 @@ class HTCondorSubmitter(PluginBase):
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
+        # allowed associated parameters from AGIS
+        self._allowed_agis_attrs = (
+                'pilot_url',
+            )
 
     # get CE statistics of a site
     def get_ce_statistics(self, site_name, n_new_workers, time_window=21600):
@@ -565,6 +585,9 @@ class HTCondorSubmitter(PluginBase):
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
 
+        # associated parameters dict
+        associated_params_dict = {}
+
         is_grandly_unified_queue = False
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
@@ -573,6 +596,10 @@ class HTCondorSubmitter(PluginBase):
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
             is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
+            # associated params on AGIS
+            for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
+                if key in self._allowed_agis_attrs:
+                    associated_params_dict[key] = val
         else:
             panda_queues_dict = dict()
             panda_queue_name = self.queueName
@@ -581,6 +608,7 @@ class HTCondorSubmitter(PluginBase):
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
+        pilot_url = associated_params_dict.get('pilot_url')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
         sdf_suffix_str = '_pilot2'
 
@@ -792,6 +820,7 @@ class HTCondorSubmitter(PluginBase):
                         'condor_schedd': condor_schedd,
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
+                        'pilot_url': pilot_url,
                         'pilot_version': pilot_version,
                         })
             return data

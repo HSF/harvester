@@ -66,6 +66,8 @@ host = localhost
 # port number for MariaDB. N/A for sqlite
 port = 	3306
 
+# max time in seconds to keep trying to reconnect DB before timeout
+reconnectTimeout = 300
 
 
 

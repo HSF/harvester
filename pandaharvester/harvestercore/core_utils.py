@@ -639,3 +639,16 @@ def pickle_to_text(data):
 # unpickle from text
 def unpickle_from_text(text):
     return pickle.loads(codecs.decode(text.encode(), 'base64'))
+
+
+# increasing retry period after timeout or failure
+def retry_period_sec(nth_retry, increment=1, max_retries=None, max_seconds=None, min_seconds=1):
+    nth = max(nth_retry, 1)
+    ret_period = max(min_seconds, 1)
+    if max_retries and nth_retry > max_retries:
+        return False
+    else:
+        ret_period += (nth - 1)*increment
+        if max_seconds:
+            ret_period = min(ret_period, max_seconds)
+        return ret_period

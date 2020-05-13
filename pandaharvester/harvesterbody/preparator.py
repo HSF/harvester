@@ -195,13 +195,18 @@ class Preparator(AgentBase):
                     # check file status
                     if queueConfig.ddmEndpointIn not in fileStatMap:
                         fileStatMap[queueConfig.ddmEndpointIn] = dict()
+                    # check if has to_prepare
+                    hasToPrepare = False
+                    for fileSpec in jobSpec.inFiles:
+                        if fileSpec.status == 'to_prepare':
+                            hasToPrepare = True
+                            break
                     newFileStatusData = []
                     toWait = False
                     newInFiles = []
                     for fileSpec in jobSpec.inFiles:
                         if fileSpec.status in ['preparing', 'to_prepare']:
                             newInFiles.append(fileSpec)
-                        if fileSpec.status == 'preparing':
                             updateStatus = False
                             if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
                                 fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
@@ -221,14 +226,19 @@ class Preparator(AgentBase):
                                     fileSpec.groupStatus = groupInfo['groupStatus']
                                     fileSpec.groupUpdateTime = groupInfo['groupUpdateTime']
                                 updateStatus = True
-                            elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] or \
-                                    'triggered' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                            elif (not hasToPrepare and
+                                  'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]) or \
+                                  'triggered' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                                 # the file is being prepared by another
                                 toWait = True
+                                if fileSpec.status != 'preparing':
+                                    fileSpec.status = 'preparing'
+                                    updateStatus = True
                             else:
                                 # change file status if the file is not prepared by another
-                                fileSpec.status = 'to_prepare'
-                                updateStatus = True
+                                if fileSpec.status != 'to_prepare':
+                                    fileSpec.status = 'to_prepare'
+                                    updateStatus = True
                             # set new status
                             if updateStatus:
                                 newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
