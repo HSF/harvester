@@ -114,22 +114,22 @@ class k8s_Client(object):
             ret = self.corev1.list_namespaced_pod(namespace=self.namespace)
         except Exception as _e:
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
-
-        for i in ret.items:
-            pod_info = {}
-            pod_info['name'] = i.metadata.name
-            pod_info['start_time'] = i.status.start_time.replace(
-                tzinfo=None) if i.status.start_time else i.status.start_time
-            pod_info['status'] = i.status.phase
-            pod_info['status_conditions'] = i.status.conditions
-            pod_info['job_name'] = i.metadata.labels[
-                'job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None
-            pod_info['containers_state'] = []
-            if i.status.container_statuses:
-                for cs in i.status.container_statuses:
-                    if cs.state:
-                        pod_info['containers_state'].append(cs.state)
-            pods_list.append(pod_info)
+        else:
+            for i in ret.items:
+                pod_info = {}
+                pod_info['name'] = i.metadata.name
+                pod_info['start_time'] = i.status.start_time.replace(
+                    tzinfo=None) if i.status.start_time else i.status.start_time
+                pod_info['status'] = i.status.phase
+                pod_info['status_conditions'] = i.status.conditions
+                pod_info['job_name'] = i.metadata.labels[
+                    'job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None
+                pod_info['containers_state'] = []
+                if i.status.container_statuses:
+                    for cs in i.status.container_statuses:
+                        if cs.state:
+                            pod_info['containers_state'].append(cs.state)
+                pods_list.append(pod_info)
 
         return pods_list
 
