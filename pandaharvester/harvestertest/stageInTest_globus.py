@@ -61,7 +61,7 @@ _logger = core_utils.setup_logger('stageInTest_go_preparator')
 tmpLog = core_utils.make_logger(_logger, method_name='stageInTest_go_preparator')
 tmpLog.debug('start')
 
-for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
+for loggerName, loggerObj in logging.Logger.manager.loggerDict.items():
    #print "loggerName - {}".format(loggerName)
    if loggerName.startswith('panda.log'):
       if len(loggerObj.handlers) == 0:
