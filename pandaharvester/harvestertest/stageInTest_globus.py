@@ -9,6 +9,7 @@ import string
 import time
 import threading
 import logging
+from __future__ import print_statement
 from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.job_spec import JobSpec
@@ -29,9 +30,9 @@ from globus_sdk import RefreshTokenAuthorizer
 def dump(obj):
    for attr in dir(obj):
        if hasattr( obj, attr ):
-           print( "obj.%s = %s" % (attr, getattr(obj, attr)))
+           print("obj.%s = %s" % (attr, getattr(obj, attr)))
 
-print len(sys.argv)
+print(len(sys.argv))
 queueName = 'ALCF_Theta'
 job_id = 1111
 globus_sleep_time = 15
@@ -249,7 +250,7 @@ else:
    tmpLog.error('Failed to send intial files')
    sys.exit(3)
 
-print "sleep {0} seconds".format(globus_sleep_time)
+print("sleep {0} seconds".format(globus_sleep_time))
 time.sleep(globus_sleep_time)
 
 # enter polling loop to see if the intial files have transfered
@@ -282,7 +283,7 @@ while (iloop < maxloop) and NotFound :
       tmpStr = 'transfer task {0} status: {1}'.format(transferID,transferTasks[transferID]['status'])
       tmpLog.debug(tmpStr)
    if NotFound :
-      print "sleep {0} seconds".format(globus_sleep_time)
+      print("sleep {0} seconds".format(globus_sleep_time))
       time.sleep(globus_sleep_time)
       ++iloop
 
@@ -293,39 +294,37 @@ if NotFound :
 
 #dump(queueConfig)
 
-print "plugin={0}".format(preparatorCore.__class__.__name__)
+print("plugin={0}".format(preparatorCore.__class__.__name__))
 
-print "testing stagein:"
-print "BasePath from preparator configuration: %s " % preparatorCore.basePath
+print("testing stagein:")
+print("BasePath from preparator configuration: %s " % preparatorCore.basePath)
 
 
 tmpStat, tmpOut = preparatorCore.trigger_preparation(jobSpec)
 if tmpStat:
-    print " OK"
+    print(" OK")
 else:
-    print " NG {0}".format(tmpOut)
+    print(" NG {0}".format(tmpOut))
 
-print "sleep {0} seconds".format(globus_sleep_time)
+print("sleep {0} seconds".format(globus_sleep_time))
 time.sleep(globus_sleep_time)
 
-print "testing status check"
+print("testing status check")
 while True:
     tmpStat, tmpOut = preparatorCore.check_stage_in_status(jobSpec)
     if tmpStat == True:
-        print " OK"
+        print(" OK")
         break
     elif tmpStat == False:
-        print " NG {0}".format(tmpOut)
+        print(" NG {0}".format(tmpOut))
         sys.exit(1)
     else:
-        print " still running. sleep 1 min"
+        print(" still running. sleep 1 min")
         time.sleep(60)
 
-print
-
-print "checking path resolution"
+print("checking path resolution")
 tmpStat, tmpOut = preparatorCore.resolve_input_paths(jobSpec)
 if tmpStat:
-    print " OK {0}".format(jobSpec.jobParams['inFilePaths'])
+    print(" OK {0}".format(jobSpec.jobParams['inFilePaths']))
 else:
-    print " NG {0}".format(tmpOut)
+    print(" NG {0}".format(tmpOut))
