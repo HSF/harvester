@@ -181,7 +181,7 @@ for index in range(random.randint(1, 5)):
    assFileSpec.fsize = random.randint(10, 100)
    # create source file
    hash = hashlib.md5()
-   hash.update('%s:%s' % (fileSpec.scope, fileSpec.lfn))
+   hash.update(('%s:%s' % (fileSpec.scope, fileSpec.lfn)).encode('utf-8'))
    hash_hex = hash.hexdigest()
    correctedscope = "/".join(scope.split('.'))
    fileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(endPoint=queueConfig.preparator['Globus_dstPath'],
