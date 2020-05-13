@@ -37,7 +37,7 @@ class k8s_Client(object):
     def create_job_from_yaml(self, yaml_content, work_spec, cert, cert_in_secret=True, cpuadjustratio=100,
                              memoryadjustratio=100):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
+        # tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
@@ -105,9 +105,15 @@ class k8s_Client(object):
         return rsp
 
     def get_pods_info(self):
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='get_pods_info')
+
         pods_list = list()
 
-        ret = self.corev1.list_namespaced_pod(namespace=self.namespace)
+        try:
+            ret = self.corev1.list_namespaced_pod(namespace=self.namespace)
+        except Exception as _e:
+            tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
 
         for i in ret.items:
             pod_info = {}
@@ -133,16 +139,23 @@ class k8s_Client(object):
         return pods_list
 
     def get_jobs_info(self, job_name=None):
+
+        tmp_log = core_utils.make_logger(base_logger, 'job_name={0}'.format(job_name), method_name='get_jobs_info')
+
         jobs_list = list()
 
         field_selector = 'metadata.name=' + job_name if job_name else ''
-        ret = self.batchv1.list_namespaced_job(namespace=self.namespace, field_selector=field_selector)
+        try:
+            ret = self.batchv1.list_namespaced_job(namespace=self.namespace, field_selector=field_selector)
 
-        for i in ret.items:
-            job_info = {'name': i.metadata.name, 'status': i.status.conditions[0].type,
-                        'status_reason': i.status.conditions[0].reason,
-                        'status_message': i.status.conditions[0].message}
-            jobs_list.append(job_info)
+            for i in ret.items:
+                job_info = {'name': i.metadata.name, 'status': i.status.conditions[0].type,
+                            'status_reason': i.status.conditions[0].reason,
+                            'status_message': i.status.conditions[0].message}
+                jobs_list.append(job_info)
+        except Exception as _e:
+            tmp_log.error('Failed call to list_namespaced_job with: {0}'.format(_e))
+
         return jobs_list
 
     def delete_pods(self, pod_name_list):
@@ -156,6 +169,8 @@ class k8s_Client(object):
                                                   grace_period_seconds=0)
             except ApiException as _e:
                 rsp['errMsg'] = '' if _e.status == 404 else _e.reason
+            except Exception as _e:
+                rsp['errMsg'] = _e.reason
             else:
                 rsp['errMsg'] = ''
             ret_list.append(rsp)
@@ -163,8 +178,12 @@ class k8s_Client(object):
         return ret_list
 
     def delete_job(self, job_name):
-        self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1,
-                                           grace_period_seconds=0)
+        tmp_log = core_utils.make_logger(base_logger, 'job_name={0}'.format(job_name), method_name='delete_job')
+        try:
+            self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1,
+                                               grace_period_seconds=0)
+        except Exception as _e:
+            tmp_log.error('Failed call to delete_namespaced_job with: {0}'.format(_e))
 
     def set_proxy(self, proxy_path):
         with open(proxy_path) as f:
@@ -213,17 +232,20 @@ class k8s_Client(object):
             data[filename] = base64.b64encode(aux).decode()
         body = client.V1Secret(data=data, metadata=metadata)
         try:
-            rsp = self.corev1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
-        except ApiException as e:
-            tmp_log.debug('Exception when patch secret: {0} . Try to create secret instead...'.format(e))
-            rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
+            try:
+                rsp = self.corev1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
+            except ApiException as e:
+                tmp_log.debug('Exception when patch secret: {0} . Try to create secret instead...'.format(e))
+                rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
+        except Exception as e:
+            tmp_log.error('Exception when patch or creating secret: {0}.'.format(e))
         return rsp
 
     def get_pod_logs(self, pod_name, previous=False):
         tmp_log = core_utils.make_logger(base_logger, method_name='get_pod_logs')
         try:
             rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
-        except ApiException as e:
+        except Exception as e:
             tmp_log.debug('Exception when getting logs for pod {0} : {1}. Skipped'.format(pod_name, e))
             raise
         else:
