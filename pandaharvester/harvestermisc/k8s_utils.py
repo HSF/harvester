@@ -39,7 +39,7 @@ class k8s_Client(object):
     def create_job_from_yaml(self, yaml_content, work_spec, container_image,  executable, args,
                              cert, cert_in_secret=True, cpu_adjust_ratio=100, memory_adjust_ratio=100,):
 
-        # tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
         # consider PULL mode as default, unless specified
         submit_mode = 'PULL'
