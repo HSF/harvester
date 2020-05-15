@@ -271,7 +271,7 @@ class k8s_Client(object):
         # api_version = 'v1'
         # kind = 'Secret'
         # type='kubernetes.io/tls'
-
+        rsp = None
         tmp_log = core_utils.make_logger(base_logger, method_name='create_or_patch_secret')
 
         metadata = {'name': secret_name, 'namespace': self.namespace}
