@@ -9,7 +9,6 @@ import string
 import time
 import threading
 import logging
-from __future__ import print_statement
 from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.job_spec import JobSpec
@@ -61,7 +60,7 @@ _logger = core_utils.setup_logger('stageInTest_go_preparator')
 tmpLog = core_utils.make_logger(_logger, method_name='stageInTest_go_preparator')
 tmpLog.debug('start')
 
-for loggerName, loggerObj in logging.Logger.manager.loggerDict.items():
+for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
    #print "loggerName - {}".format(loggerName)
    if loggerName.startswith('panda.log'):
       if len(loggerObj.handlers) == 0:
