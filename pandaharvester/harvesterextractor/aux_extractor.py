@@ -6,6 +6,7 @@ from .base_extractor import BaseExtractor
 class AuxExtractor(BaseExtractor):
     # constructor
     def __init__(self, **kwarg):
+        self.containerPrefix = None
         BaseExtractor.__init__(self, **kwarg)
 
     # get auxiliary input files
@@ -32,5 +33,7 @@ class AuxExtractor(BaseExtractor):
         # extract container image
         if 'container_name' in jobspec.jobParams:
             url = jobspec.jobParams['container_name']
+            if self.containerPrefix is not None and not url.startswith(self.containerPrefix):
+                url = self.containerPrefix + url
             url_list.append(url)
         return self.make_aux_inputs(url_list)
