@@ -1,0 +1,119 @@
+{
+"LRZ-LMU_MUC":{ 
+    "prodSourceLabel": "managed",
+    "nQueueLimitJob":4,
+    "nQueueLimitWorker":2,
+    "maxWorkers":0,
+    "mapType": "ManyToOne",
+"preparator":{
+    "name":"PilotmoverMTPreparator",
+    "module":"pandaharvester.harvesterpreparator.pilotmover_mt_preparator_kari",
+    "basePath":"/hppfs/scratch/01/ri32buz3/harvester/rucio"
+    },
+
+"submitter":{
+             "name":"SlurmSubmitter",
+             "module":"pandaharvester.harvestersubmitter.slurm_submitter",
+             "templateFile":"/home/r/Rodney.Walker/harvester3/etc/panda/slurm_submit.sh",
+             "nCorePerNode": 96,
+             "nCore": 192,
+             "imageBase": "/hppfs/work/pr58be/ri32buz3/images/",
+             "pilotBootstrapDir": "/hppfs/work/pr58be/ri32buz3/harvester/cache",
+             "walltime": "02:00:00"
+            }, 
+"workerMaker":{
+    "name":"SimpleWorkerMaker",
+    "module":"pandaharvester.harvesterworkermaker.simple_worker_maker",
+    "nJobsPerWorker": 2
+    },
+"messenger":{
+    "name":"SharedFileMessenger",
+    "module":"pandaharvester.harvestermessenger.shared_file_messenger",
+    "accessPoint":"/hppfs/scratch/01/ri32buz3/harvester/workers/${workerID}"
+    },
+"stager":{
+    "name":"RucioStagerHPC",
+    "module":"pandaharvester.harvesterstager.rucio_stager_hpc",
+    "srcRSE":"LRZ-LMU_DATADISK",
+    "dstRSE_ES":null,
+    "dstRSE_Out":"LRZ-LMU_DATADISK",
+    "dstRSE_Log":"LRZ-LMU_DATADISK",
+    "objStoreID_ES":null,
+    "srcBasePath":"/hppfs/work/pr58be/ri32buz3/harvester/rucioproxy",
+    "zipDir":null
+    },
+
+    "monitor":{
+	"name":"SlurmSqueueMonitor",
+	"module":"pandaharvester.harvestermonitor.slurm_squeue_monitor"
+	},
+    "sweeper":{
+	"name":"SlurmSweeper",
+	"module":"pandaharvester.harvestersweeper.slurm_sweeper"
+	},
+     "extractor": {
+	"name": "AuxExtractor"
+      }
+ },
+
+"LRZ-LMU_MUC2":{
+    "prodSourceLabel": "managed",
+    "nQueueLimitJob":4,
+    "nQueueLimitWorker":2,
+    "maxWorkers":0,
+    "mapType": "ManyToOne",
+    "preparator": {
+            "srcEndpoint" : "c67b1eee-6d04-11e5-ba46-22000b92c6ec",
+            "Globus_srcPath": "/mnt/hpcdisk/atlasdatadisk/rucio",
+            "dstEndpoint" : "828999ba-f16d-11e9-be90-02fcc9cdd752",
+            "Globus_dstPath": "/hppfs/scratch/01/ri32buz3/harvester/rucio",
+            "basePath": "/hppfs/scratch/01/ri32buz3/harvester/rucio",
+            "module": "pandaharvester.harvesterpreparator.go_bulk_preparator",
+            "name": "GlobusBulkPreparator"
+     },
+     "submitter":{
+             "name":"SlurmSubmitter",
+             "module":"pandaharvester.harvestersubmitter.slurm_submitter",
+             "templateFile":"/home/r/Rodney.Walker/harvester3/etc/panda/slurm_submit.sh",
+             "nCorePerNode": 96,
+             "nCore": 192
+     },
+    "workerMaker":{
+	"name":"SimpleWorkerMaker",
+	"module":"pandaharvester.harvesterworkermaker.simple_worker_maker",
+	"nJobsPerWorker": 2
+     },
+    "messenger":{
+	"name":"SharedFileMessenger",
+	"module":"pandaharvester.harvestermessenger.shared_file_messenger",
+	"accessPoint":"/hppfs/scratch/01/ri32buz3/harvester/workers/${workerID}"
+     },
+    "stager": {
+            "dstEndpoint" : "c67b1eee-6d04-11e5-ba46-22000b92c6ec",
+            "Globus_dstPath": "/mnt/hpcdisk/atlasdatadisk/rucio",
+            "srcEndpoint" : "828999ba-f16d-11e9-be90-02fcc9cdd752",
+            "Globus_srcPath": "/hppfs/scratch/01/ri32buz3/harvester/rucio",
+            "basePath": "/hppfs/scratch/01/ri32buz3/harvester/rucio",
+            "dstRSE_ES": "BNL-OSG2_DATADISK",
+            "dstRSE_Log": "BNL-OSG2_DATADISK",
+            "dstRSE_Out": "BNL-OSG2_DATADISK",
+            "module": "pandaharvester.harvesterstager.go_bulk_stager",
+            "name": "GlobusBulkStager",
+            "objStoreID_ES": 1641,
+            "pathConvention": 1000,
+            "jobtype": "ManyToOne",
+            "srcBasePath": "/hppfs/scratch/01/ri32buz3/harvester/rucio",
+            "srcRSE": "BNL-OSG2_DATADISK",
+            "nThreadsForZip": 8,
+            "zipDir": "${WORKDIR}"
+     },
+    "monitor":{
+        "name":"SlurmSqueueMonitor",
+        "module":"pandaharvester.harvestermonitor.slurm_squeue_monitor"
+     },
+    "sweeper":{
+        "name":"SlurmSweeper",
+        "module":"pandaharvester.harvestersweeper.slurm_sweeper"
+     }
+}
+}
