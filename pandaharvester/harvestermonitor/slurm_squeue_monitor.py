@@ -4,6 +4,9 @@ try:
 except ImportError:
     import subprocess
 
+import json
+import os
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -14,6 +17,8 @@ baseLogger = core_utils.setup_logger('slurm_squeue_monitor')
 
 # monitor for SLURM batch system with squeue
 class SlurmSqueueMonitor(PluginBase):
+    _HARVESTER_POSTMORTEM_FILENAME="FINISHED"
+
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
@@ -25,6 +30,25 @@ class SlurmSqueueMonitor(PluginBase):
             # make logger
             tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                       method_name='check_workers')
+            # here try to load file
+            current_postmortem_fname = '%s/%s' %(workSpec.accessPoint,  SlurmSqueueMonitor._HARVESTER_POSTMORTEM_FILENAME)
+
+            if os.path.exists(current_postmortem_fname):
+                with open(current_postmortem_fname) as postmortem:
+                    try:
+                        worker_status_json = json.load(postmortem)
+                        if 'worker_status' in worker_status_json:
+                            worker_status = None
+                            if worker_status_json['worker_status']=='finished':
+                               worker_status = WorkSpec.ST_finished
+                            if worker_status_json['worker_status']=='failed':
+                               worker_status = WorkSpec.ST_failed
+                            if worker_status is not None:
+                               retList.append((worker_status, ''))
+                               continue 
+                    except json.JSONDecodeError:
+                        tmpLog.debug('Not able to parse JSON in postmortem for a worker: %s, continung with SLURM CLI' % current_postmortem_fname)
+
             # command
             comStr = "squeue -j {0}".format(workSpec.batchID)
             # check
@@ -71,3 +95,8 @@ class SlurmSqueueMonitor(PluginBase):
                 #    newStatus = WorkSpec.ST_failed
                 retList.append((newStatus, errStr))
         return True, retList
+
+
+    def _get_worker_completion_details():
+        # try to open FINISHED file
+        pass
