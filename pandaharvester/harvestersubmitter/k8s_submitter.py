@@ -57,15 +57,15 @@ class K8sSubmitter(PluginBase):
 
         # CPU adjust ratio
         try:
-            self.cpu_adjust_ratio
+            self.cpuAdjustRatio
         except AttributeError:
-            self.cpu_adjust_ratio = 100
+            self.cpuAdjustRatio = 100
 
         # Memory adjust ratio
         try:
-            self.memory_adjust_ratio
+            self.memoryAdjustRatio
         except AttributeError:
-            self.memory_adjust_ratio = 100
+            self.memoryAdjustRatio = 100
 
     def parse_params(self, job_params):
         tmp_log = self.make_logger(base_logger, method_name='parse_params')
@@ -173,8 +173,8 @@ class K8sSubmitter(PluginBase):
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
                                                                            executable, args,
                                                                            cert, cert_in_secret=use_secret,
-                                                                           cpu_adjust_ratio=self.cpu_adjust_ratio,
-                                                                           memory_adjust_ratio=self.memory_adjust_ratio)
+                                                                           cpu_adjust_ratio=self.cpuAdjustRatio,
+                                                                           memory_adjust_ratio=self.memoryAdjustRatio)
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
             err_str = 'Failed to create a JOB; {0}'.format(_e)
