@@ -1,5 +1,6 @@
 import tempfile
 import re
+import jinja2
 
 import six
 
@@ -34,7 +35,7 @@ class SlurmSubmitter(PluginBase):
             # set nCore
             workSpec.nCore = self.nCore
             # make batch script
-            batchFile = self.make_batch_script(workSpec)
+            batchFile = self.make_batch_script_jinja(workSpec)
             # command
             comStr = "sbatch -D {0} {1}".format(workSpec.get_access_point(), batchFile)
             # submit
@@ -88,6 +89,35 @@ class SlurmSubmitter(PluginBase):
                       )
         tmpFile.close()
         return tmpFile.name
+
+
+    # make batch script
+    def make_batch_script_jinja(self, workspec):
+        # template for batch script
+        tmpFile = open(self.templateFile)
+        self.template = tmpFile.read()
+        tmpFile.close()
+        del tmpFile
+        tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
+        tm = Template(self.template)
+        tmpFile.write(tm.render(nCorePerNode=self.nCorePerNode,
+                                           nNode=workspec.nCore // self.nCorePerNode,
+                                           worker=workSpec,
+                                           submitter=self
+        ))
+        #tmpFile.write(six.b(self.template.format(nCorePerNode=self.nCorePerNode,
+        #                                   nNode=workspec.nCore // self.nCorePerNode,
+        #                                   accessPoint=workspec.accessPoint,
+        #                                   workerID=workspec.workerID))
+        #              )
+        #tmpFile.write(six.b(self.template.format(nCorePerNode=self.nCorePerNode,
+        #                                   nNode=workspec.nCore // self.nCorePerNode,
+        #                                   worker=workSpec,
+        #                                   submitter=self))
+        #              )
+        tmpFile.close()
+        return tmpFile.name
+
 
     # get log file names
     def get_log_file_names(self, batch_script, batch_id):
