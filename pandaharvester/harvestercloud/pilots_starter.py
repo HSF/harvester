@@ -151,6 +151,12 @@ def get_configuration():
     resource_type = os.environ.get('resourceType')
     logging.debug('[main] got resource type: {0}'.format(resource_type))
 
+    prodSourceLabel = os.environ.get('prodSourceLabel')
+    logging.debug('[main] got prodSourceLabel: {0}'.format(prodSourceLabel))
+
+    job_type = os.environ.get('jobType')
+    logging.debug('[main] got job type: {0}'.format(job_type))
+
     # get the Harvester ID
     harvester_id = os.environ.get('HARVESTER_ID')
     logging.debug('[main] got Harvester ID: {0}'.format(harvester_id))
@@ -187,15 +193,15 @@ def get_configuration():
         global CONFIG_DIR
         CONFIG_DIR = tmpdir + '/jobconfig'
 
-    return proxy_path, panda_site, panda_queue, resource_type, harvester_id, \
+    return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, harvester_id, \
            worker_id, logs_frontend_w, logs_frontend_r, stdout_name, submit_mode
 
 
 if __name__ == "__main__":
 
     # get all the configuration from environment
-    proxy_path, panda_site, panda_queue, resource_type, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, \
-    destination_name, submit_mode = get_configuration()
+    proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, harvester_id, worker_id, \
+    logs_frontend_w, logs_frontend_r, destination_name, submit_mode = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
@@ -215,12 +221,24 @@ if __name__ == "__main__":
     resource_type_option = ''
     if resource_type:
         resource_type_option = '--resource-type {0}'.format(resource_type)
-    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4}'.format(WORK_DIR, panda_site, panda_queue, panda_queue,
-                                                              resource_type_option)
-    if 'ANALY' in panda_queue:
-        wrapper_params = '{0} -j user'.format(wrapper_params)
-    else:
-        wrapper_params = '{0} -j managed'.format(wrapper_params)
+
+    psl_option = ''
+    if prodSourceLabel:
+        psl_option = '-j {0}'.format(prodSourceLabel)
+
+    job_type_option = ''
+    if job_type:
+        job_type_option = '-i {0}'.format(job_type)
+
+    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6}'.format(WORK_DIR, panda_site, panda_queue, panda_queue,
+                                                              resource_type_option, psl_option, job_type_option)
+
+    # TODO: This should be removed once we start using prodSourceLabel
+    if not psl_option:
+        if 'ANALY' in panda_queue:
+            wrapper_params = '{0} -j user'.format(wrapper_params)
+        else:
+            wrapper_params = '{0} -j managed'.format(wrapper_params)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system

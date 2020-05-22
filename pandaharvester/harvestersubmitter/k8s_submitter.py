@@ -12,6 +12,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 base_logger = core_utils.setup_logger('k8s_submitter')
@@ -48,12 +49,32 @@ class K8sSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
-        # x509 proxy
+        # x509 proxy: obsolete mode
         try:
             self.x509UserProxy
         except AttributeError:
             if os.getenv('X509_USER_PROXY'):
                 self.x509UserProxy = os.getenv('X509_USER_PROXY')
+
+        # x509 proxy for analysis jobs in grandly unified queues
+        try:
+            self.x509UserProxyAnalysis
+        except AttributeError:
+            self.x509UserProxyAnalysis = os.getenv('X509_USER_PROXY_ANAL')
+
+        # x509 proxy through k8s secrets: preferred way
+        try:
+            self.proxySecretPath
+        except AttributeError:
+            if os.getenv('PROXY_SECRET_PATH'):
+                self.proxySecretPath = os.getenv('PROXY_SECRET_PATH')
+
+        # analysis x509 proxy through k8s secrets: on GU queues
+        try:
+            self.proxySecretPathAnalysis
+        except AttributeError:
+            if os.getenv('PROXY_SECRET_PATH_ANAL'):
+                self.proxySecretPath = os.getenv('PROXY_SECRET_PATH_ANAL')
 
         # CPU adjust ratio
         try:
@@ -139,6 +160,37 @@ class K8sSubmitter(PluginBase):
 
         return executable, args
 
+    def _choose_proxy(self, workspec, is_grandly_unified_queue):
+        """
+        Choose the proxy based on the job type and whether k8s secrets are enabled
+        """
+        cert = None
+        use_secret = False
+        job_type = workspec.jobType
+
+        if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis'):
+            if self.proxySecretPathAnalysis:
+                cert = self.proxySecretPathAnalysis
+                use_secret = True
+            elif self.proxySecretPath:
+                cert = self.proxySecretPath
+                use_secret = True
+            elif self.x509UserProxyAnalysis:
+                cert = self.x509UserProxyAnalysis
+                use_secret = False
+            elif self.x509UserProxy:
+                cert = self.x509UserProxy
+                use_secret = False
+        else:
+            if self.proxySecretPath:
+                cert = self.proxySecretPath
+                use_secret = True
+            elif self.x509UserProxy:
+                cert = self.x509UserProxy
+                use_secret = False
+
+        return cert, use_secret
+
     def submit_k8s_worker(self, work_spec):
         tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
 
@@ -159,17 +211,16 @@ class K8sSubmitter(PluginBase):
             tmp_log.debug('container_image: "{0}"; executable: "{1}"; args: "{2}"'.format(container_image, executable,
                                                                                           args))
 
-            if hasattr(self, 'proxySecretPath'):
-                cert = self.proxySecretPath
-                use_secret = True
-            elif hasattr(self, 'x509UserProxy'):
-                cert = self.x509UserProxy
-                use_secret = False
-            else:
-                err_str = 'No proxy specified in proxySecretPath or x509UserProxy; not submitted'
+            # choose the appropriate proxy
+            panda_queues_dict = PandaQueuesDict()
+            is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
+            cert, use_secret = self._choose_proxy(work_spec, is_grandly_unified_queue)
+            if not cert:
+                err_str = 'No proxy specified in proxySecretPath or x509UserProxy. Not submitted'
                 tmp_return_value = (False, err_str)
                 return tmp_return_value
 
+            # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
                                                                            executable, args,
                                                                            cert, cert_in_secret=use_secret,

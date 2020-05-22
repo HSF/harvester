@@ -120,6 +120,8 @@ class k8s_Client(object):
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
             {'name': 'resourceType', 'value': work_spec.resourceType},
+            {'name': 'prodSourceLabel', 'value': work_spec.prodSourceLabel},
+            {'name': 'jobType', 'value': work_spec.jobType},
             {'name': 'proxySecretPath', 'value': cert if cert_in_secret else None},
             {'name': 'proxyContent', 'value': None if cert_in_secret else self.set_proxy(cert)},
             {'name': 'workerID', 'value': str(work_spec.workerID)},

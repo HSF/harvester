@@ -825,6 +825,15 @@ class HTCondorSubmitter(PluginBase):
                         })
             return data
 
+        def _propagate_attributes(workspec, tmpVal):
+            # make logger
+            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                            method_name='_propagate_attributes')
+            (retVal, tmpDict) = tmpVal
+            workspec.set_attributes_with_dict(tmpDict)
+            tmpLog.debug('Done workspec attributes propagation')
+            return retVal
+
         def _choose_proxy(workspec):
             """
             Choose the proxy based on the job type
@@ -838,15 +847,6 @@ class HTCondorSubmitter(PluginBase):
                 tmpLog.debug('Taking default proxy')
 
             return proxy
-
-        def _propagate_attributes(workspec, tmpVal):
-            # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                            method_name='_propagate_attributes')
-            (retVal, tmpDict) = tmpVal
-            workspec.set_attributes_with_dict(tmpDict)
-            tmpLog.debug('Done workspec attributes propagation')
-            return retVal
 
         tmpLog.debug('finished preparing worker attributes')
 
