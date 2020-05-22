@@ -9,7 +9,7 @@ import traceback
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester import panda_pkg_info
-from pandaharvester.harvestermisc import core_utils
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
