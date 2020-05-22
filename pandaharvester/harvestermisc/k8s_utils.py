@@ -36,7 +36,7 @@ class k8s_Client(object):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, work_spec, container_image,  executable, args,
+    def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, container_image,  executable, args,
                              cert, cert_in_secret=True, cpu_adjust_ratio=100, memory_adjust_ratio=100,):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
@@ -56,6 +56,7 @@ class k8s_Client(object):
         # retrieve panda queue information
         panda_queues_dict = PandaQueuesDict()
         queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
+        prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
 
         # set the worker name
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
@@ -120,7 +121,7 @@ class k8s_Client(object):
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
             {'name': 'resourceType', 'value': work_spec.resourceType},
-            {'name': 'prodSourceLabel', 'value': work_spec.prodSourceLabel},
+            {'name': 'prodSourceLabel', 'value': prod_source_label},
             {'name': 'jobType', 'value': work_spec.jobType},
             {'name': 'proxySecretPath', 'value': cert if cert_in_secret else None},
             {'name': 'proxyContent', 'value': None if cert_in_secret else self.set_proxy(cert)},
