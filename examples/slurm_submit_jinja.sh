@@ -23,7 +23,12 @@
 ##SBATCH --partition={% if nNode<16 %}"test"{% else %}"general" {% endif %}
 #SBATCH --ntasks-per-node 1
 
+<<<<<<< HEAD
+####SBATCH -N {{nNode}}
+#SBATCH -N {{worker.nJobs}}
+=======
 #SBATCH -N {{nNode}}
+>>>>>>> f75cee727755c4f9c6d301c06bcdd1b9cb53db8d
 
 set -e 
 
