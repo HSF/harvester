@@ -23,12 +23,8 @@
 ##SBATCH --partition={% if nNode<16 %}"test"{% else %}"general" {% endif %}
 #SBATCH --ntasks-per-node 1
 
-<<<<<<< HEAD
 ####SBATCH -N {{nNode}}
 #SBATCH -N {{worker.nJobs}}
-=======
-#SBATCH -N {{nNode}}
->>>>>>> f75cee727755c4f9c6d301c06bcdd1b9cb53db8d
 
 set -e 
 
@@ -77,6 +73,7 @@ export create_singularity_wrapper_file=$PILOT_BOOTSTRAP_DIR/create_singularity_s
 
 # get the PanDA Job IDs from worker_pandaids.json 
 PANDA_JOB_IDS=( "$(python -c "import json;pids = json.load(open('worker_pandaids.json'));print(' '.join(str(x) for x in pids))")" )
+PANDA_JOB_INFO=( "$(python -c "import json;pids = json.load(open('worker_pandaids.json'));print(' '.join(str(x)+';'+k['container_name'] if 'container_name' in k else '' for x,k in pids))")" )
 
 
 # environment variable initialization finished
@@ -117,7 +114,12 @@ echo [$SECONDS] ATLAS_LOCAL_ROOT_BASE = $ATLAS_LOCAL_ROOT_BASE
 
 # Loop over PanDA ID's
 
-for PANDA_JOB_ID in $PANDA_JOB_IDS;  do
+#for PANDA_JOB_ID in $PANDA_JOB_IDS;  do
+
+for PANDA_JOB in $PANDA_JOB_INFO;  do
+    IFS=';' read -a TMP_JOB_INFO <<< "${PANDA_JOB}"
+    PANDA_JOB_ID=${TMP_JOB_INFO[0]}
+    HARVESTER_CONTAINER_IMAGE=${TMP_JOB_INFO[1]}
 
     echo [$SECONDS] "PanDA Job ID - "$PANDA_JOB_ID
     
