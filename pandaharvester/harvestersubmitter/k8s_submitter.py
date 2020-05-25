@@ -198,7 +198,7 @@ class K8sSubmitter(PluginBase):
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
-        prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
+        prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
 
         # set the stdout log file
         log_file_name = '{0}_{1}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
