@@ -13,6 +13,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # logger
 base_logger = core_utils.setup_logger('k8s_submitter')
@@ -194,6 +195,11 @@ class K8sSubmitter(PluginBase):
     def submit_k8s_worker(self, work_spec):
         tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
 
+        # get info from harvester queue config
+        _queueConfigMapper = QueueConfigMapper()
+        harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
+        prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
+
         # set the stdout log file
         log_file_name = '{0}_{1}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
         work_spec.set_log_file('stdout', '{0}/{1}'.format(self.logBaseURL, log_file_name))
@@ -221,8 +227,8 @@ class K8sSubmitter(PluginBase):
                 return tmp_return_value
 
             # submit the worker
-            rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, container_image,
-                                                                           executable, args,
+            rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
+                                                                           container_image, executable, args,
                                                                            cert, cert_in_secret=use_secret,
                                                                            cpu_adjust_ratio=self.cpuAdjustRatio,
                                                                            memory_adjust_ratio=self.memoryAdjustRatio)
