@@ -53,6 +53,10 @@ class k8s_Client(object):
             if not res:  # if the configmap creation failed, don't submit a job because the pod creation will hang
                 return res, 'Failed to create a configmap'
 
+        # retrieve panda queue information
+        panda_queues_dict = PandaQueuesDict()
+        queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
+
         # set the worker name
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
 
