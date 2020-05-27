@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+
+########################################################
+#         OBSOLETE!!! USE PILOTS_STARTER.PY
+########################################################
+
 """
 This script will be executed at container startup
 - It will retrieve the proxy and panda queue from the environment

@@ -8,9 +8,8 @@ import time
 import traceback
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore import core_utils
 from pandaharvester import panda_pkg_info
-from pandaharvester.harvestermisc import generic_utils
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
@@ -117,7 +116,7 @@ class Apfmon(object):
             panda_queues_dict = PandaQueuesDict()
 
             # publish the active queues to APF mon in shards
-            for sites in generic_utils.create_shards(all_sites, 20):
+            for sites in core_utils.create_shards(all_sites, 20):
                 labels = []
                 for site in sites:
                     try:
@@ -271,7 +270,7 @@ class Apfmon(object):
 
             url = '{0}/jobs'.format(self.base_url)
 
-            for worker_spec_shard in generic_utils.create_shards(worker_spec_list, 20):
+            for worker_spec_shard in core_utils.create_shards(worker_spec_list, 20):
                 apfmon_workers = []
                 for worker_spec in worker_spec_shard:
                     batch_id = worker_spec.batchID
