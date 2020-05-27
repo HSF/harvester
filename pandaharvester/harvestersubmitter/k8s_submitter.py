@@ -226,12 +226,20 @@ class K8sSubmitter(PluginBase):
                 tmp_return_value = (False, err_str)
                 return tmp_return_value
 
+            # get the walltime limit
+            try:
+                max_time = panda_queues_dict.get(self.queueName)['maxtime']
+            except Exception as e:
+                tmp_log.warning('Could not retrieve maxtime field for queue {0}'.format(self.queueName))
+                max_time = None
+
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
                                                                            container_image, executable, args,
                                                                            cert, cert_in_secret=use_secret,
                                                                            cpu_adjust_ratio=self.cpuAdjustRatio,
-                                                                           memory_adjust_ratio=self.memoryAdjustRatio)
+                                                                           memory_adjust_ratio=self.memoryAdjustRatio,
+                                                                           max_time=max_time)
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
             err_str = 'Failed to create a JOB; {0}'.format(_e)
