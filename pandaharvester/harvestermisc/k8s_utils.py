@@ -37,7 +37,7 @@ class k8s_Client(object):
         return yaml_content
 
     def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, container_image,  executable, args,
-                             cert, cert_in_secret=True, cpu_adjust_ratio=100, memory_adjust_ratio=100,):
+                             cert, cert_in_secret=True, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
@@ -146,6 +146,12 @@ class k8s_Client(object):
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content)
+
+        # set max_time to avoid having a pod running forever
+        if 'activeDeadlineSeconds' not in yaml_content['spec']['template']['spec']:
+            if not max_time:  # 4 days
+                max_time = 4 * 24 * 23600
+            yaml_content['spec']['template']['spec']['activeDeadlineSeconds'] = max_time
 
         tmp_log.debug('creating job {0}'.format(yaml_content))
 
