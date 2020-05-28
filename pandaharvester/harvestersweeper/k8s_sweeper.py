@@ -76,7 +76,7 @@ class K8sSweeper(BaseSweeper):
                         tmp_log.error(err_str)
                         tmp_ret_val = (False, err_str)
                 else:
-                    tmp_log.debug('No job/configmap associated to worker {0}'.format(work_spec.workerID))
+                    tmp_log.debug('No pandajob/configmap associated to worker {0}'.format(work_spec.workerID))
 
                 # delete the job
                 try:
