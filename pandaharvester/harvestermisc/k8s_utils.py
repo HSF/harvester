@@ -158,14 +158,22 @@ class k8s_Client(object):
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
         return rsp, yaml_content
 
-    def get_pods_info(self):
+    def get_pods_info(self, workspec_list=[]):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='get_pods_info')
-
         pods_list = list()
 
+        if workspec_list:
+            batch_ids_list = [workspec.batchID for workspec in workspec_list]
+            batch_ids_concat = ','.join(batch_ids_list)
+            label_selector = 'job-name in ({0})'.format(batch_ids_concat)
+        else:
+            label_selector = ''
+
+        tmp_log.debug('label_selector: {0}'.format(label_selector))
+
         try:
-            ret = self.corev1.list_namespaced_pod(namespace=self.namespace)
+            ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         except Exception as _e:
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
         else:

@@ -81,10 +81,10 @@ class K8sMonitor(PluginBase):
 
         return new_status, sub_msg
 
-    def check_a_job(self, workspec):
+    def check_a_worker(self, workspec):
         # set logger
         tmp_log = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
-                                   method_name='check_a_job')
+                                   method_name='check_a_worker')
 
         # initialization
         job_id = workspec.batchID
@@ -154,11 +154,11 @@ class K8sMonitor(PluginBase):
             ret_list.append(('', err_str))
             return False, ret_list
 
-        self._all_pods_list = self.k8s_client.get_pods_info()
+        self._all_pods_list = self.k8s_client.get_pods_info(workspec_list=workspec_list)
 
         # resolve status requested workers
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            ret_iterator = thread_pool.map(self.check_a_job, workspec_list)
+            ret_iterator = thread_pool.map(self.check_a_worker, workspec_list)
 
         ret_list = list(ret_iterator)
 
