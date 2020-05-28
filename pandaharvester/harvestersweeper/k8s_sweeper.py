@@ -56,7 +56,7 @@ class K8sSweeper(BaseSweeper):
     def kill_workers(self, work_spec_list):
         tmp_log = self.make_logger(base_logger, method_name='kill_workers')
 
-        self._all_pods_list = self.k8s_client.get_pods_info()
+        self._all_pods_list = self.k8s_client.get_pods_info(work_spec_list=work_spec_list)
 
         ret_list = []
         for work_spec in work_spec_list:
