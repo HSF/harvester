@@ -205,7 +205,7 @@ class k8s_Client(object):
 
     def get_jobs_info(self, workspec_list=[]):
 
-        tmp_log = core_utils.make_logger(base_logger, 'job_name={0}'.format(job_name), method_name='get_jobs_info')
+        tmp_log = core_utils.make_logger(base_logger, method_name='get_jobs_info')
 
         jobs_list = list()
 
