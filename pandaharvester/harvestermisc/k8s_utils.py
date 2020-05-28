@@ -158,18 +158,22 @@ class k8s_Client(object):
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
         return rsp, yaml_content
 
-    def get_pods_info(self, workspec_list=[]):
-
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_pods_info')
-        pods_list = list()
-
+    def generate_ls_from_wsl(self, workspec_list=[]):
         if workspec_list:
-            batch_ids_list = [workspec.batchID for workspec in workspec_list]
+            batch_ids_list = [workspec.batchID for workspec in workspec_list if workspec.batchID]
             batch_ids_concat = ','.join(batch_ids_list)
             label_selector = 'job-name in ({0})'.format(batch_ids_concat)
         else:
             label_selector = ''
 
+        return label_selector
+
+    def get_pods_info(self, workspec_list=[]):
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='get_pods_info')
+        pods_list = list()
+
+        label_selector = self.generate_ls_from_wsl(workspec_list)
         tmp_log.debug('label_selector: {0}'.format(label_selector))
 
         try:
@@ -199,15 +203,17 @@ class k8s_Client(object):
             pods_list = [i for i in pods_list if i['job_name'] == job_name]
         return pods_list
 
-    def get_jobs_info(self, job_name=None):
+    def get_jobs_info(self, workspec_list=[]):
 
         tmp_log = core_utils.make_logger(base_logger, 'job_name={0}'.format(job_name), method_name='get_jobs_info')
 
         jobs_list = list()
 
-        field_selector = 'metadata.name=' + job_name if job_name else ''
+        label_selector = self.generate_ls_from_wsl(workspec_list)
+        tmp_log.debug('label_selector: {0}'.format(label_selector))
+
         try:
-            ret = self.batchv1.list_namespaced_job(namespace=self.namespace, field_selector=field_selector)
+            ret = self.batchv1.list_namespaced_job(namespace=self.namespace, label_selector=label_selector)
 
             for i in ret.items:
                 job_info = {

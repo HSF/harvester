@@ -90,7 +90,7 @@ class K8sSweeper(BaseSweeper):
                 # retrieve the associated pods
                 pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=batch_id)
                 pods_name = [pods_info['name'] for pods_info in pods_list]
-                job_info = self.k8s_client.get_jobs_info(batch_id)
+                job_info = self.k8s_client.get_jobs_info(workspec_list=[work_spec])
                 # retrieve the associated pods
                 if not job_info:
                     ret_list = self.k8s_client.delete_pods(pods_name)
