@@ -87,6 +87,7 @@ class K8sSweeper(BaseSweeper):
                     tmp_log.error(err_str)
                     tmp_ret_val = (False, err_str)
 
+                """
                 # retrieve the associated pods
                 pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=batch_id)
                 pods_name = [pods_info['name'] for pods_info in pods_list]
@@ -105,6 +106,7 @@ class K8sSweeper(BaseSweeper):
                                 tmp_log.error(err_str)
                                 err_str_list.append(err_str)
                         tmp_ret_val = (False, ','.join(err_str_list))
+                """
             else:  # the worker cannot be cleaned
                 tmp_ret_val = (True, '')
 
