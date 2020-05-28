@@ -174,7 +174,7 @@ class k8s_Client(object):
         pods_list = list()
 
         label_selector = self.generate_ls_from_wsl(workspec_list)
-        tmp_log.debug('label_selector: {0}'.format(label_selector))
+        # tmp_log.debug('label_selector: {0}'.format(label_selector))
 
         try:
             ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
@@ -210,7 +210,7 @@ class k8s_Client(object):
         jobs_list = list()
 
         label_selector = self.generate_ls_from_wsl(workspec_list)
-        tmp_log.debug('label_selector: {0}'.format(label_selector))
+        # tmp_log.debug('label_selector: {0}'.format(label_selector))
 
         try:
             ret = self.batchv1.list_namespaced_job(namespace=self.namespace, label_selector=label_selector)
