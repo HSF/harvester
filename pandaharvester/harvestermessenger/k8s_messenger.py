@@ -27,7 +27,7 @@ class K8sMessenger(BaseMessenger):
 
     def post_processing(self, workspec, jobspec_list, map_type):
         """
-        Do the folloiwing in post_processing, i.e. when workers terminate (finished/failed/cancelled)
+        Do the following in post_processing, i.e. when workers terminate (finished/failed/cancelled)
         - Fetch logs of the pod from k8s
         - Store or upload logs
         """

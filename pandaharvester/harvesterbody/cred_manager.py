@@ -42,8 +42,13 @@ class CredManager(AgentBase):
             pluginPar['inCertFile'] = inCertFile
             pluginPar['outCertFile'] = outCertFile
             pluginPar['voms'] = voms
-            exeCore = self.pluginFactory.get_plugin(pluginPar)
-            self.exeCores.append(exeCore)
+            try:
+                exeCore = self.pluginFactory.get_plugin(pluginPar)
+                self.exeCores.append(exeCore)
+            except Exception as e:
+                _logger.error('Problem instantiating cred manager for {0}'.format(pluginPar))
+                _logger.error('Exception {0}'.format(e))
+
 
     # get list
     def get_list(self, data):
