@@ -245,7 +245,7 @@ if __name__ == "__main__":
         # and therefore the pilot cannot execute in the same directory
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
-    command = "/tmp/runpilot2-wrapper.sh {0} -t False -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False | tee /tmp/wrapper-wid.log". \
+    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False | tee /tmp/wrapper-wid.log". \
         format(wrapper_params, submit_mode)
     try:
         subprocess.call(command, shell=True)
