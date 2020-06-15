@@ -85,7 +85,12 @@ class Monitor(AgentBase):
                 # loop over all workers
                 for queueName, configIdWorkSpecs in iteritems(workSpecsPerQueue):
                     for configID, workSpecsList in iteritems(configIdWorkSpecs):
-                        retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID, check_source='DB')
+                        try:
+                            retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID, check_source='DB')
+                        except Exception as e:
+                            mainLog.error('monitor_agent_core excepted with {0}'.format(e))
+                            retVal = None  # skip the loop
+
                         if monitor_fifo.enabled and retVal is not None:
                             workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                             if workSpecsToEnqueue:
@@ -192,8 +197,13 @@ class Monitor(AgentBase):
                                                 else:
                                                     workSpec.pandaid_list = []
                                                 workSpec.force_update('pandaid_list')
-                                    retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
-                                                                     config_id=configID, check_source='FIFO')
+                                    try:
+                                        retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
+                                                                         config_id=configID, check_source='FIFO')
+                                    except Exception as e:
+                                        mainLog.error('monitor_agent_core excepted with {0}'.format(e))
+                                        retVal = None  # skip the loop
+
                                     if retVal is not None:
                                         workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                                         qc_key = (queueName, configID)
@@ -767,10 +777,16 @@ class Monitor(AgentBase):
                 for configID, workSpecsList in iteritems(_val):
                     qc_key = (queueName, configID)
                     tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
-                    retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
-                                                        from_fifo=True, config_id=configID,
-                                                        check_source='Event')
-                    retMap[qc_key] = retVal
+                    try:
+                        retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
+                                                            from_fifo=True, config_id=configID,
+                                                            check_source='Event')
+                    except Exception as e:
+                        tmpLog.error('monitor_agent_core excepted with {0}'.format(e))
+                        retVal = None  # skip the loop
+
+                    if retVal:
+                        retMap[qc_key] = retVal
         tmpLog.debug('done')
         return retMap
 

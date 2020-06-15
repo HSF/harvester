@@ -56,7 +56,7 @@ class K8sSweeper(BaseSweeper):
     def kill_workers(self, work_spec_list):
         tmp_log = self.make_logger(base_logger, method_name='kill_workers')
 
-        self._all_pods_list = self.k8s_client.get_pods_info()
+        self._all_pods_list = self.k8s_client.get_pods_info(workspec_list=work_spec_list)
 
         ret_list = []
         for work_spec in work_spec_list:
@@ -76,7 +76,7 @@ class K8sSweeper(BaseSweeper):
                         tmp_log.error(err_str)
                         tmp_ret_val = (False, err_str)
                 else:
-                    tmp_log.debug('No job/configmap associated to worker {0}'.format(work_spec.workerID))
+                    tmp_log.debug('No pandajob/configmap associated to worker {0}'.format(work_spec.workerID))
 
                 # delete the job
                 try:
@@ -87,10 +87,11 @@ class K8sSweeper(BaseSweeper):
                     tmp_log.error(err_str)
                     tmp_ret_val = (False, err_str)
 
+                """
                 # retrieve the associated pods
                 pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=batch_id)
                 pods_name = [pods_info['name'] for pods_info in pods_list]
-                job_info = self.k8s_client.get_jobs_info(batch_id)
+                job_info = self.k8s_client.get_jobs_info(workspec_list=[work_spec])
                 # retrieve the associated pods
                 if not job_info:
                     ret_list = self.k8s_client.delete_pods(pods_name)
@@ -105,6 +106,7 @@ class K8sSweeper(BaseSweeper):
                                 tmp_log.error(err_str)
                                 err_str_list.append(err_str)
                         tmp_ret_val = (False, ','.join(err_str_list))
+                """
             else:  # the worker cannot be cleaned
                 tmp_ret_val = (True, '')
 
