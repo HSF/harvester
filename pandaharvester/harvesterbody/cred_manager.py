@@ -1,3 +1,5 @@
+import json
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -32,6 +34,11 @@ class CredManager(AgentBase):
             outCertFiles = self.get_list(harvester_config.pandacon.cert_file)
         # VOMS
         vomses = self.get_list(harvester_config.credmanager.voms)
+        # direct and merged plugin configuration in json
+        if hasattr(harvester_config.credmanager, 'pluginConfigs'):
+            pluginConfigs = json.loads(harvester_config.credmanager.pluginConfigs)
+        else:
+            pluginConfigs = []
         # get plugin
         self.exeCores = []
         for moduleName, className, inCertFile, outCertFile, voms in \
@@ -46,9 +53,26 @@ class CredManager(AgentBase):
                 exeCore = self.pluginFactory.get_plugin(pluginPar)
                 self.exeCores.append(exeCore)
             except Exception:
-                _logger.error('Problem instantiating cred manager for {0}'.format(pluginPar))
+                _logger.error('failed to launch credmanager for {0}'.format(pluginPar))
                 core_utils.dump_error_message(_logger)
-
+        for pc in pluginConfigs:
+            try:
+                with open(pc['config_file']) as f:
+                    setup_maps = json.load(f)
+                for setup_name, setup_map in setup_maps.items():
+                    try:
+                        pluginPar = {}
+                        pluginPar['module'] = pc['module']
+                        pluginPar['name'] = pc['name']
+                        pluginPar.update(setup_map)
+                        exeCore = self.pluginFactory.get_plugin(pluginPar)
+                        self.exeCores.append(exeCore)
+                    except Exception:
+                        _logger.error('failed to launch credmanager in pluginConfigs setup {0} for {1}'.format(setup_name, pluginPar))
+                        core_utils.dump_error_message(_logger)
+            except Exception:
+                _logger.error('failed to parse pluginConfigs {0}'.format(pc))
+                core_utils.dump_error_message(_logger)
 
     # get list
     def get_list(self, data):
