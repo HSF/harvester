@@ -45,9 +45,9 @@ class CredManager(AgentBase):
             try:
                 exeCore = self.pluginFactory.get_plugin(pluginPar)
                 self.exeCores.append(exeCore)
-            except Exception as e:
+            except Exception:
                 _logger.error('Problem instantiating cred manager for {0}'.format(pluginPar))
-                _logger.error('Exception {0}'.format(e))
+                core_utils.dump_error_message(_logger)
 
 
     # get list
