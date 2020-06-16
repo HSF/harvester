@@ -75,6 +75,7 @@ class CredManager(AgentBase):
                         pluginPar = {}
                         pluginPar['module'] = pc['module']
                         pluginPar['name'] = pc['name']
+                        pluginPar['setup_name'] = setup_name
                         pluginPar.update(setup_map)
                         exeCore = self.pluginFactory.get_plugin(pluginPar)
                         self.exeCores.append(exeCore)
@@ -116,9 +117,13 @@ class CredManager(AgentBase):
                 continue
 
             # make logger
-            mainLog = self.make_logger(_logger, "{0} {1} {2}".format(exeCore.__class__.__name__,
-                                                                     exeCore.inCertFile,
-                                                                     exeCore.outCertFile),
+            credmanager_name = ''
+            if hasattr(exeCore, 'setup_name'):
+                credmanager_name = exeCore.setup_name
+            else:
+                credmanager_name = '{0} {1}'.format(exeCore.inCertFile, exeCore.outCertFile)
+            mainLog = self.make_logger(_logger, '{0} {1}'.format(exeCore.__class__.__name__,
+                                                                         credmanager_name),
                                        method_name='execute')
             try:
                 # check credential
