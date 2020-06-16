@@ -2,10 +2,11 @@ import re
 from .base_extractor import BaseExtractor
 
 
-# OBSOLETE - use aux_extractor
-class AnalysisExtractor(BaseExtractor):
+# extractor for auxiliary input files
+class AuxExtractor(BaseExtractor):
     # constructor
     def __init__(self, **kwarg):
+        self.containerPrefix = None
         BaseExtractor.__init__(self, **kwarg)
 
     # get auxiliary input files
@@ -30,8 +31,9 @@ class AnalysisExtractor(BaseExtractor):
                 url = '{0}/cache/{1}'.format(sourceURL, lfn)
                 url_list.append(url)
         # extract container image
-        tmpM = re.search(' --containerImage\s+([^\s]+)', jobPars)
-        if tmpM is not None:
-            url = tmpM.group(1)
+        if 'container_name' in jobspec.jobParams:
+            url = jobspec.jobParams['container_name']
+            if self.containerPrefix is not None and not url.startswith(self.containerPrefix):
+                url = self.containerPrefix + url
             url_list.append(url)
         return self.make_aux_inputs(url_list)

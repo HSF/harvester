@@ -46,7 +46,11 @@ class K8sSecretCredManager(PluginBase):
                                 e.__class__.__name__, e))
             raise
         # k8s client
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        try:
+            self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        except Exception as e:
+            mainLog.error('Problem instantiating k8s client for {0}'.format(self.k8s_config_file))
+            raise
 
     # check proxy
     def check_credential(self):

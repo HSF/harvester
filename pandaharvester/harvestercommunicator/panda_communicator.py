@@ -15,7 +15,6 @@ import zlib
 import uuid
 import inspect
 import datetime
-import requests
 import traceback
 from future.utils import iteritems
 # TO BE REMOVED for python2.7
@@ -26,6 +25,7 @@ except Exception:
     pass
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
+from pandacommon.pandautils.net_utils import get_http_adapter_with_random_dns_resolution
 
 from .base_communicator import BaseCommunicator
 
@@ -56,11 +56,12 @@ class PandaCommunicator(BaseCommunicator):
             url = '{0}/{1}'.format(harvester_config.pandacon.pandaURL, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
-            res = requests.post(url,
-                                data=data,
-                                headers={"Accept": "application/json",
-                                         "Connection": "close"},
-                                timeout=harvester_config.pandacon.timeout)
+            session = get_http_adapter_with_random_dns_resolution()
+            res = session.post(url,
+                               data=data,
+                               headers={"Accept": "application/json",
+                                        "Connection": "close"},
+                               timeout=harvester_config.pandacon.timeout)
             if self.verbose:
                 tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
             if res.status_code == 200:
@@ -90,14 +91,15 @@ class PandaCommunicator(BaseCommunicator):
             if cert is None:
                 cert = (harvester_config.pandacon.cert_file,
                         harvester_config.pandacon.key_file)
+            session = get_http_adapter_with_random_dns_resolution()
             sw = core_utils.get_stopwatch()
-            res = requests.post(url,
-                                data=data,
-                                headers={"Accept": "application/json",
-                                         "Connection": "close"},
-                                timeout=harvester_config.pandacon.timeout,
-                                verify=harvester_config.pandacon.ca_cert,
-                                cert=cert)
+            res = session.post(url,
+                               data=data,
+                               headers={"Accept": "application/json",
+                                        "Connection": "close"},
+                               timeout=harvester_config.pandacon.timeout,
+                               verify=harvester_config.pandacon.ca_cert,
+                               cert=cert)
             if self.verbose:
                 tmpLog.debug('exec={0} code={1} {3}. return={2}'.format(tmpExec, res.status_code, res.text,
                                                                         sw.get_elapsed_time()))
@@ -129,11 +131,12 @@ class PandaCommunicator(BaseCommunicator):
             if cert is None:
                 cert = (harvester_config.pandacon.cert_file,
                         harvester_config.pandacon.key_file)
-            res = requests.post(url,
-                                files=files,
-                                timeout=harvester_config.pandacon.timeout,
-                                verify=harvester_config.pandacon.ca_cert,
-                                cert=cert)
+            session = get_http_adapter_with_random_dns_resolution()
+            res = session.post(url,
+                               files=files,
+                               timeout=harvester_config.pandacon.timeout,
+                               verify=harvester_config.pandacon.ca_cert,
+                               cert=cert)
             if self.verbose:
                 tmpLog.debug('exec={0} code={1} return={2}'.format(tmpExec, res.status_code, res.text))
             if res.status_code == 200:
@@ -530,7 +533,7 @@ class PandaCommunicator(BaseCommunicator):
         data['siteName'] = site_name
         data['paramsList'] = json.dumps(stats)
         tmpLog.debug('update stats for {0}, stats: {1}'.format(site_name, stats))
-        tmpStat, tmpRes = self.post_ssl('reportWorkerStats', data)
+        tmpStat, tmpRes = self.post_ssl('reportWorkerStats_jobtype', data)
         errStr = 'OK'
         if tmpStat is False:
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)

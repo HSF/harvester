@@ -2,7 +2,7 @@ import arc
 import json
 import socket
 import time
-import urllib
+import urllib.parse
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -40,7 +40,6 @@ class ACTSubmitter(PluginBase):
             uc.ProxyPath(str(proxy))
             cred = arc.Credential(uc)
             dn = cred.GetIdentityName()
-            self.log.info("Proxy {0} with DN {1} and role {2}".format(proxy, dn, role))
     
             actp = aCTProxy(self.log)
             attr = '/atlas/Role='+role
@@ -69,6 +68,8 @@ class ACTSubmitter(PluginBase):
             if jobSpec:
                 jobSpec = jobSpec[0]
                 tmpLog.debug("JobSpec: {0}".format(jobSpec.values_map()))
+                # Unified queues: take prodsourcelabel from job
+                prodSourceLabel = jobSpec.jobParams.get('prodSourceLabel', prodSourceLabel)
 
             desc = {}
             # If we need to prefetch events, set aCT status waiting.
@@ -81,7 +82,8 @@ class ACTSubmitter(PluginBase):
                 desc['pandastatus'] = 'sent'
                 desc['actpandastatus'] = 'sent'
             desc['siteName'] = workSpec.computingSite
-            desc['proxyid'] = self.proxymap['pilot' if prodSourceLabel == 'user' else 'production']
+            desc['proxyid'] = self.proxymap['pilot' if prodSourceLabel in ['user', 'panda'] else 'production']
+            desc['prodSourceLabel'] = prodSourceLabel
             desc['sendhb'] = 0
             metadata = {'harvesteraccesspoint': workSpec.get_access_point(),
                         'schedulerid': 'harvester-{}'.format(harvester_config.master.harvester_id)}
@@ -90,7 +92,7 @@ class ACTSubmitter(PluginBase):
             if jobSpec:
                 # push mode: aCT takes the url-encoded job description (like it gets from panda server)
                 pandaid = jobSpec.PandaID
-                actjobdesc = urllib.urlencode(jobSpec.jobParams)
+                actjobdesc = urllib.parse.urlencode(jobSpec.jobParams)
             else:
                 # pull mode: just set pandaid (to workerid) and prodsourcelabel
                 pandaid = workSpec.workerID

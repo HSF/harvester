@@ -2,30 +2,12 @@
 utilities routines associated with Rucio CLI access
 
 """
-from future.utils import iteritems
-
 try:
     import subprocess32 as subprocess
 except:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
-
-import time
-import datetime
-import uuid
-import os
-import sys
-import stat
-import os.path
-import threading
-import tarfile
-import hashlib
-import string
-import shutil
-import errno
 
 
 def rucio_create_dataset(tmpLog,datasetScope,datasetName):
@@ -35,58 +17,53 @@ def rucio_create_dataset(tmpLog,datasetScope,datasetName):
         lifetime = 7*24*60*60
         tmpLog.debug('register {0}:{1} lifetime = {2}'
                      .format(datasetScope, datasetName,lifetime))
-        try:                
-            executable = ['/usr/bin/env',
-                          'rucio', 'add-dataset']
-            executable += [ '--lifetime',('%d' %lifetime)]
-            executable += [datasetName]
-            
-            #print executable 
-
-            tmpLog.debug('rucio add-dataset command: {0} '.format(executable))
-            tmpLog.debug('rucio add-dataset command (for human): %s ' % ' '.join(executable))
-
-            process = subprocess.Popen(executable,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT)
-
-            stdout,stderr = process.communicate()
-                
-            if process.returncode == 0:
-                tmpLog.debug(stdout)
-                return True,''
+        executable = ['/usr/bin/env',
+                      'rucio', 'add-dataset']
+        executable += [ '--lifetime',('%d' %lifetime)]
+        executable += [datasetName]
+        tmpLog.debug('rucio add-dataset command: {0} '.format(executable))
+        tmpLog.debug('rucio add-dataset command (for human): %s ' % ' '.join(executable))
+        process = subprocess.Popen(executable,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT,
+                                   universal_newlines=True)
+        stdout,stderr = process.communicate()
+        if process.returncode == 0:
+            tmpLog.debug(stdout)
+            return True,''
+        else:
+            # check what failed
+            dataset_exists = False
+            rucio_sessions_limit_error = False
+            for line in stdout.split('\n'):
+                if 'Data Identifier Already Exists' in line:
+                    dataset_exists = True
+                    break
+                elif 'exceeded simultaneous SESSIONS_PER_USER limit' in line:
+                    rucio_sessions_limit_error = True
+                    break
+            if dataset_exists:
+                errMsg = 'dataset {0}:{1} already exists'.format(datasetScope,
+                                                                 datasetName)
+                tmpLog.debug(errMsg)
+                return True,errMsg
+            elif rucio_sessions_limit_error:
+                # do nothing
+                errStr = 'Rucio returned error, will retry: stdout: {0}'.format(stdout)
+                tmpLog.warning(errStr)
+                return None,errStr
             else:
-                # check what failed
-                dataset_exists = False
-                rucio_sessions_limit_error = False
-                for line in stdout.split('\n'):
-                    if 'Data Identifier Already Exists' in line:
-                        dataset_exists = True
-                        break
-                    elif 'exceeded simultaneous SESSIONS_PER_USER limit' in line:
-                        rucio_sessions_limit_error = True
-                        break
-                if dataset_exists:
-                    errMsg = 'dataset {0}:{1} already exists'.format(datasetScope,
-                                                                     datasetName)
-                    tmpLog.debug(errMsg)
-                    return True,errMsg
-                elif rucio_sessions_limit_error:
-                    # do nothing
-                    errStr = 'Rucio returned error, will retry: stdout: {0}'.format(stdout)
-                    tmpLog.warning(errStr)
-                    return None,errStr
-                else:
-                    # some other Rucio error 
-                    errStr = 'Rucio returned error : stdout: {0}'.format(stdout)
-                    tmpLog.error(errStr)
-                    return False,errStr
-            except Exception:
-                errMsg = 'Could not create dataset {0}:{1}'.format(datasetScope,
-                                                                   datasetName)
-                core_utils.dump_error_message(tmpLog)
-                tmpLog.error(errMsg)
-                return False,errMsg
+                # some other Rucio error
+                errStr = 'Rucio returned error : stdout: {0}'.format(stdout)
+                tmpLog.error(errStr)
+                return False,errStr
+    except Exception as e:
+        errMsg = 'Could not create dataset {0}:{1} with {2}'.format(datasetScope,
+                                                                    datasetName,
+                                                                    str(e))
+        core_utils.dump_error_message(tmpLog)
+        tmpLog.error(errMsg)
+        return False,errMsg
 
 def rucio_add_files_to_dataset(tmpLog,datasetScope,datasetName,fileList):
     # add files to dataset 

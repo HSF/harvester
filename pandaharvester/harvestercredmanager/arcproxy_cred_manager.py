@@ -1,8 +1,5 @@
 import re
-try:
-    import subprocess32 as subprocess
-except:
-    import subprocess
+import subprocess
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
@@ -25,21 +22,22 @@ class ArcproxyCredManager(PluginBase):
         comStr = "arcproxy -i vomsACvalidityLeft -P {0}".format(self.outCertFile)
         mainLog.debug(comStr)
         try:
-            p = subprocess.Popen(comStr.split(),
-                                 shell=False,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-            stdOut, stdErr = p.communicate()
+            p = subprocess.run(comStr.split(),
+                               encoding='utf-8',
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+            stdOut = p.stdout.strip()
+            stdErr = p.stderr
             retCode = p.returncode
         except:
             core_utils.dump_error_message(mainLog)
             return False
         mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
-        if retCode != 0 or not re.match(r'\d+', stdOut.strip()):
+        if retCode != 0 or not re.match(r'\d+', stdOut):
             mainLog.error('Unexpected output from arcproxy: {0}'.format(stdOut))
             return False
         # return whether lifetime is greater than three days
-        return int(stdOut.strip()) > 3600 * 72
+        return int(stdOut) > 3600 * 72
 
     # renew proxy
     def renew_credential(self):
@@ -50,11 +48,12 @@ class ArcproxyCredManager(PluginBase):
                                                                                                                  self.inCertFile)
         mainLog.debug(comStr)
         try:
-            p = subprocess.Popen(comStr.split(),
-                                 shell=False,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-            stdOut, stdErr = p.communicate()
+            p = subprocess.run(comStr.split(),
+                               encoding='utf-8',
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+            stdOut = p.stdout
+            stdErr = p.stderr
             retCode = p.returncode
             mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
         except:

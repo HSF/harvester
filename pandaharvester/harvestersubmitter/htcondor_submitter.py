@@ -4,10 +4,11 @@ import datetime
 import tempfile
 import threading
 import random
+import json
 
 from concurrent.futures import ThreadPoolExecutor
 import re
-from math import sqrt, log1p
+from math import log1p
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -43,7 +44,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
                             for _ce in worker_ce_backend_throughput_dict))
     thruput_avg = (log1p(Q_good_init) - log1p(Q_good_fin))
     n_new_workers = float(n_new_workers)
-    def _get_thruput(_ce_endpoint):
+
+    def _get_thruput(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_backend_throughput_dict:
             q_good_init = 0.
             q_good_fin = 0.
@@ -54,7 +56,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
                                     for _st in ('submitted',)))
         thruput = (log1p(q_good_init) - log1p(q_good_fin))
         return thruput
-    def _get_thruput_adj_ratio(thruput):
+
+    def _get_thruput_adj_ratio(thruput):  # inner function
         try:
             thruput_adj_ratio = thruput/thruput_avg + 1/N
         except ZeroDivisionError:
@@ -65,7 +68,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
         return thruput_adj_ratio
     ce_base_weight_sum = sum((_get_thruput_adj_ratio(_get_thruput(_ce))
                                 for _ce in ce_endpoint_list))
-    def _get_init_weight(_ce_endpoint):
+
+    def _get_init_weight(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_stats_dict:
             q = 0.
             r = 0.
@@ -174,16 +178,13 @@ def _condor_macro_replace(string, **kwarg):
 
 
 # Parse resource type from string for Unified PanDA Queue
-def _get_resource_type(string, is_unified_queue, is_pilot_option=False, pilot_version='1'):
+def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
     string = str(string)
     if not is_unified_queue:
         ret = ''
     elif string in set(['SCORE', 'MCORE', 'SCORE_HIMEM', 'MCORE_HIMEM']):
         if is_pilot_option:
-            if pilot_version == '2':
-                ret = '--resource-type {0}'.format(string)
-            else:
-                ret = '-R {0}'.format(string)
+            ret = '--resource-type {0}'.format(string)
         else:
             ret = string
     else:
@@ -192,25 +193,29 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False, pilot_ve
 
 
 # Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
-# and piloturl (pilot option --piloturl)
-# Depending on pilot version 1 or 2
-def _get_prodsourcelabel_pilotypeopt_piloturlstr(pilot_type, pilot_version='1'):
-    if pilot_version == '2':
-        # pilot 2
-        pt_psl_map = {
-            'RC': ('rc_test2', 'RC', '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz'),
-            'ALRB': ('rc_alrb', 'ALRB', ''),
-            'PT': ('ptest', 'PR', ''),
+# and piloturl (pilot option --piloturl) for pilot 2
+def _get_complicated_pilot_options(pilot_type, pilot_url=None):
+    pt_psl_map = {
+            'RC': {
+                    'prod_source_label': 'rc_test2',
+                    'pilot_type_opt': 'RC',
+                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz',
+                },
+            'ALRB': {
+                    'prod_source_label': 'rc_alrb',
+                    'pilot_type_opt': 'ALRB',
+                    'pilot_url_str': '',
+                },
+            'PT': {
+                    'prod_source_label': 'ptest',
+                    'pilot_type_opt': 'PR',
+                    'pilot_url_str': '',
+                },
         }
-    else:
-        # pilot 1, need not piloturl since wrapper covers it
-        pt_psl_map = {
-            'RC': ('rc_test', 'RC', ''),
-            'ALRB': ('rc_alrb', 'ALRB', ''),
-            'PT': ('ptest', 'PR', ''),
-        }
-    pilot_opt_tuple = pt_psl_map.get(pilot_type, None)
-    return pilot_opt_tuple
+    pilot_opt_dict = pt_psl_map.get(pilot_type, None)
+    if pilot_url and pilot_opt_dict:
+        pilot_opt_dict['pilot_url_str'] = '--piloturl {0}'.format(pilot_url)
+    return pilot_opt_dict
 
 
 # submit a bag of workers
@@ -238,8 +243,6 @@ def submit_bag_of_workers(data_list):
             worker_retval_map[workerID] = (tmpRetVal, workspec.get_changed_attributes())
         # attributes
         try:
-            ce_info_dict = data['ce_info_dict']
-            batch_log_dict = data['batch_log_dict']
             use_spool = data['use_spool']
         except KeyError:
             errStr = '{0} not submitted due to incomplete data of the worker'.format(workerID)
@@ -326,8 +329,8 @@ def submit_bag_of_workers(data_list):
 
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
-                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
-                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='1', **kwarg):
+                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), pilot_url=None,
+                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='unknown', **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -362,13 +365,15 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
     # decide prodSourceLabel
-    pilot_opt_tuple = _get_prodsourcelabel_pilotypeopt_piloturlstr(workspec.pilotType, pilot_version)
-    if pilot_opt_tuple is None:
-        prod_source_label = harvester_queue_config.get_source_label()
+    pilot_opt_dict = _get_complicated_pilot_options(workspec.pilotType, pilot_url=pilot_url)
+    if pilot_opt_dict is None:
+        prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
-        pilot_url_str = ''
+        pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
     else:
-        prod_source_label, pilot_type_opt, pilot_url_str = pilot_opt_tuple
+        prod_source_label = pilot_opt_dict['prod_source_label']
+        pilot_type_opt = pilot_opt_dict['pilot_type_opt']
+        pilot_url_str = pilot_opt_dict['pilot_url_str']
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
     # fill in template string
@@ -401,11 +406,13 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         logSubdir=log_subdir,
         gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
         prodSourceLabel=prod_source_label,
+        jobType=workspec.jobType,
         resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
-        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True, pilot_version),
+        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
         ioIntensity=io_intensity,
         pilotType=pilot_type_opt,
         pilotUrlOption=pilot_url_str,
+        pilotVersion=pilot_version,
         )
     # save jdl to submit description file
     tmpFile.write(jdl_str)
@@ -436,7 +443,9 @@ def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
 class HTCondorSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
+        tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         self.logBaseURL = None
+        self.templateFile = None
         PluginBase.__init__(self, **kwarg)
         # number of processes
         try:
@@ -456,11 +465,16 @@ class HTCondorSubmitter(PluginBase):
             self.logDir
         except AttributeError:
             self.logDir = os.getenv('TMPDIR') or '/tmp'
-        # x509 proxy
+        # Default x509 proxy for a queue
         try:
             self.x509UserProxy
         except AttributeError:
             self.x509UserProxy = os.getenv('X509_USER_PROXY')
+        # x509 proxy for analysis jobs in grandly unified queues
+        try:
+            self.x509UserProxyAnalysis
+        except AttributeError:
+            self.x509UserProxyAnalysis = os.getenv('X509_USER_PROXY_ANAL')
         # ATLAS AGIS
         try:
             self.useAtlasAGIS = bool(self.useAtlasAGIS)
@@ -473,12 +487,12 @@ class HTCondorSubmitter(PluginBase):
             self.useAtlasGridCE = False
         finally:
             self.useAtlasAGIS = self.useAtlasAGIS or self.useAtlasGridCE
-        # sdf template directories of CEs
+        # sdf template directories of CEs; ignored if templateFile is set
         try:
             self.CEtemplateDir
         except AttributeError:
             self.CEtemplateDir = ''
-        # remote condor schedd and pool name (collector), and spool option
+        # remote condor schedd and pool name (collector)
         try:
             self.condorSchedd
         except AttributeError:
@@ -487,6 +501,32 @@ class HTCondorSubmitter(PluginBase):
             self.condorPool
         except AttributeError:
             self.condorPool = None
+        # json config file of remote condor host: schedd/pool and weighting. If set, condorSchedd and condorPool are overwritten
+        try:
+            self.condorHostConfig
+        except AttributeError:
+            self.condorHostConfig = False
+        if self.condorHostConfig:
+            try:
+                self.condorSchedd = []
+                self.condorPool = []
+                self.condorHostWeight = []
+                with open(self.condorHostConfig, 'r') as f:
+                    condor_host_config_map = json.load(f)
+                    for _schedd, _cm in condor_host_config_map.items():
+                        _pool = _cm['pool']
+                        _weight = int(_cm['weight'])
+                        self.condorSchedd.append(_schedd)
+                        self.condorPool.append(_pool)
+                        self.condorHostWeight.append(_weight)
+            except Exception as e:
+                tmpLog.error('error when parsing condorHostConfig json file; {0}: {1}'.format(e.__class__.__name__, e))
+                raise
+        else:
+            if isinstance(self.condorSchedd, list):
+                self.condorHostWeight = [1] * len(self.condorSchedd)
+            else:
+                self.condorHostWeight = [1]
         # condor spool mechanism. If False, need shared FS across remote schedd
         try:
             self.useSpool
@@ -500,6 +540,10 @@ class HTCondorSubmitter(PluginBase):
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
+        # allowed associated parameters from AGIS
+        self._allowed_agis_attrs = (
+                'pilot_url',
+            )
 
     # get CE statistics of a site
     def get_ce_statistics(self, site_name, n_new_workers, time_window=21600):
@@ -541,12 +585,21 @@ class HTCondorSubmitter(PluginBase):
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
 
+        # associated parameters dict
+        associated_params_dict = {}
+
+        is_grandly_unified_queue = False
         # get queue info from AGIS by cacher in db
         if self.useAtlasAGIS:
             panda_queues_dict = PandaQueuesDict()
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
+            is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
+            # associated params on AGIS
+            for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
+                if key in self._allowed_agis_attrs:
+                    associated_params_dict[key] = val
         else:
             panda_queues_dict = dict()
             panda_queue_name = self.queueName
@@ -555,8 +608,9 @@ class HTCondorSubmitter(PluginBase):
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
-        pilot_version_orig = str(this_panda_queue_dict.get('pilot_version', ''))
-        pilot_version_suffix_str = '_pilot2' if pilot_version_orig == '2' else ''
+        pilot_url = associated_params_dict.get('pilot_url')
+        pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
+        sdf_suffix_str = '_pilot2'
 
         # get override requirements from queue configured
         try:
@@ -567,10 +621,13 @@ class HTCondorSubmitter(PluginBase):
         # deal with Condor schedd and central managers; make a random list the choose
         n_bulks = _div_round_up(nWorkers, self.minBulkToRamdomizedSchedd)
         if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
+            orig_list = []
             if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
-                orig_list = list(zip(self.condorSchedd, self.condorPool))
+                for _schedd, _pool, _weight in zip(self.condorSchedd, self.condorPool, self.condorHostWeight):
+                    orig_list.extend([(_schedd, _pool)] * _weight)
             else:
-                orig_list = [ (_schedd, self.condorPool) for _schedd in self.condorSchedd ]
+                for _schedd, _weight in zip(self.condorSchedd, self.condorHostWeight):
+                    orig_list.extend([(_schedd, self.condorPool)] * _weight)
             if n_bulks < len(orig_list):
                 schedd_pool_choice_list = random.sample(orig_list, n_bulks)
             else:
@@ -613,8 +670,6 @@ class HTCondorSubmitter(PluginBase):
                 tmpLog.error('No valid CE endpoint found')
                 to_submit_any = False
 
-
-
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
@@ -633,8 +688,8 @@ class HTCondorSubmitter(PluginBase):
                     except KeyError:
                         tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                    # go on info of the CE
-                    ce_endpoint_from_queue = ce_info_dict.get('ce_endpoint', '')
+                    # go on info of the CE; ignore protocol prefix in ce_endpoint
+                    ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
                     ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
@@ -649,10 +704,10 @@ class HTCondorSubmitter(PluginBase):
                             default_port = default_port_map[ce_flavour_str]
                             ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('For site {0} got pilot version: "{1}"; CE endpoint: "{2}", flavour: "{3}"'.format(
-                                    self.queueName, pilot_version_orig, ce_endpoint_from_queue, ce_flavour_str))
-                    if os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
-                        sdf_template_filename = '{ce_flavour_str}{pilot_version_suffix_str}.sdf'.format(
-                                                    ce_flavour_str=ce_flavour_str, pilot_version_suffix_str=pilot_version_suffix_str)
+                                    self.queueName, pilot_version, ce_endpoint_from_queue, ce_flavour_str))
+                    if not self.templateFile and os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                        sdf_template_filename = '{ce_flavour_str}{sdf_suffix_str}.sdf'.format(
+                                                    ce_flavour_str=ce_flavour_str, sdf_suffix_str=sdf_suffix_str)
                         self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
                 else:
                     try:
@@ -666,6 +721,12 @@ class HTCondorSubmitter(PluginBase):
                         else:
                             ce_info_dict['ce_hostname'] = self.ceHostname
                             ce_info_dict['ce_endpoint'] = self.ceEndpoint
+                    except AttributeError:
+                        pass
+                    try:
+                        # Manually define ceQueueName
+                        if self.ceQueueName:
+                            ce_info_dict['ce_queue_name'] = self.ceQueueName
                     except AttributeError:
                         pass
                 # template for batch script
@@ -736,6 +797,10 @@ class HTCondorSubmitter(PluginBase):
                         batch_log_dict['gtag'] = workspec.workAttributes['stdOut']
                         tmpLog.debug('Done set_log_file before submission')
                     tmpLog.debug('Done jobspec attribute setting')
+
+                # choose the x509 certificate based on the type of job (analysis or production)
+                proxy = _choose_proxy(workspec)
+
                 # set data dict
                 data.update({
                         'workspec': workspec,
@@ -746,7 +811,7 @@ class HTCondorSubmitter(PluginBase):
                         'log_subdir': log_subdir,
                         'n_core_per_node': n_core_per_node,
                         'panda_queue_name': panda_queue_name,
-                        'x509_user_proxy': self.x509UserProxy,
+                        'x509_user_proxy': proxy,
                         'ce_info_dict': ce_info_dict,
                         'batch_log_dict': batch_log_dict,
                         'special_par': special_par,
@@ -755,7 +820,8 @@ class HTCondorSubmitter(PluginBase):
                         'condor_schedd': condor_schedd,
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
-                        'pilot_version': pilot_version_orig,
+                        'pilot_url': pilot_url,
+                        'pilot_version': pilot_version,
                         })
             return data
 
@@ -767,6 +833,20 @@ class HTCondorSubmitter(PluginBase):
             workspec.set_attributes_with_dict(tmpDict)
             tmpLog.debug('Done workspec attributes propagation')
             return retVal
+
+        def _choose_proxy(workspec):
+            """
+            Choose the proxy based on the job type
+            """
+            job_type = workspec.jobType
+            proxy = self.x509UserProxy
+            if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis') and self.x509UserProxyAnalysis:
+                tmpLog.debug('Taking analysis proxy')
+                proxy = self.x509UserProxyAnalysis
+            else:
+                tmpLog.debug('Taking default proxy')
+
+            return proxy
 
         tmpLog.debug('finished preparing worker attributes')
 

@@ -4,9 +4,7 @@
 #
 #
 import sys
-
 from setuptools import setup, find_packages
-
 from pandaharvester import panda_pkg_info
 
 sys.path.insert(0, '.')
@@ -30,7 +28,7 @@ setup(
                       'future',
                       'futures; python_version == "2.*"',
                       'pycryptodomex',
-                      'panda-common-s >= 0.0.11',
+                      'panda-common',
                       'pyjwt',
                       'subprocess32; python_version == "2.*"',
                       'rpyc',
@@ -39,6 +37,13 @@ setup(
                       'psutil >= 5.4.8',
                       'scandir; python_version < "3.5"'
                       ],
+
+    # optional pip dependencies
+    extras_require={
+        'kubernetes': ['kubernetes', 'pyyaml'],
+        'mysql': ['mysqlclient']
+    },
+
     data_files=[
         # config and cron files
         ('etc/panda', ['templates/panda_harvester.cfg.rpmnew.template',
@@ -63,6 +68,7 @@ setup(
                  ]
          ),
         ],
+
     scripts=['templates/panda_jedi-renice',
              'templates/panda_harvester-sqlite3backup',
              ]

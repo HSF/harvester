@@ -13,4 +13,3 @@
 * **Submitter**: Classes to submit jobs to the batch system
 * **Test**: Test scripts
 * **Worker Maker**: Makes workers
-

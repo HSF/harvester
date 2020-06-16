@@ -85,7 +85,12 @@ class Monitor(AgentBase):
                 # loop over all workers
                 for queueName, configIdWorkSpecs in iteritems(workSpecsPerQueue):
                     for configID, workSpecsList in iteritems(configIdWorkSpecs):
-                        retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID, check_source='DB')
+                        try:
+                            retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID, check_source='DB')
+                        except Exception as e:
+                            mainLog.error('monitor_agent_core excepted with {0}'.format(e))
+                            retVal = None  # skip the loop
+
                         if monitor_fifo.enabled and retVal is not None:
                             workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                             if workSpecsToEnqueue:
@@ -192,8 +197,13 @@ class Monitor(AgentBase):
                                                 else:
                                                     workSpec.pandaid_list = []
                                                 workSpec.force_update('pandaid_list')
-                                    retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
-                                                                     config_id=configID, check_source='FIFO')
+                                    try:
+                                        retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, from_fifo=True,
+                                                                         config_id=configID, check_source='FIFO')
+                                    except Exception as e:
+                                        mainLog.error('monitor_agent_core excepted with {0}'.format(e))
+                                        retVal = None  # skip the loop
+
                                     if retVal is not None:
                                         workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                                         qc_key = (queueName, configID)
@@ -644,8 +654,10 @@ class Monitor(AgentBase):
                         tmp_log.debug('kill workerID={0} due to queuing longer than {1} seconds'.format(
                                         workerID, workerQueueTimeLimit))
                         self.dbProxy.kill_worker(workSpec.workerID)
-                        diagMessage = 'Killed by Harvester due to worker queuing too long' + diagMessage
+                        diagMessage = 'Killed by Harvester due to worker queuing too long. ' + diagMessage
                         workSpec.set_pilot_error(PilotErrors.ERR_FAILEDBYSERVER, diagMessage)
+                        # set closed
+                        workSpec.set_pilot_closed()
                     # expired heartbeat - only when requested in the configuration
                     try:
                         # check if the queue configuration requires checking for worker heartbeat
@@ -694,7 +706,8 @@ class Monitor(AgentBase):
                             else:
                                 newStatus = WorkSpec.ST_idle
                         elif not workSpec.is_post_processed():
-                            if not queue_config.is_no_heartbeat_status(newStatus) and not queue_config.truePilot:
+                            if (not queue_config.is_no_heartbeat_status(newStatus) and not queue_config.truePilot) \
+                                or (hasattr(messenger, 'forcePostProcessing') and messenger.forcePostProcessing):
                                 # post processing unless heartbeat is suppressed
                                 jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                                 None, True,
@@ -764,10 +777,16 @@ class Monitor(AgentBase):
                 for configID, workSpecsList in iteritems(_val):
                     qc_key = (queueName, configID)
                     tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
-                    retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
-                                                        from_fifo=True, config_id=configID,
-                                                        check_source='Event')
-                    retMap[qc_key] = retVal
+                    try:
+                        retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
+                                                            from_fifo=True, config_id=configID,
+                                                            check_source='Event')
+                    except Exception as e:
+                        tmpLog.error('monitor_agent_core excepted with {0}'.format(e))
+                        retVal = None  # skip the loop
+
+                    if retVal:
+                        retMap[qc_key] = retVal
         tmpLog.debug('done')
         return retMap
 

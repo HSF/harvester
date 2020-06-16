@@ -57,6 +57,7 @@ class QueueConfig(object):
         self.noHeartbeat = ''
         self.runMode = 'self'
         self.resourceType = PandaQueueSpec.RT_catchall
+        self.jobType = PandaQueueSpec.JT_catchall
         self.getJobCriteria = None
         self.ddmEndpointIn = None
         self.allowJobMixture = False
@@ -76,14 +77,24 @@ class QueueConfig(object):
         return status in self.get_no_heartbeat_status()
 
     # get prodSourceLabel
-    def get_source_label(self):
+    def get_source_label(self, job_type=None, is_gu=None):
+        # if queue is in test status, only submit workers for HC jobs
         if self.queueStatus == 'test':
             return 'test'
+
+        # grandly unified queues: prodsourcelabel in job has precedence over queue prodsourcelabel
+        if job_type in ('user', 'panda'):
+            return 'user'
+
+        # grandly unified queues: call to getJobs should not request for a particular prodSourceLabel
+        if is_gu:
+            return 'unified'
+
         return self.prodSourceLabel
 
     # set unique name
     def set_unique_name(self):
-        self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType)
+        self.uniqueName = core_utils.get_unique_queue_name(self.queueName, self.resourceType, self.prodSourceLabel)
 
     # update attributes
     def update_attributes(self, data):
@@ -576,7 +587,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     continue
                 # filter for pilot version
                 if hasattr(harvester_config.qconf, 'pilotVersion') and \
-                    pandaQueueDict[queueConfig.siteName].get('pilot_version') != str(harvester_config.qconf.pilotVersion):
+                    pandaQueueDict.get(queueConfig.siteName) is not None and \
+                    pandaQueueDict.get(queueConfig.siteName).get('pilot_version') != str(harvester_config.qconf.pilotVersion):
                     continue
                 if 'ALL' not in harvester_config.qconf.queueList and \
                         'DYNAMIC' not in harvester_config.qconf.queueList and \

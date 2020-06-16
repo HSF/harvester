@@ -172,6 +172,13 @@ start)
         fi
     fi
     ;;
+runfg)
+    echo Run harvester prescript
+    ${PRESCRIPT}
+    echo Run Harvester in foreground
+    ${PROGNAME} >> ${HSTDOUT} 2>> ${HSTDERR}
+    rm -f ${PIDFILE}
+    ;;
 stop)
     if [ ! -f ${PIDFILE} ]; then
         echo "WANRING: pidfile:${PIDFILE} does not exist. Nothing done"

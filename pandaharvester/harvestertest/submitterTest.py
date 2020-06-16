@@ -14,9 +14,38 @@ if fork_child_pid != 0:
     signal_utils.set_suicide_handler(None)
     os.wait()
 else:
+
+    if len(sys.argv) not in (2, 4):
+        print("Wrong number of parameters. You can either:")
+        print("  - specify the queue name")
+        print("  - specify the queue name, jobType (managed, user) and resourceType (SCORE, SCORE_HIMEM, MCORE, MCORE_HIMEM)")
+        sys.exit(0)
+
     queueName = sys.argv[1]
     queueConfigMapper = QueueConfigMapper()
     queueConfig = queueConfigMapper.get_queue(queueName)
+
+    if queueConfig.prodSourceLabel in ('user', 'managed'):
+        jobType = queueConfig.prodSourceLabel
+    else:
+        jobType = 'managed'  # default, can be overwritten by parameters
+
+    resourceType = 'SCORE'  # default, can be overwritten by parameters
+
+    if len(sys.argv) == 4:
+        # jobType should be 'managed' or 'user'. If not specified will default to a production job
+        if sys.argv[2] in ('user', 'managed'):
+            jobType = sys.argv[2]
+        else:
+            print ('value for jobType not valid, defaulted to {0}'.format(jobType))
+
+        # resourceType should be 'SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM'. If not specified defaults to single core
+        if sys.argv[3] in ('SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM'):
+            resourceType = sys.argv[3]
+        else:
+            print ('value for resourceType not valid, defaulted to {0}'.format(resourceType))
+
+    print ('Running with queueName:{0}, jobType:{1}, resourceType:{2}'.format(queueName, jobType, resourceType))
 
     pluginFactory = PluginFactory()
 
@@ -28,7 +57,7 @@ else:
         jobs, errStr = com.get_jobs(queueConfig.queueName, 'nodeName', queueConfig.prodSourceLabel,
                                     'computingElement', 1, None)
         if len(jobs) == 0:
-            print ("Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr))
+            print("Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr))
             sys.exit(0)
 
         jobSpec = JobSpec()
@@ -42,7 +71,7 @@ else:
         jobSpecList.append(jobSpec)
 
     maker = pluginFactory.get_plugin(queueConfig.workerMaker)
-    workSpec = maker.make_worker(jobSpecList, queueConfig, 'SCORE') # TODO: needs to be thought
+    workSpec = maker.make_worker(jobSpecList, queueConfig, jobType, resourceType)
 
     workSpec.accessPoint = queueConfig.messenger['accessPoint']
     workSpec.mapType = queueConfig.mapType

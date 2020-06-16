@@ -3,7 +3,6 @@
 
 import re
 import time
-import datetime
 import threading
 import random
 import multiprocessing
@@ -27,7 +26,6 @@ import six
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.core_utils import SingletonWithID
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.fifos import SpecialFIFOBase
 
 # condor python or command api

@@ -334,7 +334,9 @@ class JobSpec(SpecBase):
         lfns = self.get_input_file_attributes().keys()
         paths = []
         for lfn in lfns:
-            paths.append(in_files[lfn]['path'])
+            # check for consistency 
+            if lfn in in_files: 
+                paths.append(in_files[lfn]['path']) 
         self.jobParams['inFilePaths'] = ','.join(paths)
         # trigger updating
         self.force_update('jobParams')
@@ -387,6 +389,11 @@ class JobSpec(SpecBase):
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
             self.endTime = datetime.datetime.utcnow()
+
+    # reset start and end time
+    def reset_start_end_time(self):
+        self.startTime = datetime.datetime.utcnow()
+        self.endTime = self.startTime
 
     # add work spec list
     def add_workspec_list(self, workspec_list):

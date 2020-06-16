@@ -7,6 +7,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.file_spec import FileSpec
 
 # logger
 _logger = core_utils.setup_logger('preparator')
@@ -43,7 +44,8 @@ class Preparator(AgentBase):
                                                               harvester_config.preparator.checkInterval,
                                                               harvester_config.preparator.lockInterval,
                                                               lockedBy,
-                                                              max_files_per_job=maxFilesPerJob)
+                                                              max_files_per_job=maxFilesPerJob,
+                                                              ng_file_status_list=['ready'])
             mainLog.debug('got {0} jobs to check'.format(len(jobsToCheck)))
             # loop over all jobs
             for jobSpec in jobsToCheck:
@@ -152,7 +154,8 @@ class Preparator(AgentBase):
                                                                 lockedBy,
                                                                 'preparing',
                                                                 max_files_per_job=maxFilesPerJob,
-                                                                ng_file_status_list=['triggered'])
+                                                                ng_file_status_list=['triggered',
+                                                                                     'ready'])
             mainLog.debug('got {0} jobs to prepare'.format(len(jobsToTrigger)))
             # loop over all jobs
             fileStatMap = dict()
@@ -175,8 +178,10 @@ class Preparator(AgentBase):
                     # get plugin
                     if jobSpec.auxInput in [None, JobSpec.AUX_hasAuxInput]:
                         preparatorCore = self.pluginFactory.get_plugin(queueConfig.preparator)
+                        fileType = 'input'
                     else:
                         preparatorCore = self.pluginFactory.get_plugin(queueConfig.aux_preparator)
+                        fileType = FileSpec.AUX_INPUT
                     if preparatorCore is None:
                         # not found
                         tmpLog.error('plugin for {0} not found'.format(jobSpec.computingSite))
@@ -190,43 +195,54 @@ class Preparator(AgentBase):
                     # check file status
                     if queueConfig.ddmEndpointIn not in fileStatMap:
                         fileStatMap[queueConfig.ddmEndpointIn] = dict()
+                    # check if has to_prepare
+                    hasToPrepare = False
+                    for fileSpec in jobSpec.inFiles:
+                        if fileSpec.status == 'to_prepare':
+                            hasToPrepare = True
+                            break
                     newFileStatusData = []
                     toWait = False
                     newInFiles = []
                     for fileSpec in jobSpec.inFiles:
                         if fileSpec.status in ['preparing', 'to_prepare']:
                             newInFiles.append(fileSpec)
-                        if fileSpec.status == 'preparing':
                             updateStatus = False
                             if fileSpec.lfn not in fileStatMap[queueConfig.ddmEndpointIn]:
                                 fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] \
-                                    = self.dbProxy.get_file_status(fileSpec.lfn, 'input', queueConfig.ddmEndpointIn,
+                                    = self.dbProxy.get_file_status(fileSpec.lfn, fileType, queueConfig.ddmEndpointIn,
                                                                    'starting')
                             if 'ready' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                                 # the file is ready
                                 fileSpec.status = 'ready'
+                                if fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['ready']['path']:
+                                    fileSpec.path = list(
+                                        fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]['ready']['path'])[0]
                                 # set group info if any
-                                groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, 'input',
+                                groupInfo = self.dbProxy.get_group_for_file(fileSpec.lfn, fileType,
                                                                             queueConfig.ddmEndpointIn)
                                 if groupInfo is not None:
                                     fileSpec.groupID = groupInfo['groupID']
                                     fileSpec.groupStatus = groupInfo['groupStatus']
                                     fileSpec.groupUpdateTime = groupInfo['groupUpdateTime']
                                 updateStatus = True
-                            elif 'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn] or \
-                                    'triggered' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
+                            elif (not hasToPrepare and
+                                  'to_prepare' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]) or \
+                                  'triggered' in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
                                 # the file is being prepared by another
                                 toWait = True
+                                if fileSpec.status != 'preparing':
+                                    fileSpec.status = 'preparing'
+                                    updateStatus = True
                             else:
                                 # change file status if the file is not prepared by another
-                                fileSpec.status = 'to_prepare'
-                                updateStatus = True
+                                if fileSpec.status != 'to_prepare':
+                                    fileSpec.status = 'to_prepare'
+                                    updateStatus = True
                             # set new status
                             if updateStatus:
                                 newFileStatusData.append((fileSpec.fileID, fileSpec.lfn, fileSpec.status))
-                                if fileSpec.status not in fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn]:
-                                    fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] = 0
-                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn][fileSpec.status] += 1
+                                fileStatMap[queueConfig.ddmEndpointIn][fileSpec.lfn].setdefault(fileSpec.status, None)
                     if len(newFileStatusData) > 0:
                         self.dbProxy.change_file_status(jobSpec.PandaID, newFileStatusData, lockedBy)
                     # wait since files are being prepared by another
