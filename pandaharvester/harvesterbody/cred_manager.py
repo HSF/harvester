@@ -19,13 +19,21 @@ class CredManager(AgentBase):
         self.pluginFactory = PluginFactory()
         self.dbProxy = DBProxy()
         # get module and class names
-        moduleNames = self.get_list(harvester_config.credmanager.moduleName)
-        classNames = self.get_list(harvester_config.credmanager.className)
+        if hasattr(harvester_config.credmanager, 'moduleName'):
+            moduleNames = self.get_list(harvester_config.credmanager.moduleName)
+        else:
+            moduleNames = []
+        if hasattr(harvester_config.credmanager, 'className'):
+            classNames = self.get_list(harvester_config.credmanager.className)
+        else:
+            classNames = []
         # file names of original certificates
         if hasattr(harvester_config.credmanager, 'inCertFile'):
             inCertFiles = self.get_list(harvester_config.credmanager.inCertFile)
-        else:
+        elif hasattr(harvester_config.credmanager, 'certFile'):
             inCertFiles = self.get_list(harvester_config.credmanager.certFile)
+        else:
+            inCertFiles = []
         # file names of certificates to be generated
         if hasattr(harvester_config.credmanager, 'outCertFile'):
             outCertFiles = self.get_list(harvester_config.credmanager.outCertFile)
@@ -33,10 +41,13 @@ class CredManager(AgentBase):
             # use the file name of the certificate for panda connection as output name
             outCertFiles = self.get_list(harvester_config.pandacon.cert_file)
         # VOMS
-        vomses = self.get_list(harvester_config.credmanager.voms)
+        if hasattr(harvester_config.credmanager, 'voms'):
+            vomses = self.get_list(harvester_config.credmanager.voms)
+        else:
+            vomses = []
         # direct and merged plugin configuration in json
         if hasattr(harvester_config.credmanager, 'pluginConfigs'):
-            pluginConfigs = json.loads(harvester_config.credmanager.pluginConfigs)
+            pluginConfigs = harvester_config.credmanager.pluginConfigs
         else:
             pluginConfigs = []
         # get plugin
