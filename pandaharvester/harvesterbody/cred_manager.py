@@ -25,6 +25,8 @@ class CredManager(AgentBase):
         self.queue_exe_cores = []
         # get plugin from harvester config
         self.get_cores_from_harvester_config()
+        # update plugin cores from queue config
+        self.update_cores_from_queue_config()
 
     # get list
     def get_list(self, data):
@@ -110,7 +112,7 @@ class CredManager(AgentBase):
                 continue
             if not isinstance(queue_config.credmanagers, list):
                 continue
-            for cm_setup in queue_config.credmanagers.items:
+            for cm_setup in queue_config.credmanagers:
                 try:
                     pluginPar = {}
                     pluginPar['module'] = cm_setup['module']
@@ -121,7 +123,7 @@ class CredManager(AgentBase):
                             pass
                         if isinstance(v, str) and '$' in v:
                             # replace placeholders
-                            value = ''
+                            value = v
                             patts = re.findall('\$\{([a-zA-Z\d_.]+)\}', v)
                             for patt in patts:
                                 tmp_ph = '${' + patt + '}'
@@ -130,9 +132,9 @@ class CredManager(AgentBase):
                                     tmp_val = harvester_config.master.harvester_id
                                 elif patt == 'queueName':
                                     tmp_val = queue_name
-                                elif patt.startswith('common:'):
+                                elif patt.startswith('common.'):
                                     # values from common blocks
-                                    attr = patt.replace('common:', '')
+                                    attr = patt.replace('common.', '')
                                     if hasattr(queue_config, 'common') and attr in queue_config.common:
                                         tmp_val = queue_config.common[attr]
                                 if tmp_val is not None:
