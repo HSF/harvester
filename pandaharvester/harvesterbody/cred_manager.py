@@ -1,4 +1,3 @@
-import json
 import re
 import itertools
 
@@ -21,6 +20,21 @@ class CredManager(AgentBase):
         self.queue_config_mapper = queue_config_mapper
         self.pluginFactory = PluginFactory()
         self.dbProxy = DBProxy()
+        # plugin cores
+        self.exeCores = []
+        self.queue_exe_cores = []
+        # get plugin from harvester config
+        self.get_cores_from_harvester_config()
+
+    # get list
+    def get_list(self, data):
+        if isinstance(data, list):
+            return data
+        else:
+            return [data]
+
+    # get plugin cores from harvester config
+    def get_cores_from_harvester_config(self):
         # get module and class names
         if hasattr(harvester_config.credmanager, 'moduleName'):
             moduleNames = self.get_list(harvester_config.credmanager.moduleName)
@@ -53,21 +67,6 @@ class CredManager(AgentBase):
             pluginConfigs = harvester_config.credmanager.pluginConfigs
         else:
             pluginConfigs = []
-        # plugin cores
-        self.exeCores = []
-        self.queue_exe_cores = []
-        # get plugin from harvester config
-        self.get_cores_from_harvester_config()
-
-    # get list
-    def get_list(self, data):
-        if isinstance(data, list):
-            return data
-        else:
-            return [data]
-
-    # get plugin cores from harvester config
-    def get_cores_from_harvester_config(self):
         # from traditional attributes
         for moduleName, className, inCertFile, outCertFile, voms in \
                 zip(moduleNames, classNames, inCertFiles, outCertFiles, vomses):
@@ -86,7 +85,7 @@ class CredManager(AgentBase):
         # from pluginConfigs
         for pc in pluginConfigs:
             try:
-                setup_maps = json.loads(pc['configs'])
+                setup_maps = pc['configs']
                 for setup_name, setup_map in setup_maps.items():
                     try:
                         pluginPar = {}
@@ -131,6 +130,11 @@ class CredManager(AgentBase):
                                     tmp_val = harvester_config.master.harvester_id
                                 elif patt == 'queueName':
                                     tmp_val = queue_name
+                                elif patt.startswith('common:'):
+                                    # values from common blocks
+                                    attr = patt.replace('common:', '')
+                                    if hasattr(queue_config, 'common') and attr in queue_config.common:
+                                        tmp_val = queue_config.common[attr]
                                 if tmp_val is not None:
                                     value = value.replace(tmp_ph, tmp_val)
                             # fill in
