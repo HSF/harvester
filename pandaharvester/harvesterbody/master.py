@@ -55,7 +55,7 @@ class Master(object):
         thrList = []
         # Credential Manager
         from pandaharvester.harvesterbody.cred_manager import CredManager
-        thr = CredManager(single_mode=self.singleMode)
+        thr = CredManager(self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
         thr.execute()
         thr.start()
@@ -158,7 +158,7 @@ class Master(object):
         # Service monitor
         try:
             sm_active = harvester_config.service_monitor.active
-        except:
+        except Exception:
             sm_active = False
 
         if sm_active:
