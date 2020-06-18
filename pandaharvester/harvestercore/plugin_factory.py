@@ -14,7 +14,15 @@ class PluginFactory(object):
         self.classMap = {}
         self.noDB = no_db
 
-    # get plugin
+    # get plugin key
+    def get_plugin_key(self, plugin_conf):
+        # use module + class as key
+        moduleName = plugin_conf['module']
+        className = plugin_conf['name']
+        pluginKey = '{0}.{1}'.format(moduleName, className)
+        return pluginKey
+
+    # get plugin instance
     def get_plugin(self, plugin_conf):
         # use module + class as key
         moduleName = plugin_conf['module']

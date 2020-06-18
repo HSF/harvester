@@ -469,7 +469,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorJobQuery.query_with_python')
         # Start query
         tmpLog.debug('Start query')
-        cache_fifo = CondorQCacheFifo(target=self.submissionHost, id='{0},{1}'.format(self.submissionHost, get_ident()))
+        cache_fifo = None
         job_ads_all_dict = {}
         # make id sets
         batchIDs_set = set(batchIDs_list)
@@ -606,6 +606,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         # query method options
         query_method_list = [self.schedd.xquery]
         if self.cacheEnable:
+            cache_fifo = CondorQCacheFifo(target=self.submissionHost, id='{0},{1}'.format(self.submissionHost, get_ident()))
             query_method_list.insert(0, cache_query)
         if self.useCondorHistory:
             query_method_list.append(self.schedd.history)

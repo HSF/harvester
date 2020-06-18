@@ -52,7 +52,12 @@ class Sweeper(AgentBase):
                         mainLog.error('queue config for {0}/{1} not found'.format(queueName, configID))
                         continue
                     queueConfig = self.queueConfigMapper.get_queue(queueName, configID)
-                    sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
+                    try:
+                        sweeperCore = self.pluginFactory.get_plugin(queueConfig.sweeper)
+                    except Exception:
+                        mainLog.error('failed to launch sweeper plugin for {0}/{1}'.format(queueName, configID))
+                        core_utils.dump_error_message(mainLog)
+                        continue
                     sw.reset()
                     n_workers = len(workspec_list)
                     try:

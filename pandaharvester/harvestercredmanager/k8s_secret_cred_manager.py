@@ -22,27 +22,32 @@ class K8sSecretCredManager(PluginBase):
         # make logger
         mainLog = self.make_logger(_logger, method_name='__init__')
         # attributes
-        try:
-            self.inFile
-        except AttributeError:
-            self.inFile = self.inCertFile
-        # parse inFile setup conficuration
-        try:
-            with open(self.inFile) as f:
-                self.setupMap = json.load(f)
-        except Exception as e:
-            mainLog.error('Error with inFile/inCertFile . {0}: {1}'.format(
-                                e.__class__.__name__, e))
-            self.setupMap = {}
-            raise
+        if hasattr(self, 'inFile') or hasattr(self, 'inCertFile'):
+            # set up with json in inFile
+            try:
+                self.inFile
+            except AttributeError:
+                self.inFile = self.inCertFile
+            # parse inFile setup configuration
+            try:
+                with open(self.inFile) as f:
+                    self.setupMap = json.load(f)
+            except Exception as e:
+                mainLog.error('Error with inFile/inCertFile . {0}: {1}'.format(
+                                    e.__class__.__name__, e))
+                self.setupMap = {}
+                raise
+        else:
+            # set up with direct attributes
+            self.setupMap = dict(vars(self))
         # validate setupMap
         try:
             self.k8s_namespace = self.setupMap['k8s_namespace']
             self.k8s_config_file = self.setupMap['k8s_config_file']
-            self.proxy_file_list = self.setupMap['proxy_files']
+            self.proxy_files = self.setupMap['proxy_files']
             self.secret_name = self.setupMap.get('secret_name', 'proxy-secret')
         except KeyError as e:
-            mainLog.error('Missing setup in inFile/inCertFile . {0}: {1}'.format(
+            mainLog.error('Missing attributes in setup . {0}: {1}'.format(
                                 e.__class__.__name__, e))
             raise
         # k8s client
@@ -66,7 +71,7 @@ class K8sSecretCredManager(PluginBase):
         # go
         try:
             rsp = self.k8s_client.create_or_patch_secret(
-                            file_list=self.proxy_file_list, secret_name=self.secret_name)
+                            file_list=self.proxy_files, secret_name=self.secret_name)
             mainLog.debug('done')
         except KeyError as e:
             errStr = 'Error when renew proxy secret . {0}: {1}'.format(

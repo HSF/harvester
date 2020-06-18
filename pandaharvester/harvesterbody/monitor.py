@@ -23,14 +23,23 @@ _logger = core_utils.setup_logger('monitor')
 class Monitor(AgentBase):
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
+        tmp_log = self.make_logger(_logger, method_name='__init__')
         AgentBase.__init__(self, single_mode)
         self.queueConfigMapper = queue_config_mapper
         self.dbProxy = DBProxy()
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
-        self.monitor_fifo = MonitorFIFO()
+        try:
+            self.monitor_fifo = MonitorFIFO()
+        except Exception:
+            tmp_log.error('failed to launch monitor-fifo')
+            core_utils.dump_error_message(tmp_log)
         if self.monitor_fifo.enabled:
-            self.monitor_event_fifo = MonitorEventFIFO()
+            try:
+                self.monitor_event_fifo = MonitorEventFIFO()
+            except Exception:
+                tmp_log.error('failed to launch monitor-event-fifo')
+                core_utils.dump_error_message(tmp_log)
         else:
             self.monitor_event_fifo = None
         self.apfmon = Apfmon(self.queueConfigMapper)
@@ -38,15 +47,25 @@ class Monitor(AgentBase):
         if getattr(harvester_config.monitor, 'eventBasedEnable', False):
             for pluginConf in harvester_config.monitor.eventBasedPlugins:
                 pluginFactory = PluginFactory()
-                self.eventBasedMonCoreList.append(pluginFactory.get_plugin(pluginConf))
+                plugin_key = pluginFactory.get_plugin_key(pluginConf)
+                try:
+                    self.eventBasedMonCoreList.append(pluginFactory.get_plugin(pluginConf))
+                except Exception:
+                    tmp_log.error('failed to launch event-based-monitor plugin of {0}'.format(plugin_key))
+                    core_utils.dump_error_message(tmp_log)
 
     # main loop
     def run(self):
         lockedBy = 'monitor-{0}'.format(self.get_pid())
+        mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
         # init messengers
-        for queueConfig in self.queueConfigMapper.get_all_queues().values():
+        for queueName, queueConfig in self.queueConfigMapper.get_all_queues().items():
             # just import for module initialization
-            self.pluginFactory.get_plugin(queueConfig.messenger)
+            try:
+                self.pluginFactory.get_plugin(queueConfig.messenger)
+            except Exception:
+                mainLog.error('failed to launch messenger plugin for {0}'.format(queueName))
+                core_utils.dump_error_message(mainLog)
         # main
         fifoSleepTimeMilli = getattr(harvester_config.monitor, 'fifoSleepTimeMilli', 5000)
         fifoCheckDuration = getattr(harvester_config.monitor, 'fifoCheckDuration', 30)
@@ -67,7 +86,6 @@ class Monitor(AgentBase):
         adjusted_sleepTime = sleepTime
         if monitor_fifo.enabled:
             monitor_fifo.restore()
-        mainLog = self.make_logger(_logger, 'id={0}'.format(lockedBy), method_name='run')
         while True:
             sw_main = core_utils.get_stopwatch()
             mainLog.debug('start a monitor cycle')
