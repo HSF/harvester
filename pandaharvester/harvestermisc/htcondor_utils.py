@@ -207,6 +207,7 @@ class CondorQCacheFifo(six.with_metaclass(SingletonWithID, SpecialFIFOBase)):
 
     def __init__(self, target, *args, **kwargs):
         name_suffix = target.split('.')[0]
+        name_suffix = re.sub('-', '_', name_suffix)
         self.titleName = 'CondorQCache_{0}'.format(name_suffix)
         SpecialFIFOBase.__init__(self)
 
