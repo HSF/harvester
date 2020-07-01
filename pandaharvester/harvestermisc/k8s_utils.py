@@ -63,7 +63,10 @@ class k8s_Client(object):
         # set the resource type and other metadata to filter the pods
         yaml_content['spec']['template'].setdefault('metadata', {})
         yaml_content['spec']['template']['metadata'].update({'labels':
-                                                                 {'resourceType': str(work_spec.resourceType)}
+                                                                 {'resourceType': str(work_spec.resourceType),
+                                                                  'prodSourceLabel': str(prod_source_label),
+                                                                  'pq': str(work_spec.computingSite)
+                                                                  }
                                                              })
 
         # fill the container details. we can only handle one container (take the first, delete the rest)
