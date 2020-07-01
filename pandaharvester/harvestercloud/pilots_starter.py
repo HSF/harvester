@@ -222,9 +222,10 @@ if __name__ == "__main__":
     if resource_type:
         resource_type_option = '--resource-type {0}'.format(resource_type)
 
-    psl_option = ''
     if prodSourceLabel:
         psl_option = '-j {0}'.format(prodSourceLabel)
+    else:
+        psl_option = '-j managed'
 
     job_type_option = ''
     if job_type:
@@ -232,13 +233,6 @@ if __name__ == "__main__":
 
     wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6}'.format(WORK_DIR, panda_site, panda_queue, panda_queue,
                                                               resource_type_option, psl_option, job_type_option)
-
-    # TODO: This should be removed once we start using prodSourceLabel
-    if not psl_option:
-        if 'ANALY' in panda_queue:
-            wrapper_params = '{0} -j user'.format(wrapper_params)
-        else:
-            wrapper_params = '{0} -j managed'.format(wrapper_params)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system
