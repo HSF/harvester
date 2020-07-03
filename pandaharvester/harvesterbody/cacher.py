@@ -105,7 +105,7 @@ class Cacher(AgentBase):
                         pass
             except Exception:
                 core_utils.dump_error_message(tmp_log)
-        elif info_url.startswith('http'):
+        elif info_url.startswith('http:'):
             try:
                 res = requests.get(info_url, timeout=60)
                 if res.status_code == 200:
@@ -121,6 +121,31 @@ class Cacher(AgentBase):
                 tmp_log.error('read timeout when getting data from {0}'.format(info_url))
             except Exception:
                 core_utils.dump_error_message(tmp_log)
+        elif info_url.startswith('https:'):
+            try:
+                try:
+                    # try with pandacon certificate
+                    cert_file = harvester_config.pandacon.cert_file
+                    key_file = harvester_config.pandacon.key_file
+                    ca_cert = harvester_config.pandacon.ca_cert
+                    res = requests.get(info_url, cert=(cert_file, key_file), verify=ca_cert, timeout=60)
+                except requests.exceptions.SSLError:
+                    # try without certificate
+                    res = requests.get(info_url, timeout=60)
+            except requests.exceptions.ReadTimeout:
+                tmp_log.error('read timeout when getting data from {0}'.format(info_url))
+            except Exception:
+                core_utils.dump_error_message(tmp_log)
+            else:
+                if res.status_code == 200:
+                    try:
+                        retVal = res.json()
+                    except Exception:
+                        errMsg = 'corrupted json from {0} : {1}'.format(info_url, res.text)
+                        tmp_log.error(errMsg)
+                else:
+                    errMsg = 'failed to get {0} with StatusCode={1} {2}'.format(info_url, res.status_code, res.text)
+                    tmp_log.error(errMsg)
         elif info_url.startswith('panda_cache:'):
             try:
                 publicKey, privateKey = info_url.split(':')[-1].split('&')
