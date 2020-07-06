@@ -679,6 +679,7 @@ class HTCondorSubmitter(PluginBase):
             data = {'workspec': workspec,
                     'to_submit': to_submit,}
             if to_submit:
+                sdf_template_file = None
                 if self.useAtlasGridCE:
                     # choose a CE
                     tmpLog.info('choose a CE...')
@@ -705,10 +706,12 @@ class HTCondorSubmitter(PluginBase):
                             ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('For site {0} got pilot version: "{1}"; CE endpoint: "{2}", flavour: "{3}"'.format(
                                     self.queueName, pilot_version, ce_endpoint_from_queue, ce_flavour_str))
-                    if not self.templateFile and os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                    if self.templateFile:
+                        sdf_template_file = self.templateFile
+                    elif os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                         sdf_template_filename = '{ce_flavour_str}{sdf_suffix_str}.sdf'.format(
                                                     ce_flavour_str=ce_flavour_str, sdf_suffix_str=sdf_suffix_str)
-                        self.templateFile = os.path.join(self.CEtemplateDir, sdf_template_filename)
+                        sdf_template_file = os.path.join(self.CEtemplateDir, sdf_template_filename)
                 else:
                     try:
                         # Manually define site condor schedd as ceHostname and central manager as ceEndpoint
@@ -731,7 +734,7 @@ class HTCondorSubmitter(PluginBase):
                         pass
                 # template for batch script
                 try:
-                    tmpFile = open(self.templateFile)
+                    tmpFile = open(sdf_template_file)
                     sdf_template_raw = tmpFile.read()
                     tmpFile.close()
                 except AttributeError:

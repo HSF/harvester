@@ -1,4 +1,5 @@
 import time
+import json
 
 import six
 
@@ -200,6 +201,14 @@ class HTCondorMonitor(PluginBase):
             self.useCondorHistory
         except AttributeError:
             self.useCondorHistory = True
+        try:
+            self.submissionHost_list
+        except AttributeError:
+            self.submissionHost_list = []
+        try:
+            self.condorHostConfig_list
+        except AttributeError:
+            self.condorHostConfig_list = []
 
     # check workers
     def check_workers(self, workspec_list):
@@ -240,15 +249,32 @@ class HTCondorMonitor(PluginBase):
         tmpLog.debug('start')
         ## Get now timestamp
         timeNow = time.time()
+        ## Set of submission hosts
+        submission_host_set = set()
+        for submissionHost in self.submissionHost_list:
+            submission_host_set.add(submissionHost)
+        for condorHostConfig in self.condorHostConfig_list:
+            try:
+                with open(condorHostConfig, 'r') as f:
+                    condor_host_config_map = json.load(f)
+                for _schedd, _cm in condor_host_config_map.items():
+                    _pool = _cm['pool']
+                    submissionHost = '{0},{1}'.format(_schedd, _pool)
+                    submission_host_set.add(submissionHost)
+            except Exception as e:
+                err_str = 'failed to parse condorHostConfig {0}; {1}: {2}'.format(condorHostConfig, e.__class__.__name__, e)
+                tmpLog.error(err_str)
+                continue
         ## Loop over submissionHost and get all jobs
         job_ads_all_dict = {}
-        for submissionHost in self.submissionHost_list:
+        for submissionHost in submission_host_set:
             try:
                 job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
                                             cacheRefreshInterval=self.cacheRefreshInterval,
                                             useCondorHistory=self.useCondorHistory,
                                             id=submissionHost)
                 job_ads_all_dict.update(job_query.get_all(allJobs=True))
+                tmpLog.debug('got information of condor jobs on {0}'.format(submissionHost))
             except Exception as e:
                 ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
                 tmpLog.error(ret_err_str)

@@ -60,7 +60,7 @@ class ACTSubmitter(PluginBase):
 
             queueconfigmapper = QueueConfigMapper()
             queueconfig = queueconfigmapper.get_queue(workSpec.computingSite)
-            prodSourceLabel = queueconfig.get_source_label()
+            prodSourceLabel = queueconfig.get_source_label(workSpec.jobType)
 
             # If jobSpec is defined we are in push mode, if not pull mode
             # Both assume one to one worker to job mapping
@@ -94,9 +94,15 @@ class ACTSubmitter(PluginBase):
                 pandaid = jobSpec.PandaID
                 actjobdesc = urllib.parse.urlencode(jobSpec.jobParams)
             else:
-                # pull mode: just set pandaid (to workerid) and prodsourcelabel
+                # pull mode: set pandaid (to workerid), prodsourcelabel, resource type and requirements
                 pandaid = workSpec.workerID
-                actjobdesc = 'PandaID=%d&prodSourceLabel=%s' % (pandaid, prodSourceLabel)
+                actjobdesc = '&'.join(['PandaID={}'.format(pandaid),
+                                       'prodSourceLabel={}'.format(prodSourceLabel),
+                                       'resourceType={}'.format(workSpec.resourceType),
+                                       'minRamCount={}'.format(workSpec.minRamCount),
+                                       'coreCount={}'.format(workSpec.nCore),
+                                       'logFile={}.pilot.log'.format(pandaid)
+                                      ])
 
             tmpLog.info("Inserting job {0} into aCT DB: {1}".format(pandaid, str(desc)))
             try:
