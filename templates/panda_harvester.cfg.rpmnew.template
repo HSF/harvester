@@ -407,12 +407,8 @@ eventBasedEnable = False
 #    {
 #      "module": "pandaharvester.harvestermonitor.htcondor_monitor",
 #      "name": "HTCondorMonitor",
-#      "submissionHost_list": [
-#          "aipanda023.cern.ch,aipanda023.cern.ch:19618",
-#          "aipanda024.cern.ch,aipanda024.cern.ch:19618",
-#          "aipanda156.cern.ch,aipanda156.cern.ch:19618",
-#          "aipanda183.cern.ch,aipanda183.cern.ch:19618",
-#          "aipanda184.cern.ch,aipanda184.cern.ch:19618"
+#      "condorHostConfig_list": [
+#          "/opt/harvester/etc/panda/condor_host_config.json"
 #        ]
 #    }
 #  ]
@@ -473,6 +469,28 @@ outCertFile =
 voms =
  atlas:/atlas/Role=production
  atlas:/atlas/Role=pilot
+
+# plugin configs in json
+# pluginConfigs =
+#   [
+#     {
+#       "module": "pandaharvester.harvestercredmanager.no_voms_cred_manager",
+#       "name": "NoVomsCredManager",
+#       "configs": {
+#         "production": {
+#          "inCertFile": "/data/atlpan/proxy/atlpilo1RFC.plain",
+#          "outCertFile": "/data/atlpan/proxy/x509up_u25606_prod",
+#          "voms": "atlas:/atlas/Role=production"
+#         },
+#         "pilot": {
+#           "inCertFile": "/data/atlpan/proxy/atlpilo1RFC.plain",
+#           "outCertFile": "/data/atlpan/proxy/x509up_u25606_pilot",
+#           "voms": "atlas:/atlas/Role=pilot"
+#         }
+#       }
+#     }
+#   ]
+
 
 # sleep interval in sec
 sleepTime = 1800
@@ -599,8 +617,8 @@ sleepTime = 60
 #        It also caches proxy files which are renewed by Credential Manager. Access key for BNL object store
 #        is retrieved from panda.
 data =
- ddmendpoints_objectstores.json||http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1&type[]=OS_LOGS&type[]=OS_ES
- panda_queues.json||http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas
+ ddmendpoints_objectstores.json||https://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1&type[]=OS_LOGS&type[]=OS_ES
+ panda_queues.json||https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json
  agis_ddmendpoints.json||http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1
  proxy_pilot||file://path_to/FIXME_proxy_pilot
  proxy_production||file://path_to/FIXME_proxy_production
