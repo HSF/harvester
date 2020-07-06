@@ -41,7 +41,8 @@ setup(
     # optional pip dependencies
     extras_require={
         'kubernetes': ['kubernetes', 'pyyaml'],
-        'mysql': ['mysqlclient']
+        'mysql': ['mysqlclient'],
+        'atlasgrid': ['uWSGI >= 2.0.0', 'htcondor >= 8.4.0', 'mysqlclient'],
     },
 
     data_files=[
