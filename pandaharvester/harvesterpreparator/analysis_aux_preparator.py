@@ -89,6 +89,9 @@ class AnalysisAuxPreparator(PluginBase):
                 elif self.containerRuntime == 'singularity':
                     args = ['singularity', 'build', '--sandbox', accPathTmp, url ]
                     return_code = self.make_image(jobspec,args)
+                elif self.containerRuntime == 'shifter':
+                    args = ['shifter', 'pull', url ]
+                    return_code = self.make_image(jobspec,args)
                 else:
                     tmpLog.error('unsupported container runtime : {0}'.format(self.containerRuntime))
             elif url.startswith('/'):
