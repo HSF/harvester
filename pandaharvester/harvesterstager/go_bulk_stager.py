@@ -430,7 +430,13 @@ class GlobusBulkStager(BaseStager):
         # set the dummy transfer ID which will be replaced with a real ID in check_stage_out_status()
         lfns = []
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
-            lfns.append(fileSpec.lfn)
+            # test if fileSpec.lfn is not empty
+            if not fileSpec.lfn :
+                msgStr = 'fileSpec.lfn is empty'
+            else:
+                msgStr = 'fileSpec.lfn is {0}'.format(fileSpec.lfn)
+                lfns.append(fileSpec.lfn)
+            tmpLog.debug(msgStr)
         jobspec.set_groups_to_files({self.dummy_transfer_id: {'lfns': lfns,'groupStatus': 'pending'}})
         msgStr = 'jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending'.format(self.dummy_transfer_id,lfns)
         tmpLog.debug(msgStr)
