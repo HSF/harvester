@@ -248,6 +248,11 @@ class GlobusBulkStager(BaseStager):
                     # loop over all files
                     ifile = 0
                     for fileSpec in fileSpecs:
+                        # protect against blank lfn's
+                        if not fileSpec.lfn :
+                            msgStr = 'fileSpec.lfn is empty'
+                            tmpLog.debug(msgStr)
+                            continue
                         logfile = False
                         scope ='panda'
                         if fileSpec.scope is not None :
