@@ -619,7 +619,7 @@ sleepTime = 60
 data =
  ddmendpoints_objectstores.json||https://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1&type[]=OS_LOGS&type[]=OS_ES
  panda_queues.json||https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json
- agis_ddmendpoints.json||http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1
+ agis_ddmendpoints.json||http://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/list/?json&state=ACTIVE&site_state=ACTIVE&preset=dict&json_pretty=1
  proxy_pilot||file://path_to/FIXME_proxy_pilot
  proxy_production||file://path_to/FIXME_proxy_production
  resource_types.json||panda_server:get_resource_types
