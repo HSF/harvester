@@ -32,7 +32,7 @@ class BaseCommunicator(with_metaclass(abc.ABCMeta, object)):
         return [{'StatusCode': 0, 'ErrorDiag': '', 'command': ''}] * len(jobspec_list)
 
     # get events
-    def get_event_ranges(self, data_map, scattered):
+    def get_event_ranges(self, data_map, scattered, base_path):
         return True, {}
 
     # update events

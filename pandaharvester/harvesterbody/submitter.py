@@ -251,7 +251,8 @@ class Submitter(AgentBase):
                                             # events
                                             if len(okJobs) > 0 and \
                                                     ('eventService' in okJobs[0].jobParams or
-                                                     'cloneJob' in okJobs[0].jobParams):
+                                                     'cloneJob' in okJobs[0].jobParams or
+                                                     'isHPO' in okJobs[0].jobParams):
                                                 work_spec.eventsRequest = WorkSpec.EV_useEvents
                                             work_specList.append(work_spec)
                                     if len(work_specList) > 0:
@@ -364,6 +365,16 @@ class Submitter(AgentBase):
                                                          'nRanges': max(int(math.ceil(work_spec.nCore / len(jobList))),
                                                                         job_spec.jobParams['coreCount']),
                                                          }
+                                                    if 'isHPO' in job_spec.jobParams:
+                                                        if 'sourceURL' in job_spec.jobParams:
+                                                            sourceURL = job_spec.jobParams['sourceURL']
+                                                        else:
+                                                            sourceURL = None
+                                                        eventsRequestParams[job_spec.PandaID].update(
+                                                            {'isHPO': True,
+                                                             'jobsetID': 0,
+                                                             'sourceURL': sourceURL
+                                                             })
                                                 work_spec.eventsRequestParams = eventsRequestParams
                                             # register worker
                                             tmpStat = self.dbProxy.register_worker(work_spec, jobList, locked_by)

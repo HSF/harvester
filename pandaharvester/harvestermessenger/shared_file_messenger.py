@@ -295,7 +295,7 @@ class SharedFileMessenger(BaseMessenger):
                                     sizeMap[pfn] = os.stat(pfn).st_size
                             tmpFileDict['fsize'] = sizeMap[pfn]
                             tmpFileDict['type'] = tmpEventInfo['type']
-                            if tmpEventInfo['type'] in ['log', 'output']:
+                            if tmpEventInfo['type'] in ['log', 'output', 'checkpoint']:
                                 # disable zipping
                                 tmpFileDict['isZip'] = 0
                             elif tmpEventInfo['type'] == 'zip_output':

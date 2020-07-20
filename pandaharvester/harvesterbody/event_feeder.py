@@ -58,7 +58,8 @@ class EventFeeder(AgentBase):
                     # get events
                     tmpLog.debug('get events')
                     tmpStat, events = self.communicator.get_event_ranges(workSpec.eventsRequestParams,
-                                                                         scattered)
+                                                                         scattered,
+                                                                         workSpec.get_access_point())
                     # failed
                     if tmpStat is False:
                         tmpLog.error('failed to get events with {0}'.format(events))

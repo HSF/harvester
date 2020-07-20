@@ -188,9 +188,9 @@ class AnalysisAuxPreparator(PluginBase):
         for tmpGroupID in transferGroups:
             if tmpGroupID is None:
                 continue
-            tmpGroupID_parts = tmpGroupID.split(':',maxsplit=2)
+            tmpGroupID_parts = tmpGroupID.split(':', 2)
             tmpLog.debug('transfer group ID : {0} components: {1}'.format(tmpGroupID, tmpGroupID_parts))            
-            protocol, executionID, dst = tmpGroupID.split(':',maxsplit=2)
+            protocol, executionID, dst = tmpGroupID.split(':', 2)
             args = []
             for arg in self.externalCommand[protocol]['check']['args']:
                 if arg == '{id}':

@@ -259,6 +259,8 @@ class JobSpec(SpecBase):
                 iEvents += 1
             tmpData = {}
             tmpData['eventRanges'] = eventRanges
+            if 'sourceURL' in self.jobParams:
+                tmpData['sourceURL'] = self.jobParams['sourceURL']
             if zipFileID is not None:
                 zipFileSpec = eventsData['zip']
                 if zipFileSpec.status == 'finished':

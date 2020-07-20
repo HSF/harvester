@@ -1,3 +1,4 @@
+import os
 import sys
 
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
@@ -19,4 +20,4 @@ data = {pandaid: {'pandaID': pandaid,
         }
 
 a = CommunicatorPool()
-o = a.get_event_ranges(data)
+o = a.get_event_ranges(data, False, os.getcwd())

@@ -17,7 +17,8 @@ class EventSpec(SpecBase):
                            'coreCount:integer',
                            'cpuConsumptionTime:integer',
                            'subStatus:text / index',
-                           'fileID:integer'
+                           'fileID:integer',
+                           'loss:text'
                            )
 
     # constructor
@@ -30,7 +31,7 @@ class EventSpec(SpecBase):
         for attr in self.attributes:
             # ignore some attributes
             if attr not in ['eventRangeID', 'eventStatus', 'coreCount',
-                            'cpuConsumptionTime']:
+                            'cpuConsumptionTime', 'loss']:
                 continue
             val = getattr(self, attr)
             # don't propagate finished until subStatus is finished

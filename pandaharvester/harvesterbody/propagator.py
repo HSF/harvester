@@ -116,7 +116,8 @@ class Propagator(AgentBase):
                                                                PilotErrors.pilotError[PilotErrors.ERR_PANDAKILL])
                                     tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
                                     tmpJobSpec.trigger_propagation()
-                        self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.get_pid()})
+                        self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.get_pid()},
+                                                update_out_file=True)
                     else:
                         mainLog.error('failed to update PandaID={0} status={1}'.format(tmpJobSpec.PandaID,
                                                                                        tmpJobSpec.status))
@@ -203,7 +204,8 @@ class Propagator(AgentBase):
                 # get latest metrics from DB
                 service_metrics_list = self.dbProxy.get_service_metrics(self._last_metrics_update)
                 if not service_metrics_list:
-                    mainLog.error('failed to get service metrics')
+                    if self._last_metrics_update:
+                        mainLog.error('failed to get service metrics')
                     self._last_metrics_update = datetime.datetime.utcnow()
                 else:
                     tmp_ret, tmp_str = self.communicator.update_service_metrics(service_metrics_list)
