@@ -131,7 +131,7 @@ class Preparator(AgentBase):
                         jobSpec.preparatorTime = None
                         jobSpec.stateChangeTime = datetime.datetime.utcnow()
                         errStr = 'stage-in failed with {0}'.format(tmpStr)
-                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
+                        jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus})
@@ -294,7 +294,7 @@ class Preparator(AgentBase):
                         jobSpec.preparatorTime = None
                         jobSpec.stateChangeTime = datetime.datetime.utcnow()
                         errStr = 'stage-in failed with {0}'.format(tmpStr)
-                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
+                        jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus})

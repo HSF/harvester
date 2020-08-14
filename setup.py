@@ -42,7 +42,7 @@ setup(
     extras_require={
         'kubernetes': ['kubernetes', 'pyyaml'],
         'mysql': ['mysqlclient'],
-        'atlasgrid': ['uWSGI >= 2.0.0', 'htcondor >= 8.4.0', 'mysqlclient'],
+        'atlasgrid': ['uWSGI >= 2.0.0', 'htcondor >= 8.6.0', 'mysqlclient', 'panda-pilot'],
     },
 
     data_files=[
