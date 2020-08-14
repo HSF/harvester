@@ -104,7 +104,7 @@ else:
                                                     }
             workSpec.eventsRequestParams = eventsRequestParams
 
-            tmpStat, events = com.get_event_ranges(workSpec.eventsRequestParams)
+            tmpStat, events = com.get_event_ranges(workSpec.eventsRequestParams, False, os.getcwd())
             # failed
             if tmpStat is False:
                 print ('failed to get events with {0}'.format(events))

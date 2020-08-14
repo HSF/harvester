@@ -8,6 +8,7 @@ try:
     ssl.HAS_SNI = False
 except Exception:
     pass
+import os
 import sys
 import json
 import pickle
@@ -25,6 +26,7 @@ except Exception:
     pass
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestermisc import idds_utils
 from pandacommon.pandautils.net_utils import get_http_adapter_with_random_dns_resolution
 
 from .base_communicator import BaseCommunicator
@@ -76,7 +78,7 @@ class PandaCommunicator(BaseCommunicator):
         return False, errMsg
 
     # POST with https
-    def post_ssl(self, path, data, cert=None):
+    def post_ssl(self, path, data, cert=None, base_url=None):
         try:
             tmpLog = None
             if self.verbose:
@@ -85,7 +87,9 @@ class PandaCommunicator(BaseCommunicator):
                     tmpExec = inspect.stack()[1][3]
                     tmpExec += '/'
                 tmpExec = str(uuid.uuid4())
-            url = '{0}/{1}'.format(harvester_config.pandacon.pandaURLSSL, path)
+            if base_url is None:
+                base_url = harvester_config.pandacon.pandaURLSSL
+            url = '{0}/{1}'.format(base_url, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
             if cert is None:
@@ -115,7 +119,7 @@ class PandaCommunicator(BaseCommunicator):
         return False, errMsg
 
     # PUT with https
-    def put_ssl(self, path, files, cert=None):
+    def put_ssl(self, path, files, cert=None, base_url=None):
         try:
             tmpLog = None
             tmpExec = None
@@ -125,7 +129,9 @@ class PandaCommunicator(BaseCommunicator):
                     tmpExec = inspect.stack()[1][3]
                     tmpExec += '/'
                 tmpExec = str(uuid.uuid4())
-            url = '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, path)
+            if base_url is None:
+                base_url = harvester_config.pandacon.pandaCacheURL_W
+            url = '{0}/{1}'.format(base_url, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} files={2}'.format(tmpExec, url, files['file'][0]))
             if cert is None:
@@ -203,6 +209,17 @@ class PandaCommunicator(BaseCommunicator):
         tmpLogG = self.make_logger('id={0}'.format(id), method_name='update_jobs')
         tmpLogG.debug('update {0} jobs'.format(len(jobspec_list)))
         retList = []
+        # upload checkpoints
+        for jobSpec in jobspec_list:
+            if jobSpec.outFiles:
+                tmpLogG.debug('upload {0} checkpoint files for PandaID={1}'.format(len(jobSpec.outFiles),
+                                                                                   jobSpec.PandaID))
+            for fileSpec in jobSpec.outFiles:
+                if 'sourceURL' in jobSpec.jobParams:
+                    tmpS = self.upload_checkpoint(jobSpec.jobParams['sourceURL'], jobSpec.taskID,
+                                                  jobSpec.PandaID, fileSpec.lfn, fileSpec.path)
+                    if tmpS:
+                        fileSpec.status = 'done'
         # update events
         for jobSpec in jobspec_list:
             eventRanges, eventSpecs = jobSpec.to_event_data(max_events=10000)
@@ -284,7 +301,7 @@ class PandaCommunicator(BaseCommunicator):
         return retList
 
     # get events
-    def get_event_ranges(self, data_map, scattered):
+    def get_event_ranges(self, data_map, scattered, base_path):
         retStat = False
         retVal = dict()
         try:
@@ -301,6 +318,16 @@ class PandaCommunicator(BaseCommunicator):
                 nRanges = 1
             if scattered:
                 data['scattered'] = True
+            if 'isHPO' in data:
+                isHPO = data['isHPO']
+                del data['isHPO']
+            else:
+                isHPO = False
+            if 'sourceURL' in data:
+                sourceURL = data['sourceURL']
+                del data['sourceURL']
+            else:
+                sourceURL = None
             tmpLog.debug('start nRanges={0}'.format(nRanges))
             while nRanges > 0:
                 # use a small chunk size to avoid timeout
@@ -314,14 +341,35 @@ class PandaCommunicator(BaseCommunicator):
                         tmpDict = tmpRes.json()
                         if tmpDict['StatusCode'] == 0:
                             retStat = True
-                            if data['pandaID'] not in retVal:
-                                retVal[data['pandaID']] = []
-                            retVal[data['pandaID']] += tmpDict['eventRanges']
+                            retVal.setdefault(data['pandaID'], [])
+                            if not isHPO:
+                                retVal[data['pandaID']] += tmpDict['eventRanges']
+                            else:
+                                for event in tmpDict['eventRanges']:
+                                    event_id = event['eventRangeID']
+                                    task_id = event_id.split('-')[0]
+                                    point_id = event_id.split('-')[3]
+                                    # get HP point
+                                    tmpSI, tmpOI = idds_utils.get_hp_point(harvester_config.pandacon.iddsURL,
+                                                                           task_id, point_id,
+                                                                           tmpLog, self.verbose)
+                                    if tmpSI:
+                                        event['hp_point'] = tmpOI
+                                        # get checkpoint
+                                        if sourceURL:
+                                            tmpSO, tmpOO = self.download_checkpoint(sourceURL, task_id,
+                                                                                    data['pandaID'],
+                                                                                    point_id, base_path)
+                                            if tmpSO:
+                                                event['checkpoint'] = tmpOO
+                                        retVal[data['pandaID']].append(event)
+                                    else:
+                                        core_utils.dump_error_message(tmpLog, tmpOI)
                             # got empty
                             if len(tmpDict['eventRanges']) == 0:
                                 break
                     except Exception:
-                        core_utils.dump_error_message(tmpLog, tmpRes)
+                        core_utils.dump_error_message(tmpLog)
                         break
                 nRanges -= chunkSize
             tmpLog.debug('done with {0}'.format(str(retVal)))
@@ -330,6 +378,33 @@ class PandaCommunicator(BaseCommunicator):
     # update events
     def update_event_ranges(self, event_ranges, tmp_log):
         tmp_log.debug('start update_event_ranges')
+
+        # loop over for HPO
+        for item in event_ranges:
+            new_event_ranges = []
+            for event in item['eventRanges']:
+                # report loss to idds
+                if 'loss' in event:
+                    event_id = event['eventRangeID']
+                    task_id = event_id.split('-')[0]
+                    point_id = event_id.split('-')[3]
+                    tmpSI, tmpOI = idds_utils.update_hp_point(harvester_config.pandacon.iddsURL,
+                                                              task_id, point_id, event['loss'],
+                                                              tmp_log, self.verbose)
+                    if not tmpSI:
+                        core_utils.dump_error_message(tmp_log, tmpOI)
+                        tmp_log.error('skip {0} since cannot update iDDS'.format(event_id))
+                        continue
+                    else:
+                        # clear checkpoint
+                        if 'sourceURL' in item:
+                            tmpSC, tmpOC = self.clear_checkpoint(item['sourceURL'], task_id, point_id)
+                            if not tmpSC:
+                                core_utils.dump_error_message(tmp_log, tmpOC)
+                    del event['loss']
+                new_event_ranges.append(event)
+            item['eventRanges'] = new_event_ranges
+        # update in panda
         data = {}
         data['eventRanges'] = json.dumps(event_ranges)
         data['version'] = 1
@@ -712,3 +787,64 @@ class PandaCommunicator(BaseCommunicator):
         if tmp_stat:
             tmp_log.debug('done with {0}:{1}'.format(tmp_stat, err_str))
         return tmp_stat, err_str
+
+    # upload checkpoint
+    def upload_checkpoint(self, base_url, task_id, panda_id, file_name, file_path):
+        tmp_log = self.make_logger('taskID={0} pandaID={1}'.format(task_id, panda_id),
+                                   method_name='upload_checkpoint')
+        tmp_log.debug('start for {0}'.format(file_name))
+        try:
+            files = {'file': (file_name, open(file_path).read())}
+            tmpStat, tmpRes = self.put_ssl('server/panda/put_checkpoint', files, base_url=base_url)
+            if tmpStat is False:
+                core_utils.dump_error_message(tmp_log, tmpRes)
+            else:
+                tmp_log.debug('got {0}'.format(tmpRes.text))
+            return tmpStat
+        except Exception:
+            core_utils.dump_error_message(tmp_log)
+            return False
+
+    # download checkpoint
+    def download_checkpoint(self, base_url, task_id, panda_id, point_id, base_path):
+        tmp_log = self.make_logger('taskID={0} pandaID={1}'.format(task_id, panda_id),
+                                   method_name='download_checkpoint')
+        tmp_log.debug('start for ID={0}'.format(point_id))
+        try:
+            path = 'cache/hpo_cp_{0}_{1}'.format(task_id, point_id)
+            tmpStat, tmpRes = self.post_ssl(path, {}, base_url=base_url)
+            file_name = None
+            if tmpStat is False:
+                core_utils.dump_error_message(tmp_log, tmpRes)
+            else:
+                file_name = os.path.join(base_path, str(uuid.uuid4()))
+                with open(file_name, 'w') as f:
+                    f.write(tmpRes.content)
+                tmp_log.debug('got {0}'.format(file_name))
+            return tmpStat, file_name
+        except Exception:
+            core_utils.dump_error_message(tmp_log)
+            return False, None
+
+    # clear checkpoint
+    def clear_checkpoint(self, base_url, task_id, point_id):
+        tmp_log = self.make_logger('taskID={0} pointID={1}'.format(task_id, point_id),
+                                   method_name='clear_checkpoints')
+        data = dict()
+        data['task_id'] = task_id
+        data['sub_id'] = point_id
+        tmp_log.debug('start')
+        tmpStat, tmpRes = self.post_ssl('server/panda/delete_checkpoint', data, base_url=base_url)
+        retMap = None
+        if tmpStat is False:
+            core_utils.dump_error_message(tmp_log, tmpRes)
+        else:
+            try:
+                retMap = tmpRes.json()
+            except Exception:
+                core_utils.dump_error_message(tmp_log)
+        if retMap is None:
+            retMap = {}
+            retMap['StatusCode'] = 999
+        tmp_log.debug('done with {0}'.format(str(retMap)))
+        return retMap

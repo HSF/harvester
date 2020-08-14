@@ -690,7 +690,7 @@ class DBProxy(object):
             return None
 
     # update job
-    def update_job(self, jobspec, criteria=None, update_in_file=False):
+    def update_job(self, jobspec, criteria=None, update_in_file=False, update_out_file=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0} subStatus={1}'.format(jobspec.PandaID,
@@ -741,6 +741,16 @@ class DBProxy(object):
                         sqlF = "UPDATE {0} SET status=:status ".format(fileTableName)
                         sqlF += "WHERE PandaID=:PandaID AND fileType IN (:type1,:type2) "
                         self.execute(sqlF, varMap)
+                # update output file
+                if update_out_file:
+                    for fileSpec in jobspec.outFiles:
+                        varMap = fileSpec.values_map(only_changed=True)
+                        if varMap != {}:
+                            sqlF = "UPDATE {0} SET {1} ".format(fileTableName,
+                                                                fileSpec.bind_update_changes_expression())
+                            sqlF += "WHERE fileID=:fileID "
+                            varMap[':fileID'] = fileSpec.fileID
+                            self.execute(sqlF, varMap)
                 # set to_delete flag
                 if jobspec.subStatus == 'done':
                     sqlD = "UPDATE {0} SET todelete=:to_delete ".format(fileTableName)
@@ -1025,6 +1035,9 @@ class DBProxy(object):
             sqlZ = "SELECT e.fileID,f.zipFileID FROM {0} f, {1} e ".format(fileTableName, eventTableName)
             sqlZ += "WHERE e.PandaID=:PandaID AND e.fileID=f.fileID "
             sqlZ += "AND e.subStatus IN (:statusFinished,:statusFailed) "
+            # sql to get checkpoint files
+            sqlC = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
+            sqlC += "WHERE PandaID=:PandaID AND fileType=:type AND status=:status "
             # get jobs
             timeNow = datetime.datetime.utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
@@ -1112,6 +1125,18 @@ class DBProxy(object):
                                 zipFileSpec = zipFiles[zipFileID]
                         jobSpec.add_event(eventSpec, zipFileSpec)
                         iEvents += 1
+                    # read checkpoint files
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    varMap[':type'] = 'checkpoint'
+                    varMap[':status'] = 'renewed'
+                    self.execute(sqlC, varMap)
+                    resC = self.cur.fetchall()
+                    for resFile in resC:
+                        fileSpec = FileSpec()
+                        fileSpec.pack(resFile)
+                        jobSpec.add_out_file(fileSpec)
+                    # add to job list
                     jobSpecList.append(jobSpec)
             tmpLog.debug('got {0} jobs'.format(len(jobSpecList)))
             return jobSpecList
@@ -2061,7 +2086,7 @@ class DBProxy(object):
             sqlFC = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlFC += "WHERE PandaID=:PandaID AND lfn=:lfn "
             # sql to get all LFNs
-            sqlFL = "SELECT lfn FROM {0} ".format(fileTableName)
+            sqlFL = "SELECT lfn,fileID FROM {0} ".format(fileTableName)
             sqlFL += "WHERE PandaID=:PandaID AND fileType<>:type "
             # sql to check file with eventRangeID
             sqlFE = "SELECT 1 c FROM {0} ".format(fileTableName)
@@ -2136,14 +2161,14 @@ class DBProxy(object):
                                 activeWorkers.add(tmpWorkerID)
                             jobSpec.nWorkers = len(activeWorkers)
                         # get all LFNs
-                        allLFNs = set()
+                        allLFNs = dict()
                         varMap = dict()
                         varMap[':PandaID'] = jobSpec.PandaID
                         varMap[':type'] = 'input'
                         self.execute(sqlFL, varMap)
                         resFL = self.cur.fetchall()
-                        for tmpLFN, in resFL:
-                            allLFNs.add(tmpLFN)
+                        for tmpLFN, tmpFileID in resFL:
+                            allLFNs[tmpLFN] = tmpFileID
                         # insert files
                         nFiles = 0
                         fileIdMap = {}
@@ -2152,8 +2177,11 @@ class DBProxy(object):
                             # insert file
                             if fileSpec.lfn not in allLFNs:
                                 if jobSpec.zipPerMB is None or fileSpec.isZip in [0, 1]:
-                                    fileSpec.status = 'defined'
-                                    jobSpec.hasOutFile = JobSpec.HO_hasOutput
+                                    if fileSpec.fileType != 'checkpoint':
+                                        fileSpec.status = 'defined'
+                                        jobSpec.hasOutFile = JobSpec.HO_hasOutput
+                                    else:
+                                        fileSpec.status = 'renewed'
                                 else:
                                     fileSpec.status = 'pending'
                                 varMap = fileSpec.values_list()
@@ -2198,6 +2226,13 @@ class DBProxy(object):
                                     nFiles += 1
                                     # mapping between event range ID and file ID
                                     fileIdMap[fileSpec.eventRangeID] = self.cur.lastrowid
+                            elif fileSpec.fileType == 'checkpoint':
+                                # reset status of checkpoint to be uploaded again
+                                varMap = dict()
+                                varMap[':status'] = 'renewed'
+                                varMap[':fileID'] = allLFNs[fileSpec.lfn]
+                                varMap[':zipFileID'] = None
+                                self.execute(sqlFU, varMap)
                         if nFiles > 0:
                             tmpLog.debug('inserted {0} files'.format(nFiles))
                         # check pending files
@@ -2628,13 +2663,13 @@ class DBProxy(object):
             sqlJJ += "WHERE PandaID=:PandaID "
             # sql to get files
             sqlF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
-            sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType NOT IN (:type1,:type2) "
+            sqlF += "WHERE PandaID=:PandaID AND status=:status AND fileType NOT IN (:type1,:type2,:type3) "
             if max_files_per_job is not None and max_files_per_job > 0:
                 sqlF += "LIMIT {0} ".format(max_files_per_job)
             # sql to get associated files
             sqlAF = "SELECT {0} FROM {1} ".format(FileSpec.column_names(), fileTableName)
             sqlAF += "WHERE PandaID=:PandaID AND zipFileID=:zipFileID "
-            sqlAF += "AND fileType NOT IN (:type1,:type2) "
+            sqlAF += "AND fileType NOT IN (:type1,:type2,:type3) "
             # sql to increment attempt number
             sqlFU = "UPDATE {0} SET attemptNr=attemptNr+1 WHERE fileID=:fileID ".format(fileTableName)
             # get jobs
@@ -2696,6 +2731,7 @@ class DBProxy(object):
                     varMap[':PandaID'] = jobSpec.PandaID
                     varMap[':type1'] = 'input'
                     varMap[':type2'] = FileSpec.AUX_INPUT
+                    varMap[':type3'] = 'checkpoint'
                     if has_out_file_flag == JobSpec.HO_hasOutput:
                         varMap[':status'] = 'defined'
                     elif has_out_file_flag == JobSpec.HO_hasZipOutput:
@@ -2727,6 +2763,7 @@ class DBProxy(object):
                             varMap[':zipFileID'] = fileSpec.fileID
                             varMap[':type1'] = 'input'
                             varMap[':type2'] = FileSpec.AUX_INPUT
+                            varMap[':type3'] = 'checkpoint'
                             self.execute(sqlAF, varMap)
                             resAFs = self.cur.fetchall()
                             for resAF in resAFs:

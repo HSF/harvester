@@ -713,6 +713,8 @@ class HTCondorSubmitter(PluginBase):
                                                     ce_flavour_str=ce_flavour_str, sdf_suffix_str=sdf_suffix_str)
                         sdf_template_file = os.path.join(self.CEtemplateDir, sdf_template_filename)
                 else:
+                    if self.templateFile:
+                        sdf_template_file = self.templateFile
                     try:
                         # Manually define site condor schedd as ceHostname and central manager as ceEndpoint
                         if self.ceHostname and isinstance(self.ceHostname, list) and len(self.ceHostname) > 0:

@@ -21,6 +21,7 @@ class AuxExtractor(BaseExtractor):
         tmpM = re.search(' --sourceURL\s+([^\s]+)', jobPars)
         if tmpM is not None:
             sourceURL = tmpM.group(1)
+            jobspec.jobParams['sourceURL'] = sourceURL
             # extract sandbox
             if jobspec.jobParams['prodSourceLabel'] == 'user':
                 tmpM = re.search('-a\s+([^\s]+)', jobPars)

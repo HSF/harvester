@@ -284,46 +284,47 @@ class SharedFileMessenger(BaseMessenger):
                                 tmpEventRangeID = tmpEventInfo['eventRangeID']
                             else:
                                 tmpEventRangeID = None
-                            tmpFileDict = dict()
-                            pfn = tmpEventInfo['path']
-                            lfn = os.path.basename(pfn)
-                            tmpFileDict['path'] = pfn
-                            if pfn not in sizeMap:
-                                if 'fsize' in tmpEventInfo:
-                                    sizeMap[pfn] = tmpEventInfo['fsize']
+                            if 'path' in tmpEventInfo:
+                                tmpFileDict = dict()
+                                pfn = tmpEventInfo['path']
+                                lfn = os.path.basename(pfn)
+                                tmpFileDict['path'] = pfn
+                                if pfn not in sizeMap:
+                                    if 'fsize' in tmpEventInfo:
+                                        sizeMap[pfn] = tmpEventInfo['fsize']
+                                    else:
+                                        sizeMap[pfn] = os.stat(pfn).st_size
+                                tmpFileDict['fsize'] = sizeMap[pfn]
+                                tmpFileDict['type'] = tmpEventInfo['type']
+                                if tmpEventInfo['type'] in ['log', 'output', 'checkpoint']:
+                                    # disable zipping
+                                    tmpFileDict['isZip'] = 0
+                                elif tmpEventInfo['type'] == 'zip_output':
+                                    # already zipped
+                                    tmpFileDict['isZip'] = 1
+                                elif 'isZip' in tmpEventInfo:
+                                    tmpFileDict['isZip'] = tmpEventInfo['isZip']
+                                # guid
+                                if 'guid' in tmpEventInfo:
+                                    tmpFileDict['guid'] = tmpEventInfo['guid']
                                 else:
-                                    sizeMap[pfn] = os.stat(pfn).st_size
-                            tmpFileDict['fsize'] = sizeMap[pfn]
-                            tmpFileDict['type'] = tmpEventInfo['type']
-                            if tmpEventInfo['type'] in ['log', 'output']:
-                                # disable zipping
-                                tmpFileDict['isZip'] = 0
-                            elif tmpEventInfo['type'] == 'zip_output':
-                                # already zipped
-                                tmpFileDict['isZip'] = 1
-                            elif 'isZip' in tmpEventInfo:
-                                tmpFileDict['isZip'] = tmpEventInfo['isZip']
-                            # guid
-                            if 'guid' in tmpEventInfo:
-                                tmpFileDict['guid'] = tmpEventInfo['guid']
-                            else:
-                                tmpFileDict['guid'] = str(uuid.uuid4())
-                            # get checksum
-                            if pfn not in chksumMap:
-                                if 'chksum' in tmpEventInfo:
-                                    chksumMap[pfn] = tmpEventInfo['chksum']
-                                else:
-                                    chksumMap[pfn] = core_utils.calc_adler32(pfn)
-                            tmpFileDict['chksum'] = chksumMap[pfn]
-                            if tmpPandaID not in fileDict:
-                                fileDict[tmpPandaID] = dict()
-                            if lfn not in fileDict[tmpPandaID]:
-                                fileDict[tmpPandaID][lfn] = []
-                            fileDict[tmpPandaID][lfn].append(tmpFileDict)
-                            # skip if unrelated to events
-                            if tmpFileDict['type'] not in ['es_output', 'zip_output']:
-                                continue
-                            tmpFileDict['eventRangeID'] = tmpEventRangeID
+                                    tmpFileDict['guid'] = str(uuid.uuid4())
+                                # get checksum
+                                if pfn not in chksumMap:
+                                    if 'chksum' in tmpEventInfo:
+                                        chksumMap[pfn] = tmpEventInfo['chksum']
+                                    else:
+                                        chksumMap[pfn] = core_utils.calc_adler32(pfn)
+                                tmpFileDict['chksum'] = chksumMap[pfn]
+                                if tmpPandaID not in fileDict:
+                                    fileDict[tmpPandaID] = dict()
+                                if lfn not in fileDict[tmpPandaID]:
+                                    fileDict[tmpPandaID][lfn] = []
+                                fileDict[tmpPandaID][lfn].append(tmpFileDict)
+                                # skip if unrelated to events
+                                if tmpFileDict['type'] not in ['es_output', 'zip_output']:
+                                    continue
+                                tmpFileDict['eventRangeID'] = tmpEventRangeID
                             if tmpPandaID not in eventsList:
                                 eventsList[tmpPandaID] = list()
                             eventsList[tmpPandaID].append({'eventRangeID': tmpEventRangeID,
