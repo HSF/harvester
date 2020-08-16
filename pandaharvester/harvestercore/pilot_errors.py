@@ -362,6 +362,14 @@ class PilotErrors(PilotErrorCodesObj):
                 return k
         return None
 
+    def convertToPilotErrors(self, exit_code):
+        """
+        Convert payload exit code to pilot error code and error dialogue message
+        """
+        pilot_error_code = PilotAux.convert_to_pilot_error_code(exit_code)
+        pilot_error_diag = self.getPilotErrorDiag(pilot_error_code)
+        return pilot_error_code, pilot_error_diag
+
 
 class PilotException(Exception):
 

@@ -10,6 +10,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestermisc.htcondor_utils import condor_job_id_from_workspec, get_host_batchid_map
 from pandaharvester.harvestermisc.htcondor_utils import CondorJobQuery, CondorJobManage
 
@@ -28,6 +29,10 @@ CONDOR_JOB_STATUS_MAP = {
     '6': 'transferring_output',
     '7': 'suspended',
     }
+
+
+# pilot error object
+PILOT_ERRORS = PilotErrors()
 
 
 # Check one worker
@@ -124,22 +129,31 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             elif batchStatus in ['4']:
                 # 4 completed
                 try:
-                    payloadExitCode = str(job_ads_dict['ExitCode'])
+                    payloadExitCode_str = str(job_ads_dict['ExitCode'])
+                    payloadExitCode = int(payloadExitCode_str)
                 except KeyError:
                     errStr = 'cannot get ExitCode of job submissionHost={0} batchID={1}. Regard the worker as failed'.format(workspec.submissionHost, workspec.batchID)
+                    tmpLog.warning(errStr)
+                    newStatus = WorkSpec.ST_failed
+                except ValueError:
+                    errStr = 'got invalid ExitCode {0} of job submissionHost={1} batchID={2}. Regard the worker as failed'.format(payloadExitCode_str, workspec.submissionHost, workspec.batchID)
                     tmpLog.warning(errStr)
                     newStatus = WorkSpec.ST_failed
                 else:
                     # Propagate condor return code
                     workspec.nativeExitCode = payloadExitCode
-                    if payloadExitCode in ['0']:
+                    if payloadExitCode == 0:
                         # Payload should return 0 after successful run
                         newStatus = WorkSpec.ST_finished
                     else:
                         # Other return codes are considered failed
                         newStatus = WorkSpec.ST_failed
-                        errStr = 'Payload execution error: returned non-zero'
+                        errStr = 'Payload execution error: returned non-zero {0}'.format(payloadExitCode)
                         tmpLog.debug(errStr)
+                        # Map return code to Pilot error code
+                        reduced_exit_code = payloadExitCode % 255
+                        pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
+                        workspec.set_pilot_error(pilot_error_code, pilot_error_diag)
                     tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
             else:
                 errStr = 'cannot get reasonable JobStatus of job submissionHost={0} batchID={1}. Regard the worker as failed by default'.format(
