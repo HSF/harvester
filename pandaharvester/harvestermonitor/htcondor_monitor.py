@@ -151,9 +151,11 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                         errStr = 'Payload execution error: returned non-zero {0}'.format(payloadExitCode)
                         tmpLog.debug(errStr)
                         # Map return code to Pilot error code
-                        reduced_exit_code = payloadExitCode % 255
-                        pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
-                        workspec.set_pilot_error(pilot_error_code, pilot_error_diag)
+                        if payloadExitCode > 1:
+                            # Exclude exit code 1 (normally wrapper error when pilot not run)
+                            reduced_exit_code = payloadExitCode % 255
+                            pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
+                            workspec.set_pilot_error(pilot_error_code, pilot_error_diag)
                     tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
             else:
                 errStr = 'cannot get reasonable JobStatus of job submissionHost={0} batchID={1}. Regard the worker as failed by default'.format(
