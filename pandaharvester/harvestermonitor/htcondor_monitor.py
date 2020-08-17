@@ -151,10 +151,9 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                         errStr = 'Payload execution error: returned non-zero {0}'.format(payloadExitCode)
                         tmpLog.debug(errStr)
                         # Map return code to Pilot error code
-                        if payloadExitCode > 1:
-                            # Exclude exit code 1 (normally wrapper error when pilot not run)
-                            reduced_exit_code = payloadExitCode % 255
-                            pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
+                        reduced_exit_code = payloadExitCode // 256 if (payloadExitCode % 256 == 0) else payloadExitCode
+                        pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
+                        if pilot_error_code is not None:
                             workspec.set_pilot_error(pilot_error_code, pilot_error_diag)
                     tmpLog.info('Payload return code = {0}'.format(payloadExitCode))
             else:
