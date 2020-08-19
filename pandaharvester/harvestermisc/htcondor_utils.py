@@ -738,7 +738,8 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
                 errStr = 'no job submitted: {0}'.format(errStr)
                 tmpLog.error(errStr)
         else:
-            tmpLog.error('submission failed: {0} ; {1}'.format(stdErr, errStr))
+            errStr = '{0} ; {1}'.format(stdErr, errStr)
+            tmpLog.error('submission failed: {0}'.format(errStr))
         # Return
         return (batchIDs_list, errStr)
 

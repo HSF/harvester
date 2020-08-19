@@ -80,7 +80,7 @@ class Stager(AgentBase):
                             if fileSpec.status != 'finished':
                                 fileSpec.status = 'failed'
                         errStr = 'stage-out failed with {0}'.format(tmpStr)
-                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                        jobSpec.set_pilot_error(PilotErrors.STAGEOUTFAILED, errStr)
                         jobSpec.trigger_propagation()
                         newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                         tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
@@ -147,7 +147,7 @@ class Stager(AgentBase):
                             if fileSpec.status != 'finished':
                                 fileSpec.status = 'failed'
                         errStr = 'stage-out failed with {0}'.format(tmpStr)
-                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                        jobSpec.set_pilot_error(PilotErrors.STAGEOUTFAILED, errStr)
                         jobSpec.trigger_propagation()
                         newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                         tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
@@ -237,7 +237,7 @@ class Stager(AgentBase):
                             if fileSpec.status == 'zipping':
                                 fileSpec.status = 'failed'
                         errStr = 'zip-output failed with {0}'.format(tmpStr)
-                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                        jobSpec.set_pilot_error(PilotErrors.STAGEOUTFAILED, errStr)
                         jobSpec.trigger_propagation()
                         newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                         tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))
@@ -304,7 +304,7 @@ class Stager(AgentBase):
                                 if fileSpec.status == 'post_zipping':
                                     fileSpec.status = 'failed'
                             errStr = 'post-zipping failed with {0}'.format(tmpStr)
-                            jobSpec.set_pilot_error(PilotErrors.ERR_STAGEOUTFAILED, errStr)
+                            jobSpec.set_pilot_error(PilotErrors.STAGEOUTFAILED, errStr)
                             jobSpec.trigger_propagation()
                             newSubStatus = self.dbProxy.update_job_for_stage_out(jobSpec, True, lockedBy)
                             tmpLog.debug('updated new subStatus={0}'.format(newSubStatus))

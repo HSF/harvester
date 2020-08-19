@@ -217,7 +217,7 @@ class Submitter(AgentBase):
                                                 job_spec.stateChangeTime = timeNow
                                                 job_spec.locked_by = None
                                                 errStr = 'failed to make a worker'
-                                                job_spec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                                job_spec.set_pilot_error(PilotErrors.SETUPFAILURE, errStr)
                                                 job_spec.trigger_propagation()
                                                 self.dbProxy.update_job(job_spec, {'locked_by': locked_by,
                                                                                   'subStatus': 'prepared'})
@@ -318,7 +318,7 @@ class Submitter(AgentBase):
                                                 tmp_log.error(errStr)
                                                 work_spec.set_status(WorkSpec.ST_missed)
                                                 work_spec.set_dialog_message(tmpStr)
-                                                work_spec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                                work_spec.set_pilot_error(PilotErrors.SETUPFAILURE, errStr)
                                                 work_spec.set_pilot_closed()
                                                 if jobList is not None:
                                                     # increment attempt number
