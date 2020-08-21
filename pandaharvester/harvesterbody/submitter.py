@@ -422,7 +422,9 @@ class Submitter(AgentBase):
                                     + sw_main.get_elapsed_time())
             main_log.debug('done')
             # define sleep interval
-            if site_name is None:
+            if site_name is None or \
+                    (hasattr(harvester_config.submitter, 'respectSleepTime') and
+                     harvester_config.submitter.respectSleepTime):
                 sleepTime = harvester_config.submitter.sleepTime
             else:
                 sleepTime = 0

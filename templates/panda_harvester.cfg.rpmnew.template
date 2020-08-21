@@ -600,6 +600,8 @@ lockInterval = 600
 # sleep interval in sec
 sleepTime = 60
 
+# respect sleep time
+respectSleepTime = True
 
 
 
