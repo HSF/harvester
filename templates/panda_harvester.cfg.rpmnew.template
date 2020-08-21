@@ -339,7 +339,8 @@ sleepTime = 60
 # max number of workers per queue to try in one cycle
 maxNewWorkers = 1000
 
-
+# respect sleep time
+respectSleepTime = False
 
 
 ##########################
@@ -599,9 +600,6 @@ lockInterval = 600
 
 # sleep interval in sec
 sleepTime = 60
-
-# respect sleep time
-respectSleepTime = True
 
 
 
