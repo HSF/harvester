@@ -98,6 +98,8 @@ class Preparator(AgentBase):
                                                               'subStatus': oldSubStatus})
                             tmpLog.error('failed to resolve input file paths : {0}'.format(tmpStr))
                             continue
+                        # manipulate container-related job params
+                        jobSpec.manipulate_job_params_for_container()
                         # update job
                         jobSpec.lockedBy = None
                         jobSpec.set_all_input_ready()
