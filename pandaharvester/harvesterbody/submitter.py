@@ -363,7 +363,8 @@ class Submitter(AgentBase):
                                                          'taskID': job_spec.taskID,
                                                          'jobsetID': job_spec.jobParams['jobsetID'],
                                                          'nRanges': max(int(math.ceil(work_spec.nCore / len(jobList))),
-                                                                        job_spec.jobParams['coreCount']),
+                                                                        job_spec.jobParams['coreCount']) * \
+                                                                        queue_config.initEventsMultipler,
                                                          }
                                                     if 'isHPO' in job_spec.jobParams:
                                                         if 'sourceURL' in job_spec.jobParams:

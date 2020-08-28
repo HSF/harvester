@@ -67,6 +67,7 @@ class QueueConfig(object):
         self.prefetchEvents = True
         self.uniqueName = None
         self.configID = None
+        self.initEventsMultipler = 2
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
