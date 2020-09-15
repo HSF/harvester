@@ -152,7 +152,7 @@ class k8s_Client(object):
             for volume in yaml_volumes:
                 # do not overwrite any hardcoded sizeLimit value
                 if volume['name'] == 'pilot-dir' and 'emptyDir' in volume and 'sizeLimit' not in volume['emptyDir']:
-                    maxwdir_prorated_GB = panda_queues_dict.get_prorated_maxwdir_GB(self, work_spec.computingSite, work_spec.nCore)
+                    maxwdir_prorated_GB = panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
                     if maxwdir_prorated_GB:
                         volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
 
