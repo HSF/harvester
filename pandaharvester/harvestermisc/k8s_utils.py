@@ -146,6 +146,16 @@ class k8s_Client(object):
             container_env.setdefault('volumeMounts', [])
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': CONFIG_DIR})
 
+        # if we are running the pilot in a emptyDir with "pilot-dir" name, then set the max size
+        if 'volumes' in yaml_content['spec']['template']['spec']:
+            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+            for volume in yaml_volumes:
+                # do not overwrite any hardcoded sizeLimit value
+                if volume['name'] == 'pilot-dir' and 'emptyDir' in volume and 'sizeLimit' not in volume['emptyDir']:
+                    maxwdir_prorated_GB = panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
+                    if maxwdir_prorated_GB:
+                        volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
+
         # set the affinity
         if 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content)
