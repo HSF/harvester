@@ -128,7 +128,7 @@ class PandaQueuesDict(dict, PluginBase):
     def get_prorated_maxwdir_GB(self, panda_resource, worker_corecount):
         try:
             panda_queue_dict = self.get(panda_resource)
-            maxwdir = panda_queue_dict.get('capability') / 1000  # convert to GB
+            maxwdir = panda_queue_dict.get('maxwdir') / 1000  # convert to GB
             corecount = panda_queue_dict.get('corecount')
             if panda_queue_dict.get('capability') == 'ucore':
                 maxwdir_prorated = maxwdir * worker_corecount / corecount
