@@ -422,6 +422,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         pilotUrlOption=pilot_url_str,
         pilotVersion=pilot_version,
         pilotPythonOption=_get_pilot_python_option(pilot_version),
+        submissionHost=workspec.submissionHost,
+        submissionHostShort=workspec.submissionHost.split('.')[0],
         )
     # save jdl to submit description file
     tmpFile.write(jdl_str)
