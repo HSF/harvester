@@ -11,7 +11,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: atlas-grid-centos7
-          image: atlasadc/atlas-grid-centos7
+          image: §
           env:
             - name: computingSite
               value: "$computingSite"

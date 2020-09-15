@@ -9,7 +9,7 @@ harvesterID = harvester_config.master.harvester_id
 class PandaQueuesDict(dict, PluginBase):
     """
     Dictionary of PanDA queue info from DB by cacher
-    Key is PanDA Resouce name (rather than PanDA Queue name)
+    Key is PanDA Resource name (rather than PanDA Queue name)
     Able to query with either PanDA Queue name or PanDA Resource name
     """
     def __init__(self, **kwarg):
@@ -124,3 +124,18 @@ class PandaQueuesDict(dict, PluginBase):
                 pq_type = 'production'
             workflow = panda_queue_dict.get('workflow')
         return pq_type, workflow
+
+    def get_prorated_maxwdir_GB(self, panda_resource, worker_corecount):
+        try:
+            panda_queue_dict = self.get(panda_resource)
+            maxwdir = panda_queue_dict.get('capability') / 1000  # convert to GB
+            corecount = panda_queue_dict.get('corecount')
+            if panda_queue_dict.get('capability') == 'ucore':
+                maxwdir_prorated = maxwdir * worker_corecount / corecount
+            else:
+                maxwdir_prorated = maxwdir
+        except Exception:
+            maxwdir_prorated = 0
+
+        return maxwdir_prorated
+
