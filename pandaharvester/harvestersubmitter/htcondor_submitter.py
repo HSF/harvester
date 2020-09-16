@@ -218,6 +218,14 @@ def _get_complicated_pilot_options(pilot_type, pilot_url=None):
     return pilot_opt_dict
 
 
+# get special flag of pilot wrapper to run with python 3 if pilot version is "3"
+def _get_pilot_python_option(pilot_version):
+    option = ''
+    if pilot_version in ['3']:
+        option = '-3'
+    return option
+
+
 # submit a bag of workers
 def submit_bag_of_workers(data_list):
     # make logger
@@ -413,6 +421,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         pilotType=pilot_type_opt,
         pilotUrlOption=pilot_url_str,
         pilotVersion=pilot_version,
+        pilotPythonOption=_get_pilot_python_option(pilot_version),
         )
     # save jdl to submit description file
     tmpFile.write(jdl_str)
