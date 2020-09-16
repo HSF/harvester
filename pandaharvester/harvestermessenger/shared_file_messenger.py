@@ -563,6 +563,9 @@ class SharedFileMessenger(BaseMessenger):
         try:
             for workSpec in workspec_list:
                 accessPoint = workSpec.get_access_point()
+                # delete leftover
+                if os.path.exists(accessPoint) and workSpec.isNew:
+                    shutil.rmtree(accessPoint, ignore_errors=True)
                 # make the dir if missing
                 if not os.path.exists(accessPoint):
                     os.makedirs(accessPoint)
