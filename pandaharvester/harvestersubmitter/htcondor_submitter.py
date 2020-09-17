@@ -261,8 +261,8 @@ def submit_bag_of_workers(data_list):
         else:
             workspec.reset_changed_list()
             # fill in host_jdl_list_workerid_map
-            a_jdl = make_a_jdl(**data)
-            val = (workspec, a_jdl)
+            a_jdl, placeholder_map = make_a_jdl(**data)
+            val = (workspec, a_jdl, placeholder_map)
             try:
                 host_jdl_list_workerid_map[workspec.submissionHost].append(val)
             except KeyError:
@@ -288,6 +288,7 @@ def submit_bag_of_workers(data_list):
             for val_i in range(n_workers):
                 val = val_list[val_i]
                 workspec = val[0]
+                placeholder_map = val[2]
                 # got batchID
                 workspec.batchID = batchIDs_list[val_i]
                 tmpLog.debug('workerID={0} submissionHost={1} batchID={2}'.format(
@@ -300,9 +301,9 @@ def submit_bag_of_workers(data_list):
                 # set log
                 batch_log_dict = data['batch_log_dict']
                 (clusterid, procid) = get_job_id_tuple_from_batchid(workspec.batchID)
-                batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid)
-                batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid)
-                batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid)
+                batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
                 try:
                     batch_jdl = '{0}.jdl'.format(batch_stderr[:-4])
                 except Exception:
@@ -384,51 +385,55 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         pilot_url_str = pilot_opt_dict['pilot_url_str']
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
+    # placeholder map
+    placeholder_map = {
+            'sdfPath': tmpFile.name,
+            'executableFile': executable_file,
+            'nCorePerNode': n_core_per_node,
+            'nCoreTotal': n_core_total,
+            'nNode': n_node,
+            'requestRam': request_ram,
+            'requestRamPerCore': request_ram_per_core,
+            'requestDisk': request_disk,
+            'requestWalltime': request_walltime,
+            'requestWalltimeMinute': request_walltime_minute,
+            'requestCputime': request_cputime,
+            'requestCputimeMinute': request_cputime_minute,
+            'accessPoint': workspec.accessPoint,
+            'harvesterID': harvester_config.master.harvester_id,
+            'workerID': workspec.workerID,
+            'computingSite': workspec.computingSite,
+            'pandaQueueName': panda_queue_name,
+            'x509UserProxy': x509_user_proxy,
+            'ceEndpoint': ce_info_dict.get('ce_endpoint', ''),
+            'ceHostname': ce_info_dict.get('ce_hostname', ''),
+            'ceFlavour': ce_info_dict.get('ce_flavour', ''),
+            'ceJobmanager': ce_info_dict.get('ce_jobmanager', ''),
+            'ceQueueName': ce_info_dict.get('ce_queue_name', ''),
+            'ceVersion': ce_info_dict.get('ce_version', ''),
+            'logDir': log_dir,
+            'logSubdir': log_subdir,
+            'gtag': batch_log_dict.get('gtag', 'fake_GTAG_string'),
+            'prodSourceLabel': prod_source_label,
+            'jobType': workspec.jobType,
+            'resourceType': _get_resource_type(workspec.resourceType, is_unified_queue),
+            'pilotResourceTypeOption': _get_resource_type(workspec.resourceType, is_unified_queue, True),
+            'ioIntensity': io_intensity,
+            'pilotType': pilot_type_opt,
+            'pilotUrlOption': pilot_url_str,
+            'pilotVersion': pilot_version,
+            'pilotPythonOption': _get_pilot_python_option(pilot_version),
+            'submissionHost': workspec.submissionHost,
+            'submissionHostShort': workspec.submissionHost.split('.')[0],
+        }
     # fill in template string
-    jdl_str = template.format(
-        sdfPath=tmpFile.name,
-        executableFile=executable_file,
-        nCorePerNode=n_core_per_node,
-        nCoreTotal=n_core_total,
-        nNode=n_node,
-        requestRam=request_ram,
-        requestRamPerCore=request_ram_per_core,
-        requestDisk=request_disk,
-        requestWalltime=request_walltime,
-        requestWalltimeMinute=request_walltime_minute,
-        requestCputime=request_cputime,
-        requestCputimeMinute=request_cputime_minute,
-        accessPoint=workspec.accessPoint,
-        harvesterID=harvester_config.master.harvester_id,
-        workerID=workspec.workerID,
-        computingSite=workspec.computingSite,
-        pandaQueueName=panda_queue_name,
-        x509UserProxy=x509_user_proxy,
-        ceEndpoint=ce_info_dict.get('ce_endpoint', ''),
-        ceHostname=ce_info_dict.get('ce_hostname', ''),
-        ceFlavour=ce_info_dict.get('ce_flavour', ''),
-        ceJobmanager=ce_info_dict.get('ce_jobmanager', ''),
-        ceQueueName=ce_info_dict.get('ce_queue_name', ''),
-        ceVersion=ce_info_dict.get('ce_version', ''),
-        logDir=log_dir,
-        logSubdir=log_subdir,
-        gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
-        prodSourceLabel=prod_source_label,
-        jobType=workspec.jobType,
-        resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
-        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
-        ioIntensity=io_intensity,
-        pilotType=pilot_type_opt,
-        pilotUrlOption=pilot_url_str,
-        pilotVersion=pilot_version,
-        pilotPythonOption=_get_pilot_python_option(pilot_version),
-        )
+    jdl_str = template.format(**placeholder_map)
     # save jdl to submit description file
     tmpFile.write(jdl_str)
     tmpFile.close()
     tmpLog.debug('saved sdf at {0}'.format(tmpFile.name))
     tmpLog.debug('done')
-    return jdl_str
+    return jdl_str, placeholder_map
 
 
 # parse log, stdout, stderr filename
