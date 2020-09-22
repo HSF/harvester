@@ -228,9 +228,11 @@ def _get_complicated_pilot_options(pilot_type, pilot_url=None):
 
 
 # get special flag of pilot wrapper to run with python 3 if pilot version is "3"
-def _get_pilot_python_option(pilot_version):
+# FIXME: during pilot testing phase, only prodsourcelabel ptest and rc_test2 should run python3
+# This constraint will be removed when pilot is ready
+def _get_pilot_python_option(pilot_version, prod_source_label):
     option = ''
-    if pilot_version in ['3']:
+    if pilot_version in ['3'] and prod_source_label in ['rc_test2', 'ptest']:
         option = '-3'
     return option
 
@@ -431,7 +433,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotType': pilot_type_opt,
             'pilotUrlOption': pilot_url_str,
             'pilotVersion': pilot_version,
-            'pilotPythonOption': _get_pilot_python_option(pilot_version),
+            'pilotPythonOption': _get_pilot_python_option(pilot_version, prod_source_label),
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
         }
