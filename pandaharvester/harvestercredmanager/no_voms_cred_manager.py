@@ -16,6 +16,24 @@ class NoVomsCredManager(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
+    # check proxy lifetime for monitoring/alerting purposes
+    def check_credential_lifetime(self):
+        main_log = self.make_logger(_logger, method_name='check_credential_lifetime')
+        lifetime = None
+        try:
+            command_str = "voms-proxy-info -timeleft -file {0}".format(self.outCertFile)
+            p = subprocess.Popen(command_str.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            return_code = p.returncode
+            main_log.debug('retCode={0} stdout={1} stderr={2}'.format(return_code, stdout, stderr))
+            if return_code == 0:  # OK
+                lifetime = int(stdout) / 3600
+        except Exception:
+            core_utils.dump_error_message(main_log)
+
+        main_log.debug('returning lifetime {0}'.format(lifetime))
+        return lifetime
+
     # check proxy
     def check_credential(self):
         # make logger

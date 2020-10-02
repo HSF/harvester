@@ -12,6 +12,8 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.service_metrics_spec import ServiceMetricSpec
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvesterbody.cred_manager import CredManager
 
 # logger
 _logger = core_utils.setup_logger('service_monitor')
@@ -37,6 +39,8 @@ class ServiceMonitor(AgentBase):
         self.children = self.master_process.children(recursive=True)
 
         self.cpu_count = multiprocessing.cpu_count()
+        self.queue_config_mapper = QueueConfigMapper()
+        self.cred_manager = CredManager(self.queue_config_mapper, single_mode=True)
 
     def get_master_pid(self):
         """
@@ -122,6 +126,14 @@ class ServiceMonitor(AgentBase):
 
         return used_amount_float
 
+    def cert_validities(self):
+        try:
+            cert_validities = self.cred_manager.execute_monit()
+            return cert_validities
+        except Exception:
+            _logger.error('Could not extract ')
+            return {}
+
     # main loop
     def run(self):
         while True:
@@ -145,6 +157,12 @@ class ServiceMonitor(AgentBase):
                 volume_use = self.volume_use(volume)
                 _logger.debug('Disk usage of {0}: {1} %'.format(volume, volume_use))
                 service_metrics['volume_{0}_pc'.format(volume)] = volume_use
+
+            # get certificate validities. Not all plugins have implemented it
+            cert_validities = self.cert_validities()
+            for cert in cert_validities:
+                _logger.debug('Cert validity for {0}: {1}'.format(cert, cert_validities[cert]))
+                service_metrics['cert_lifetime_{0}'.format(cert)] = cert_validities[cert]
 
             service_metrics_spec = ServiceMetricSpec(service_metrics)
             self.db_proxy.insert_service_metrics(service_metrics_spec)
