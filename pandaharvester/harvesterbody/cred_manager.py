@@ -206,10 +206,12 @@ class CredManager(AgentBase):
     def execute_monit(self):
         self.update_cores_from_queue_config()
 
+        mainLog = self.make_logger(_logger, '{0}'.format(exeCore.__class__.__name__), method_name='execute_monit')
         # get lock
         lock = self.dbProxy.get_process_lock('credmanager', self.get_pid(), harvester_config.credmanager.sleepTime)
         if not lock:
-            return
+            mainLog.debug('Could not get lock')
+            return {}
 
         metrics = {}
         # loop over all plugins
@@ -224,16 +226,16 @@ class CredManager(AgentBase):
             else:
                 credmanager_name = '{0} {1}'.format(exeCore.inCertFile, exeCore.outCertFile)
 
-            mainLog = self.make_logger(_logger, '{0} {1}'.format(exeCore.__class__.__name__, credmanager_name),
+            subLog = self.make_logger(_logger, '{0} {1}'.format(exeCore.__class__.__name__, credmanager_name),
                                        method_name='execute_monit')
             try:
                 # check credential
-                mainLog.debug('check credential lifetime')
+                subLog.debug('check credential lifetime')
                 lifetime = exeCore.check_credential_lifetime()
                 if lifetime is not None:
                     metrics[exeCore.outCertFile] = lifetime
             except Exception:
-                core_utils.dump_error_message(mainLog)
+                core_utils.dump_error_message(subLog)
 
-            mainLog.debug('done')
+            subLog.debug('done')
             return metrics
