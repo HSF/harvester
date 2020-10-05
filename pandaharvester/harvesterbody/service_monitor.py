@@ -159,9 +159,11 @@ class ServiceMonitor(AgentBase):
                 service_metrics['volume_{0}_pc'.format(volume)] = volume_use
 
             # get certificate validities. Not all plugins have implemented it
+            _logger.debug('Getting cert validities')
             cert_validities = self.cert_validities()
+            _logger.debug('Got cert validities: {0}'.format(cert_validities))
             for cert in cert_validities:
-                _logger.debug('Cert validity for {0}: {1}'.format(cert, cert_validities[cert]))
+                # _logger.debug('Cert validity for {0}: {1}'.format(cert, cert_validities[cert]))
                 service_metrics['cert_lifetime_{0}'.format(cert)] = cert_validities[cert]
 
             service_metrics_spec = ServiceMetricSpec(service_metrics)
