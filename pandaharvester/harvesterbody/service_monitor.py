@@ -165,7 +165,7 @@ class ServiceMonitor(AgentBase):
             service_metrics['cert_lifetime'] = {}
             for cert in cert_validities:
                 # _logger.debug('Cert validity for {0}: {1}'.format(cert, cert_validities[cert]))
-                service_metrics['cert_lifetime']['cert_lifetime_{0}'.format(cert)] = cert_validities[cert]
+                service_metrics['cert_lifetime'][cert] = cert_validities[cert]
 
             service_metrics_spec = ServiceMetricSpec(service_metrics)
             self.db_proxy.insert_service_metrics(service_metrics_spec)
