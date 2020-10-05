@@ -206,13 +206,6 @@ class CredManager(AgentBase):
     def execute_monit(self):
         self.update_cores_from_queue_config()
 
-        mainLog = self.make_logger(_logger, '{0}'.format(exeCore.__class__.__name__), method_name='execute_monit')
-        # get lock
-        lock = self.dbProxy.get_process_lock('credmanager', self.get_pid(), harvester_config.credmanager.sleepTime)
-        if not lock:
-            mainLog.debug('Could not get lock')
-            return {}
-
         metrics = {}
         # loop over all plugins
         for exeCore in itertools.chain(self.exeCores, self.queue_exe_cores):
