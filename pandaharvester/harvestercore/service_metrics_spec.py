@@ -12,7 +12,7 @@ class ServiceMetricSpec(SpecBase):
     # attributes
     attributesWithTypes = ('creationTime:timestamp / index',
                            'hostName:text',
-                           'metrics:text',
+                           'metrics:blob',
                            )
 
     # constructor
