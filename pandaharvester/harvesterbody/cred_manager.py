@@ -232,4 +232,4 @@ class CredManager(AgentBase):
 
             subLog.debug('done')
 
-        return metrics
+            return metrics
