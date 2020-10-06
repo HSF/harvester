@@ -21,4 +21,4 @@ class ServiceMetricSpec(SpecBase):
 
         self.creationTime = datetime.datetime.utcnow()
         self.hostName = socket.getfqdn()
-        self.metrics = json.dumps(service_metrics)
+        self.metrics = service_metrics  # blobs are automatically translated to json
