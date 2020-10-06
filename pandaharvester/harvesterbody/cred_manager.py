@@ -231,4 +231,5 @@ class CredManager(AgentBase):
                 core_utils.dump_error_message(subLog)
 
             subLog.debug('done')
-            return metrics
+
+        return metrics
