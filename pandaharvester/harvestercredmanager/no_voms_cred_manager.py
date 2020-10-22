@@ -72,13 +72,14 @@ class NoVomsCredManager(PluginBase):
         if self.voms is not None:
             voms_option = '-voms {0}'.format(self.voms)
         # generate proxy with a long lifetime proxy (default) or from key/cert pair
-        noregen_option = '-noregen'
-        usercert_value = self.inCertFile
-        userkey_value = self.inCertFile
         if self.genFromKeyCert:
             noregen_option = ''
             usercert_value = self.cert
             userkey_value = self.key
+        else:
+            noregen_option = '-noregen'
+            usercert_value = self.inCertFile
+            userkey_value = self.inCertFile
         # command
         comStr = "voms-proxy-init -rfc {noregen_option} {voms_option} -out {out} -valid 96:00 -cert={cert} -key={key}".format(
                                                                                                             noregen_option=noregen_option,
