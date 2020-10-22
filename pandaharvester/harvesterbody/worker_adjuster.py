@@ -215,11 +215,11 @@ class WorkerAdjuster(object):
                             simple_rt_nw_list = []
                             for job_type in _d: # jt: job type
                                 for resource_type in _d[job_type]:  # rt: resource type
-                                    simple_rt_nw_list.append([resource_type, _d[job_type][resource_type].get('nNewWorkers', 0), 0])
+                                    simple_rt_nw_list.append([(resource_type, job_type), _d[job_type][resource_type].get('nNewWorkers', 0), 0])
 
                             _countdown = n_new_workers_max_agg
                             for _rt_list in simple_rt_nw_list:
-                                resource_type, n_new_workers_orig, _r = _rt_list
+                                (resource_type, job_type), n_new_workers_orig, _r = _rt_list
                                 n_new_workers, remainder = divmod(n_new_workers_orig * n_new_workers_max_agg,
                                                                   total_new_workers_rts)
                                 dyn_num_workers[queue_name][job_type].setdefault(resource_type,
@@ -230,7 +230,7 @@ class WorkerAdjuster(object):
                                 _countdown -= n_new_workers
                             _s_list = sorted(simple_rt_nw_list, key=(lambda x: x[1]))
                             sorted_rt_nw_list = sorted(_s_list, key=(lambda x: x[2]), reverse=True)
-                            for resource_type, n_new_workers_orig, remainder in sorted_rt_nw_list:
+                            for (resource_type, job_type), n_new_workers_orig, remainder in sorted_rt_nw_list:
                                 if _countdown <= 0:
                                     break
                                 dyn_num_workers[queue_name][job_type][resource_type]['nNewWorkers'] += 1
