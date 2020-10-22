@@ -15,6 +15,14 @@ class NoVomsCredManager(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
+        # make logger
+        main_log = self.make_logger(_logger, method_name='__init__')
+        # set up with direct attributes
+        self.setupMap = dict(vars(self))
+        # setupMap
+        self.genFromKeyCert = self.setupMap.get('genFromKeyCert')
+        self.key = self.setupMap.get('key')
+        self.cert = self.setupMap.get('cert')
 
     # check proxy lifetime for monitoring/alerting purposes
     def check_credential_lifetime(self):
@@ -30,16 +38,18 @@ class NoVomsCredManager(PluginBase):
                 lifetime = int(stdout) / 3600
         except Exception:
             core_utils.dump_error_message(main_log)
-
-        main_log.debug('returning lifetime {0}'.format(lifetime))
+        if isinstance(lifetime, float):
+            main_log.debug('returning lifetime {0:.3f}'.format(lifetime))
+        else:
+            main_log.debug('returning lifetime {0}'.format(lifetime))
         return lifetime
 
     # check proxy
     def check_credential(self):
         # make logger
-        mainLog = self.make_logger(_logger, method_name='check_credential')
+        main_log = self.make_logger(_logger, method_name='check_credential')
         comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
-        mainLog.debug(comStr)
+        main_log.debug(comStr)
         try:
             p = subprocess.Popen(comStr.split(),
                                  shell=False,
@@ -48,19 +58,35 @@ class NoVomsCredManager(PluginBase):
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
         except Exception:
-            core_utils.dump_error_message(mainLog)
+            core_utils.dump_error_message(main_log)
             return False
-        mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
+        main_log.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
         return retCode == 0
 
     # renew proxy
     def renew_credential(self):
         # make logger
-        mainLog = self.make_logger(_logger, method_name='renew_credential')
-        comStr = "voms-proxy-init -rfc -noregen -voms {0} -out {1} -valid 96:00 -cert={2} -key={2}".format(self.voms,
-                                                                                                           self.outCertFile,
-                                                                                                           self.inCertFile)
-        mainLog.debug(comStr)
+        main_log = self.make_logger(_logger, method_name='renew_credential')
+        # voms or no-voms
+        voms_option = ''
+        if self.voms is not None:
+            voms_option = '-voms {0}'.format(self.voms)
+        # generate proxy with a long lifetime proxy (default) or from key/cert pair
+        noregen_option = '-noregen'
+        usercert_value = self.inCertFile
+        userkey_value = self.inCertFile
+        if self.genFromKeyCert:
+            noregen_option = ''
+            usercert_value = self.cert
+            userkey_value = self.key
+        # command
+        comStr = "voms-proxy-init -rfc {noregen_option} {voms_option} -out {out} -valid 96:00 -cert={cert} -key={key}".format(
+                                                                                                            noregen_option=noregen_option,
+                                                                                                            voms_option=voms_option,
+                                                                                                            out=self.outCertFile,
+                                                                                                            cert=usercert_value,
+                                                                                                            key=userkey_value)
+        main_log.debug(comStr)
         try:
             p = subprocess.Popen(comStr.split(),
                                  shell=False,
@@ -68,9 +94,9 @@ class NoVomsCredManager(PluginBase):
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
+            main_log.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
         except Exception:
             stdOut = ''
-            stdErr = core_utils.dump_error_message(mainLog)
+            stdErr = core_utils.dump_error_message(main_log)
             retCode = -1
         return retCode == 0, "{0} {1}".format(stdOut, stdErr)
