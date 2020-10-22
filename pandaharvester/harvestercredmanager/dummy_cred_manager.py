@@ -1,12 +1,12 @@
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_cred_manager import BaseCredManager
 
 
 # dummy credential manager
-class DummyCredManager(PluginBase):
+class DummyCredManager(BaseCredManager):
 
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseCredManager.__init__(self, **kwarg)
 
     # check proxy
     def check_credential(self):

@@ -3,7 +3,7 @@ try:
 except Exception:
     import subprocess
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 
 # logger
@@ -11,10 +11,10 @@ _logger = core_utils.setup_logger('no_voms_cred_manager')
 
 
 # credential manager with no-voms proxy
-class NoVomsCredManager(PluginBase):
+class NoVomsCredManager(BaseCredManager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseCredManager.__init__(self, **kwarg)
         # make logger
         main_log = self.make_logger(_logger, method_name='__init__')
         # set up with direct attributes
