@@ -747,7 +747,11 @@ keepCancelled = 72
 # duration in hours to keep missed workers
 keepMissed = 24
 
+# disk cleaning interval in hours
+#diskCleanUpInterval = 1
 
+# comma-concatenated list of directory_name|high_watermark to be cleaned up
+#diskHighWatermark = /dir1/subdir1|1000,/dir2/subdir2|500
 
 
 

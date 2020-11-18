@@ -5544,3 +5544,33 @@ class DBProxy(object):
             core_utils.dump_error_message(_logger)
             # return
             return None
+
+    # get all active input files
+    def get_all_active_input_files(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger,
+                                            method_name='get_all_active_input_files')
+            tmpLog.debug('start')
+            # sql to get files
+            sqlF = "SELECT lfn FROM {0} ".format(fileTableName)
+            sqlF += "WHERE fileType IN (:type1,:type2) "
+            # get files
+            varMap = dict()
+            varMap[':type1'] = 'input'
+            varMap[':type2'] = FileSpec.AUX_INPUT
+            self.execute(sqlF, varMap)
+            ret = set()
+            for lfn, in self.cur.fetchall():
+                ret.add(lfn)
+            # commit
+            self.commit()
+            tmpLog.debug('got {0} files'.format(len(ret)))
+            return ret
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return set()
