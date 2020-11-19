@@ -199,11 +199,11 @@ class Sweeper(AgentBase):
                             if total_size < watermark:
                                 mainLog.debug(
                                     'skip cleanup {0} due to total_size {1} GB < watermark {2} GB'.format(
-                                        dir_name, total_size//(10**9), watermark))
+                                        dir_name, total_size//(10**9), watermark//(10**9)))
                             else:
                                 mainLog.debug(
                                     'cleanup {0} due to total_size {1} GB >= watermark {2} GB'.format(
-                                        dir_name, total_size//(10**9), watermark))
+                                        dir_name, total_size//(10**9), watermark//(10**9)))
                                 # get active input files
                                 if all_active_files is None:
                                     all_active_files = self.dbProxy.get_all_active_input_files()
