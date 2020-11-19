@@ -751,7 +751,7 @@ keepMissed = 24
 #diskCleanUpInterval = 1
 
 # comma-concatenated list of directory_name|high_watermark_in_GB to be cleaned up
-#diskHighWatermark = /dir1/subdir1|1000,/dir2/subdir2|500
+#diskHighWatermark = /dir1/subdir1|1000,/dir2/subdir2|5000
 
 
 
