@@ -375,3 +375,123 @@ class k8s_Client(object):
             raise
         else:
             return rsp
+
+    def fill_hpo_head_container_template(work_spec, image=None, name=None, executable=None, args=None):
+
+        # set the container_template image
+        if not image:
+            image = "fbarreir/horovod-cpu:latest"
+
+        if 'command' not in container_template:
+            container_template['command'] = executable
+            container_template['args'] = args
+
+        resources = client.V1ResourceRequirements(requests={"cpu": "200m", "memory": "200Mi"},
+                                                  limits={"cpu": "300m", "memory": "400Mi"})
+
+        env = [client.V1EnvVar(name='computingSite', value=work_spec.computingSite),
+               client.V1EnvVar(name='SHARED_DIR', value='/root/shared')]
+
+        # Attach config-map containing job details
+        configmap_mount = client.V1VolumeMount(name='job-config', mount_path=CONFIG_DIR)
+
+        # Attach secret with proxy
+        secret_mount = client.V1VolumeMount(name='proxy-secret', mount_path='proxy')
+
+        # Attach shared volume between pilot and evaluation containers
+        shared_mount = client.V1VolumeMount(name='shared-dir', mount_path=SHARED_DIR)
+
+        container = client.V1Container(name=name, image=image, resources=resources, env=env,
+                                       volume_mounts=[configmap_mount, secret_mount, shared_mount])
+
+        return container
+
+    def create_horovod_head(self, work_spec, prod_source_label, container_image, executable, args,
+                            cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_head')
+        worker_id = work_spec.workerID
+
+        # TODO: check the return codes
+        if not self.create_configmap(work_spec):
+            return False, None
+
+        # set the worker name
+        yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(worker_id)
+
+        # fill the container details: one pilot container and one evaluation container. Other containers will be deleted
+        yaml_containers = yaml_content['spec']['template']['spec']['containers']
+
+        # generate pilot and evaluation container
+        pilot_container = fill_hpo_head_container_template(yaml_containers[0], work_spec, name='pilot')
+        evaluation_container = fill_hpo_head_container_template(yaml_containers[1], work_spec, name='evaluation')
+
+        # generate secret, configmap and shared directory volumes
+        # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Volume.md
+        proxy_secret = client.V1Volume(name='proxy-secret',
+                                       secret=client.V1SecretVolumeSource(secret_name='proxy-secret'))
+        config_map = client.V1Volume(name='job-config',
+                                     config_map=client.V1ConfigMapVolumeSource(name=worker_id))
+        shared_dir = client.V1Volume(name='shared-dir',
+                                     empty_dir=client.V1EmptyDirVolumeSource())
+
+        # create the pod spec with the containers and volumes
+        # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodSpec.md
+        max_time = 4 * 24 * 23600
+        spec = client.V1PodSpec(containers=[pilot_container, evaluation_container],
+                                volumes=[proxy_secret, config_map, shared_dir],
+                                active_deadline_seconds=max_time)
+
+        pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='horovod-head', labels={'app': 'horovod-head'}))
+
+        tmp_log.debug('creating pod {0}'.format(pod))
+        tmp_log.debug('{0}'.format(yaml.dump(yaml_content, default_flow_style=False, allow_unicode=True, encoding=None)))
+
+        rsp = self.corev1.create_namespaced_pod(body=yaml_content, namespace=self.namespace)
+        return rsp
+
+    def create_horovod_workers(self, work_spec, prod_source_label, container_image,  executable, args,
+                               cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_workers')
+
+        worker_id = str(work_spec.workerID)
+        deployment_name = "horovod_workers-{0}".format(worker_id)
+
+        resources = client.V1ResourceRequirements(requests={"cpu": "200m", "memory": "200Mi"},
+                                                  limits={"cpu": "300m", "memory": "400Mi"})
+
+        container = client.V1Container(name="horovod-worker", image="fbarreir/horovod-cpu:latest", resources=resources)
+
+        max_time = 4 * 24 * 23600
+        pod_spec = client.V1PodSpec(containers=[container], active_deadline_seconds=max_time)
+
+        template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "horovod-workers"}),
+                                            spec=pod_spec)
+
+        spec = client.V1DeploymentSpec(replicas=2, template=template,
+                                       selector={"matchLabels": {"app": "horovod-workers"}})
+
+        deployment = client.V1Deployment(api_version="apps/v1", kind="Deployment",
+                                         metadata=client.V1ObjectMeta(name=deployment_name), spec=spec)
+
+        tmp_log.debug('creating deployment {0}'.format(deployment))
+        tmp_log.debug('{0}'.format(yaml.dump(deployment, default_flow_style=False, allow_unicode=True, encoding=None)))
+
+        rsp = self.corev1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
+        return rsp
+
+    def create_horovod_deployments(work_spec, prod_source_label, container_image, executable, args, cert,
+                                   cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+
+        rsp = self.create_horovod_head(work_spec, prod_source_label, container_image, executable, args,
+                                       cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
+        if not rsp:
+            return rsp
+
+        rsp = self.create_horovod_workers(self, work_spec, prod_source_label, container_image,  executable, args,
+                                          cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
+        if not rsp:
+            return rsp
+
+        return True

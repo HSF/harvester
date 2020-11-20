@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: horovod-workers
+  labels:
+    app: horovod-workers
+spec:
+  template:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: horovod-workers
+      template:
+        metadata:
+          labels:
+            app: horovod-workers
+        spec:
+          containers:
+          - name: horovod-cpu
+            image: "fbarreir/horovod-cpu:latest"
+            command: ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
