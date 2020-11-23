@@ -17,6 +17,7 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
+SHARED_DIR = '/root/shared/'
 
 
 class k8s_Client(object):
@@ -152,7 +153,8 @@ class k8s_Client(object):
             for volume in yaml_volumes:
                 # do not overwrite any hardcoded sizeLimit value
                 if volume['name'] == 'pilot-dir' and 'emptyDir' in volume and 'sizeLimit' not in volume['emptyDir']:
-                    maxwdir_prorated_GB = panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
+                    maxwdir_prorated_GB = panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite,
+                                                                                    work_spec.nCore)
                     if maxwdir_prorated_GB:
                         volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
 
@@ -330,7 +332,8 @@ class k8s_Client(object):
         return rsp
 
     def create_configmap(self, work_spec):
-        # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
+        # useful guide:
+        # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
 
@@ -376,15 +379,15 @@ class k8s_Client(object):
         else:
             return rsp
 
-    def fill_hpo_head_container_template(work_spec, image=None, name=None, executable=None, args=None):
+    def fill_hpo_head_container_template(self, work_spec, image=None, name=None):
 
         # set the container_template image
         if not image:
             image = "fbarreir/horovod-cpu:latest"
 
-        if 'command' not in container_template:
-            container_template['command'] = executable
-            container_template['args'] = args
+        # if 'command' not in container_template:
+        #    container_template['command'] = executable
+        #    container_template['args'] = args
 
         resources = client.V1ResourceRequirements(requests={"cpu": "200m", "memory": "200Mi"},
                                                   limits={"cpu": "300m", "memory": "400Mi"})
@@ -416,15 +419,9 @@ class k8s_Client(object):
         if not self.create_configmap(work_spec):
             return False, None
 
-        # set the worker name
-        yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(worker_id)
-
-        # fill the container details: one pilot container and one evaluation container. Other containers will be deleted
-        yaml_containers = yaml_content['spec']['template']['spec']['containers']
-
         # generate pilot and evaluation container
-        pilot_container = fill_hpo_head_container_template(yaml_containers[0], work_spec, name='pilot')
-        evaluation_container = fill_hpo_head_container_template(yaml_containers[1], work_spec, name='evaluation')
+        pilot_container = self.fill_hpo_head_container_template(work_spec, name='pilot')
+        evaluation_container = self.fill_hpo_head_container_template(work_spec, name='evaluation')
 
         # generate secret, configmap and shared directory volumes
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Volume.md
@@ -445,12 +442,11 @@ class k8s_Client(object):
         pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='horovod-head', labels={'app': 'horovod-head'}))
 
         tmp_log.debug('creating pod {0}'.format(pod))
-        tmp_log.debug('{0}'.format(yaml.dump(yaml_content, default_flow_style=False, allow_unicode=True, encoding=None)))
 
-        rsp = self.corev1.create_namespaced_pod(body=yaml_content, namespace=self.namespace)
+        rsp = self.corev1.create_namespaced_pod(body=pod, namespace=self.namespace)
         return rsp
 
-    def create_horovod_workers(self, work_spec, prod_source_label, container_image,  executable, args,
+    def create_horovod_workers(self, work_spec, prod_source_label, container_image,  command,
                                cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_workers')
@@ -481,15 +477,16 @@ class k8s_Client(object):
         rsp = self.corev1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
 
-    def create_horovod_deployments(work_spec, prod_source_label, container_image, executable, args, cert,
-                                   cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+    def create_horovod_deployments(self, work_spec, prod_source_label, container_image, evaluation_command,
+                                   pilot_command, worker_command, cert, cpu_adjust_ratio=100, memory_adjust_ratio=100,
+                                   max_time=None):
 
-        rsp = self.create_horovod_head(work_spec, prod_source_label, container_image, executable, args,
+        rsp = self.create_horovod_head(work_spec, prod_source_label, container_image, evaluation_command, pilot_command,
                                        cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_workers(self, work_spec, prod_source_label, container_image,  executable, args,
+        rsp = self.create_horovod_workers(self, work_spec, prod_source_label, container_image, worker_command,
                                           cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp

@@ -16,14 +16,17 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # logger
-base_logger = core_utils.setup_logger('k8s_submitter')
+base_logger = core_utils.setup_logger('horovod_k8s_submitter')
 
 # image defaults
-DEF_IMAGE = 'fbarreir/horovod'
+DEF_IMAGE = 'fbarreir/horovod-cpu:latest'
 
 # command defaults
-DEF_COMMAND = ["/usr/bin/bash"]
-DEF_ARGS = ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
+DEF_EVALUATION_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
+
+DEF_PILOT_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
+
+DEF_WORKER_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
 
 
 class HorovodSubmitter(PluginBase):
@@ -97,6 +100,9 @@ class HorovodSubmitter(PluginBase):
 
         return None, None
 
+    def get_container_image(self, job_fields):
+        return job_fields.get('container_name', DEF_IMAGE)
+
     def _choose_proxy(self, workspec, is_grandly_unified_queue):
         """
         Choose the proxy based on the job type and whether k8s secrets are enabled
@@ -147,9 +153,16 @@ class HorovodSubmitter(PluginBase):
                 tmp_log.warning('Could not retrieve maxtime field for queue {0}'.format(self.queueName))
                 max_time = None
 
+            # figure out image and command details
+            container_image = self.get_container_image(job_fields)
+            evaluation_command = DEF_EVALUATION_COMMAND
+            pilot_command = DEF_PILOT_COMMAND
+            worker_command = DEF_WORKER_COMMAND
+
             # submit the worker
-            rsp = self.k8s_client.create_horovod_deployments(work_spec, prod_source_label, container_image, executable,
-                                                             args, cert, cpu_adjust_ratio=self.cpuAdjustRatio,
+            rsp = self.k8s_client.create_horovod_deployments(work_spec, prod_source_label, container_image,
+                                                             evaluation_command, pilot_command, worker_command,
+                                                             cert, cpu_adjust_ratio=self.cpuAdjustRatio,
                                                              memory_adjust_ratio=self.memoryAdjustRatio,
                                                              max_time=max_time)
         except Exception as _e:
@@ -157,7 +170,7 @@ class HorovodSubmitter(PluginBase):
             err_str = 'Failed to create a deployment; {0}'.format(_e)
             tmp_return_value = (False, err_str)
         else:
-            work_spec.batchID = yaml_content['metadata']['name']
+            work_spec.batchID = rsp.metadata.name
             tmp_log.debug('Created deployment {0}'.format(work_spec.workerID, work_spec.batchID))
             tmp_return_value = (True, '')
 
