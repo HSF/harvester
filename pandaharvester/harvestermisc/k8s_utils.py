@@ -487,8 +487,9 @@ class k8s_Client(object):
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_workers(self, work_spec, prod_source_label, container_image, worker_command,
+        rsp = self.create_horovod_workers(work_spec, prod_source_label, container_image, worker_command,
                                           cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
+
         if not rsp:
             return rsp
 
