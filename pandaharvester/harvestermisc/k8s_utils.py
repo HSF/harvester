@@ -29,6 +29,7 @@ class k8s_Client(object):
         self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
+        self.appv1 = client.AppsV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
 
     def read_yaml_file(self, yaml_file):
@@ -475,7 +476,7 @@ class k8s_Client(object):
         tmp_log.debug('creating deployment {0}'.format(deployment))
         tmp_log.debug('{0}'.format(yaml.dump(deployment, default_flow_style=False, allow_unicode=True, encoding=None)))
 
-        rsp = self.corev1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
+        rsp = self.appv1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
 
     def create_horovod_deployments(self, work_spec, prod_source_label, container_image, evaluation_command,
