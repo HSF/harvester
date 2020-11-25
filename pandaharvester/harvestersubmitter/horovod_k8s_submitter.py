@@ -19,7 +19,7 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 base_logger = core_utils.setup_logger('horovod_k8s_submitter')
 
 # image defaults
-DEF_IMAGE = 'fbarreir/horovod-cpu:latest'
+DEF_IMAGE = 'fbarreir/horovod:latest'
 
 # command defaults
 DEF_EVALUATION_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
