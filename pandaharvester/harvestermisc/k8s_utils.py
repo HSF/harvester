@@ -439,7 +439,8 @@ class k8s_Client(object):
                                 volumes=[proxy_secret, config_map, shared_dir],
                                 active_deadline_seconds=max_time)
 
-        pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='horovod-head', labels={'app': 'horovod-head'}))
+        pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='horovod-head-{0}'.format(worker_id),
+                                                                   labels={'app': 'horovod-head-{0}'.format(worker_id)}))
 
         tmp_log.debug('creating pod {0}'.format(pod))
 
