@@ -454,15 +454,15 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_workers')
 
         worker_id = str(work_spec.workerID)
-        deployment_name = "horovod_workers-{0}".format(worker_id)
+        deployment_name = "horovod-workers-{0}".format(worker_id)
 
         resources = client.V1ResourceRequirements(requests={"cpu": "200m", "memory": "200Mi"},
                                                   limits={"cpu": "300m", "memory": "400Mi"})
 
         container = client.V1Container(name="horovod-worker", image="fbarreir/horovod-cpu:latest", resources=resources)
 
-        max_time = 4 * 24 * 23600
-        pod_spec = client.V1PodSpec(containers=[container], active_deadline_seconds=max_time)
+        # max_time = 4 * 24 * 23600
+        pod_spec = client.V1PodSpec(containers=[container]) #, active_deadline_seconds=max_time)
 
         template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "horovod-workers"}),
                                             spec=pod_spec)
