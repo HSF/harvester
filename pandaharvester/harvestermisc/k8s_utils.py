@@ -413,7 +413,7 @@ class k8s_Client(object):
                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_head')
-        worker_id = work_spec.workerID
+        worker_id = str(work_spec.workerID)
 
         # TODO: check the return codes
         if not self.create_configmap(work_spec):
