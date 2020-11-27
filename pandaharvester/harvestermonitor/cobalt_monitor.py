@@ -44,7 +44,8 @@ class CobaltMonitor (PluginBase):
             p = subprocess.Popen(comStr.split(),
                                  shell=False,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE,
+                                 text=True)
             oldStatus = workSpec.status
             newStatus = None
             # first check return code
