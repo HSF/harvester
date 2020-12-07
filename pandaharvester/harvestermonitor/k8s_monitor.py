@@ -68,7 +68,7 @@ class K8sMonitor(PluginBase):
                                 state = 'waiting'
                             msg_str = 'container not terminated yet ({0}) while pod Succeeded'.format(state)
                         elif item.terminated.reason != 'Completed':
-                            msg_str = 'container termiated by k8s for reason {0}'.format(item.terminated.reason)
+                            msg_str = 'container terminated by k8s for reason {0}'.format(item.terminated.reason)
                         sub_mesg_list.append(msg_str)
                     sub_msg = ';'.join(sub_mesg_list)
                     new_status = WorkSpec.ST_cancelled
@@ -89,7 +89,6 @@ class K8sMonitor(PluginBase):
         # initialization
         job_id = workspec.batchID
         err_str = ''
-        time_now = datetime.datetime.utcnow()
         pods_status_list = []
         pods_name_to_delete_list = []
 
@@ -99,8 +98,7 @@ class K8sMonitor(PluginBase):
             pods_sup_diag_list = []
             for pods_info in pods_list:
                 # make a list of pods that have been queued too long
-                if pods_info['status'] in ['Pending', 'Unknown'] and pods_info['start_time'] \
-                        and time_now - pods_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
+                if self.k8s_client.pod_queued_too_long(pods_info, self.podQueueTimeLimit):
                     # fetch queuing too long pods
                     pods_name_to_delete_list.append(pods_info['name'])
                 # make list of status of the pods belonging to our job
@@ -136,6 +134,7 @@ class K8sMonitor(PluginBase):
                         deleted_pods_list.append(item['name'])
                 tmp_log.debug('Deleted pods queuing too long: {0}'.format(
                                 ','.join(deleted_pods_list)))
+
             # supplemental diag messages
             sup_error_code = WorkerErrors.error_codes.get('GENERAL_ERROR') if err_str else WorkerErrors.error_codes.get('SUCCEEDED')
             sup_error_diag = 'PODs=' + ','.join(pods_sup_diag_list) + ' ; ' + err_str

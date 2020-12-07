@@ -6,6 +6,7 @@ import os
 import copy
 import base64
 import yaml
+import datetime
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -18,7 +19,10 @@ base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
 SHARED_DIR = '/root/shared/'
+HOROVOD_WORKER_TAG = 'horovod-workers'
+HOROVOD_HEAD_TAG = 'horovod-head'
 
+QUEUED_STATES = ['Pending', 'Unknown']
 
 class k8s_Client(object):
 
@@ -31,6 +35,13 @@ class k8s_Client(object):
         self.batchv1 = client.BatchV1Api()
         self.appv1 = client.AppsV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
+
+    def pod_queued_too_long(self, pod, queue_limit):
+        time_now = datetime.datetime.utcnow()
+        if pod['status'] in QUEUED_STATES and pod['start_time'] \
+                and time_now - pod['start_time'] > datetime.timedelta(seconds=queue_limit):
+            return True
+        return False
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
@@ -178,7 +189,7 @@ class k8s_Client(object):
         if workspec_list:
             batch_ids_list = [workspec.batchID for workspec in workspec_list if workspec.batchID]
             batch_ids_concat = ','.join(batch_ids_list)
-            label_selector = 'job-name in ({0})'.format(batch_ids_concat)
+            label_selector = '{0} in ({1})'.format('job-name', batch_ids_concat)
         else:
             label_selector = ''
 
@@ -384,7 +395,7 @@ class k8s_Client(object):
 
         # set the container_template image
         if not image:
-            image = "fbarreir/horovod-cpu:latest"
+            image = "fbarreir/horovod:latest"
 
         # if 'command' not in container_template:
         #    container_template['command'] = executable
@@ -440,8 +451,8 @@ class k8s_Client(object):
                                 volumes=[proxy_secret, config_map, shared_dir],
                                 active_deadline_seconds=max_time)
 
-        pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='horovod-head-{0}'.format(worker_id),
-                                                                   labels={'app': 'horovod-head-{0}'.format(worker_id)}))
+        pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id),
+                                                                   labels={'app': '{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id)}))
 
         tmp_log.debug('creating pod {0}'.format(pod))
 
@@ -454,21 +465,23 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_workers')
 
         worker_id = str(work_spec.workerID)
-        deployment_name = "horovod-workers-{0}".format(worker_id)
+        deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
         resources = client.V1ResourceRequirements(requests={"cpu": "200m", "memory": "200Mi"},
                                                   limits={"cpu": "300m", "memory": "400Mi"})
 
-        container = client.V1Container(name="horovod-worker", image="fbarreir/horovod-cpu:latest", resources=resources)
+        container = client.V1Container(name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest", resources=resources)
 
         # max_time = 4 * 24 * 23600
         pod_spec = client.V1PodSpec(containers=[container]) #, active_deadline_seconds=max_time)
 
-        template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "horovod-workers"}),
+        template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
+                                                                                                         worker_id)}),
                                             spec=pod_spec)
 
         spec = client.V1DeploymentSpec(replicas=2, template=template,
-                                       selector={"matchLabels": {"app": "horovod-workers"}})
+                                       selector={"matchLabels": {"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
+                                                                                         worker_id)}})
 
         deployment = client.V1Deployment(api_version="apps/v1", kind="Deployment",
                                          metadata=client.V1ObjectMeta(name=deployment_name), spec=spec)
@@ -495,3 +508,104 @@ class k8s_Client(object):
             return rsp
 
         return True
+
+    def generate_horovod_ls(self, workspec_list, tag):
+
+        if not work_spec_list or not tag:
+            return ''
+
+        ids_list = ['-{0}'.format(tag, workspec.workerID) for workspec in workspec_list if workspec.workerID]
+        ids_concat = ','.join(ids_list)
+        label_selector = '{0} in ({1})'.format('app', ids_concat)
+
+        return label_selector
+
+    def get_horovod_deployments_info(self, workspec_list=[]):
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='get_horovod_deployments_info')
+        deployments_info = {}
+
+        # get the status of the head pod
+        head_ls = self.generate_horovod_ls(workspec_list, HOROVOD_HEAD_TAG)
+        try:
+            ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=head_ls)
+        except Exception as _e:
+            tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
+        else:
+            for i in ret.items:
+                worker_id = int(i.metadata.name[len(HOROVOD_HEAD_TAG)+1:])
+                pod_info = {'name': i.metadata.name,
+                            'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
+                            'status': i.status.phase,
+                            'status_conditions': i.status.conditions,
+                            'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
+                            'containers_state': []
+                            }
+                if i.status.container_statuses:
+                    for cs in i.status.container_statuses:
+                        if cs.state:
+                            pod_info['containers_state'].append(cs.state)
+                deployments_info.setdefault(worker_id, {})
+                deployments_info[worker_id]['head_pod'] = pod_info
+
+        # get the status of the worker deployment
+        worker_ls = self.generate_horovod_ls(workspec_list, HOROVOD_WORKER_TAG)
+        try:
+            ret = self.corev1.list_namespaced_deployment(namespace=self.namespace, label_selector=worker_ls)
+        except Exception as _e:
+            tmp_log.error('Failed call to list_namespaced_deployment with: {0}'.format(_e))
+        else:
+            for i in ret.items:
+                # TODO: think about how to properly monitor the deployments
+                dep_info = {'name': i.metadata.name,
+                            'available_replicas': i.status.available_replicas,
+                            'unavailable_replicas': i.status.unavailable_replicas,
+                            'status_conditions': i.status.conditions,
+                            'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
+                            'containers_state': []
+                            }
+                deployments_info.setdefault(worker_id, {})
+                deployments_info[worker_id]['worker_deployment'] = dep_info
+
+        return deployments_info
+
+    def delete_horovod_deployment(self, work_spec):
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='delete_horovod_deployment')
+        worker_id = str(work_spec.workerID)
+
+        # delete the configmap with the job configuration
+        try:
+            self.delete_config_map(worker_id)
+            tmp_log.debug('Deleted configmap for {0}'.format(worker_id))
+        except Exception as _e:
+            # TODO: if the configmap did not exist, then don't consider this an error
+            err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(worker_id, _e)
+            tmp_log.error(err_str)
+            return False, err_str
+
+        # delete the head
+        try:
+            head_name = '{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id)
+            api_response = self.corev1.delete_namespaced_pod(name=head_name, namespace=self.namespace,
+                                                             body=self.deletev1, grace_period_seconds=0)
+            tmp_log.debug('Deleted head pod for {0}'.format(worker_id))
+        except Exception as _e:
+            # TODO: if the head pod did not exist, then don't consider this an error
+            err_str = 'Failed to delete the HEAD POD with id={0} ; {1}'.format(worker_id, _e)
+            tmp_log.error(err_str)
+            return False, err_str
+
+        # delete the worker deployment
+        try:
+            dep_name = '{0}-{1}'.format(HOROVOD_WORKER_TAG, worker_id)
+            api_response = self.corev1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
+                                                                    body=self.deletev1, grace_period_seconds=0)
+            tmp_log.debug('Deleted worker deployment for {0}'.format(worker_id))
+        except Exception as _e:
+            # TODO: if the worker dep did not exist, then don't consider this an error
+            err_str = 'Failed to delete the WORKER DEP with id={0} ; {1}'.format(worker_id, _e)
+            tmp_log.error(err_str)
+            return False, err_str
+
+        return True, None
