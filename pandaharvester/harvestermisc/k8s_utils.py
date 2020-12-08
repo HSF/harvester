@@ -570,6 +570,7 @@ class k8s_Client(object):
                 deployments_info.setdefault(worker_id, {})
                 deployments_info[worker_id]['worker_deployment'] = dep_info
 
+        tmp_log.debug("Found following deployments: {0}".format(deployments_info))
         return deployments_info
 
     def delete_horovod_deployment(self, work_spec):
@@ -591,7 +592,7 @@ class k8s_Client(object):
         try:
             head_name = '{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id)
             api_response = self.core_v1.delete_namespaced_pod(name=head_name, namespace=self.namespace,
-                                                             body=self.delete_v1, grace_period_seconds=0)
+                                                              body=self.delete_v1, grace_period_seconds=0)
             tmp_log.debug('Deleted head pod for {0}'.format(worker_id))
         except Exception as _e:
             # TODO: if the head pod did not exist, then don't consider this an error
@@ -603,7 +604,7 @@ class k8s_Client(object):
         try:
             dep_name = '{0}-{1}'.format(HOROVOD_WORKER_TAG, worker_id)
             api_response = self.core_v1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
-                                                                    body=self.delete_v1, grace_period_seconds=0)
+                                                                     body=self.delete_v1, grace_period_seconds=0)
             tmp_log.debug('Deleted worker deployment for {0}'.format(worker_id))
         except Exception as _e:
             # TODO: if the worker dep did not exist, then don't consider this an error
