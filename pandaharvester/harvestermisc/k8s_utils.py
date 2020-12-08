@@ -391,7 +391,7 @@ class k8s_Client(object):
         else:
             return rsp
 
-    def fill_hpo_head_container_template(self, work_spec, executable, image=None, name=None):
+    def fill_hpo_head_container_template(self, work_spec, command, image=None, name=None):
 
         # set the container_template image
         if not image:
@@ -419,7 +419,7 @@ class k8s_Client(object):
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
         container = client.V1Container(name=name, image=image, resources=resources, env=env,
                                        volume_mounts=[configmap_mount, secret_mount, shared_mount],
-                                       executable=executable)
+                                       command=command)
 
         return container
 
@@ -472,7 +472,7 @@ class k8s_Client(object):
         resources = client.V1ResourceRequirements(requests={"cpu": "200m", "memory": "200Mi"},
                                                   limits={"cpu": "300m", "memory": "400Mi"})
 
-        container = client.V1Container(executable=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
+        container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
                                        resources=resources)
 
         # max_time = 4 * 24 * 23600
