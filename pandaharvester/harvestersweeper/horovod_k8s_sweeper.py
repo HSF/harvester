@@ -7,7 +7,7 @@ base_logger = core_utils.setup_logger('horovod_k8s_sweeper')
 
 
 # sweeper for K8S
-class K8sSweeper(BaseSweeper):
+class HorovodSweeper(BaseSweeper):
     # constructor
     def __init__(self, **kwarg):
         BaseSweeper.__init__(self, **kwarg)

@@ -14,7 +14,7 @@ base_logger = core_utils.setup_logger('horovod_k8s_monitor')
 
 
 # monitor for K8S
-class K8sMonitor(PluginBase):
+class HorovodMonitor(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
