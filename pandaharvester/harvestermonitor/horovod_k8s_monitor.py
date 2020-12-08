@@ -113,6 +113,8 @@ class HorovodMonitor(PluginBase):
 
         # supplemental diag messages
         sup_error_code = WorkerErrors.error_codes.get('GENERAL_ERROR') if err_str else WorkerErrors.error_codes.get('SUCCEEDED')
+        # sup_error_diag = 'PODs=' + ','.join(pods_sup_diag_list) + ' ; ' + err_str
+        sup_error_diag = err_str
         work_spec.set_supplemental_error(error_code=sup_error_code, error_diag=sup_error_diag)
 
         return new_status, err_str
