@@ -423,7 +423,7 @@ class k8s_Client(object):
 
         return container
 
-    def create_horovod_head(self, work_spec, prod_source_label, container_image, executable,
+    def create_horovod_head(self, work_spec, prod_source_label, container_image, evaluation_command, pilot_command,
                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_head')
@@ -434,8 +434,8 @@ class k8s_Client(object):
             return False, None
 
         # generate pilot and evaluation container
-        pilot_container = self.fill_hpo_head_container_template(work_spec, executable, name='pilot')
-        evaluation_container = self.fill_hpo_head_container_template(work_spec, executable, name='evaluation')
+        pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_command, name='pilot')
+        evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_command, name='evaluation')
 
         # generate secret, configmap and shared directory volumes
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Volume.md
