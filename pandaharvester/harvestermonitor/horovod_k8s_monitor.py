@@ -42,6 +42,20 @@ class HorovodMonitor(PluginBase):
         # for horovod queues
         self._deployments_info_dict = {}
 
+    def decide_deployment_status(self, head_status):
+        # TODO: see all the possible cases
+        sub_msg = ''
+
+        if head_status == 'Runing':
+            new_status = WorkSpec.ST_running
+        elif head_status == 'Pending':
+            new_status = WorkSpec.ST_submitted
+        elif head_status == 'CrashLoopBackOff':
+            new_status = WorkSpec.ST_failed
+            sub_msg = 'head in {0} status'.format(head_status)
+
+        return new_status, sub_msg
+
     def check_a_worker(self, work_spec):
 
         tmp_log = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(work_spec.workerID, work_spec.batchID),
@@ -77,7 +91,7 @@ class HorovodMonitor(PluginBase):
             else:
                 # we found the head pod belonging to our job. Obtain the final status
                 tmp_log.debug('head_status={0}'.format(head_status))
-                new_status, sub_msg = self.check_horovod_head_status(head_status, containers_state_list)
+                new_status, sub_msg = self.decide_deployment_status(head_status, containers_state_list)
                 if sub_msg:
                     err_str += sub_msg
                 tmp_log.debug('new_status={0}'.format(new_status))
