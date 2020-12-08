@@ -44,9 +44,10 @@ class HorovodMonitor(PluginBase):
 
     def decide_deployment_status(self, head_status):
         # TODO: see all the possible cases
+        new_status = None
         sub_msg = ''
 
-        if head_status == 'Runing':
+        if head_status == 'Running':
             new_status = WorkSpec.ST_running
         elif head_status == 'Pending':
             new_status = WorkSpec.ST_submitted
