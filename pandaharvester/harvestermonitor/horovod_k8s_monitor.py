@@ -91,7 +91,7 @@ class HorovodMonitor(PluginBase):
             else:
                 # we found the head pod belonging to our job. Obtain the final status
                 tmp_log.debug('head_status={0}'.format(head_status))
-                new_status, sub_msg = self.decide_deployment_status(head_status, containers_state_list)
+                new_status, sub_msg = self.decide_deployment_status(head_status)
                 if sub_msg:
                     err_str += sub_msg
                 tmp_log.debug('new_status={0}'.format(new_status))
