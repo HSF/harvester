@@ -31,10 +31,10 @@ class k8s_Client(object):
             raise RuntimeError('Cannot find k8s config file: {0}'.format(config_file))
         config.load_kube_config(config_file=config_file)
         self.namespace = namespace if namespace else 'default'
-        self.corev1 = client.CoreV1Api()
-        self.batchv1 = client.BatchV1Api()
-        self.appv1 = client.AppsV1Api()
-        self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
+        self.core_v1 = client.CoreV1Api()
+        self.batch_v1 = client.BatchV1Api()
+        self.apps_v1 = client.AppsV1Api()
+        self.delete_v1 = client.V1DeleteOptions(propagation_policy='Background')
 
     def pod_queued_too_long(self, pod, queue_limit):
         time_now = datetime.datetime.utcnow()
@@ -182,7 +182,7 @@ class k8s_Client(object):
 
         tmp_log.debug('creating job {0}'.format(yaml_content))
 
-        rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
+        rsp = self.batch_v1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
         return rsp, yaml_content
 
     def generate_ls_from_wsl(self, workspec_list=[]):
@@ -204,7 +204,7 @@ class k8s_Client(object):
         # tmp_log.debug('label_selector: {0}'.format(label_selector))
 
         try:
-            ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
+            ret = self.core_v1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         except Exception as _e:
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
         else:
@@ -240,7 +240,7 @@ class k8s_Client(object):
         # tmp_log.debug('label_selector: {0}'.format(label_selector))
 
         try:
-            ret = self.batchv1.list_namespaced_job(namespace=self.namespace, label_selector=label_selector)
+            ret = self.batch_v1.list_namespaced_job(namespace=self.namespace, label_selector=label_selector)
 
             for i in ret.items:
                 job_info = {
@@ -261,7 +261,7 @@ class k8s_Client(object):
         for pod_name in pod_name_list:
             rsp = {'name': pod_name}
             try:
-                self.corev1.delete_namespaced_pod(name=pod_name, namespace=self.namespace, body=self.deletev1,
+                self.core_v1.delete_namespaced_pod(name=pod_name, namespace=self.namespace, body=self.delete_v1,
                                                   grace_period_seconds=0)
             except ApiException as _e:
                 rsp['errMsg'] = '' if _e.status == 404 else _e.reason
@@ -276,13 +276,13 @@ class k8s_Client(object):
     def delete_job(self, job_name):
         tmp_log = core_utils.make_logger(base_logger, 'job_name={0}'.format(job_name), method_name='delete_job')
         try:
-            self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1,
+            self.batch_v1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.delete_v1,
                                                grace_period_seconds=0)
         except Exception as _e:
             tmp_log.error('Failed call to delete_namespaced_job with: {0}'.format(_e))
 
     def delete_config_map(self, config_map_name):
-        self.corev1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.deletev1,
+        self.core_v1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.delete_v1,
                                                  grace_period_seconds=0)
 
     def set_proxy(self, proxy_path):
@@ -333,11 +333,11 @@ class k8s_Client(object):
         body = client.V1Secret(data=data, metadata=metadata)
         try:
             try:
-                rsp = self.corev1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
+                rsp = self.core_v1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
                 tmp_log.debug('Patched secret')
             except ApiException as e:
                 tmp_log.debug('Exception when patching secret: {0} . Try to create secret instead...'.format(e))
-                rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
+                rsp = self.core_v1.create_namespaced_secret(body=body, namespace=self.namespace)
                 tmp_log.debug('Created secret')
         except Exception as e:
             tmp_log.error('Exception when patching or creating secret: {0}.'.format(e))
@@ -372,7 +372,7 @@ class k8s_Client(object):
             config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
 
             # create the configmap object in K8s
-            api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
+            api_response = self.core_v1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
             tmp_log.debug('Created configmap for worker id: {0}'.format(worker_id))
             return True
 
@@ -383,7 +383,7 @@ class k8s_Client(object):
     def get_pod_logs(self, pod_name, previous=False):
         tmp_log = core_utils.make_logger(base_logger, method_name='get_pod_logs')
         try:
-            rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
+            rsp = self.core_v1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
             tmp_log.debug('Log file retrieved for {0}'.format(pod_name))
         except Exception as e:
             tmp_log.debug('Exception when getting logs for pod {0} : {1}. Skipped'.format(pod_name, e))
@@ -458,7 +458,7 @@ class k8s_Client(object):
 
         tmp_log.debug('creating pod {0}'.format(pod))
 
-        rsp = self.corev1.create_namespaced_pod(body=pod, namespace=self.namespace)
+        rsp = self.core_v1.create_namespaced_pod(body=pod, namespace=self.namespace)
         return rsp
 
     def create_horovod_workers(self, work_spec, prod_source_label, container_image,  command,
@@ -492,7 +492,7 @@ class k8s_Client(object):
         tmp_log.debug('creating deployment {0}'.format(deployment))
         tmp_log.debug('{0}'.format(yaml.dump(deployment, default_flow_style=False, allow_unicode=True, encoding=None)))
 
-        rsp = self.appv1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
+        rsp = self.apps_v1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
 
     def create_horovod_deployments(self, work_spec, prod_source_label, container_image, evaluation_command,
@@ -517,7 +517,7 @@ class k8s_Client(object):
         if not workspec_list or not tag:
             return ''
 
-        ids_list = ['-{0}'.format(tag, workspec.workerID) for workspec in workspec_list if workspec.workerID]
+        ids_list = ['{0}-{1}'.format(tag, workspec.workerID) for workspec in workspec_list if workspec.workerID]
         ids_concat = ','.join(ids_list)
         label_selector = '{0} in ({1})'.format('app', ids_concat)
 
@@ -531,7 +531,7 @@ class k8s_Client(object):
         # get the status of the head pod
         head_ls = self.generate_horovod_ls(workspec_list, HOROVOD_HEAD_TAG)
         try:
-            ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=head_ls)
+            ret = self.core_v1.list_namespaced_pod(namespace=self.namespace, label_selector=head_ls)
         except Exception as _e:
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
         else:
@@ -554,7 +554,7 @@ class k8s_Client(object):
         # get the status of the worker deployment
         worker_ls = self.generate_horovod_ls(workspec_list, HOROVOD_WORKER_TAG)
         try:
-            ret = self.corev1.list_namespaced_deployment(namespace=self.namespace, label_selector=worker_ls)
+            ret = self.apps_v1.list_namespaced_deployment(namespace=self.namespace, label_selector=worker_ls)
         except Exception as _e:
             tmp_log.error('Failed call to list_namespaced_deployment with: {0}'.format(_e))
         else:
@@ -590,8 +590,8 @@ class k8s_Client(object):
         # delete the head
         try:
             head_name = '{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id)
-            api_response = self.corev1.delete_namespaced_pod(name=head_name, namespace=self.namespace,
-                                                             body=self.deletev1, grace_period_seconds=0)
+            api_response = self.core_v1.delete_namespaced_pod(name=head_name, namespace=self.namespace,
+                                                             body=self.delete_v1, grace_period_seconds=0)
             tmp_log.debug('Deleted head pod for {0}'.format(worker_id))
         except Exception as _e:
             # TODO: if the head pod did not exist, then don't consider this an error
@@ -602,8 +602,8 @@ class k8s_Client(object):
         # delete the worker deployment
         try:
             dep_name = '{0}-{1}'.format(HOROVOD_WORKER_TAG, worker_id)
-            api_response = self.corev1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
-                                                                    body=self.deletev1, grace_period_seconds=0)
+            api_response = self.core_v1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
+                                                                    body=self.delete_v1, grace_period_seconds=0)
             tmp_log.debug('Deleted worker deployment for {0}'.format(worker_id))
         except Exception as _e:
             # TODO: if the worker dep did not exist, then don't consider this an error
