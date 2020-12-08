@@ -391,7 +391,7 @@ class k8s_Client(object):
         else:
             return rsp
 
-    def fill_hpo_head_container_template(self, work_spec, image=None, name=None):
+    def fill_hpo_head_container_template(self, work_spec, executable, image=None, name=None):
 
         # set the container_template image
         if not image:
@@ -416,12 +416,14 @@ class k8s_Client(object):
         # Attach shared volume between pilot and evaluation containers
         shared_mount = client.V1VolumeMount(name='shared-dir', mount_path=SHARED_DIR)
 
+        # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
         container = client.V1Container(name=name, image=image, resources=resources, env=env,
-                                       volume_mounts=[configmap_mount, secret_mount, shared_mount])
+                                       volume_mounts=[configmap_mount, secret_mount, shared_mount],
+                                       executable=executable)
 
         return container
 
-    def create_horovod_head(self, work_spec, prod_source_label, container_image, executable, args,
+    def create_horovod_head(self, work_spec, prod_source_label, container_image, executable,
                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_head')
@@ -432,8 +434,8 @@ class k8s_Client(object):
             return False, None
 
         # generate pilot and evaluation container
-        pilot_container = self.fill_hpo_head_container_template(work_spec, name='pilot')
-        evaluation_container = self.fill_hpo_head_container_template(work_spec, name='evaluation')
+        pilot_container = self.fill_hpo_head_container_template(work_spec, executable, name='pilot')
+        evaluation_container = self.fill_hpo_head_container_template(work_spec, executable, name='evaluation')
 
         # generate secret, configmap and shared directory volumes
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Volume.md
@@ -470,7 +472,8 @@ class k8s_Client(object):
         resources = client.V1ResourceRequirements(requests={"cpu": "200m", "memory": "200Mi"},
                                                   limits={"cpu": "300m", "memory": "400Mi"})
 
-        container = client.V1Container(name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest", resources=resources)
+        container = client.V1Container(executable=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
+                                       resources=resources)
 
         # max_time = 4 * 24 * 23600
         pod_spec = client.V1PodSpec(containers=[container]) #, active_deadline_seconds=max_time)
