@@ -478,8 +478,7 @@ class k8s_Client(object):
         # max_time = 4 * 24 * 23600
         pod_spec = client.V1PodSpec(containers=[container]) #, active_deadline_seconds=max_time)
 
-        template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
-                                                                                                         worker_id)}),
+        template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)}),
                                             spec=pod_spec)
 
         spec = client.V1DeploymentSpec(replicas=2, template=template,
@@ -487,7 +486,9 @@ class k8s_Client(object):
                                                                                          worker_id)}})
 
         deployment = client.V1Deployment(api_version="apps/v1", kind="Deployment",
-                                         metadata=client.V1ObjectMeta(name=deployment_name), spec=spec)
+                                         metadata=client.V1ObjectMeta(name=deployment_name,
+                                                                      labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)}),
+                                         spec=spec)
 
         tmp_log.debug('creating deployment {0}'.format(deployment))
         tmp_log.debug('{0}'.format(yaml.dump(deployment, default_flow_style=False, allow_unicode=True, encoding=None)))
