@@ -57,14 +57,14 @@ class HorovodMonitor(PluginBase):
         return new_status, sub_msg
 
     def check_a_worker(self, work_spec):
-
+        new_status = None
+        err_str = ''
         tmp_log = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(work_spec.workerID, work_spec.batchID),
                                    method_name='check_a_worker')
 
         worker_id = work_spec.workerID
         head_pod = self._deployments_info_dict[worker_id]['head_pod']
         worker_deployment = self._deployments_info_dict[worker_id]['worker_deployment']
-        err_str = ''
         pod_names_to_delete_list = []
         head_status = None
 
@@ -98,6 +98,7 @@ class HorovodMonitor(PluginBase):
 
         # TODO: CHECK THE WORKERS
 
+        # TODO: MAKE A CLEAN UP FUNCTION
         # delete pods that have been queueing too long
         if pod_names_to_delete_list:
             tmp_log.debug('Deleting pods queuing too long')
