@@ -3,7 +3,7 @@ from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 
 # logger
-base_logger = core_utils.setup_logger('horovod_k8s_sweeper')
+base_logger = core_utils.setup_logger('horovod_sweeper')
 
 
 # sweeper for K8S

@@ -16,7 +16,7 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # logger
-base_logger = core_utils.setup_logger('horovod_k8s_submitter')
+base_logger = core_utils.setup_logger('horovod_submitter')
 
 # image defaults
 DEF_IMAGE = 'fbarreir/horovod:latest'

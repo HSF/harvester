@@ -10,7 +10,7 @@ from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 
 
 # logger
-base_logger = core_utils.setup_logger('horovod_k8s_monitor')
+base_logger = core_utils.setup_logger('horovod_monitor')
 
 
 # monitor for K8S

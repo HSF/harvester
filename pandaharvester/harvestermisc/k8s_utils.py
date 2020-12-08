@@ -514,7 +514,7 @@ class k8s_Client(object):
 
     def generate_horovod_ls(self, workspec_list, tag):
 
-        if not work_spec_list or not tag:
+        if not workspec_list or not tag:
             return ''
 
         ids_list = ['-{0}'.format(tag, workspec.workerID) for workspec in workspec_list if workspec.workerID]
