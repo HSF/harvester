@@ -170,7 +170,7 @@ class HorovodSubmitter(PluginBase):
             err_str = 'Failed to create a deployment; {0}'.format(_e)
             tmp_return_value = (False, err_str)
         else:
-            work_spec.batchID = rsp.metadata.name
+            work_spec.batchID = str(work_spec.workerID)
             tmp_log.debug('Created deployment {0}'.format(work_spec.workerID, work_spec.batchID))
             tmp_return_value = (True, '')
 
