@@ -867,6 +867,7 @@ class DBProxy(object):
                     # check if already exist
                     sqlC = "SELECT * FROM {0} ".format(pandaQueueTableName)
                     sqlC += "WHERE queueName=:queueName "
+                    sqlC += " AND resourceType='ANY' AND jobType='ANY' "
                     varMap = dict()
                     varMap[':queueName'] = queueName
                     self.execute(sqlC, varMap)
