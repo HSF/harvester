@@ -844,7 +844,7 @@ class DBProxy(object):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='fill_panda_queue_table')
-            tmpLog.debug('start')
+            tmpLog.debug('start, refill={0}'.format(refill_table))
             # get existing queues
             sqlE = "SELECT queueName FROM {0} ".format(pandaQueueTableName)
             varMap = dict()
@@ -874,7 +874,13 @@ class DBProxy(object):
                     varMap[':jobType'] = PandaQueueSpec.JT_catchall
                     self.execute(sqlC, varMap)
                     resC = self.cur.fetchone()
-                    if not refill_table and resC is not None:
+                    if refill_table:
+                        sqlD = "DELETE FROM {0} ".format(pandaQueueTableName)
+                        sqlD += "WHERE queueName=:queueName "
+                        varMap = dict()
+                        varMap[':queueName'] = queueName
+                        self.execute(sqlD, varMap)
+                    if resC is not None and not refill_table:
                         # update limits just in case
                         varMap = dict()
                         sqlU = "UPDATE {0} SET ".format(pandaQueueTableName)
@@ -902,10 +908,7 @@ class DBProxy(object):
                                 attrName_list.append(attrName)
                                 tmpKey_list.append(tmpKey)
                                 varMap[tmpKey] = getattr(queueConfig, attrName)
-                        if refill_table:
-                            sqlP = "REPLACE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
-                        else:
-                            sqlP = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
+                        sqlP = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
                         sqlS = "VALUES ({0}) ".format(','.join(tmpKey_list))
                         self.execute(sqlP + sqlS, varMap)
                     # commit

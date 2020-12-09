@@ -227,14 +227,18 @@ def _get_complicated_pilot_options(pilot_type, pilot_url=None):
     return pilot_opt_dict
 
 
-# get special flag of pilot wrapper to run with python 3 if pilot version is "3"
+# get special flag of pilot wrapper about pilot version , and whehter to run with python 3 if pilot version is "3"
 # FIXME: during pilot testing phase, only prodsourcelabel ptest and rc_test2 should run python3
 # This constraint will be removed when pilot is ready
-def _get_pilot_python_option(pilot_version, prod_source_label):
+def _get_pilot_version_python_option(pilot_version, prod_source_label):
+    version = 'current'
     option = ''
-    if pilot_version in ['3'] and prod_source_label in ['rc_test2', 'ptest']:
-        option = '-3'
-    return option
+    if pilot_version.startswith('3'):
+        if prod_source_label in ['rc_test2', 'ptest']:
+            option = '--pythonversion 3'
+    else:
+        version = pilot_version
+    return version, option
 
 
 # submit a bag of workers
@@ -432,8 +436,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'ioIntensity': io_intensity,
             'pilotType': pilot_type_opt,
             'pilotUrlOption': pilot_url_str,
-            'pilotVersion': pilot_version,
-            'pilotPythonOption': _get_pilot_python_option(pilot_version, prod_source_label),
+            'pilotVersion': _get_pilot_version_python_option(pilot_version, prod_source_label)[0],
+            'pilotPythonOption': _get_pilot_version_python_option(pilot_version, prod_source_label)[1],
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
         }
