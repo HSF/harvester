@@ -840,7 +840,7 @@ class DBProxy(object):
             return None
 
     # fill panda queue table
-    def fill_panda_queue_table(self, panda_queue_list, queue_config_mapper):
+    def fill_panda_queue_table(self, panda_queue_list, queue_config_mapper, refill_table=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='fill_panda_queue_table')
@@ -867,12 +867,14 @@ class DBProxy(object):
                     # check if already exist
                     sqlC = "SELECT * FROM {0} ".format(pandaQueueTableName)
                     sqlC += "WHERE queueName=:queueName "
-                    sqlC += " AND resourceType='ANY' AND jobType='ANY' "
+                    sqlC += " AND resourceType=:resourceType AND jobType=:jobType "
                     varMap = dict()
                     varMap[':queueName'] = queueName
+                    varMap[':resourceType'] = PandaQueueSpec.RT_catchall
+                    varMap[':jobType'] = PandaQueueSpec.JT_catchall
                     self.execute(sqlC, varMap)
                     resC = self.cur.fetchone()
-                    if resC is not None:
+                    if not refill_table and resC is not None:
                         # update limits just in case
                         varMap = dict()
                         sqlU = "UPDATE {0} SET ".format(pandaQueueTableName)
@@ -900,7 +902,10 @@ class DBProxy(object):
                                 attrName_list.append(attrName)
                                 tmpKey_list.append(tmpKey)
                                 varMap[tmpKey] = getattr(queueConfig, attrName)
-                        sqlP = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
+                        if refill_table:
+                            sqlP = "REPLACE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
+                        else:
+                            sqlP = "INSERT IGNORE INTO {0} ({1}) ".format(pandaQueueTableName, ','.join(attrName_list))
                         sqlS = "VALUES ({0}) ".format(','.join(tmpKey_list))
                         self.execute(sqlP + sqlS, varMap)
                     # commit

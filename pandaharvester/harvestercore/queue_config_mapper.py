@@ -270,7 +270,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         return timestamp
 
     # load data
-    def load_data(self):
+    def load_data(self, refill_table=False):
         mainLog = _make_logger(method_name='QueueConfigMapper.load_data')
         with self.lock:
             # check if to update
@@ -608,7 +608,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             self.lastUpdate = datetime.datetime.utcnow()
         # update database
         if self.toUpdateDB:
-            self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self)
+            self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
             mainLog.debug('updated to DB')
         # done
         mainLog.debug('done')
