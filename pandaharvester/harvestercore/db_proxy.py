@@ -840,11 +840,11 @@ class DBProxy(object):
             return None
 
     # fill panda queue table
-    def fill_panda_queue_table(self, panda_queue_list, queue_config_mapper):
+    def fill_panda_queue_table(self, panda_queue_list, queue_config_mapper, refill_table=False):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='fill_panda_queue_table')
-            tmpLog.debug('start')
+            tmpLog.debug('start, refill={0}'.format(refill_table))
             # get existing queues
             sqlE = "SELECT queueName FROM {0} ".format(pandaQueueTableName)
             varMap = dict()
@@ -867,11 +867,20 @@ class DBProxy(object):
                     # check if already exist
                     sqlC = "SELECT * FROM {0} ".format(pandaQueueTableName)
                     sqlC += "WHERE queueName=:queueName "
+                    sqlC += " AND resourceType=:resourceType AND jobType=:jobType "
                     varMap = dict()
                     varMap[':queueName'] = queueName
+                    varMap[':resourceType'] = PandaQueueSpec.RT_catchall
+                    varMap[':jobType'] = PandaQueueSpec.JT_catchall
                     self.execute(sqlC, varMap)
                     resC = self.cur.fetchone()
-                    if resC is not None:
+                    if refill_table:
+                        sqlD = "DELETE FROM {0} ".format(pandaQueueTableName)
+                        sqlD += "WHERE queueName=:queueName "
+                        varMap = dict()
+                        varMap[':queueName'] = queueName
+                        self.execute(sqlD, varMap)
+                    if resC is not None and not refill_table:
                         # update limits just in case
                         varMap = dict()
                         sqlU = "UPDATE {0} SET ".format(pandaQueueTableName)
