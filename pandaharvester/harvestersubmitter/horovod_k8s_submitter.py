@@ -22,11 +22,11 @@ base_logger = core_utils.setup_logger('horovod_submitter')
 DEF_IMAGE = 'fbarreir/horovod:latest'
 
 # command defaults
-DEF_EVALUATION_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
+DEF_EVALUATION_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 22; sleep infinity"]
 
-DEF_PILOT_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
+DEF_PILOT_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 22; sleep infinity"]
 
-DEF_WORKER_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
+DEF_WORKER_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 22; sleep infinity"]
 
 
 class HorovodSubmitter(PluginBase):
