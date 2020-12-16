@@ -473,7 +473,9 @@ class k8s_Client(object):
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
 
-        container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
+        # container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
+        #                              resources=resources)
+        container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/rui-hrvd",
                                        resources=resources)
 
         # max_time = 4 * 24 * 23600
