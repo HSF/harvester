@@ -402,8 +402,8 @@ class k8s_Client(object):
         #    container_template['command'] = executable
         #    container_template['args'] = args
 
-        resources = client.V1ResourceRequirements(requests={"cpu": "2000m", "memory": "3000Mi"},
-                                                  limits={"cpu": "2000m", "memory": "3000Mi"})
+        resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
+                                                  limits={"cpu": "1500m", "memory": "3000Mi"})
 
         env = [client.V1EnvVar(name='computingSite', value=work_spec.computingSite),
                client.V1EnvVar(name='SHARED_DIR', value='/root/shared')]
@@ -470,8 +470,8 @@ class k8s_Client(object):
         worker_id = str(work_spec.workerID)
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
-        resources = client.V1ResourceRequirements(requests={"cpu": "2000m", "memory": "3000Mi"},
-                                                  limits={"cpu": "2000m", "memory": "3000Mi"})
+        resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
+                                                  limits={"cpu": "1500m", "memory": "3000Mi"})
 
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
                                        resources=resources)
