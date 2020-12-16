@@ -64,7 +64,7 @@ class HorovodMonitor(PluginBase):
                                    method_name='check_a_worker')
 
         worker_id = work_spec.workerID
-        head_pod = self._deployments_info_dict[worker_id]['head_pod']
+        head_pod = self._deployments_info_dict[worker_id].get('head_pod', {})
         worker_deployment = self._deployments_info_dict[worker_id]['worker_deployment']
         pod_names_to_delete_list = []
         head_status = None
@@ -76,7 +76,7 @@ class HorovodMonitor(PluginBase):
                 pod_names_to_delete_list.append(head_pod['name'])
 
             # make list of status of the pods belonging to our job
-            head_status = head_pod['status']
+            head_status = head_pod.get('status')
             # containers_state_list.extend(head_pod['containers_state'])
         except Exception as _e:
             err_str = 'Failed to get HEAD POD status for worker_id={0} ; {1}'.format(worker_id, _e)
