@@ -160,11 +160,11 @@ class HorovodSubmitter(PluginBase):
             worker_command = DEF_WORKER_COMMAND
 
             # submit the worker
-            rsp = self.k8s_client.create_horovod_formations(work_spec, prod_source_label, container_image,
-                                                             evaluation_command, pilot_command, worker_command,
-                                                             cert, cpu_adjust_ratio=self.cpuAdjustRatio,
-                                                             memory_adjust_ratio=self.memoryAdjustRatio,
-                                                             max_time=max_time)
+            rsp = self.k8s_client.create_horovod_formation(work_spec, prod_source_label, container_image,
+                                                           evaluation_command, pilot_command, worker_command,
+                                                           cert, cpu_adjust_ratio=self.cpuAdjustRatio,
+                                                           memory_adjust_ratio=self.memoryAdjustRatio,
+                                                           max_time=max_time)
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
             err_str = 'Failed to create a formation; {0}'.format(_e)
