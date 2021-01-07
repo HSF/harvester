@@ -663,7 +663,7 @@ class k8s_Client(object):
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
         else:
             for i in ret.items:
-                worker_id = int(i.metadata.name[len(HOROVOD_WORKER_TAG) + 1:])
+                worker_id = int(i.metadata.name[len(HOROVOD_WORKER_TAG) + 1:].split('-')[0])
                 if i.status.phase in POD_RUNNING_STATES and i.status.pod_ip:
                     formations_info[worker_id].setdefault('worker_pods', [])
 
