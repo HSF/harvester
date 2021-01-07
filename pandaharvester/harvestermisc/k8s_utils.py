@@ -654,6 +654,9 @@ class k8s_Client(object):
         # get details of the individual workers
         try:
             ret = self.core_v1.list_namespaced_pod(namespace='default', label_selector=worker_ls)
+        except Exception as _e:
+            tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
+        else:
             for i in ret.items:
                 worker_id = int(i.metadata.name[len(HOROVOD_WORKER_TAG) + 1:])
                 if i.status.phase in POD_RUNNING_STATES and i.status.pod_ip:
