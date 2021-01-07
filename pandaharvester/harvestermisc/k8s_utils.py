@@ -474,7 +474,7 @@ class k8s_Client(object):
 
         env = [client.V1EnvVar(name='computingSite', value=work_spec.computingSite),
                client.V1EnvVar(name='SHARED_DIR', value=SHARED_DIR),
-               client.V1EnvVar(name='CONFIG_DIR', value=CONGIG_DIR),
+               client.V1EnvVar(name='CONFIG_DIR', value=CONFIG_DIR),
                client.V1EnvVar(name='HD_DIR', value=HD_DIR)]
 
         # Attach config-map containing job details
