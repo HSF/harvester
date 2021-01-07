@@ -121,8 +121,8 @@ class HorovodSubmitter(PluginBase):
 
         return cert
 
-    def submit_horovod_k8s_deployment(self, work_spec):
-        tmp_log = self.make_logger(base_logger, method_name='submit_horovod_k8s_deployment')
+    def submit_horovod_k8s_formation(self, work_spec):
+        tmp_log = self.make_logger(base_logger, method_name='submit_horovod_k8s_formation')
 
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
@@ -160,18 +160,18 @@ class HorovodSubmitter(PluginBase):
             worker_command = DEF_WORKER_COMMAND
 
             # submit the worker
-            rsp = self.k8s_client.create_horovod_deployments(work_spec, prod_source_label, container_image,
+            rsp = self.k8s_client.create_horovod_formations(work_spec, prod_source_label, container_image,
                                                              evaluation_command, pilot_command, worker_command,
                                                              cert, cpu_adjust_ratio=self.cpuAdjustRatio,
                                                              memory_adjust_ratio=self.memoryAdjustRatio,
                                                              max_time=max_time)
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
-            err_str = 'Failed to create a deployment; {0}'.format(_e)
+            err_str = 'Failed to create a formation; {0}'.format(_e)
             tmp_return_value = (False, err_str)
         else:
             work_spec.batchID = str(work_spec.workerID)
-            tmp_log.debug('Created deployment {0}'.format(work_spec.workerID, work_spec.batchID))
+            tmp_log.debug('Created formation {0}'.format(work_spec.workerID, work_spec.batchID))
             tmp_return_value = (True, '')
 
         return tmp_return_value
@@ -189,7 +189,7 @@ class HorovodSubmitter(PluginBase):
             return ret_list
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            ret_val_list = thread_pool.map(self.submit_horovod_k8s_deployment, workspec_list)
+            ret_val_list = thread_pool.map(self.submit_horovod_k8s_formation, workspec_list)
             tmp_log.debug('{0} workers submitted'.format(n_workers))
 
         ret_list = list(ret_val_list)

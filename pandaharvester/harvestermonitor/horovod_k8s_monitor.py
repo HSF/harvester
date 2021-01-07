@@ -1,13 +1,11 @@
-import datetime
-
 from concurrent.futures import ThreadPoolExecutor
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestermisc import k8s_utils
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-
 
 # logger
 base_logger = core_utils.setup_logger('horovod_monitor')
@@ -40,18 +38,18 @@ class HorovodMonitor(PluginBase):
         self._all_pods_list = []
 
         # for horovod queues
-        self._deployments_info_dict = {}
+        self._formations_info_dict = {}
 
-    def decide_deployment_status(self, head_status):
+    def decide_formation_status(self, head_status):
         # TODO: see all the possible cases
         new_status = None
         sub_msg = ''
 
-        if head_status == 'Running':
+        if head_status  in k8s_utils.POD_RUNNING_STATES:
             new_status = WorkSpec.ST_running
-        elif head_status == 'Pending':
+        elif head_status in k8s_utils.POD_QUEUED_STATES:
             new_status = WorkSpec.ST_submitted
-        elif head_status == 'CrashLoopBackOff':
+        elif head_status in k8s_utils.POD_FAILED_STATES:
             new_status = WorkSpec.ST_failed
             sub_msg = 'head in {0} status'.format(head_status)
 
@@ -64,8 +62,9 @@ class HorovodMonitor(PluginBase):
                                    method_name='check_a_worker')
 
         worker_id = work_spec.workerID
-        head_pod = self._deployments_info_dict[worker_id].get('head_pod', {})
-        worker_deployment = self._deployments_info_dict[worker_id]['worker_deployment']
+        head_pod = self._formations_info_dict[worker_id].get('head_pod', {})
+        worker_deployment = self._formations_info_dict[worker_id]['worker_deployment']
+        worker_pods = self._formations_info_dict[worker_id]['worker_pods']
         pod_names_to_delete_list = []
         head_status = None
 
@@ -92,12 +91,28 @@ class HorovodMonitor(PluginBase):
             else:
                 # we found the head pod belonging to our job. Obtain the final status
                 tmp_log.debug('head_status={0}'.format(head_status))
-                new_status, sub_msg = self.decide_deployment_status(head_status)
+                new_status, sub_msg = self.decide_formation_status(head_status)
                 if sub_msg:
                     err_str += sub_msg
                 tmp_log.debug('new_status={0}'.format(new_status))
 
-        # TODO: CHECK THE WORKERS
+        # CHECK THE WORKERS
+        try:
+            # TODO: check if worker deployment has been queued too long - IMPORTANT
+            # Check for running worker pods and retrieve their IPs
+            host_list = []
+            for worker_pod in worker_pods:
+                if worker_pod['status'] in k8s_utils.POD_RUNNING_STATES:
+                    host_list.append(worker_podp['ip'])
+
+            # Update the list of IPs in the host discovery script
+            if host_list:
+                self.k8s_client.update_host_discovery_configmap(work_spec, host_list)
+
+        except Exception as _e:
+            err_str = 'Failed to get WORKER DEPLOYMENT status for worker_id={0} ; {1}'.format(worker_id, _e)
+            tmp_log.error(err_str)
+            head_status = None
 
         # TODO: MAKE A CLEAN UP FUNCTION
         # delete pods that have been queueing too long
@@ -130,7 +145,7 @@ class HorovodMonitor(PluginBase):
             ret_list.append(('', err_str))
             return False, ret_list
 
-        self._deployments_info_dict = self.k8s_client.get_horovod_deployments_info(workspec_list=workspec_list)
+        self._formations_info_dict = self.k8s_client.get_horovod_formations_info(workspec_list=workspec_list)
 
         # resolve status requested workers
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:

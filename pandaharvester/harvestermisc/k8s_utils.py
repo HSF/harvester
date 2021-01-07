@@ -19,10 +19,15 @@ base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
 SHARED_DIR = '/root/shared/'
+
 HOROVOD_WORKER_TAG = 'horovod-workers'
 HOROVOD_HEAD_TAG = 'horovod-head'
 
-QUEUED_STATES = ['Pending', 'Unknown']
+HOST_DISC_TAG = 'host-discovery'
+
+POD_FAILED_STATES = ['CrashLoopBackOff']
+POD_QUEUED_STATES = ['Pending', 'Unknown']
+POD_RUNNING_STATES = ['Running']
 
 class k8s_Client(object):
 
@@ -38,7 +43,7 @@ class k8s_Client(object):
 
     def pod_queued_too_long(self, pod, queue_limit):
         time_now = datetime.datetime.utcnow()
-        if pod['status'] in QUEUED_STATES and pod['start_time'] \
+        if pod['status'] in POD_QUEUED_STATES and pod['start_time'] \
                 and time_now - pod['start_time'] > datetime.timedelta(seconds=queue_limit):
             return True
         return False
@@ -347,11 +352,10 @@ class k8s_Client(object):
         # useful guide:
         # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
-
+        worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='create_configmap')
         try:
-            worker_id = str(work_spec.workerID)
-
             # Get the access point. The messenger should have dropped the input files for the pilot here
             access_point = work_spec.get_access_point()
             pjd = 'pandaJobData.out'
@@ -373,12 +377,74 @@ class k8s_Client(object):
 
             # create the configmap object in K8s
             api_response = self.core_v1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
-            tmp_log.debug('Created configmap for worker id: {0}'.format(worker_id))
+            tmp_log.debug('Created configmap')
             return True
 
         except (ApiException, TypeError) as e:
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
+
+    def create_host_discovery_configmap(self, work_spec):
+        # useful guide:
+        # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
+        # Horovod formations require additionally to create a host discovery script
+        # This script will initially be empty and filled by the formation monitor once the pod IPs are known
+
+        worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='create_host_discovery_configmap')
+        try:
+
+            ds = 'discover_hosts.sh'
+            discovery_script_contents = ''
+            data[ds] = discovery_script_contents
+
+            # instantiate the configmap object
+            metadata = {'name': '{0}-{1}'.format(HOST_DISC_TAG, worker_id), 'namespace': self.namespace}
+            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
+
+            # create the configmap object in K8s
+            api_response = self.core_v1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
+            tmp_log.debug('Created configmap')
+            return True
+
+        except (ApiException, TypeError) as e:
+            tmp_log.error('Could not create configmap with: {0}'.format(e))
+            return False
+
+    def update_host_discovery_configmap(self, work_spec, host_list):
+
+        worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='update_host_discovery_configmap')
+
+        try:
+            if not host_list:
+                tmp_log.debug('host list is empty'.format(host_list))
+
+            ds = 'discover_hosts.sh'
+
+            hosts = ''
+            for host in host_list:
+                hosts += 'echo {0}:1\n'.format(host)
+
+            data[ds] = discovery_script_contents
+
+            # instantiate the configmap object
+            name = '{0}-{1}'.format(HOST_DISC_TAG, worker_id)
+
+            metadata = {'name': name, 'namespace': self.namespace}
+            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
+            # update the configmap object in K8s
+            api_response = self.core_v1.patch_namespaced_config_map(name, self.namespace, config_map)
+
+            tmp_log.debug('Created configmap')
+            return True
+
+        except (ApiException, TypeError) as e:
+            tmp_log.error('Could not create configmap with: {0}'.format(e))
+            return False
+
 
     def get_pod_logs(self, pod_name, previous=False):
         tmp_log = core_utils.make_logger(base_logger, method_name='get_pod_logs')
@@ -427,11 +493,15 @@ class k8s_Client(object):
     def create_horovod_head(self, work_spec, prod_source_label, container_image, evaluation_command, pilot_command,
                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_head')
         worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='create_horovod_head')
 
         # TODO: check the return codes
         if not self.create_configmap(work_spec):
+            return False, None
+
+        if not self.create_host_discovery_configmap(work_spec)
             return False, None
 
         # generate pilot and evaluation container
@@ -444,6 +514,9 @@ class k8s_Client(object):
                                        secret=client.V1SecretVolumeSource(secret_name='proxy-secret'))
         config_map = client.V1Volume(name='job-config',
                                      config_map=client.V1ConfigMapVolumeSource(name=worker_id))
+        hd_config_map = client.V1Volume(name='job-config',
+                                        config_map=client.V1ConfigMapVolumeSource(name='{0}-{1}'.format(HOST_DISC_TAG,
+                                                                                                        worker_id)))
         shared_dir = client.V1Volume(name='shared-dir',
                                      empty_dir=client.V1EmptyDirVolumeSource())
 
@@ -451,7 +524,7 @@ class k8s_Client(object):
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodSpec.md
         max_time = 4 * 24 * 23600
         spec = client.V1PodSpec(containers=[pilot_container, evaluation_container],
-                                volumes=[proxy_secret, config_map, shared_dir],
+                                volumes=[proxy_secret, config_map, hd_config_map, shared_dir],
                                 active_deadline_seconds=max_time)
 
         pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id),
@@ -465,9 +538,12 @@ class k8s_Client(object):
     def create_horovod_workers(self, work_spec, prod_source_label, container_image,  command,
                                cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_horovod_workers')
-
         worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='create_horovod_workers')
+
+        method_name = 'create_horovod_head'
+
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
@@ -499,7 +575,7 @@ class k8s_Client(object):
         rsp = self.apps_v1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
 
-    def create_horovod_deployments(self, work_spec, prod_source_label, container_image, evaluation_command,
+    def create_horovod_formation(self, work_spec, prod_source_label, container_image, evaluation_command,
                                    pilot_command, worker_command, cert, cpu_adjust_ratio=100, memory_adjust_ratio=100,
                                    max_time=None):
 
@@ -527,10 +603,10 @@ class k8s_Client(object):
 
         return label_selector
 
-    def get_horovod_deployments_info(self, workspec_list=[]):
+    def get_horovod_formations_info(self, workspec_list=[]):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_horovod_deployments_info')
-        deployments_info = {}
+        tmp_log = core_utils.make_logger(base_logger, method_name='get_horovod_formations_info')
+        formations_info = {}
 
         # get the status of the head pod
         head_ls = self.generate_horovod_ls(workspec_list, HOROVOD_HEAD_TAG)
@@ -552,8 +628,8 @@ class k8s_Client(object):
                     for cs in i.status.container_statuses:
                         if cs.state:
                             pod_info['containers_state'].append(cs.state)
-                deployments_info.setdefault(worker_id, {})
-                deployments_info[worker_id]['head_pod'] = pod_info
+                formations_info.setdefault(worker_id, {})
+                formations_info[worker_id]['head_pod'] = pod_info
 
         # get the status of the worker deployment
         worker_ls = self.generate_horovod_ls(workspec_list, HOROVOD_WORKER_TAG)
@@ -564,6 +640,7 @@ class k8s_Client(object):
         else:
             for i in ret.items:
                 # TODO: think about how to properly monitor the deployments
+                worker_id = int(i.metadata.name[len(HOROVOD_WORKER_TAG) + 1:])
                 dep_info = {'name': i.metadata.name,
                             'available_replicas': i.status.available_replicas,
                             'unavailable_replicas': i.status.unavailable_replicas,
@@ -571,16 +648,30 @@ class k8s_Client(object):
                             'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
                             'containers_state': []
                             }
-                deployments_info.setdefault(worker_id, {})
-                deployments_info[worker_id]['worker_deployment'] = dep_info
+                formations_info.setdefault(worker_id, {})
+                formations_info[worker_id]['worker_deployment'] = dep_info
 
-        tmp_log.debug("Found following deployments: {0}".format(deployments_info))
-        return deployments_info
+        # get details of the individual workers
+        try:
+            ret = self.core_v1.list_namespaced_pod(namespace='default', label_selector=worker_ls)
+            for i in ret.items:
+                worker_id = int(i.metadata.name[len(HOROVOD_WORKER_TAG) + 1:])
+                if i.status.phase in POD_RUNNING_STATES and i.status.pod_ip:
+                    formations_info[worker_id].setdefault('worker_pods', [])
 
-    def delete_horovod_deployment(self, work_spec):
+                    pod_info = {'status': i.status.phase,
+                                'ip': i.status.pod_ip}
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='delete_horovod_deployment')
+                    formations_info[worker_id]['worker_pods'].append(pod_info)
+
+        tmp_log.debug("Found following Horovod formations: {0}".format(formations_info))
+
+        return formations_info
+
+    def delete_horovod_formation(self, work_spec):
+
         worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id), method_name='delete_horovod_formation')
 
         # delete the configmap with the job configuration
         try:
