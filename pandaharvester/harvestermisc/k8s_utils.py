@@ -501,7 +501,7 @@ class k8s_Client(object):
         if not self.create_configmap(work_spec):
             return False, None
 
-        if not self.create_host_discovery_configmap(work_spec)
+        if not self.create_host_discovery_configmap(work_spec):
             return False, None
 
         # generate pilot and evaluation container
