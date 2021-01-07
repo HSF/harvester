@@ -488,7 +488,7 @@ class k8s_Client(object):
 
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
         container = client.V1Container(name=name, image=image, resources=resources, env=env,
-                                       volume_mounts=[configmap_mount, secret_mount, shared_mount],
+                                       volume_mounts=[configmap_mount, hd_configmap_mount, secret_mount, shared_mount],
                                        command=command)
 
         return container
