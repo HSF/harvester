@@ -477,6 +477,9 @@ class k8s_Client(object):
         # Attach config-map containing job details
         configmap_mount = client.V1VolumeMount(name='job-config', mount_path=CONFIG_DIR)
 
+        # Attach config-map containing host discovery script
+        hd_configmap_mount = client.V1VolumeMount(name='host-discovery', mount_path=CONFIG_DIR)
+
         # Attach secret with proxy
         secret_mount = client.V1VolumeMount(name='proxy-secret', mount_path='proxy')
 
@@ -512,9 +515,11 @@ class k8s_Client(object):
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Volume.md
         proxy_secret = client.V1Volume(name='proxy-secret',
                                        secret=client.V1SecretVolumeSource(secret_name='proxy-secret'))
+
         config_map = client.V1Volume(name='job-config',
                                      config_map=client.V1ConfigMapVolumeSource(name=worker_id))
-        hd_config_map = client.V1Volume(name='job-config',
+
+        hd_config_map = client.V1Volume(name='host-discovery',
                                         config_map=client.V1ConfigMapVolumeSource(name='{0}-{1}'.format(HOST_DISC_TAG,
                                                                                                         worker_id)))
         shared_dir = client.V1Volume(name='shared-dir',
