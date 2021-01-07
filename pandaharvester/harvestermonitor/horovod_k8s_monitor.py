@@ -103,7 +103,7 @@ class HorovodMonitor(PluginBase):
             host_list = []
             for worker_pod in worker_pods:
                 if worker_pod['status'] in k8s_utils.POD_RUNNING_STATES:
-                    host_list.append(worker_podp['ip'])
+                    host_list.append(worker_pod['ip'])
 
             # Update the list of IPs in the host discovery script
             if host_list:
