@@ -18,6 +18,7 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
+HD_DIR = '/scratch/hostdiscovery'
 SHARED_DIR = '/root/shared/'
 
 HOROVOD_WORKER_TAG = 'horovod-workers'
@@ -472,13 +473,15 @@ class k8s_Client(object):
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
 
         env = [client.V1EnvVar(name='computingSite', value=work_spec.computingSite),
-               client.V1EnvVar(name='SHARED_DIR', value='/root/shared')]
+               client.V1EnvVar(name='SHARED_DIR', value=SHARED_DIR),
+               client.V1EnvVar(name='CONFIG_DIR', value=CONGIG_DIR),
+               client.V1EnvVar(name='HD_DIR', value=HD_DIR)]
 
         # Attach config-map containing job details
         configmap_mount = client.V1VolumeMount(name='job-config', mount_path=CONFIG_DIR)
 
         # Attach config-map containing host discovery script
-        hd_configmap_mount = client.V1VolumeMount(name='host-discovery', mount_path=CONFIG_DIR)
+        hd_configmap_mount = client.V1VolumeMount(name='host-discovery', mount_path=HD_DIR)
 
         # Attach secret with proxy
         secret_mount = client.V1VolumeMount(name='proxy-secret', mount_path='proxy')
