@@ -429,7 +429,7 @@ class k8s_Client(object):
             for host in host_list:
                 hosts += 'echo {0}:1\n'.format(host)
 
-            data[ds] = discovery_script_contents
+            data[ds] = hosts
 
             # instantiate the configmap object
             name = '{0}-{1}'.format(HOST_DISC_TAG, worker_id)
