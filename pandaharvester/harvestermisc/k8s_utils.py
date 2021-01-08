@@ -18,8 +18,11 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
-HD_DIR = '/scratch/hostdiscovery'
 SHARED_DIR = '/root/shared/'
+
+HD_DIR = '/scratch/hostdiscovery'
+HD_FILENAME = 'discover_hosts.sh'
+HD_CONT_NAME = 'hd_init_cont'
 
 HOROVOD_WORKER_TAG = 'horovod-workers'
 HOROVOD_HEAD_TAG = 'horovod-head'
@@ -395,10 +398,8 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
                                          method_name='create_host_discovery_configmap')
         try:
-
-            ds = 'discover_hosts.sh'
             hosts = ''
-            data = {ds: hosts}
+            data = {HD_FILENAME: hosts}
 
             # instantiate the configmap object
             metadata = {'name': '{0}-{1}'.format(HOST_DISC_TAG, worker_id), 'namespace': self.namespace}
@@ -423,12 +424,10 @@ class k8s_Client(object):
             if not host_list:
                 tmp_log.debug('host list is empty'.format(host_list))
 
-            ds = 'discover_hosts.sh'
-
             hosts = ''
             for host in host_list:
                 hosts += 'echo {0}:1\n'.format(host)
-            data = {ds: hosts}
+            data = {HD_FILENAME: hosts}
 
             # instantiate the configmap object
             name = '{0}-{1}'.format(HOST_DISC_TAG, worker_id)
@@ -495,6 +494,29 @@ class k8s_Client(object):
 
         return container
 
+    def fill_hd_init_container_template(self):
+        # this init container waits until the host discovery file has been filled out,
+        # so should be as lightweight as possible
+
+        # set the container_template image and command
+        image = 'busybox'
+        command = 'while true; do sleep 1; if[-s $HD_DIR]; then exit 0; fi; done;'
+
+        resources = client.V1ResourceRequirements(requests={"cpu": "150m", "memory": "200Mi"},
+                                                  limits={"cpu": "200m", "memory": "300Mi"})
+
+        env = [client.V1EnvVar(name='HD_FILE', value='{0}/{1}'.format(HD_DIR, HD_FILENAME))]
+
+        # Attach config-map containing host discovery script
+        hd_configmap_mount = client.V1VolumeMount(name='host-discovery', mount_path=HD_DIR)
+
+        # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
+        container = client.V1Container(name=HD_CONT_NAME, image=image, resources=resources, env=env,
+                                       volume_mounts=[hd_configmap_mount],
+                                       command=command)
+
+        return container
+
     def create_horovod_head(self, work_spec, prod_source_label, container_image, evaluation_command, pilot_command,
                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
@@ -509,9 +531,15 @@ class k8s_Client(object):
         if not self.create_host_discovery_configmap(work_spec):
             return False, None
 
+        # generate init container that waits for workers to be available
+        # Elastic horovod fails if it starts and no worker is available
+
         # generate pilot and evaluation container
         pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_command, name='pilot')
         evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_command, name='evaluation')
+
+        # generate init containers
+        init_hd_container = self.fill_hd_init_container_template()
 
         # generate secret, configmap and shared directory volumes
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Volume.md
@@ -532,6 +560,7 @@ class k8s_Client(object):
         max_time = 4 * 24 * 23600
         spec = client.V1PodSpec(containers=[pilot_container, evaluation_container],
                                 volumes=[proxy_secret, config_map, hd_config_map, shared_dir],
+                                init_containers=[init_hd_container],
                                 active_deadline_seconds=max_time)
 
         pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id),
