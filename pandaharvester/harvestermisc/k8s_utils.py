@@ -397,8 +397,8 @@ class k8s_Client(object):
         try:
 
             ds = 'discover_hosts.sh'
-            discovery_script_contents = ''
-            data = {ds: discovery_script_contents}
+            hosts = ''
+            data = {ds: hosts}
 
             # instantiate the configmap object
             metadata = {'name': '{0}-{1}'.format(HOST_DISC_TAG, worker_id), 'namespace': self.namespace}
@@ -428,8 +428,7 @@ class k8s_Client(object):
             hosts = ''
             for host in host_list:
                 hosts += 'echo {0}:1\n'.format(host)
-
-            data[ds] = hosts
+            data = {ds: hosts}
 
             # instantiate the configmap object
             name = '{0}-{1}'.format(HOST_DISC_TAG, worker_id)
