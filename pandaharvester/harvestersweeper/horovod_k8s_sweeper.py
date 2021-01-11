@@ -7,6 +7,7 @@ base_logger = core_utils.setup_logger('horovod_sweeper')
 
 
 # sweeper for K8S
+# sweeper for K8S
 class HorovodSweeper(BaseSweeper):
     # constructor
     def __init__(self, **kwarg):
@@ -19,21 +20,24 @@ class HorovodSweeper(BaseSweeper):
     # kill workers
     def kill_workers(self, work_spec_list):
         ret_list = []
-        for work_spec in work_spec_list:
-            tmp_ret_val = self.sweep_worker(work_spec)
+        for worker_spec in work_spec_list:
+            tmp_ret_val = self.kill_worker(worker_spec)
 
         return ret_list
 
-    def sweep_worker(self, work_spec):
+    def kill_worker(self, worker_spec):
         # cleanup for a worker
-        tmp_log = self.make_logger(base_logger, 'workerID={0}'.format(work_spec.workerID), method_name='sweep_worker')
+        tmp_log = self.make_logger(base_logger, 'workerID={0}'.format(worker_spec.workerID), method_name='sweep_worker')
 
         # retrieve and upload the logs to panda cache
-        # batch_id = work_spec.batchID
+        # batch_id = worker_spec.batchID
         # log_content = self.k8s_client.retrieve_pod_log(batch_id)
 
         tmp_log.debug('Going to sweep formation')
-        tmp_ret_val = self.k8s_client.delete_horovod_formation(work_spec)
+        tmp_ret_val = self.k8s_client.delete_horovod_formation(worker_spec)
         tmp_log.debug('Swept formation')
 
         return tmp_ret_val
+
+    def sweep_worker(self, worker_spec):
+        return self.kill_worker(worker_spec)
