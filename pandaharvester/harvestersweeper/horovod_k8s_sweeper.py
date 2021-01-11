@@ -32,8 +32,8 @@ class HorovodSweeper(BaseSweeper):
         # batch_id = work_spec.batchID
         # log_content = self.k8s_client.retrieve_pod_log(batch_id)
 
-        tmp_log.debug('Going to sweep formation for worker_id: {0}'.format(work_spec.workerID))
+        tmp_log.debug('Going to sweep formation')
         tmp_ret_val = self.k8s_client.delete_horovod_formation(work_spec)
-        tmp_log.debug('Swept formation for worker_id: {0}'.format(work_spec.workerID, tmp_ret_val))
+        tmp_log.debug('Swept formation')
 
         return tmp_ret_val

@@ -725,7 +725,7 @@ class Monitor(AgentBase):
                                 newStatus = WorkSpec.ST_idle
                         elif not workSpec.is_post_processed():
                             if (not queue_config.is_no_heartbeat_status(newStatus) and not queue_config.truePilot) \
-                                or (hasattr(messenger, 'forcePostProcessing') and messenger.forcePostProcessing):
+                                    or (hasattr(messenger, 'forcePostProcessing') and messenger.forcePostProcessing):
                                 # post processing unless heartbeat is suppressed
                                 jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                                 None, True,

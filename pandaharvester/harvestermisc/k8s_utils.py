@@ -564,7 +564,8 @@ class k8s_Client(object):
                                 active_deadline_seconds=max_time)
 
         pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id),
-                                                                   labels={'app': '{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id)}))
+                                                                   labels={'app': '{0}-{1}'.format(HOROVOD_HEAD_TAG,
+                                                                                                   worker_id)}))
 
         tmp_log.debug('creating pod {0}'.format(pod))
 
@@ -711,38 +712,45 @@ class k8s_Client(object):
 
         worker_id = str(work_spec.workerID)
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id), method_name='delete_horovod_formation')
+        err_str = ''
 
-        # delete the configmap with the job configuration
+        # TODO: these calls can be encapsulated a bit nicer
+
+        # delete the worker deployment. This is done deliberately as first step of the clean up, since it's the
+        # most expensive component of the formation
         try:
-            self.delete_config_map(worker_id)
-            tmp_log.debug('Deleted configmap for {0}'.format(worker_id))
-        except Exception as _e:
-            # TODO: if the configmap did not exist, then don't consider this an error
-            err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(worker_id, _e)
-            tmp_log.error(err_str)
-            return False, err_str
+            dep_name = '{0}-{1}'.format(HOROVOD_WORKER_TAG, worker_id)
+            api_response = self.core_v1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
+                                                                     body=self.delete_v1, grace_period_seconds=0)
+            tmp_log.debug('Deleted worker deployment')
+        except ApiException as _e:
+            # if the worker dep did not exist, don't consider it an error
+            if _e.status != 404 and _e.reason != 'Not Found':
+                err_str += 'Failed to delete the WORKER DEP; {1}'.format(_e)
 
-        # delete the head
+        # delete the heads
         try:
             head_name = '{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id)
             api_response = self.core_v1.delete_namespaced_pod(name=head_name, namespace=self.namespace,
                                                               body=self.delete_v1, grace_period_seconds=0)
             tmp_log.debug('Deleted head pod for {0}'.format(worker_id))
-        except Exception as _e:
-            # TODO: if the head pod did not exist, then don't consider this an error
-            err_str = 'Failed to delete the HEAD POD with id={0} ; {1}'.format(worker_id, _e)
-            tmp_log.error(err_str)
-            return False, err_str
+        except ApiException as _e:
+            # if the head pod did not exist, don't consider it an error
+            if _e.status != 404 and _e.reason != 'Not Found':
+                err_str = 'Failed to delete the HEAD POD; {1}'.format(_e)
 
-        # delete the worker deployment
-        try:
-            dep_name = '{0}-{1}'.format(HOROVOD_WORKER_TAG, worker_id)
-            api_response = self.core_v1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
-                                                                     body=self.delete_v1, grace_period_seconds=0)
-            tmp_log.debug('Deleted worker deployment for {0}'.format(worker_id))
-        except Exception as _e:
-            # TODO: if the worker dep did not exist, then don't consider this an error
-            err_str = 'Failed to delete the WORKER DEP with id={0} ; {1}'.format(worker_id, _e)
+        # delete the configmaps with the job configuration and the host discovery
+        config_maps = [worker_id, '{0}-{1}'.format(HOST_DISC_TAG, worker_id)]
+        for config_map in config_maps:
+            try:
+                self.delete_config_map(config_map)
+                tmp_log.debug('Deleted configmap')
+            except ApiException as _e:
+                # if the configmap did not exist, don't consider it an error
+                if _e.status != 404 and _e.reason != 'Not Found':
+                    err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(worker_id, _e)
+
+        if err_str:
             tmp_log.error(err_str)
             return False, err_str
 
