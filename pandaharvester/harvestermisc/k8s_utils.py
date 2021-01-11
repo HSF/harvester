@@ -720,7 +720,7 @@ class k8s_Client(object):
         # most expensive component of the formation
         try:
             dep_name = '{0}-{1}'.format(HOROVOD_WORKER_TAG, worker_id)
-            api_response = self.core_v1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
+            api_response = self.apps_v1.delete_namespaced_deployment(name=dep_name, namespace=self.namespace,
                                                                      body=self.delete_v1, grace_period_seconds=0)
             tmp_log.debug('Deleted worker deployment')
         except ApiException as _e:
