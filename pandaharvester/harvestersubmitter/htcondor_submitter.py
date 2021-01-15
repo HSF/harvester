@@ -227,18 +227,15 @@ def _get_complicated_pilot_options(pilot_type, pilot_url=None):
     return pilot_opt_dict
 
 
-# get special flag of pilot wrapper about pilot version , and whehter to run with python 3 if pilot version is "3"
+# get special flag of pilot wrapper about python version of pilot, and whehter to run with python 3 if python version is "3"
 # FIXME: during pilot testing phase, only prodsourcelabel ptest and rc_test2 should run python3
 # This constraint will be removed when pilot is ready
-def _get_pilot_version_python_option(pilot_version, prod_source_label):
-    version = 'current'
+def _get_python_version_option(python_version, prod_source_label):
     option = ''
-    if pilot_version.startswith('3'):
+    if python_version.startswith('3'):
         if prod_source_label in ['rc_test2', 'ptest']:
             option = '--pythonversion 3'
-    else:
-        version = pilot_version
-    return version, option
+    return option
 
 
 # submit a bag of workers
@@ -354,7 +351,8 @@ def submit_bag_of_workers(data_list):
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), pilot_url=None,
-                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='unknown', **kwarg):
+                special_par='', harvester_queue_config=None, is_unified_queue=False,
+                pilot_version='unknown', python_version='unknown', **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -436,8 +434,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'ioIntensity': io_intensity,
             'pilotType': pilot_type_opt,
             'pilotUrlOption': pilot_url_str,
-            'pilotVersion': _get_pilot_version_python_option(pilot_version, prod_source_label)[0],
-            'pilotPythonOption': _get_pilot_version_python_option(pilot_version, prod_source_label)[1],
+            'pilotVersion': pilot_version,
+            'pilotPythonOption': _get_python_version_option(python_version, prod_source_label),
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
         }
@@ -639,6 +637,7 @@ class HTCondorSubmitter(PluginBase):
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
         pilot_url = associated_params_dict.get('pilot_url')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
+        python_version = str(this_panda_queue_dict.get('python_version', '2'))
         sdf_suffix_str = '_pilot2'
 
         # get override requirements from queue configured
@@ -871,6 +870,7 @@ class HTCondorSubmitter(PluginBase):
                         'use_spool': self.useSpool,
                         'pilot_url': pilot_url,
                         'pilot_version': pilot_version,
+                        'python_version': python_version,
                         })
             return data
 
