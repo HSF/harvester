@@ -29,7 +29,7 @@ def _div_round_up(a, b):
 
 
 # Compute weight of each CE according to worker stat, return tuple(dict, total weight score)
-def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
+def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None, is_slave_queue=False):
     multiplier = 1000.
     n_ce = len(ce_endpoint_list)
     worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
@@ -44,6 +44,12 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
                             for _ce in worker_ce_backend_throughput_dict))
     thruput_avg = (log1p(Q_good_init) - log1p(Q_good_fin))
     n_new_workers = float(n_new_workers)
+    # target number of queuing
+    target_Q = Q + n_new_workers
+    if is_slave_queue:
+        # take total number of current queuing if slave queue
+        total_Q = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict ))
+        target_Q = min(total_Q, Q) + n_new_workers
 
     def _get_thruput(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_backend_throughput_dict:
@@ -81,7 +87,8 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
         if ( _ce_endpoint in worker_ce_stats_dict and q > Q ):
             return float(0)
         ce_base_weight_normalized = _get_thruput_adj_ratio(_get_thruput(_ce_endpoint))/ce_base_weight_sum
-        q_expected = (Q + n_new_workers) * ce_base_weight_normalized
+        # target number of queuing of the CE
+        q_expected = target_Q * ce_base_weight_normalized
         # weight by difference
         ret = max((q_expected - q), 2**-10)
         # # Weight by running ratio
@@ -99,12 +106,12 @@ def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None):
         regulator = 1.
     ce_weight_dict = {_ce: _get_init_weight(_ce) * regulator for _ce in ce_endpoint_list}
     ce_thruput_dict = {_ce: _get_thruput(_ce) * 86400. / time_window for _ce in ce_endpoint_list}
-    return total_score, ce_weight_dict, ce_thruput_dict
+    return total_score, ce_weight_dict, ce_thruput_dict, target_Q
 
 
 # Choose a CE accroding to weighting
 def _choose_ce(weighting):
-    total_score, ce_weight_dict, ce_thruput_dict = weighting
+    total_score, ce_weight_dict, ce_thruput_dict, target_Q = weighting
     lucky_number = random.random() * total_score
     cur = 0.
     ce_now = None
@@ -124,19 +131,21 @@ def _choose_ce(weighting):
 # Get better string to display the statistics and weightng of CEs
 def _get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
     worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
-    total_score, ce_weight_dict, ce_thruput_dict = ce_weighting
+    total_score, ce_weight_dict, ce_thruput_dict, target_Q = ce_weighting
     worker_ce_stats_dict_sub_default = {'submitted': 0, 'running': 0}
     worker_ce_backend_throughput_dict_sub_default = {'submitted': 0, 'running': 0, 'finished': 0}
     general_dict = {
             'maxWorkers': int(worker_limits_dict.get('maxWorkers')),
             'nQueueLimitWorker': int(worker_limits_dict.get('nQueueLimitWorker')),
             'nNewWorkers': int(n_new_workers),
+            'target_Q': int(target_Q),
             'history_time_window': int(time_window),
         }
     general_str = (
             'maxWorkers={maxWorkers} '
             'nQueueLimitWorker={nQueueLimitWorker} '
             'nNewWorkers={nNewWorkers} '
+            'target_Q={target_Q} '
             'hist_timeWindow={history_time_window} '
         ).format(**general_dict)
     ce_str_list = []
@@ -218,6 +227,17 @@ def _get_complicated_pilot_options(pilot_type, pilot_url=None):
     return pilot_opt_dict
 
 
+# get special flag of pilot wrapper about python version of pilot, and whehter to run with python 3 if python version is "3"
+# FIXME: during pilot testing phase, only prodsourcelabel ptest and rc_test2 should run python3
+# This constraint will be removed when pilot is ready
+def _get_python_version_option(python_version, prod_source_label):
+    option = ''
+    if python_version.startswith('3'):
+        if prod_source_label in ['rc_test2', 'ptest']:
+            option = '--pythonversion 3'
+    return option
+
+
 # submit a bag of workers
 def submit_bag_of_workers(data_list):
     # make logger
@@ -253,8 +273,8 @@ def submit_bag_of_workers(data_list):
         else:
             workspec.reset_changed_list()
             # fill in host_jdl_list_workerid_map
-            a_jdl = make_a_jdl(**data)
-            val = (workspec, a_jdl)
+            a_jdl, placeholder_map = make_a_jdl(**data)
+            val = (workspec, a_jdl, placeholder_map)
             try:
                 host_jdl_list_workerid_map[workspec.submissionHost].append(val)
             except KeyError:
@@ -280,6 +300,7 @@ def submit_bag_of_workers(data_list):
             for val_i in range(n_workers):
                 val = val_list[val_i]
                 workspec = val[0]
+                placeholder_map = val[2]
                 # got batchID
                 workspec.batchID = batchIDs_list[val_i]
                 tmpLog.debug('workerID={0} submissionHost={1} batchID={2}'.format(
@@ -292,9 +313,9 @@ def submit_bag_of_workers(data_list):
                 # set log
                 batch_log_dict = data['batch_log_dict']
                 (clusterid, procid) = get_job_id_tuple_from_batchid(workspec.batchID)
-                batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid)
-                batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid)
-                batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid)
+                batch_log = _condor_macro_replace(batch_log_dict['batch_log'], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                batch_stdout = _condor_macro_replace(batch_log_dict['batch_stdout'], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                batch_stderr = _condor_macro_replace(batch_log_dict['batch_stderr'], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
                 try:
                     batch_jdl = '{0}.jdl'.format(batch_stderr[:-4])
                 except Exception:
@@ -330,7 +351,8 @@ def submit_bag_of_workers(data_list):
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), pilot_url=None,
-                special_par='', harvester_queue_config=None, is_unified_queue=False, pilot_version='unknown', **kwarg):
+                special_par='', harvester_queue_config=None, is_unified_queue=False,
+                pilot_version='unknown', python_version='unknown', **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -376,50 +398,55 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         pilot_url_str = pilot_opt_dict['pilot_url_str']
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
+    # placeholder map
+    placeholder_map = {
+            'sdfPath': tmpFile.name,
+            'executableFile': executable_file,
+            'nCorePerNode': n_core_per_node,
+            'nCoreTotal': n_core_total,
+            'nNode': n_node,
+            'requestRam': request_ram,
+            'requestRamPerCore': request_ram_per_core,
+            'requestDisk': request_disk,
+            'requestWalltime': request_walltime,
+            'requestWalltimeMinute': request_walltime_minute,
+            'requestCputime': request_cputime,
+            'requestCputimeMinute': request_cputime_minute,
+            'accessPoint': workspec.accessPoint,
+            'harvesterID': harvester_config.master.harvester_id,
+            'workerID': workspec.workerID,
+            'computingSite': workspec.computingSite,
+            'pandaQueueName': panda_queue_name,
+            'x509UserProxy': x509_user_proxy,
+            'ceEndpoint': ce_info_dict.get('ce_endpoint', ''),
+            'ceHostname': ce_info_dict.get('ce_hostname', ''),
+            'ceFlavour': ce_info_dict.get('ce_flavour', ''),
+            'ceJobmanager': ce_info_dict.get('ce_jobmanager', ''),
+            'ceQueueName': ce_info_dict.get('ce_queue_name', ''),
+            'ceVersion': ce_info_dict.get('ce_version', ''),
+            'logDir': log_dir,
+            'logSubdir': log_subdir,
+            'gtag': batch_log_dict.get('gtag', 'fake_GTAG_string'),
+            'prodSourceLabel': prod_source_label,
+            'jobType': workspec.jobType,
+            'resourceType': _get_resource_type(workspec.resourceType, is_unified_queue),
+            'pilotResourceTypeOption': _get_resource_type(workspec.resourceType, is_unified_queue, True),
+            'ioIntensity': io_intensity,
+            'pilotType': pilot_type_opt,
+            'pilotUrlOption': pilot_url_str,
+            'pilotVersion': pilot_version,
+            'pilotPythonOption': _get_python_version_option(python_version, prod_source_label),
+            'submissionHost': workspec.submissionHost,
+            'submissionHostShort': workspec.submissionHost.split('.')[0],
+        }
     # fill in template string
-    jdl_str = template.format(
-        sdfPath=tmpFile.name,
-        executableFile=executable_file,
-        nCorePerNode=n_core_per_node,
-        nCoreTotal=n_core_total,
-        nNode=n_node,
-        requestRam=request_ram,
-        requestRamPerCore=request_ram_per_core,
-        requestDisk=request_disk,
-        requestWalltime=request_walltime,
-        requestWalltimeMinute=request_walltime_minute,
-        requestCputime=request_cputime,
-        requestCputimeMinute=request_cputime_minute,
-        accessPoint=workspec.accessPoint,
-        harvesterID=harvester_config.master.harvester_id,
-        workerID=workspec.workerID,
-        computingSite=workspec.computingSite,
-        pandaQueueName=panda_queue_name,
-        x509UserProxy=x509_user_proxy,
-        ceEndpoint=ce_info_dict.get('ce_endpoint', ''),
-        ceHostname=ce_info_dict.get('ce_hostname', ''),
-        ceFlavour=ce_info_dict.get('ce_flavour', ''),
-        ceJobmanager=ce_info_dict.get('ce_jobmanager', ''),
-        ceQueueName=ce_info_dict.get('ce_queue_name', ''),
-        ceVersion=ce_info_dict.get('ce_version', ''),
-        logDir=log_dir,
-        logSubdir=log_subdir,
-        gtag=batch_log_dict.get('gtag', 'fake_GTAG_string'),
-        prodSourceLabel=prod_source_label,
-        jobType=workspec.jobType,
-        resourceType=_get_resource_type(workspec.resourceType, is_unified_queue),
-        pilotResourceTypeOption=_get_resource_type(workspec.resourceType, is_unified_queue, True),
-        ioIntensity=io_intensity,
-        pilotType=pilot_type_opt,
-        pilotUrlOption=pilot_url_str,
-        pilotVersion=pilot_version,
-        )
+    jdl_str = template.format(**placeholder_map)
     # save jdl to submit description file
     tmpFile.write(jdl_str)
     tmpFile.close()
     tmpLog.debug('saved sdf at {0}'.format(tmpFile.name))
     tmpLog.debug('done')
-    return jdl_str
+    return jdl_str, placeholder_map
 
 
 # parse log, stdout, stderr filename
@@ -560,7 +587,7 @@ class HTCondorSubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmpLog = self.make_logger(baseLogger, method_name='submit_workers')
+        tmpLog = self.make_logger(baseLogger, 'site={0}'.format(self.queueName), method_name='submit_workers')
 
         nWorkers = len(workspec_list)
         tmpLog.debug('start nWorkers={0}'.format(nWorkers))
@@ -610,6 +637,7 @@ class HTCondorSubmitter(PluginBase):
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
         pilot_url = associated_params_dict.get('pilot_url')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
+        python_version = str(this_panda_queue_dict.get('python_version', '2'))
         sdf_suffix_str = '_pilot2'
 
         # get override requirements from queue configured
@@ -661,8 +689,10 @@ class HTCondorSubmitter(PluginBase):
                 # Get CE weighting
                 tmpLog.debug('Get CE weighting')
                 worker_ce_all_tuple = self.get_ce_statistics(self.queueName, nWorkers)
+                is_slave_queue = (harvester_queue_config.runMode == 'slave')
                 ce_weighting = _get_ce_weighting(ce_endpoint_list=list(ce_auxilary_dict.keys()),
-                                                        worker_ce_all_tuple=worker_ce_all_tuple)
+                                                        worker_ce_all_tuple=worker_ce_all_tuple,
+                                                        is_slave_queue=is_slave_queue)
                 stats_weighting_display_str = _get_ce_stats_weighting_display(
                                                 ce_auxilary_dict.keys(), worker_ce_all_tuple, ce_weighting)
                 tmpLog.debug('CE stats and weighting: {0}'.format(stats_weighting_display_str))
@@ -672,8 +702,21 @@ class HTCondorSubmitter(PluginBase):
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+            tmpLog = core_utils.make_logger(baseLogger, 'site={0} workerID={1}'.format(self.queueName, workspec.workerID),
                                             method_name='_handle_one_worker')
+            def _choose_proxy(workspec):
+                """
+                Choose the proxy based on the job type
+                """
+                job_type = workspec.jobType
+                proxy = self.x509UserProxy
+                if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis') and self.x509UserProxyAnalysis:
+                    tmpLog.debug('Taking analysis proxy')
+                    proxy = self.x509UserProxyAnalysis
+                else:
+                    tmpLog.debug('Taking default proxy')
+                return proxy
+            # initialize
             ce_info_dict = dict()
             batch_log_dict = dict()
             data = {'workspec': workspec,
@@ -704,8 +747,8 @@ class HTCondorSubmitter(PluginBase):
                         if ce_flavour_str in default_port_map:
                             default_port = default_port_map[ce_flavour_str]
                             ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
-                    tmpLog.debug('For site {0} got pilot version: "{1}"; CE endpoint: "{2}", flavour: "{3}"'.format(
-                                    self.queueName, pilot_version, ce_endpoint_from_queue, ce_flavour_str))
+                    tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
+                                    pilot_version, ce_endpoint_from_queue, ce_flavour_str))
                     if self.templateFile:
                         sdf_template_file = self.templateFile
                     elif os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
@@ -827,6 +870,7 @@ class HTCondorSubmitter(PluginBase):
                         'use_spool': self.useSpool,
                         'pilot_url': pilot_url,
                         'pilot_version': pilot_version,
+                        'python_version': python_version,
                         })
             return data
 
@@ -838,20 +882,6 @@ class HTCondorSubmitter(PluginBase):
             workspec.set_attributes_with_dict(tmpDict)
             tmpLog.debug('Done workspec attributes propagation')
             return retVal
-
-        def _choose_proxy(workspec):
-            """
-            Choose the proxy based on the job type
-            """
-            job_type = workspec.jobType
-            proxy = self.x509UserProxy
-            if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis') and self.x509UserProxyAnalysis:
-                tmpLog.debug('Taking analysis proxy')
-                proxy = self.x509UserProxyAnalysis
-            else:
-                tmpLog.debug('Taking default proxy')
-
-            return proxy
 
         tmpLog.debug('finished preparing worker attributes')
 

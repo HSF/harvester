@@ -1,3 +1,9 @@
+import os
+try:
+    from os import walk
+except ImportError:
+    from scandir import walk
+
 from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -165,6 +171,60 @@ class Sweeper(AgentBase):
             # delete orphaned job info
             self.dbProxy.delete_orphaned_job_info()
             mainLog.debug('done deletion of old jobs' + sw_delete.get_elapsed_time())
+            # disk cleanup
+            if hasattr(harvester_config.sweeper, 'diskCleanUpInterval') and \
+                    hasattr(harvester_config.sweeper, 'diskHighWatermark'):
+                locked = self.dbProxy.get_process_lock('sweeper', self.get_pid(),
+                                                       harvester_config.sweeper.diskCleanUpInterval*60*60)
+                if locked:
+                    try:
+                        all_active_files = None
+                        for item in harvester_config.sweeper.diskHighWatermark.split(','):
+                            # dir name and watermark in GB
+                            dir_name, watermark = item.split('|')
+                            mainLog.debug('checking {0} for cleanup with watermark {1} GB'.format(dir_name, watermark))
+                            watermark = int(watermark) * 10**9
+                            total_size = 0
+                            file_dict = {}
+                            # scan dir
+                            for root, dirs, filenames in walk(dir_name):
+                                for base_name in filenames:
+                                    full_name = os.path.join(root, base_name)
+                                    f_size = os.path.getsize(full_name)
+                                    total_size += f_size
+                                    mtime = os.path.getmtime(full_name)
+                                    file_dict.setdefault(mtime, set())
+                                    file_dict[mtime].add((base_name, full_name, f_size))
+                            # delete if necessary
+                            if total_size < watermark:
+                                mainLog.debug(
+                                    'skip cleanup {0} due to total_size {1} GB < watermark {2} GB'.format(
+                                        dir_name, total_size//(10**9), watermark//(10**9)))
+                            else:
+                                mainLog.debug(
+                                    'cleanup {0} due to total_size {1} GB >= watermark {2} GB'.format(
+                                        dir_name, total_size//(10**9), watermark//(10**9)))
+                                # get active input files
+                                if all_active_files is None:
+                                    all_active_files = self.dbProxy.get_all_active_input_files()
+                                deleted_size = 0
+                                mtimes = sorted(file_dict.keys())
+                                for mtime in mtimes:
+                                    for base_name, full_name, f_size in file_dict[mtime]:
+                                        # keep if active
+                                        if base_name in all_active_files:
+                                            continue
+                                        try:
+                                            os.remove(full_name)
+                                        except Exception:
+                                            core_utils.dump_error_message(mainLog)
+                                        deleted_size += f_size
+                                        if total_size - deleted_size < watermark:
+                                            break
+                                    if total_size - deleted_size < watermark:
+                                        break
+                    except Exception:
+                        core_utils.dump_error_message(mainLog)
             # time the cycle
             mainLog.debug('done a sweeper cycle' + sw_main.get_elapsed_time())
             # check if being terminated

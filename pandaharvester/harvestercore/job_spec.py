@@ -550,3 +550,24 @@ class JobSpec(SpecBase):
             return 'PR'
         else:
             return None
+
+    # manipulate job parameters related to container
+    def manipulate_job_params_for_container(self):
+        updated = False
+        for fileSpec in self.inFiles:
+            for k, v in iteritems(self.jobParams):
+                # only container image
+                if k == 'container_name':
+                    if v == fileSpec.url:
+                        self.jobParams[k] = fileSpec.path
+                        updated = True
+                elif k == 'containerOptions':
+                    for kk, vv in iteritems(v):
+                        if kk == "containerImage":
+                            if vv == fileSpec.url:
+                                self.jobParams[k][kk] = fileSpec.path
+                                updated = True
+                    continue
+        # trigger updating
+        if updated:
+            self.force_update('jobParams')

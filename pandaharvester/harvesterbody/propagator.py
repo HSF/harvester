@@ -112,8 +112,8 @@ class Propagator(AgentBase):
                                     # no workers
                                     tmpJobSpec.status = 'cancelled'
                                     tmpJobSpec.subStatus = 'killed'
-                                    tmpJobSpec.set_pilot_error(PilotErrors.ERR_PANDAKILL,
-                                                               PilotErrors.pilotError[PilotErrors.ERR_PANDAKILL])
+                                    tmpJobSpec.set_pilot_error(PilotErrors.PANDAKILL,
+                                                               PilotErrors.pilot_error_msg[PilotErrors.PANDAKILL])
                                     tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
                                     tmpJobSpec.trigger_propagation()
                         self.dbProxy.update_job(tmpJobSpec, {'propagatorLock': self.get_pid()},

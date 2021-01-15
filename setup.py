@@ -35,14 +35,15 @@ setup(
                       'paramiko',
                       'pexpect',
                       'psutil >= 5.4.8',
-                      'scandir; python_version < "3.5"'
+                      'scandir; python_version < "3.5"',
+                      'panda-pilot >= 2.7.2.1',
                       ],
 
     # optional pip dependencies
     extras_require={
         'kubernetes': ['kubernetes', 'pyyaml'],
         'mysql': ['mysqlclient'],
-        'atlasgrid': ['uWSGI >= 2.0.0', 'htcondor >= 8.4.0', 'mysqlclient'],
+        'atlasgrid': ['uWSGI >= 2.0.0', 'htcondor >= 8.6.0', 'mysqlclient'],
     },
 
     data_files=[

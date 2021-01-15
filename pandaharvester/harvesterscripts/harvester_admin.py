@@ -198,7 +198,7 @@ def qconf_refresh(arguments):
     qcm = QueueConfigMapper()
     qcm._update_last_reload_time()
     qcm.lastUpdate = None
-    qcm.load_data()
+    qcm.load_data(refill_table=arguments.refill)
 
 def qconf_dump(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
@@ -327,6 +327,7 @@ def main():
     # qconf refresh command
     qconf_refresh_parser = qconf_subparsers.add_parser('refresh', help='refresh queue configuration immediately')
     qconf_refresh_parser.set_defaults(which='qconf_refresh')
+    qconf_refresh_parser.add_argument('-R', '--refill', dest='refill', action='store_true', help='Refill pq_table before refresh (cleaner)')
     # qconf purge command
     qconf_purge_parser = qconf_subparsers.add_parser('purge', help='Purge the queue thoroughly from harvester DB (Be careful !!)')
     qconf_purge_parser.set_defaults(which='qconf_purge')

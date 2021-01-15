@@ -45,7 +45,8 @@ class CobaltSubmitter(PluginBase):
             p = subprocess.Popen(comStr.split(),
                                  shell=False,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE,
+                                 text=True)
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
@@ -78,8 +79,8 @@ class CobaltSubmitter(PluginBase):
 
     # make batch script
     def make_batch_script(self, workspec):
-        tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
-        tmpFile.write(self.template.format(nNode=workspec.nCore / self.nCorePerNode,
+        tmpFile = tempfile.NamedTemporaryFile(mode='w+t',delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
+        tmpFile.write(self.template.format(nNode=int(workspec.nCore / self.nCorePerNode),
                                            accessPoint=workspec.accessPoint,
                                            workerID=workspec.workerID)
                       )

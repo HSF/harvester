@@ -378,10 +378,10 @@ class MonitorFIFO(FIFOBase):
                     overhead_time = None
                 else:
                     mainLog.debug('True')
-                    mainLog.info('Overhead time is {0} sec'.format(overhead_time))
+                    mainLog.info('Overhead time is {0:.3f} sec'.format(overhead_time))
             else:
                 mainLog.debug('False. Workers too young to check')
-                mainLog.debug('Overhead time is {0} sec'.format(overhead_time))
+                mainLog.debug('Overhead time is {0:.3f} sec'.format(overhead_time))
         else:
             mainLog.debug('False. Got nothing in FIFO')
         return retVal, overhead_time

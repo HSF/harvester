@@ -162,6 +162,7 @@ class SharedFileMessenger(BaseMessenger):
         self.stripJobParams = False
         self.scanInPostProcess = False
         self.leftOverPatterns = None
+        self.postProcessInSubDir = False
         BaseMessenger.__init__(self, **kwarg)
 
     # get access point
@@ -563,6 +564,9 @@ class SharedFileMessenger(BaseMessenger):
         try:
             for workSpec in workspec_list:
                 accessPoint = workSpec.get_access_point()
+                # delete leftover
+                if os.path.exists(accessPoint) and workSpec.isNew:
+                    shutil.rmtree(accessPoint, ignore_errors=True)
                 # make the dir if missing
                 if not os.path.exists(accessPoint):
                     os.makedirs(accessPoint)
@@ -602,6 +606,9 @@ class SharedFileMessenger(BaseMessenger):
                         break
                 fileDict = dict()
                 accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
+                origAccessPoint = accessPoint
+                if self.postProcessInSubDir:
+                    accessPoint = os.path.join(accessPoint, jobSpec.PandaID)
                 # make log
                 if not hasLog:
                     logFileInfo = jobSpec.get_logfile_info()
@@ -679,7 +686,7 @@ class SharedFileMessenger(BaseMessenger):
                     tmpLog.debug('got {0} leftovers'.format(nLeftOvers))
                 # make json to stage-out
                 if len(fileDict) > 0:
-                    jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
+                    jsonFilePath = os.path.join(origAccessPoint, jsonOutputsFileName)
                     with open(jsonFilePath, 'w') as jsonFile:
                         json.dump(fileDict, jsonFile)
                 tmpLog.debug('done')

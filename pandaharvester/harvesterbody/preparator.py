@@ -98,6 +98,8 @@ class Preparator(AgentBase):
                                                               'subStatus': oldSubStatus})
                             tmpLog.error('failed to resolve input file paths : {0}'.format(tmpStr))
                             continue
+                        # manipulate container-related job params
+                        jobSpec.manipulate_job_params_for_container()
                         # update job
                         jobSpec.lockedBy = None
                         jobSpec.set_all_input_ready()
@@ -131,7 +133,7 @@ class Preparator(AgentBase):
                         jobSpec.preparatorTime = None
                         jobSpec.stateChangeTime = datetime.datetime.utcnow()
                         errStr = 'stage-in failed with {0}'.format(tmpStr)
-                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
+                        jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus})
@@ -294,7 +296,7 @@ class Preparator(AgentBase):
                         jobSpec.preparatorTime = None
                         jobSpec.stateChangeTime = datetime.datetime.utcnow()
                         errStr = 'stage-in failed with {0}'.format(tmpStr)
-                        jobSpec.set_pilot_error(PilotErrors.ERR_STAGEINFAILED, errStr)
+                        jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()
                         self.dbProxy.update_job(jobSpec, {'lockedBy': lockedBy,
                                                           'subStatus': oldSubStatus})

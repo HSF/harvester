@@ -12,7 +12,7 @@ class ServiceMetricSpec(SpecBase):
     # attributes
     attributesWithTypes = ('creationTime:timestamp / index',
                            'hostName:text',
-                           'metrics:text',
+                           'metrics:blob',
                            )
 
     # constructor
@@ -21,4 +21,4 @@ class ServiceMetricSpec(SpecBase):
 
         self.creationTime = datetime.datetime.utcnow()
         self.hostName = socket.getfqdn()
-        self.metrics = json.dumps(service_metrics)
+        self.metrics = service_metrics  # blobs are automatically translated to json

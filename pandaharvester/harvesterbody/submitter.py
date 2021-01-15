@@ -217,7 +217,7 @@ class Submitter(AgentBase):
                                                 job_spec.stateChangeTime = timeNow
                                                 job_spec.locked_by = None
                                                 errStr = 'failed to make a worker'
-                                                job_spec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                                job_spec.set_pilot_error(PilotErrors.SETUPFAILURE, errStr)
                                                 job_spec.trigger_propagation()
                                                 self.dbProxy.update_job(job_spec, {'locked_by': locked_by,
                                                                                   'subStatus': 'prepared'})
@@ -318,7 +318,7 @@ class Submitter(AgentBase):
                                                 tmp_log.error(errStr)
                                                 work_spec.set_status(WorkSpec.ST_missed)
                                                 work_spec.set_dialog_message(tmpStr)
-                                                work_spec.set_pilot_error(PilotErrors.ERR_SETUPFAILURE, errStr)
+                                                work_spec.set_pilot_error(PilotErrors.SETUPFAILURE, errStr)
                                                 work_spec.set_pilot_closed()
                                                 if jobList is not None:
                                                     # increment attempt number
@@ -363,7 +363,8 @@ class Submitter(AgentBase):
                                                          'taskID': job_spec.taskID,
                                                          'jobsetID': job_spec.jobParams['jobsetID'],
                                                          'nRanges': max(int(math.ceil(work_spec.nCore / len(jobList))),
-                                                                        job_spec.jobParams['coreCount']),
+                                                                        job_spec.jobParams['coreCount']) * \
+                                                                        queue_config.initEventsMultipler,
                                                          }
                                                     if 'isHPO' in job_spec.jobParams:
                                                         if 'sourceURL' in job_spec.jobParams:
@@ -422,7 +423,9 @@ class Submitter(AgentBase):
                                     + sw_main.get_elapsed_time())
             main_log.debug('done')
             # define sleep interval
-            if site_name is None:
+            if site_name is None or \
+                    (hasattr(harvester_config.submitter, 'respectSleepTime') and
+                     harvester_config.submitter.respectSleepTime):
                 sleepTime = harvester_config.submitter.sleepTime
             else:
                 sleepTime = 0

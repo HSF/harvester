@@ -339,7 +339,8 @@ sleepTime = 60
 # max number of workers per queue to try in one cycle
 maxNewWorkers = 1000
 
-
+# respect sleep time
+respectSleepTime = False
 
 
 ##########################
@@ -603,7 +604,6 @@ sleepTime = 60
 
 
 
-
 ##########################
 #
 # Cacher parameters
@@ -747,7 +747,11 @@ keepCancelled = 72
 # duration in hours to keep missed workers
 keepMissed = 24
 
+# disk cleaning interval in hours
+#diskCleanUpInterval = 1
 
+# comma-concatenated list of directory_name|high_watermark_in_GB to be cleaned up
+#diskHighWatermark = /dir1/subdir1|1000,/dir2/subdir2|5000
 
 
 

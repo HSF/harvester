@@ -289,7 +289,7 @@ class PandaCommunicator(BaseCommunicator):
                 try:
                     retMap = json.loads(retMap['content'])
                 except Exception:
-                    errStr = 'falied to load json'
+                    errStr = 'failed to json_load {}'.format(str(retMap))
                     retMap = {}
                     retMap['StatusCode'] = 999
                     retMap['ErrorDiag'] = errStr

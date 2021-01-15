@@ -5,7 +5,7 @@ import json
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 
@@ -15,10 +15,10 @@ _logger = core_utils.setup_logger('k8s_secret_cred_manager')
 
 
 # credential manager with k8s secret
-class K8sSecretCredManager(PluginBase):
+class K8sSecretCredManager(BaseCredManager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseCredManager.__init__(self, **kwarg)
         # make logger
         mainLog = self.make_logger(_logger, method_name='__init__')
         # attributes
