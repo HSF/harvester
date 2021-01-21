@@ -65,7 +65,7 @@ class HorovodMonitor(PluginBase):
         head_pod = {}
         worker_deployment = None
         worker_pods = []
-        if worker_id in formations_info_dict:
+        if worker_id in self._formations_info_dict:
             head_pod = self._formations_info_dict[worker_id].get('head_pod', {})
             worker_deployment = self._formations_info_dict[worker_id].get('worker_deployment')
             worker_pods = self._formations_info_dict[worker_id].get('worker_pods', [])
