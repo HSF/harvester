@@ -456,17 +456,9 @@ class k8s_Client(object):
         else:
             return rsp
 
-    def fill_hpo_head_container_template(self, work_spec, command, image=None, name=None):
+    def fill_hpo_head_container_template(self, work_spec, image, command, name=None):
 
-        # set the container_template image
-        if not image:
-            # image = "fbarreir/horovod:latest"
-            image = "fbarreir/rui-hrvd"
-
-        # if 'command' not in container_template:
-        #    container_template['command'] = executable
-        #    container_template['args'] = args
-
+        # TODO: the request & limit values need to be extracted from the job
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
 
@@ -517,7 +509,9 @@ class k8s_Client(object):
 
         return container
 
-    def create_horovod_head(self, work_spec, prod_source_label, container_image, evaluation_command, pilot_command,
+    def create_horovod_head(self, work_spec, prod_source_label,
+                            evaluation_image, evaluation_command,
+                            pilot_image, pilot_command,
                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         worker_id = str(work_spec.workerID)
@@ -535,8 +529,9 @@ class k8s_Client(object):
         # Elastic horovod fails if it starts and no worker is available
 
         # generate pilot and evaluation container
-        pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_command, name='pilot')
-        evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_command, name='evaluation')
+        pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_image, pilot_command, name='pilot')
+        evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_image, evaluation_command,
+                                                                     name='evaluation')
 
         # generate init containers
         init_hd_container = self.fill_hd_init_container_template()
@@ -555,13 +550,15 @@ class k8s_Client(object):
         shared_dir = client.V1Volume(name='shared-dir',
                                      empty_dir=client.V1EmptyDirVolumeSource())
 
+        node_selector = {'processor': 'cpu'}
         # create the pod spec with the containers and volumes
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodSpec.md
         max_time = 4 * 24 * 23600
         spec = client.V1PodSpec(containers=[pilot_container, evaluation_container],
                                 volumes=[proxy_secret, config_map, hd_config_map, shared_dir],
                                 init_containers=[init_hd_container],
-                                active_deadline_seconds=max_time)
+                                active_deadline_seconds=max_time,
+                                node_selector=node_selector)
 
         pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id),
                                                                    labels={'app': '{0}-{1}'.format(HOROVOD_HEAD_TAG,
@@ -592,7 +589,10 @@ class k8s_Client(object):
                                        resources=resources)
 
         # max_time = 4 * 24 * 23600
-        pod_spec = client.V1PodSpec(containers=[container]) #, active_deadline_seconds=max_time)
+        node_selector = {'processor': 'gpu'}
+        pod_spec = client.V1PodSpec(containers=[container],
+                                    node_selector=node_selector)
+                                    #, active_deadline_seconds=max_time)
 
         template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)}),
                                             spec=pod_spec)
@@ -613,10 +613,12 @@ class k8s_Client(object):
         return rsp
 
     def create_horovod_formation(self, work_spec, prod_source_label, container_image, evaluation_command,
-                                   pilot_command, worker_command, cert, cpu_adjust_ratio=100, memory_adjust_ratio=100,
+                                   pilot_image, pilot_command, worker_command, cert, cpu_adjust_ratio=100, memory_adjust_ratio=100,
                                    max_time=None):
 
-        rsp = self.create_horovod_head(work_spec, prod_source_label, container_image, evaluation_command, pilot_command,
+        rsp = self.create_horovod_head(work_spec, prod_source_label,
+                                       container_image, evaluation_command,
+                                       pilot_image, pilot_command,
                                        cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp

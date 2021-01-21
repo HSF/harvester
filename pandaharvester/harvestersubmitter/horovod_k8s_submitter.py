@@ -19,12 +19,17 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 base_logger = core_utils.setup_logger('horovod_submitter')
 
 # image defaults
-DEF_IMAGE = 'fbarreir/rui-hrvd'
+DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
+PILOT_IMAGE = 'gitlab-registry.cern.ch/panda/harvester-k8s-images/adc-centos7-singularity:work'
 
 # command defaults
-DEF_EVALUATION_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 22; sleep infinity"]
+DEF_EVALUATION_COMMAND = ['sh', '-c', 'while [ ! -f __payload_in_sync_file__ ]; do sleep 5; done; ',
+                          'echo "=== cat exec script ==="; ', 'cat __run_main_exec.sh; ', 'echo; ',
+                          'echo "=== exec script ==="; ', '/bin/sh __run_main_exec.sh; ',
+                          'REAL_MAIN_RET_CODE=$?; ', 'touch __payload_out_sync_file__; ',
+                          'exit $REAL_MAIN_RET_CODE ']
 
-DEF_PILOT_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 22; sleep infinity"]
+DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 
 DEF_WORKER_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 22; sleep infinity"]
 
@@ -87,7 +92,6 @@ class HorovodSubmitter(PluginBase):
         return args
 
     def read_job_configuration(self, work_spec):
-
         try:
             job_spec_list = work_spec.get_jobspec_list()
             if job_spec_list:
@@ -101,7 +105,7 @@ class HorovodSubmitter(PluginBase):
         return None, None
 
     def get_container_image(self, job_fields):
-        return job_fields.get('container_name', DEF_IMAGE)
+        return job_fields.get('container_name', DEF_EVA_IMAGE)
 
     def _choose_proxy(self, workspec, is_grandly_unified_queue):
         """
@@ -154,14 +158,16 @@ class HorovodSubmitter(PluginBase):
                 max_time = None
 
             # figure out image and command details
-            container_image = self.get_container_image(job_fields)
+            evaluation_image = self.get_container_image(job_fields)
+            pilot_image = PILOT_IMAGE
             evaluation_command = DEF_EVALUATION_COMMAND
             pilot_command = DEF_PILOT_COMMAND
             worker_command = DEF_WORKER_COMMAND
 
             # submit the worker
-            rsp = self.k8s_client.create_horovod_formation(work_spec, prod_source_label, container_image,
-                                                           evaluation_command, pilot_command, worker_command,
+            rsp = self.k8s_client.create_horovod_formation(work_spec, prod_source_label,
+                                                           evaluation_image, evaluation_command,
+                                                           pilot_image, pilot_command, worker_command,
                                                            cert, cpu_adjust_ratio=self.cpuAdjustRatio,
                                                            memory_adjust_ratio=self.memoryAdjustRatio,
                                                            max_time=max_time)
