@@ -92,7 +92,7 @@ class HorovodMonitor(PluginBase):
                 # there was no head pod found belonging to our job
                 err_str = 'HEAD POD for worker_id={0} not found'.format(worker_id)
                 tmp_log.error(err_str)
-                tmp_log.info('Force to cancel the worker due to JOB not found')
+                tmp_log.info('Force to cancel the worker due to HEAD POD not found')
                 head_status = WorkSpec.ST_cancelled
             else:
                 # we found the head pod belonging to our job. Obtain the final status
