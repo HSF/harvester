@@ -492,7 +492,7 @@ class k8s_Client(object):
 
         # set the container_template image and command
         image = 'busybox'
-        command = 'while true; do sleep 1; if[-s $HD_DIR]; then exit 0; fi; done;'
+        command = ['while true; do sleep 1; if [-s $HD_DIR]; then exit 0; fi; done;']
 
         resources = client.V1ResourceRequirements(requests={"cpu": "150m", "memory": "200Mi"},
                                                   limits={"cpu": "200m", "memory": "300Mi"})
@@ -588,11 +588,9 @@ class k8s_Client(object):
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/rui-hrvd",
                                        resources=resources)
 
-        # max_time = 4 * 24 * 23600
         node_selector = {'processor': 'gpu'}
         pod_spec = client.V1PodSpec(containers=[container],
                                     node_selector=node_selector)
-                                    #, active_deadline_seconds=max_time)
 
         template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)}),
                                             spec=pod_spec)
