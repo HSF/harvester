@@ -22,7 +22,7 @@ SHARED_DIR = '/root/shared/'
 
 HD_DIR = '/scratch/hostdiscovery'
 HD_FILENAME = 'discover_hosts.sh'
-HD_CONT_NAME = 'hd_init_cont'
+HD_CONT_NAME = 'hd-init-cont'
 
 HOROVOD_WORKER_TAG = 'horovod-workers'
 HOROVOD_HEAD_TAG = 'horovod-head'
