@@ -23,6 +23,7 @@ class HorovodSweeper(BaseSweeper):
         for worker_spec in work_spec_list:
             tmp_ret_val = self.kill_worker(worker_spec)
 
+        ret_list.append(tmp_ret_val)
         return ret_list
 
     def kill_worker(self, worker_spec):
