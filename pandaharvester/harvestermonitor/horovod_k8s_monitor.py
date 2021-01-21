@@ -1,3 +1,5 @@
+import traceback
+
 from concurrent.futures import ThreadPoolExecutor
 
 from pandaharvester.harvestercore import core_utils
@@ -75,14 +77,14 @@ class HorovodMonitor(PluginBase):
         # CHECK THE HEAD
         try:
             # check if head pod has been queued too long
-            if self.k8s_client.pod_queued_too_long(head_pod, self.podQueueTimeLimit):
+            if head_pod and self.k8s_client.pod_queued_too_long(head_pod, self.podQueueTimeLimit):
                 pod_names_to_delete_list.append(head_pod['name'])
 
             # make list of status of the pods belonging to our job
             head_status = head_pod.get('status')
             # containers_state_list.extend(head_pod['containers_state'])
         except Exception as _e:
-            err_str = 'Failed to get HEAD POD status for worker_id={0} ; {1}'.format(worker_id, _e)
+            err_str = 'Failed to get HEAD POD status for worker_id={0} ; {1}'.format(worker_id, traceback.format_exc())
             tmp_log.error(err_str)
             head_status = None
         else:
