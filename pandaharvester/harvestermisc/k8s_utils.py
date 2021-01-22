@@ -653,6 +653,11 @@ class k8s_Client(object):
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
         else:
             for i in ret.items:
+
+                # TODO: extend this information with container_status and init_container_statuses.
+                #  For example if any container or init_container is in CrashLoopBackoff, the overall status
+                #  can be considered failed
+
                 worker_id = int(i.metadata.name[len(HOROVOD_HEAD_TAG)+1:])
                 pod_info = {'name': i.metadata.name,
                             'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
