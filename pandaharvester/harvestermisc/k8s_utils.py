@@ -492,7 +492,7 @@ class k8s_Client(object):
 
         # set the container_template image and command
         image = 'busybox'
-        command = ['while true; do sleep 1; if [ -s $HD_FILE ]; then exit 0; fi; done;']
+        command = ['sh', '-c', 'while true; do sleep 1; if [ -s $HD_FILE ]; then exit 0; fi; done;']
 
         resources = client.V1ResourceRequirements(requests={"cpu": "150m", "memory": "200Mi"},
                                                   limits={"cpu": "200m", "memory": "300Mi"})
