@@ -640,6 +640,35 @@ class k8s_Client(object):
 
         return label_selector
 
+    def translate_container_statuses(self, container_statuses):
+        cs = {}
+        for container in container_statuses:
+            status = None
+            if container.last_state.running:
+                status = 'running'
+            elif container.last_state.terminated:
+                if container.last_state.terminated.reason == 'Completed':
+                    status = 'finished'
+                else:
+                    status = 'failed'
+            elif container.last_state.waiting:
+                if container.last_state.waiting.reason == 'CrashLoopBackOff':
+                    status = 'failed'
+                else:
+                    status = 'pending'
+            cs[container.name] = status
+
+        return cs
+
+    def resolve_head_states(self, container_statuses, init_container_statuses):
+
+        main_container_states = self.translate_container_statuses(container_statuses)
+        init_container_states = self.translate_container_statuses(init_container_statuses)
+
+        # merge both dictionaries
+        container_states = {**main_container_states , **init_container_states}
+        return container_states
+
     def get_horovod_formations_info(self, workspec_list=[]):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='get_horovod_formations_info')
@@ -653,18 +682,13 @@ class k8s_Client(object):
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
         else:
             for i in ret.items:
-
-                # TODO: extend this information with container_status and init_container_statuses.
-                #  For example if any container or init_container is in CrashLoopBackoff, the overall status
-                #  can be considered failed
-
                 worker_id = int(i.metadata.name[len(HOROVOD_HEAD_TAG)+1:])
                 pod_info = {'name': i.metadata.name,
                             'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
                             'status': i.status.phase,
                             'status_conditions': i.status.conditions,
                             'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
-                            'containers_state': []
+                            'containers_states': self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
                             }
                 if i.status.container_statuses:
                     for cs in i.status.container_statuses:
