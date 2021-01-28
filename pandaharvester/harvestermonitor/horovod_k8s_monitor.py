@@ -42,18 +42,27 @@ class HorovodMonitor(PluginBase):
         # for horovod queues
         self._formations_info_dict = {}
 
-    def decide_formation_status(self, head_status):
+    def decide_formation_status(self, head_status, head_container_states):
         # TODO: see all the possible cases
         new_status = None
         sub_msg = ''
 
-        if head_status  in k8s_utils.POD_RUNNING_STATES:
+        # obtain preliminary state based on overall pod status
+        if head_status in k8s_utils.POD_RUNNING_STATES:
             new_status = WorkSpec.ST_running
         elif head_status in k8s_utils.POD_QUEUED_STATES:
             new_status = WorkSpec.ST_submitted
         elif head_status in k8s_utils.POD_FAILED_STATES:
             new_status = WorkSpec.ST_failed
             sub_msg = 'head in {0} status'.format(head_status)
+
+        # overwrite state if some container is in failed state
+        for container_name in head_container_states:
+            container_state = head_container_states[container_name]
+            if container_state == 'failed':
+                new_status = WorkSpec.ST_failed
+                sub_msg = 'head container {0} in {0} status'.format(container_name, container_state)
+                break
 
         return new_status, sub_msg
 
@@ -82,6 +91,8 @@ class HorovodMonitor(PluginBase):
 
             # make list of status of the pods belonging to our job
             head_status = head_pod.get('status')
+            head_container_states = head_pod.get('container_states')
+
             # containers_state_list.extend(head_pod['containers_state'])
         except Exception as _e:
             err_str = 'Failed to get HEAD POD status for worker_id={0} ; {1}'.format(worker_id, traceback.format_exc())
@@ -97,7 +108,7 @@ class HorovodMonitor(PluginBase):
             else:
                 # we found the head pod belonging to our job. Obtain the final status
                 tmp_log.debug('head_status={0}'.format(head_status))
-                new_status, sub_msg = self.decide_formation_status(head_status)
+                new_status, sub_msg = self.decide_formation_status(head_status, head_container_states)
                 if sub_msg:
                     err_str += sub_msg
                 tmp_log.debug('new_status={0}'.format(new_status))
