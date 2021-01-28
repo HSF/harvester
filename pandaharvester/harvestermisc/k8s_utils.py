@@ -652,7 +652,7 @@ class k8s_Client(object):
                 else:
                     status = 'failed'
             elif container.last_state.waiting:
-                if container.last_state.waiting.reason == 'CrashLoopBackOff':
+                if container.last_state.waiting.reason in POD_FAILED_STATES:
                     status = 'failed'
                 else:
                     status = 'pending'
@@ -688,7 +688,7 @@ class k8s_Client(object):
                             'status': i.status.phase,
                             'status_conditions': i.status.conditions,
                             'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
-                            'containers_states': self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
+                            'container_states': self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
                             }
 
                 formations_info.setdefault(worker_id, {})
@@ -709,7 +709,7 @@ class k8s_Client(object):
                             'unavailable_replicas': i.status.unavailable_replicas,
                             'status_conditions': i.status.conditions,
                             'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
-                            'containers_state': []
+                            'containers_state': {}
                             }
                 formations_info.setdefault(worker_id, {})
                 formations_info[worker_id]['worker_deployment'] = dep_info
