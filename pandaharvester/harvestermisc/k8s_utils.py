@@ -683,12 +683,18 @@ class k8s_Client(object):
         else:
             for i in ret.items:
                 worker_id = int(i.metadata.name[len(HOROVOD_HEAD_TAG)+1:])
+
+                head_container_states = self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
+                tmp_log.debug('head container statuses: {0}'.format(i.status.container_statuses))
+                tmp_log.debug('head init container statuses: {0}'.format(i.status.init_container_statuses))
+                tmp_log.debug('head container states: {0}'.format(head_container_states))
+
                 pod_info = {'name': i.metadata.name,
                             'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
                             'status': i.status.phase,
                             'status_conditions': i.status.conditions,
                             'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
-                            'container_states': self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
+                            'container_states': head_container_states
                             }
 
                 formations_info.setdefault(worker_id, {})
