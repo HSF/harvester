@@ -690,10 +690,7 @@ class k8s_Client(object):
                             'app': i.metadata.labels['app'] if i.metadata.labels and 'app' in i.metadata.labels else None,
                             'containers_states': self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
                             }
-                if i.status.container_statuses:
-                    for cs in i.status.container_statuses:
-                        if cs.state:
-                            pod_info['containers_state'].append(cs.state)
+
                 formations_info.setdefault(worker_id, {})
                 formations_info[worker_id]['head_pod'] = pod_info
 
