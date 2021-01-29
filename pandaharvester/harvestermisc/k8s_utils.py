@@ -644,15 +644,15 @@ class k8s_Client(object):
         cs = {}
         for container in container_statuses:
             status = None
-            if container.last_state.running:
+            if container.state.running:
                 status = 'running'
-            elif container.last_state.terminated:
-                if container.last_state.terminated.reason == 'Completed':
+            elif container.state.terminated:
+                if container.state.terminated.reason == 'Completed':
                     status = 'finished'
                 else:
                     status = 'failed'
-            elif container.last_state.waiting:
-                if container.last_state.waiting.reason in POD_FAILED_STATES:
+            elif container.state.waiting:
+                if container.state.waiting.reason in POD_FAILED_STATES:
                     status = 'failed'
                 else:
                     status = 'pending'
