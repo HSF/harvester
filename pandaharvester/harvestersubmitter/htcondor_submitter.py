@@ -218,7 +218,7 @@ def _get_complicated_pilot_options(pilot_type, pilot_url=None):
             'PT': {
                     'prod_source_label': 'ptest',
                     'pilot_type_opt': 'PR',
-                    'pilot_url_str': '',
+                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev2.tar.gz',
                 },
         }
     pilot_opt_dict = pt_psl_map.get(pilot_type, None)
