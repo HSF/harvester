@@ -31,7 +31,7 @@ DEF_EVALUATION_COMMAND = ['sh', '-c', 'while [ ! -f __payload_in_sync_file__ ]; 
 
 DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 
-DEF_WORKER_COMMAND = ["sh", "-c", "/usr/sbin/sshd -p 22; sleep infinity"]
+DEF_WORKER_COMMAND = ["sh", "-c", "mkdir -p ~/.ssh/authorized_keys && cp $SSH_DIR/public_key ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22; sleep infinity"]
 
 
 class HorovodSubmitter(PluginBase):

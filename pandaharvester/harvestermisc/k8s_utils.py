@@ -497,7 +497,9 @@ class k8s_Client(object):
         env = [client.V1EnvVar(name='computingSite', value=work_spec.computingSite),
                client.V1EnvVar(name='SHARED_DIR', value=SHARED_DIR),
                client.V1EnvVar(name='CONFIG_DIR', value=CONFIG_DIR),
-               client.V1EnvVar(name='HD_DIR', value=HD_DIR)]
+               client.V1EnvVar(name='HD_DIR', value=HD_DIR),
+               client.V1EnvVar(name='SSH_DIR', value=SSH_DIR)
+               ]
 
         # Attach config-map containing job details
         configmap_mount = client.V1VolumeMount(name='job-config', mount_path=CONFIG_DIR)
@@ -579,7 +581,8 @@ class k8s_Client(object):
 
         ssh_secret_name = 'ssh-keys-{0}'.format(worker_id)
         ssh_keys = client.V1Volume(name='ssh-keys',
-                                   secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name))
+                                   secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name,
+                                                                      default_mode=0600))
 
         config_map = client.V1Volume(name='job-config',
                                      config_map=client.V1ConfigMapVolumeSource(name=worker_id))
@@ -616,6 +619,8 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
                                          method_name='create_horovod_workers')
 
+        env = [client.V1EnvVar(name='SSH_DIR', value=SSH_DIR)]
+
         ssh_keys_mount = client.V1VolumeMount(name='ssh-keys', mount_path=SSH_DIR)
 
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
@@ -623,17 +628,15 @@ class k8s_Client(object):
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
 
-        # container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
-        #                              resources=resources)
-        container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/rui-hrvd",
-                                       volume_mounts=[ssh_keys_mount],
-                                       resources=resources)
+        container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image=container_image,
+                                       volume_mounts=[ssh_keys_mount], env=env, resources=resources)
 
         node_selector = {'processor': 'gpu'}
 
         ssh_secret_name = 'ssh-keys-{0}'.format(worker_id)
         ssh_secret_volume = client.V1Volume(name='ssh-keys',
-                                            secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name))
+                                            secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name,
+                                                                               default_mode=0600))
 
         pod_spec = client.V1PodSpec(containers=[container],
                                     volumes=[ssh_secret_volume],
@@ -659,7 +662,7 @@ class k8s_Client(object):
         rsp = self.apps_v1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
 
-    def create_horovod_formation(self, work_spec, prod_source_label, container_image, evaluation_command,
+    def create_horovod_formation(self, work_spec, prod_source_label, evaluation_image, evaluation_command,
                                    pilot_image, pilot_command, worker_command, cert, cpu_adjust_ratio=100, memory_adjust_ratio=100,
                                    max_time=None):
 
@@ -668,13 +671,13 @@ class k8s_Client(object):
             return rsp
 
         rsp = self.create_horovod_head(work_spec, prod_source_label,
-                                       container_image, evaluation_command,
+                                       evaluation_image, evaluation_command,
                                        pilot_image, pilot_command,
                                        cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_workers(work_spec, prod_source_label, container_image, worker_command,
+        rsp = self.create_horovod_workers(work_spec, prod_source_label, evaluation_image, worker_command,
                                           cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
 
         if not rsp:
