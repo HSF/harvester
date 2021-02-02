@@ -21,6 +21,7 @@ CONFIG_DIR = '/scratch/jobconfig'
 SHARED_DIR = '/root/shared/'
 
 HD_DIR = '/scratch/hostdiscovery'
+SSH_DIR = '/scratch/ssh'
 HD_FILENAME = 'discover_hosts.sh'
 HD_CONT_NAME = 'hd-init-cont'
 
@@ -388,6 +389,34 @@ class k8s_Client(object):
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
+    def create_ssh_keys_secret(self, work_spec):
+        # useful guide:
+        # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
+
+        worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='create_ssh_keys_secret')
+        try:
+
+            from Crypto.PublicKey import RSA
+            key = RSA.generate(2048)
+            private_key = key.exportKey('PEM')
+            public_key = key.publickey()
+
+            name = 'ssh-keys-{0}'.format(worker_id)
+
+            metadata = {'name': name, 'namespace': self.namespace}
+            data = {'private_key': private_key, 'public_key': public_key}
+            body = client.V1Secret(data=data, metadata=metadata)
+
+            rsp = self.core_v1.create_namespaced_secret(body=body, namespace=self.namespace)
+            tmp_log.debug('Created secret with ssh keys')
+            return True
+
+        except (ApiException, TypeError) as e:
+            tmp_log.error('Could not create secret with ssh keys. Error: {0}'.format(e))
+            return False
+
     def create_host_discovery_configmap(self, work_spec):
         # useful guide:
         # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
@@ -458,6 +487,8 @@ class k8s_Client(object):
 
     def fill_hpo_head_container_template(self, work_spec, image, command, name=None):
 
+        worker_id = work_spec.workerID
+
         # TODO: the request & limit values need to be extracted from the job
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
@@ -476,12 +507,16 @@ class k8s_Client(object):
         # Attach secret with proxy
         secret_mount = client.V1VolumeMount(name='proxy-secret', mount_path='proxy')
 
+        # Attach secret with ssh keys
+        ssh_keys_mount = client.V1VolumeMount(name='ssh-keys', mount_path=SSH_DIR)
+
         # Attach shared volume between pilot and evaluation containers
         shared_mount = client.V1VolumeMount(name='shared-dir', mount_path=SHARED_DIR)
 
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
         container = client.V1Container(name=name, image=image, resources=resources, env=env,
-                                       volume_mounts=[configmap_mount, hd_configmap_mount, secret_mount, shared_mount],
+                                       volume_mounts=[configmap_mount, hd_configmap_mount, secret_mount,
+                                                      ssh_keys_mount, shared_mount],
                                        command=command)
 
         return container
@@ -541,6 +576,10 @@ class k8s_Client(object):
         proxy_secret = client.V1Volume(name='proxy-secret',
                                        secret=client.V1SecretVolumeSource(secret_name='proxy-secret'))
 
+        ssh_secret_name = 'ssh-keys-{0}'.format(worker_id)
+        ssh_keys = client.V1Volume(name='ssh-keys',
+                                   secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name))
+
         config_map = client.V1Volume(name='job-config',
                                      config_map=client.V1ConfigMapVolumeSource(name=worker_id))
 
@@ -555,7 +594,7 @@ class k8s_Client(object):
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodSpec.md
         max_time = 4 * 24 * 23600
         spec = client.V1PodSpec(containers=[pilot_container, evaluation_container],
-                                volumes=[proxy_secret, config_map, hd_config_map, shared_dir],
+                                volumes=[proxy_secret, ssh_keys, config_map, hd_config_map, shared_dir],
                                 init_containers=[init_hd_container],
                                 active_deadline_seconds=max_time,
                                 node_selector=node_selector)
@@ -576,7 +615,7 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
                                          method_name='create_horovod_workers')
 
-        method_name = 'create_horovod_head'
+        ssh_keys_mount = client.V1VolumeMount(name='ssh-keys', mount_path=SSH_DIR)
 
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
@@ -586,13 +625,21 @@ class k8s_Client(object):
         # container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/horovod:latest",
         #                              resources=resources)
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image="fbarreir/rui-hrvd",
+                                       volume_mounts=[ssh_keys_mount],
                                        resources=resources)
 
         node_selector = {'processor': 'gpu'}
+
+        ssh_secret_name = 'ssh-keys'.format(worker_id)
+        ssh_secret_volume = client.V1Volume(name='ssh-keys',
+                                            secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name))
+
         pod_spec = client.V1PodSpec(containers=[container],
+                                    volumes=[ssh_secret_volume],
                                     node_selector=node_selector)
 
-        template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)}),
+        template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
+                                                                                                         worker_id)}),
                                             spec=pod_spec)
 
         spec = client.V1DeploymentSpec(replicas=2, template=template,
@@ -601,7 +648,8 @@ class k8s_Client(object):
 
         deployment = client.V1Deployment(api_version="apps/v1", kind="Deployment",
                                          metadata=client.V1ObjectMeta(name=deployment_name,
-                                                                      labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)}),
+                                                                      labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
+                                                                                                      worker_id)}),
                                          spec=spec)
 
         tmp_log.debug('creating deployment {0}'.format(deployment))
@@ -613,6 +661,10 @@ class k8s_Client(object):
     def create_horovod_formation(self, work_spec, prod_source_label, container_image, evaluation_command,
                                    pilot_image, pilot_command, worker_command, cert, cpu_adjust_ratio=100, memory_adjust_ratio=100,
                                    max_time=None):
+
+        rsp = self.create_ssh_keys_secret(work_spec)
+        if not rsp:
+            return rsp
 
         rsp = self.create_horovod_head(work_spec, prod_source_label,
                                        container_image, evaluation_command,

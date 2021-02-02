@@ -91,9 +91,8 @@ class HorovodMonitor(PluginBase):
 
             # make list of status of the pods belonging to our job
             head_status = head_pod.get('status')
-            head_container_states = head_pod.get('container_states')
+            head_container_states = head_pod.get('container_states', {})
 
-            # containers_state_list.extend(head_pod['containers_state'])
         except Exception as _e:
             err_str = 'Failed to get HEAD POD status for worker_id={0} ; {1}'.format(worker_id, traceback.format_exc())
             tmp_log.error(err_str)
