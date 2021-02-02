@@ -401,12 +401,13 @@ class k8s_Client(object):
             from Crypto.PublicKey import RSA
             key = RSA.generate(2048)
             private_key = key.exportKey('PEM')
-            public_key = key.publickey()
+            public_key = key.publickey().exportKey('PEM')
 
             name = 'ssh-keys-{0}'.format(worker_id)
 
             metadata = {'name': name, 'namespace': self.namespace}
-            data = {'private_key': private_key, 'public_key': public_key}
+            data = {'private_key': private_key,
+                    'public_key': public_key}
             body = client.V1Secret(data=data, metadata=metadata)
 
             rsp = self.core_v1.create_namespaced_secret(body=body, namespace=self.namespace)
