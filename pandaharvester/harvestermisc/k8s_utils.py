@@ -582,7 +582,7 @@ class k8s_Client(object):
         ssh_secret_name = 'ssh-keys-{0}'.format(worker_id)
         ssh_keys = client.V1Volume(name='ssh-keys',
                                    secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name,
-                                                                      default_mode=0600))
+                                                                      default_mode=0o600))
 
         config_map = client.V1Volume(name='job-config',
                                      config_map=client.V1ConfigMapVolumeSource(name=worker_id))
@@ -636,7 +636,7 @@ class k8s_Client(object):
         ssh_secret_name = 'ssh-keys-{0}'.format(worker_id)
         ssh_secret_volume = client.V1Volume(name='ssh-keys',
                                             secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name,
-                                                                               default_mode=0600))
+                                                                               default_mode=0o600))
 
         pod_spec = client.V1PodSpec(containers=[container],
                                     volumes=[ssh_secret_volume],
