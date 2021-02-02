@@ -693,7 +693,12 @@ class k8s_Client(object):
         return label_selector
 
     def translate_container_statuses(self, container_statuses):
+
         cs = {}
+
+        if not container_statuses:
+            return cs
+
         for container in container_statuses:
             status = None
             if container.state.running:
@@ -735,7 +740,7 @@ class k8s_Client(object):
         else:
             for i in ret.items:
                 worker_id = int(i.metadata.name[len(HOROVOD_HEAD_TAG)+1:])
-
+                
                 head_container_states = self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
                 tmp_log.debug('head container statuses: {0}'.format(i.status.container_statuses))
                 tmp_log.debug('head init container statuses: {0}'.format(i.status.init_container_statuses))
