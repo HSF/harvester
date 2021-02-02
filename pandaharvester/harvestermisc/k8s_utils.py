@@ -406,8 +406,8 @@ class k8s_Client(object):
             name = 'ssh-keys-{0}'.format(worker_id)
 
             metadata = {'name': name, 'namespace': self.namespace}
-            data = {'private_key': private_key,
-                    'public_key': public_key}
+            data = {'private_key': base64.b64encode(private_key).decode(),
+                    'public_key': base64.b64encode(public_key).decode()}
             body = client.V1Secret(data=data, metadata=metadata)
 
             rsp = self.core_v1.create_namespaced_secret(body=body, namespace=self.namespace)
