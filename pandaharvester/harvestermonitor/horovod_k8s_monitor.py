@@ -96,14 +96,13 @@ class HorovodMonitor(PluginBase):
         except Exception as _e:
             err_str = 'Failed to get HEAD POD status for worker_id={0} ; {1}'.format(worker_id, traceback.format_exc())
             tmp_log.error(err_str)
-            head_status = None
         else:
             if not head_status:
                 # there was no head pod found belonging to our job
                 err_str = 'HEAD POD for worker_id={0} not found'.format(worker_id)
                 tmp_log.error(err_str)
                 tmp_log.info('Force to cancel the worker due to HEAD POD not found')
-                head_status = WorkSpec.ST_cancelled
+                new_status = WorkSpec.ST_cancelled
             else:
                 # we found the head pod belonging to our job. Obtain the final status
                 tmp_log.debug('head_status={0}'.format(head_status))
