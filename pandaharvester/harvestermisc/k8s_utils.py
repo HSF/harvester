@@ -740,7 +740,7 @@ class k8s_Client(object):
         else:
             for i in ret.items:
                 worker_id = int(i.metadata.name[len(HOROVOD_HEAD_TAG)+1:])
-                
+
                 head_container_states = self.resolve_head_states(i.status.container_statuses, i.status.init_container_statuses)
                 tmp_log.debug('head container statuses: {0}'.format(i.status.container_statuses))
                 tmp_log.debug('head init container statuses: {0}'.format(i.status.init_container_statuses))
