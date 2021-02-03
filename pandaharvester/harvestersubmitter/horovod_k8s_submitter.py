@@ -23,7 +23,8 @@ DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
 PILOT_IMAGE = 'gitlab-registry.cern.ch/panda/harvester-k8s-images/adc-centos7-singularity:work'
 
 # command defaults
-DEF_EVALUATION_COMMAND = ['sh', '-c', 'while [ ! -f __payload_in_sync_file__ ]; do sleep 5; done; ',
+DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/' 
+                          'while [ ! -f __payload_in_sync_file__ ]; do sleep 5; done; ',
                           'echo "=== cat exec script ==="; ', 'cat __run_main_exec.sh; ', 'echo; ',
                           'echo "=== exec script ==="; ', '/bin/sh __run_main_exec.sh; ',
                           'REAL_MAIN_RET_CODE=$?; ', 'touch __payload_out_sync_file__; ',
@@ -31,7 +32,7 @@ DEF_EVALUATION_COMMAND = ['sh', '-c', 'while [ ! -f __payload_in_sync_file__ ]; 
 
 DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 
-DEF_WORKER_COMMAND = ["sh", "-c", "mkdir -p ~/.ssh/authorized_keys && cp $SSH_DIR/public_key ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22; sleep infinity"]
+DEF_WORKER_COMMAND = ["sh", "-c", "cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys/public_key && /usr/sbin/sshd -p 22 && sleep infinity"]
 
 
 class HorovodSubmitter(PluginBase):

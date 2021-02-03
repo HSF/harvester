@@ -44,7 +44,7 @@ setup(
         'kubernetes': ['kubernetes', 'pyyaml'],
         'mysql': ['mysqlclient'],
         'atlasgrid': ['uWSGI >= 2.0.0', 'htcondor >= 8.6.0', 'mysqlclient'],
-        'horovod': ['pycrypto'],
+        'horovod': ['cryptography'],
     },
 
     data_files=[
