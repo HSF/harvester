@@ -32,7 +32,7 @@ DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/'
 
 DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 
-DEF_WORKER_COMMAND = ["sh", "-c", "cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys/public_key && /usr/sbin/sshd -p 22 && sleep infinity"]
+DEF_WORKER_COMMAND = ["sh", "-c", "cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22 && sleep infinity"]
 
 
 class HorovodSubmitter(PluginBase):
