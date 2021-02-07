@@ -20,7 +20,8 @@ base_logger = core_utils.setup_logger('horovod_submitter')
 
 # image defaults
 DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
-PILOT_IMAGE = 'gitlab-registry.cern.ch/panda/harvester-k8s-images/adc-centos7-singularity:work'
+# PILOT_IMAGE = 'gitlab-registry.cern.ch/panda/harvester-k8s-images/adc-centos7-singularity:work'
+PILOT_IMAGE = 'palnilsson/my-panda-pilot'
 
 # command defaults
 DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/' 
@@ -30,8 +31,8 @@ DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/'
                           'REAL_MAIN_RET_CODE=$?; ', 'touch __payload_out_sync_file__; ',
                           'exit $REAL_MAIN_RET_CODE ']
 
-DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
-
+# DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
+DEF_PILOT_COMMAND = ["python3", "/user/share/panda-pilot/pilot.py", "-d", "-w", "generic", "-j", "ptest", "-q", "CERN-PROD_UCORE_2", "--pilot-user=ATLAS"]
 DEF_WORKER_COMMAND = ["sh", "-c", "cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22 && sleep infinity"]
 
 
@@ -56,20 +57,6 @@ class HorovodSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
-
-        # x509 proxy through k8s secrets: preferred way
-        try:
-            self.proxySecretPath
-        except AttributeError:
-            if os.getenv('PROXY_SECRET_PATH'):
-                self.proxySecretPath = os.getenv('PROXY_SECRET_PATH')
-
-        # analysis x509 proxy through k8s secrets: on GU queues
-        try:
-            self.proxySecretPathAnalysis
-        except AttributeError:
-            if os.getenv('PROXY_SECRET_PATH_ANAL'):
-                self.proxySecretPath = os.getenv('PROXY_SECRET_PATH_ANAL')
 
         # CPU adjust ratio
         try:
