@@ -93,7 +93,7 @@ class k8s_Client(object):
                                                                  {'resourceType': str(work_spec.resourceType),
                                                                   'prodSourceLabel': str(prod_source_label),
                                                                   'pq': str(work_spec.computingSite)
-                                                                  }
+                                                                 }
                                                              })
 
         # fill the container details. we can only handle one container (take the first, delete the rest)
@@ -498,9 +498,10 @@ class k8s_Client(object):
         else:
             return rsp
 
-    def fill_hpo_head_container_template(self, work_spec, image, command, name=None):
+    def fill_hpo_head_container_template(self, work_spec, image, command, cert=None, name=None):
 
         worker_id = work_spec.workerID
+        volume_mounts = []
 
         # TODO: the request & limit values need to be extracted from the job
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
@@ -513,25 +514,40 @@ class k8s_Client(object):
                client.V1EnvVar(name='SSH_DIR', value=SSH_DIR)
                ]
 
+        if name == 'pilot' and cert:
+            try:
+                # Attach secret with proxy
+                proxy_dir = os.path.split(cert)[0]
+                proxy_mount = client.V1VolumeMount(name='proxy-secret', mount_path=proxy_dir)
+                volume_mounts.append(proxy_mount)
+
+                # Add a env variable for the pilot to know the proxy file
+                env.append(V1EnvVar(name='X509_USER_PROXY', cert))
+
+                # Add env variable to indicate to the pilot to skip the payload
+                env.append(V1EnvVar(name='HOROVOD_JOB', True))
+            except:
+                continue
+
         # Attach config-map containing job details
         configmap_mount = client.V1VolumeMount(name='job-config', mount_path=CONFIG_DIR)
+        volume_mounts.append(configmap_mount)
 
         # Attach config-map containing host discovery script
         hd_configmap_mount = client.V1VolumeMount(name='host-discovery', mount_path=HD_DIR)
-
-        # Attach secret with proxy
-        secret_mount = client.V1VolumeMount(name='proxy-secret', mount_path='proxy')
+        volume_mounts.append(hd_configmap_mount)
 
         # Attach secret with ssh keys
         ssh_keys_mount = client.V1VolumeMount(name='ssh-keys', mount_path=SSH_DIR)
+        volume_mounts.append(ssh_keys_mount)
 
         # Attach shared volume between pilot and evaluation containers
         shared_mount = client.V1VolumeMount(name='shared-dir', mount_path=SHARED_DIR)
+        volume_mounts.append(shared_mount)
 
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
         container = client.V1Container(name=name, image=image, resources=resources, env=env,
-                                       volume_mounts=[configmap_mount, hd_configmap_mount, secret_mount,
-                                                      ssh_keys_mount, shared_mount],
+                                       volume_mounts=volume_mounts,
                                        command=command)
 
         return container
@@ -559,10 +575,8 @@ class k8s_Client(object):
 
         return container
 
-    def create_horovod_head(self, work_spec, prod_source_label,
-                            evaluation_image, evaluation_command,
-                            pilot_image, pilot_command,
-                            cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+    def create_horovod_head(self, work_spec, evaluation_image, evaluation_command, pilot_image, pilot_command, cert,
+                            cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         worker_id = str(work_spec.workerID)
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
@@ -579,7 +593,8 @@ class k8s_Client(object):
         # Elastic horovod fails if it starts and no worker is available
 
         # generate pilot and evaluation container
-        pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_image, pilot_command, name='pilot')
+        pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_image, pilot_command,
+                                                                cert=cert, name='pilot')
         evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_image, evaluation_command,
                                                                      name='evaluation')
 
@@ -624,8 +639,8 @@ class k8s_Client(object):
         rsp = self.core_v1.create_namespaced_pod(body=pod, namespace=self.namespace)
         return rsp
 
-    def create_horovod_workers(self, work_spec, prod_source_label, container_image,  command,
-                               cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+    def create_horovod_workers(self, work_spec, container_image,  command,
+                               cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         worker_id = str(work_spec.workerID)
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
@@ -637,6 +652,7 @@ class k8s_Client(object):
 
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
+        # TODO: decide how the memory and CPU/GPU requirements will be calculated
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
 
@@ -658,6 +674,7 @@ class k8s_Client(object):
                                                                                                          worker_id)}),
                                             spec=pod_spec)
 
+        # TODO: decide how many workers are required
         spec = client.V1DeploymentSpec(replicas=2, template=template,
                                        selector={"matchLabels": {"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
                                                                                          worker_id)}})
@@ -674,23 +691,24 @@ class k8s_Client(object):
         rsp = self.apps_v1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
 
-    def create_horovod_formation(self, work_spec, prod_source_label, evaluation_image, evaluation_command,
-                                   pilot_image, pilot_command, worker_command, cert, cpu_adjust_ratio=100, memory_adjust_ratio=100,
-                                   max_time=None):
+    def create_horovod_formation(self, work_spec, prod_source_label,
+                                 evaluation_image, evaluation_command,
+                                 pilot_image, pilot_command,
+                                 worker_command, cert,
+                                 cpu_adjust_ratio=100, memory_adjust_ratio=100,
+                                 max_time=None):
 
         rsp = self.create_ssh_keys_secret(work_spec)
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_head(work_spec, prod_source_label,
-                                       evaluation_image, evaluation_command,
-                                       pilot_image, pilot_command,
+        rsp = self.create_horovod_head(work_spec, evaluation_image, evaluation_command, pilot_image, pilot_command,
                                        cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_workers(work_spec, prod_source_label, evaluation_image, worker_command,
-                                          cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
+        rsp = self.create_horovod_workers(work_spec, evaluation_image, worker_command,
+                                          cpu_adjust_ratio, memory_adjust_ratio, max_time)
 
         if not rsp:
             return rsp
