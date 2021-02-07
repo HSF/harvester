@@ -522,10 +522,10 @@ class k8s_Client(object):
                 volume_mounts.append(proxy_mount)
 
                 # Add a env variable for the pilot to know the proxy file
-                env.append(V1EnvVar(name='X509_USER_PROXY', cert))
+                env.append(client.V1EnvVar(name='X509_USER_PROXY', value=cert))
 
                 # Add env variable to indicate to the pilot to skip the payload
-                env.append(V1EnvVar(name='HOROVOD_JOB', True))
+                env.append(client.V1EnvVar(name='HOROVOD_JOB', value=True))
             except:
                 continue
 
