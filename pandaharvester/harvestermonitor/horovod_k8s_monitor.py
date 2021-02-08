@@ -61,7 +61,7 @@ class HorovodMonitor(PluginBase):
             container_state = head_container_states[container_name]
             if container_state == 'failed':
                 new_status = WorkSpec.ST_failed
-                sub_msg = 'head container {0} in {0} status'.format(container_name, container_state)
+                sub_msg = 'head container "{0}" in status "{1}"'.format(container_name, container_state)
                 break
 
         return new_status, sub_msg
