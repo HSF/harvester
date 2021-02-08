@@ -34,6 +34,7 @@ HOROVOD_WORKER_TAG = 'horovod-workers'
 HOROVOD_HEAD_TAG = 'horovod-head'
 
 HOST_DISC_TAG = 'host-discovery'
+SSH_KEYS_TAG = 'ssh-keys'
 
 POD_FAILED_STATES = ['CrashLoopBackOff']
 POD_QUEUED_STATES = ['Pending', 'Unknown']
@@ -300,6 +301,10 @@ class k8s_Client(object):
         self.core_v1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.delete_v1,
                                                  grace_period_seconds=0)
 
+    def delete_secret(self, secret_name):
+        self.core_v1.delete_namespaced_secret(name=secret_name, namespace=self.namespace, body=self.delete_v1,
+                                              grace_period_seconds=0)
+
     def set_proxy(self, proxy_path):
         with open(proxy_path) as f:
             content = f.read()
@@ -416,7 +421,7 @@ class k8s_Client(object):
             public_key = key.public_key().public_bytes(crypto_serialization.Encoding.OpenSSH,
                                                        crypto_serialization.PublicFormat.OpenSSH)
 
-            name = 'ssh-keys-{0}'.format(worker_id)
+            name = '{0}-{1}'.format(SSH_KEY_TAG, worker_id)
 
             metadata = {'name': name, 'namespace': self.namespace}
             data = {'private_key': base64.b64encode(private_key).decode(),
@@ -880,15 +885,29 @@ class k8s_Client(object):
                 err_str = 'Failed to delete the HEAD POD; {1}'.format(_e)
 
         # delete the configmaps with the job configuration and the host discovery
-        config_maps = [worker_id, '{0}-{1}'.format(HOST_DISC_TAG, worker_id)]
+        config_maps = []
+        config_maps.append(worker_id)  # job info
+        config_maps.append('{0}-{1}'.format(HOST_DISC_TAG, worker_id))  # host discovery file
         for config_map in config_maps:
             try:
                 self.delete_config_map(config_map)
-                tmp_log.debug('Deleted configmap')
+                tmp_log.debug('Deleted configmap: {0}'.format(config_map))
             except ApiException as _e:
                 # if the configmap did not exist, don't consider it an error
                 if _e.status != 404 and _e.reason != 'Not Found':
-                    err_str = 'Failed to delete a CONFIGMAP with id={0} ; {1}'.format(worker_id, _e)
+                    err_str = 'Failed to delete a CONFIGMAP ; {0}'.format(_e)
+
+        # delete the secrets
+        secrets = []
+        secrets.append('{0}-{1}'.format(SSH_KEYS_TAG, worker_id))  # ssh keys for head-worker communication
+        for secret in secrets:
+            try:
+                self.delete_secret(secret)
+                tmp_log.debug('Deleted secret: {0}'.format(secret))
+            except ApiException as _e:
+                # if the secret did not exist, don't consider it an error
+                if _e.status != 404 and _e.reason != 'Not Found':
+                    err_str = 'Failed to delete a CONFIGMAP ; {0}'.format( _e)
 
         if err_str:
             tmp_log.error(err_str)
