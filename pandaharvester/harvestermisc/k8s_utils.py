@@ -23,6 +23,7 @@ base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
 SHARED_DIR = '/root/shared/'
+WORK_DIR = '/tmp/pilot/'
 
 HD_DIR = '/scratch/hostdiscovery'
 SSH_DIR = '/scratch/ssh'
@@ -575,7 +576,21 @@ class k8s_Client(object):
 
         return container
 
-    def create_horovod_head(self, work_spec, evaluation_image, evaluation_command, pilot_image, pilot_command, cert,
+    def generate_pilot_command(self, panda_queue):
+
+        # Paul's command on the image
+        DEF_PILOT_COMMAND = ["python3", "/user/share/panda-pilot/pilot.py", "-d", "-w", "generic", "-j", "ptest", "-q",
+                             "CERN-PROD_UCORE_2", "--pilot-user=ATLAS"]
+
+        # Command generated in Kubernetes module
+        # wrapper_params = 'python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} -r {2} {4} {5} {6}'.format(WORK_DIR, panda_queue,
+        # resource_type_option, psl_option, job_type_option)
+
+        pilot_command = ['python3 /user/share/panda-pilot/pilot.py -a {0} -q {1}'.format(WORK_DIR, panda_queue)]
+        return pilot_command
+
+    def create_horovod_head(self, work_spec, panda_queue, evaluation_image, evaluation_command,
+                            pilot_image, pilot_command, cert,
                             cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         worker_id = str(work_spec.workerID)
@@ -593,6 +608,7 @@ class k8s_Client(object):
         # Elastic horovod fails if it starts and no worker is available
 
         # generate pilot and evaluation container
+        pilot_command = self.generate_pilot_command(panda_queue)
         pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_image, pilot_command,
                                                                 cert=cert, name='pilot')
         evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_image, evaluation_command,
@@ -691,7 +707,7 @@ class k8s_Client(object):
         rsp = self.apps_v1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
 
-    def create_horovod_formation(self, work_spec, prod_source_label,
+    def create_horovod_formation(self, work_spec, prod_source_label, panda_queue,
                                  evaluation_image, evaluation_command,
                                  pilot_image, pilot_command,
                                  worker_command, cert,
@@ -702,7 +718,8 @@ class k8s_Client(object):
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_head(work_spec, evaluation_image, evaluation_command, pilot_image, pilot_command,
+        rsp = self.create_horovod_head(work_spec, panda_queue, evaluation_image, evaluation_command,
+                                       pilot_image, pilot_command,
                                        cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp

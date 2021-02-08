@@ -153,7 +153,7 @@ class HorovodSubmitter(PluginBase):
             worker_command = DEF_WORKER_COMMAND
 
             # submit the worker
-            rsp = self.k8s_client.create_horovod_formation(work_spec, prod_source_label,
+            rsp = self.k8s_client.create_horovod_formation(work_spec, prod_source_label, self.queueName,
                                                            evaluation_image, evaluation_command,
                                                            pilot_image, pilot_command, worker_command,
                                                            cert, cpu_adjust_ratio=self.cpuAdjustRatio,
