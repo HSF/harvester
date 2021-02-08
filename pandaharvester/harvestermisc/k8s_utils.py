@@ -421,7 +421,7 @@ class k8s_Client(object):
             public_key = key.public_key().public_bytes(crypto_serialization.Encoding.OpenSSH,
                                                        crypto_serialization.PublicFormat.OpenSSH)
 
-            name = '{0}-{1}'.format(SSH_KEY_TAG, worker_id)
+            name = '{0}-{1}'.format(SSH_KEYS_TAG, worker_id)
 
             metadata = {'name': name, 'namespace': self.namespace}
             data = {'private_key': base64.b64encode(private_key).decode(),
