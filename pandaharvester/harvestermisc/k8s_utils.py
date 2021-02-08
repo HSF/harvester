@@ -533,7 +533,7 @@ class k8s_Client(object):
                 # Add env variable to indicate to the pilot to skip the payload
                 env.append(client.V1EnvVar(name='HOROVOD_JOB', value=True))
             except:
-                continue
+                pass
 
         # Attach config-map containing job details
         configmap_mount = client.V1VolumeMount(name='job-config', mount_path=CONFIG_DIR)
