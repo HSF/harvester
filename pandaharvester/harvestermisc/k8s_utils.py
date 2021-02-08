@@ -507,6 +507,9 @@ class k8s_Client(object):
     def fill_hpo_head_container_template(self, work_spec, image, command, cert=None, name=None):
 
         worker_id = work_spec.workerID
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='fill_hpo_head_container_template')
+
         volume_mounts = []
 
         # TODO: the request & limit values need to be extracted from the job
@@ -529,9 +532,10 @@ class k8s_Client(object):
 
                 # Add a env variable for the pilot to know the proxy file
                 env.append(client.V1EnvVar(name='X509_USER_PROXY', value=cert))
+                tmp_log.debug(cert)
 
                 # Add env variable to indicate to the pilot to skip the payload
-                env.append(client.V1EnvVar(name='HOROVOD_JOB', value=True))
+                env.append(client.V1EnvVar(name='HOROVOD_JOB', value="True"))
             except:
                 pass
 
