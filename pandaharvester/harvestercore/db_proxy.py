@@ -523,7 +523,8 @@ class DBProxy(object):
         varMap = dict()
         if harvester_config.db.engine == 'mariadb':
             varMap[':name'] = table_name
-            sqlC = 'SELECT column_name,column_type FROM information_schema.columns WHERE table_name=:name '
+            varMap[':schema'] = harvester_config.db.schema
+            sqlC = 'SELECT column_name,column_type FROM information_schema.columns WHERE table_schema=:schema AND table_name=:name '
         else:
             sqlC = 'PRAGMA table_info({0}) '.format(table_name)
         self.execute(sqlC, varMap)
@@ -533,7 +534,10 @@ class DBProxy(object):
             if harvester_config.db.engine == 'mariadb':
                 if hasattr(tmpItem, '_asdict'):
                     tmpItem = tmpItem._asdict()
-                columnName, columnType = tmpItem['column_name'], tmpItem['column_type']
+                try:
+                    columnName, columnType = tmpItem['column_name'], tmpItem['column_type']
+                except KeyError:
+                    columnName, columnType = tmpItem['COLUMN_NAME'], tmpItem['COLUMN_TYPE']
             else:
                 columnName, columnType = tmpItem[1], tmpItem[2]
             colMap[columnName] = columnType
