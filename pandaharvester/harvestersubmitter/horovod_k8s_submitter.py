@@ -24,7 +24,7 @@ DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
 PILOT_IMAGE = 'palnilsson/my-panda-pilot'
 
 # command defaults
-DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/' 
+DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/',
                           'while [ ! -f __payload_in_sync_file__ ]; do sleep 5; done; ',
                           'echo "=== cat exec script ==="; ', 'cat __run_main_exec.sh; ', 'echo; ',
                           'echo "=== exec script ==="; ', '/bin/sh __run_main_exec.sh; ',
