@@ -24,7 +24,7 @@ DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
 PILOT_IMAGE = 'palnilsson/my-panda-pilot'
 
 # command defaults
-DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/',
+DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/;',
                           'while [ ! -f __payload_in_sync_file__ ]; do sleep 5; done; ',
                           'echo "=== cat exec script ==="; ', 'cat __run_main_exec.sh; ', 'echo; ',
                           'echo "=== exec script ==="; ', '/bin/sh __run_main_exec.sh; ',
@@ -33,7 +33,7 @@ DEF_EVALUATION_COMMAND = ['sh', '-c', 'cp $SSH_DIR/* ~/.ssh/',
 
 # DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 DEF_PILOT_COMMAND = ["python3", "/user/share/panda-pilot/pilot.py", "-d", "-w", "generic", "-j", "ptest", "-q", "CERN-PROD_UCORE_2", "--pilot-user=ATLAS"]
-DEF_WORKER_COMMAND = ["sh", "-c", "mkdir -p ~/.ssh && /cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22 && sleep infinity"]
+DEF_WORKER_COMMAND = ["sh", "-c", "mkdir -p ~/.ssh && cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22 && sleep infinity"]
 
 
 class HorovodSubmitter(PluginBase):
