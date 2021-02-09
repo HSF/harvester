@@ -595,7 +595,7 @@ class k8s_Client(object):
         # wrapper_params = 'python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} -r {2} {4} {5} {6}'.format(WORK_DIR, panda_queue,
         # resource_type_option, psl_option, job_type_option)
 
-        pilot_command = ['python3 /user/share/panda-pilot/pilot.py -a {0} -q {1}'.format(WORK_DIR, panda_queue)]
+        pilot_command = ["python3", "/user/share/panda-pilot/pilot.py", "-a", WORK_DIR, "-q", panda_queue]
         return pilot_command
 
     def create_horovod_head(self, work_spec, panda_queue, evaluation_image, evaluation_command,
