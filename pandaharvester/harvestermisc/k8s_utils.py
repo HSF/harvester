@@ -599,6 +599,7 @@ class k8s_Client(object):
                          "-a", WORK_DIR,
                          "-q", panda_queue,
                          "--pilot-user=ATLAS",
+                         "--harvester-submit-mode=PUSH",
                          "-t"]
 
         return pilot_command
