@@ -658,7 +658,8 @@ class k8s_Client(object):
                                 volumes=[proxy_secret, ssh_keys, config_map, hd_config_map, shared_dir],
                                 init_containers=[init_hd_container],
                                 active_deadline_seconds=max_time,
-                                node_selector=node_selector)
+                                node_selector=node_selector,
+                                restart_policy='Never')
 
         pod = client.V1Pod(spec=spec, metadata=client.V1ObjectMeta(name='{0}-{1}'.format(HOROVOD_HEAD_TAG, worker_id),
                                                                    labels={'app': '{0}-{1}'.format(HOROVOD_HEAD_TAG,
