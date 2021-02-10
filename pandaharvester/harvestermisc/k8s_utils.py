@@ -598,7 +598,9 @@ class k8s_Client(object):
         pilot_command = ["python3", "/user/share/panda-pilot/pilot.py",
                          "-a", WORK_DIR,
                          "-q", panda_queue,
-                         "--pilot-user=ATLAS"]
+                         "--pilot-user=ATLAS",
+                         "-t"]
+
         return pilot_command
 
     def create_horovod_head(self, work_spec, panda_queue, evaluation_image, evaluation_command,
