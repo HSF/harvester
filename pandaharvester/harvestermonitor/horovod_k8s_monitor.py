@@ -55,6 +55,9 @@ class HorovodMonitor(PluginBase):
         elif head_status in k8s_utils.POD_FAILED_STATES:
             new_status = WorkSpec.ST_failed
             sub_msg = 'head in {0} status'.format(head_status)
+        elif head_status in k8s_utils.POD_FINISHED_STATES:
+            new_status = WorkSpec.ST_finished
+            sub_msg = 'head in {0} status'.format(head_status)
 
         # overwrite state if some container is in failed state
         for container_name in head_container_states:

@@ -39,6 +39,8 @@ SSH_KEYS_TAG = 'ssh-keys'
 POD_FAILED_STATES = ['CrashLoopBackOff']
 POD_QUEUED_STATES = ['Pending', 'Unknown']
 POD_RUNNING_STATES = ['Running']
+POD_FINISHED_STATES = ['Succeeded']
+
 
 class k8s_Client(object):
 
