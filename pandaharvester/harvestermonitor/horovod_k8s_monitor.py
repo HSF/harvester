@@ -83,14 +83,14 @@ class HorovodMonitor(PluginBase):
             head_pod = self._formations_info_dict[worker_id].get('head_pod', {})
             worker_deployment = self._formations_info_dict[worker_id].get('worker_deployment')
             worker_pods = self._formations_info_dict[worker_id].get('worker_pods', [])
-        pod_names_to_delete_list = []
-        head_status = None
+
+        to_delete = False
 
         # CHECK THE HEAD
         try:
             # check if head pod has been queued too long
             if head_pod and self.k8s_client.pod_queued_too_long(head_pod, self.podQueueTimeLimit):
-                pod_names_to_delete_list.append(head_pod['name'])
+                to_delete = True
 
             # make list of status of the pods belonging to our job
             head_status = head_pod.get('status')
@@ -132,17 +132,11 @@ class HorovodMonitor(PluginBase):
             tmp_log.error(err_str)
             head_status = None
 
-        # TODO: MAKE A CLEAN UP FUNCTION
-        # delete pods that have been queueing too long
-        if pod_names_to_delete_list:
-            tmp_log.debug('Deleting pods queuing too long')
-            ret_list = self.k8s_client.delete_pods(pod_names_to_delete_list)
-            deleted_pods_list = []
-            for item in ret_list:
-                if item['errMsg'] == '':
-                    deleted_pods_list.append(item['name'])
-            tmp_log.debug('Deleted pods queuing too long: {0}'.format(
-                            ','.join(deleted_pods_list)))
+        # delete a formation that has been queued too long
+        if to_delete:
+            tmp_log.debug('Deleting formation since queued too long')
+            ret_list = self.k8s_client.delete_horovod_formation(work_spec)
+            tmp_log.debug('Deleted formation queued too long: {0}'.format(ret_list)
 
         # supplemental diag messages
         sup_error_code = WorkerErrors.error_codes.get('GENERAL_ERROR') if err_str else WorkerErrors.error_codes.get('SUCCEEDED')
