@@ -136,7 +136,7 @@ class HorovodMonitor(PluginBase):
         if to_delete:
             tmp_log.debug('Deleting formation since queued too long')
             ret_list = self.k8s_client.delete_horovod_formation(work_spec)
-            tmp_log.debug('Deleted formation queued too long: {0}'.format(ret_list)
+            tmp_log.debug('Deleted formation queued too long: {0}'.format(ret_list))
 
         # supplemental diag messages
         sup_error_code = WorkerErrors.error_codes.get('GENERAL_ERROR') if err_str else WorkerErrors.error_codes.get('SUCCEEDED')
