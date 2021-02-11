@@ -24,15 +24,17 @@ DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
 PILOT_IMAGE = 'palnilsson/my-panda-pilot'
 
 # command defaults
-DEF_EVALUATION_COMMAND = ['sh', '-c', 'mkdir -p ~/.ssh && cp $SSH_DIR/* ~/.ssh/;',
-                          'while [ ! -f $SHARED_DIR/__payload_in_sync_file__ ]; do sleep 5; done; ',
-                          'echo "=== cat exec script ==="; ', 'cat $SHARED_DIR/__run_main_exec.sh; ', 'echo; ',
-                          'echo "=== exec script ==="; ', '/bin/sh $SHARED_DIR/__run_main_exec.sh; ',
-                          'REAL_MAIN_RET_CODE=$?; ', 'touch $SHARED_DIR/__payload_out_sync_file__; ',
-                          'exit $REAL_MAIN_RET_CODE ']
+
+DEF_EVALUATION_COMMAND = ["""
+                          sh -c mkdir -p ~/.ssh && cp $SSH_DIR/* ~/.ssh/;
+                          while [ ! -f $SHARED_DIR/__payload_in_sync_file__ ]; do sleep 5; done; 
+                          echo \"=== cat exec script ===\"; cat $SHARED_DIR/__run_main_exec.sh; echo; 
+                          echo \"=== exec script ===\"; /bin/sh $SHARED_DIR/__run_main_exec.sh;
+                          REAL_MAIN_RET_CODE=$?; touch $SHARED_DIR/__payload_out_sync_file__;
+                          exit $REAL_MAIN_RET_CODE
+                          """]
 
 # DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
-DEF_PILOT_COMMAND = ["python3", "/user/share/panda-pilot/pilot.py", "-d", "-w", "generic", "-j", "ptest", "-q", "CERN-PROD_UCORE_2", "--pilot-user=ATLAS"]
 DEF_WORKER_COMMAND = ["sh", "-c", "mkdir -p ~/.ssh && cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22 && sleep infinity"]
 
 
