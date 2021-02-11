@@ -538,6 +538,9 @@ class k8s_Client(object):
 
                 # Add env variable to indicate to the pilot to skip the payload
                 env.append(client.V1EnvVar(name='HOROVOD_JOB', value="True"))
+
+                # Add env variable to indicate the work directory of the pilot
+                env.append(client.V1EnvVar(name='WORK_DIR', value=WORK_DIR))
             except:
                 pass
 
@@ -597,7 +600,8 @@ class k8s_Client(object):
         # wrapper_params = 'python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} -r {2} {4} {5} {6}'.format(WORK_DIR, panda_queue,
         # resource_type_option, psl_option, job_type_option)
 
-        pilot_command = ["python3", "/user/share/panda-pilot/pilot.py",
+        pilot_command = ["cp", "$CONFIG_DIR/*", "$WORK_DIR;",
+                         "python3", "/user/share/panda-pilot/pilot.py",
                          "-a", WORK_DIR,
                          "-q", panda_queue,
                          "--pilot-user=ATLAS",
