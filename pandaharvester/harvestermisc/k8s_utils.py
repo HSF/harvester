@@ -600,7 +600,7 @@ class k8s_Client(object):
         # wrapper_params = 'python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} -r {2} {4} {5} {6}'.format(WORK_DIR, panda_queue,
         # resource_type_option, psl_option, job_type_option)
 
-        pilot_command = ["cp", "$CONFIG_DIR/*", "$WORK_DIR;",
+        pilot_command = ["cp", "$CONFIG_DIR/*", "$WORK_DIR", "&&",
                          "python3", "/user/share/panda-pilot/pilot.py",
                          "-a", WORK_DIR,
                          "-q", panda_queue,
