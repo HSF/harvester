@@ -151,14 +151,13 @@ class HorovodSubmitter(PluginBase):
             evaluation_image = self.get_container_image(job_fields)
             pilot_image = PILOT_IMAGE
             evaluation_command = DEF_EVALUATION_COMMAND
-            pilot_command = DEF_PILOT_COMMAND
             worker_command = DEF_WORKER_COMMAND
 
             # submit the worker
             rsp = self.k8s_client.create_horovod_formation(work_spec, prod_source_label, self.queueName,
                                                            evaluation_image, evaluation_command,
-                                                           pilot_image, pilot_command, worker_command,
-                                                           cert, cpu_adjust_ratio=self.cpuAdjustRatio,
+                                                           pilot_image, worker_command, cert,
+                                                           cpu_adjust_ratio=self.cpuAdjustRatio,
                                                            memory_adjust_ratio=self.memoryAdjustRatio,
                                                            max_time=max_time)
         except Exception as _e:

@@ -605,7 +605,7 @@ class k8s_Client(object):
         return pilot_command
 
     def create_horovod_head(self, work_spec, panda_queue, evaluation_image, evaluation_command,
-                            pilot_image, pilot_command, cert,
+                            pilot_image, cert,
                             cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         worker_id = str(work_spec.workerID)
@@ -724,8 +724,7 @@ class k8s_Client(object):
         return rsp
 
     def create_horovod_formation(self, work_spec, prod_source_label, panda_queue,
-                                 evaluation_image, evaluation_command,
-                                 pilot_image, pilot_command,
+                                 evaluation_image, evaluation_command, pilot_image,
                                  worker_command, cert,
                                  cpu_adjust_ratio=100, memory_adjust_ratio=100,
                                  max_time=None):
@@ -735,8 +734,7 @@ class k8s_Client(object):
             return rsp
 
         rsp = self.create_horovod_head(work_spec, panda_queue, evaluation_image, evaluation_command,
-                                       pilot_image, pilot_command,
-                                       cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
+                                       pilot_image, cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp
 
