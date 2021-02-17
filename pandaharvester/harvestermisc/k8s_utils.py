@@ -41,6 +41,16 @@ POD_QUEUED_STATES = ['Pending', 'Unknown']
 POD_RUNNING_STATES = ['Running']
 POD_FINISHED_STATES = ['Succeeded']
 
+evaluation_script = """
+sh -c mkdir -p ~/.ssh && cp $SSH_DIR/* ~/.ssh/;
+while [ ! -f $SHARED_DIR/__payload_in_sync_file__ ]; do sleep 5; done; 
+echo \"=== cat exec script ===\"; cat $SHARED_DIR/__run_main_exec.sh; echo; 
+echo \"=== exec script ===\"; /bin/sh $SHARED_DIR/__run_main_exec.sh;
+REAL_MAIN_RET_CODE=$?; touch $SHARED_DIR/__payload_out_sync_file__;
+exit $REAL_MAIN_RET_CODE
+"""
+
+pilot_script = """"""
 
 class k8s_Client(object):
 
@@ -401,6 +411,42 @@ class k8s_Client(object):
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
+    def create_configmap_horovod(self, work_spec):
+        # useful guide:
+        # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
+
+        worker_id = str(work_spec.workerID)
+        tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
+                                         method_name='create_configmap')
+        try:
+            # Get the access point. The messenger should have dropped the input files for the pilot here
+            access_point = work_spec.get_access_point()
+            pjd = 'pandaJobData.out'
+            job_data_file = os.path.join(access_point, pjd)
+            with open(job_data_file) as f:
+                job_data_contents = f.read()
+
+            pfc = 'PoolFileCatalog_H.xml'
+            pool_file_catalog_file = os.path.join(access_point, pfc)
+            with open(pool_file_catalog_file) as f:
+                pool_file_catalog_contents = f.read()
+
+            # put the job data and PFC into a dictionary
+            data = {pjd: job_data_contents, pfc: pool_file_catalog_contents, evaluation_script: script}
+
+            # instantiate the configmap object
+            metadata = {'name': worker_id, 'namespace': self.namespace}
+            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
+
+            # create the configmap object in K8s
+            api_response = self.core_v1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
+            tmp_log.debug('Created configmap')
+            return True
+
+        except (ApiException, TypeError) as e:
+            tmp_log.error('Could not create configmap with: {0}'.format(e))
+            return False
+
     def create_ssh_keys_secret(self, work_spec):
         # useful guide:
         # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
@@ -590,6 +636,10 @@ class k8s_Client(object):
 
         return container
 
+    def generate_evaluation_script(self):
+
+
+
     def generate_pilot_command(self, panda_queue):
 
         # Paul's command on the image
@@ -613,7 +663,7 @@ class k8s_Client(object):
                                          method_name='create_horovod_head')
 
         # TODO: check the return codes
-        if not self.create_configmap(work_spec):
+        if not self.create_configmap_horovod(work_spec):
             return False, None
 
         if not self.create_host_discovery_configmap(work_spec):
