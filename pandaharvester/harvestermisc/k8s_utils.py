@@ -432,7 +432,7 @@ class k8s_Client(object):
                 pool_file_catalog_contents = f.read()
 
             # put the job data and PFC into a dictionary
-            data = {pjd: job_data_contents, pfc: pool_file_catalog_contents, evaluation_script: script}
+            data = {pjd: job_data_contents, pfc: pool_file_catalog_contents, evaluation_script: evaluation_script}
 
             # instantiate the configmap object
             metadata = {'name': worker_id, 'namespace': self.namespace}
