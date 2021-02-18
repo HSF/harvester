@@ -636,10 +636,6 @@ class k8s_Client(object):
 
         return container
 
-    def generate_evaluation_script(self):
-
-
-
     def generate_pilot_command(self, panda_queue):
 
         # Paul's command on the image
