@@ -436,7 +436,7 @@ class k8s_Client(object):
 
         worker_id = str(work_spec.workerID)
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
-                                         method_name='create_configmap')
+                                         method_name='create_configmap_horovod')
         try:
             # Get the access point. The messenger should have dropped the input files for the pilot here
             access_point = work_spec.get_access_point()
@@ -679,12 +679,11 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
                                          method_name='create_horovod_head')
 
-        # TODO: check the return codes
         if not self.create_configmap_horovod(work_spec):
-            return False, None
+            return False
 
         if not self.create_host_discovery_configmap(work_spec):
-            return False, None
+            return False
 
         # generate init container that waits for workers to be available
         # Elastic horovod fails if it starts and no worker is available
