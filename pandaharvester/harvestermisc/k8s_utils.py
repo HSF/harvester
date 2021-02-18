@@ -42,12 +42,31 @@ POD_RUNNING_STATES = ['Running']
 POD_FINISHED_STATES = ['Succeeded']
 
 evaluation_script = """
-sh -c mkdir -p ~/.ssh && cp $SSH_DIR/* ~/.ssh/;
-while [ ! -f $SHARED_DIR/__payload_in_sync_file__ ]; do sleep 5; done; 
-echo \"=== cat exec script ===\"; cat $SHARED_DIR/__run_main_exec.sh; echo; 
-echo \"=== exec script ===\"; /bin/sh $SHARED_DIR/__run_main_exec.sh;
-REAL_MAIN_RET_CODE=$?; touch $SHARED_DIR/__payload_out_sync_file__;
-exit $REAL_MAIN_RET_CODE
+# Copy ssh keys in order to be able to connect to workers 
+mkdir -p ~/.ssh && cp $SSH_DIR/* ~/.ssh/;
+
+while :
+do
+    while [ ! -f $SHARED_DIR/__payload_in_sync_file__ ]; do sleep 5; done; 
+
+    echo \"=== cat exec script ===\"; 
+    cat $SHARED_DIR/__run_main_exec.sh; 
+    echo; 
+
+    echo \"=== exec script ===\"; 
+    /bin/sh $SHARED_DIR/__run_main_exec.sh;
+    REAL_MAIN_RET_CODE=$?; 
+    
+    echo \"=== finished with ===\";
+    cat $REAL_MAIN_RET_CODE;
+    echo; 
+     
+    # Create the out sync file and delete the in sync file
+    touch $SHARED_DIR/__payload_out_sync_file__;
+    rm -f $SHARED_DIR/__payload_in_sync_file__; 
+    
+    # exit $REAL_MAIN_RET_CODE;
+done
 """
 
 pilot_script = """"""
