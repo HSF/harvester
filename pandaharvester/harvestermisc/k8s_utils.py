@@ -784,7 +784,6 @@ class k8s_Client(object):
                                          spec=spec)
 
         tmp_log.debug('creating deployment {0}'.format(deployment))
-        tmp_log.debug('{0}'.format(yaml.dump(deployment, default_flow_style=False, allow_unicode=True, encoding=None)))
 
         rsp = self.apps_v1.create_namespaced_deployment(body=deployment, namespace=self.namespace)
         return rsp
