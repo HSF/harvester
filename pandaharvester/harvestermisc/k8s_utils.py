@@ -41,6 +41,7 @@ POD_QUEUED_STATES = ['Pending', 'Unknown']
 POD_RUNNING_STATES = ['Running']
 POD_FINISHED_STATES = ['Succeeded']
 
+evaluation_script_fn = 'evaluation_script.sh'
 evaluation_script = """
 # Copy ssh keys in order to be able to connect to workers 
 mkdir -p ~/.ssh && cp $SSH_DIR/* ~/.ssh/;
@@ -453,7 +454,7 @@ class k8s_Client(object):
             # put the job data and PFC into a dictionary
             data = {pjd: job_data_contents,
                     pfc: pool_file_catalog_contents,
-                    'evaluation_script': evaluation_script}
+                    evaluation_script_fn: evaluation_script}
 
             # instantiate the configmap object
             metadata = {'name': worker_id, 'namespace': self.namespace}
