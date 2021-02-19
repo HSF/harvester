@@ -24,10 +24,6 @@ DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
 PILOT_IMAGE = 'palnilsson/my-panda-pilot'
 
 # command defaults
-
-DEF_EVALUATION_COMMAND = ["sh", "-c", "$CONFIG_DIR/evaluation_script.sh"]
-
-# DEF_PILOT_COMMAND = ["sh", "-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
 DEF_WORKER_COMMAND = ["sh", "-c", "mkdir -p ~/.ssh && cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22 && sleep infinity"]
 
 

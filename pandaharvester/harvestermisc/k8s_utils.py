@@ -70,7 +70,13 @@ do
 done
 """
 
-pilot_script = """"""
+pilot_script_fn = 'pilot.sh'
+pilot_script = """
+mkdir -p $WORK_DIR;
+cp $CONFIG_DIR/* $WORK_DIR;
+python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} --pilot-user=ATLAS --harvester-submit-mode=PUSH -t
+"""
+
 
 class k8s_Client(object):
 
@@ -431,7 +437,7 @@ class k8s_Client(object):
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
-    def create_configmap_horovod(self, work_spec):
+    def create_configmap_horovod(self, work_spec, panda_queue):
         # useful guide:
         # https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
@@ -454,7 +460,9 @@ class k8s_Client(object):
             # put the job data and PFC into a dictionary
             data = {pjd: job_data_contents,
                     pfc: pool_file_catalog_contents,
-                    evaluation_script_fn: evaluation_script}
+                    evaluation_script_fn: evaluation_script,
+                    pilot_script_fn: pilot_script.format(WORK_DIR, panda_queue)
+                    }
 
             # instantiate the configmap object
             metadata = {'name': worker_id, 'namespace': self.namespace}
@@ -658,21 +666,7 @@ class k8s_Client(object):
 
         return container
 
-    def generate_pilot_command(self, panda_queue):
-
-        # Paul's command on the image
-        DEF_PILOT_COMMAND = ["python3", "/user/share/panda-pilot/pilot.py", "-d", "-w", "generic", "-j", "ptest", "-q",
-                             "CERN-PROD_UCORE_2", "--pilot-user=ATLAS"]
-
-        # Command generated in Kubernetes module
-        # wrapper_params = 'python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} -r {2} {4} {5} {6}'.format(WORK_DIR, panda_queue,
-        # resource_type_option, psl_option, job_type_option)
-
-        pilot_command = ["sh", "-c", "cp $CONFIG_DIR/* $WORK_DIR && python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} --pilot-user=ATLAS --harvester-submit-mode=PUSH -t".format(WORK_DIR, panda_queue)]
-
-        return pilot_command
-
-    def create_horovod_head(self, work_spec, panda_queue, evaluation_image, evaluation_command,
+    def create_horovod_head(self, work_spec, panda_queue, evaluation_image,
                             pilot_image, cert,
                             cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
@@ -680,7 +674,7 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
                                          method_name='create_horovod_head')
 
-        if not self.create_configmap_horovod(work_spec):
+        if not self.create_configmap_horovod(work_spec, panda_queue):
             return False
 
         if not self.create_host_discovery_configmap(work_spec):
@@ -690,9 +684,10 @@ class k8s_Client(object):
         # Elastic horovod fails if it starts and no worker is available
 
         # generate pilot and evaluation container
-        pilot_command = self.generate_pilot_command(panda_queue)
+        pilot_command = ["sh", "$CONFIG_DIR/{0}".format(pilot_script_fn)]
         pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_image, pilot_command,
                                                                 cert=cert, name='pilot')
+        evaluation_command = ["sh", "$CONFIG_DIR/{0}".format(evaluation_script_fn)]
         evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_image, evaluation_command,
                                                                      name='evaluation')
 
@@ -790,7 +785,7 @@ class k8s_Client(object):
         return rsp
 
     def create_horovod_formation(self, work_spec, prod_source_label, panda_queue,
-                                 evaluation_image, evaluation_command, pilot_image,
+                                 evaluation_image, pilot_image,
                                  worker_command, cert,
                                  cpu_adjust_ratio=100, memory_adjust_ratio=100,
                                  max_time=None):
@@ -799,7 +794,7 @@ class k8s_Client(object):
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_head(work_spec, panda_queue, evaluation_image, evaluation_command,
+        rsp = self.create_horovod_head(work_spec, panda_queue, evaluation_image,
                                        pilot_image, cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp
