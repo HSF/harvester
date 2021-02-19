@@ -44,7 +44,7 @@ POD_FINISHED_STATES = ['Succeeded']
 evaluation_script_fn = 'evaluation_script.sh'
 evaluation_script = """
 # Copy ssh keys in order to be able to connect to workers 
-mkdir -p ~/.ssh && cp $SSH_DIR/* ~/.ssh/;
+mkdir -p ~/.ssh && cp $SSH_DIR/*_key ~/.ssh/;
 
 while :
 do
@@ -668,7 +668,7 @@ class k8s_Client(object):
         # wrapper_params = 'python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} -r {2} {4} {5} {6}'.format(WORK_DIR, panda_queue,
         # resource_type_option, psl_option, job_type_option)
 
-        pilot_command = ["cp $CONFIG_DIR/* $WORK_DIR && python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} --pilot-user=ATLAS --harvester-submit-mode=PUSH -t".format(WORK_DIR, panda_queue)]
+        pilot_command = ["sh", "-c", "cp $CONFIG_DIR/* $WORK_DIR && python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} --pilot-user=ATLAS --harvester-submit-mode=PUSH -t".format(WORK_DIR, panda_queue)]
 
         return pilot_command
 
