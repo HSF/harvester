@@ -684,10 +684,10 @@ class k8s_Client(object):
         # Elastic horovod fails if it starts and no worker is available
 
         # generate pilot and evaluation container
-        pilot_command = ["sh", "$CONFIG_DIR/{0}".format(pilot_script_fn)]
+        pilot_command = ["sh", "-c", "source $CONFIG_DIR/{0}".format(pilot_script_fn)]
         pilot_container = self.fill_hpo_head_container_template(work_spec, pilot_image, pilot_command,
                                                                 cert=cert, name='pilot')
-        evaluation_command = ["sh", "$CONFIG_DIR/{0}".format(evaluation_script_fn)]
+        evaluation_command = ["sh", "-c", "source $CONFIG_DIR/{0}".format(evaluation_script_fn)]
         evaluation_container = self.fill_hpo_head_container_template(work_spec, evaluation_image, evaluation_command,
                                                                      name='evaluation')
 
