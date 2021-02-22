@@ -598,7 +598,8 @@ class k8s_Client(object):
                client.V1EnvVar(name='SHARED_DIR', value=SHARED_DIR),
                client.V1EnvVar(name='CONFIG_DIR', value=CONFIG_DIR),
                client.V1EnvVar(name='HD_DIR', value=HD_DIR),
-               client.V1EnvVar(name='SSH_DIR', value=SSH_DIR)
+               client.V1EnvVar(name='SSH_DIR', value=SSH_DIR),
+               client.V1EnvVar(name='RUCIO_ACCOUNT', value='pilot')
                ]
 
         if name == 'pilot' and cert:
