@@ -616,7 +616,7 @@ class k8s_Client(object):
                 env.append(client.V1EnvVar(name='HARVESTER_HOROVOD', value='True'))
 
                 # Rucio client needs to know the account for stage-in/out
-                client.V1EnvVar(name='RUCIO_ACCOUNT', value='pilot')
+                env.append(client.V1EnvVar(name='RUCIO_ACCOUNT', value='pilot'))
 
                 # Add env variable to indicate the work directory of the pilot
                 env.append(client.V1EnvVar(name='WORK_DIR', value=WORK_DIR))
