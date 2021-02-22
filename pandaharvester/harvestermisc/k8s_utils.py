@@ -598,8 +598,7 @@ class k8s_Client(object):
                client.V1EnvVar(name='SHARED_DIR', value=SHARED_DIR),
                client.V1EnvVar(name='CONFIG_DIR', value=CONFIG_DIR),
                client.V1EnvVar(name='HD_DIR', value=HD_DIR),
-               client.V1EnvVar(name='SSH_DIR', value=SSH_DIR),
-               client.V1EnvVar(name='RUCIO_ACCOUNT', value='pilot')
+               client.V1EnvVar(name='SSH_DIR', value=SSH_DIR)
                ]
 
         if name == 'pilot' and cert:
@@ -614,7 +613,10 @@ class k8s_Client(object):
                 tmp_log.debug(cert)
 
                 # Add env variable to indicate to the pilot to skip the payload
-                env.append(client.V1EnvVar(name='HOROVOD_JOB', value="True"))
+                env.append(client.V1EnvVar(name='HARVESTER_HOROVOD', value='True'))
+
+                # Rucio client needs to know the account for stage-in/out
+                client.V1EnvVar(name='RUCIO_ACCOUNT', value='pilot')
 
                 # Add env variable to indicate the work directory of the pilot
                 env.append(client.V1EnvVar(name='WORK_DIR', value=WORK_DIR))
