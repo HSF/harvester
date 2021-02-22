@@ -75,7 +75,6 @@ pilot_script = """
 mkdir -p $WORK_DIR;
 cp $CONFIG_DIR/* $WORK_DIR;
 python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} --pilot-user=ATLAS --harvester-submit-mode=PUSH -t
-sleep 10000;
 """
 
 
@@ -643,7 +642,7 @@ class k8s_Client(object):
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
         container = client.V1Container(name=name, image=image, resources=resources, env=env,
                                        volume_mounts=volume_mounts,
-                                       command=command)
+                                       command=command, image_pull_policy='Always')
 
         return container
 
