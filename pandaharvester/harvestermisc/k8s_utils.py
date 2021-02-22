@@ -75,6 +75,7 @@ pilot_script = """
 mkdir -p $WORK_DIR;
 cp $CONFIG_DIR/* $WORK_DIR;
 python3 /user/share/panda-pilot/pilot.py -a {0} -q {1} --pilot-user=ATLAS --harvester-submit-mode=PUSH -t
+sleep 10000;
 """
 
 
