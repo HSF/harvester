@@ -386,13 +386,14 @@ class k8s_Client(object):
                 pilots_starter_contents = f.read()
 
             data = {fn: pilots_starter_contents}
+            name = 'pilots-starter'
 
             # instantiate the configmap object
-            metadata = {'name': 'pilots-starter', 'namespace': self.namespace}
+            metadata = {'name': name, 'namespace': self.namespace}
             config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
 
             try:
-                api_response = self.corev1.patch_namespaced_config_map(body=config_map, namespace=self.namespace)
+                api_response = self.corev1.patch_namespaced_config_map(name=name, body=config_map, namespace=self.namespace)
                 tmp_log.debug('Patched pilots-starter config_map')
             except ApiException as e:
                 tmp_log.debug('Exception when patching pilots-starter config_map: {0} . Try to create it instead...'
