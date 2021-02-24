@@ -373,10 +373,10 @@ class k8s_Client(object):
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
-    def patch_or_create_configmap_starter(self):
+    def create_or_patch_configmap_starter(self):
         # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap_starter')
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_or_patch_configmap_starter')
 
         try:
             fn = 'pilots_starter.py'

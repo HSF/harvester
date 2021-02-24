@@ -64,7 +64,7 @@ class K8sSubmitter(PluginBase):
         self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
 
         # update or create the pilot starter executable
-        self.k8s_client.patch_or_create_configmap_starter()
+        self.k8s_client.create_or_patch_configmap_starter()
 
         # required for parsing jobParams
         self.parser = argparse.ArgumentParser()
