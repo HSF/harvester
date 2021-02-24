@@ -17,7 +17,7 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
-
+EXEC_DIR = '/scratch/executables'
 
 class k8s_Client(object):
 
@@ -134,7 +134,8 @@ class k8s_Client(object):
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
             {'name': 'HARVESTER_WORKER_ID', 'value': str(work_spec.workerID)},
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id},
-            {'name': 'submit_mode', 'value': submit_mode}
+            {'name': 'submit_mode', 'value': submit_mode},
+            {'name': 'EXEC_DIR', 'value': EXEC_DIR},
         ])
 
         # in push mode, add the configmap as a volume to the pod
@@ -145,6 +146,15 @@ class k8s_Client(object):
             # mount the volume to the filesystem
             container_env.setdefault('volumeMounts', [])
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': CONFIG_DIR})
+
+        # in push mode, add the configmap as a volume to the pod
+        if submit_mode == 'PUSH' and worker_id:
+            yaml_content['spec']['template']['spec'].setdefault('volumes', [])
+            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+            yaml_volumes.append({'name': 'pilots-starter', 'configMap': {'name': 'pilots-starter'}})
+            # mount the volume to the filesystem
+            container_env.setdefault('volumeMounts', [])
+            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': EXEC_DIR})
 
         # if we are running the pilot in a emptyDir with "pilot-dir" name, then set the max size
         if 'volumes' in yaml_content['spec']['template']['spec']:
@@ -359,6 +369,37 @@ class k8s_Client(object):
             # create the configmap object in K8s
             api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
             tmp_log.debug('Created configmap for worker id: {0}'.format(worker_id))
+            return True
+
+        except (ApiException, TypeError) as e:
+            tmp_log.error('Could not create configmap with: {0}'.format(e))
+            return False
+
+    def patch_or_create_configmap_starter(self):
+        # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
+
+        tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap_starter')
+
+        try:
+            fn = 'pilots_starter.py'
+            pilots_starter_file = os.path.join('../harvestercloud/', fn)
+            with open(pilots_starter_file) as f:
+                pilots_starter_contents = f.read()
+
+            data = {fn: pilots_starter_contents}
+
+            # instantiate the configmap object
+            metadata = {'name': 'pilots-starter', 'namespace': self.namespace}
+            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
+
+            try:
+                api_response = self.corev1.patch_namespaced_config_map(body=body, namespace=self.namespace)
+                tmp_log.debug('Patched pilots_starter config_map')
+            except ApiException as e:
+                tmp_log.debug('Exception when patching pilots_starter config_map: {0} . Try to create it instead...'
+                              .format(e))
+                api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
+                tmp_log.debug('Created pilots_starter config_map')
             return True
 
         except (ApiException, TypeError) as e:
