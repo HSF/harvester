@@ -380,7 +380,8 @@ class k8s_Client(object):
 
         try:
             fn = 'pilots_starter.py'
-            pilots_starter_file = os.path.join('../harvestercloud/', fn)
+            dirname = os.path.dirname(__file__)
+            pilots_starter_file = os.path.join(dirname, '../harvestercloud/{0}'.format(fn))
             with open(pilots_starter_file) as f:
                 pilots_starter_contents = f.read()
 
