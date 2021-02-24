@@ -199,15 +199,6 @@ if __name__ == "__main__":
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
     os.environ['GTAG'] = log_download_url  # GTAG env variable is read by pilot
 
-    # get the pilot wrapper
-    wrapper_path = "/tmp/runpilot2-wrapper.sh"
-    wrapper_url = "https://raw.githubusercontent.com/PanDAWMS/pilot-wrapper/master/runpilot2-wrapper.sh"
-    wrapper_string = get_url(wrapper_url)
-    with open(wrapper_path, "w") as wrapper_file:
-        wrapper_file.write(wrapper_string)
-    os.chmod(wrapper_path, 0o544)  # make pilot wrapper executable
-    logging.debug('[main] downloaded pilot wrapper')
-
     # execute the pilot wrapper
     logging.debug('[main] starting pilot wrapper...')
     resource_type_option = ''
@@ -231,8 +222,10 @@ if __name__ == "__main__":
         # and therefore the pilot cannot execute in the same directory
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
-    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False -t | tee /tmp/wrapper-wid.log". \
-        format(wrapper_params, submit_mode)
+    wrapper_executable = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
+    command = "{0} {1} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False -t | tee /tmp/wrapper-wid.log". \
+        format(wrapper_executable, wrapper_params, submit_mode)
+
     try:
         subprocess.call(command, shell=True)
     except:
