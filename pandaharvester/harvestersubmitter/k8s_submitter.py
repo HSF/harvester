@@ -79,18 +79,6 @@ class K8sSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
-        # x509 proxy: obsolete mode
-        try:
-            self.x509UserProxy
-        except AttributeError:
-            if os.getenv('X509_USER_PROXY'):
-                self.x509UserProxy = os.getenv('X509_USER_PROXY')
-
-        # x509 proxy for analysis jobs in grandly unified queues
-        try:
-            self.x509UserProxyAnalysis
-        except AttributeError:
-            self.x509UserProxyAnalysis = os.getenv('X509_USER_PROXY_ANAL')
 
         # x509 proxy through k8s secrets: preferred way
         try:
@@ -195,31 +183,18 @@ class K8sSubmitter(PluginBase):
         Choose the proxy based on the job type and whether k8s secrets are enabled
         """
         cert = None
-        use_secret = False
         job_type = workspec.jobType
 
         if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis'):
             if self.proxySecretPathAnalysis:
                 cert = self.proxySecretPathAnalysis
-                use_secret = True
             elif self.proxySecretPath:
                 cert = self.proxySecretPath
-                use_secret = True
-            elif self.x509UserProxyAnalysis:
-                cert = self.x509UserProxyAnalysis
-                use_secret = False
-            elif self.x509UserProxy:
-                cert = self.x509UserProxy
-                use_secret = False
         else:
             if self.proxySecretPath:
                 cert = self.proxySecretPath
-                use_secret = True
-            elif self.x509UserProxy:
-                cert = self.x509UserProxy
-                use_secret = False
 
-        return cert, use_secret
+        return cert
 
     def submit_k8s_worker(self, work_spec):
         tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
@@ -249,9 +224,9 @@ class K8sSubmitter(PluginBase):
             # choose the appropriate proxy
             panda_queues_dict = PandaQueuesDict()
             is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
-            cert, use_secret = self._choose_proxy(work_spec, is_grandly_unified_queue)
+            cert = self._choose_proxy(work_spec, is_grandly_unified_queue)
             if not cert:
-                err_str = 'No proxy specified in proxySecretPath or x509UserProxy. Not submitted'
+                err_str = 'No proxy specified in proxySecretPath. Not submitted'
                 tmp_return_value = (False, err_str)
                 return tmp_return_value
 
@@ -264,8 +239,7 @@ class K8sSubmitter(PluginBase):
 
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
-                                                                           container_image, executable, args,
-                                                                           cert, cert_in_secret=use_secret,
+                                                                           container_image, executable, args, cert,
                                                                            cpu_adjust_ratio=self.cpuAdjustRatio,
                                                                            memory_adjust_ratio=self.memoryAdjustRatio,
                                                                            max_time=max_time)

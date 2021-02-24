@@ -37,7 +37,7 @@ class k8s_Client(object):
         return yaml_content
 
     def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, container_image,  executable, args,
-                             cert, cert_in_secret=True, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
 
@@ -125,8 +125,7 @@ class k8s_Client(object):
             {'name': 'resourceType', 'value': work_spec.resourceType},
             {'name': 'prodSourceLabel', 'value': prod_source_label},
             {'name': 'jobType', 'value': work_spec.jobType},
-            {'name': 'proxySecretPath', 'value': cert if cert_in_secret else None},
-            {'name': 'proxyContent', 'value': None if cert_in_secret else self.set_proxy(cert)},
+            {'name': 'proxySecretPath', 'value': cert},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
@@ -138,6 +137,14 @@ class k8s_Client(object):
             {'name': 'EXEC_DIR', 'value': EXEC_DIR},
         ])
 
+        # add the pilots starter configmap
+        yaml_content['spec']['template']['spec'].setdefault('volumes', [])
+        yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+        yaml_volumes.append({'name': 'pilots-starter', 'configMap': {'name': 'pilots-starter'}})
+        # mount the volume to the filesystem
+        container_env.setdefault('volumeMounts', [])
+        container_env['volumeMounts'].append({'name': 'pilots-starter', 'mountPath': EXEC_DIR})
+
         # in push mode, add the configmap as a volume to the pod
         if submit_mode == 'PUSH' and worker_id:
             yaml_content['spec']['template']['spec'].setdefault('volumes', [])
@@ -146,15 +153,6 @@ class k8s_Client(object):
             # mount the volume to the filesystem
             container_env.setdefault('volumeMounts', [])
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': CONFIG_DIR})
-
-        # in push mode, add the configmap as a volume to the pod
-        if submit_mode == 'PUSH' and worker_id:
-            yaml_content['spec']['template']['spec'].setdefault('volumes', [])
-            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
-            yaml_volumes.append({'name': 'pilots-starter', 'configMap': {'name': 'pilots-starter'}})
-            # mount the volume to the filesystem
-            container_env.setdefault('volumeMounts', [])
-            container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': EXEC_DIR})
 
         # if we are running the pilot in a emptyDir with "pilot-dir" name, then set the max size
         if 'volumes' in yaml_content['spec']['template']['spec']:
@@ -394,12 +392,12 @@ class k8s_Client(object):
 
             try:
                 api_response = self.corev1.patch_namespaced_config_map(body=body, namespace=self.namespace)
-                tmp_log.debug('Patched pilots_starter config_map')
+                tmp_log.debug('Patched pilots-starter config_map')
             except ApiException as e:
-                tmp_log.debug('Exception when patching pilots_starter config_map: {0} . Try to create it instead...'
+                tmp_log.debug('Exception when patching pilots-starter config_map: {0} . Try to create it instead...'
                               .format(e))
                 api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
-                tmp_log.debug('Created pilots_starter config_map')
+                tmp_log.debug('Created pilots-starter config_map')
             return True
 
         except (ApiException, TypeError) as e:

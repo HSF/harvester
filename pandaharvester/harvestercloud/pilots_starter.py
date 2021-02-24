@@ -124,17 +124,9 @@ def copy_files_in_dir(src_dir, dst_dir):
 def get_configuration():
     # get the proxy certificate and save it
     if os.environ.get('proxySecretPath'):
-        # os.symlink(os.environ.get('proxySecretPath'), proxy_path)
         proxy_path = os.environ.get('proxySecretPath')
-    elif os.environ.get('proxyContent'):
-        proxy_path = "/tmp/x509up"
-        proxy_string = os.environ.get('proxyContent').replace(",", "\n")
-        with open(proxy_path, "w") as proxy_file:
-            proxy_file.write(proxy_string)
-        del os.environ['proxyContent']
-        os.chmod(proxy_path, 0o600)
     else:
-        logging.debug('[main] no proxy specified in env var $proxySecretPath nor $proxyContent')
+        logging.debug('[main] no proxy specified in env var $proxySecretPath')
         raise Exception('Found no voms proxy specified')
     os.environ['X509_USER_PROXY'] = proxy_path
     logging.debug('[main] initialized proxy')
