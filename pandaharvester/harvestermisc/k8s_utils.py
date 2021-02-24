@@ -392,7 +392,7 @@ class k8s_Client(object):
             config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
 
             try:
-                api_response = self.corev1.patch_namespaced_config_map(body=body, namespace=self.namespace)
+                api_response = self.corev1.patch_namespaced_config_map(body=config_map, namespace=self.namespace)
                 tmp_log.debug('Patched pilots-starter config_map')
             except ApiException as e:
                 tmp_log.debug('Exception when patching pilots-starter config_map: {0} . Try to create it instead...'
