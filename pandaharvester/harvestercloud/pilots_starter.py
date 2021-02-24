@@ -21,7 +21,6 @@ import httplib
 import mimetypes
 import ssl
 import urlparse
-import urllib2
 import traceback
 
 WORK_DIR = '/scratch'
@@ -102,16 +101,6 @@ def upload_logs(url, log_file_name, destination_name, proxy_cert):
         logging.debug('[upload_logs] excepted with:\n {0}'.format(err_messsage))
 
     return False
-
-
-def get_url(url, headers=None):
-    """
-    get content from specified URL
-    TODO: error handling
-    """
-    response = urllib2.urlopen(wrapper_url)
-    content = response.read()
-    return content
 
 
 def copy_files_in_dir(src_dir, dst_dir):
@@ -215,7 +204,7 @@ if __name__ == "__main__":
         job_type_option = '-i {0}'.format(job_type)
 
     wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6}'.format(WORK_DIR, panda_site, panda_queue, panda_queue,
-                                                              resource_type_option, psl_option, job_type_option)
+                                                                      resource_type_option, psl_option, job_type_option)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system
