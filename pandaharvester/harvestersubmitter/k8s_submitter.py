@@ -25,7 +25,7 @@ DEF_IMAGE = DEF_CENTOS7_IMAGE
 
 # command defaults
 DEF_COMMAND = ["/usr/bin/bash"]
-DEF_ARGS = ["-c", "cd; sh $EXEC_DIR/{0} || true".format(evaluation_script_fn)]
+DEF_ARGS = ["-c", "cd; python $EXEC_DIR/pilots_starter.py || true"]
 
 
 # Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
