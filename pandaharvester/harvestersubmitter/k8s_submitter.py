@@ -46,6 +46,11 @@ class K8sSubmitter(PluginBase):
         self.parser.add_argument('-p', dest='executable', type=unquote)
         self.parser.add_argument('--containerImage', dest='container_image')
 
+        # allowed associated parameters from AGIS
+        self._allowed_agis_attrs = (
+                'pilot_url',
+            )
+
         # number of processes
         try:
             self.nProcesses
