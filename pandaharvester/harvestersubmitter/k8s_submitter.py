@@ -14,6 +14,7 @@ from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestersubmitter import submitter_common
 
 # logger
 base_logger = core_utils.setup_logger('k8s_submitter')
@@ -26,32 +27,6 @@ DEF_IMAGE = DEF_CENTOS7_IMAGE
 # command defaults
 DEF_COMMAND = ["/usr/bin/bash"]
 DEF_ARGS = ["-c", "cd; python $EXEC_DIR/pilots_starter.py || true"]
-
-
-# Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
-# and piloturl (pilot option --piloturl) for pilot 2
-def _get_complicated_pilot_options(pilot_type, pilot_url=None):
-    pt_psl_map = {
-            'RC': {
-                    'prod_source_label': 'rc_test2',
-                    'pilot_type_opt': 'RC',
-                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz',
-                },
-            'ALRB': {
-                    'prod_source_label': 'rc_alrb',
-                    'pilot_type_opt': 'ALRB',
-                    'pilot_url_str': '',
-                },
-            'PT': {
-                    'prod_source_label': 'ptest',
-                    'pilot_type_opt': 'PR',
-                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev2.tar.gz',
-                },
-        }
-    pilot_opt_dict = pt_psl_map.get(pilot_type, None)
-    if pilot_url and pilot_opt_dict:
-        pilot_opt_dict['pilot_url_str'] = '--piloturl {0}'.format(pilot_url)
-    return pilot_opt_dict
 
 
 # submitter for K8S
@@ -202,7 +177,6 @@ class K8sSubmitter(PluginBase):
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
-        prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
 
         # set the stdout log file
         log_file_name = '{0}_{1}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
@@ -223,6 +197,8 @@ class K8sSubmitter(PluginBase):
 
             # choose the appropriate proxy
             panda_queues_dict = PandaQueuesDict()
+            this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
+
             is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
             cert = self._choose_proxy(work_spec, is_grandly_unified_queue)
             if not cert:
@@ -232,13 +208,37 @@ class K8sSubmitter(PluginBase):
 
             # get the walltime limit
             try:
-                max_time = panda_queues_dict.get(self.queueName)['maxtime']
+                max_time = this_panda_queue_dict['maxtime']
             except Exception as e:
                 tmp_log.warning('Could not retrieve maxtime field for queue {0}'.format(self.queueName))
                 max_time = None
 
+            associated_params_dict = {}
+            for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
+                if key in self._allowed_agis_attrs:
+                    associated_params_dict[key] = val
+
+            pilot_url = associated_params_dict.get('pilot_url')
+            pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
+            python_version = str(this_panda_queue_dict.get('python_version', '2'))
+
+            # prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
+            pilot_opt_dict = submitter_common.get_complicated_pilot_options(workspec.pilotType)
+            if pilot_opt_dict is None:
+                prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
+                pilot_type_opt = workspec.pilotType
+                pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
+            else:
+                prod_source_label = pilot_opt_dict['prod_source_label']
+                pilot_type_opt = pilot_opt_dict['pilot_type_opt']
+                pilot_url_str = pilot_opt_dict['pilot_url_str']
+
+            pilot_python_option = submitter_common.get_python_version_option(python_version, prod_source_label)
+
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
+                                                                           pilot_type_opt, pilot_url_str,
+                                                                           pilot_python_option,
                                                                            container_image, executable, args, cert,
                                                                            cpu_adjust_ratio=self.cpuAdjustRatio,
                                                                            memory_adjust_ratio=self.memoryAdjustRatio,
