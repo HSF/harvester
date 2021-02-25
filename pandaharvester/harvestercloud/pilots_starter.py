@@ -216,7 +216,9 @@ if __name__ == "__main__":
 
     wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8} {9}'.format(WORK_DIR, panda_site, panda_queue,
                                                                                   panda_queue, resource_type_option,
-                                                                                  psl_option, job_type_option)
+                                                                                  psl_option, job_type_option,
+                                                                                  pilot_type_opt, pilot_url_opt,
+                                                                                  python_option)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system
