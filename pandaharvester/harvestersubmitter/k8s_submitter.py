@@ -223,10 +223,10 @@ class K8sSubmitter(PluginBase):
             python_version = str(this_panda_queue_dict.get('python_version', '2'))
 
             # prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
-            pilot_opt_dict = submitter_common.get_complicated_pilot_options(workspec.pilotType)
+            pilot_opt_dict = submitter_common.get_complicated_pilot_options(work_spec.pilotType)
             if pilot_opt_dict is None:
-                prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
-                pilot_type_opt = workspec.pilotType
+                prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
+                pilot_type_opt = work_spec.pilotType
                 pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
             else:
                 prod_source_label = pilot_opt_dict['prod_source_label']
