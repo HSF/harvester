@@ -1,0 +1,49 @@
+executable = /data/idds/harvester_common/runpilot2-wrapper.sh
+arguments = -s {computingSite} -r {computingSite} -q {pandaQueueName} -j {prodSourceLabel} -i {pilotType} -t -w generic --pilot-user generic --url https://ai-idds-01.cern.ch -d --harvester-submit-mode PULL --allow-same-user=False --job-type={jobType} {pilotResourceTypeOption} {pilotUrlOption}
+initialdir = {accessPoint}
+
+log = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).log
+output = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).out
+error = {logDir}/{logSubdir}/grid.$(Cluster).$(Process).err
+transfer_executable = True
+
+environment = "PANDA_JSID=harvester-{harvesterID} HARVESTER_ID={harvesterID} HARVESTER_WORKER_ID={workerID} GTAG={gtag}"
++harvesterID = "{harvesterID}"
++harvesterWorkerID = "{workerID}"
+
+universe = grid
+grid_resource = condor gridtest01.racf.bnl.gov gridtest01.racf.bnl.gov:9619
+
+X509UserProxy = {x509UserProxy}
+ShouldTransferFiles = YES
+WhenToTransferOutput = ON_EXIT
+use_x509userproxy = true
+
++remote_jobuniverse = 5
++remote_ShouldTransferFiles = "YES"
++remote_WhenToTransferOutput = "ON_EXIT_OR_EVICT"
++remote_TransferOutput = ""
+#+remote_RequestCpus = {nCoreTotal}
+#+remote_RequestMemory = {requestRam}
+#+remote_RequestDisk = {requestDisk}
+#+remote_JobMaxVacateTime = {requestWalltime}
++ioIntensity = {ioIntensity}
++xcount = {nCoreTotal}
++maxMemory = {requestRam}
++remote_queue = "{ceQueueName}"
++maxWallTime = {requestWalltimeMinute}
+
+delegate_job_GSI_credentials_lifetime = 0
+
+#+remote_Requirements = JobRunCount == 0
+periodic_remove = (JobStatus == 2 && (CurrentTime - EnteredCurrentStatus) > 604800)
+#+remote_PeriodicHold = ( JobStatus==1 && gridjobstatus=?=UNDEFINED && CurrentTime-EnteredCurrentStatus>3600 ) || ( (JobRunCount =!= UNDEFINED && JobRunCount > 0) ) || ( JobStatus == 2 && CurrentTime-EnteredCurrentStatus>604800 )
++remote_PeriodicRemove = (JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 3600) || (JobStatus == 1 && globusstatus =!= 1 && (CurrentTime - EnteredCurrentStatus) > 86400)
+
++sdfPath = "{sdfPath}"
+
++ProjectName="EIC"
++remote_queue = "osg"
+
+queue 1
+
