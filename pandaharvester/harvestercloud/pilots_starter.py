@@ -135,14 +135,11 @@ def get_configuration():
     prodSourceLabel = os.environ.get('prodSourceLabel')
     logging.debug('[main] got prodSourceLabel: {0}'.format(prodSourceLabel))
 
-    job_type = os.environ.get('jobType')
-    logging.debug('[main] got job type: {0}'.format(job_type))
+    pilot_type = os.environ.get('pilotType', '')
+    logging.debug('[main] got pilotType: {0}'.format(pilot_type))
 
-    pilot_type_opt = os.environ.get('pilotTypeOpt', '')
-    logging.debug('[main] got pilotTypeOpt: {0}'.format(pilot_type_opt))
-
-    pilot_url_opt = os.environ.get('pilotUrlOpt', '')
-    logging.debug('[main] got pilotUrlOpt: {0}'.format(pilot_url_opt))
+    pilot_url_option = os.environ.get('pilotUrlOpt', '')
+    logging.debug('[main] got pilotUrlOpt: {0}'.format(pilot_url_option))
 
     python_option = os.environ.get('pythonOption', '')
     logging.debug('[main] got pythonOption: {0}'.format(python_option))
@@ -183,15 +180,15 @@ def get_configuration():
         global CONFIG_DIR
         CONFIG_DIR = tmpdir + '/jobconfig'
 
-    return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, pilot_type_opt, \
-           pilot_url_opt, python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, stdout_name, \
+    return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, pilot_type, \
+           pilot_url_option, python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, stdout_name, \
            submit_mode
 
 
 if __name__ == "__main__":
 
     # get all the configuration from environment
-    proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, pilot_type_opt, pilot_url_opt, \
+    proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, pilot_type, pilot_url_opt, \
         python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, destination_name, submit_mode \
         = get_configuration()
 
@@ -210,15 +207,14 @@ if __name__ == "__main__":
     else:
         psl_option = '-j managed'
 
-    job_type_option = ''
-    if job_type:
-        job_type_option = '-i {0}'.format(job_type)
+    pilot_type_option = ''
+    if pilot_type:
+        pilot_type_option = '-i {0}'.format(pilot_type)
 
-    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8} {9}'.format(WORK_DIR, panda_site, panda_queue,
-                                                                                  panda_queue, resource_type_option,
-                                                                                  psl_option, job_type_option,
-                                                                                  pilot_type_opt, pilot_url_opt,
-                                                                                  python_option)
+    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8}'.format(WORK_DIR, panda_site, panda_queue,
+                                                                              panda_queue, resource_type_option,
+                                                                              psl_option, pilot_type_option,
+                                                                              pilot_url_opt, python_option)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system

@@ -36,7 +36,7 @@ class k8s_Client(object):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, pilot_type_opt, pilot_url_str,
+    def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str,
                              pilot_python_option, container_image,  executable, args,
                              cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
@@ -125,10 +125,10 @@ class k8s_Client(object):
             {'name': 'pandaQueueName', 'value': queue_name},
             {'name': 'resourceType', 'value': work_spec.resourceType},
             {'name': 'prodSourceLabel', 'value': prod_source_label},
-            {'name': 'pilotTypeOpt', 'value': pilot_type_opt},
+            {'name': 'pilotTyp', 'value': pilot_type},
             {'name': 'pilotUrlOpt', 'value': pilot_url_str},
             {'name': 'pythonOption', 'value': pilot_python_option},
-            {'name': 'jobType', 'value': work_spec.jobType},
+            # {'name': 'jobType', 'value': work_spec.jobType},
             {'name': 'proxySecretPath', 'value': cert},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
