@@ -231,18 +231,18 @@ class K8sSubmitter(PluginBase):
             pilot_opt_dict = submitter_common.get_complicated_pilot_options(work_spec.pilotType)
             if pilot_opt_dict is None:
                 prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
-                pilot_type_opt = work_spec.pilotType
+                pilot_type = work_spec.pilotType
                 pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
             else:
                 prod_source_label = pilot_opt_dict['prod_source_label']
-                pilot_type_opt = pilot_opt_dict['pilot_type_opt']
+                pilot_type = pilot_opt_dict['pilot_type_opt']
                 pilot_url_str = pilot_opt_dict['pilot_url_str']
 
             pilot_python_option = submitter_common.get_python_version_option(python_version, prod_source_label)
 
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
-                                                                           pilot_type_opt, pilot_url_str,
+                                                                           pilot_type, pilot_url_str,
                                                                            pilot_python_option,
                                                                            container_image, executable, args, cert,
                                                                            cpu_adjust_ratio=self.cpuAdjustRatio,
