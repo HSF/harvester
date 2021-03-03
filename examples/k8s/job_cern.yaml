@@ -19,8 +19,6 @@ spec:
               value: "$pandaQueueName"
             - name: proxySecretPath
               value: "$proxySecretPath"
-            - name: proxyContent
-              value: "$proxyContent"
             - name: workerID
               value: "$workerID"
             - name: logs_frontend_w

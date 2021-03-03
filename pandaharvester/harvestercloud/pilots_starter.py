@@ -21,7 +21,6 @@ import httplib
 import mimetypes
 import ssl
 import urlparse
-import urllib2
 import traceback
 
 WORK_DIR = '/scratch'
@@ -104,16 +103,6 @@ def upload_logs(url, log_file_name, destination_name, proxy_cert):
     return False
 
 
-def get_url(url, headers=None):
-    """
-    get content from specified URL
-    TODO: error handling
-    """
-    response = urllib2.urlopen(wrapper_url)
-    content = response.read()
-    return content
-
-
 def copy_files_in_dir(src_dir, dst_dir):
     # src_files = os.listdir(src_dir)
     for file_name in CONFIG_FILES:
@@ -124,17 +113,9 @@ def copy_files_in_dir(src_dir, dst_dir):
 def get_configuration():
     # get the proxy certificate and save it
     if os.environ.get('proxySecretPath'):
-        # os.symlink(os.environ.get('proxySecretPath'), proxy_path)
         proxy_path = os.environ.get('proxySecretPath')
-    elif os.environ.get('proxyContent'):
-        proxy_path = "/tmp/x509up"
-        proxy_string = os.environ.get('proxyContent').replace(",", "\n")
-        with open(proxy_path, "w") as proxy_file:
-            proxy_file.write(proxy_string)
-        del os.environ['proxyContent']
-        os.chmod(proxy_path, 0o600)
     else:
-        logging.debug('[main] no proxy specified in env var $proxySecretPath nor $proxyContent')
+        logging.debug('[main] no proxy specified in env var $proxySecretPath')
         raise Exception('Found no voms proxy specified')
     os.environ['X509_USER_PROXY'] = proxy_path
     logging.debug('[main] initialized proxy')
@@ -154,8 +135,14 @@ def get_configuration():
     prodSourceLabel = os.environ.get('prodSourceLabel')
     logging.debug('[main] got prodSourceLabel: {0}'.format(prodSourceLabel))
 
-    job_type = os.environ.get('jobType')
-    logging.debug('[main] got job type: {0}'.format(job_type))
+    pilot_type = os.environ.get('pilotType', '')
+    logging.debug('[main] got pilotType: {0}'.format(pilot_type))
+
+    pilot_url_option = os.environ.get('pilotUrlOpt', '')
+    logging.debug('[main] got pilotUrlOpt: {0}'.format(pilot_url_option))
+
+    python_option = os.environ.get('pythonOption', '')
+    logging.debug('[main] got pythonOption: {0}'.format(python_option))
 
     # get the Harvester ID
     harvester_id = os.environ.get('HARVESTER_ID')
@@ -193,28 +180,21 @@ def get_configuration():
         global CONFIG_DIR
         CONFIG_DIR = tmpdir + '/jobconfig'
 
-    return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, harvester_id, \
-           worker_id, logs_frontend_w, logs_frontend_r, stdout_name, submit_mode
+    return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, pilot_type, \
+           pilot_url_option, python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, stdout_name, \
+           submit_mode
 
 
 if __name__ == "__main__":
 
     # get all the configuration from environment
-    proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, harvester_id, worker_id, \
-    logs_frontend_w, logs_frontend_r, destination_name, submit_mode = get_configuration()
+    proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, pilot_type, pilot_url_opt, \
+        python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, destination_name, submit_mode \
+        = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
     os.environ['GTAG'] = log_download_url  # GTAG env variable is read by pilot
-
-    # get the pilot wrapper
-    wrapper_path = "/tmp/runpilot2-wrapper.sh"
-    wrapper_url = "https://raw.githubusercontent.com/PanDAWMS/pilot-wrapper/master/runpilot2-wrapper.sh"
-    wrapper_string = get_url(wrapper_url)
-    with open(wrapper_path, "w") as wrapper_file:
-        wrapper_file.write(wrapper_string)
-    os.chmod(wrapper_path, 0o544)  # make pilot wrapper executable
-    logging.debug('[main] downloaded pilot wrapper')
 
     # execute the pilot wrapper
     logging.debug('[main] starting pilot wrapper...')
@@ -227,20 +207,24 @@ if __name__ == "__main__":
     else:
         psl_option = '-j managed'
 
-    job_type_option = ''
-    if job_type:
-        job_type_option = '-i {0}'.format(job_type)
+    pilot_type_option = ''
+    if pilot_type:
+        pilot_type_option = '-i {0}'.format(pilot_type)
 
-    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6}'.format(WORK_DIR, panda_site, panda_queue, panda_queue,
-                                                              resource_type_option, psl_option, job_type_option)
+    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8}'.format(WORK_DIR, panda_site, panda_queue,
+                                                                              panda_queue, resource_type_option,
+                                                                              psl_option, pilot_type_option,
+                                                                              pilot_url_opt, python_option)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system
         # and therefore the pilot cannot execute in the same directory
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
-    command = "/tmp/runpilot2-wrapper.sh {0} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={1} --allow-same-user=False -t | tee /tmp/wrapper-wid.log". \
-        format(wrapper_params, submit_mode)
+    wrapper_executable = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
+    command = "sh {0} {1} -i PR -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False -t | tee /tmp/wrapper-wid.log". \
+        format(wrapper_executable, wrapper_params, submit_mode)
+
     try:
         subprocess.call(command, shell=True)
     except:
