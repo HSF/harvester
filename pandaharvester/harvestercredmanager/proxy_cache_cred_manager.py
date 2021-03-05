@@ -1,6 +1,6 @@
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 
 from .base_cred_manager import BaseCredManager
@@ -30,7 +30,7 @@ class ProxyCacheCredManager(BaseCredManager):
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-        except:
+        except Exception:
             core_utils.dump_error_message(mainLog)
             return False
         mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
