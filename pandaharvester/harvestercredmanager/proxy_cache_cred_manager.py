@@ -3,7 +3,7 @@ try:
 except:
     import subprocess
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
@@ -12,10 +12,10 @@ _logger = core_utils.setup_logger('proxy_cache_cred_manager')
 
 
 # credential manager with proxy cache
-class ProxyCacheCredManager(PluginBase):
+class ProxyCacheCredManager(BaseCredManager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseCredManager.__init__(self, **kwarg)
 
     # check proxy
     def check_credential(self):
