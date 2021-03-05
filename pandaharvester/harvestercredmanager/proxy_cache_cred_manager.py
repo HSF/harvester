@@ -1,9 +1,9 @@
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
@@ -12,10 +12,10 @@ _logger = core_utils.setup_logger('proxy_cache_cred_manager')
 
 
 # credential manager with proxy cache
-class ProxyCacheCredManager(PluginBase):
+class ProxyCacheCredManager(BaseCredManager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseCredManager.__init__(self, **kwarg)
 
     # check proxy
     def check_credential(self):
@@ -30,7 +30,7 @@ class ProxyCacheCredManager(PluginBase):
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-        except:
+        except Exception:
             core_utils.dump_error_message(mainLog)
             return False
         mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))

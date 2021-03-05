@@ -1,20 +1,21 @@
 try:
     import subprocess32 as subprocess
-except:
+except Exception:
     import subprocess
 
+from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
+
 
 # logger
 _logger = core_utils.setup_logger('grid_cred_manager')
 
 
 # credential manager using grid-proxy
-class GridCredManager(PluginBase):
+class GridCredManager(BaseCredManager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseCredManager.__init__(self, **kwarg)
 
     # check proxy
     def check_credential(self):
@@ -29,7 +30,7 @@ class GridCredManager(PluginBase):
                                  stderr=subprocess.PIPE)
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-        except:
+        except Exception:
             core_utils.dump_error_message(mainLog)
             return False
         mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
@@ -50,7 +51,7 @@ class GridCredManager(PluginBase):
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
             mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
-        except:
+        except Exception:
             stdOut = ''
             stdErr = core_utils.dump_error_message(mainLog)
             retCode = -1
