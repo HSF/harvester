@@ -290,27 +290,46 @@ class k8s_Client(object):
         return content
 
     def set_affinity(self, yaml_content):
+
         yaml_content['spec']['template']['spec']['affinity'] = {}
         yaml_affinity = yaml_content['spec']['template']['spec']['affinity']
-        res_element = {'SCORE', 'MCORE'}
+
+        res_element = {'SCORE', 'SCORE', 'MCORE', 'MCORE_HIMEM'}
+        scores = ['SCORE', 'SCORE_HIMEM']
+        mcores = ['MCORE', 'MCORE_HIMEM']
+
+        anti_affinity_matrix = {'SCORE': mcores,
+                                'SCORE_HIMEM': mcores,
+                                'MCORE': scores,
+                                'MCORE_HIMEM': scores}
+
         affinity_spec = {
             'preferredDuringSchedulingIgnoredDuringExecution': [
                 {'weight': 100, 'podAffinityTerm': {
-                    'labelSelector': {'matchExpressions': [
-                        {'key': 'resourceType', 'operator': 'In', 'values': ['SCORE']}]},
+                    'labelSelector': {
+                        'matchExpressions': [
+                            {
+                                'key': 'resourceType',
+                                'operator': 'In',
+                                'values': ['SCORE', 'SCORE_HIMEM']
+                            }
+                        ]
+                    },
                     'topologyKey': 'kubernetes.io/hostname'}
-                 }]}
+                 }
+            ]
+        }
 
         resource_type = yaml_content['spec']['template']['metadata']['labels']['resourceType']
-
-        if resource_type == 'SCORE':
+        # resource type SCORE* should attract each other instead of spreading across the nodes
+        if resource_type in scores:
             yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
-            yaml_affinity['podAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm'][
-                'labelSelector']['matchExpressions'][0]['values'][0] = resource_type
 
+        # SCORE* will repel MCORE* and viceversa. The main reasoning was to keep nodes for MCORE,
+        # but this needs to be reconsidered.
         yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
         yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm'][
-            'labelSelector']['matchExpressions'][0]['values'][0] = res_element.difference({resource_type}).pop()
+            'labelSelector']['matchExpressions'][0]['values'] = anti_affinity_matrix[resource_type]
 
         return yaml_content
 
