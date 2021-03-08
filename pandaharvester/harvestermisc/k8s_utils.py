@@ -48,14 +48,14 @@ mkdir -p ~/.ssh && cp $SSH_DIR/*_key ~/.ssh/;
 
 while :
 do
-    while [ ! -f $SHARED_DIR/__payload_in_sync_file__ ]; do sleep 5; done; 
+    while [ ! -f $SHARED_DIR/payload_workdir/__payload_in_sync_file__ ]; do sleep 5; done; 
 
     echo \"=== cat exec script ===\"; 
-    cat $SHARED_DIR/__run_main_exec.sh; 
+    cat $SHARED_DIR/payload_workdir/__run_main_exec.sh; 
     echo; 
 
     echo \"=== exec script ===\"; 
-    /bin/sh $SHARED_DIR/__run_main_exec.sh;
+    /bin/sh $SHARED_DIR/payload_workdir/__run_main_exec.sh;
     REAL_MAIN_RET_CODE=$?; 
     
     echo \"=== finished with ===\";
@@ -63,8 +63,8 @@ do
     echo; 
      
     # Create the out sync file and delete the in sync file
-    touch $SHARED_DIR/__payload_out_sync_file__;
-    rm -f $SHARED_DIR/__payload_in_sync_file__; 
+    touch $SHARED_DIR/payload_workdir/__payload_out_sync_file__;
+    rm -f $SHARED_DIR/payload_workdir/__payload_in_sync_file__; 
     
     # exit $REAL_MAIN_RET_CODE;
 done
