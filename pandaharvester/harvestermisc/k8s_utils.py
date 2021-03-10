@@ -22,8 +22,8 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
-SHARED_DIR = '/root/shared/'
-WORK_DIR = '/tmp/pilot/'
+SHARED_DIR = '/scratch/shared/'
+WORK_DIR = '/scratch/pilot/'
 
 HD_DIR = '/scratch/hostdiscovery'
 SSH_DIR = '/scratch/ssh'
