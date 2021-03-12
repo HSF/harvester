@@ -21,7 +21,7 @@ base_logger = core_utils.setup_logger('horovod_submitter')
 # image defaults
 DEF_EVA_IMAGE = 'fbarreir/rui-hrvd'
 # PILOT_IMAGE = 'gitlab-registry.cern.ch/panda/harvester-k8s-images/adc-centos7-singularity:work'
-PILOT_IMAGE = 'palnilsson/my-panda-pilot:test3'
+PILOT_IMAGE = 'fbarreir/my-panda-pilot:test3'
 
 # command defaults
 DEF_WORKER_COMMAND = ["sh", "-c", "mkdir -p ~/.ssh && cat $SSH_DIR/public_key >> ~/.ssh/authorized_keys && /usr/sbin/sshd -p 22 && sleep infinity"]

@@ -570,7 +570,6 @@ class k8s_Client(object):
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
-
     def get_pod_logs(self, pod_name, previous=False):
         tmp_log = core_utils.make_logger(base_logger, method_name='get_pod_logs')
         try:
