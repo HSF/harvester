@@ -620,6 +620,10 @@ class k8s_Client(object):
 
                 # Add env variable to indicate the work directory of the pilot
                 env.append(client.V1EnvVar(name='WORK_DIR', value=WORK_DIR))
+
+                # Add env variable to indicate post process to wait for out sync file
+                client.V1EnvVar(name='PAYLOAD_TANDEM_MODE', value='True')
+
             except:
                 pass
 
