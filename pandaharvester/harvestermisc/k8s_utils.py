@@ -22,9 +22,9 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
-SHARED_DIR = '/scratch/shared/'
+SHARED_DIR = '/scratch/shared'
 # the pilot has to run on the shared directory, otherwise the evaluation container has no access
-WORK_DIR = '/scratch/shared/pilot/'
+WORK_DIR = '{0}/pilot/'.format(SHARED_DIR)
 
 HD_DIR = '/scratch/hostdiscovery'
 SSH_DIR = '/scratch/ssh'
