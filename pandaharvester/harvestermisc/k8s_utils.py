@@ -78,6 +78,7 @@ do
     echo; 
      
     # Create the out sync file and delete the in sync file
+    echo \"=== create out sync file and delete in sync file ===\";
     touch $SHARED_DIR/payload_workdir/__payload_out_sync_file__;
     rm -f $SHARED_DIR/payload_workdir/__payload_in_sync_file__; 
     
