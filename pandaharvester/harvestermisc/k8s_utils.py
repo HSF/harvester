@@ -731,7 +731,8 @@ class k8s_Client(object):
 
         hd_config_map = client.V1Volume(name='host-discovery',
                                         config_map=client.V1ConfigMapVolumeSource(name='{0}-{1}'.format(HOST_DISC_TAG,
-                                                                                                        worker_id)))
+                                                                                                        worker_id),
+                                                                                  default_mode=0o755))
         shared_dir = client.V1Volume(name='shared-dir',
                                      empty_dir=client.V1EmptyDirVolumeSource())
 
