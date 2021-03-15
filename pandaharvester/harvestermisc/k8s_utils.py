@@ -51,6 +51,17 @@ while :
 do
     while [ ! -f $SHARED_DIR/payload_workdir/__payload_in_sync_file__ ]; do sleep 5; done; 
 
+    echo \"=== environment information ===\";
+    echo \"whoami\";
+    whoami;
+    echo \"pwd\";
+    pwd;
+    echo \"ls -lrt\";
+    ls -lrt;
+    echo \"ls workDir\";
+    ls workDir;
+    echo; 
+
     echo \"=== cat exec script ===\"; 
     cat $SHARED_DIR/payload_workdir/__run_main_exec.sh; 
     echo; 
