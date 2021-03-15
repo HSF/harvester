@@ -51,6 +51,9 @@ while :
 do
     while [ ! -f $SHARED_DIR/payload_workdir/__payload_in_sync_file__ ]; do sleep 5; done; 
 
+    echo \"=== cd to pilot directory ===\";
+    cd $SHARED_DIR/payload_workdir/
+
     echo \"=== environment information ===\";
     echo \"whoami\";
     whoami;
