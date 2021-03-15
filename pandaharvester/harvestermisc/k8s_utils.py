@@ -23,7 +23,8 @@ base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
 SHARED_DIR = '/scratch/shared/'
-WORK_DIR = '/scratch/pilot/'
+# the pilot has to run on the shared directory, otherwise the evaluation container has no access
+WORK_DIR = '/scratch/shared/pilot/'
 
 HD_DIR = '/scratch/hostdiscovery'
 SSH_DIR = '/scratch/ssh'
