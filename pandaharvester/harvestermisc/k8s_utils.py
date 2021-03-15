@@ -45,7 +45,8 @@ POD_FINISHED_STATES = ['Succeeded']
 evaluation_script_fn = 'evaluation_script.sh'
 evaluation_script = """
 # Copy ssh keys in order to be able to connect to workers 
-mkdir -p ~/.ssh && cp $SSH_DIR/*_key ~/.ssh/;
+mkdir -p ~/.ssh; 
+cp $SSH_DIR/private_key ~/.ssh/id_rsa;
 
 while :
 do
