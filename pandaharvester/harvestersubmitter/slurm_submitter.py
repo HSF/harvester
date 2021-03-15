@@ -2,6 +2,8 @@ import tempfile
 import re
 
 import six
+import os
+import stat
 
 try:
     import subprocess32 as subprocess
@@ -87,6 +89,11 @@ class SlurmSubmitter(PluginBase):
                                            workerID=workspec.workerID))
                       )
         tmpFile.close()
+
+        # set execution bit and group permissions on the temp file
+        st = os.stat(tmpFile.name)
+        os.chmod(tmpFile.name, st.st_mode | stat.S_IEXEC | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
+
         return tmpFile.name
 
     # get log file names

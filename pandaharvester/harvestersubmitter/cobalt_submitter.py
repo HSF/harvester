@@ -88,7 +88,7 @@ class CobaltSubmitter(PluginBase):
 
         # set execution bit on the temp file 
         st = os.stat(tmpFile.name)
-        os.chmod(tmpFile.name, st.st_mode | stat.S_IEXEC)
+        os.chmod(tmpFile.name, st.st_mode | stat.S_IEXEC | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
 
         return tmpFile.name
 
