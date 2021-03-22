@@ -674,8 +674,8 @@ class k8s_Client(object):
         image = 'busybox'
         command = ['sh', '-c', 'while true; do sleep 1; if [ -s $HD_FILE ]; then exit 0; fi; done;']
 
-        resources = client.V1ResourceRequirements(requests={"cpu": "150m", "memory": "200Mi"},
-                                                  limits={"cpu": "200m", "memory": "300Mi"})
+        resources = client.V1ResourceRequirements(requests={"cpu": "1000m", "memory": "2000Mi"},
+                                                  limits={"cpu": "2000m", "memory": "3000Mi"})
 
         env = [client.V1EnvVar(name='HD_FILE', value='{0}/{1}'.format(HD_DIR, HD_FILENAME))]
 
@@ -771,8 +771,8 @@ class k8s_Client(object):
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
         # TODO: decide how the memory and CPU/GPU requirements will be calculated
-        resources = client.V1ResourceRequirements(requests={"cpu": "3500m", "memory": "7000Mi"},
-                                                  limits={"cpu": "4000m", "memory": "7000Mi"})
+        resources = client.V1ResourceRequirements(requests={"cpu": "7000m", "memory": "15Gi"},
+                                                  limits={"cpu": "7500m", "memory": "15Gi"})
 
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image=container_image,
                                        volume_mounts=[ssh_keys_mount], env=env, resources=resources)
