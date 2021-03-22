@@ -772,7 +772,7 @@ class k8s_Client(object):
 
         # TODO: decide how the memory and CPU/GPU requirements will be calculated
         resources = client.V1ResourceRequirements(requests={"cpu": "3500m", "memory": "7000Mi"},
-                                                  limits={"cpu": "3500m", "memory": "7000Mi"})
+                                                  limits={"cpu": "4000m", "memory": "7000Mi"})
 
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image=container_image,
                                        volume_mounts=[ssh_keys_mount], env=env, resources=resources)
