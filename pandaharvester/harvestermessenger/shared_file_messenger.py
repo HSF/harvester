@@ -545,14 +545,14 @@ class SharedFileMessenger(BaseMessenger):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%d_%H_%M_%S.%f')
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%d_%H_%M_%S.%f')
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
