@@ -775,7 +775,8 @@ class k8s_Client(object):
                                                   limits={"cpu": "7300m", "memory": "14.1Gi"})
 
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image=container_image,
-                                       volume_mounts=[ssh_keys_mount], env=env, resources=resources)
+                                       volume_mounts=[ssh_keys_mount], env=env, resources=resources,
+                                       image_pull_policy='Always')
 
         node_selector = {'processor': 'gpu'}
 
