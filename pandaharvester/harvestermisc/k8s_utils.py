@@ -125,7 +125,7 @@ class k8s_Client(object):
             {'name': 'pandaQueueName', 'value': queue_name},
             {'name': 'resourceType', 'value': work_spec.resourceType},
             {'name': 'prodSourceLabel', 'value': prod_source_label},
-            {'name': 'pilotTyp', 'value': pilot_type},
+            {'name': 'pilotType', 'value': pilot_type},
             {'name': 'pilotUrlOpt', 'value': pilot_url_str},
             {'name': 'pythonOption', 'value': pilot_python_option},
             # {'name': 'jobType', 'value': work_spec.jobType},
