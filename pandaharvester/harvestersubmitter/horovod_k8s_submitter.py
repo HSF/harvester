@@ -1,4 +1,3 @@
-import os
 import argparse
 import traceback
 try:
@@ -61,6 +60,12 @@ class HorovodSubmitter(PluginBase):
         except AttributeError:
             self.memoryAdjustRatio = 100
 
+        # Distributed filesystem across kubernetes nodes
+        try:
+            self.dfs_claim_name
+        except AttributeError:
+            self.dfs_claim_name = 'efs-claim'
+
     def parse_params(self, job_params):
         tmp_log = self.make_logger(base_logger, method_name='parse_params')
 
@@ -111,6 +116,7 @@ class HorovodSubmitter(PluginBase):
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
         prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
+        prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
 
         # set the stdout log file
         log_file_name = '{0}_{1}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
@@ -144,6 +150,7 @@ class HorovodSubmitter(PluginBase):
             # submit the worker
             rsp = self.k8s_client.create_horovod_formation(work_spec, prod_source_label, self.queueName,
                                                            evaluation_image, pilot_image, worker_command, cert,
+                                                           self.dfs_claim_name,
                                                            cpu_adjust_ratio=self.cpuAdjustRatio,
                                                            memory_adjust_ratio=self.memoryAdjustRatio,
                                                            max_time=max_time)

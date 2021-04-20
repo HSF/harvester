@@ -23,6 +23,7 @@ base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
 SHARED_DIR = '/scratch/shared'
+DIST_DIR_BASE = '/scratch/dist'
 # the pilot has to run on the shared directory, otherwise the evaluation container has no access
 WORK_DIR = '{0}/pilot/'.format(SHARED_DIR)
 
@@ -610,9 +611,13 @@ class k8s_Client(object):
         resources = client.V1ResourceRequirements(requests={"cpu": "1500m", "memory": "3000Mi"},
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
 
+        # The distributed shared directory for horovod head and workers communication
+        dist_dir = os.path.join(DIST_DIR_BASE, worker_id)
+
         env = [client.V1EnvVar(name='computingSite', value=work_spec.computingSite),
                client.V1EnvVar(name='SHARED_DIR', value=SHARED_DIR),
                client.V1EnvVar(name='CONFIG_DIR', value=CONFIG_DIR),
+               client.V1EnvVar(name='DIST_DIR', value=dist_dir),
                client.V1EnvVar(name='HD_DIR', value=HD_DIR),
                client.V1EnvVar(name='SSH_DIR', value=SSH_DIR)
                ]
@@ -659,6 +664,10 @@ class k8s_Client(object):
         shared_mount = client.V1VolumeMount(name='shared-dir', mount_path=SHARED_DIR)
         volume_mounts.append(shared_mount)
 
+        # Attach distributed (NFS) volume between head and workers
+        dist_mount = client.V1VolumeMount(name='dist-dir', mount_path=DIST_DIR_BASE)
+        volume_mounts.append(dist_mount)
+
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md
         container = client.V1Container(name=name, image=image, resources=resources, env=env,
                                        volume_mounts=volume_mounts,
@@ -690,7 +699,7 @@ class k8s_Client(object):
         return container
 
     def create_horovod_head(self, work_spec, panda_queue, evaluation_image,
-                            pilot_image, cert,
+                            pilot_image, cert, dfs_claim_name,
                             cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         worker_id = str(work_spec.workerID)
@@ -734,15 +743,19 @@ class k8s_Client(object):
                                         config_map=client.V1ConfigMapVolumeSource(name='{0}-{1}'.format(HOST_DISC_TAG,
                                                                                                         worker_id),
                                                                                   default_mode=0o755))
+
         shared_dir = client.V1Volume(name='shared-dir',
                                      empty_dir=client.V1EmptyDirVolumeSource())
+
+        dist_dir = client.V1Volume(name='dist-dir',
+                                   persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=dfs_claim_name))
 
         node_selector = {'processor': 'cpu'}
         # create the pod spec with the containers and volumes
         # documentation: https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodSpec.md
         max_time = 4 * 24 * 23600
         spec = client.V1PodSpec(containers=[pilot_container, evaluation_container],
-                                volumes=[proxy_secret, ssh_keys, config_map, hd_config_map, shared_dir],
+                                volumes=[proxy_secret, ssh_keys, config_map, hd_config_map, shared_dir, dist_dir],
                                 init_containers=[init_hd_container],
                                 active_deadline_seconds=max_time,
                                 node_selector=node_selector,
@@ -757,16 +770,23 @@ class k8s_Client(object):
         rsp = self.core_v1.create_namespaced_pod(body=pod, namespace=self.namespace)
         return rsp
 
-    def create_horovod_workers(self, work_spec, container_image,  command,
+    def create_horovod_workers(self, work_spec, container_image,  command, dfs_claim_name,
                                cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
         worker_id = str(work_spec.workerID)
         tmp_log = core_utils.make_logger(base_logger, 'workerID={0}'.format(worker_id),
                                          method_name='create_horovod_workers')
 
-        env = [client.V1EnvVar(name='SSH_DIR', value=SSH_DIR)]
+        # The distributed shared directory for horovod head and workers communication
+        dist_dir = os.path.join(DIST_DIR_BASE, worker_id)
+
+        env = [client.V1EnvVar(name='SSH_DIR', value=SSH_DIR),
+               client.V1EnvVar(name='DIST_DIR', value=dist_dir)]
 
         ssh_keys_mount = client.V1VolumeMount(name='ssh-keys', mount_path=SSH_DIR)
+
+        # Attach distributed (NFS) volume between head and workers
+        dist_mount = client.V1VolumeMount(name='dist-dir', mount_path=DIST_DIR_BASE)
 
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
@@ -775,7 +795,7 @@ class k8s_Client(object):
                                                   limits={"cpu": "7300m", "memory": "14.1Gi"})
 
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image=container_image,
-                                       volume_mounts=[ssh_keys_mount], env=env, resources=resources,
+                                       volume_mounts=[ssh_keys_mount, dist_mount], env=env, resources=resources,
                                        image_pull_policy='Always')
 
         node_selector = {'processor': 'gpu'}
@@ -784,9 +804,11 @@ class k8s_Client(object):
         ssh_secret_volume = client.V1Volume(name='ssh-keys',
                                             secret=client.V1SecretVolumeSource(secret_name=ssh_secret_name,
                                                                                default_mode=0o600))
+        dist_dir = client.V1Volume(name='dist-dir',
+                                   persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=dfs_claim_name))
 
         pod_spec = client.V1PodSpec(containers=[container],
-                                    volumes=[ssh_secret_volume],
+                                    volumes=[ssh_secret_volume, dist_dir],
                                     node_selector=node_selector)
 
         template = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
@@ -811,7 +833,7 @@ class k8s_Client(object):
 
     def create_horovod_formation(self, work_spec, prod_source_label, panda_queue,
                                  evaluation_image, pilot_image,
-                                 worker_command, cert,
+                                 worker_command, cert, dfs_claim_name,
                                  cpu_adjust_ratio=100, memory_adjust_ratio=100,
                                  max_time=None):
 
@@ -819,12 +841,12 @@ class k8s_Client(object):
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_head(work_spec, panda_queue, evaluation_image,
-                                       pilot_image, cert, cpu_adjust_ratio, memory_adjust_ratio, max_time)
+        rsp = self.create_horovod_head(work_spec, panda_queue, evaluation_image, pilot_image, cert, dfs_claim_name,
+                                       cpu_adjust_ratio, memory_adjust_ratio, max_time)
         if not rsp:
             return rsp
 
-        rsp = self.create_horovod_workers(work_spec, evaluation_image, worker_command,
+        rsp = self.create_horovod_workers(work_spec, evaluation_image, worker_command, dfs_claim_name
                                           cpu_adjust_ratio, memory_adjust_ratio, max_time)
 
         if not rsp:
