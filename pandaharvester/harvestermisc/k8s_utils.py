@@ -49,12 +49,23 @@ evaluation_script = """
 mkdir -p ~/.ssh; 
 cp $SSH_DIR/private_key ~/.ssh/id_rsa;
 
+iteration=0
 while :
 do
+    ((iteration++));
+    echo \"===================== ITERATION $iteration =====================\";
+    
     while [ ! -f $SHARED_DIR/payload_workdir/__payload_in_sync_file__ ]; do sleep 5; done; 
 
     echo \"=== cd to pilot directory ===\";
     cd $SHARED_DIR/payload_workdir/
+    
+    echo \"=== recreate shared directory in distributed filesystem ===\";
+    rm -rf $DIST_DIR;
+    mkdir -p $DIST_DIR;
+
+    echo \"=== moving input.json to distributed directory ===\";
+    cp input.json $DIST_DIR;
 
     echo \"=== environment information ===\";
     echo \"whoami\";
@@ -65,7 +76,7 @@ do
     ls -lrt;
     echo \"ls workDir\";
     ls workDir;
-    echo; 
+    echo;
 
     echo \"=== cat exec script ===\"; 
     cat $SHARED_DIR/payload_workdir/__run_main_exec.sh; 
@@ -73,11 +84,15 @@ do
 
     echo \"=== exec script ===\"; 
     /bin/sh $SHARED_DIR/payload_workdir/__run_main_exec.sh 2>&1 | tee $SHARED_DIR/payload_workdir/run_main_exec.log;
-    REAL_MAIN_RET_CODE=$?; 
+    REAL_MAIN_RET_CODE=$?;
     
     echo \"=== finished with ===\";
     cat $REAL_MAIN_RET_CODE;
     echo; 
+     
+    # Copy anything in the shared directory to the pilot directory
+    cp -R $DIST_DIR $SHARED_DIR/payload_workdir/output_$iteration;
+    rm -rf $DIST_DIR;
      
     # Create the out sync file and delete the in sync file
     echo \"=== create out sync file and delete in sync file ===\";
