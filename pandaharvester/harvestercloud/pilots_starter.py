@@ -177,8 +177,6 @@ def get_configuration():
     if tmpdir:
         global WORK_DIR
         WORK_DIR = tmpdir
-        global CONFIG_DIR
-        CONFIG_DIR = tmpdir + '/jobconfig'
 
     return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, pilot_type, \
            pilot_url_option, python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, stdout_name, \
