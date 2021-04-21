@@ -1,6 +1,8 @@
 import json
 import os
+import copy
 import shutil
+import tarfile
 import datetime
 
 try:
@@ -126,12 +128,22 @@ def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None):
 
 
 # scan files in a directory
-def scan_files_in_dir(dir_name, patterns=None):
+def scan_files_in_dir(dir_name, patterns=None, zip_patterns=None):
     fileList = []
     for root, dirs, filenames in walk(dir_name):
         for filename in filenames:
+            # check if zipped
+            is_zipped = False
+            if zip_patterns:
+                matched = False
+                for pattern in zip_patterns:
+                    if re.search(pattern, filename) is not None:
+                        matched = True
+                        break
+                if matched:
+                    is_zipped = True
             # check filename
-            if patterns is not None:
+            if not is_zipped and patterns:
                 matched = False
                 for pattern in patterns:
                     if re.search(pattern, filename) is not None:
@@ -142,15 +154,26 @@ def scan_files_in_dir(dir_name, patterns=None):
             # make dict
             tmpFileDict = dict()
             pfn = os.path.join(root, filename)
-            lfn = os.path.basename(pfn)
             tmpFileDict['path'] = pfn
             tmpFileDict['fsize'] = os.stat(pfn).st_size
-            tmpFileDict['type'] = 'es_output'
             tmpFileDict['guid'] = str(uuid.uuid4())
             tmpFileDict['chksum'] = core_utils.calc_adler32(pfn)
-            tmpFileDict['eventRangeID'] = lfn.split('.')[-1]
             tmpFileDict['eventStatus'] = "finished"
-            fileList.append(tmpFileDict)
+            if is_zipped:
+                lfns = []
+                # extract actual event filenames from zip
+                with tarfile.open(pfn) as f:
+                    for tar_info in f.getmembers():
+                        lfns.append(os.path.basename(tar_info.name))
+                tmpFileDict['type'] = 'zip_output'
+            else:
+                lfns = [os.path.basename(pfn)]
+                tmpFileDict['type'] = 'es_output'
+            for lfn in lfns:
+                tmpDict = copy.copy(tmpFileDict)
+                tmpDict['eventRangeID'] = lfn.split('.')[-1]
+
+                fileList.append(tmpDict)
     return fileList
 
 
@@ -162,7 +185,9 @@ class SharedFileMessenger(BaseMessenger):
         self.stripJobParams = False
         self.scanInPostProcess = False
         self.leftOverPatterns = None
+        self.leftOverZipPatterns = None
         self.postProcessInSubDir = False
+        self.outputSubDir = None
         BaseMessenger.__init__(self, **kwarg)
 
     # get access point
@@ -646,22 +671,21 @@ class SharedFileMessenger(BaseMessenger):
                     # set the directory paths to scan for left over files
                     dirs = []
                     if self.outputSubDir is None:
-                        #tmpLog.debug('self.outputSubDir not set dirs- {0}'.format(dirs))
                         dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
                                 if os.path.isdir(os.path.join(accessPoint, name))]
                     else:
                         # loop over directories first level from accessPoint and then add subdirectory name.
-                        upperdirs=[]
                         upperdirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
                                 if os.path.isdir(os.path.join(accessPoint, name))]
                         dirs = [os.path.join(dirname, self.outputSubDir) for dirname in upperdirs
                                 if os.path.isdir(os.path.join(dirname, self.outputSubDir))]
-                        #tmpLog.debug('self.outputSubDir = {0} upperdirs - {1} dirs -{2}'.format(self.outputSubDir,upperdirs,dirs))
-                    if self.leftOverPatterns is None:
-                        patterns = None
-                    else:
-                        patterns = []
-                        for scanPat in self.leftOverPatterns:
+                    patterns = []
+                    patterns_zip = []
+                    for tmp_patterns, tmp_left_over_patterns in \
+                            [[patterns, self.leftOverPatterns], [patterns_zip, self.leftOverZipPatterns]]:
+                        if tmp_left_over_patterns is None:
+                            continue
+                        for scanPat in tmp_left_over_patterns:
                             # replace placeholders
                             if '%PANDAID' in scanPat:
                                 scanPat = scanPat.replace('%PANDAID', str(jobSpec.PandaID))
@@ -672,13 +696,14 @@ class SharedFileMessenger(BaseMessenger):
                                 for outputName in jobSpec.get_output_file_attributes().keys():
                                     if outputName == logFileName:
                                         continue
-                                    patterns.append(scanPat.replace('%OUTPUT_FILE', outputName))
+                                    tmp_patterns.append(scanPat.replace('%OUTPUT_FILE', outputName))
                             else:
-                                patterns.append(scanPat)
+                                tmp_patterns.append(scanPat)
                     # scan files
                     nLeftOvers = 0
                     with Pool(max_workers=multiprocessing.cpu_count()) as pool:
-                        retValList = pool.map(scan_files_in_dir, dirs, [patterns] * len(dirs))
+                        retValList = pool.map(scan_files_in_dir, dirs, [patterns] * len(dirs),
+                                              [patterns_zip] * len(dirs))
                         for retVal in retValList:
                             fileDict.setdefault(jobSpec.PandaID, [])
                             fileDict[jobSpec.PandaID] += retVal
