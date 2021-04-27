@@ -627,7 +627,7 @@ class k8s_Client(object):
                                                   limits={"cpu": "1500m", "memory": "3000Mi"})
 
         # The distributed shared directory for horovod head and workers communication
-        dist_dir = os.path.join(DIST_DIR_BASE, worker_id)
+        dist_dir = os.path.join(DIST_DIR_BASE, str(worker_id))
 
         env = [client.V1EnvVar(name='computingSite', value=work_spec.computingSite),
                client.V1EnvVar(name='SHARED_DIR', value=SHARED_DIR),
@@ -793,7 +793,7 @@ class k8s_Client(object):
                                          method_name='create_horovod_workers')
 
         # The distributed shared directory for horovod head and workers communication
-        dist_dir = os.path.join(DIST_DIR_BASE, worker_id)
+        dist_dir = os.path.join(DIST_DIR_BASE, str(worker_id))
 
         env = [client.V1EnvVar(name='SSH_DIR', value=SSH_DIR),
                client.V1EnvVar(name='DIST_DIR', value=dist_dir)]
