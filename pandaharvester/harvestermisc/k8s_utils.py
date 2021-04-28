@@ -52,7 +52,7 @@ cp $SSH_DIR/private_key ~/.ssh/id_rsa;
 iteration=0
 while :
 do
-    ((iteration++));
+    iteration=$(( $iteration + 1 ))
     echo \"===================== ITERATION $iteration =====================\";
     
     while [ ! -f $SHARED_DIR/payload_workdir/__payload_in_sync_file__ ]; do sleep 5; done; 
