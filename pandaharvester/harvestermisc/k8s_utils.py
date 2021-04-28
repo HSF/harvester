@@ -65,7 +65,7 @@ do
     mkdir -p $DIST_DIR;
 
     echo \"=== moving input.json to distributed directory ===\";
-    cp input.json $DIST_DIR;
+    cp workDir/* $DIST_DIR;
 
     echo \"=== environment information ===\";
     echo \"whoami\";
