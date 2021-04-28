@@ -87,7 +87,7 @@ do
     REAL_MAIN_RET_CODE=$?;
     
     echo \"=== finished with ===\";
-    cat $REAL_MAIN_RET_CODE;
+    echo $REAL_MAIN_RET_CODE;
     echo; 
      
     # Copy anything in the shared directory to the pilot directory
