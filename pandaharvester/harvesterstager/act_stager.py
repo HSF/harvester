@@ -66,7 +66,9 @@ class ACTStager(BaseStager):
         # Only check for final states
         if actstatus == 'done':
             # Check for pilot status
-            self.check_pilot_status(workSpec, tmpLog)
+            self.check_pilot_status(workSpec, jobspec, tmpLog)
+            # Do post processing
+            self.post_processing(workSpec, jobspec)
         elif actstatus == 'donefailed':
             # Set error reported by aCT
             errorMsg = actjobs[0]['error'] or 'Unknown error'
@@ -110,29 +112,28 @@ class ACTStager(BaseStager):
         return True, ''
 
     # Check for pilot errors
-    def check_pilot_status(self, workspec, tmpLog):
-        for pandaID in workspec.pandaid_list:
-            # look for job report
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
-            tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
-            try:
-                with open(jsonFilePath) as jsonFile:
-                    jobreport = json.load(jsonFile)
-            except:
-                # Assume no job report available means true pilot or push mode
-                # If job report is not available in full push mode aCT would have failed the job
-                tmpLog.debug('no job report at {0}'.format(jsonFilePath))
-                continue
+    def check_pilot_status(self, workspec, jobspec, tmpLog):
+        # look for job report
+        jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
+        tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
+        try:
+            with open(jsonFilePath) as jsonFile:
+                jobreport = json.load(jsonFile)
+        except:
+            # Assume no job report available means true pilot or push mode
+            # If job report is not available in full push mode aCT would have failed the job
+            tmpLog.debug('no job report at {0}'.format(jsonFilePath))
+            continue
 
-            tmpLog.debug("pilot info for {0}: {1}".format(pandaID, jobreport))
-            # Check for pilot errors
-            if jobreport.get('pilotErrorCode', 0):
-                workspec.set_pilot_error(jobreport.get('pilotErrorCode'), jobreport.get('pilotErrorDiag', ''))
-            if jobreport.get('exeErrorCode', 0):
-                workspec.set_pilot_error(jobreport.get('exeErrorCode'), jobreport.get('exeErrorDiag', ''))
+        tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, jobreport))
+        # Check for pilot errors
+        if jobreport.get('pilotErrorCode', 0):
+            workspec.set_pilot_error(jobreport.get('pilotErrorCode'), jobreport.get('pilotErrorDiag', ''))
+        if jobreport.get('exeErrorCode', 0):
+            workspec.set_pilot_error(jobreport.get('exeErrorCode'), jobreport.get('exeErrorDiag', ''))
 
 
-    def post_processing(self, workspec, jobspec_list, map_type):
+    def post_processing(self, workspec, jobspec):
         '''
         Take the jobReport placed by aCT in the access point and fill metadata
         attributes of the workspec.
@@ -144,20 +145,18 @@ class ACTStager(BaseStager):
         if not workspec.workAttributes:
             workspec.workAttributes = {}
 
-        for pandaID in workspec.pandaid_list:
-            workspec.workAttributes[pandaID] = {}
-            # look for job report
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
-            tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
-            if not os.path.exists(jsonFilePath):
-                # not found
-                tmpLog.debug('not found')
-            else:
-                try:
-                    with open(jsonFilePath) as jsonFile:
-                        workspec.workAttributes[pandaID] = json.load(jsonFile)
-                    tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
-                except:
-                    tmpLog.debug('failed to load {0}'.format(jsonFilePath))
-            tmpLog.debug("pilot info for {0}: {1}".format(pandaID, workspec.workAttributes[pandaID]))
-        return True
+        workspec.workAttributes[jobspec.PandaID] = {}
+        # look for job report
+        jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
+        tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
+        if not os.path.exists(jsonFilePath):
+            # not found
+            tmpLog.debug('not found')
+        else:
+            try:
+                with open(jsonFilePath) as jsonFile:
+                    workspec.workAttributes[jobspec.PandaID] = json.load(jsonFile)
+                tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
+            except:
+                tmpLog.debug('failed to load {0}'.format(jsonFilePath))
+        tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, workspec.workAttributes[jobspec.PandaID]))
