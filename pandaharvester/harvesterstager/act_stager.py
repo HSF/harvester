@@ -65,8 +65,6 @@ class ACTStager(BaseStager):
         actstatus = actjobs[0]['actpandastatus']
         # Only check for final states
         if actstatus == 'done':
-            # Check for pilot status
-            self.check_pilot_status(workSpec, jobspec, tmpLog)
             # Do post processing
             self.post_processing(workSpec, jobspec)
         elif actstatus == 'donefailed':
@@ -74,6 +72,7 @@ class ACTStager(BaseStager):
             errorMsg = actjobs[0]['error'] or 'Unknown error'
             error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
             workSpec.set_status(WorkSpec.ST_failed)
+            jobspec.status = 'failed'
             workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
         elif actstatus == 'donecancelled':
             # Nothing to do
@@ -104,15 +103,23 @@ class ACTStager(BaseStager):
         fileSpec = FileSpec()
         fileSpec.PandaID = jobspec.PandaID
         fileSpec.taskID = jobspec.taskID
-        fileSpec.lfn = 'dummy.{}'.format(jobspec.PandaID)
+        fileSpec.lfn = 'dummy.{0}'.format(jobspec.PandaID)
         fileSpec.scope = 'dummy'
         fileSpec.fileType = 'output'
         jobspec.add_in_file(fileSpec)
 
         return True, ''
 
-    # Check for pilot errors
-    def check_pilot_status(self, workspec, jobspec, tmpLog):
+
+    def post_processing(self, workspec, jobspec):
+        '''
+        Take the jobReport placed by aCT in the access point and fill metadata
+        attributes of the jobspec.
+        '''
+
+        # get logger
+        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
+                                        method_name='post_processing')
         # look for job report
         jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
         tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
@@ -123,40 +130,18 @@ class ACTStager(BaseStager):
             # Assume no job report available means true pilot or push mode
             # If job report is not available in full push mode aCT would have failed the job
             tmpLog.debug('no job report at {0}'.format(jsonFilePath))
-            continue
+            return
 
+        tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
         tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, jobreport))
+
         # Check for pilot errors
         if jobreport.get('pilotErrorCode', 0):
             workspec.set_pilot_error(jobreport.get('pilotErrorCode'), jobreport.get('pilotErrorDiag', ''))
+            tmpLog.debug('Set pilot error {0}: {1}'.format(jobreport.get('pilotErrorCode'), jobreport.get('pilotErrorDiag', '')))
         if jobreport.get('exeErrorCode', 0):
             workspec.set_pilot_error(jobreport.get('exeErrorCode'), jobreport.get('exeErrorDiag', ''))
+            tmpLog.debug('Set exe error {0}: {1}'.format(jobreport.get('exeErrorCode'), jobreport.get('exeErrorDiag', '')))
 
-
-    def post_processing(self, workspec, jobspec):
-        '''
-        Take the jobReport placed by aCT in the access point and fill metadata
-        attributes of the workspec.
-        '''
-
-        # get logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='post_processing')
-        if not workspec.workAttributes:
-            workspec.workAttributes = {}
-
-        workspec.workAttributes[jobspec.PandaID] = {}
-        # look for job report
-        jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
-        tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
-        if not os.path.exists(jsonFilePath):
-            # not found
-            tmpLog.debug('not found')
-        else:
-            try:
-                with open(jsonFilePath) as jsonFile:
-                    workspec.workAttributes[jobspec.PandaID] = json.load(jsonFile)
-                tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
-            except:
-                tmpLog.debug('failed to load {0}'.format(jsonFilePath))
-        tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, workspec.workAttributes[jobspec.PandaID]))
+        # Set info for final heartbeat
+        jobspec.set_attributes({jobspec.PandaID: jobreport})
