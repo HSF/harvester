@@ -71,9 +71,10 @@ class ACTStager(BaseStager):
             # Set error reported by aCT
             errorMsg = actjobs[0]['error'] or 'Unknown error'
             error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
-            workSpec.set_status(WorkSpec.ST_failed)
             jobspec.status = 'failed'
-            workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
+            # No way to update workspec here
+            #workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
+            jobspec.set_pilot_error(error_code, errorMsg)
         elif actstatus == 'donecancelled':
             # Nothing to do
             pass
@@ -134,14 +135,6 @@ class ACTStager(BaseStager):
 
         tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
         tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, jobreport))
-
-        # Check for pilot errors
-        if jobreport.get('pilotErrorCode', 0):
-            workspec.set_pilot_error(jobreport.get('pilotErrorCode'), jobreport.get('pilotErrorDiag', ''))
-            tmpLog.debug('Set pilot error {0}: {1}'.format(jobreport.get('pilotErrorCode'), jobreport.get('pilotErrorDiag', '')))
-        if jobreport.get('exeErrorCode', 0):
-            workspec.set_pilot_error(jobreport.get('exeErrorCode'), jobreport.get('exeErrorDiag', ''))
-            tmpLog.debug('Set exe error {0}: {1}'.format(jobreport.get('exeErrorCode'), jobreport.get('exeErrorDiag', '')))
 
         # Set info for final heartbeat
         jobspec.set_attributes({jobspec.PandaID: jobreport})
