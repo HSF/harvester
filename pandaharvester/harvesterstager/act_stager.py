@@ -81,7 +81,7 @@ class ACTStager(BaseStager):
             pass
         else:
             # Still staging
-            return True, ''
+            return None, 'still staging'
 
         tmpLog.info('ID {0} completed in state {1}'.format(workSpec.batchID, actstatus))
 
@@ -112,6 +112,10 @@ class ACTStager(BaseStager):
 
         return True, ''
 
+    # zip output files
+    def zip_output(self, jobspec):
+        """Dummy"""
+        return True, ''
 
     def post_processing(self, workspec, jobspec):
         '''
