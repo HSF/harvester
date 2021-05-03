@@ -75,6 +75,7 @@ class ACTStager(BaseStager):
             # No way to update workspec here
             #workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
             jobspec.set_pilot_error(error_code, errorMsg)
+            tmpLog.info('Job {0} failed with error {1}'.format(jobspec.PandaID, errorMsg))
         elif actstatus == 'donecancelled':
             # Nothing to do
             pass
