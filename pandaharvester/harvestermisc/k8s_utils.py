@@ -89,6 +89,9 @@ do
     echo \"=== finished with ===\";
     echo $REAL_MAIN_RET_CODE;
     echo; 
+
+    echo \"=== moving output.json to the pilot directory ===\";
+    cp $DIST_DIR/output.json $SHARED_DIR/payload_workdir/workDir
      
     # Copy anything in the shared directory to the pilot directory
     cp -R $DIST_DIR $SHARED_DIR/payload_workdir/output_$iteration;
