@@ -1,6 +1,8 @@
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvesterconfig import harvester_config
 
 from act.atlas.aCTDBPanda import aCTDBPanda
@@ -33,6 +35,9 @@ class ACTMonitor(PluginBase):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                             method_name='check_workers')
+
+            queueconfigmapper = QueueConfigMapper()
+            queueconfig = queueconfigmapper.get_queue(workSpec.computingSite)
             try:
                 tmpLog.debug('Querying aCT for id {0}'.format(workSpec.batchID))
                 columns = ['actpandastatus', 'pandastatus', 'computingElement', 'node', 'error']
@@ -56,8 +61,21 @@ class ACTMonitor(PluginBase):
             errorMsg = ''
             if actstatus in ['waiting', 'sent', 'starting']:
                 newStatus = WorkSpec.ST_submitted
+
+            # Handle post running states
+            if queueconfig.truePilot:
+                # True pilot: keep in running until really done
+                if actstatus in ['done', 'donecancelled']:
+                    newStatus = WorkSpec.ST_finished
+                elif actstatus == 'donefailed':
+                    # set failed here with workspec sup error
+                    errorMsg = actjobs[0]['error'] or 'Unknown error'
+                    error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
+                    workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
+                    newStatus = WorkSpec.ST_failed
+                    tmpLog.info('ID {0} failed with error {1})'.format(workSpec.batchID, errorMsg))
             elif actstatus in ['done', 'donefailed', 'donecancelled', 'transferring', 'tovalidate']:
-                # All post processing is now done in the stager
+                # NG mode: all post processing is now done in the stager
                 newStatus = WorkSpec.ST_finished
 
             if newStatus != workSpec.status:
