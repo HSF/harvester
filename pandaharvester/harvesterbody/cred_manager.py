@@ -109,8 +109,8 @@ class CredManager(AgentBase):
         self.queue_exe_cores = []
         for queue_name, queue_config in self.queue_config_mapper.get_all_queues().items():
             if queue_config.queueStatus == 'offline' \
-                or not hasattr(queue_config, 'credmanagers') \
-                or not isinstance(queue_config.credmanagers, list):
+                    or not hasattr(queue_config, 'credmanagers') \
+                    or not isinstance(queue_config.credmanagers, list):
                 continue
             for cm_setup in queue_config.credmanagers:
                 try:
