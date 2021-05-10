@@ -220,7 +220,7 @@ if __name__ == "__main__":
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
     wrapper_executable = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
-    command = "sh {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False -t | tee /tmp/wrapper-wid.log". \
+    command = "sh {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False | tee /tmp/wrapper-wid.log". \
         format(wrapper_executable, wrapper_params, submit_mode)
 
     try:
