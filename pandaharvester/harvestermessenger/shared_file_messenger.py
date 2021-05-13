@@ -643,7 +643,7 @@ class SharedFileMessenger(BaseMessenger):
                 accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
                 origAccessPoint = accessPoint
                 if self.postProcessInSubDir:
-                    accessPoint = os.path.join(accessPoint, jobSpec.PandaID)
+                    accessPoint = os.path.join(accessPoint, str(jobSpec.PandaID))
                 # make log
                 if not hasLog:
                     logFileInfo = jobSpec.get_logfile_info()
