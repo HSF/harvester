@@ -128,7 +128,7 @@ class k8s_Client(object):
             {'name': 'pilotType', 'value': pilot_type},
             {'name': 'pilotUrlOpt', 'value': pilot_url_str},
             {'name': 'pythonOption', 'value': pilot_python_option},
-            # {'name': 'jobType', 'value': work_spec.jobType},
+            {'name': 'jobType', 'value': work_spec.jobType},
             {'name': 'proxySecretPath', 'value': cert},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
