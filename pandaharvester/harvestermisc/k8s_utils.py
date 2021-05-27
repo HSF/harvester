@@ -95,7 +95,7 @@ do
      
     # Copy anything in the shared directory to the pilot directory
     cp -R $DIST_DIR $SHARED_DIR/payload_workdir/output_$iteration;
-    rm -rf $DIST_DIR;
+    # rm -rf $DIST_DIR;
      
     # Create the out sync file and delete the in sync file
     echo \"=== create out sync file and delete in sync file ===\";
