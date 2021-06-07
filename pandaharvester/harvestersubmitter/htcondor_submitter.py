@@ -401,6 +401,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
+            'ceARCGridType': ce_info_dict.get('ce_arc_grid_type', 'nordugrid'),
         }
     # fill in template string
     jdl_str = template.format(**placeholder_map)
@@ -695,8 +696,16 @@ class HTCondorSubmitter(PluginBase):
                     except KeyError:
                         tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                    # go on info of the CE; ignore protocol prefix in ce_endpoint
-                    ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
+                    # go on info of the CE
+                    # ignore protocol prefix in ce_endpoint for cream and condor CE
+                    # check protocol prefix for ARC CE (gridftp or REST)
+                    _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
+                    ce_endpoint_prefix = ''
+                    ce_endpoint_from_queue = ''
+                    if _match_ce_endpoint:
+                        ce_endpoint_prefix = _match_ce_endpoint.group(1)
+                        ce_endpoint_from_queue = _match_ce_endpoint.group(2)
+                    # ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
                     ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
@@ -708,8 +717,14 @@ class HTCondorSubmitter(PluginBase):
                                 'htcondor-ce': 9619,
                             }
                         if ce_flavour_str in default_port_map:
-                            default_port = default_port_map[ce_flavour_str]
-                            ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
+                            if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
+                                # new ARC REST interface
+                                ce_info_dict['ce_arc_grid_type'] = 'arc'
+                                ce_info_dict['ce_endpoint'] = ce_endpoint_from_queue
+                            else:
+                                ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
+                                default_port = default_port_map[ce_flavour_str]
+                                ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
                                     pilot_version, ce_endpoint_from_queue, ce_flavour_str))
                     if self.templateFile:
