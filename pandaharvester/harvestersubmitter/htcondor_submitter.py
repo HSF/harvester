@@ -708,8 +708,14 @@ class HTCondorSubmitter(PluginBase):
                     # ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                    if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
+                        # new ARC REST interface
+                        ce_info_dict['ce_arc_grid_type'] = 'arc'
+                    else:
+                        ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
                     ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
+                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
+                        and ce_info_dict['ce_arc_grid_type'] != 'arc':
                         # add default port to ce_endpoint if missing
                         default_port_map = {
                                 'cream-ce': 8443,
@@ -717,14 +723,8 @@ class HTCondorSubmitter(PluginBase):
                                 'htcondor-ce': 9619,
                             }
                         if ce_flavour_str in default_port_map:
-                            if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
-                                # new ARC REST interface
-                                ce_info_dict['ce_arc_grid_type'] = 'arc'
-                                ce_info_dict['ce_endpoint'] = ce_endpoint_from_queue
-                            else:
-                                ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
-                                default_port = default_port_map[ce_flavour_str]
-                                ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
+                            default_port = default_port_map[ce_flavour_str]
+                            ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
                                     pilot_version, ce_endpoint_from_queue, ce_flavour_str))
                     if self.templateFile:
