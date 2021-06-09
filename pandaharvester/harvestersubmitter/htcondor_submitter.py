@@ -701,11 +701,9 @@ class HTCondorSubmitter(PluginBase):
                     # check protocol prefix for ARC CE (gridftp or REST)
                     _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
                     ce_endpoint_prefix = ''
-                    ce_endpoint_from_queue = ''
                     if _match_ce_endpoint:
                         ce_endpoint_prefix = _match_ce_endpoint.group(1)
-                        ce_endpoint_from_queue = _match_ce_endpoint.group(2)
-                    # ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
+                    ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
                     if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
