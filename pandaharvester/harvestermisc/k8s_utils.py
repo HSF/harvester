@@ -809,8 +809,8 @@ class k8s_Client(object):
         deployment_name = "{0}-{1}".format(HOROVOD_WORKER_TAG, worker_id)
 
         # TODO: decide how the memory and CPU/GPU requirements will be calculated
-        resources = client.V1ResourceRequirements(requests={"cpu": "7000m", "memory": "14Gi"},
-                                                  limits={"cpu": "7300m", "memory": "14.1Gi"})
+        resources = client.V1ResourceRequirements(requests={"cpu": "3000m", "memory": "14Gi"},
+                                                  limits={"cpu": "3300m", "memory": "14.1Gi"})
 
         container = client.V1Container(command=command, name=HOROVOD_WORKER_TAG, image=container_image,
                                        volume_mounts=[ssh_keys_mount, dist_mount], env=env, resources=resources,
@@ -834,7 +834,7 @@ class k8s_Client(object):
                                             spec=pod_spec)
 
         # TODO: decide how many workers are required
-        spec = client.V1DeploymentSpec(replicas=2, template=template,
+        spec = client.V1DeploymentSpec(replicas=1, template=template,
                                        selector={"matchLabels": {"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
                                                                                          worker_id)}})
 
