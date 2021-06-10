@@ -834,7 +834,7 @@ class k8s_Client(object):
                                             spec=pod_spec)
 
         # TODO: decide how many workers are required
-        spec = client.V1DeploymentSpec(replicas=1, template=template,
+        spec = client.V1DeploymentSpec(replicas=2, template=template,
                                        selector={"matchLabels": {"app": "{0}-{1}".format(HOROVOD_WORKER_TAG,
                                                                                          worker_id)}})
 
