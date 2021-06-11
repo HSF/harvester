@@ -83,7 +83,7 @@ do
     echo; 
 
     echo \"=== exec script ===\"; 
-    /bin/sh $SHARED_DIR/payload_workdir/__run_main_exec.sh 2>&1 | tee $SHARED_DIR/payload_workdir/run_main_exec.log;
+    /bin/sh $SHARED_DIR/payload_workdir/__run_main_exec.sh 2>&1 | tee -a $SHARED_DIR/payload_workdir/run_main_exec.log;
     REAL_MAIN_RET_CODE=$?;
     
     echo \"=== finished with ===\";
