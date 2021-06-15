@@ -401,6 +401,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
+            'ceARCGridType': ce_info_dict.get('ce_arc_grid_type', 'nordugrid'),
         }
     # fill in template string
     jdl_str = template.format(**placeholder_map)
@@ -695,12 +696,24 @@ class HTCondorSubmitter(PluginBase):
                     except KeyError:
                         tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                    # go on info of the CE; ignore protocol prefix in ce_endpoint
+                    # go on info of the CE
+                    # ignore protocol prefix in ce_endpoint for cream and condor CE
+                    # check protocol prefix for ARC CE (gridftp or REST)
+                    _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
+                    ce_endpoint_prefix = ''
+                    if _match_ce_endpoint:
+                        ce_endpoint_prefix = _match_ce_endpoint.group(1)
                     ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                    if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
+                        # new ARC REST interface
+                        ce_info_dict['ce_arc_grid_type'] = 'arc'
+                    else:
+                        ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
                     ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
+                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
+                        and ce_info_dict['ce_arc_grid_type'] != 'arc':
                         # add default port to ce_endpoint if missing
                         default_port_map = {
                                 'cream-ce': 8443,
