@@ -25,11 +25,8 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None):
 
 
 # get special flag of pilot wrapper about python version of pilot, and whether to run with python 3 if python version is "3"
-# FIXME: during pilot testing phase, only prodsourcelabel ptest and rc_test2 should run python3
-# This constraint will be removed when pilot is ready
 def get_python_version_option(python_version, prod_source_label):
     option = ''
     if python_version.startswith('3'):
-        if prod_source_label in ['rc_test2', 'ptest']:
-            option = '--pythonversion 3'
+        option = '--pythonversion 3'
     return option
