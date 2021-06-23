@@ -90,6 +90,7 @@ class k8s_Client(object):
         # Be familiar with QoS classes: https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod
         # The CPU & memory settings will affect the QoS for the pod
         container_env.setdefault('resources', {})
+        use_memory_limit = get_k8s_resource_settings(work_spec.computingSite)
         if work_spec.nCore > 0:
 
             # CPU limits
@@ -102,10 +103,11 @@ class k8s_Client(object):
                 container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpu_adjust_ratio / 100.0)
 
         if work_spec.minRamCount > 4:  # K8S minimum memory limit = 4 MB
-            # memory limits
-            # container_env['resources'].setdefault('limits', {})
-            # if 'memory' not in container_env['resources']['limits']:
-            #     container_env['resources']['limits']['memory'] = str(work_spec.minRamCount) + 'M'
+            # memory limits: kubernetes is very aggressive killing jobs due to memory, hence making this field optional
+            if use_memory_limit:
+                container_env['resources'].setdefault('limits', {})
+                if 'memory' not in container_env['resources']['limits']:
+                    container_env['resources']['limits']['memory'] = str(work_spec.minRamCount) + 'M'
             # memory requests
             container_env['resources'].setdefault('requests', {})
             if 'memory' not in container_env['resources']['requests']:

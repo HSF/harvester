@@ -188,3 +188,18 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             use_anti_affinity = True
 
         return use_affinity, use_anti_affinity
+
+    def get_k8s_resource_settings(self, panda_resource):
+        # this is how the parameters are declared in CRIC
+        key_memory_limits = 'k8s.resources.limits.use_memory_limit'
+
+        panda_queue_dict = self.get(panda_resource, {})
+        params = panda_queue_dict.get('params', {})
+
+        try:
+            use_memory_limit = params[key_memory_limits]
+        except KeyError:
+            # return default value
+            use_memory_limit = False
+
+        return use_memory_limit
