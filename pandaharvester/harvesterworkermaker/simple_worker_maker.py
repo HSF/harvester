@@ -73,7 +73,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
     def capability_to_rtype(self, capability):
        if capability == 'score':
            return 'SCORE'
-       elif capability == 'scorehimem':
+       elif capability == 'himem':
            return 'SCORE_HIMEM'
        elif capability == 'mcore':
            return 'MCORE'
