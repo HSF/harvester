@@ -2,11 +2,8 @@ import os
 
 from pandaharvester.harvestercore import core_utils
 from .base_messenger import BaseMessenger
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-# from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-# from pandaharvester.harvestercore.work_spec import WorkSpec
-
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 _logger = core_utils.setup_logger('k8s_messenger')
@@ -22,7 +19,12 @@ class K8sMessenger(BaseMessenger):
         except AttributeError:
             print('K8sMessenger: Missing attribute logDir')
             raise
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+
+        # retrieve the k8s namespace from CRIC
+        self.panda_queues_dict = PandaQueuesDict()
+        namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+
+        self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
         self._all_pods_list = self.k8s_client.get_pods_info()
 
     def post_processing(self, workspec, jobspec_list, map_type):

@@ -2,13 +2,10 @@ import os
 import time
 import json
 
-from kubernetes import client, config
-from kubernetes.client.rest import ApiException
-
 from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 _logger = core_utils.setup_logger('k8s_secret_cred_manager')
@@ -42,7 +39,6 @@ class K8sSecretCredManager(BaseCredManager):
             self.setupMap = dict(vars(self))
         # validate setupMap
         try:
-            self.k8s_namespace = self.setupMap['k8s_namespace']
             self.k8s_config_file = self.setupMap['k8s_config_file']
             self.proxy_files = self.setupMap['proxy_files']
             self.secret_name = self.setupMap.get('secret_name', 'proxy-secret')
@@ -50,9 +46,13 @@ class K8sSecretCredManager(BaseCredManager):
             mainLog.error('Missing attributes in setup . {0}: {1}'.format(
                                 e.__class__.__name__, e))
             raise
-        # k8s client
+
         try:
-            self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+            # retrieve the k8s namespace from CRIC
+            self.panda_queues_dict = PandaQueuesDict()
+            namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+            # k8s client
+            self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
         except Exception as e:
             mainLog.error('Problem instantiating k8s client for {0}'.format(self.k8s_config_file))
             raise

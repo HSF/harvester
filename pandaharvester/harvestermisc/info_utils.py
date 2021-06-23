@@ -76,7 +76,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         Return PanDA Queue name with specified PanDA Resource name
         """
         try:
-            panda_queue =  self.get(panda_resource).get('nickname')
+            panda_queue = self.get(panda_resource).get('nickname')
             return panda_queue
         except Exception:
             return None
@@ -172,8 +172,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         key_affinity = 'k8s.scheduler.use_score_affinity'
         key_anti_affinity = 'k8s.scheduler.use_score_mcore_anti_affinity'
 
-        panda_queue_dict = self.get(panda_resource, {})
-        params = panda_queue_dict.get('params', {})
+        params = self.get_harvester_params(panda_resource)
 
         try:
             use_affinity = params[key_affinity]
@@ -193,8 +192,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         # this is how the parameters are declared in CRIC
         key_memory_limits = 'k8s.resources.limits.use_memory_limit'
 
-        panda_queue_dict = self.get(panda_resource, {})
-        params = panda_queue_dict.get('params', {})
+        params = self.get_harvester_params(panda_resource)
 
         try:
             use_memory_limit = params[key_memory_limits]
@@ -203,3 +201,17 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             use_memory_limit = False
 
         return use_memory_limit
+
+    def get_k8s_namespace(self, panda_resource):
+        # this is how the parameters are declared in CRIC
+        key_namespace = 'k8s.namespace'
+
+        params = self.get_harvester_params(panda_resource)
+
+        try:
+            namespace = params[key_namespace]
+        except KeyError:
+            # return default value
+            namespace = 'default'
+
+        return namespace

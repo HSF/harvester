@@ -25,10 +25,13 @@ class k8s_Client(object):
         if not os.path.isfile(config_file):
             raise RuntimeError('Cannot find k8s config file: {0}'.format(config_file))
         config.load_kube_config(config_file=config_file)
-        self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
+
+        self.panda_queues_dict = PandaQueuesDict()
+        self.namespace = namespace if namespace else 'default'
+
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
@@ -55,8 +58,7 @@ class k8s_Client(object):
                 return res, 'Failed to create a configmap'
 
         # retrieve panda queue information
-        panda_queues_dict = PandaQueuesDict()
-        queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
+        queue_name = self.panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
 
         # set the worker name
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
@@ -90,7 +92,7 @@ class k8s_Client(object):
         # Be familiar with QoS classes: https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod
         # The CPU & memory settings will affect the QoS for the pod
         container_env.setdefault('resources', {})
-        use_memory_limit = get_k8s_resource_settings(work_spec.computingSite)
+        use_memory_limit = self.panda_queues_dict.get_k8s_resource_settings(work_spec.computingSite)
         if work_spec.nCore > 0:
 
             # CPU limits
@@ -166,12 +168,12 @@ class k8s_Client(object):
             for volume in yaml_volumes:
                 # do not overwrite any hardcoded sizeLimit value
                 if volume['name'] == 'pilot-dir' and 'emptyDir' in volume and 'sizeLimit' not in volume['emptyDir']:
-                    maxwdir_prorated_GB = panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
+                    maxwdir_prorated_GB = self.panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
                     if maxwdir_prorated_GB:
                         volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
 
         # set the affinity
-        use_affinity, use_anti_affinity = panda_queues_dict.get_k8s_affinity_settings(work_spec.computingSite)
+        use_affinity, use_anti_affinity = self.panda_queues_dict.get_k8s_affinity_settings(work_spec.computingSite)
         if (use_affinity or use_anti_affinity) and 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content, use_affinity, use_anti_affinity)
 
