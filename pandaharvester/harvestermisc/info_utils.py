@@ -203,15 +203,24 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         return use_memory_limit
 
     def get_k8s_namespace(self, panda_resource):
-        # this is how the parameters are declared in CRIC
-        key_namespace = 'k8s.namespace'
+        default_namespace = 'default'
 
+        # 1. check if there is an associated CE and use the queue name as namespace
+        panda_queue_dict = self.get(panda_resource, {})
+        try:
+            namespace = panda_queue_dict['queues'][0]['ce_queue_name']
+            return namespace
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        # 2. alternatively, check if namespace defined in the associated parameter section
+        key_namespace = 'k8s.namespace'
         params = self.get_harvester_params(panda_resource)
 
         try:
             namespace = params[key_namespace]
         except KeyError:
             # return default value
-            namespace = 'default'
+            namespace = default_namespace
 
         return namespace
