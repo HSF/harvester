@@ -169,8 +169,9 @@ class k8s_Client(object):
                         volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
 
         # set the affinity
-        if 'affinity' not in yaml_content['spec']['template']['spec']:
-            yaml_content = self.set_affinity(yaml_content)
+        use_affinity, use_anti_affinity = panda_queues_dict.get_k8s_affinity_settings(work_spec.computingSite)
+        if (use_affinity or use_anti_affinity) and 'affinity' not in yaml_content['spec']['template']['spec']:
+            yaml_content = self.set_affinity(yaml_content, use_affinity, use_anti_affinity)
 
         # set max_time to avoid having a pod running forever
         if 'activeDeadlineSeconds' not in yaml_content['spec']['template']['spec']:
@@ -289,7 +290,11 @@ class k8s_Client(object):
         content = content.replace("\n", ",")
         return content
 
-    def set_affinity(self, yaml_content):
+    def set_affinity(self, yaml_content, use_affinity, use_anti_affinity):
+
+        if not use_affinity and not use_anti_affinity:
+            # we are not supposed to use any affinity setting for this queue
+            return yaml_content
 
         yaml_content['spec']['template']['spec']['affinity'] = {}
         yaml_affinity = yaml_content['spec']['template']['spec']['affinity']
@@ -320,16 +325,18 @@ class k8s_Client(object):
             ]
         }
 
-        resource_type = yaml_content['spec']['template']['metadata']['labels']['resourceType']
-        # resource type SCORE* should attract each other instead of spreading across the nodes
-        if resource_type in scores:
-            yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
+        if use_affinity:
+            resource_type = yaml_content['spec']['template']['metadata']['labels']['resourceType']
+            # resource type SCORE* should attract each other instead of spreading across the nodes
+            if resource_type in scores:
+                yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
 
-        # SCORE* will repel MCORE* and viceversa. The main reasoning was to keep nodes for MCORE,
-        # but this needs to be reconsidered.
-        yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
-        yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm'][
-            'labelSelector']['matchExpressions'][0]['values'] = anti_affinity_matrix[resource_type]
+        if use_anti_affinity:
+            # SCORE* will repel MCORE* and viceversa. The main reasoning was to keep nodes for MCORE
+            # This setting depends on the size of the node vs the MCORE job
+            yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
+            yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm'][
+                'labelSelector']['matchExpressions'][0]['values'] = anti_affinity_matrix[resource_type]
 
         return yaml_content
 

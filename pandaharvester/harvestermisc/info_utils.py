@@ -166,3 +166,25 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             maxwdir_prorated = 0
 
         return maxwdir_prorated
+
+    def get_k8s_affinity_settings(self, panda_resource):
+        # this is how the parameters are declared in CRIC
+        key_affinity = 'k8s.scheduler.use_score_affinity'
+        key_anti_affinity = 'k8s.scheduler.use_score_mcore_anti_affinity'
+
+        panda_queue_dict = self.get(panda_resource, {})
+        params = panda_queue_dict.get('params', {})
+
+        try:
+            use_affinity = params[key_affinity]
+        except KeyError:
+            # return default value
+            use_affinity = True
+
+        try:
+            use_anti_affinity = params[key_anti_affinity]
+        except KeyError:
+            # return default value
+            use_anti_affinity = True
+
+        return use_affinity, use_anti_affinity
