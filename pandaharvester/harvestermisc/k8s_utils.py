@@ -403,7 +403,7 @@ class k8s_Client(object):
             tmp_log.debug('Created configmap for worker id: {0}'.format(worker_id))
             return True
 
-        except (ApiException, TypeError) as e:
+        except Exception as e:
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
