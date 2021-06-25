@@ -210,7 +210,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         try:
             namespace = panda_queue_dict['queues'][0]['ce_queue_name']
             return namespace
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, IndexError, ValueError):
             pass
 
         # 2. alternatively, check if namespace defined in the associated parameter section
