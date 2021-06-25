@@ -329,11 +329,11 @@ class k8s_Client(object):
             ]
         }
 
-        if use_affinity:
-            resource_type = yaml_content['spec']['template']['metadata']['labels']['resourceType']
+        resource_type = yaml_content['spec']['template']['metadata']['labels']['resourceType']
+
+        if use_affinity and resource_type in scores:
             # resource type SCORE* should attract each other instead of spreading across the nodes
-            if resource_type in scores:
-                yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
+            yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
 
         if use_anti_affinity:
             # SCORE* will repel MCORE* and viceversa. The main reasoning was to keep nodes for MCORE
