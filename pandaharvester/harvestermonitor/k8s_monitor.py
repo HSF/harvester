@@ -73,7 +73,7 @@ class K8sMonitor(PluginBase):
                                 state = 'waiting'
                             msg_str = 'container not terminated yet ({0}) while pod Succeeded'.format(state)
                         elif item.terminated.reason != 'Completed':
-                            msg_str = 'container termiated by k8s for reason {0}'.format(item.terminated.reason)
+                            msg_str = 'container terminated by k8s for reason {0}'.format(item.terminated.reason)
                         sub_mesg_list.append(msg_str)
                     sub_msg = ';'.join(sub_mesg_list)
                     new_status = WorkSpec.ST_cancelled
@@ -108,6 +108,7 @@ class K8sMonitor(PluginBase):
                         and time_now - pods_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
                     # fetch queuing too long pods
                     pods_name_to_delete_list.append(pods_info['name'])
+
                 # make list of status of the pods belonging to our job
                 pods_status_list.append(pods_info['status'])
                 containers_state_list.extend(pods_info['containers_state'])
