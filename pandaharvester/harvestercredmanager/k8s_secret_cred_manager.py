@@ -1,5 +1,3 @@
-import os
-import time
 import json
 
 from .base_cred_manager import BaseCredManager

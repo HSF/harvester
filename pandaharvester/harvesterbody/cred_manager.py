@@ -118,6 +118,7 @@ class CredManager(AgentBase):
                     pluginPar['module'] = cm_setup['module']
                     pluginPar['name'] = cm_setup['name']
                     pluginPar['setup_name'] = queue_name
+                    pluginPar['queueName'] = queue_name  # to make cred manager plugins look similar to the other agents
                     for k, v in cm_setup.items():
                         if k in ('module', 'name'):
                             pass
@@ -147,7 +148,7 @@ class CredManager(AgentBase):
                     exe_core = self.pluginFactory.get_plugin(pluginPar)
                     self.queue_exe_cores.append(exe_core)
                 except Exception:
-                    _logger.error('failed to launch about queue={0} for {1}'.format(queue_name, pluginPar))
+                    _logger.error('failed to launch plugin for queue={0} and {1}'.format(queue_name, pluginPar))
                     core_utils.dump_error_message(_logger)
 
     # main loop
@@ -176,7 +177,6 @@ class CredManager(AgentBase):
             if exeCore is None:
                 continue
             # make logger
-            credmanager_name = ''
             if hasattr(exeCore, 'setup_name'):
                 credmanager_name = exeCore.setup_name
             else:
@@ -219,17 +219,17 @@ class CredManager(AgentBase):
             else:
                 credmanager_name = '{0} {1}'.format(exeCore.inCertFile, exeCore.outCertFile)
 
-            subLog = self.make_logger(_logger, '{0} {1}'.format(exeCore.__class__.__name__, credmanager_name),
+            sub_log = self.make_logger(_logger, '{0} {1}'.format(exeCore.__class__.__name__, credmanager_name),
                                        method_name='execute_monit')
             try:
                 # check credential
-                subLog.debug('check credential lifetime')
+                sub_log.debug('check credential lifetime')
                 lifetime = exeCore.check_credential_lifetime()
                 if lifetime is not None:
                     metrics[exeCore.outCertFile] = lifetime
             except Exception:
-                core_utils.dump_error_message(subLog)
+                core_utils.dump_error_message(sub_log)
 
-            subLog.debug('done')
+            sub_log.debug('done')
 
         return metrics
