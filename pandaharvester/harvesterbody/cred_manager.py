@@ -21,8 +21,8 @@ class CredManager(AgentBase):
         self.pluginFactory = PluginFactory()
         self.dbProxy = DBProxy()
         # plugin cores
-        self.exeCores = []
-        self.queue_exe_cores = []
+        self.exe_cores = []  # general cred managers that are not queue based, e.g. VOMS renewal on harvester instance
+        self.queue_exe_cores = []  # cred manages that are queue based, e.g. VOMS refresh on K8S clusters
         # get plugin from harvester config
         self.get_cores_from_harvester_config()
         # update plugin cores from queue config
@@ -72,17 +72,17 @@ class CredManager(AgentBase):
         # from traditional attributes
         for moduleName, className, inCertFile, outCertFile, voms in \
                 zip(moduleNames, classNames, inCertFiles, outCertFiles, vomses):
-            pluginPar = {}
-            pluginPar['module'] = moduleName
-            pluginPar['name'] = className
-            pluginPar['inCertFile'] = inCertFile
-            pluginPar['outCertFile'] = outCertFile
-            pluginPar['voms'] = voms
+            plugin_params = {}
+            plugin_params['module'] = moduleName
+            plugin_params['name'] = className
+            plugin_params['inCertFile'] = inCertFile
+            plugin_params['outCertFile'] = outCertFile
+            plugin_params['voms'] = voms
             try:
-                exeCore = self.pluginFactory.get_plugin(pluginPar)
-                self.exeCores.append(exeCore)
+                exe_core = self.pluginFactory.get_plugin(plugin_params)
+                self.exe_cores.append(exe_core)
             except Exception:
-                _logger.error('failed to launch credmanager with traditional attributes for {0}'.format(pluginPar))
+                _logger.error('failed to launch credmanager with traditional attributes for {0}'.format(plugin_params))
                 core_utils.dump_error_message(_logger)
         # from pluginConfigs
         for pc in pluginConfigs:
@@ -90,15 +90,15 @@ class CredManager(AgentBase):
                 setup_maps = pc['configs']
                 for setup_name, setup_map in setup_maps.items():
                     try:
-                        pluginPar = {}
-                        pluginPar['module'] = pc['module']
-                        pluginPar['name'] = pc['name']
-                        pluginPar['setup_name'] = setup_name
-                        pluginPar.update(setup_map)
-                        exeCore = self.pluginFactory.get_plugin(pluginPar)
-                        self.exeCores.append(exeCore)
+                        plugin_params = {}
+                        plugin_params['module'] = pc['module']
+                        plugin_params['name'] = pc['name']
+                        plugin_params['setup_name'] = setup_name
+                        plugin_params.update(setup_map)
+                        exe_core = self.pluginFactory.get_plugin(plugin_params)
+                        self.exe_cores.append(exe_core)
                     except Exception:
-                        _logger.error('failed to launch credmanager in pluginConfigs for {0}'.format(pluginPar))
+                        _logger.error('failed to launch credmanager in pluginConfigs for {0}'.format(plugin_params))
                         core_utils.dump_error_message(_logger)
             except Exception:
                 _logger.error('failed to parse pluginConfigs {0}'.format(pc))
@@ -114,11 +114,11 @@ class CredManager(AgentBase):
                 continue
             for cm_setup in queue_config.credmanagers:
                 try:
-                    pluginPar = {}
-                    pluginPar['module'] = cm_setup['module']
-                    pluginPar['name'] = cm_setup['name']
-                    pluginPar['setup_name'] = queue_name
-                    pluginPar['queueName'] = queue_name  # to make cred manager plugins look similar to the other agents
+                    plugin_params = {}
+                    plugin_params['module'] = cm_setup['module']
+                    plugin_params['name'] = cm_setup['name']
+                    plugin_params['setup_name'] = queue_name
+                    plugin_params['queueName'] = queue_name  # make cred manager plugins similar to other agents
                     for k, v in cm_setup.items():
                         if k in ('module', 'name'):
                             pass
@@ -141,14 +141,14 @@ class CredManager(AgentBase):
                                 if tmp_val is not None:
                                     value = value.replace(tmp_ph, tmp_val)
                             # fill in
-                            pluginPar[k] = value
+                            plugin_params[k] = value
                         else:
                             # fill in
-                            pluginPar[k] = v
-                    exe_core = self.pluginFactory.get_plugin(pluginPar)
+                            plugin_params[k] = v
+                    exe_core = self.pluginFactory.get_plugin(plugin_params)
                     self.queue_exe_cores.append(exe_core)
                 except Exception:
-                    _logger.error('failed to launch plugin for queue={0} and {1}'.format(queue_name, pluginPar))
+                    _logger.error('failed to launch plugin for queue={0} and {1}'.format(queue_name, plugin_params))
                     core_utils.dump_error_message(_logger)
 
     # main loop
@@ -172,29 +172,29 @@ class CredManager(AgentBase):
         if not locked:
             return
         # loop over all plugins
-        for exeCore in itertools.chain(self.exeCores, self.queue_exe_cores):
+        for exe_core in itertools.chain(self.exe_cores, self.queue_exe_cores):
             # do nothing
-            if exeCore is None:
+            if exe_core is None:
                 continue
             # make logger
-            if hasattr(exeCore, 'setup_name'):
-                credmanager_name = exeCore.setup_name
+            if hasattr(exe_core, 'setup_name'):
+                credmanager_name = exe_core.setup_name
             else:
-                credmanager_name = '{0} {1}'.format(exeCore.inCertFile, exeCore.outCertFile)
+                credmanager_name = '{0} {1}'.format(exe_core.inCertFile, exe_core.outCertFile)
             mainLog = self.make_logger(_logger,
-                                        '{0} {1}'.format(exeCore.__class__.__name__, credmanager_name),
+                                        '{0} {1}'.format(exe_core.__class__.__name__, credmanager_name),
                                         method_name='execute')
             try:
                 # check credential
                 mainLog.debug('check credential')
-                isValid = exeCore.check_credential()
+                isValid = exe_core.check_credential()
                 if isValid:
                     mainLog.debug('valid')
                 elif not isValid:
                     # renew it if necessary
                     mainLog.debug('invalid')
                     mainLog.debug('renew credential')
-                    tmpStat, tmpOut = exeCore.renew_credential()
+                    tmpStat, tmpOut = exe_core.renew_credential()
                     if not tmpStat:
                         mainLog.error('failed : {0}'.format(tmpOut))
                         continue
@@ -208,25 +208,25 @@ class CredManager(AgentBase):
 
         metrics = {}
         # loop over all plugins
-        for exeCore in itertools.chain(self.exeCores, self.queue_exe_cores):
+        for exe_core in itertools.chain(self.exe_cores, self.queue_exe_cores):
             # do nothing
-            if exeCore is None:
+            if exe_core is None:
                 continue
 
             # make logger
-            if hasattr(exeCore, 'setup_name'):
-                credmanager_name = exeCore.setup_name
+            if hasattr(exe_core, 'setup_name'):
+                credmanager_name = exe_core.setup_name
             else:
-                credmanager_name = '{0} {1}'.format(exeCore.inCertFile, exeCore.outCertFile)
+                credmanager_name = '{0} {1}'.format(exe_core.inCertFile, exe_core.outCertFile)
 
-            sub_log = self.make_logger(_logger, '{0} {1}'.format(exeCore.__class__.__name__, credmanager_name),
+            sub_log = self.make_logger(_logger, '{0} {1}'.format(exe_core.__class__.__name__, credmanager_name),
                                        method_name='execute_monit')
             try:
                 # check credential
                 sub_log.debug('check credential lifetime')
-                lifetime = exeCore.check_credential_lifetime()
+                lifetime = exe_core.check_credential_lifetime()
                 if lifetime is not None:
-                    metrics[exeCore.outCertFile] = lifetime
+                    metrics[exe_core.outCertFile] = lifetime
             except Exception:
                 core_utils.dump_error_message(sub_log)
 
