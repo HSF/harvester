@@ -90,10 +90,9 @@ class CredManager(AgentBase):
                 setup_maps = pc['configs']
                 for setup_name, setup_map in setup_maps.items():
                     try:
-                        plugin_params = {}
-                        plugin_params['module'] = pc['module']
-                        plugin_params['name'] = pc['name']
-                        plugin_params['setup_name'] = setup_name
+                        plugin_params = {'module': pc['module'],
+                                         'name': pc['name'],
+                                         'setup_name': setup_name}
                         plugin_params.update(setup_map)
                         exe_core = self.pluginFactory.get_plugin(plugin_params)
                         self.exe_cores.append(exe_core)
@@ -114,11 +113,10 @@ class CredManager(AgentBase):
                 continue
             for cm_setup in queue_config.credmanagers:
                 try:
-                    plugin_params = {}
-                    plugin_params['module'] = cm_setup['module']
-                    plugin_params['name'] = cm_setup['name']
-                    plugin_params['setup_name'] = queue_name
-                    plugin_params['queueName'] = queue_name  # make cred manager plugins similar to other agents
+                    plugin_params = {'module': cm_setup['module'],
+                                     'name': cm_setup['name'],
+                                     'setup_name': queue_name,
+                                     'queueName': queue_name}
                     for k, v in cm_setup.items():
                         if k in ('module', 'name'):
                             pass
