@@ -69,7 +69,7 @@ class ACTStager(BaseStager):
             self.post_processing(workSpec, jobspec)
         elif actstatus == 'donefailed':
             # Call post processing to collect attributes set by aCT for failed jobs
-            self.post_processing(workspec, jobspec)
+            self.post_processing(workSpec, jobspec)
             # Set error reported by aCT
             errorMsg = actjobs[0]['error'] or 'Unknown error'
             error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
