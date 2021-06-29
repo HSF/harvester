@@ -68,6 +68,8 @@ class ACTStager(BaseStager):
             # Do post processing
             self.post_processing(workSpec, jobspec)
         elif actstatus == 'donefailed':
+            # Call post processing to collect attributes set by aCT for failed jobs
+            self.post_processing(workSpec, jobspec)
             # Set error reported by aCT
             errorMsg = actjobs[0]['error'] or 'Unknown error'
             error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
@@ -141,5 +143,6 @@ class ACTStager(BaseStager):
         tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
         tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, jobreport))
 
-        # Set info for final heartbeat
+        # Set info for final heartbeat and final status
         jobspec.set_attributes({jobspec.PandaID: jobreport})
+        jobspec.set_one_attribute('jobStatus', jobreport.get('state', 'failed'))
