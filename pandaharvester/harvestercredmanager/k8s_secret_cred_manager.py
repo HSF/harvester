@@ -55,7 +55,7 @@ class K8sSecretCredManager(BaseCredManager):
             self.k8s_client = k8s_Client(namespace=self.namespace, config_file=self.k8s_config_file)
         except Exception as e:
             mainLog.error('Problem instantiating k8s client for {0}. {1}'.format(self.k8s_config_file,
-                                                                                 traceback.format_exc()))                                                                                 ))
+                                                                                 traceback.format_exc()))
             raise
 
     # check proxy
