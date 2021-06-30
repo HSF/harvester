@@ -7,7 +7,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 base_logger = core_utils.setup_logger('k8s_monitor')
@@ -19,7 +19,12 @@ class K8sMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        self.panda_queues_dict = PandaQueuesDict()
+
+        # retrieve the k8s namespace from CRIC
+        namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+
+        self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
 
         try:
             self.nProcesses
@@ -68,7 +73,7 @@ class K8sMonitor(PluginBase):
                                 state = 'waiting'
                             msg_str = 'container not terminated yet ({0}) while pod Succeeded'.format(state)
                         elif item.terminated.reason != 'Completed':
-                            msg_str = 'container termiated by k8s for reason {0}'.format(item.terminated.reason)
+                            msg_str = 'container terminated by k8s for reason {0}'.format(item.terminated.reason)
                         sub_mesg_list.append(msg_str)
                     sub_msg = ';'.join(sub_mesg_list)
                     new_status = WorkSpec.ST_cancelled
@@ -103,6 +108,7 @@ class K8sMonitor(PluginBase):
                         and time_now - pods_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
                     # fetch queuing too long pods
                     pods_name_to_delete_list.append(pods_info['name'])
+
                 # make list of status of the pods belonging to our job
                 pods_status_list.append(pods_info['status'])
                 containers_state_list.extend(pods_info['containers_state'])

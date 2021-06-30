@@ -76,7 +76,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         Return PanDA Queue name with specified PanDA Resource name
         """
         try:
-            panda_queue =  self.get(panda_resource).get('nickname')
+            panda_queue = self.get(panda_resource).get('nickname')
             return panda_queue
         except Exception:
             return None
@@ -166,3 +166,61 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             maxwdir_prorated = 0
 
         return maxwdir_prorated
+
+    def get_k8s_affinity_settings(self, panda_resource):
+        # this is how the parameters are declared in CRIC
+        key_affinity = 'k8s.scheduler.use_score_affinity'
+        key_anti_affinity = 'k8s.scheduler.use_score_mcore_anti_affinity'
+
+        params = self.get_harvester_params(panda_resource)
+
+        try:
+            use_affinity = params[key_affinity]
+        except KeyError:
+            # return default value
+            use_affinity = True
+
+        try:
+            use_anti_affinity = params[key_anti_affinity]
+        except KeyError:
+            # return default value
+            use_anti_affinity = True
+
+        return use_affinity, use_anti_affinity
+
+    def get_k8s_resource_settings(self, panda_resource):
+        # this is how the parameters are declared in CRIC
+        key_memory_limits = 'k8s.resources.limits.use_memory_limit'
+
+        params = self.get_harvester_params(panda_resource)
+
+        try:
+            use_memory_limit = params[key_memory_limits]
+        except KeyError:
+            # return default value
+            use_memory_limit = False
+
+        return use_memory_limit
+
+    def get_k8s_namespace(self, panda_resource):
+        default_namespace = 'default'
+
+        # 1. check if there is an associated CE and use the queue name as namespace
+        panda_queue_dict = self.get(panda_resource, {})
+        try:
+            namespace = panda_queue_dict['queues'][0]['ce_queue_name']
+            return namespace
+        except (KeyError, TypeError, IndexError, ValueError):
+            pass
+
+        # 2. alternatively, check if namespace defined in the associated parameter section
+        key_namespace = 'k8s.namespace'
+        params = self.get_harvester_params(panda_resource)
+
+        try:
+            namespace = params[key_namespace]
+        except KeyError:
+            # return default value
+            namespace = default_namespace
+
+        return namespace

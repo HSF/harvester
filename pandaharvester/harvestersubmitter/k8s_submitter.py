@@ -36,7 +36,12 @@ class K8sSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        self.panda_queues_dict = PandaQueuesDict()
+
+        # retrieve the k8s namespace from CRIC
+        namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+
+        self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
 
         # update or create the pilot starter executable
         self.k8s_client.create_or_patch_configmap_starter()
@@ -201,10 +206,9 @@ class K8sSubmitter(PluginBase):
                                                                                           args))
 
             # choose the appropriate proxy
-            panda_queues_dict = PandaQueuesDict()
-            this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
+            this_panda_queue_dict = self.panda_queues_dict.get(self.queueName, dict())
 
-            is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
+            is_grandly_unified_queue = self.panda_queues_dict.is_grandly_unified_queue(self.queueName)
             cert = self._choose_proxy(work_spec, is_grandly_unified_queue)
             if not cert:
                 err_str = 'No proxy specified in proxySecretPath. Not submitted'
@@ -219,7 +223,7 @@ class K8sSubmitter(PluginBase):
                 max_time = None
 
             associated_params_dict = {}
-            for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
+            for key, val in self.panda_queues_dict.get_harvester_params(self.queueName).items():
                 if key in self._allowed_agis_attrs:
                     associated_params_dict[key] = val
 
