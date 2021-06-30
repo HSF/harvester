@@ -30,7 +30,7 @@ class k8s_Client(object):
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
 
         self.panda_queues_dict = PandaQueuesDict()
-        self.namespace = namespace if namespace else 'default'
+        self.namespace = namespace
 
 
     def read_yaml_file(self, yaml_file):
