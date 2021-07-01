@@ -290,11 +290,11 @@ class k8s_Client(object):
     def delete_job(self, job_name):
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0} job_name={1}'.format(self.queue_name, job_name),
                                          method_name='delete_job')
-        tmp_log.error('Going to delete JOB {0}'.format(job_name))
+        tmp_log.debug('Going to delete JOB {0}'.format(job_name))
         try:
             self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1,
                                                grace_period_seconds=0)
-            tmp_log.error('Deleted JOB {0}'.format(job_name))
+            tmp_log.debug('Deleted JOB {0}'.format(job_name))
         except Exception as _e:
             tmp_log.error('Failed to delete JOB {0} with: {1}'.format(job_name, _e))
 
