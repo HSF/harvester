@@ -19,9 +19,10 @@ base_logger = core_utils.setup_logger('k8s_utils')
 CONFIG_DIR = '/scratch/jobconfig'
 EXEC_DIR = '/scratch/executables'
 
+
 class k8s_Client(object):
 
-    def __init__(self, namespace, config_file=None):
+    def __init__(self, namespace, config_file=None, queue_name=None):
         if not os.path.isfile(config_file):
             raise RuntimeError('Cannot find k8s config file: {0}'.format(config_file))
         config.load_kube_config(config_file=config_file)
@@ -31,7 +32,7 @@ class k8s_Client(object):
 
         self.panda_queues_dict = PandaQueuesDict()
         self.namespace = namespace
-
+        self.queue_name = queue_name
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
@@ -43,7 +44,8 @@ class k8s_Client(object):
                              pilot_python_option, container_image,  executable, args,
                              cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_job_from_yaml')
 
         # consider PULL mode as default, unless specified
         submit_mode = 'PULL'
@@ -200,7 +202,8 @@ class k8s_Client(object):
 
     def get_pods_info(self, workspec_list=[]):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_pods_info')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='get_pods_info')
         pods_list = list()
 
         label_selector = self.generate_ls_from_wsl(workspec_list)
@@ -236,7 +239,8 @@ class k8s_Client(object):
 
     def get_jobs_info(self, workspec_list=[]):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_jobs_info')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='get_jobs_info')
 
         jobs_list = list()
 
@@ -278,7 +282,8 @@ class k8s_Client(object):
         return ret_list
 
     def delete_job(self, job_name):
-        tmp_log = core_utils.make_logger(base_logger, 'job_name={0}'.format(job_name), method_name='delete_job')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0} job_name={1}'.format(self.queue_name, job_name),
+                                         method_name='delete_job')
         try:
             self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1,
                                                grace_period_seconds=0)
@@ -350,7 +355,8 @@ class k8s_Client(object):
         # kind = 'Secret'
         # type='kubernetes.io/tls'
         rsp = None
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_or_patch_secret')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_or_patch_secret')
 
         metadata = {'name': secret_name, 'namespace': self.namespace}
         data = {}
@@ -375,7 +381,8 @@ class k8s_Client(object):
     def create_configmap(self, work_spec):
         # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_configmap')
 
         try:
             worker_id = str(work_spec.workerID)
@@ -411,7 +418,8 @@ class k8s_Client(object):
     def create_or_patch_configmap_starter(self):
         # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_or_patch_configmap_starter')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_or_patch_configmap_starter')
 
         try:
             fn = 'pilots_starter.py'
@@ -442,7 +450,8 @@ class k8s_Client(object):
             return False
 
     def get_pod_logs(self, pod_name, previous=False):
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_pod_logs')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='get_pod_logs')
         try:
             rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
             tmp_log.debug('Log file retrieved for {0}'.format(pod_name))

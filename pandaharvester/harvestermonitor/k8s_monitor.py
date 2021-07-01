@@ -24,7 +24,7 @@ class K8sMonitor(PluginBase):
         # retrieve the k8s namespace from CRIC
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
 
-        self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(namespace=namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
 
         try:
             self.nProcesses
@@ -88,7 +88,8 @@ class K8sMonitor(PluginBase):
 
     def check_a_worker(self, workspec):
         # set logger
-        tmp_log = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
+        tmp_log = self.make_logger(base_logger, 'queueName={0} workerID={1} batchID={2}'.
+                                   format(self.queueName, workspec.workerID, workspec.batchID),
                                    method_name='check_a_worker')
 
         # initialization
@@ -150,7 +151,7 @@ class K8sMonitor(PluginBase):
         return new_status, err_str
 
     def check_workers(self, workspec_list):
-        tmp_log = self.make_logger(base_logger, 'k8s query', method_name='check_workers')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='check_workers')
         tmp_log.debug('start')
 
         ret_list = list()

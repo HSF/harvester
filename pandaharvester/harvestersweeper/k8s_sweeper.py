@@ -16,7 +16,7 @@ class K8sSweeper(BaseSweeper):
         # retrieve the k8s namespace from CRIC
         self.panda_queues_dict = PandaQueuesDict()
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
-        self.k8s_client = k8s_Client(namespace, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
 
     # kill workers
     def kill_workers(self, work_spec_list):

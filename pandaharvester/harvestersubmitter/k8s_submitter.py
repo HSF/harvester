@@ -41,7 +41,7 @@ class K8sSubmitter(PluginBase):
         # retrieve the k8s namespace from CRIC
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
 
-        self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(namespace=namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
 
         # update or create the pilot starter executable
         self.k8s_client.create_or_patch_configmap_starter()
@@ -92,7 +92,7 @@ class K8sSubmitter(PluginBase):
             self.memoryAdjustRatio = 100
 
     def parse_params(self, job_params):
-        tmp_log = self.make_logger(base_logger, method_name='parse_params')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='parse_params')
 
         job_params_list = job_params.split(' ')
         args, unknown = self.parser.parse_known_args(job_params_list)
@@ -121,7 +121,7 @@ class K8sSubmitter(PluginBase):
         - production images: take SLC6 or CentOS7
         - otherwise take default image specified for the queue
         """
-        tmp_log = self.make_logger(base_logger, method_name='decide_container_image')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='decide_container_image')
         try:
             container_image = job_pars_parsed.container_image
             if container_image:
@@ -182,7 +182,7 @@ class K8sSubmitter(PluginBase):
         return cert
 
     def submit_k8s_worker(self, work_spec):
-        tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='submit_k8s_worker')
 
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
@@ -265,7 +265,7 @@ class K8sSubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmp_log = self.make_logger(base_logger, method_name='submit_workers')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='submit_workers')
 
         n_workers = len(workspec_list)
         tmp_log.debug('start, n_workers={0}'.format(n_workers))
