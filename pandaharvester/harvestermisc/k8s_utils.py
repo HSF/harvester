@@ -264,6 +264,11 @@ class k8s_Client(object):
         return jobs_list
 
     def delete_pods(self, pod_name_list):
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='delete_pods')
+
+        tmp_log.debug('Going to delete {0} PODs: {1}'.format(len(pod_name_list), pod_name_list))
+
         ret_list = list()
 
         for pod_name in pod_name_list:
@@ -279,26 +284,23 @@ class k8s_Client(object):
                 rsp['errMsg'] = ''
             ret_list.append(rsp)
 
+        tmp_log.debug('Done with: {0}'.format(ret_list))
         return ret_list
 
     def delete_job(self, job_name):
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0} job_name={1}'.format(self.queue_name, job_name),
                                          method_name='delete_job')
+        tmp_log.error('Going to delete JOB {0}'.format(job_name))
         try:
             self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1,
                                                grace_period_seconds=0)
+            tmp_log.error('Deleted JOB {0}'.format(job_name))
         except Exception as _e:
-            tmp_log.error('Failed call to delete_namespaced_job with: {0}'.format(_e))
+            tmp_log.error('Failed to delete JOB {0} with: {1}'.format(job_name, _e))
 
     def delete_config_map(self, config_map_name):
         self.corev1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.deletev1,
                                                  grace_period_seconds=0)
-
-    def set_proxy(self, proxy_path):
-        with open(proxy_path) as f:
-            content = f.read()
-        content = content.replace("\n", ",")
-        return content
 
     def set_affinity(self, yaml_content, use_affinity, use_anti_affinity):
 

@@ -104,7 +104,7 @@ class K8sMonitor(PluginBase):
             containers_state_list = []
             pods_sup_diag_list = []
             for pods_info in pods_list:
-                # make a list of pods that have been queued too long
+                # make a list of pods that should be removed
                 if pods_info['status'] in ['Pending', 'Unknown'] and pods_info['start_time'] \
                         and time_now - pods_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
                     # fetch queuing too long pods

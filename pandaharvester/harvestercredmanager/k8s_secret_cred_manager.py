@@ -48,7 +48,6 @@ class K8sSecretCredManager(BaseCredManager):
             # retrieve the k8s namespace from CRIC
             self.panda_queues_dict = PandaQueuesDict()
             self.namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
-            tmp_log.debug('Namespace for {0} is {1}'.format(self.queueName, self.namespace))
             # k8s client
             self.k8s_client = k8s_Client(namespace=self.namespace, queue_name=self.queueName,
                                          config_file=self.k8s_config_file)
