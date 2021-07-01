@@ -34,14 +34,20 @@ class K8sMessenger(BaseMessenger):
         - Store or upload logs
         """
         # get logger
-        tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='post_processing')
-        tmpLog.debug('start')
+        tmp_log = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+                                         method_name='post_processing')
+        tmp_log.debug('start')
+
+        if self._all_pods_list is None:
+            tmp_log.error('No pod information')
+            tmp_log.debug('done')
+            return None
+
         try:
             # fetch and store logs
             job_id = workspec.batchID
             pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
-            pod_name_list = [ pods_info['name'] for pods_info in pods_list ]
+            pod_name_list = [pods_info['name'] for pods_info in pods_list]
             outlog_filename = os.path.join(self.logDir, 'gridK8S.{0}.{1}.out'.format(workspec.workerID, workspec.batchID))
             with open(outlog_filename, 'w') as f:
                 for pod_name in pod_name_list:
@@ -50,8 +56,8 @@ class K8sMessenger(BaseMessenger):
             # upload logs
             pass
             # return
-            tmpLog.debug('done')
+            tmp_log.debug('done')
             return True
         except Exception:
-            core_utils.dump_error_message(tmpLog)
+            core_utils.dump_error_message(tmp_log)
             return None

@@ -1,4 +1,5 @@
 import json
+import traceback
 
 from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
@@ -48,11 +49,13 @@ class K8sSecretCredManager(BaseCredManager):
         try:
             # retrieve the k8s namespace from CRIC
             self.panda_queues_dict = PandaQueuesDict()
-            namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+            self.namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+            mainLog.debug('Namespace for {0} is {1}'.format(self.queueName, self.namespace))
             # k8s client
-            self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
+            self.k8s_client = k8s_Client(namespace=self.namespace, config_file=self.k8s_config_file)
         except Exception as e:
-            mainLog.error('Problem instantiating k8s client for {0}'.format(self.k8s_config_file))
+            mainLog.error('Problem instantiating k8s client for {0}. {1}'.format(self.k8s_config_file,
+                                                                                 traceback.format_exc()))
             raise
 
     # check proxy

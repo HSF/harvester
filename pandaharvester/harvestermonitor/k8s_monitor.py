@@ -160,7 +160,11 @@ class K8sMonitor(PluginBase):
             ret_list.append(('', err_str))
             return False, ret_list
 
-        self._all_pods_list = self.k8s_client.get_pods_info(workspec_list=workspec_list)
+        pods_info = self.k8s_client.get_pods_info(workspec_list=workspec_list)
+        if pods_info is None:  # there was a communication issue to the K8S cluster
+            return False, ret_list
+
+        self._all_pods_list = pods_info
 
         # resolve status requested workers
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:

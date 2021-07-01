@@ -18,13 +18,9 @@ class K8sSweeper(BaseSweeper):
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
         self.k8s_client = k8s_Client(namespace, config_file=self.k8s_config_file)
 
-        self._all_pods_list = []
-
     # kill workers
     def kill_workers(self, work_spec_list):
         tmp_log = self.make_logger(base_logger, method_name='kill_workers')
-
-        self._all_pods_list = self.k8s_client.get_pods_info(workspec_list=work_spec_list)
 
         ret_list = []
         for work_spec in work_spec_list:
