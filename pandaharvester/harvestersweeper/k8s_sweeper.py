@@ -51,7 +51,7 @@ class K8sSweeper(BaseSweeper):
                     tmp_log.error(err_str)
                     tmp_ret_val = (False, err_str)
 
-            else:  # the worker cannot be cleaned
+            else:  # the worker does not need be cleaned
                 tmp_ret_val = (True, '')
 
             ret_list.append(tmp_ret_val)
