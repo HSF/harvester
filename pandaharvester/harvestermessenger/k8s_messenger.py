@@ -24,7 +24,7 @@ class K8sMessenger(BaseMessenger):
         self.panda_queues_dict = PandaQueuesDict()
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
 
-        self.k8s_client = k8s_Client(namespace=namespace, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(namespace=namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
         self._all_pods_list = self.k8s_client.get_pods_info()
 
     def post_processing(self, workspec, jobspec_list, map_type):
@@ -34,7 +34,7 @@ class K8sMessenger(BaseMessenger):
         - Store or upload logs
         """
         # get logger
-        tmp_log = core_utils.make_logger(_logger, 'workerID={0}'.format(workspec.workerID),
+        tmp_log = core_utils.make_logger(_logger, 'queueName={0} workerID={1}'.format(self.queueName, workspec.workerID),
                                          method_name='post_processing')
         tmp_log.debug('start')
 

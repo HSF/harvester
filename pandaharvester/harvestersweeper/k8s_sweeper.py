@@ -16,7 +16,7 @@ class K8sSweeper(BaseSweeper):
         # retrieve the k8s namespace from CRIC
         self.panda_queues_dict = PandaQueuesDict()
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
-        self.k8s_client = k8s_Client(namespace, config_file=self.k8s_config_file)
+        self.k8s_client = k8s_Client(namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
 
     # kill workers
     def kill_workers(self, work_spec_list):
@@ -51,7 +51,7 @@ class K8sSweeper(BaseSweeper):
                     tmp_log.error(err_str)
                     tmp_ret_val = (False, err_str)
 
-            else:  # the worker cannot be cleaned
+            else:  # the worker does not need be cleaned
                 tmp_ret_val = (True, '')
 
             ret_list.append(tmp_ret_val)
