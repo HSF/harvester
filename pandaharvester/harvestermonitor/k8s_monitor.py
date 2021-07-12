@@ -12,7 +12,7 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 # logger
 base_logger = core_utils.setup_logger('k8s_monitor')
 
-BAD_CONTAINER_STATES = ['CreateContainerError', 'CrashLoopBackOff']
+BAD_CONTAINER_STATES = ['CreateContainerError', 'CrashLoopBackOff', "FailedMount"]
 
 # monitor for K8S
 class K8sMonitor(PluginBase):
