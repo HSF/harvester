@@ -146,3 +146,4 @@ class ACTStager(BaseStager):
         # Set info for final heartbeat and final status
         jobspec.set_attributes({jobspec.PandaID: jobreport})
         jobspec.set_one_attribute('jobStatus', jobreport.get('state', 'failed'))
+        jobspec.status = jobreport.get('state', 'failed')
