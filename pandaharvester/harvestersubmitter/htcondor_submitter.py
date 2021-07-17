@@ -347,7 +347,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     n_node = _div_round_up(n_core_total, n_core_per_node)
     request_ram_bytes = request_ram * 2**20
     request_ram_per_core = _div_round_up(request_ram * n_node, n_core_total)
-    request_ram_bytes_per_core = div_round_up(request_ram_bytes * n_node, n_core_total)
+    request_ram_bytes_per_core = _div_round_up(request_ram_bytes * n_node, n_core_total)
     request_cputime = request_walltime * n_core_total
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
