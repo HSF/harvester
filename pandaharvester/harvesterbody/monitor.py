@@ -725,7 +725,7 @@ class Monitor(AgentBase):
                                 newStatus = WorkSpec.ST_idle
                         elif not workSpec.is_post_processed():
                             if (not queue_config.is_no_heartbeat_status(newStatus) and not queue_config.truePilot) \
-                                or (hasattr(messenger, 'forcePostProcessing') and messenger.forcePostProcessing):
+                                    or (hasattr(messenger, 'forcePostProcessing') and messenger.forcePostProcessing):
                                 # post processing unless heartbeat is suppressed
                                 jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                                 None, True,
@@ -783,7 +783,6 @@ class Monitor(AgentBase):
     def monitor_event_digester(self, locked_by, max_events):
         tmpLog = self.make_logger(_logger, 'id=monitor-{0}'.format(self.get_pid()), method_name='monitor_event_digester')
         tmpLog.debug('start')
-        timeNow_timestamp = time.time()
         retMap = {}
         obj_gotten_list = self.monitor_event_fifo.getmany(mode='first', count=max_events, protective=True)
         workerID_list = [ obj_gotten.id for obj_gotten in obj_gotten_list ]
@@ -797,8 +796,8 @@ class Monitor(AgentBase):
                     tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
                     try:
                         retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
-                                                            from_fifo=True, config_id=configID,
-                                                            check_source='Event')
+                                                         from_fifo=True, config_id=configID,
+                                                         check_source='Event')
                     except Exception as e:
                         tmpLog.error('monitor_agent_core excepted with {0}'.format(e))
                         retVal = None  # skip the loop
@@ -814,8 +813,8 @@ class Monitor(AgentBase):
         tmpLog.debug('start')
         timeNow_timestamp = time.time()
         obj_gotten_list = self.monitor_event_fifo.getmany(mode='first',
-                                                            maxscore=(timeNow_timestamp-event_lifetime),
-                                                            count=max_events, temporary=True)
+                                                          maxscore=(timeNow_timestamp-event_lifetime),
+                                                          count=max_events, temporary=True)
         tmpLog.debug('removed {0} events'.format(len(obj_gotten_list)))
         n_events = self.monitor_event_fifo.size()
         tmpLog.debug('now {0} events in monitor-event fifo'.format(n_events))

@@ -18,11 +18,14 @@ class CommandSpec(SpecBase):
     COM_reportWorkerStats = 'REPORT_WORKER_STATS'
     COM_setNWorkers = 'SET_N_WORKERS_JOBTYPE'
     COM_killWorkers = 'KILL_WORKERS'
+    COM_syncWorkerStatus = 'SYNC_WORKER_STATUS'
+
     # mapping between command and receiver
     receiver_map = {
         COM_reportWorkerStats: 'propagator',
         COM_setNWorkers: 'submitter',
         COM_killWorkers: 'sweeper',
+        COM_syncWorkerStatus: 'sweeper'
     }
 
     # constructor

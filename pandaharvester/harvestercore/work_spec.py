@@ -94,7 +94,8 @@ class WorkSpec(SpecBase):
                            'pilotType:text',
                            'eventFeedLock:text',
                            'errorCode:integer',
-                           'errorDiag:text'
+                           'errorDiag:text',
+                           ''
                            )
 
     # attributes to skip when slim reading

@@ -25,7 +25,6 @@ class Sweeper(AgentBase):
         self.queueConfigMapper = queue_config_mapper
         self.pluginFactory = PluginFactory()
 
-
     # main loop
     def run(self):
         lockedBy = 'sweeper-{0}'.format(self.get_pid())
@@ -95,6 +94,7 @@ class Sweeper(AgentBase):
                         tmpLog.debug('killed {0}/{1} workers'.format(n_killed, n_workers))
                     mainLog.debug('done killing {0} workers'.format(n_workers) + sw.get_elapsed_time())
             mainLog.debug('done all killing' + sw_kill.get_elapsed_time())
+
             # cleanup stage
             sw_cleanup = core_utils.get_stopwatch()
             # timeout for missed
