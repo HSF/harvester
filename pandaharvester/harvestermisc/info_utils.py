@@ -190,17 +190,31 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
 
     def get_k8s_resource_settings(self, panda_resource):
         # this is how the parameters are declared in CRIC
-        key_memory_limits = 'k8s.resources.limits.use_memory_limit'
+        key_memory_limit = 'k8s.resources.limits.use_memory_limit'
+        key_memory_limit_safety_factor = 'k8s.resources.limits.memory_limit_safety_factor'
+        key_memory_limit_min_offset = 'k8s.resources.limits.memory_limit_min_offset'
 
         params = self.get_harvester_params(panda_resource)
 
         try:
-            use_memory_limit = params[key_memory_limits]
+            use_memory_limit = params[key_memory_limit]
         except KeyError:
             # return default value
             use_memory_limit = False
 
-        return use_memory_limit
+        try:
+            memory_limit_safety_factor = params[key_memory_limit_safety_factor]
+        except KeyError:
+            # return default value
+            memory_limit_safety_factor = 0.25
+
+        try:
+            memory_limit_min_offset = params[key_memory_limit_min_offset]
+        except KeyError:
+            # return default value
+            memory_limit_min_offset = 0
+
+        return use_memory_limit, memory_limit_safety_factor, memory_limit_min_offset
 
     def get_k8s_namespace(self, panda_resource):
         default_namespace = 'default'
