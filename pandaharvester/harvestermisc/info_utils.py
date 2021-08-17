@@ -189,13 +189,23 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         return use_affinity, use_anti_affinity
 
     def get_k8s_resource_settings(self, panda_resource):
+        params = self.get_harvester_params(panda_resource)
+        ret_map = {}
+
+        # this is how the CPU parameters are declared in CRIC
+        key_cpu_scheduling_ration = 'k8s.resources.requests.cpu_scheduling_ratio'
+
+        try:
+            cpu_scheduling_ratio = params[key_cpu_scheduling_ratio]
+        except KeyError:
+            # return default value
+            cpu_scheduling_ratio = 90
+        ret_map['cpu_scheduling_ratio'] = cpu_scheduling_ratio
+
         # this is how the memory parameters are declared in CRIC
         key_memory_limit = 'k8s.resources.limits.use_memory_limit'
         key_memory_limit_safety_factor = 'k8s.resources.limits.memory_limit_safety_factor'
         key_memory_limit_min_offset = 'k8s.resources.limits.memory_limit_min_offset'
-
-        params = self.get_harvester_params(panda_resource)
-        ret_map = {}
 
         try:
             use_memory_limit = params[key_memory_limit]

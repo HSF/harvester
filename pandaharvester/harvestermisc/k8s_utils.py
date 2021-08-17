@@ -42,7 +42,7 @@ class k8s_Client(object):
 
     def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str,
                              pilot_python_option, container_image,  executable, args,
-                             cert, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+                             cert, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
                                          method_name='create_job_from_yaml')
@@ -97,11 +97,12 @@ class k8s_Client(object):
         resource_settings = self.panda_queues_dict.get_k8s_resource_settings(work_spec.computingSite)
 
         # CPU resources
+        cpu_scheduling_ratio = resource_settings['cpu_scheduling_ratio']
         if work_spec.nCore > 0:
             # CPU requests
             container_env['resources'].setdefault('requests', {})
             if 'cpu' not in container_env['resources']['requests']:
-                container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpu_adjust_ratio / 100.0)
+                container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpu_scheduling_ration / 100.0)
             # CPU limits
             container_env['resources'].setdefault('limits', {})
             if 'cpu' not in container_env['resources']['limits']:
@@ -116,8 +117,7 @@ class k8s_Client(object):
             # memory requests
             container_env['resources'].setdefault('requests', {})
             if 'memory' not in container_env['resources']['requests']:
-                container_env['resources']['requests']['memory'] = str(
-                    work_spec.minRamCount * memory_adjust_ratio / 100.0) + 'M'
+                container_env['resources']['requests']['memory'] = str(work_spec.minRamCount) + 'M'
             # memory limits: kubernetes is very aggressive killing jobs due to memory, hence making this field optional
             # and adding configuration possibilities to add a safety factor
             if use_memory_limit:
