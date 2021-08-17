@@ -206,10 +206,10 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             memory_limit_safety_factor = params[key_memory_limit_safety_factor]
         except KeyError:
             # return default value
-            memory_limit_safety_factor = 0.25
+            memory_limit_safety_factor = 0
 
         try:
-            memory_limit_min_offset = params[key_memory_limit_min_offset]
+            memory_limit_min_offset = params[key_memory_limit_min_offset]  # in MB to be consistent with minRamCount
         except KeyError:
             # return default value
             memory_limit_min_offset = 0

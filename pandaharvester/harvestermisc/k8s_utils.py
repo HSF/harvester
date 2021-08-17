@@ -109,6 +109,7 @@ class k8s_Client(object):
 
         if work_spec.minRamCount > 4:  # K8S minimum memory limit = 4 MB
             # memory limits: kubernetes is very aggressive killing jobs due to memory, hence making this field optional
+            # and adding configuration possibilities to add a safety factor
             if use_memory_limit:
                 container_env['resources'].setdefault('limits', {})
                 if 'memory' not in container_env['resources']['limits']:
