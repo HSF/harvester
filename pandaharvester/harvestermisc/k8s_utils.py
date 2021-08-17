@@ -94,33 +94,68 @@ class k8s_Client(object):
         # Be familiar with QoS classes: https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod
         # The CPU & memory settings will affect the QoS for the pod
         container_env.setdefault('resources', {})
-        memory_params = self.panda_queues_dict.get_k8s_resource_settings(work_spec.computingSite)
-        use_memory_limit, memory_limit_safety_factor, memory_limit_min_offset = memory_params
+        resource_settings = self.panda_queues_dict.get_k8s_resource_settings(work_spec.computingSite)
 
+        # CPU resources
         if work_spec.nCore > 0:
-            # CPU limits
-            container_env['resources'].setdefault('limits', {})
-            if 'cpu' not in container_env['resources']['limits']:
-                container_env['resources']['limits']['cpu'] = str(work_spec.nCore)
             # CPU requests
             container_env['resources'].setdefault('requests', {})
             if 'cpu' not in container_env['resources']['requests']:
                 container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpu_adjust_ratio / 100.0)
+            # CPU limits
+            container_env['resources'].setdefault('limits', {})
+            if 'cpu' not in container_env['resources']['limits']:
+                container_env['resources']['limits']['cpu'] = str(work_spec.nCore)
+
+        # Memory resources
+        use_memory_limit = resource_settings['use_memory_limit']
+        memory_limit_safety_factor = resource_settings['memory_limit_safety_factor']
+        memory_limit_min_offset = resource_settings['memory_limit_min_offset']
 
         if work_spec.minRamCount > 4:  # K8S minimum memory limit = 4 MB
+            # memory requests
+            container_env['resources'].setdefault('requests', {})
+            if 'memory' not in container_env['resources']['requests']:
+                container_env['resources']['requests']['memory'] = str(
+                    work_spec.minRamCount * memory_adjust_ratio / 100.0) + 'M'
             # memory limits: kubernetes is very aggressive killing jobs due to memory, hence making this field optional
             # and adding configuration possibilities to add a safety factor
             if use_memory_limit:
                 container_env['resources'].setdefault('limits', {})
                 if 'memory' not in container_env['resources']['limits']:
                     mem_limit = max(work_spec.minRamCount + memory_limit_min_offset,
-                                    work_spec.minRamCount * memory_limit_safety_factor)
+                                    work_spec.minRamCount * memory_limit_safety_factor / 100.0)
                     container_env['resources']['limits']['memory'] = str(mem_limit) + 'M'
-            # memory requests
+
+        # Ephemeral storage resources
+        use_ephemeral_storage = resource_settings['use_ephemeral_storage']
+        ephemeral_storage_offset_GB = resource_settings['ephemeral_storage_offset'] / 1000
+        ephemeral_storage_limit_safety_factor = resource_settings['ephemeral_storage_limit_safety_factor']
+
+        if use_ephemeral_storage:
+            maxwdir_prorated_GB = self.panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite,
+                                                                                 work_spec.nCore)
+            # ephemeral storage requests
             container_env['resources'].setdefault('requests', {})
-            if 'memory' not in container_env['resources']['requests']:
-                container_env['resources']['requests']['memory'] = str(
-                    work_spec.minRamCount * memory_adjust_ratio / 100.0) + 'M'
+            if 'ephemeral-storage' not in container_env['resources']['requests']:
+                container_env['resources']['requests']['ephemeral-storage'] = str(
+                    maxwdir_prorated_GB + ephemeral_storage_offset_GB) + 'G'
+            # ephemeral storage limits
+            container_env['resources'].setdefault('limits', {})
+            if 'ephemeral-storage' not in container_env['resources']['limits']:
+                eph_storage_limit = (maxwdir_prorated_GB + ephemeral_storage_offset_GB) * memory_limit_safety_factor / 100.0
+                container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit) + 'G'
+
+        # if we are running the pilot in a emptyDir with "pilot-dir" name, then set the max size
+        if 'volumes' in yaml_content['spec']['template']['spec']:
+            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+            for volume in yaml_volumes:
+                # do not overwrite any hardcoded sizeLimit value
+                if volume['name'] == 'pilot-dir' and 'emptyDir' in volume and 'sizeLimit' not in volume['emptyDir']:
+                    maxwdir_prorated_GB = self.panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
+                    if maxwdir_prorated_GB:
+                        volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
+
 
         container_env.setdefault('env', [])
         # try to retrieve the stdout log file name

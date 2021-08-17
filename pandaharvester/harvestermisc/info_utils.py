@@ -189,32 +189,62 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         return use_affinity, use_anti_affinity
 
     def get_k8s_resource_settings(self, panda_resource):
-        # this is how the parameters are declared in CRIC
+        # this is how the memory parameters are declared in CRIC
         key_memory_limit = 'k8s.resources.limits.use_memory_limit'
         key_memory_limit_safety_factor = 'k8s.resources.limits.memory_limit_safety_factor'
         key_memory_limit_min_offset = 'k8s.resources.limits.memory_limit_min_offset'
 
         params = self.get_harvester_params(panda_resource)
+        ret_map = {}
 
         try:
             use_memory_limit = params[key_memory_limit]
         except KeyError:
             # return default value
             use_memory_limit = False
+        ret_map['use_memory_limit'] = use_memory_limit
 
         try:
-            memory_limit_safety_factor = params[key_memory_limit_safety_factor] / 100.0  # value comes in % due to AGIS param field types
+            memory_limit_safety_factor = params[key_memory_limit_safety_factor]
         except KeyError:
             # return default value
-            memory_limit_safety_factor = 1
+            memory_limit_safety_factor = 100
+        ret_map['memory_limit_safety_factor'] = memory_limit_safety_factor
 
         try:
             memory_limit_min_offset = params[key_memory_limit_min_offset]  # in MB to be consistent with minRamCount
         except KeyError:
             # return default value
             memory_limit_min_offset = 0
+        ret_map['memory_limit_min_offset'] = memory_limit_min_offset
 
-        return use_memory_limit, memory_limit_safety_factor, memory_limit_min_offset
+        # this is how the ephemeral storage parameters are declared in CRIC
+        key_ephemeral_storage = 'k8s.resources.use_ephemeral_storage_resources'
+        key_ephemeral_storage_resources_offset = 'k8s.resources.ephemeral_storage_offset'
+        key_ephemeral_storage_limit_safety_factor = 'k8s.resources.limits.ephemeral_storage_limit_safety_factor'
+
+        try:
+            use_ephemeral_storage = params[key_ephemeral_storage]
+        except KeyError:
+            # return default value
+            use_ephemeral_storage = False
+        ret_map['use_ephemeral_storage'] = use_ephemeral_storage
+
+        try:
+            ephemeral_storage_limit_safety_factor = params[key_ephemeral_storage_limit_safety_factor]
+        except KeyError:
+            # return default value
+            ephemeral_storage_limit_safety_factor = 100
+        ret_map['ephemeral_storage_limit_safety_factor'] = ephemeral_storage_limit_safety_factor
+
+        try:
+            ephemeral_storage_offset = params[key_ephemeral_storage_resources_offset]
+        except KeyError:
+            # return default value
+            ephemeral_storage_limit_offset = 0  # should come in MB
+        ret_map['ephemeral_storage_offset'] = ephemeral_storage_offset
+
+        return ret_map
 
     def get_k8s_namespace(self, panda_resource):
         default_namespace = 'default'
