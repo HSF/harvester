@@ -146,17 +146,6 @@ class k8s_Client(object):
                 eph_storage_limit = (maxwdir_prorated_GB + ephemeral_storage_offset_GB) * memory_limit_safety_factor / 100.0
                 container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit) + 'G'
 
-        # if we are running the pilot in a emptyDir with "pilot-dir" name, then set the max size
-        if 'volumes' in yaml_content['spec']['template']['spec']:
-            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
-            for volume in yaml_volumes:
-                # do not overwrite any hardcoded sizeLimit value
-                if volume['name'] == 'pilot-dir' and 'emptyDir' in volume and 'sizeLimit' not in volume['emptyDir']:
-                    maxwdir_prorated_GB = self.panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
-                    if maxwdir_prorated_GB:
-                        volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
-
-
         container_env.setdefault('env', [])
         # try to retrieve the stdout log file name
         try:
