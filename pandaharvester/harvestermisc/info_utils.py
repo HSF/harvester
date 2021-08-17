@@ -206,7 +206,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             memory_limit_safety_factor = params[key_memory_limit_safety_factor] / 100.0  # value comes in % due to AGIS param field types
         except KeyError:
             # return default value
-            memory_limit_safety_factor = 0
+            memory_limit_safety_factor = 1
 
         try:
             memory_limit_min_offset = params[key_memory_limit_min_offset]  # in MB to be consistent with minRamCount

@@ -113,8 +113,8 @@ class k8s_Client(object):
             if use_memory_limit:
                 container_env['resources'].setdefault('limits', {})
                 if 'memory' not in container_env['resources']['limits']:
-                    mem_limit = work_spec.minRamCount + max(memory_limit_min_offset,
-                                                            memory_limit_safety_factor * work_spec.minRamCount)
+                    mem_limit = max(work_spec.minRamCount + memory_limit_min_offset,
+                                    work_spec.minRamCount * memory_limit_safety_factor)
                     container_env['resources']['limits']['memory'] = str(mem_limit) + 'M'
             # memory requests
             container_env['resources'].setdefault('requests', {})
