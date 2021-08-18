@@ -143,7 +143,7 @@ class k8s_Client(object):
             # ephemeral storage limits
             container_env['resources'].setdefault('limits', {})
             if 'ephemeral-storage' not in container_env['resources']['limits']:
-                eph_storage_limit = (maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * memory_limit_safety_factor / 100.0
+                eph_storage_limit = (maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * ephemeral_storage_limit_safety_factor / 100.0
                 container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit) + 'Gi'
 
         container_env.setdefault('env', [])
