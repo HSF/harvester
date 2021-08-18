@@ -251,7 +251,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             ephemeral_storage_offset = params[key_ephemeral_storage_resources_offset]
         except KeyError:
             # return default value
-            ephemeral_storage_limit_offset = 0  # should come in MB
+            ephemeral_storage_offset = 0  # should come in MB
         ret_map['ephemeral_storage_offset'] = ephemeral_storage_offset
 
         return ret_map
