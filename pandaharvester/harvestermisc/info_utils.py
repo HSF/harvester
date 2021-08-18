@@ -193,7 +193,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         ret_map = {}
 
         # this is how the CPU parameters are declared in CRIC
-        key_cpu_scheduling_ration = 'k8s.resources.requests.cpu_scheduling_ratio'
+        key_cpu_scheduling_ratio = 'k8s.resources.requests.cpu_scheduling_ratio'
 
         try:
             cpu_scheduling_ratio = params[key_cpu_scheduling_ratio]
