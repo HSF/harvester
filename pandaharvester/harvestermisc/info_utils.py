@@ -153,10 +153,10 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             workflow = panda_queue_dict.get('workflow')
         return pq_type, workflow
 
-    def get_prorated_maxwdir_GB(self, panda_resource, worker_corecount):
+    def get_prorated_maxwdir_GiB(self, panda_resource, worker_corecount):
         try:
             panda_queue_dict = self.get(panda_resource)
-            maxwdir = panda_queue_dict.get('maxwdir') / 1000  # convert to GB
+            maxwdir = panda_queue_dict.get('maxwdir') / 1024  # convert to GB
             corecount = panda_queue_dict.get('corecount')
             if panda_queue_dict.get('capability') == 'ucore':
                 maxwdir_prorated = maxwdir * worker_corecount / corecount
@@ -229,7 +229,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         ret_map['memory_limit_min_offset'] = memory_limit_min_offset
 
         # this is how the ephemeral storage parameters are declared in CRIC
-        key_ephemeral_storage = 'k8s.resources.use_ephemeral_storage_resources'
+        key_ephemeral_storage = 'k8s.resources.use_ephemeral_storage_quota'
         key_ephemeral_storage_resources_offset = 'k8s.resources.ephemeral_storage_offset'
         key_ephemeral_storage_limit_safety_factor = 'k8s.resources.limits.ephemeral_storage_limit_safety_factor'
 
