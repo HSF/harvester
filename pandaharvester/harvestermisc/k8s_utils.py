@@ -138,12 +138,12 @@ class k8s_Client(object):
             # ephemeral storage requests
             container_env['resources'].setdefault('requests', {})
             if 'ephemeral-storage' not in container_env['resources']['requests']:
-                container_env['resources']['requests']['ephemeral-storage'] = str(
-                    maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) + 'Gi'
+                eph_storage_request = round(maxwdir_prorated_GiB + ephemeral_storage_offset_GiB, 2)
+                container_env['resources']['requests']['ephemeral-storage'] = str(eph_storage_request) + 'Gi'
             # ephemeral storage limits
             container_env['resources'].setdefault('limits', {})
             if 'ephemeral-storage' not in container_env['resources']['limits']:
-                eph_storage_limit = (maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * ephemeral_storage_limit_safety_factor / 100.0
+                eph_storage_limit = round((maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * ephemeral_storage_limit_safety_factor / 100.0, 2)
                 container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit) + 'Gi'
 
         container_env.setdefault('env', [])
