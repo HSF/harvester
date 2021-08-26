@@ -18,7 +18,7 @@ base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
 EXEC_DIR = '/scratch/executables'
-
+GiB_TO_GB = 2 ** 30 / 10.0 ** 9
 
 class k8s_Client(object):
 
@@ -138,13 +138,17 @@ class k8s_Client(object):
             # ephemeral storage requests
             container_env['resources'].setdefault('requests', {})
             if 'ephemeral-storage' not in container_env['resources']['requests']:
-                eph_storage_request = round(maxwdir_prorated_GiB + ephemeral_storage_offset_GiB, 2)
-                container_env['resources']['requests']['ephemeral-storage'] = str(eph_storage_request) + 'Gi'
+                eph_storage_request_GiB = maxwdir_prorated_GiB + ephemeral_storage_offset_GiB
+                # convert to GB to avoid https://github.com/kubernetes/kubernetes/issues/94445 and round it up
+                eph_storage_request_GB = round(eph_storage_request_GiB * GiB_TO_GB, 2)
+                container_env['resources']['requests']['ephemeral-storage'] = str(eph_storage_request_GB) + 'G'
             # ephemeral storage limits
             container_env['resources'].setdefault('limits', {})
             if 'ephemeral-storage' not in container_env['resources']['limits']:
-                eph_storage_limit = round((maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * ephemeral_storage_limit_safety_factor / 100.0, 2)
-                container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit) + 'Gi'
+                eph_storage_limit_GiB = (maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * ephemeral_storage_limit_safety_factor / 100.0
+                # convert to GB to avoid https://github.com/kubernetes/kubernetes/issues/94445 and round it up
+                eph_storage_limit_GB = round(eph_storage_limit_GiB * GiB_TO_GB, 2)
+                container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit_GB) + 'G'
 
         container_env.setdefault('env', [])
         # try to retrieve the stdout log file name
