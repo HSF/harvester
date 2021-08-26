@@ -79,18 +79,6 @@ class K8sSubmitter(PluginBase):
             if os.getenv('PROXY_SECRET_PATH_ANAL'):
                 self.proxySecretPath = os.getenv('PROXY_SECRET_PATH_ANAL')
 
-        # CPU adjust ratio
-        try:
-            self.cpuAdjustRatio
-        except AttributeError:
-            self.cpuAdjustRatio = 100
-
-        # Memory adjust ratio
-        try:
-            self.memoryAdjustRatio
-        except AttributeError:
-            self.memoryAdjustRatio = 100
-
     def parse_params(self, job_params):
         tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='parse_params')
 
@@ -249,8 +237,6 @@ class K8sSubmitter(PluginBase):
                                                                            pilot_type, pilot_url_str,
                                                                            pilot_python_option,
                                                                            container_image, executable, args, cert,
-                                                                           cpu_adjust_ratio=self.cpuAdjustRatio,
-                                                                           memory_adjust_ratio=self.memoryAdjustRatio,
                                                                            max_time=max_time)
         except Exception as _e:
             tmp_log.error(traceback.format_exc())

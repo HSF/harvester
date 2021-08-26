@@ -171,8 +171,6 @@
           "proxySecretPath": "/proxy/x509up_u25606",
           "logDir": "/var/cache/pandaserver/",
           "logBaseURL": "https://ai-idds-01.cern.ch:25443/cache",
-          "cpuAdjustRatio": 90,
-          "memoryAdjustRatio": 100,
           "nProcesses": 4
       },
       "monitor":{
