@@ -188,10 +188,10 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             ret_map['use_anti_affinity'] = True
 
         # this is how the affinity settings are declared in CRIC
-        key_priority_class_score = 'k8s.scheduler.priorityClassName.SCORE'
-        key_priority_class_score_himem = 'k8s.scheduler.priorityClassName.SCORE_HIMEM'
-        key_priority_class_mcore = 'k8s.scheduler.priorityClassName.MCORE'
-        key_priority_class_mcore_himem = 'k8s.scheduler.priorityClassName.MCORE_HIMEM'
+        key_priority_class_score = 'k8s.scheduler.priorityClassName.score'
+        key_priority_class_score_himem = 'k8s.scheduler.priorityClassName.score_himem'
+        key_priority_class_mcore = 'k8s.scheduler.priorityClassName.mcore'
+        key_priority_class_mcore_himem = 'k8s.scheduler.priorityClassName.mcore_himem'
 
         try:
             ret_map['priority_class_score'] = params[key_priority_class_score]
