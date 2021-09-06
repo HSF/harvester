@@ -196,9 +196,21 @@ class k8s_Client(object):
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': CONFIG_DIR})
 
         # set the affinity
-        use_affinity, use_anti_affinity = self.panda_queues_dict.get_k8s_affinity_settings(work_spec.computingSite)
+        scheduling_settings = self.panda_queues_dict.get_k8s_scheduling_settings(work_spec.computingSite)
+
+        use_affinity = scheduling_settings['use_affinity']
+        use_anti_affinity = scheduling_settings['use_anti_affinity']
         if (use_affinity or use_anti_affinity) and 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content, use_affinity, use_anti_affinity)
+
+        # set the priority classes
+        priority_class_key = 'priority_class_{0}'.format(work_spec.resourceType)
+        try:
+            priority_class = scheduling_settings[priority_class_key]
+        except KeyError:
+            priority_class = None
+        if priority_class and 'priorityClassName' not in yaml_content['spec']['template']['spec']:
+            yaml_content['spec']['template']['spec']['priorityClassName'] = priority_class
 
         # set max_time to avoid having a pod running forever
         if 'activeDeadlineSeconds' not in yaml_content['spec']['template']['spec']:
