@@ -167,26 +167,57 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
 
         return maxwdir_prorated
 
-    def get_k8s_affinity_settings(self, panda_resource):
-        # this is how the parameters are declared in CRIC
+    def get_k8s_scheduler_settings(self, panda_resource):
+        # this is how the affinity settings are declared in CRIC
         key_affinity = 'k8s.scheduler.use_score_affinity'
         key_anti_affinity = 'k8s.scheduler.use_score_mcore_anti_affinity'
 
         params = self.get_harvester_params(panda_resource)
+        ret_map = {}
 
         try:
-            use_affinity = params[key_affinity]
+            ret_map['use_affinity'] = params[key_affinity]
         except KeyError:
             # return default value
-            use_affinity = True
+            ret_map['use_affinity'] = True
 
         try:
-            use_anti_affinity = params[key_anti_affinity]
+            ret_map['use_anti_affinity'] = params[key_anti_affinity]
         except KeyError:
             # return default value
-            use_anti_affinity = True
+            ret_map['use_anti_affinity'] = True
 
-        return use_affinity, use_anti_affinity
+        # this is how the affinity settings are declared in CRIC
+        key_priority_class_score = 'k8s.scheduler.priorityClassName.score'
+        key_priority_class_score_himem = 'k8s.scheduler.priorityClassName.score_himem'
+        key_priority_class_mcore = 'k8s.scheduler.priorityClassName.mcore'
+        key_priority_class_mcore_himem = 'k8s.scheduler.priorityClassName.mcore_himem'
+
+        try:
+            ret_map['priority_class_score'] = params[key_priority_class_score]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_score'] = None
+
+        try:
+            ret_map['priority_class_score_himem'] = params[key_priority_class_score_himem]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_score_himem'] = None
+
+        try:
+            ret_map['priority_class_mcore'] = params[key_priority_class_mcore]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_mcore'] = None
+
+        try:
+            ret_map['priority_class_mcore_himem'] = params[key_priority_class_mcore_himem]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_mcore_himem'] = None
+
+        return ret_map
 
     def get_k8s_resource_settings(self, panda_resource):
         params = self.get_harvester_params(panda_resource)
