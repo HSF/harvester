@@ -196,7 +196,7 @@ class k8s_Client(object):
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': CONFIG_DIR})
 
         # set the affinity
-        scheduling_settings = self.panda_queues_dict.get_k8s_scheduling_settings(work_spec.computingSite)
+        scheduling_settings = self.panda_queues_dict.get_k8s_scheduler_settings(work_spec.computingSite)
 
         use_affinity = scheduling_settings['use_affinity']
         use_anti_affinity = scheduling_settings['use_anti_affinity']
@@ -204,7 +204,7 @@ class k8s_Client(object):
             yaml_content = self.set_affinity(yaml_content, use_affinity, use_anti_affinity)
 
         # set the priority classes
-        priority_class_key = 'priority_class_{0}'.format(work_spec.resourceType)
+        priority_class_key = 'priority_class_{0}'.format(work_spec.resourceType.lower())
         try:
             priority_class = scheduling_settings[priority_class_key]
         except KeyError:
