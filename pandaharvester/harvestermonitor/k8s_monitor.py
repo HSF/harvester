@@ -7,11 +7,12 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 base_logger = core_utils.setup_logger('k8s_monitor')
 
+BAD_CONTAINER_STATES = ['CreateContainerError', 'CrashLoopBackOff', "FailedMount"]
 
 # monitor for K8S
 class K8sMonitor(PluginBase):
@@ -19,7 +20,12 @@ class K8sMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        self.panda_queues_dict = PandaQueuesDict()
+
+        # retrieve the k8s namespace from CRIC
+        namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+
+        self.k8s_client = k8s_Client(namespace=namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
 
         try:
             self.nProcesses
@@ -48,11 +54,16 @@ class K8sMonitor(PluginBase):
                 new_status = WorkSpec.ST_running
             else:
                 new_status = WorkSpec.ST_idle
+
         else:
+            # Pod in Pending status
             if all(item == 'Pending' for item in pods_status_list):
-                new_status = WorkSpec.ST_submitted
-            # elif all(item == 'Succeeded' for item in pods_status_list):
-            #    new_status = WorkSpec.ST_finished
+                new_status = WorkSpec.ST_submitted  # default is submitted, but consider certain cases
+                for item in containers_state_list:
+                    if item.waiting and item.waiting.reason in BAD_CONTAINER_STATES:
+                        new_status = WorkSpec.ST_failed  # change state to failed
+
+            # Pod in Succeeded status
             elif 'Succeeded' in pods_status_list:
                 if all((item.terminated is not None and item.terminated.reason == 'Completed') for item in containers_state_list):
                     new_status = WorkSpec.ST_finished
@@ -68,14 +79,19 @@ class K8sMonitor(PluginBase):
                                 state = 'waiting'
                             msg_str = 'container not terminated yet ({0}) while pod Succeeded'.format(state)
                         elif item.terminated.reason != 'Completed':
-                            msg_str = 'container termiated by k8s for reason {0}'.format(item.terminated.reason)
+                            msg_str = 'container terminated by k8s for reason {0}'.format(item.terminated.reason)
                         sub_mesg_list.append(msg_str)
                     sub_msg = ';'.join(sub_mesg_list)
                     new_status = WorkSpec.ST_cancelled
+
+            # Pod in Running status
             elif 'Running' in pods_status_list:
                 new_status = WorkSpec.ST_running
+
+            # Pod in Failed status
             elif 'Failed' in pods_status_list:
                 new_status = WorkSpec.ST_failed
+
             else:
                 new_status = WorkSpec.ST_idle
 
@@ -83,7 +99,8 @@ class K8sMonitor(PluginBase):
 
     def check_a_worker(self, workspec):
         # set logger
-        tmp_log = self.make_logger(base_logger, 'workerID={0} batchID={1}'.format(workspec.workerID, workspec.batchID),
+        tmp_log = self.make_logger(base_logger, 'queueName={0} workerID={1} batchID={2}'.
+                                   format(self.queueName, workspec.workerID, workspec.batchID),
                                    method_name='check_a_worker')
 
         # initialization
@@ -97,16 +114,23 @@ class K8sMonitor(PluginBase):
             pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
             containers_state_list = []
             pods_sup_diag_list = []
-            for pods_info in pods_list:
-                # make a list of pods that have been queued too long
-                if pods_info['status'] in ['Pending', 'Unknown'] and pods_info['start_time'] \
-                        and time_now - pods_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
-                    # fetch queuing too long pods
-                    pods_name_to_delete_list.append(pods_info['name'])
+            for pod_info in pods_list:
                 # make list of status of the pods belonging to our job
-                pods_status_list.append(pods_info['status'])
-                containers_state_list.extend(pods_info['containers_state'])
-                pods_sup_diag_list.append(pods_info['name'])
+                pods_status_list.append(pod_info['status'])
+                containers_state_list.extend(pod_info['containers_state'])
+                pods_sup_diag_list.append(pod_info['name'])
+
+                # make a list of pods that should be removed
+                # 1. pods being queued too long
+                if pod_info['status'] in ['Pending', 'Unknown'] and pod_info['start_time'] \
+                        and time_now - pod_info['start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
+                    pods_name_to_delete_list.append(pod_info['name'])
+                # 2. pods with containers in bad states
+                if pod_info['status'] in ['Pending', 'Unknown']:
+                    for item in pod_info['containers_state']:
+                        if item.waiting and item.waiting.reason in BAD_CONTAINER_STATES:
+                            pods_name_to_delete_list.append(pod_info['name'])
+
         except Exception as _e:
             err_str = 'Failed to get POD status of JOB id={0} ; {1}'.format(job_id, _e)
             tmp_log.error(err_str)
@@ -144,7 +168,7 @@ class K8sMonitor(PluginBase):
         return new_status, err_str
 
     def check_workers(self, workspec_list):
-        tmp_log = self.make_logger(base_logger, 'k8s query', method_name='check_workers')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='check_workers')
         tmp_log.debug('start')
 
         ret_list = list()
@@ -154,7 +178,11 @@ class K8sMonitor(PluginBase):
             ret_list.append(('', err_str))
             return False, ret_list
 
-        self._all_pods_list = self.k8s_client.get_pods_info(workspec_list=workspec_list)
+        pods_info = self.k8s_client.get_pods_info(workspec_list=workspec_list)
+        if pods_info is None:  # there was a communication issue to the K8S cluster
+            return False, ret_list
+
+        self._all_pods_list = pods_info
 
         # resolve status requested workers
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:

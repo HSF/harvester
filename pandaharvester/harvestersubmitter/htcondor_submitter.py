@@ -17,7 +17,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestermisc.htcondor_utils import get_job_id_tuple_from_batchid
 from pandaharvester.harvestermisc.htcondor_utils import CondorJobSubmit
-
+from pandaharvester.harvestersubmitter import submitter_common
 
 # logger
 baseLogger = core_utils.setup_logger('htcondor_submitter')
@@ -174,7 +174,7 @@ def _get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
     return stats_weighting_display_str
 
 
-# Replace condor Marco from SDF file, return string
+# Replace condor Macro from SDF file, return string
 def _condor_macro_replace(string, **kwarg):
     new_string = string
     macro_map = {
@@ -199,43 +199,6 @@ def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
     else:
         ret = ''
     return ret
-
-
-# Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
-# and piloturl (pilot option --piloturl) for pilot 2
-def _get_complicated_pilot_options(pilot_type, pilot_url=None):
-    pt_psl_map = {
-            'RC': {
-                    'prod_source_label': 'rc_test2',
-                    'pilot_type_opt': 'RC',
-                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz',
-                },
-            'ALRB': {
-                    'prod_source_label': 'rc_alrb',
-                    'pilot_type_opt': 'ALRB',
-                    'pilot_url_str': '',
-                },
-            'PT': {
-                    'prod_source_label': 'ptest',
-                    'pilot_type_opt': 'PR',
-                    'pilot_url_str': '',
-                },
-        }
-    pilot_opt_dict = pt_psl_map.get(pilot_type, None)
-    if pilot_url and pilot_opt_dict:
-        pilot_opt_dict['pilot_url_str'] = '--piloturl {0}'.format(pilot_url)
-    return pilot_opt_dict
-
-
-# get special flag of pilot wrapper about python version of pilot, and whehter to run with python 3 if python version is "3"
-# FIXME: during pilot testing phase, only prodsourcelabel ptest and rc_test2 should run python3
-# This constraint will be removed when pilot is ready
-def _get_python_version_option(python_version, prod_source_label):
-    option = ''
-    if python_version.startswith('3'):
-        if prod_source_label in ['rc_test2', 'ptest']:
-            option = '--pythonversion 3'
-    return option
 
 
 # submit a bag of workers
@@ -387,7 +350,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
     # decide prodSourceLabel
-    pilot_opt_dict = _get_complicated_pilot_options(workspec.pilotType, pilot_url=pilot_url)
+    pilot_opt_dict = submitter_common.get_complicated_pilot_options(workspec.pilotType, pilot_url=pilot_url)
     if pilot_opt_dict is None:
         prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
@@ -435,9 +398,10 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotType': pilot_type_opt,
             'pilotUrlOption': pilot_url_str,
             'pilotVersion': pilot_version,
-            'pilotPythonOption': _get_python_version_option(python_version, prod_source_label),
+            'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
+            'ceARCGridType': ce_info_dict.get('ce_arc_grid_type', 'nordugrid'),
         }
     # fill in template string
     jdl_str = template.format(**placeholder_map)
@@ -732,12 +696,24 @@ class HTCondorSubmitter(PluginBase):
                     except KeyError:
                         tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                    # go on info of the CE; ignore protocol prefix in ce_endpoint
+                    # go on info of the CE
+                    # ignore protocol prefix in ce_endpoint for cream and condor CE
+                    # check protocol prefix for ARC CE (gridftp or REST)
+                    _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
+                    ce_endpoint_prefix = ''
+                    if _match_ce_endpoint:
+                        ce_endpoint_prefix = _match_ce_endpoint.group(1)
                     ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                     ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                    if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
+                        # new ARC REST interface
+                        ce_info_dict['ce_arc_grid_type'] = 'arc'
+                    else:
+                        ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
                     ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
+                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
+                        and ce_info_dict['ce_arc_grid_type'] != 'arc':
                         # add default port to ce_endpoint if missing
                         default_port_map = {
                                 'cream-ce': 8443,

@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 
 # logger
@@ -9,10 +9,10 @@ _logger = core_utils.setup_logger('arcproxy_cred_manager')
 
 
 # credential manager with no-voms proxy using arcproxy
-class ArcproxyCredManager(PluginBase):
+class ArcproxyCredManager(BaseCredManager):
     # constructor
     def __init__(self, **kwarg):
-        PluginBase.__init__(self, **kwarg)
+        BaseCredManager.__init__(self, **kwarg)
 
     # check proxy
     def check_credential(self):
@@ -29,7 +29,7 @@ class ArcproxyCredManager(PluginBase):
             stdOut = p.stdout.strip()
             stdErr = p.stderr
             retCode = p.returncode
-        except:
+        except Exception:
             core_utils.dump_error_message(mainLog)
             return False
         mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
@@ -56,9 +56,8 @@ class ArcproxyCredManager(PluginBase):
             stdErr = p.stderr
             retCode = p.returncode
             mainLog.debug('retCode={0} stdOut={1} stdErr={2}'.format(retCode, stdOut, stdErr))
-        except:
+        except Exception:
             stdOut = ''
             stdErr = core_utils.dump_error_message(mainLog)
             retCode = -1
         return retCode == 0, "{0} {1}".format(stdOut, stdErr)
-

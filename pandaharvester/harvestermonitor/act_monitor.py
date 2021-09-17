@@ -1,13 +1,10 @@
-import os
-import json
-
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvesterconfig import harvester_config
 
-from act.common.aCTConfig import aCTConfigARC
 from act.atlas.aCTDBPanda import aCTDBPanda
 
 # json for job report
@@ -31,39 +28,6 @@ class ACTMonitor(PluginBase):
             self.log.error('Could not connect to aCT database: {0}'.format(str(e)))
             self.actDB = None
 
-    # get access point
-    def get_access_point(self, workspec, panda_id):
-        if workspec.mapType == WorkSpec.MT_MultiJobs:
-            accessPoint = os.path.join(workspec.get_access_point(), str(panda_id))
-        else:
-            accessPoint = workspec.get_access_point()
-        return accessPoint
-
-    # Check for pilot errors
-    def check_pilot_status(self, workspec, tmpLog):
-        for pandaID in workspec.pandaid_list:
-            # look for job report
-            accessPoint = self.get_access_point(workspec, pandaID)
-            jsonFilePath = os.path.join(accessPoint, jsonJobReport)
-            tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
-            try:
-                with open(jsonFilePath) as jsonFile:
-                    jobreport = json.load(jsonFile)
-            except:
-                # Assume no job report available means true pilot or push mode
-                # If job report is not available in full push mode aCT would have failed the job
-                tmpLog.debug('no job report at {0}'.format(jsonFilePath))
-                return WorkSpec.ST_finished
-            tmpLog.debug("pilot info for {0}: {1}".format(pandaID, jobreport))
-            # Check for pilot errors
-            if jobreport.get('pilotErrorCode', 0):
-                workspec.set_pilot_error(jobreport.get('pilotErrorCode'), jobreport.get('pilotErrorDiag', ''))
-                return WorkSpec.ST_failed
-            if jobreport.get('exeErrorCode', 0):
-                workspec.set_pilot_error(jobreport.get('exeErrorCode'), jobreport.get('exeErrorDiag', ''))
-                return WorkSpec.ST_failed
-        return WorkSpec.ST_finished
-
     # check workers
     def check_workers(self, workspec_list):
         retList = []
@@ -71,6 +35,9 @@ class ACTMonitor(PluginBase):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
                                             method_name='check_workers')
+
+            queueconfigmapper = QueueConfigMapper()
+            queueconfig = queueconfigmapper.get_queue(workSpec.computingSite)
             try:
                 tmpLog.debug('Querying aCT for id {0}'.format(workSpec.batchID))
                 columns = ['actpandastatus', 'pandastatus', 'computingElement', 'node', 'error']
@@ -94,15 +61,22 @@ class ACTMonitor(PluginBase):
             errorMsg = ''
             if actstatus in ['waiting', 'sent', 'starting']:
                 newStatus = WorkSpec.ST_submitted
-            elif actstatus == 'done':
-                newStatus = self.check_pilot_status(workSpec, tmpLog)
-            elif actstatus == 'donefailed':
-                newStatus = WorkSpec.ST_failed
-                errorMsg = actjobs[0]['error'] or 'Unknown error'
-                error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
-                workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
-            elif actstatus == 'donecancelled':
-                newStatus = WorkSpec.ST_cancelled
+
+            # Handle post running states
+            if queueconfig.truePilot:
+                # True pilot: keep in running until really done
+                if actstatus in ['done', 'donecancelled']:
+                    newStatus = WorkSpec.ST_finished
+                elif actstatus == 'donefailed':
+                    # set failed here with workspec sup error
+                    errorMsg = actjobs[0]['error'] or 'Unknown error'
+                    error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
+                    workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
+                    newStatus = WorkSpec.ST_failed
+                    tmpLog.info('ID {0} failed with error {1})'.format(workSpec.batchID, errorMsg))
+            elif actstatus in ['done', 'donefailed', 'donecancelled', 'transferring', 'tovalidate']:
+                # NG mode: all post processing is now done in the stager
+                newStatus = WorkSpec.ST_finished
 
             if newStatus != workSpec.status:
                 tmpLog.info('ID {0} updated status {1} -> {2} ({3})'.format(workSpec.batchID, workSpec.status, newStatus, actstatus))

@@ -70,6 +70,18 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         return job_type_final
 
+    def capability_to_rtype(self, capability):
+       if capability == 'score':
+           return 'SCORE'
+       elif capability == 'himem':
+           return 'SCORE_HIMEM'
+       elif capability == 'mcore':
+           return 'MCORE'
+       elif capability == 'mcorehimem':
+           return 'MCORE_HIMEM'
+       else:
+           return None
+
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
         tmpLog = self.make_logger(_logger, 'queue={0}:{1}:{2}'.format(queue_config.queueName, job_type, resource_type),
@@ -174,8 +186,14 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             tmpLog.debug('get_job_type decided for job_type: {0} (input job_type: {1}, queue_type: {2}, tmp_prodsourcelabel: {3})'
                          .format(workSpec.jobType, job_type, queue_dict.get('type', None), tmp_prodsourcelabel))
 
+        # retrieve queue resource type
+        capability = queue_dict.get('capability', '')
+        queue_rtype = self.capability_to_rtype(capability)
+
         if resource_type and resource_type != 'ANY':
             workSpec.resourceType = resource_type
+        elif queue_rtype:
+            workSpec.resourceType = queue_rtype
         elif workSpec.nCore == 1:
             workSpec.resourceType = 'SCORE'
         else:

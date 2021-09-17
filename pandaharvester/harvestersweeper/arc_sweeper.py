@@ -134,14 +134,14 @@ def test(jobid):
     workAttributes["arcjob"]["JobManagementInterfaceName"] = "org.nordugrid.gridftpjob"
     
     wspec.workAttributes = workAttributes
-    print wspec.workAttributes
+    print (wspec.workAttributes)
 
     sweeper = ARCSweeper()
-    print sweeper.kill_worker(wspec)
+    print (sweeper.kill_worker(wspec))
 
 if __name__ == "__main__":
     import time, sys, urlparse
     if len(sys.argv) != 2:
-        print "Please give ARC job id"
+        print ("Please give ARC job id")
         sys.exit(1)
     test(sys.argv[1])

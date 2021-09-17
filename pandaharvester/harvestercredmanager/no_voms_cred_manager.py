@@ -23,6 +23,8 @@ class NoVomsCredManager(BaseCredManager):
         self.genFromKeyCert = self.setupMap.get('genFromKeyCert')
         self.key = self.setupMap.get('key')
         self.cert = self.setupMap.get('cert')
+        self.checkPeriod = self.setupMap.get('checkPeriod', 1)
+        self.lifetime = self.setupMap.get('lifetime', 96)
 
     # check proxy lifetime for monitoring/alerting purposes
     def check_credential_lifetime(self):
@@ -48,7 +50,9 @@ class NoVomsCredManager(BaseCredManager):
     def check_credential(self):
         # make logger
         main_log = self.make_logger(_logger, method_name='check_credential')
-        comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
+        # lifetime threshold to trigger renew in hour
+        threshold = max(self.lifetime - self.checkPeriod, 0)
+        comStr = "voms-proxy-info -exists -hours {0} -file {1}".format(threshold, self.outCertFile)
         main_log.debug(comStr)
         try:
             p = subprocess.Popen(comStr.split(),
@@ -81,10 +85,11 @@ class NoVomsCredManager(BaseCredManager):
             usercert_value = self.inCertFile
             userkey_value = self.inCertFile
         # command
-        comStr = "voms-proxy-init -rfc {noregen_option} {voms_option} -out {out} -valid 96:00 -cert={cert} -key={key}".format(
+        comStr = "voms-proxy-init -rfc {noregen_option} {voms_option} -out {out} -valid {lifetime}:00 -cert={cert} -key={key}".format(
                                                                                                             noregen_option=noregen_option,
                                                                                                             voms_option=voms_option,
                                                                                                             out=self.outCertFile,
+                                                                                                            lifetime=self.lifetime,
                                                                                                             cert=usercert_value,
                                                                                                             key=userkey_value)
         main_log.debug(comStr)

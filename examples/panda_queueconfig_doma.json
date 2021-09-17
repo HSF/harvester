@@ -1,0 +1,274 @@
+{
+
+"production.pull": {
+    "isTemplateQueue": true,
+    "prodSourceLabel": "managed",
+    "nQueueLimitWorkerRatio": 50,
+    "nQueueLimitWorkerMin": 100,
+    "nQueueLimitWorkerMax": 10000,
+    "maxWorkers": 10,
+    "maxNewWorkersPerCycle": 100,
+    "mapType": "NoJob",
+    "truePilot": true,
+    "maxSubmissionAttempts": 3,
+    "walltimeLimit": 1209600,
+    "prefetchEvents": false,
+    "preparator": {
+      "name": "DummyPreparator",
+      "module": "pandaharvester.harvesterpreparator.dummy_preparator"
+    },
+    "submitter": {
+      "name": "HTCondorSubmitter",
+      "module": "pandaharvester.harvestersubmitter.htcondor_submitter",
+      "useSpool": false,
+      "useAtlasGridCE": false,
+      "useAtlasAGIS": true,
+      "templateFile": "/cephfs/atlpan/harvester/harvester_common/CERN_central_1/cloudscheduler-pilot2.sdf",
+      "executableFile": "/cephfs/atlpan/harvester/harvester_common/CERN_central_1/runpilot2-wrapper.sh",
+      "x509UserProxy": "/data/idds/x509up_u25606",
+      "logDir": "/data/idds/condor_logs",
+      "logBaseURL": "https://ai-idds-02.cern.ch/condor_logs",
+      "nProcesses": 8
+    },
+    "workerMaker": {
+      "name": "SimpleWorkerMaker",
+      "module": "pandaharvester.harvesterworkermaker.simple_worker_maker",
+      "jobAttributesToUse": [
+        "nCore"
+      ],
+      "pilotTypeRandomWeightsPermille": {
+        "RC": 10,
+        "ALRB": 10,
+        "PT": 10
+      }
+    },
+    "messenger": {
+      "name": "SharedFileMessenger",
+      "module": "pandaharvester.harvestermessenger.shared_file_messenger",
+      "jobSpecFileFormat": "cgi",
+      "accessPoint": "/data/idds/harvester_wdirs/${harvesterID}/${_workerID_3.2}/${_workerID_1.0}/${workerID}"
+    },
+    "stager": {
+      "name": "DummyStager",
+      "module": "pandaharvester.harvesterstager.dummy_stager"
+    },
+    "monitor": {
+      "name": "HTCondorMonitor",
+      "module": "pandaharvester.harvestermonitor.htcondor_monitor",
+      "cancelUnknown": false
+    },
+    "sweeper": {
+      "name": "HTCondorSweeper",
+      "module": "pandaharvester.harvestersweeper.htcondor_sweeper"
+    }
+  },
+
+"production.push": {
+    "isTemplateQueue": true,
+    "prodSourceLabel": "managed",
+    "nQueueLimitWorker": 10000,
+    "nQueueLimitJobRatio":40,
+    "nQueueLimitJobMax": 1000,
+    "nQueueLimitJobMin":3,
+    "maxWorkers": 10,
+    "maxNewWorkersPerCycle": 100,
+    "mapType": "OneToOne",
+    "truePilot": true,
+    "maxSubmissionAttempts": 3,
+    "walltimeLimit": 1209600,
+    "prefetchEvents": false,
+    "preparator": {
+      "name": "DummyPreparator",
+      "module": "pandaharvester.harvesterpreparator.dummy_preparator"
+    },
+    "submitter": {
+      "name": "HTCondorSubmitter",
+      "module": "pandaharvester.harvestersubmitter.htcondor_submitter",
+      "useSpool": false,
+      "useAtlasGridCE": false,
+      "useAtlasAGIS": true,
+      "templateFile": "/cephfs/atlpan/harvester/harvester_common/CERN_central_1/cloudscheduler-pilot2.sdf",
+      "executableFile": "/cephfs/atlpan/harvester/harvester_common/CERN_central_1/runpilot2-wrapper.sh",
+      "x509UserProxy": "/data/idds/x509up_u25606",
+      "logDir": "/data/idds/condor_logs",
+      "logBaseURL": "https://ai-idds-02.cern.ch/condor_logs",
+      "nProcesses": 8
+    },
+    "workerMaker": {
+      "name": "SimpleWorkerMaker",
+      "module": "pandaharvester.harvesterworkermaker.simple_worker_maker",
+      "jobAttributesToUse": [
+        "nCore"
+      ],
+      "pilotTypeRandomWeightsPermille": {
+        "RC": 10,
+        "ALRB": 10,
+        "PT": 10
+      }
+    },
+    "messenger": {
+      "name": "SharedFileMessenger",
+      "module": "pandaharvester.harvestermessenger.shared_file_messenger",
+      "jobSpecFileFormat": "cgi",
+      "accessPoint": "/data/idds/harvester_wdirs/${harvesterID}/${_workerID_3.2}/${_workerID_1.0}/${workerID}"
+    },
+    "stager": {
+      "name": "DummyStager",
+      "module": "pandaharvester.harvesterstager.dummy_stager"
+    },
+    "monitor": {
+      "name": "HTCondorMonitor",
+      "module": "pandaharvester.harvestermonitor.htcondor_monitor",
+      "cancelUnknown": false
+    },
+    "sweeper": {
+      "name": "HTCondorSweeper",
+      "module": "pandaharvester.harvestersweeper.htcondor_sweeper"
+    }
+  },
+
+
+  "production_k8s.pull":{
+      "isTemplateQueue": true,
+      "prodSourceLabel":"managed",
+      "prodSourceLabelRandomWeightsPermille": {"ptest":10, "rc_test":10, "rc_test2":10, "rc_alrb":10},
+      "nQueueLimitWorker":5000,
+      "nQueueLimitWorkerRatio":40,
+      "nQueueLimitWorkerMin":100,
+      "maxWorkers":100000,
+      "maxNewWorkersPerCycle":50,
+      "mapType":"NoJob",
+      "truePilot":true,
+      "maxSubmissionAttempts":3,
+      "walltimeLimit":1209600,
+      "prefetchEvents":false,
+      "preparator":{
+          "name":"DummyPreparator",
+          "module":"pandaharvester.harvesterpreparator.dummy_preparator"
+      },
+      "workerMaker":{
+          "name":"SimpleWorkerMaker",
+          "module":"pandaharvester.harvesterworkermaker.simple_worker_maker",
+          "jobAttributesToUse":[
+              "nCore"
+          ],
+          "pilotTypeRandomWeightsPermille": {"RC": 10, "ALRB": 10, "PT": 10}
+      },
+      "messenger":{
+          "name":"SharedFileMessenger",
+          "module":"pandaharvester.harvestermessenger.shared_file_messenger",
+          "jobSpecFileFormat":"cgi",
+          "accessPoint":"/data/idds/harvester_wdirs/${harvesterID}/${_workerID_3.2}/${_workerID_1.0}/${workerID}"
+      },
+      "stager":{
+          "name":"DummyStager",
+          "module":"pandaharvester.harvesterstager.dummy_stager"
+      },
+      "submitter":{
+          "name": "K8sSubmitter",
+          "module": "pandaharvester.harvestersubmitter.k8s_submitter",
+          "x509UserProxy": "/data/idds/x509up_u25606",
+          "proxySecretPath": "/proxy/x509up_u25606",
+          "logDir": "/var/cache/pandaserver/",
+          "logBaseURL": "https://ai-idds-01.cern.ch:25443/cache",
+          "nProcesses": 4
+      },
+      "monitor":{
+          "name": "K8sMonitor",
+          "module": "pandaharvester.harvestermonitor.k8s_monitor"
+      },
+      "sweeper":{
+          "name": "K8sSweeper",
+          "module": "pandaharvester.harvestersweeper.k8s_sweeper"
+      },
+      "credmanagers": [
+        {
+          "module": "pandaharvester.harvestercredmanager.k8s_secret_cred_manager",
+          "name": "K8sSecretCredManager",
+          "k8s_namespace": "${common.k8s_namespace}",
+          "k8s_config_file": "${common.k8s_config_file}",
+          "proxy_files": ["/data/idds/x509up_u25606"]
+        }
+      ],
+      "common": {
+          "k8s_yaml_file": "/opt/harvester/etc/k8s/job_cvmfs_prp_driver.yaml",
+          "k8s_config_file": "/data/idds/gcloud_config/.kube",
+          "k8s_namespace": "default"
+      }
+  },
+
+"DOMA_LSST_GOOGLE_TEST_HIMEM": {
+    "queueStatus": "offline",
+    "prodSourceLabelRandomWeightsPermille": {"rc_test":0, "rc_test2":0, "rc_alrb":0},
+    "maxWorkers": 10000,
+    "nQueueLimitWorkerRatio": 30,
+    "nQueueLimitWorkerMin": 1,
+    "nQueueLimitWorkerMax": 100,
+    "maxNewWorkersPerCycle":200,
+    "templateQueueName": "production_k8s.pull",
+    "common": {
+      "k8s_yaml_file": "/opt/harvester/etc/k8s/job_cvmfs_prp_driver.yaml",
+      "k8s_config_file": "/data/idds/gcloud_config_rubin/kube_high_mem",
+      "k8s_namespace": "default"
+    }
+  },
+
+
+"DOMA_LSST_GOOGLE_TEST": {
+  "queueStatus": "offline",
+  "prodSourceLabelRandomWeightsPermille": {"rc_test":0, "rc_test2":0, "rc_alrb":0},
+  "maxWorkers": 10000,
+  "nQueueLimitWorkerRatio": 30,
+  "nQueueLimitWorkerMin": 1,
+  "nQueueLimitWorkerMax": 100,
+  "maxNewWorkersPerCycle":200,
+  "templateQueueName": "production_k8s.pull",
+  "common": {
+    "k8s_yaml_file": "/opt/harvester/etc/k8s/job_cvmfs_prp_driver.yaml",
+    "k8s_config_file": "/data/idds/gcloud_config_rubin/kube_moderate_mem",
+    "k8s_namespace": "default"
+  }
+},
+ 
+"TEST_SITE": {
+    "queueStatus": "online",
+    "prodSourceLabel": "manage",
+    "prodSourceLabelRandomWeightsPermille": {"rc_test":0, "rc_test2":0, "rc_alrb":0},
+    "templateQueueName": "production.pull",
+    "maxWorkers": 1,
+    "nQueueLimitWorkerMin": 1,
+    "nQueueLimitWorkerMax": 2,
+    "submitter": {
+                    "templateFile": "/opt/condor_test/grid_submit_pilot.sdf"
+      }
+  },
+
+"BNL_OSG_1": {
+    "queueStatus": "offline",
+    "prodSourceLabel": "managed",
+    "prodSourceLabelRandomWeightsPermille": {"rc_test":0, "rc_test2":0, "rc_alrb":0},
+    "templateQueueName": "production.push",
+    "maxWorkers": 1000,
+    "nQueueLimitWorkerRatio": 200,
+    "nQueueLimitWorkerMin":1,
+    "nQueueLimitWorkerMax": 60,
+    "submitter": {
+                    "templateFile": "/opt/condor_test/grid_submit_pilot_push.sdf"
+      }
+},
+
+"BNL_OSG_SPHENIX": {
+    "queueStatus": "offline",
+    "prodSourceLabel": "managed",
+    "prodSourceLabelRandomWeightsPermille": {"rc_test":0, "rc_test2":0, "rc_alrb":0},
+    "templateQueueName": "production.pull",
+    "maxWorkers": 10000,
+    "nQueueLimitWorkerRatio": 200,
+    "nQueueLimitWorkerMin": 2,
+    "nQueueLimitWorkerMax": 60,
+    "submitter": {
+                    "templateFile": "/opt/condor_test/grid_submit_pilot_pull_sphenix.sdf",
+                    "x509UserProxy": "/data/idds/sphenix_voms/hcvoms.sdcc.bnl.gov.short.proxy"
+      }
+  }
+}

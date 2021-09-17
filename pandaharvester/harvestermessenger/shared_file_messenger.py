@@ -1,7 +1,10 @@
 import json
 import os
+import copy
 import shutil
+import tarfile
 import datetime
+import itertools
 
 try:
     from urllib.parse import urlencode
@@ -99,23 +102,31 @@ def filter_log_tgz(extra=None):
 
 
 # tar a single directory
-def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None):
+def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None, sub_tarball_name=None):
     if tar_name is None:
         tarFilePath = os.path.join(os.path.dirname(dir_name), '{0}.subdir.tar.gz'.format(os.path.basename(dir_name)))
     else:
         tarFilePath = tar_name
-    com = 'cd {0}; '.format(dir_name)
-    com += 'find . '
-    if max_depth is not None:
-        com += '-maxdepth {0} '.format(max_depth)
-    com += r'-type f \( ' + filter_log_tgz(extra_files) + r'\) -print0 '
-    com += '| '
-    com += 'tar '
-    if distutils.spawn.find_executable('pigz') is None:
-        com += '-z '
-    else:
-        com += '-I pigz '
-    com += '-c -f {0} --null -T -'.format(tarFilePath)
+    # check if sub-tarball already exists
+    com = None
+    if sub_tarball_name is not None:
+        subTarballPath = os.path.join(dir_name, sub_tarball_name)
+        if os.path.exists(subTarballPath):
+            com = 'mv {} {}'.format(subTarballPath, tarFilePath)
+    # make sub-tarball
+    if com is None:
+        com = 'cd {0}; '.format(dir_name)
+        com += 'find . '
+        if max_depth is not None:
+            com += '-maxdepth {0} '.format(max_depth)
+        com += r'-type f \( ' + filter_log_tgz(extra_files) + r'\) -print0 '
+        com += '| '
+        com += 'tar '
+        if distutils.spawn.find_executable('pigz') is None:
+            com += '-z '
+        else:
+            com += '-I pigz '
+        com += '-c -f {0} --null -T -'.format(tarFilePath)
     p = subprocess.Popen(com,
                          shell=True,
                          stdout=subprocess.PIPE,
@@ -126,12 +137,22 @@ def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None):
 
 
 # scan files in a directory
-def scan_files_in_dir(dir_name, patterns=None):
+def scan_files_in_dir(dir_name, patterns=None, zip_patterns=None):
     fileList = []
     for root, dirs, filenames in walk(dir_name):
         for filename in filenames:
+            # check if zipped
+            is_zipped = False
+            if zip_patterns:
+                matched = False
+                for pattern in zip_patterns:
+                    if re.search(pattern, filename) is not None:
+                        matched = True
+                        break
+                if matched:
+                    is_zipped = True
             # check filename
-            if patterns is not None:
+            if not is_zipped and patterns:
                 matched = False
                 for pattern in patterns:
                     if re.search(pattern, filename) is not None:
@@ -142,15 +163,26 @@ def scan_files_in_dir(dir_name, patterns=None):
             # make dict
             tmpFileDict = dict()
             pfn = os.path.join(root, filename)
-            lfn = os.path.basename(pfn)
             tmpFileDict['path'] = pfn
             tmpFileDict['fsize'] = os.stat(pfn).st_size
-            tmpFileDict['type'] = 'es_output'
             tmpFileDict['guid'] = str(uuid.uuid4())
             tmpFileDict['chksum'] = core_utils.calc_adler32(pfn)
-            tmpFileDict['eventRangeID'] = lfn.split('.')[-1]
             tmpFileDict['eventStatus'] = "finished"
-            fileList.append(tmpFileDict)
+            if is_zipped:
+                lfns = []
+                # extract actual event filenames from zip
+                with tarfile.open(pfn) as f:
+                    for tar_info in f.getmembers():
+                        lfns.append(os.path.basename(tar_info.name))
+                tmpFileDict['type'] = 'zip_output'
+            else:
+                lfns = [os.path.basename(pfn)]
+                tmpFileDict['type'] = 'es_output'
+            for lfn in lfns:
+                tmpDict = copy.copy(tmpFileDict)
+                tmpDict['eventRangeID'] = lfn.split('.')[-1]
+
+                fileList.append(tmpDict)
     return fileList
 
 
@@ -162,7 +194,10 @@ class SharedFileMessenger(BaseMessenger):
         self.stripJobParams = False
         self.scanInPostProcess = False
         self.leftOverPatterns = None
+        self.leftOverZipPatterns = None
         self.postProcessInSubDir = False
+        self.outputSubDir = None
+        self.subTarballName = None
         BaseMessenger.__init__(self, **kwarg)
 
     # get access point
@@ -545,14 +580,14 @@ class SharedFileMessenger(BaseMessenger):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%d_%H_%M_%S.%f')
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + '.' + str(datetime.datetime.utcnow())
+                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%d_%H_%M_%S.%f')
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
@@ -608,7 +643,7 @@ class SharedFileMessenger(BaseMessenger):
                 accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
                 origAccessPoint = accessPoint
                 if self.postProcessInSubDir:
-                    accessPoint = os.path.join(accessPoint, jobSpec.PandaID)
+                    accessPoint = os.path.join(accessPoint, str(jobSpec.PandaID))
                 # make log
                 if not hasLog:
                     logFileInfo = jobSpec.get_logfile_info()
@@ -623,7 +658,8 @@ class SharedFileMessenger(BaseMessenger):
                     # tar sub dirs
                     tmpLog.debug('tar for {0} sub dirs'.format(len(dirs)))
                     with Pool(max_workers=multiprocessing.cpu_count()) as pool:
-                        retValList = pool.map(tar_directory, dirs)
+                        retValList = pool.map(lambda x, y: tar_directory(x, sub_tarball_name=y),
+                                              dirs, itertools.repeat(self.subTarballName))
                         for dirName, (comStr, retCode, stdOut, stdErr) in zip(dirs, retValList):
                             if retCode != 0:
                                 tmpLog.warning('failed to sub-tar {0} with {1} -> {2}:{3}'.format(
@@ -646,22 +682,21 @@ class SharedFileMessenger(BaseMessenger):
                     # set the directory paths to scan for left over files
                     dirs = []
                     if self.outputSubDir is None:
-                        #tmpLog.debug('self.outputSubDir not set dirs- {0}'.format(dirs))
                         dirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
                                 if os.path.isdir(os.path.join(accessPoint, name))]
                     else:
                         # loop over directories first level from accessPoint and then add subdirectory name.
-                        upperdirs=[]
                         upperdirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
                                 if os.path.isdir(os.path.join(accessPoint, name))]
                         dirs = [os.path.join(dirname, self.outputSubDir) for dirname in upperdirs
                                 if os.path.isdir(os.path.join(dirname, self.outputSubDir))]
-                        #tmpLog.debug('self.outputSubDir = {0} upperdirs - {1} dirs -{2}'.format(self.outputSubDir,upperdirs,dirs))
-                    if self.leftOverPatterns is None:
-                        patterns = None
-                    else:
-                        patterns = []
-                        for scanPat in self.leftOverPatterns:
+                    patterns = []
+                    patterns_zip = []
+                    for tmp_patterns, tmp_left_over_patterns in \
+                            [[patterns, self.leftOverPatterns], [patterns_zip, self.leftOverZipPatterns]]:
+                        if tmp_left_over_patterns is None:
+                            continue
+                        for scanPat in tmp_left_over_patterns:
                             # replace placeholders
                             if '%PANDAID' in scanPat:
                                 scanPat = scanPat.replace('%PANDAID', str(jobSpec.PandaID))
@@ -672,13 +707,14 @@ class SharedFileMessenger(BaseMessenger):
                                 for outputName in jobSpec.get_output_file_attributes().keys():
                                     if outputName == logFileName:
                                         continue
-                                    patterns.append(scanPat.replace('%OUTPUT_FILE', outputName))
+                                    tmp_patterns.append(scanPat.replace('%OUTPUT_FILE', outputName))
                             else:
-                                patterns.append(scanPat)
+                                tmp_patterns.append(scanPat)
                     # scan files
                     nLeftOvers = 0
                     with Pool(max_workers=multiprocessing.cpu_count()) as pool:
-                        retValList = pool.map(scan_files_in_dir, dirs, [patterns] * len(dirs))
+                        retValList = pool.map(scan_files_in_dir, dirs, [patterns] * len(dirs),
+                                              [patterns_zip] * len(dirs))
                         for retVal in retValList:
                             fileDict.setdefault(jobSpec.PandaID, [])
                             fileDict[jobSpec.PandaID] += retVal

@@ -9,9 +9,6 @@ from pandaharvester.harvesterconfig import harvester_config
 
 from act.atlas.aCTDBPanda import aCTDBPanda
 
-# json for job report
-jsonJobReport = harvester_config.payload_interaction.jobReportFile
-
 # json for outputs
 jsonOutputsFileName = harvester_config.payload_interaction.eventStatusDumpJsonFile
 
@@ -43,34 +40,7 @@ class ACTMessenger(BaseMessenger):
         return accessPoint
 
     def post_processing(self, workspec, jobspec_list, map_type):
-        '''
-        Take the jobReport placed by aCT in the access point and fill metadata
-        attributes of the workspec.
-        '''
-
-        # get logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='post_processing')
-        if not workspec.workAttributes:
-            workspec.workAttributes = {}
-
-        for pandaID in workspec.pandaid_list:
-            workspec.workAttributes[pandaID] = {}
-            # look for job report
-            accessPoint = self.get_access_point(workspec, pandaID)
-            jsonFilePath = os.path.join(accessPoint, jsonJobReport)
-            tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
-            if not os.path.exists(jsonFilePath):
-                # not found
-                tmpLog.debug('not found')
-            else:
-                try:
-                    with open(jsonFilePath) as jsonFile:
-                        workspec.workAttributes[pandaID] = json.load(jsonFile)
-                    tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
-                except:
-                    tmpLog.debug('failed to load {0}'.format(jsonFilePath))
-            tmpLog.debug("pilot info for {0}: {1}".format(pandaID, workspec.workAttributes[pandaID]))
+        '''Now done in stager'''
         return True
 
     def get_work_attributes(self, workspec):

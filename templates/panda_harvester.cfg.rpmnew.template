@@ -180,6 +180,12 @@ queueList =
 resolverModule = pandaharvester.harvestermisc.info_utils
 resolverClass = PandaQueuesDict
 
+# configuration of the resolver in JSON
+#resolverConfig =
+#  {
+#    "refreshPeriod": 300
+#  }
+
 # enable auto-blacklisting of resolver which returns status='offline' to blacklist the queue
 autoBlacklist = False
 

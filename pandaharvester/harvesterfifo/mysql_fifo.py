@@ -1,9 +1,8 @@
-import os
 import time
-import re
 import functools
 import warnings
 
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 

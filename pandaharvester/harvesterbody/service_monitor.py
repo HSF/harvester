@@ -19,6 +19,11 @@ from pandaharvester.harvesterbody.cred_manager import CredManager
 _logger = core_utils.setup_logger('service_monitor')
 
 
+def round_floats(value):
+    # Will round floats to 2 decimals. If the value is not a float, it will return the value unchanged
+    return round(value, 2) if isinstance(value, float) else value
+
+
 # class to monitor the service, e.g. memory usage
 class ServiceMonitor(AgentBase):
     # constructor
@@ -143,10 +148,12 @@ class ServiceMonitor(AgentBase):
 
             # get memory usage
             rss_mib, memory_pc, cpu_pc = self.get_memory_n_cpu()
-            service_metrics['rss_mib'] = rss_mib
-            service_metrics['memory_pc'] = memory_pc
-            service_metrics['cpu_pc'] = cpu_pc
-            _logger.debug('Memory usage: {0} MiB/{1}%, CPU usage: {2}'.format(rss_mib, memory_pc, cpu_pc))
+            service_metrics['rss_mib'] = round_floats(rss_mib)
+            service_metrics['memory_pc'] = round_floats(memory_pc)
+            service_metrics['cpu_pc'] = round_floats(cpu_pc)
+            _logger.debug('Memory usage: {0} MiB/{1}%, CPU usage: {2}'.format(service_metrics['rss_mib'],
+                                                                              service_metrics['memory_pc'],
+                                                                              service_metrics['cpu_pc']))
 
             # get volume usage
             try:
@@ -155,12 +162,14 @@ class ServiceMonitor(AgentBase):
                 volumes = []
             for volume in volumes:
                 volume_use = self.volume_use(volume)
-                _logger.debug('Disk usage of {0}: {1} %'.format(volume, volume_use))
-                service_metrics['volume_{0}_pc'.format(volume)] = volume_use
+                service_metrics['volume_{0}_pc'.format(volume)] = round_floats(volume_use)
+                _logger.debug('Disk usage of {0}: {1} %'.format(volume,
+                                                                service_metrics['volume_{0}_pc'.format(volume)]))
 
-            # get certificate validities. Not all plugins have implemented it
-            _logger.debug('Getting cert validities')
-            service_metrics['cert_lifetime'] = self.cert_validities()
+            # get certificate lifetimes. Not all plugins have implemented it
+            _logger.debug('Getting cert lifetimes')
+            service_metrics['cert_lifetime'] = {cert: round(value) for (cert, value) in self.cert_validities().items()}
+
             _logger.debug('Got cert validities: {0}'.format(service_metrics['cert_lifetime']))
 
             service_metrics_spec = ServiceMetricSpec(service_metrics)

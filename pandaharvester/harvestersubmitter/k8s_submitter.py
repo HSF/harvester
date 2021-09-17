@@ -14,6 +14,7 @@ from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestersubmitter import submitter_common
 
 # logger
 base_logger = core_utils.setup_logger('k8s_submitter')
@@ -25,7 +26,7 @@ DEF_IMAGE = DEF_CENTOS7_IMAGE
 
 # command defaults
 DEF_COMMAND = ["/usr/bin/bash"]
-DEF_ARGS = ["-c", "cd; wget https://raw.githubusercontent.com/HSF/harvester/master/pandaharvester/harvestercloud/pilots_starter.py; chmod 755 pilots_starter.py; ./pilots_starter.py || true"]
+DEF_ARGS = ["-c", "cd; python $EXEC_DIR/pilots_starter.py || true"]
 
 
 # submitter for K8S
@@ -35,12 +36,25 @@ class K8sSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        self.k8s_client = k8s_Client(namespace=self.k8s_namespace, config_file=self.k8s_config_file)
+        self.panda_queues_dict = PandaQueuesDict()
+
+        # retrieve the k8s namespace from CRIC
+        namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
+
+        self.k8s_client = k8s_Client(namespace=namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
+
+        # update or create the pilot starter executable
+        self.k8s_client.create_or_patch_configmap_starter()
 
         # required for parsing jobParams
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument('-p', dest='executable', type=unquote)
         self.parser.add_argument('--containerImage', dest='container_image')
+
+        # allowed associated parameters from AGIS
+        self._allowed_agis_attrs = (
+                'pilot_url',
+            )
 
         # number of processes
         try:
@@ -50,18 +64,6 @@ class K8sSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
-        # x509 proxy: obsolete mode
-        try:
-            self.x509UserProxy
-        except AttributeError:
-            if os.getenv('X509_USER_PROXY'):
-                self.x509UserProxy = os.getenv('X509_USER_PROXY')
-
-        # x509 proxy for analysis jobs in grandly unified queues
-        try:
-            self.x509UserProxyAnalysis
-        except AttributeError:
-            self.x509UserProxyAnalysis = os.getenv('X509_USER_PROXY_ANAL')
 
         # x509 proxy through k8s secrets: preferred way
         try:
@@ -77,20 +79,8 @@ class K8sSubmitter(PluginBase):
             if os.getenv('PROXY_SECRET_PATH_ANAL'):
                 self.proxySecretPath = os.getenv('PROXY_SECRET_PATH_ANAL')
 
-        # CPU adjust ratio
-        try:
-            self.cpuAdjustRatio
-        except AttributeError:
-            self.cpuAdjustRatio = 100
-
-        # Memory adjust ratio
-        try:
-            self.memoryAdjustRatio
-        except AttributeError:
-            self.memoryAdjustRatio = 100
-
     def parse_params(self, job_params):
-        tmp_log = self.make_logger(base_logger, method_name='parse_params')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='parse_params')
 
         job_params_list = job_params.split(' ')
         args, unknown = self.parser.parse_known_args(job_params_list)
@@ -119,7 +109,7 @@ class K8sSubmitter(PluginBase):
         - production images: take SLC6 or CentOS7
         - otherwise take default image specified for the queue
         """
-        tmp_log = self.make_logger(base_logger, method_name='decide_container_image')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='decide_container_image')
         try:
             container_image = job_pars_parsed.container_image
             if container_image:
@@ -166,39 +156,25 @@ class K8sSubmitter(PluginBase):
         Choose the proxy based on the job type and whether k8s secrets are enabled
         """
         cert = None
-        use_secret = False
         job_type = workspec.jobType
 
         if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis'):
             if self.proxySecretPathAnalysis:
                 cert = self.proxySecretPathAnalysis
-                use_secret = True
             elif self.proxySecretPath:
                 cert = self.proxySecretPath
-                use_secret = True
-            elif self.x509UserProxyAnalysis:
-                cert = self.x509UserProxyAnalysis
-                use_secret = False
-            elif self.x509UserProxy:
-                cert = self.x509UserProxy
-                use_secret = False
         else:
             if self.proxySecretPath:
                 cert = self.proxySecretPath
-                use_secret = True
-            elif self.x509UserProxy:
-                cert = self.x509UserProxy
-                use_secret = False
 
-        return cert, use_secret
+        return cert
 
     def submit_k8s_worker(self, work_spec):
-        tmp_log = self.make_logger(base_logger, method_name='submit_k8s_worker')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='submit_k8s_worker')
 
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
-        prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
 
         # set the stdout log file
         log_file_name = '{0}_{1}.out'.format(harvester_config.master.harvester_id, work_spec.workerID)
@@ -218,27 +194,49 @@ class K8sSubmitter(PluginBase):
                                                                                           args))
 
             # choose the appropriate proxy
-            panda_queues_dict = PandaQueuesDict()
-            is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
-            cert, use_secret = self._choose_proxy(work_spec, is_grandly_unified_queue)
+            this_panda_queue_dict = self.panda_queues_dict.get(self.queueName, dict())
+
+            is_grandly_unified_queue = self.panda_queues_dict.is_grandly_unified_queue(self.queueName)
+            cert = self._choose_proxy(work_spec, is_grandly_unified_queue)
             if not cert:
-                err_str = 'No proxy specified in proxySecretPath or x509UserProxy. Not submitted'
+                err_str = 'No proxy specified in proxySecretPath. Not submitted'
                 tmp_return_value = (False, err_str)
                 return tmp_return_value
 
             # get the walltime limit
             try:
-                max_time = panda_queues_dict.get(self.queueName)['maxtime']
+                max_time = this_panda_queue_dict['maxtime']
             except Exception as e:
                 tmp_log.warning('Could not retrieve maxtime field for queue {0}'.format(self.queueName))
                 max_time = None
 
+            associated_params_dict = {}
+            for key, val in self.panda_queues_dict.get_harvester_params(self.queueName).items():
+                if key in self._allowed_agis_attrs:
+                    associated_params_dict[key] = val
+
+            pilot_url = associated_params_dict.get('pilot_url')
+            pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
+            python_version = str(this_panda_queue_dict.get('python_version', '2'))
+
+            # prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
+            pilot_opt_dict = submitter_common.get_complicated_pilot_options(work_spec.pilotType)
+            if pilot_opt_dict is None:
+                prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
+                pilot_type = work_spec.pilotType
+                pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
+            else:
+                prod_source_label = pilot_opt_dict['prod_source_label']
+                pilot_type = pilot_opt_dict['pilot_type_opt']
+                pilot_url_str = pilot_opt_dict['pilot_url_str']
+
+            pilot_python_option = submitter_common.get_python_version_option(python_version, prod_source_label)
+
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
-                                                                           container_image, executable, args,
-                                                                           cert, cert_in_secret=use_secret,
-                                                                           cpu_adjust_ratio=self.cpuAdjustRatio,
-                                                                           memory_adjust_ratio=self.memoryAdjustRatio,
+                                                                           pilot_type, pilot_url_str,
+                                                                           pilot_python_option,
+                                                                           container_image, executable, args, cert,
                                                                            max_time=max_time)
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
@@ -253,7 +251,7 @@ class K8sSubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmp_log = self.make_logger(base_logger, method_name='submit_workers')
+        tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='submit_workers')
 
         n_workers = len(workspec_list)
         tmp_log.debug('start, n_workers={0}'.format(n_workers))

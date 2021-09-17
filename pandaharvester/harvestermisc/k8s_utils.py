@@ -17,18 +17,22 @@ from pandaharvester.harvestercore import core_utils
 base_logger = core_utils.setup_logger('k8s_utils')
 
 CONFIG_DIR = '/scratch/jobconfig'
-
+EXEC_DIR = '/scratch/executables'
+GiB_TO_GB = 2 ** 30 / 10.0 ** 9
 
 class k8s_Client(object):
 
-    def __init__(self, namespace, config_file=None):
+    def __init__(self, namespace, config_file=None, queue_name=None):
         if not os.path.isfile(config_file):
             raise RuntimeError('Cannot find k8s config file: {0}'.format(config_file))
         config.load_kube_config(config_file=config_file)
-        self.namespace = namespace if namespace else 'default'
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
+
+        self.panda_queues_dict = PandaQueuesDict()
+        self.namespace = namespace
+        self.queue_name = queue_name
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
@@ -36,10 +40,12 @@ class k8s_Client(object):
 
         return yaml_content
 
-    def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, container_image,  executable, args,
-                             cert, cert_in_secret=True, cpu_adjust_ratio=100, memory_adjust_ratio=100, max_time=None):
+    def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str,
+                             pilot_python_option, container_image,  executable, args,
+                             cert, max_time=None):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_job_from_yaml')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_job_from_yaml')
 
         # consider PULL mode as default, unless specified
         submit_mode = 'PULL'
@@ -54,8 +60,7 @@ class k8s_Client(object):
                 return res, 'Failed to create a configmap'
 
         # retrieve panda queue information
-        panda_queues_dict = PandaQueuesDict()
-        queue_name = panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
+        queue_name = self.panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
 
         # set the worker name
         yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
@@ -89,27 +94,60 @@ class k8s_Client(object):
         # Be familiar with QoS classes: https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod
         # The CPU & memory settings will affect the QoS for the pod
         container_env.setdefault('resources', {})
-        if work_spec.nCore > 0:
+        resource_settings = self.panda_queues_dict.get_k8s_resource_settings(work_spec.computingSite)
 
+        # CPU resources
+        cpu_scheduling_ratio = resource_settings['cpu_scheduling_ratio']
+        if work_spec.nCore > 0:
+            # CPU requests
+            container_env['resources'].setdefault('requests', {})
+            if 'cpu' not in container_env['resources']['requests']:
+                container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpu_scheduling_ratio / 100.0)
             # CPU limits
             container_env['resources'].setdefault('limits', {})
             if 'cpu' not in container_env['resources']['limits']:
                 container_env['resources']['limits']['cpu'] = str(work_spec.nCore)
-            # CPU requests
-            container_env['resources'].setdefault('requests', {})
-            if 'cpu' not in container_env['resources']['requests']:
-                container_env['resources']['requests']['cpu'] = str(work_spec.nCore * cpu_adjust_ratio / 100.0)
+
+        # Memory resources
+        use_memory_limit = resource_settings['use_memory_limit']
+        memory_limit_safety_factor = resource_settings['memory_limit_safety_factor']
+        memory_limit_min_offset = resource_settings['memory_limit_min_offset']
 
         if work_spec.minRamCount > 4:  # K8S minimum memory limit = 4 MB
-            # memory limits
-            # container_env['resources'].setdefault('limits', {})
-            # if 'memory' not in container_env['resources']['limits']:
-            #     container_env['resources']['limits']['memory'] = str(work_spec.minRamCount) + 'M'
             # memory requests
             container_env['resources'].setdefault('requests', {})
             if 'memory' not in container_env['resources']['requests']:
-                container_env['resources']['requests']['memory'] = str(
-                    work_spec.minRamCount * memory_adjust_ratio / 100.0) + 'M'
+                container_env['resources']['requests']['memory'] = str(work_spec.minRamCount) + 'Mi'
+            # memory limits: kubernetes is very aggressive killing jobs due to memory, hence making this field optional
+            # and adding configuration possibilities to add a safety factor
+            if use_memory_limit:
+                container_env['resources'].setdefault('limits', {})
+                if 'memory' not in container_env['resources']['limits']:
+                    mem_limit = max(work_spec.minRamCount + memory_limit_min_offset,
+                                    work_spec.minRamCount * memory_limit_safety_factor / 100.0)
+                    container_env['resources']['limits']['memory'] = str(mem_limit) + 'Mi'
+
+        # Ephemeral storage resources
+        use_ephemeral_storage = resource_settings['use_ephemeral_storage']
+        ephemeral_storage_offset_GiB = resource_settings['ephemeral_storage_offset'] / 1024
+        ephemeral_storage_limit_safety_factor = resource_settings['ephemeral_storage_limit_safety_factor']
+
+        if use_ephemeral_storage:
+            maxwdir_prorated_GiB = self.panda_queues_dict.get_prorated_maxwdir_GiB(work_spec.computingSite,
+                                                                                   work_spec.nCore)
+            # ephemeral storage requests
+            container_env['resources'].setdefault('requests', {})
+            if 'ephemeral-storage' not in container_env['resources']['requests']:
+                eph_storage_request_GiB = maxwdir_prorated_GiB + ephemeral_storage_offset_GiB
+                eph_storage_request_MiB = round(eph_storage_request_GiB * 1024, 2)
+                container_env['resources']['requests']['ephemeral-storage'] = str(eph_storage_request_MiB) + 'Mi'
+            # ephemeral storage limits
+            container_env['resources'].setdefault('limits', {})
+            if 'ephemeral-storage' not in container_env['resources']['limits']:
+                eph_storage_limit_GiB = (maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) \
+                                        * ephemeral_storage_limit_safety_factor / 100.0
+                eph_storage_limit_MiB = round(eph_storage_limit_GiB * 1024, 2)
+                container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit_MiB) + 'Mi'
 
         container_env.setdefault('env', [])
         # try to retrieve the stdout log file name
@@ -124,9 +162,11 @@ class k8s_Client(object):
             {'name': 'pandaQueueName', 'value': queue_name},
             {'name': 'resourceType', 'value': work_spec.resourceType},
             {'name': 'prodSourceLabel', 'value': prod_source_label},
+            {'name': 'pilotType', 'value': pilot_type},
+            {'name': 'pilotUrlOpt', 'value': pilot_url_str},
+            {'name': 'pythonOption', 'value': pilot_python_option},
             {'name': 'jobType', 'value': work_spec.jobType},
-            {'name': 'proxySecretPath', 'value': cert if cert_in_secret else None},
-            {'name': 'proxyContent', 'value': None if cert_in_secret else self.set_proxy(cert)},
+            {'name': 'proxySecretPath', 'value': cert},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
@@ -134,8 +174,17 @@ class k8s_Client(object):
             {'name': 'PANDA_JSID', 'value': 'harvester-' + harvester_config.master.harvester_id},
             {'name': 'HARVESTER_WORKER_ID', 'value': str(work_spec.workerID)},
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id},
-            {'name': 'submit_mode', 'value': submit_mode}
+            {'name': 'submit_mode', 'value': submit_mode},
+            {'name': 'EXEC_DIR', 'value': EXEC_DIR},
         ])
+
+        # add the pilots starter configmap
+        yaml_content['spec']['template']['spec'].setdefault('volumes', [])
+        yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+        yaml_volumes.append({'name': 'pilots-starter', 'configMap': {'name': 'pilots-starter'}})
+        # mount the volume to the filesystem
+        container_env.setdefault('volumeMounts', [])
+        container_env['volumeMounts'].append({'name': 'pilots-starter', 'mountPath': EXEC_DIR})
 
         # in push mode, add the configmap as a volume to the pod
         if submit_mode == 'PUSH' and worker_id:
@@ -146,19 +195,22 @@ class k8s_Client(object):
             container_env.setdefault('volumeMounts', [])
             container_env['volumeMounts'].append({'name': 'job-config', 'mountPath': CONFIG_DIR})
 
-        # if we are running the pilot in a emptyDir with "pilot-dir" name, then set the max size
-        if 'volumes' in yaml_content['spec']['template']['spec']:
-            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
-            for volume in yaml_volumes:
-                # do not overwrite any hardcoded sizeLimit value
-                if volume['name'] == 'pilot-dir' and 'emptyDir' in volume and 'sizeLimit' not in volume['emptyDir']:
-                    maxwdir_prorated_GB = panda_queues_dict.get_prorated_maxwdir_GB(work_spec.computingSite, work_spec.nCore)
-                    if maxwdir_prorated_GB:
-                        volume['emptyDir']['sizeLimit'] = '{0}G'.format(maxwdir_prorated_GB)
-
         # set the affinity
-        if 'affinity' not in yaml_content['spec']['template']['spec']:
-            yaml_content = self.set_affinity(yaml_content)
+        scheduling_settings = self.panda_queues_dict.get_k8s_scheduler_settings(work_spec.computingSite)
+
+        use_affinity = scheduling_settings['use_affinity']
+        use_anti_affinity = scheduling_settings['use_anti_affinity']
+        if (use_affinity or use_anti_affinity) and 'affinity' not in yaml_content['spec']['template']['spec']:
+            yaml_content = self.set_affinity(yaml_content, use_affinity, use_anti_affinity)
+
+        # set the priority classes
+        priority_class_key = 'priority_class_{0}'.format(work_spec.resourceType.lower())
+        try:
+            priority_class = scheduling_settings[priority_class_key]
+        except KeyError:
+            priority_class = None
+        if priority_class and 'priorityClassName' not in yaml_content['spec']['template']['spec']:
+            yaml_content['spec']['template']['spec']['priorityClassName'] = priority_class
 
         # set max_time to avoid having a pod running forever
         if 'activeDeadlineSeconds' not in yaml_content['spec']['template']['spec']:
@@ -183,7 +235,8 @@ class k8s_Client(object):
 
     def get_pods_info(self, workspec_list=[]):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_pods_info')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='get_pods_info')
         pods_list = list()
 
         label_selector = self.generate_ls_from_wsl(workspec_list)
@@ -193,21 +246,22 @@ class k8s_Client(object):
             ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         except Exception as _e:
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
-        else:
-            for i in ret.items:
-                pod_info = {
-                    'name': i.metadata.name,
-                    'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
-                    'status': i.status.phase,
-                    'status_conditions': i.status.conditions,
-                    'job_name': i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None,
-                    'containers_state': []
-                }
-                if i.status.container_statuses:
-                    for cs in i.status.container_statuses:
-                        if cs.state:
-                            pod_info['containers_state'].append(cs.state)
-                pods_list.append(pod_info)
+            return None  # None needs to be treated differently than [] by the caller
+
+        for i in ret.items:
+            pod_info = {
+                'name': i.metadata.name,
+                'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
+                'status': i.status.phase,
+                'status_conditions': i.status.conditions,
+                'job_name': i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None,
+                'containers_state': []
+            }
+            if i.status.container_statuses:
+                for cs in i.status.container_statuses:
+                    if cs.state:
+                        pod_info['containers_state'].append(cs.state)
+            pods_list.append(pod_info)
 
         return pods_list
 
@@ -218,7 +272,8 @@ class k8s_Client(object):
 
     def get_jobs_info(self, workspec_list=[]):
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_jobs_info')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='get_jobs_info')
 
         jobs_list = list()
 
@@ -242,6 +297,11 @@ class k8s_Client(object):
         return jobs_list
 
     def delete_pods(self, pod_name_list):
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='delete_pods')
+
+        tmp_log.debug('Going to delete {0} PODs: {1}'.format(len(pod_name_list), pod_name_list))
+
         ret_list = list()
 
         for pod_name in pod_name_list:
@@ -257,48 +317,71 @@ class k8s_Client(object):
                 rsp['errMsg'] = ''
             ret_list.append(rsp)
 
+        tmp_log.debug('Done with: {0}'.format(ret_list))
         return ret_list
 
     def delete_job(self, job_name):
-        tmp_log = core_utils.make_logger(base_logger, 'job_name={0}'.format(job_name), method_name='delete_job')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0} job_name={1}'.format(self.queue_name, job_name),
+                                         method_name='delete_job')
+        tmp_log.debug('Going to delete JOB {0}'.format(job_name))
         try:
             self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1,
                                                grace_period_seconds=0)
+            tmp_log.debug('Deleted JOB {0}'.format(job_name))
         except Exception as _e:
-            tmp_log.error('Failed call to delete_namespaced_job with: {0}'.format(_e))
+            tmp_log.error('Failed to delete JOB {0} with: {1}'.format(job_name, _e))
 
     def delete_config_map(self, config_map_name):
         self.corev1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.deletev1,
                                                  grace_period_seconds=0)
 
-    def set_proxy(self, proxy_path):
-        with open(proxy_path) as f:
-            content = f.read()
-        content = content.replace("\n", ",")
-        return content
+    def set_affinity(self, yaml_content, use_affinity, use_anti_affinity):
 
-    def set_affinity(self, yaml_content):
+        if not use_affinity and not use_anti_affinity:
+            # we are not supposed to use any affinity setting for this queue
+            return yaml_content
+
         yaml_content['spec']['template']['spec']['affinity'] = {}
         yaml_affinity = yaml_content['spec']['template']['spec']['affinity']
-        res_element = {'SCORE', 'MCORE'}
+
+        res_element = {'SCORE', 'SCORE', 'MCORE', 'MCORE_HIMEM'}
+        scores = ['SCORE', 'SCORE_HIMEM']
+        mcores = ['MCORE', 'MCORE_HIMEM']
+
+        anti_affinity_matrix = {'SCORE': mcores,
+                                'SCORE_HIMEM': mcores,
+                                'MCORE': scores,
+                                'MCORE_HIMEM': scores}
+
         affinity_spec = {
             'preferredDuringSchedulingIgnoredDuringExecution': [
                 {'weight': 100, 'podAffinityTerm': {
-                    'labelSelector': {'matchExpressions': [
-                        {'key': 'resourceType', 'operator': 'In', 'values': ['SCORE']}]},
+                    'labelSelector': {
+                        'matchExpressions': [
+                            {
+                                'key': 'resourceType',
+                                'operator': 'In',
+                                'values': ['SCORE', 'SCORE_HIMEM']
+                            }
+                        ]
+                    },
                     'topologyKey': 'kubernetes.io/hostname'}
-                 }]}
+                 }
+            ]
+        }
 
         resource_type = yaml_content['spec']['template']['metadata']['labels']['resourceType']
 
-        if resource_type == 'SCORE':
+        if use_affinity and resource_type in scores:
+            # resource type SCORE* should attract each other instead of spreading across the nodes
             yaml_affinity['podAffinity'] = copy.deepcopy(affinity_spec)
-            yaml_affinity['podAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm'][
-                'labelSelector']['matchExpressions'][0]['values'][0] = resource_type
 
-        yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
-        yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm'][
-            'labelSelector']['matchExpressions'][0]['values'][0] = res_element.difference({resource_type}).pop()
+        if use_anti_affinity:
+            # SCORE* will repel MCORE* and viceversa. The main reasoning was to keep nodes for MCORE
+            # This setting depends on the size of the node vs the MCORE job
+            yaml_affinity['podAntiAffinity'] = copy.deepcopy(affinity_spec)
+            yaml_affinity['podAntiAffinity']['preferredDuringSchedulingIgnoredDuringExecution'][0]['podAffinityTerm'][
+                'labelSelector']['matchExpressions'][0]['values'] = anti_affinity_matrix[resource_type]
 
         return yaml_content
 
@@ -307,7 +390,8 @@ class k8s_Client(object):
         # kind = 'Secret'
         # type='kubernetes.io/tls'
         rsp = None
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_or_patch_secret')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_or_patch_secret')
 
         metadata = {'name': secret_name, 'namespace': self.namespace}
         data = {}
@@ -332,7 +416,8 @@ class k8s_Client(object):
     def create_configmap(self, work_spec):
         # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
-        tmp_log = core_utils.make_logger(base_logger, method_name='create_configmap')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_configmap')
 
         try:
             worker_id = str(work_spec.workerID)
@@ -361,12 +446,47 @@ class k8s_Client(object):
             tmp_log.debug('Created configmap for worker id: {0}'.format(worker_id))
             return True
 
-        except (ApiException, TypeError) as e:
+        except Exception as e:
+            tmp_log.error('Could not create configmap with: {0}'.format(e))
+            return False
+
+    def create_or_patch_configmap_starter(self):
+        # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
+
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='create_or_patch_configmap_starter')
+
+        try:
+            fn = 'pilots_starter.py'
+            dirname = os.path.dirname(__file__)
+            pilots_starter_file = os.path.join(dirname, '../harvestercloud/{0}'.format(fn))
+            with open(pilots_starter_file) as f:
+                pilots_starter_contents = f.read()
+
+            data = {fn: pilots_starter_contents}
+            name = 'pilots-starter'
+
+            # instantiate the configmap object
+            metadata = {'name': name, 'namespace': self.namespace}
+            config_map = client.V1ConfigMap(api_version="v1", kind="ConfigMap", data=data, metadata=metadata)
+
+            try:
+                api_response = self.corev1.patch_namespaced_config_map(name=name, body=config_map, namespace=self.namespace)
+                tmp_log.debug('Patched pilots-starter config_map')
+            except ApiException as e:
+                tmp_log.debug('Exception when patching pilots-starter config_map: {0} . Try to create it instead...'
+                              .format(e))
+                api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
+                tmp_log.debug('Created pilots-starter config_map')
+            return True
+
+        except Exception as e:
             tmp_log.error('Could not create configmap with: {0}'.format(e))
             return False
 
     def get_pod_logs(self, pod_name, previous=False):
-        tmp_log = core_utils.make_logger(base_logger, method_name='get_pod_logs')
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='get_pod_logs')
         try:
             rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
             tmp_log.debug('Log file retrieved for {0}'.format(pod_name))
