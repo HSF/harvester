@@ -15,6 +15,7 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.token_utils import endpoint_to_filename
 from pandaharvester.harvestermisc.htcondor_utils import get_job_id_tuple_from_batchid
 from pandaharvester.harvestermisc.htcondor_utils import CondorJobSubmit
 from pandaharvester.harvestersubmitter import submitter_common
@@ -315,7 +316,7 @@ def submit_bag_of_workers(data_list):
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), pilot_url=None,
                 special_par='', harvester_queue_config=None, is_unified_queue=False,
-                pilot_version='unknown', python_version='unknown', **kwarg):
+                pilot_version='unknown', python_version='unknown', token_dir=None, **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -345,7 +346,9 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             tmpLog.debug('job attributes override by AGIS special_par: {0}={1}'.format(attr, str(_match.group(1))))
     # derived job attributes
     n_node = _div_round_up(n_core_total, n_core_per_node)
+    request_ram_bytes = request_ram * 2**20
     request_ram_per_core = _div_round_up(request_ram * n_node, n_core_total)
+    request_ram_bytes_per_core = _div_round_up(request_ram_bytes * n_node, n_core_total)
     request_cputime = request_walltime * n_core_total
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
@@ -359,6 +362,13 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         prod_source_label = pilot_opt_dict['prod_source_label']
         pilot_type_opt = pilot_opt_dict['pilot_type_opt']
         pilot_url_str = pilot_opt_dict['pilot_url_str']
+    # get token filename according to CE
+    token_filename = None
+    if token_dir is not None and ce_info_dict.get('ce_endpoint'):
+        token_filename = endpoint_to_filename(ce_info_dict['ce_endpoint'])
+    token_path = None
+    if token_dir is not None and token_filename is not None:
+        token_path = os.path.join(token_dir, token_filename)
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
     # placeholder map
@@ -369,7 +379,9 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'nCoreTotal': n_core_total,
             'nNode': n_node,
             'requestRam': request_ram,
+            'requestRamBytes': request_ram_bytes,
             'requestRamPerCore': request_ram_per_core,
+            'requestRamBytesPerCore': request_ram_bytes_per_core,
             'requestDisk': request_disk,
             'requestWalltime': request_walltime,
             'requestWalltimeMinute': request_walltime_minute,
@@ -402,6 +414,9 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
             'ceARCGridType': ce_info_dict.get('ce_arc_grid_type', 'nordugrid'),
+            'tokenDir': token_dir,
+            'tokenFilename': token_filename,
+            'tokenPath': token_path,
         }
     # fill in template string
     jdl_str = template.format(**placeholder_map)
@@ -466,6 +481,16 @@ class HTCondorSubmitter(PluginBase):
             self.x509UserProxyAnalysis
         except AttributeError:
             self.x509UserProxyAnalysis = os.getenv('X509_USER_PROXY_ANAL')
+        # Default token directory for a queue
+        try:
+            self.tokenDir
+        except AttributeError:
+            self.tokenDir = None
+        # token directory for analysis jobs in grandly unified queues
+        try:
+            self.tokenDirAnalysis
+        except AttributeError:
+            self.tokenDirAnalysis = None
         # ATLAS AGIS
         try:
             self.useAtlasAGIS = bool(self.useAtlasAGIS)
@@ -668,18 +693,25 @@ class HTCondorSubmitter(PluginBase):
             # make logger
             tmpLog = core_utils.make_logger(baseLogger, 'site={0} workerID={1}'.format(self.queueName, workspec.workerID),
                                             method_name='_handle_one_worker')
-            def _choose_proxy(workspec):
+            def _choose_credential(workspec):
                 """
-                Choose the proxy based on the job type
+                Choose the credential based on the job type
                 """
                 job_type = workspec.jobType
                 proxy = self.x509UserProxy
-                if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis') and self.x509UserProxyAnalysis:
-                    tmpLog.debug('Taking analysis proxy')
-                    proxy = self.x509UserProxyAnalysis
+                token_dir = self.tokenDir
+                if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis'):
+                    if self.x509UserProxyAnalysis:
+                        tmpLog.debug('Taking analysis proxy')
+                        proxy = self.x509UserProxyAnalysis
+                    if self.tokenDirAnalysis:
+                        tmpLog.debug('Taking analysis token_dir')
+                        token_dir = self.tokenDirAnalysis
                 else:
                     tmpLog.debug('Taking default proxy')
-                return proxy
+                    if self.tokenDir:
+                        tmpLog.debug('Taking default token_dir')
+                return proxy, token_dir
             # initialize
             ce_info_dict = dict()
             batch_log_dict = dict()
@@ -823,7 +855,7 @@ class HTCondorSubmitter(PluginBase):
                     tmpLog.debug('Done jobspec attribute setting')
 
                 # choose the x509 certificate based on the type of job (analysis or production)
-                proxy = _choose_proxy(workspec)
+                proxy, token_dir = _choose_credential(workspec)
 
                 # set data dict
                 data.update({
@@ -847,6 +879,7 @@ class HTCondorSubmitter(PluginBase):
                         'pilot_url': pilot_url,
                         'pilot_version': pilot_version,
                         'python_version': python_version,
+                        'token_dir': token_dir,
                         })
             return data
 
