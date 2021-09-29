@@ -353,7 +353,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     request_walltime_minute = _div_round_up(request_walltime, 60)
     request_cputime_minute = _div_round_up(request_cputime, 60)
     # decide prodSourceLabel
-    pilot_opt_dict = submitter_common.get_complicated_pilot_options(workspec.pilotType, pilot_url=pilot_url)
+    pilot_opt_dict = submitter_common.get_complicated_pilot_options(workspec.pilotType, pilot_url, pilot_version)
     if pilot_opt_dict is None:
         prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
