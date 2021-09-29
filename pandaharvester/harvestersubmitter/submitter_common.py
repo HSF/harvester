@@ -9,7 +9,7 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=None
             'RC': {
                     'prod_source_label': 'rc_test2',
                     'pilot_type_opt': 'RC',
-                    'pilot_url_str': 'http://cern.ch/atlas-panda-pilot/pilot3-dev.tar.gz' if is_pilot3 \
+                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev.tar.gz' if is_pilot3 \
                                         else '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz',
                 },
             'ALRB': {
