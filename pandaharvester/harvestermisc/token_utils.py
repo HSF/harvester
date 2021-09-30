@@ -52,13 +52,16 @@ class IssuerBroker(object):
         data_dict = copy.deepcopy(self._base_post_data)
         data_dict.update(kwarg)
         data = copy.deepcopy(data_dict)
-        resp = requests.post(self.issuer, data=data, timeout=self.timeout)
+        resp = requests.post(self.token_request_url, data=data, timeout=self.timeout)
         return resp
 
     def get_access_token(self, aud=None, scope=None):
         resp = self._post(audience=aud, scope=scope)
         if resp.status_code == requests.codes.ok:
-            resp_dict = json.loads(resp.text)
+            try:
+                resp_dict = json.loads(resp.text)
+            except Exception as e:
+                raise
             token = resp_dict['access_token']
             return token
         else:

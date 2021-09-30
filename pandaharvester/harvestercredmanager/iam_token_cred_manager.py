@@ -36,14 +36,14 @@ class IamTokenCredManager(BaseCredManager):
         # validate setupMap
         try:
             self.client_cred_file = self.setupMap['client_cred_file']
-            with open(self.inFile) as f:
+            with open(self.client_cred_file) as f:
                 client_cred_dict = json.load(f)
                 self.issuer = client_cred_dict['issuer']
                 self.client_id = client_cred_dict['client_id']
                 self.client_secret = client_cred_dict['client_secret']
             self.target_type = self.setupMap['target_type']
             self.out_dir = self.setupMap['out_dir']
-            self.lifetime = self.setupMap('lifetime')
+            self.lifetime = self.setupMap.get('lifetime')
         except KeyError as e:
             tmp_log.error('Missing attributes in setup. {0}'.format(traceback.format_exc()))
             raise
@@ -60,6 +60,8 @@ class IamTokenCredManager(BaseCredManager):
                                             name=self.setup_name)
 
     def _handle_target_types(self):
+        # make logger
+        tmp_log = self.make_logger(_logger, method_name='_handle_target_types')
         try:
             self.panda_queues_dict = PandaQueuesDict()
         except Exception as e:
@@ -68,12 +70,12 @@ class IamTokenCredManager(BaseCredManager):
         if self.target_type == 'ce':
             try:
                 # retrieve CEs from CRIC
-                for site, val in self.panda_queues_dict:
+                for site, val in self.panda_queues_dict.items():
                     if val.get('status') == 'offline':
                         # do not generate token for offline PQs, but for online, brokeroff, pause, ...
                         continue
                     ce_q_list = val.get('queues')
-                    if queues_list:
+                    if ce_q_list:
                         # loop over all ce queues
                         for ce_q in ce_q_list:
                             ce_status = ce_q.get('ce_status')
@@ -112,7 +114,7 @@ class IamTokenCredManager(BaseCredManager):
         for target in self.targets_dict:
             try:
                 # get access token of target
-                access_token = self.issuer_broker.get_access_token(self, aud=target, scope=self.scope)
+                access_token = self.issuer_broker.get_access_token(aud=target, scope=self.scope)
                 # write to file
                 token_filename = endpoint_to_filename(target)
                 token_path = os.path.join(self.out_dir, token_filename)
