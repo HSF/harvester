@@ -626,6 +626,8 @@ class HTCondorSubmitter(PluginBase):
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
         pilot_url = associated_params_dict.get('pilot_url')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
+        # intentionally omit pilot_version=3 during test phase (already controlld by piloturl)
+        pilot_version = 'current' if pilot_version.startswith('3') else pilot_version
         python_version = str(this_panda_queue_dict.get('python_version', '2'))
         sdf_suffix_str = '_pilot2'
 
