@@ -44,6 +44,7 @@ class IamTokenCredManager(BaseCredManager):
             self.target_type = self.setupMap['target_type']
             self.out_dir = self.setupMap['out_dir']
             self.lifetime = self.setupMap.get('lifetime')
+            self.target_list_file = self.setupMap.get('target_list_file')
         except KeyError as e:
             tmp_log.error('Missing attributes in setup. {0}'.format(traceback.format_exc()))
             raise
@@ -93,8 +94,22 @@ class IamTokenCredManager(BaseCredManager):
                         # do not generate token if no queues of CE
                         continue
             except Exception as e:
-                tmp_log.error('Problem retrieving CEs. {0}'.format(traceback.format_exc()))
+                tmp_log.error('Problem retrieving CEs from CRIC. {0}'.format(traceback.format_exc()))
                 raise
+            # retrieve CEs from local file
+            if self.target_list_file:
+                try:
+                    with open(self.target_list_file) as f:
+                        for target_str in f.readlines():
+                            if target_str:
+                                target = target_str.rstrip()
+                                target_attr_dict = {
+                                        'ce_flavour': None,
+                                    }
+                                self.targets_dict[target] = target_attr_dict
+                except Exception as e:
+                    tmp_log.error('Problem retrieving CEs from local file. {0}'.format(traceback.format_exc()))
+                    raise
             # scope for CE
             self.scope = WLCG_scopes.COMPUTE_ALL
 
