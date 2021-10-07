@@ -409,7 +409,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'ioIntensity': io_intensity,
             'pilotType': pilot_type_opt,
             'pilotUrlOption': pilot_url_str,
-            'pilotVersion': pilot_version,
+            'pilotVersion': 'current' if pilot_version.startswith('3') else pilot_version,
             'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
@@ -626,8 +626,6 @@ class HTCondorSubmitter(PluginBase):
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
         pilot_url = associated_params_dict.get('pilot_url')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
-        # intentionally omit pilot_version=3 during test phase (already controlld by piloturl)
-        pilot_version = 'current' if pilot_version.startswith('3') else pilot_version
         python_version = str(this_panda_queue_dict.get('python_version', '2'))
         sdf_suffix_str = '_pilot2'
 
