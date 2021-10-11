@@ -553,6 +553,11 @@ class HTCondorSubmitter(PluginBase):
             self.minBulkToRamdomizedSchedd
         except AttributeError:
             self.minBulkToRamdomizedSchedd = 20
+        # try to use analysis credentials first
+        try:
+            self.useAnalysisCredentials
+        except AttributeError:
+            self.useAnalysisCredentials = False
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
@@ -700,7 +705,7 @@ class HTCondorSubmitter(PluginBase):
                 job_type = workspec.jobType
                 proxy = self.x509UserProxy
                 token_dir = self.tokenDir
-                if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis'):
+                if (is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis')) or self.useAnalysisCredentials:
                     if self.x509UserProxyAnalysis:
                         tmpLog.debug('Taking analysis proxy')
                         proxy = self.x509UserProxyAnalysis
