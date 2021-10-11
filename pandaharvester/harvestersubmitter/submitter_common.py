@@ -4,7 +4,7 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=None
     # for pilot 3
     is_pilot3 = True if pilot_version.startswith('3') else False
     # map
-    # 210929 currently only RC may run pilot 3
+    # 211012 currently only RC and PT may run pilot 3
     pt_psl_map = {
             'RC': {
                     'prod_source_label': 'rc_test2',
@@ -20,7 +20,8 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=None
             'PT': {
                     'prod_source_label': 'ptest',
                     'pilot_type_opt': 'PR',
-                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev2.tar.gz',
+                    'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev2.tar.gz' if is_pilot3 \
+                                        else '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz',
                 },
         }
     pilot_opt_dict = pt_psl_map.get(pilot_type, None)
