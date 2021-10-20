@@ -160,6 +160,17 @@ class DBProxy(object):
                 try_timestamp = time.time()
                 n_retry = 1
                 while time.time() - try_timestamp < self.reconnectTimeout:
+                    # close DB cursor
+                    try:
+                        self.cur.close()
+                    except Exception as e:
+                        tmpLog.error('failed to close cursor: {0}'.format(e))
+                    # close DB connection
+                    try:
+                        self.con.close()
+                    except Exception as e:
+                        tmpLog.error('failed to close connection: {0}'.format(e))
+                    # restart the proxy instance
                     try:
                         self.__init__()
                         tmpLog.info('renewed connection')
