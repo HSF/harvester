@@ -71,6 +71,17 @@ class DBProxy(object):
                     self.thrName = currentThr.ident
             if hasattr(harvester_config.db, 'useInspect') and harvester_config.db.useInspect is True:
                 self.useInspect = True
+        # connect DB
+        self._connect_db()
+        self.lockDB = False
+        # using application side lock if DB doesn't have a mechanism for exclusive access
+        if harvester_config.db.engine == 'mariadb':
+            self.usingAppLock = False
+        else:
+            self.usingAppLock = True
+
+    # connect DB
+    def _connect_db(self):
         if harvester_config.db.engine == 'mariadb':
             if hasattr(harvester_config.db, 'host'):
                 host = harvester_config.db.host
@@ -134,12 +145,6 @@ class DBProxy(object):
                 self.cur.execute('PRAGMA journal_mode = WAL')
                 # read to avoid database lock
                 self.cur.fetchone()
-        self.lockDB = False
-        # using application side lock if DB doesn't have a mechanism for exclusive access
-        if harvester_config.db.engine == 'mariadb':
-            self.usingAppLock = False
-        else:
-            self.usingAppLock = True
 
     # exception handler for type of DBs
     def _handle_exception(self, exc):
@@ -172,7 +177,7 @@ class DBProxy(object):
                         tmpLog.error('failed to close connection: {0}'.format(e))
                     # restart the proxy instance
                     try:
-                        self.__init__()
+                        self._connect_db()
                         tmpLog.info('renewed connection')
                         break
                     except Exception as e:
