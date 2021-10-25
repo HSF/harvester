@@ -182,19 +182,29 @@ class Monitor(AgentBase):
                     while time.time() < last_fifo_cycle_timestamp + fifoCheckDuration:
                         sw.reset()
                         n_loops += 1
-                        retVal, overhead_time = monitor_fifo.to_check_workers()
+                        try:
+                            retVal, overhead_time = monitor_fifo.to_check_workers()
+                        except Exception as e:
+                            mainLog.error('failed to check workers from FIFO: {0}'.format(e))
                         if overhead_time is not None:
                             n_chunk_peeked_stat += 1
                             sum_overhead_time_stat += overhead_time
                         if retVal:
                             # check fifo size
-                            fifo_size = monitor_fifo.size()
-                            mainLog.debug('FIFO size is {0}'.format(fifo_size))
+                            try:
+                                fifo_size = monitor_fifo.size()
+                                mainLog.debug('FIFO size is {0}'.format(fifo_size))
+                            except Exception as e:
+                                mainLog.error('failed to get size of FIFO: {0}'.format(e))
+                                time.sleep(2)
+                                continue
                             mainLog.debug('starting run with FIFO')
                             try:
                                 obj_gotten = monitor_fifo.get(timeout=1, protective=fifoProtectiveDequeue)
                             except Exception as errStr:
                                 mainLog.error('failed to get object from FIFO: {0}'.format(errStr))
+                                time.sleep(2)
+                                continue
                             else:
                                 if obj_gotten is not None:
                                     sw_fifo = core_utils.get_stopwatch()
@@ -299,7 +309,10 @@ class Monitor(AgentBase):
                             mainLog.error('failed to put object from FIFO head: {0}'.format(errStr))
                 # delete protective dequeued objects
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
-                    monitor_fifo.delete(ids=obj_dequeued_id_list)
+                    try:
+                        monitor_fifo.delete(ids=obj_dequeued_id_list)
+                    except Exception as e:
+                        mainLog.error('failed to delete object from FIFO: {0}'.format(e))
                 mainLog.debug('put {0} worker chunks into FIFO'.format(n_chunk_put) + sw.get_elapsed_time())
                 # adjust adjusted_sleepTime
                 if n_chunk_peeked_stat > 0 and sum_overhead_time_stat > sleepTime:
@@ -785,7 +798,11 @@ class Monitor(AgentBase):
         tmpLog.debug('start')
         timeNow_timestamp = time.time()
         retMap = {}
-        obj_gotten_list = self.monitor_event_fifo.getmany(mode='first', count=max_events, protective=True)
+        try:
+            obj_gotten_list = self.monitor_event_fifo.getmany(mode='first', count=max_events, protective=True)
+        except Exception as e:
+            obj_gotten_list = []
+            tmpLog.error('monitor_event_fifo excepted with {0}'.format(e))
         workerID_list = [ obj_gotten.id for obj_gotten in obj_gotten_list ]
         tmpLog.debug('got {0} worker events'.format(len(workerID_list)))
         if len(workerID_list) > 0:
@@ -813,10 +830,17 @@ class Monitor(AgentBase):
         tmpLog = self.make_logger(_logger, 'id=monitor-{0}'.format(self.get_pid()), method_name='monitor_event_disposer')
         tmpLog.debug('start')
         timeNow_timestamp = time.time()
-        obj_gotten_list = self.monitor_event_fifo.getmany(mode='first',
+        try:
+            obj_gotten_list = self.monitor_event_fifo.getmany(mode='first',
                                                             maxscore=(timeNow_timestamp-event_lifetime),
                                                             count=max_events, temporary=True)
+        except Exception as e:
+            obj_gotten_list = []
+            tmpLog.error('monitor_event_fifo excepted with {0}'.format(e))
         tmpLog.debug('removed {0} events'.format(len(obj_gotten_list)))
-        n_events = self.monitor_event_fifo.size()
-        tmpLog.debug('now {0} events in monitor-event fifo'.format(n_events))
+        try:
+            n_events = self.monitor_event_fifo.size()
+            tmpLog.debug('now {0} events in monitor-event fifo'.format(n_events))
+        except Exception as e:
+            tmpLog.error('failed to get size of monitor-event fifo: {0}'.format(e))
         tmpLog.debug('done')
