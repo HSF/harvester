@@ -369,6 +369,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     token_path = None
     if token_dir is not None and token_filename is not None:
         token_path = os.path.join(token_dir, token_filename)
+    else:
+        tmpLog.warning('token_path is None: site={0}, token_dir={1} , token_filename={2}'.format(panda_queue_name, token_dir, token_filename))
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_submit.sdf', dir=workspec.get_access_point())
     # placeholder map

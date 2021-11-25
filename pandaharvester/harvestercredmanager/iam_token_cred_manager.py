@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import traceback
 
 from .base_cred_manager import BaseCredManager
@@ -12,6 +13,11 @@ _logger = core_utils.setup_logger('iam_token_cred_manager')
 
 # allowed target types
 ALL_TARGET_TYPES = ['ce']
+
+# default port for CEs
+default_port_map = {
+        'htcondor-ce': 9619,
+    }
 
 # credential manager with IAM token
 class IamTokenCredManager(BaseCredManager):
@@ -79,17 +85,25 @@ class IamTokenCredManager(BaseCredManager):
                     if ce_q_list:
                         # loop over all ce queues
                         for ce_q in ce_q_list:
-                            ce_status = ce_q.get('ce_status')
-                            if not ce_status or ce_status == 'DISABLED':
-                                # skip disabled ce queues
-                                continue
+                            # ce_status = ce_q.get('ce_status')
+                            # if not ce_status or ce_status == 'DISABLED':
+                            #     # skip disabled ce queues
+                            #     continue
                             ce_endpoint = ce_q.get('ce_endpoint')
+                            ce_hostname = re.sub(':\w*', '',  ce_endpoint)
                             ce_flavour = ce_q.get('ce_flavour')
-                            if ce_endpoint and ce_flavour:
+                            ce_flavour_str = str(ce_flavour).lower()
+                            ce_endpoint_modified = ce_endpoint
+                            if ce_endpoint == ce_hostname:
+                                # no port, add default port
+                                if ce_flavour_str in default_port_map:
+                                    default_port = default_port_map[ce_flavour_str]
+                                    ce_endpoint_modified = '{0}:{1}'.format(ce_hostname, default_port)
+                            if ce_endpoint_modified and ce_flavour:
                                 target_attr_dict = {
                                         'ce_flavour': ce_flavour,
                                     }
-                                self.targets_dict[ce_endpoint] = target_attr_dict
+                                self.targets_dict[ce_endpoint_modified] = target_attr_dict
                     else:
                         # do not generate token if no queues of CE
                         continue
