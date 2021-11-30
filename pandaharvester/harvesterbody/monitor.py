@@ -668,7 +668,7 @@ class Monitor(AgentBase):
                                 timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout):
                             # kill due to timeout
                             tmp_log.debug('kill workerID={0} due to consecutive check failures'.format(workerID))
-                            self.dbProxy.kill_worker(workSpec.workerID)
+                            self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                             newStatus = WorkSpec.ST_cancelled
                             diagMessage = 'Killed by Harvester due to consecutive worker check failures. ' + diagMessage
                             workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
@@ -678,13 +678,13 @@ class Monitor(AgentBase):
                     # request kill
                     if messenger.kill_requested(workSpec):
                         tmp_log.debug('kill workerID={0} as requested'.format(workerID))
-                        self.dbProxy.kill_worker(workSpec.workerID)
+                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                     # stuck queuing for too long
                     if workSpec.status == WorkSpec.ST_submitted \
                         and timeNow > workSpec.submitTime + datetime.timedelta(seconds=workerQueueTimeLimit):
                         tmp_log.debug('kill workerID={0} due to queuing longer than {1} seconds'.format(
                                         workerID, workerQueueTimeLimit))
-                        self.dbProxy.kill_worker(workSpec.workerID)
+                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                         diagMessage = 'Killed by Harvester due to worker queuing too long. ' + diagMessage
                         workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                         # set closed
@@ -702,9 +702,8 @@ class Monitor(AgentBase):
                         if messenger.is_alive(workSpec, worker_heartbeat_limit):
                             tmp_log.debug('heartbeat for workerID={0} is valid'.format(workerID))
                         else:
-                            tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(
-                                workerID))
-                            self.dbProxy.kill_worker(workSpec.workerID)
+                            tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(workerID))
+                            self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                             diagMessage = 'Killed by Harvester due to worker heartbeat expired. ' + diagMessage
                             workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                     # get work attributes

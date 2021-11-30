@@ -3515,11 +3515,11 @@ class DBProxy(object):
             return {}
 
     # send kill command to workers associated to a job
-    def kill_workers_with_job(self, panda_id):
+    def mark_workers_to_kill_by_pandaid(self, panda_id):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id),
-                                            method_name='kill_workers_with_job')
+                                            method_name='mark_workers_to_kill_by_pandaid')
             tmpLog.debug('start')
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
@@ -3557,26 +3557,28 @@ class DBProxy(object):
             # return
             return None
 
-    # send kill command to a worker
-    def kill_worker(self, worker_id):
+    # send kill command to workers
+    def mark_workers_to_kill_by_workerids(self, worker_ids):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
-                                            method_name='kill_worker')
+                                            method_name='mark_workers_to_kill_by_workerids')
             tmpLog.debug('start')
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
             sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
             # set an older time to trigger sweeper
             setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-            # set killTime
-            varMap = dict()
-            varMap[':workerID'] = worker_id
-            varMap[':setTime'] = setTime
-            varMap[':st1'] = WorkSpec.ST_finished
-            varMap[':st2'] = WorkSpec.ST_failed
-            varMap[':st3'] = WorkSpec.ST_cancelled
-            self.execute(sqlL, varMap)
+            varMaps = []
+            for worker_id in worker_ids:
+                varMap = dict()
+                varMap[':workerID'] = worker_id
+                varMap[':setTime'] = setTime
+                varMap[':st1'] = WorkSpec.ST_finished
+                varMap[':st2'] = WorkSpec.ST_failed
+                varMap[':st3'] = WorkSpec.ST_cancelled
+                varMaps.append(varMap)
+            self.executemany(sqlL, varMaps)
             nRow = self.cur.rowcount
             # commit
             self.commit()
@@ -5514,10 +5516,10 @@ class DBProxy(object):
             return {}
 
     # send kill command to workers by query
-    def kill_workers_by_query(self, params):
+    def mark_workers_to_kill_by_query(self, params):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, method_name='kill_workers_by_query')
+            tmpLog = core_utils.make_logger(_logger, method_name='mark_workers_to_kill_by_query')
             tmpLog.debug('start')
 
             # sql to set killTime
