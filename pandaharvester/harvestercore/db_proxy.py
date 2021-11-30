@@ -3561,8 +3561,7 @@ class DBProxy(object):
     def mark_workers_to_kill_by_workerids(self, worker_ids):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, 'workerID={0}'.format(worker_id),
-                                            method_name='mark_workers_to_kill_by_workerids')
+            tmpLog = core_utils.make_logger(_logger, method_name='mark_workers_to_kill_by_workerids')
             tmpLog.debug('start')
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
