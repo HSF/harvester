@@ -153,10 +153,10 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             workflow = panda_queue_dict.get('workflow')
         return pq_type, workflow
 
-    def get_prorated_maxwdir_GB(self, panda_resource, worker_corecount):
+    def get_prorated_maxwdir_GiB(self, panda_resource, worker_corecount):
         try:
             panda_queue_dict = self.get(panda_resource)
-            maxwdir = panda_queue_dict.get('maxwdir') / 1000  # convert to GB
+            maxwdir = panda_queue_dict.get('maxwdir') / 1024  # convert to GiB
             corecount = panda_queue_dict.get('corecount')
             if panda_queue_dict.get('capability') == 'ucore':
                 maxwdir_prorated = maxwdir * worker_corecount / corecount
@@ -167,40 +167,125 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
 
         return maxwdir_prorated
 
-    def get_k8s_affinity_settings(self, panda_resource):
-        # this is how the parameters are declared in CRIC
+    def get_k8s_scheduler_settings(self, panda_resource):
+        # this is how the affinity settings are declared in CRIC
         key_affinity = 'k8s.scheduler.use_score_affinity'
         key_anti_affinity = 'k8s.scheduler.use_score_mcore_anti_affinity'
 
         params = self.get_harvester_params(panda_resource)
+        ret_map = {}
 
         try:
-            use_affinity = params[key_affinity]
+            ret_map['use_affinity'] = params[key_affinity]
         except KeyError:
             # return default value
-            use_affinity = True
+            ret_map['use_affinity'] = True
 
         try:
-            use_anti_affinity = params[key_anti_affinity]
+            ret_map['use_anti_affinity'] = params[key_anti_affinity]
         except KeyError:
             # return default value
-            use_anti_affinity = True
+            ret_map['use_anti_affinity'] = True
 
-        return use_affinity, use_anti_affinity
+        # this is how the affinity settings are declared in CRIC
+        key_priority_class_score = 'k8s.scheduler.priorityClassName.score'
+        key_priority_class_score_himem = 'k8s.scheduler.priorityClassName.score_himem'
+        key_priority_class_mcore = 'k8s.scheduler.priorityClassName.mcore'
+        key_priority_class_mcore_himem = 'k8s.scheduler.priorityClassName.mcore_himem'
+
+        try:
+            ret_map['priority_class_score'] = params[key_priority_class_score]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_score'] = None
+
+        try:
+            ret_map['priority_class_score_himem'] = params[key_priority_class_score_himem]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_score_himem'] = None
+
+        try:
+            ret_map['priority_class_mcore'] = params[key_priority_class_mcore]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_mcore'] = None
+
+        try:
+            ret_map['priority_class_mcore_himem'] = params[key_priority_class_mcore_himem]
+        except KeyError:
+            # return default value
+            ret_map['priority_class_mcore_himem'] = None
+
+        return ret_map
 
     def get_k8s_resource_settings(self, panda_resource):
-        # this is how the parameters are declared in CRIC
-        key_memory_limits = 'k8s.resources.limits.use_memory_limit'
-
         params = self.get_harvester_params(panda_resource)
+        ret_map = {}
+
+        # this is how the CPU parameters are declared in CRIC
+        key_cpu_scheduling_ratio = 'k8s.resources.requests.cpu_scheduling_ratio'
 
         try:
-            use_memory_limit = params[key_memory_limits]
+            cpu_scheduling_ratio = params[key_cpu_scheduling_ratio]
+        except KeyError:
+            # return default value
+            cpu_scheduling_ratio = 90
+        ret_map['cpu_scheduling_ratio'] = cpu_scheduling_ratio
+
+        # this is how the memory parameters are declared in CRIC
+        key_memory_limit = 'k8s.resources.limits.use_memory_limit'
+        key_memory_limit_safety_factor = 'k8s.resources.limits.memory_limit_safety_factor'
+        key_memory_limit_min_offset = 'k8s.resources.limits.memory_limit_min_offset'
+
+        try:
+            use_memory_limit = params[key_memory_limit]
         except KeyError:
             # return default value
             use_memory_limit = False
+        ret_map['use_memory_limit'] = use_memory_limit
 
-        return use_memory_limit
+        try:
+            memory_limit_safety_factor = params[key_memory_limit_safety_factor]
+        except KeyError:
+            # return default value
+            memory_limit_safety_factor = 100
+        ret_map['memory_limit_safety_factor'] = memory_limit_safety_factor
+
+        try:
+            memory_limit_min_offset = params[key_memory_limit_min_offset]  # in MiB to be consistent with minRamCount
+        except KeyError:
+            # return default value
+            memory_limit_min_offset = 0
+        ret_map['memory_limit_min_offset'] = memory_limit_min_offset
+
+        # this is how the ephemeral storage parameters are declared in CRIC
+        key_ephemeral_storage = 'k8s.resources.use_ephemeral_storage_resource_specs'
+        key_ephemeral_storage_resources_offset = 'k8s.resources.ephemeral_storage_offset'
+        key_ephemeral_storage_limit_safety_factor = 'k8s.resources.limits.ephemeral_storage_limit_safety_factor'
+
+        try:
+            use_ephemeral_storage = params[key_ephemeral_storage]
+        except KeyError:
+            # return default value
+            use_ephemeral_storage = False
+        ret_map['use_ephemeral_storage'] = use_ephemeral_storage
+
+        try:
+            ephemeral_storage_limit_safety_factor = params[key_ephemeral_storage_limit_safety_factor]
+        except KeyError:
+            # return default value
+            ephemeral_storage_limit_safety_factor = 100
+        ret_map['ephemeral_storage_limit_safety_factor'] = ephemeral_storage_limit_safety_factor
+
+        try:
+            ephemeral_storage_offset = params[key_ephemeral_storage_resources_offset]
+        except KeyError:
+            # return default value
+            ephemeral_storage_offset = 0  # should come in MiB
+        ret_map['ephemeral_storage_offset'] = ephemeral_storage_offset
+
+        return ret_map
 
     def get_k8s_namespace(self, panda_resource):
         default_namespace = 'default'

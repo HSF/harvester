@@ -71,6 +71,17 @@ class DBProxy(object):
                     self.thrName = currentThr.ident
             if hasattr(harvester_config.db, 'useInspect') and harvester_config.db.useInspect is True:
                 self.useInspect = True
+        # connect DB
+        self._connect_db()
+        self.lockDB = False
+        # using application side lock if DB doesn't have a mechanism for exclusive access
+        if harvester_config.db.engine == 'mariadb':
+            self.usingAppLock = False
+        else:
+            self.usingAppLock = True
+
+    # connect DB
+    def _connect_db(self):
         if harvester_config.db.engine == 'mariadb':
             if hasattr(harvester_config.db, 'host'):
                 host = harvester_config.db.host
@@ -134,12 +145,6 @@ class DBProxy(object):
                 self.cur.execute('PRAGMA journal_mode = WAL')
                 # read to avoid database lock
                 self.cur.fetchone()
-        self.lockDB = False
-        # using application side lock if DB doesn't have a mechanism for exclusive access
-        if harvester_config.db.engine == 'mariadb':
-            self.usingAppLock = False
-        else:
-            self.usingAppLock = True
 
     # exception handler for type of DBs
     def _handle_exception(self, exc):
@@ -160,8 +165,19 @@ class DBProxy(object):
                 try_timestamp = time.time()
                 n_retry = 1
                 while time.time() - try_timestamp < self.reconnectTimeout:
+                    # close DB cursor
                     try:
-                        self.__init__()
+                        self.cur.close()
+                    except Exception as e:
+                        tmpLog.error('failed to close cursor: {0}'.format(e))
+                    # close DB connection
+                    try:
+                        self.con.close()
+                    except Exception as e:
+                        tmpLog.error('failed to close connection: {0}'.format(e))
+                    # restart the proxy instance
+                    try:
+                        self._connect_db()
                         tmpLog.info('renewed connection')
                         break
                     except Exception as e:

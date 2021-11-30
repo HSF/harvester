@@ -19,6 +19,19 @@ class MysqlFifo(PluginBase):
             self.reconnectTimeout = harvester_config.db.reconnectTimeout
         PluginBase.__init__(self, **kwarg)
         self.tableName = '{title}_FIFO'.format(title=self.titleName)
+        # get connection, cursor and error types
+        self._connect_db()
+        # create table for fifo
+        try:
+            self._make_table()
+            # self._make_index()
+            self.commit()
+        except Exception as _e:
+            self.rollback()
+            raise _e
+
+    # get connection, cursor and error types
+    def _connect_db(self):
         # DB access attribues
         if hasattr(self, 'db_host'):
             db_host = self.db_host
@@ -46,7 +59,6 @@ class MysqlFifo(PluginBase):
             db_schema = self.db_schema
         else:
             db_schema = harvester_config.fifo.db_schema
-        # get connection, cursor and error types
         try:
             import MySQLdb
             import MySQLdb.cursors
@@ -61,28 +73,10 @@ class MysqlFifo(PluginBase):
                 self.cur = self.con.cursor(buffered=True)
                 self.OperationalError = mysql.connector.errors.OperationalError
         else:
-            class MyCursor (MySQLdb.cursors.Cursor):
-                def fetchone(self):
-                    tmpRet = MySQLdb.cursors.Cursor.fetchone(self)
-                    if tmpRet is None:
-                        return None
-                    return tmpRet
-                def fetchall(self):
-                    tmpRets = MySQLdb.cursors.Cursor.fetchall(self)
-                    return tmpRets
             self.con = MySQLdb.connect(user=db_user, passwd=db_password,
-                                        db=db_schema, host=db_host, port=db_port,
-                                        cursorclass=MyCursor)
+                                        db=db_schema, host=db_host, port=db_port)
             self.cur = self.con.cursor()
             self.OperationalError = MySQLdb.OperationalError
-        # create table for fifo
-        try:
-            self._make_table()
-            # self._make_index()
-            self.commit()
-        except Exception as _e:
-            self.rollback()
-            raise _e
 
     # decorator exception handler for type of DBs
     def _handle_exception(method):
@@ -100,8 +94,19 @@ class MysqlFifo(PluginBase):
                         try_timestamp = time.time()
                         n_retry = 1
                         while time.time() - try_timestamp < self.reconnectTimeout:
+                            # close DB cursor
                             try:
-                                self.__init__()
+                                self.cur.close()
+                            except Exception as e:
+                                pass
+                            # close DB connection
+                            try:
+                                self.con.close()
+                            except Exception as e:
+                                pass
+                            # restart the proxy instance
+                            try:
+                                self._connect_db()
                                 return
                             except Exception as _e:
                                 exc = _e
@@ -278,13 +283,17 @@ class MysqlFifo(PluginBase):
                 'idtemp': sql_peek_by_id_temp,
             }
         sql_peek = mode_sql_map[mode]
-        if mode in ('id', 'idtemp'):
-            params = (id,)
-            self.execute(sql_peek, params)
-        else:
-            self.execute(sql_peek)
-        res = self.cur.fetchall()
-        self.commit()
+        try:
+            if mode in ('id', 'idtemp'):
+                params = (id,)
+                self.execute(sql_peek, params)
+            else:
+                self.execute(sql_peek)
+            res = self.cur.fetchall()
+            self.commit()
+        except Exception as _e:
+            self.rollback()
+            raise _e
         if len(res) > 0:
             if skip_item:
                 id, score = res[0]
@@ -326,7 +335,11 @@ class MysqlFifo(PluginBase):
         params.append(id)
         if cond_score_str:
             params.append(score)
-        self.execute(sql_update, params)
+        try:
+            self.execute(sql_update, params)
+        except Exception as _e:
+            self.rollback()
+            raise _e
         n_row = self.cur.rowcount
         if n_row == 1:
             return True
@@ -338,8 +351,12 @@ class MysqlFifo(PluginBase):
         sql_size = (
                 'SELECT COUNT(id) FROM {table_name}'
             ).format(table_name=self.tableName)
-        self.execute(sql_size)
-        res = self.cur.fetchall()
+        try:
+            self.execute(sql_size)
+            res = self.cur.fetchall()
+        except Exception as _e:
+            self.rollback()
+            raise _e
         if len(res) > 0:
             return res[0][0]
         return None
@@ -463,9 +480,13 @@ class MysqlFifo(PluginBase):
             ).format(columns=columns_str, table_name=self.tableName,
                 minscore_str=minscore_str, maxscore_str=maxscore_str,
                 rank=mode_rank_map[mode], count_str=count_str)
-        self.execute(sql_peek_many)
-        res = self.cur.fetchall()
-        self.commit()
+        try:
+            self.execute(sql_peek_many)
+            res = self.cur.fetchall()
+            self.commit()
+        except Exception as _e:
+            self.rollback()
+            raise _e
         ret_list = []
         for _rec in res:
             if skip_item:
@@ -485,7 +506,11 @@ class MysqlFifo(PluginBase):
                 'DROP TABLE IF EXISTS {table_name} '
             ).format(table_name=self.tableName)
         # self.execute(sql_clear_index)
-        self.execute(sql_clear_table)
+        try:
+            self.execute(sql_clear_table)
+        except Exception as _e:
+            self.rollback()
+            raise _e
         self.__init__()
 
     # delete objects by list of id
@@ -495,9 +520,13 @@ class MysqlFifo(PluginBase):
             placeholders_str = ','.join([' %s'] * len(ids))
             sql_delete = sql_delete_template.format(
                     table_name=self.tableName, placeholders=placeholders_str)
-            self.execute(sql_delete, ids)
-            n_row = self.cur.rowcount
-            self.commit()
+            try:
+                self.execute(sql_delete, ids)
+                n_row = self.cur.rowcount
+                self.commit()
+            except Exception as _e:
+                self.rollback()
+                raise _e
             return n_row
         else:
             raise TypeError('ids should be list or tuple')
