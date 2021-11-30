@@ -51,7 +51,7 @@ class Sweeper(AgentBase):
         for command_spec in command_specs:
             n_to_kill = self.dbProxy.mark_workers_to_kill_by_workerids(command_spec.params)
             tmp_log.debug('will kill {0} workers with {1}'.format(n_to_kill, command_spec.params))
-        tmp_log.debug('done handling KILL_WORKER commands took {0}s'.format(stopwatch.get_elapsed_time()))
+        tmp_log.debug('done handling {0} commands took {1}s'.format(command_string, stopwatch.get_elapsed_time()))
 
     # main loop
     def run(self):
