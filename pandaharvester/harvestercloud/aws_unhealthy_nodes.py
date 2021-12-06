@@ -31,7 +31,6 @@ for id in unhealthy_node_ids:
     print('------------------------------------')
     print(command_with_id)
     print('return code: {0}'.format(p.returncode))
-    print('return code: {0}'.format(p.returncode))
     print('output: {0}'.format(output))
     print('err: {0}'.format(err))
     print('------------------------------------')

@@ -668,7 +668,7 @@ class Monitor(AgentBase):
                                 timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout):
                             # kill due to timeout
                             tmp_log.debug('kill workerID={0} due to consecutive check failures'.format(workerID))
-                            self.dbProxy.kill_worker(workSpec.workerID)
+                            self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                             newStatus = WorkSpec.ST_cancelled
                             diagMessage = 'Killed by Harvester due to consecutive worker check failures. ' + diagMessage
                             workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
@@ -678,13 +678,13 @@ class Monitor(AgentBase):
                     # request kill
                     if messenger.kill_requested(workSpec):
                         tmp_log.debug('kill workerID={0} as requested'.format(workerID))
-                        self.dbProxy.kill_worker(workSpec.workerID)
+                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                     # stuck queuing for too long
                     if workSpec.status == WorkSpec.ST_submitted \
                         and timeNow > workSpec.submitTime + datetime.timedelta(seconds=workerQueueTimeLimit):
                         tmp_log.debug('kill workerID={0} due to queuing longer than {1} seconds'.format(
                                         workerID, workerQueueTimeLimit))
-                        self.dbProxy.kill_worker(workSpec.workerID)
+                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                         diagMessage = 'Killed by Harvester due to worker queuing too long. ' + diagMessage
                         workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                         # set closed
@@ -702,9 +702,8 @@ class Monitor(AgentBase):
                         if messenger.is_alive(workSpec, worker_heartbeat_limit):
                             tmp_log.debug('heartbeat for workerID={0} is valid'.format(workerID))
                         else:
-                            tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(
-                                workerID))
-                            self.dbProxy.kill_worker(workSpec.workerID)
+                            tmp_log.debug('heartbeat for workerID={0} expired: sending kill request'.format(workerID))
+                            self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                             diagMessage = 'Killed by Harvester due to worker heartbeat expired. ' + diagMessage
                             workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                     # get work attributes
@@ -738,7 +737,7 @@ class Monitor(AgentBase):
                                 newStatus = WorkSpec.ST_idle
                         elif not workSpec.is_post_processed():
                             if (not queue_config.is_no_heartbeat_status(newStatus) and not queue_config.truePilot) \
-                                or (hasattr(messenger, 'forcePostProcessing') and messenger.forcePostProcessing):
+                                    or (hasattr(messenger, 'forcePostProcessing') and messenger.forcePostProcessing):
                                 # post processing unless heartbeat is suppressed
                                 jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
                                                                                 None, True,
@@ -796,7 +795,6 @@ class Monitor(AgentBase):
     def monitor_event_digester(self, locked_by, max_events):
         tmpLog = self.make_logger(_logger, 'id=monitor-{0}'.format(self.get_pid()), method_name='monitor_event_digester')
         tmpLog.debug('start')
-        timeNow_timestamp = time.time()
         retMap = {}
         try:
             obj_gotten_list = self.monitor_event_fifo.getmany(mode='first', count=max_events, protective=True)
@@ -814,8 +812,8 @@ class Monitor(AgentBase):
                     tmpLog.debug('checking workers of queueName={0} configID={1}'.format(*qc_key))
                     try:
                         retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList,
-                                                            from_fifo=True, config_id=configID,
-                                                            check_source='Event')
+                                                         from_fifo=True, config_id=configID,
+                                                         check_source='Event')
                     except Exception as e:
                         tmpLog.error('monitor_agent_core excepted with {0}'.format(e))
                         retVal = None  # skip the loop

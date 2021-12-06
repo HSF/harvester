@@ -1,6 +1,6 @@
 # Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
 # and piloturl (pilot option --piloturl) for pilot 2
-def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=None):
+def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=""):
     # for pilot 3
     is_pilot3 = True if pilot_version.startswith('3') else False
     # map
