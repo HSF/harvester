@@ -411,7 +411,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'ioIntensity': io_intensity,
             'pilotType': pilot_type_opt,
             'pilotUrlOption': pilot_url_str,
-            'pilotVersion': 'current' if pilot_version.startswith('3') else pilot_version,
+            'pilotVersion': pilot_version,
             'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
