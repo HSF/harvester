@@ -236,7 +236,7 @@ class K8sSubmitter(PluginBase):
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
                                                                            pilot_type, pilot_url_str,
-                                                                           pilot_python_option,
+                                                                           pilot_python_option, pilot_version,
                                                                            container_image, executable, args, cert,
                                                                            max_time=max_time)
         except Exception as _e:

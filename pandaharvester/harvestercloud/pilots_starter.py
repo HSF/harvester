@@ -147,6 +147,9 @@ def get_configuration():
     python_option = os.environ.get('pythonOption', '')
     logging.debug('[main] got pythonOption: {0}'.format(python_option))
 
+    pilot_version = os.environ.get('pilotVersion', '')
+    logging.debug('[main] got pilotVersion: {0}'.format(pilot_version))
+
     # get the Harvester ID
     harvester_id = os.environ.get('HARVESTER_ID')
     logging.debug('[main] got Harvester ID: {0}'.format(harvester_id))
@@ -182,15 +185,16 @@ def get_configuration():
         WORK_DIR = tmpdir
 
     return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, pilot_type, \
-           pilot_url_option, python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, stdout_name, \
-           submit_mode
+           pilot_url_option, python_option, pilot_version, harvester_id, worker_id, logs_frontend_w, \
+           logs_frontend_r, stdout_name, submit_mode
 
 
 if __name__ == "__main__":
 
     # get all the configuration from environment
     proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, pilot_type, pilot_url_opt, \
-        python_option, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, destination_name, submit_mode \
+        python_option, pilot_version, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, \
+        destination_name, submit_mode
         = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
@@ -216,11 +220,15 @@ if __name__ == "__main__":
     if pilot_type:
         pilot_type_option = '-i {0}'.format(pilot_type)
 
-    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8} {9}'.format(WORK_DIR, panda_site, panda_queue,
-                                                                              panda_queue, resource_type_option,
-                                                                              psl_option, pilot_type_option,
-                                                                              job_type_option, pilot_url_opt,
-                                                                              python_option)
+    pilot_version_option = '--pilotversion 2'
+    if pilot_version:
+        pilot_version_option = '--pilotversion {0}'.format(pilot_version)
+
+    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8} {9} {10}'.format(WORK_DIR, panda_site, panda_queue,
+                                                                                panda_queue, resource_type_option,
+                                                                                psl_option, pilot_type_option,
+                                                                                job_type_option, pilot_url_opt,
+                                                                                python_option, pilot_version_option)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system
