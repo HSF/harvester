@@ -194,8 +194,7 @@ if __name__ == "__main__":
     # get all the configuration from environment
     proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, pilot_type, pilot_url_opt, \
         python_option, pilot_version, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, \
-        destination_name, submit_mode
-        = get_configuration()
+        destination_name, submit_mode = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
