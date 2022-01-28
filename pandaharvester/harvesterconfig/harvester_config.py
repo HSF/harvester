@@ -49,14 +49,16 @@ for tmpSection in tmpConf.sections():
     # expand all values
     for tmpKey, tmpVal in iteritems(tmpDict):
         # use env vars
-        if tmpVal.startswith('$'):
+        if isinstance(tmpVal, str) and tmpVal.startswith('$'):
             tmpMatch = re.search('\$\{*([^\}]+)\}*', tmpVal)
             envName = tmpMatch.group(1)
             if envName not in os.environ:
                 raise KeyError('{0} in the cfg is an undefined environment variable.'.format(envName))
             tmpVal = os.environ[envName]
         # convert string to bool/int
-        if tmpVal == 'True':
+        if not isinstance(tmpVal, str):
+            pass
+        elif tmpVal == 'True':
             tmpVal = True
         elif tmpVal == 'False':
             tmpVal = False

@@ -16,15 +16,18 @@ ARGV="$@"
 set -a
 #======= START CONFIGURATION SECTION ==========================
 # user and group to run harvester uWSGI
-userName="#FIXME"
-groupName="#FIXME"
+# FIXME
+userName=atlpan
+# FIXME
+groupName=zp
 
 # setup python and virtual env
-VIRTUAL_ENV=/#FIXME
+# FIXME
+VIRTUAL_ENV=/opt/harvester
 
 # set log directory
-#LOG_DIR=${VIRTUAL_ENV}/var/log/panda
-LOG_DIR=/#FIXME
+# FIXME
+LOG_DIR=/var/log/panda
 
 # pid and lock files
 PIDFILE=${LOG_DIR}/panda_harvester.pid

@@ -61,6 +61,7 @@ class DBProxy(object):
         self.verbLog = None
         self.useInspect = False
         self.reconnectTimeout = 300
+        self.read_only = read_only
         if hasattr(harvester_config.db, 'reconnectTimeout'):
             self.reconnectTimeout = harvester_config.db.reconnectTimeout
         if harvester_config.db.verbose:
@@ -127,7 +128,7 @@ class DBProxy(object):
                 self.cur = self.con.cursor(named_tuple=True, buffered=True)
         else:
             import sqlite3
-            if read_only:
+            if self.read_only:
                 fd = os.open(harvester_config.db.database_filename, os.O_RDONLY)
                 database_filename = '/dev/fd/{0}'.format(fd)
             else:
