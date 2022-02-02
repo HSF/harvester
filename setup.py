@@ -37,6 +37,7 @@ setup(
                       'psutil >= 5.4.8',
                       'scandir; python_version < "3.5"',
                       'panda-pilot >= 2.7.2.1',
+                      'six',
                       ],
 
     # optional pip dependencies

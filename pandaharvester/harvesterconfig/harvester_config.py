@@ -1,6 +1,7 @@
 import re
 import os
 import sys
+import six
 import json
 from future.utils import iteritems
 
@@ -56,7 +57,7 @@ for tmpSection in tmpConf.sections():
                 raise KeyError('{0} in the cfg is an undefined environment variable.'.format(envName))
             tmpVal = os.environ[envName]
         # convert string to bool/int
-        if not isinstance(tmpVal, str):
+        if not isinstance(tmpVal, six.string_types):
             pass
         elif tmpVal == 'True':
             tmpVal = True
