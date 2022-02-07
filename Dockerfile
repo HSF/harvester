@@ -4,7 +4,7 @@ RUN yum update -y
 RUN yum install -y epel-release
 RUN yum install -y python3 python3-devel gcc less git mysql-devel curl
 
-curl -fsSL https://get.htcondor.org | /bin/bash -s -- --no-dry-run
+RUN curl -fsSL https://get.htcondor.org | /bin/bash -s -- --no-dry-run
 
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
