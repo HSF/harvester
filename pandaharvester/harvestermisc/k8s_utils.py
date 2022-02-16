@@ -41,7 +41,7 @@ class k8s_Client(object):
         return yaml_content
 
     def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str,
-                             pilot_python_option, container_image,  executable, args,
+                             pilot_python_option, pilot_version, container_image,  executable, args,
                              cert, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
@@ -165,6 +165,7 @@ class k8s_Client(object):
             {'name': 'pilotType', 'value': pilot_type},
             {'name': 'pilotUrlOpt', 'value': pilot_url_str},
             {'name': 'pythonOption', 'value': pilot_python_option},
+            {'name': 'pilotVersion', 'value': pilot_version},
             {'name': 'jobType', 'value': work_spec.jobType},
             {'name': 'proxySecretPath', 'value': cert},
             {'name': 'workerID', 'value': str(work_spec.workerID)},

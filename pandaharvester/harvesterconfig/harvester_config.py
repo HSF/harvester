@@ -1,6 +1,7 @@
 import re
 import os
 import sys
+import six
 import json
 from future.utils import iteritems
 
@@ -26,10 +27,22 @@ class _SectionClass:
         pass
 
 
+# load configmap
+config_map_data = {}
+if 'PANDA_HOME' in os.environ:
+    config_map_name = 'panda_harvester_configmap.json'
+    config_map_path = os.path.join(os.environ['PANDA_HOME'], 'etc/configmap', config_map_name)
+    if os.path.exists(config_map_path):
+        with open(config_map_path) as f:
+            config_map_data = json.load(f)
+
 # loop over all sections
 for tmpSection in tmpConf.sections():
     # read section
     tmpDict = getattr(tmpConf, tmpSection)
+    # load configmap
+    if tmpSection in config_map_data:
+        tmpDict.update(config_map_data[tmpSection])
     # make section class
     tmpSelf = _SectionClass()
     # update module dict
@@ -37,14 +50,16 @@ for tmpSection in tmpConf.sections():
     # expand all values
     for tmpKey, tmpVal in iteritems(tmpDict):
         # use env vars
-        if tmpVal.startswith('$'):
+        if isinstance(tmpVal, str) and tmpVal.startswith('$'):
             tmpMatch = re.search('\$\{*([^\}]+)\}*', tmpVal)
             envName = tmpMatch.group(1)
             if envName not in os.environ:
                 raise KeyError('{0} in the cfg is an undefined environment variable.'.format(envName))
             tmpVal = os.environ[envName]
         # convert string to bool/int
-        if tmpVal == 'True':
+        if not isinstance(tmpVal, six.string_types):
+            pass
+        elif tmpVal == 'True':
             tmpVal = True
         elif tmpVal == 'False':
             tmpVal = False

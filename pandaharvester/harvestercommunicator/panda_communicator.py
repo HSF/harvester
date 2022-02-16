@@ -44,6 +44,27 @@ class PandaCommunicator(BaseCommunicator):
                 self.useInspect = True
         else:
             self.verbose = False
+        if hasattr(harvester_config.pandacon, 'auth_type'):
+            self.auth_type = harvester_config.pandacon.auth_type
+        else:
+            self.auth_type = 'x509'
+        self.auth_token = None
+        self.auth_token_last_update = None
+
+    # renew token
+    def renew_token(self):
+        if hasattr(harvester_config.pandacon, 'auth_token'):
+            if harvester_config.pandacon.auth_token.startswith('file:'):
+                if self.auth_token_last_update is not None and \
+                        datetime.datetime.utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=60):
+                    return
+                with open(harvester_config.pandacon.auth_token.split(':')[-1]) as f:
+                    self.auth_token = f.read()
+                    self.auth_token_last_update = datetime.datetime.utcnow()
+            else:
+                if self.auth_token_last_update is None:
+                    self.auth_token = harvester_config.pandacon.auth_token
+                    self.auth_token_last_update = datetime.datetime.utcnow()
 
     # POST with http
     def post(self, path, data):
@@ -92,15 +113,22 @@ class PandaCommunicator(BaseCommunicator):
             url = '{0}/{1}'.format(base_url, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} data={2}'.format(tmpExec, url, str(data)))
-            if cert is None:
-                cert = (harvester_config.pandacon.cert_file,
-                        harvester_config.pandacon.key_file)
+            headers = {"Accept": "application/json",
+                       "Connection": "close"}
+            if self.auth_type == 'oidc':
+                self.renew_token()
+                cert = None
+                headers['Authorization'] = 'Bearer {0}'.format(self.auth_token)
+                headers['Origin'] = harvester_config.pandacon.auth_origin
+            else:
+                if cert is None:
+                    cert = (harvester_config.pandacon.cert_file,
+                            harvester_config.pandacon.key_file)
             session = get_http_adapter_with_random_dns_resolution()
             sw = core_utils.get_stopwatch()
             res = session.post(url,
                                data=data,
-                               headers={"Accept": "application/json",
-                                        "Connection": "close"},
+                               headers=headers,
                                timeout=harvester_config.pandacon.timeout,
                                verify=harvester_config.pandacon.ca_cert,
                                cert=cert)
@@ -134,12 +162,21 @@ class PandaCommunicator(BaseCommunicator):
             url = '{0}/{1}'.format(base_url, path)
             if self.verbose:
                 tmpLog.debug('exec={0} URL={1} files={2}'.format(tmpExec, url, files['file'][0]))
-            if cert is None:
-                cert = (harvester_config.pandacon.cert_file,
-                        harvester_config.pandacon.key_file)
+            if self.auth_type == 'oidc':
+                self.renew_token()
+                cert = None
+                headers = dict()
+                headers['Authorization'] = 'Bearer {0}'.format(self.auth_token)
+                headers['Origin'] = harvester_config.pandacon.auth_origin
+            else:
+                headers = None
+                if cert is None:
+                    cert = (harvester_config.pandacon.cert_file,
+                            harvester_config.pandacon.key_file)
             session = get_http_adapter_with_random_dns_resolution()
             res = session.post(url,
                                files=files,
+                               headers=headers,
                                timeout=harvester_config.pandacon.timeout,
                                verify=harvester_config.pandacon.ca_cert,
                                cert=cert)

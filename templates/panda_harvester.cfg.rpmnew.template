@@ -122,14 +122,23 @@ nConnections = 5
 # timeout
 timeout = 180
 
+# auth type x509 (default) or oidc
+auth_type = x509
+
 # CA file
 ca_cert = /etc/pki/tls/certs/CERN-bundle.pem
 
-# certificate
+# certificate for x509
 cert_file = FIXME
 
-# key
+# key for x509
 key_file = FIXME
+
+# token for oidc. bare string or filename (file:/path)
+auth_token = FIXME
+
+# origin for oidc
+auth_origin = FIXME
 
 # base URL via http
 pandaURL = http://pandaserver.cern.ch:25080/server/panda

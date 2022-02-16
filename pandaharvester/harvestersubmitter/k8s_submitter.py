@@ -220,7 +220,8 @@ class K8sSubmitter(PluginBase):
             python_version = str(this_panda_queue_dict.get('python_version', '2'))
 
             # prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
-            pilot_opt_dict = submitter_common.get_complicated_pilot_options(work_spec.pilotType)
+            pilot_opt_dict = submitter_common.get_complicated_pilot_options(work_spec.pilotType, pilot_url,
+                                                                            pilot_version)
             if pilot_opt_dict is None:
                 prod_source_label = harvester_queue_config.get_source_label(work_spec.jobType)
                 pilot_type = work_spec.pilotType
@@ -235,7 +236,7 @@ class K8sSubmitter(PluginBase):
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
                                                                            pilot_type, pilot_url_str,
-                                                                           pilot_python_option,
+                                                                           pilot_python_option, pilot_version,
                                                                            container_image, executable, args, cert,
                                                                            max_time=max_time)
         except Exception as _e:

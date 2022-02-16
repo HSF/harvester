@@ -103,10 +103,10 @@ class HTCondorSweeper(BaseSweeper):
         # Fill return list
         for workspec in workspec_list:
             if workspec.batchID is None:
-                ret = (True, 'worker withoug batchID; skipped')
+                ret = (True, 'worker without batchID; skipped')
             else:
                 ret = all_job_ret_map.get(condor_job_id_from_workspec(workspec),
-                                        (False, 'batch job unfound in return map'))
+                                          (False, 'batch job not found in return map'))
             retList.append(ret)
         tmpLog.debug('done')
         # Return
