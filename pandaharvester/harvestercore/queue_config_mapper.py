@@ -80,8 +80,9 @@ class QueueConfig(object):
     # get prodSourceLabel
     def get_source_label(self, job_type=None, is_gu=None):
         # if queue is in test status, only submit workers for HC jobs
-        if self.queueStatus == 'test':
-            return 'test'
+        # No longer need this as panda only dispatches test jobs when PQ in test
+        # if self.queueStatus == 'test':
+        #     return 'test'
 
         # grandly unified queues: prodsourcelabel in job has precedence over queue prodsourcelabel
         if job_type in ('user', 'panda'):
