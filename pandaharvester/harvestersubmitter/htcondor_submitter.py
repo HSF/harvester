@@ -314,7 +314,8 @@ def submit_bag_of_workers(data_list):
 
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
-                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), pilot_url=None,
+                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
+                pilot_url=None, pilot_args='',
                 special_par='', harvester_queue_config=None, is_unified_queue=False,
                 pilot_version='unknown', python_version='unknown', token_dir=None, **kwarg):
     # make logger
@@ -358,10 +359,12 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
         pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
+        pilot_debug_str = ''
     else:
         prod_source_label = pilot_opt_dict['prod_source_label']
         pilot_type_opt = pilot_opt_dict['pilot_type_opt']
         pilot_url_str = pilot_opt_dict['pilot_url_str']
+        pilot_debug_str = pilot_opt_dict['pilot_debug_str']
     # get token filename according to CE
     token_filename = None
     if token_dir is not None and ce_info_dict.get('ce_endpoint'):
@@ -413,6 +416,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotUrlOption': pilot_url_str,
             'pilotVersion': pilot_version,
             'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
+            'pilotDebugOption': pilot_debug_str,
+            'pilotArgs': pilot_args,
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
             'ceARCGridType': ce_info_dict.get('ce_arc_grid_type', 'nordugrid'),
@@ -566,6 +571,7 @@ class HTCondorSubmitter(PluginBase):
         # allowed associated parameters from AGIS
         self._allowed_agis_attrs = (
                 'pilot_url',
+                'pilot_args',
             )
 
     # get CE statistics of a site
@@ -632,6 +638,7 @@ class HTCondorSubmitter(PluginBase):
         n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
         pilot_url = associated_params_dict.get('pilot_url')
+        pilot_args = associated_params_dict.get('pilot_args', '')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
         python_version = str(this_panda_queue_dict.get('python_version', '2'))
         sdf_suffix_str = '_pilot2'
@@ -884,6 +891,7 @@ class HTCondorSubmitter(PluginBase):
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
                         'pilot_url': pilot_url,
+                        'pilot_args': pilot_args,
                         'pilot_version': pilot_version,
                         'python_version': python_version,
                         'token_dir': token_dir,
