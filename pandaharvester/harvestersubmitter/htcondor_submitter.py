@@ -314,7 +314,8 @@ def submit_bag_of_workers(data_list):
 
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
-                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(), pilot_url=None,
+                x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
+                pilot_url=None, pilot_args='',
                 special_par='', harvester_queue_config=None, is_unified_queue=False,
                 pilot_version='unknown', python_version='unknown', token_dir=None, **kwarg):
     # make logger
@@ -413,6 +414,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotUrlOption': pilot_url_str,
             'pilotVersion': pilot_version,
             'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
+            'pilotArgs': pilot_args,
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
             'ceARCGridType': ce_info_dict.get('ce_arc_grid_type', 'nordugrid'),
@@ -566,6 +568,7 @@ class HTCondorSubmitter(PluginBase):
         # allowed associated parameters from AGIS
         self._allowed_agis_attrs = (
                 'pilot_url',
+                'pilot_args',
             )
 
     # get CE statistics of a site
@@ -632,6 +635,7 @@ class HTCondorSubmitter(PluginBase):
         n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
         is_unified_queue = this_panda_queue_dict.get('capability', '') == 'ucore'
         pilot_url = associated_params_dict.get('pilot_url')
+        pilot_args = associated_params_dict.get('pilot_args', '')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
         python_version = str(this_panda_queue_dict.get('python_version', '2'))
         sdf_suffix_str = '_pilot2'
@@ -884,6 +888,7 @@ class HTCondorSubmitter(PluginBase):
                         'condor_pool': condor_pool,
                         'use_spool': self.useSpool,
                         'pilot_url': pilot_url,
+                        'pilot_args': pilot_args,
                         'pilot_version': pilot_version,
                         'python_version': python_version,
                         'token_dir': token_dir,
