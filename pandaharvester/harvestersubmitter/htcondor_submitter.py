@@ -359,10 +359,12 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
         prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
         pilot_type_opt = workspec.pilotType
         pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
+        pilot_debug_str = ''
     else:
         prod_source_label = pilot_opt_dict['prod_source_label']
         pilot_type_opt = pilot_opt_dict['pilot_type_opt']
         pilot_url_str = pilot_opt_dict['pilot_url_str']
+        pilot_debug_str = pilot_opt_dict['pilot_debug_str']
     # get token filename according to CE
     token_filename = None
     if token_dir is not None and ce_info_dict.get('ce_endpoint'):
@@ -414,6 +416,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotUrlOption': pilot_url_str,
             'pilotVersion': pilot_version,
             'pilotPythonOption': submitter_common.get_python_version_option(python_version, prod_source_label),
+            'pilotDebugOption': pilot_debug_str,
             'pilotArgs': pilot_args,
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],

@@ -11,17 +11,20 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=""):
                     'pilot_type_opt': 'RC',
                     'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev.tar.gz' if is_pilot3 \
                                         else '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz',
+                    'pilot_debug_str': '-d',
                 },
             'ALRB': {
                     'prod_source_label': 'rc_alrb',
                     'pilot_type_opt': 'ALRB',
                     'pilot_url_str': '',
+                    'pilot_debug_str': '',
                 },
             'PT': {
                     'prod_source_label': 'ptest',
                     'pilot_type_opt': 'PR',
                     'pilot_url_str': '--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev2.tar.gz' if is_pilot3 \
                                         else '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev2.tar.gz',
+                    'pilot_debug_str': '-d',
                 },
         }
     pilot_opt_dict = pt_psl_map.get(pilot_type, None)
