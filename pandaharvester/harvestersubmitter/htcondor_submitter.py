@@ -628,6 +628,9 @@ class HTCondorSubmitter(PluginBase):
             # associated params on AGIS
             for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
                 if key in self._allowed_agis_attrs:
+                    if isinstance(val, str):
+                        # sanitized list the value
+                        val = re.sub(r'[;$~`]*', '', val)
                     associated_params_dict[key] = val
         else:
             panda_queues_dict = dict()
