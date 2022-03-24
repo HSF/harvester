@@ -234,14 +234,34 @@ class k8s_Client(object):
 
         return label_selector
 
-    def get_pods_info(self, workspec_list=[]):
+    def get_workers_info(self, workspec_list=[]):
+        label_selector = self.generate_ls_from_wsl(workspec_list)
+
+        # get detailed information for available pods
+        pods_dict = self.get_pods_info(label_selector)
+
+        # complement pod information with coarse job information
+        jobs_dict = self.get_jobs_info(label_selector)
+
+        # combine the pod and job information
+        workers_dict = {}
+        for worker in workers_list:
+            batch_id = worker.batchID  # batch ID is used as the job name
+            if batch_id in pods_dict:
+                worker_info.update(pods_dict[batch_id])
+            if batch_id om jobs_dict:
+                worker_info.update(jobs_dict[batch_id])
+            workers_dict[batch_id] = worker_info
+
+
+    def get_pods_info(self, label_selector):
+
+        # Monitoring at pod level provides much more information than at job level
+        # We use job information in case the pod has been deleted (e.g. in Google bulk exercises), because the job
+        # should persist up the TTL.
 
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
                                          method_name='get_pods_info')
-        pods_list = list()
-
-        label_selector = self.generate_ls_from_wsl(workspec_list)
-        # tmp_log.debug('label_selector: {0}'.format(label_selector))
 
         try:
             ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
@@ -249,53 +269,68 @@ class k8s_Client(object):
             tmp_log.error('Failed call to list_namespaced_pod with: {0}'.format(_e))
             return None  # None needs to be treated differently than [] by the caller
 
+        pods_dict = {}
         for i in ret.items:
+
+            job_name = i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None
+
+            # pod information
             pod_info = {
-                'name': i.metadata.name,
-                'start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
-                'status': i.status.phase,
-                'status_conditions': i.status.conditions,
-                'job_name': i.metadata.labels['job-name'] if i.metadata.labels and 'job-name' in i.metadata.labels else None,
+                'pod_name': i.metadata.name,
+                'pod_start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
+                'pod_status': i.status.phase,
+                'pod_status_conditions': i.status.conditions,
                 'containers_state': []
             }
+
+            # sub-container information
             if i.status.container_statuses:
                 for cs in i.status.container_statuses:
                     if cs.state:
                         pod_info['containers_state'].append(cs.state)
-            pods_list.append(pod_info)
 
-        return pods_list
+            pods_dict[job_name] = pod_info
+
+        return pods_dict
 
     def filter_pods_info(self, pods_list, job_name=None):
         if job_name:
             pods_list = [i for i in pods_list if i['job_name'] == job_name]
         return pods_list
 
-    def get_jobs_info(self, workspec_list=[]):
+    def get_jobs_info(self, label_selector):
 
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
                                          method_name='get_jobs_info')
 
-        jobs_list = list()
-
-        label_selector = self.generate_ls_from_wsl(workspec_list)
-        # tmp_log.debug('label_selector: {0}'.format(label_selector))
+        jobs_dict = {}
 
         try:
             ret = self.batchv1.list_namespaced_job(namespace=self.namespace, label_selector=label_selector)
 
             for i in ret.items:
+                name = i.metadata.name
+                status = None
+                status_reason = None
+                status_message = None
+                if i.status.conditions:  # is only set when a pod started running
+                    status = i.status.conditions[0].type
+                    status_reason = i.status.conditions[0].reason
+                    status_message = i.status.conditions[0].message
+                    n_pods_succeeded = i.status.conditions.succeeded
+                    n_pods_failed = i.status.conditions.failed
                 job_info = {
-                    'name': i.metadata.name,
-                    'status': i.status.conditions[0].type,
-                    'status_reason': i.status.conditions[0].reason,
-                    'status_message': i.status.conditions[0].message
+                    'job_status': status,
+                    'job_status_reason': status_reason,
+                    'job_status_message': status_message,
+                    'n_pods_succeeded': n_pods_succeeded,
+                    'n_pods_failed': n_pods_failed
                 }
-                jobs_list.append(job_info)
+                jobs_dict[name] = job_info
         except Exception as _e:
             tmp_log.error('Failed call to list_namespaced_job with: {0}'.format(_e))
 
-        return jobs_list
+        return jobs_dict
 
     def delete_pods(self, pod_name_list):
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
