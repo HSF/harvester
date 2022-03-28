@@ -314,12 +314,15 @@ class k8s_Client(object):
                 status = None
                 status_reason = None
                 status_message = None
+                n_pods_succeeded = 0
+                n_pods_failed = 0
                 if i.status.conditions:  # is only set when a pod started running
                     status = i.status.conditions[0].type
                     status_reason = i.status.conditions[0].reason
                     status_message = i.status.conditions[0].message
                     n_pods_succeeded = i.status.conditions.succeeded
                     n_pods_failed = i.status.conditions.failed
+
                 job_info = {
                     'job_status': status,
                     'job_status_reason': status_reason,
