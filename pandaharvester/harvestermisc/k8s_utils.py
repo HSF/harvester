@@ -325,8 +325,8 @@ class k8s_Client(object):
                     status = i.status.conditions[0].type
                     status_reason = i.status.conditions[0].reason
                     status_message = i.status.conditions[0].message
-                    n_pods_succeeded = i.status.conditions.succeeded
-                    n_pods_failed = i.status.conditions.failed
+                    n_pods_succeeded = i.status.succeeded
+                    n_pods_failed = i.status.failed
 
                 job_info = {
                     'job_status': status,
