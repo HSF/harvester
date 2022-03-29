@@ -217,6 +217,7 @@ class K8sMonitor(PluginBase):
 
         workers_info = self.k8s_client.get_workers_info(workspec_list=workspec_list)
         if workers_info is None:  # there was a communication issue to the K8S cluster
+            tmp_log.debug('done without answer')
             return False, ret_list
 
         self._all_workers_dict = workers_info

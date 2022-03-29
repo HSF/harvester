@@ -235,6 +235,10 @@ class k8s_Client(object):
         return label_selector
 
     def get_workers_info(self, workspec_list=[]):
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='get_workers_info')
+        tmp_log.debug('start')
+
         label_selector = self.generate_ls_from_wsl(workspec_list)
 
         # get detailed information for available pods
@@ -253,6 +257,9 @@ class k8s_Client(object):
             if batch_id in jobs_dict:
                 worker_info.update(jobs_dict[batch_id])
             workers_dict[batch_id] = worker_info
+
+        tmp_log.debug('done')
+        return workers_dict
 
 
     def get_pods_info(self, label_selector):
