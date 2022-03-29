@@ -261,9 +261,7 @@ class k8s_Client(object):
         tmp_log.debug('done')
         return workers_dict
 
-
     def get_pods_info(self, label_selector):
-
         # Monitoring at pod level provides much more information than at job level
         # We use job information in case the pod has been deleted (e.g. in Google bulk exercises), because the job
         # should persist up the TTL.
