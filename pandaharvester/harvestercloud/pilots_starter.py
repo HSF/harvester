@@ -13,14 +13,23 @@ try:
     import subprocess32 as subprocess
 except Exception:
     import subprocess
+
+try:
+    import http.client as httplib  # for python 3
+except Exception:
+    import httplib  # for python 2
+
+try:
+    import urllib.parse as urlparse  # for python 3
+except ImportError:
+    import urlparse  # for python 2
+
 import os
 import sys
 import shutil
 import logging
-import httplib
 import mimetypes
 import ssl
-import urlparse
 import traceback
 
 WORK_DIR = '/scratch'
