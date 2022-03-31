@@ -62,7 +62,7 @@ def post_multipart(host, port, selector, files, proxy_cert):
     h.putheader('content-type', content_type)
     h.putheader('content-length', str(len(body)))
     h.endheaders()
-    h.send(body)
+    h.send(body.encode())
     response = h.getresponse()
     return response.status, response.reason
 
