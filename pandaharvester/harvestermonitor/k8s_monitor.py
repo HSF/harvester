@@ -103,10 +103,10 @@ class K8sMonitor(PluginBase):
         new_status = None
         sub_msg = ''
 
-        if n_pods_succeeded > 0 or job_status == 'Complete':
+        if n_pods_succeeded or job_status == 'Complete':
             new_status = WorkSpec.ST_finished
             sub_msg = ''
-        elif n_pods_failed > 0 or job_status == 'Failed':
+        elif n_pods_failed or job_status == 'Failed':
             new_status = WorkSpec.ST_failed
             sub_msg = job_status_message + job_status_reason
         # in principle the job information should only apply to final states, but consider other states in the future
