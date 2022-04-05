@@ -1,4 +1,5 @@
 import datetime
+import traceback
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -160,7 +161,7 @@ class K8sMonitor(PluginBase):
                             pods_name_to_delete_list.append(worker_info['name'])
 
         except Exception as _e:
-            err_str = 'Failed to get status for id={0} ; {1}'.format(job_id, _e)
+            err_str = 'Failed to get status for id={0} ; {1}'.format(job_id, traceback.format_exc())
             tmp_log.error(err_str)
             new_status = None
         else:
