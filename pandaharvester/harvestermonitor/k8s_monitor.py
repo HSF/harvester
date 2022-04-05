@@ -183,7 +183,7 @@ class K8sMonitor(PluginBase):
                 tmp_log.debug('new_status={0}'.format(new_status))
             # we didn't find the pod, but there was still a job for the worker
             else:
-                new_status, sub_msg = self.check_job_status(self, job_status, job_status_reason, job_status_message,
+                new_status, sub_msg = self.check_job_status(job_status, job_status_reason, job_status_message,
                                                             n_pods_succeeded, n_pods_failed)
                 if sub_msg:
                     err_str += sub_msg
