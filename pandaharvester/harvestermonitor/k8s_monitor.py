@@ -151,11 +151,12 @@ class K8sMonitor(PluginBase):
 
                 # make a list of pods that should be removed
                 # 1. pods being queued too long
-                if worker_info['pod_status'] in ['Pending', 'Unknown'] and worker_info['pod_start_time'] \
+                if 'pod_status' in worker_info and worker_info['pod_status'] in ['Pending', 'Unknown'] \
+                        and worker_info['pod_start_time'] \
                         and time_now - worker_info['pod_start_time'] > datetime.timedelta(seconds=self.podQueueTimeLimit):
                     pods_name_to_delete_list.append(worker_info['pod_name'])
                 # 2. pods with containers in bad states
-                if worker_info['pod_status'] in ['Pending', 'Unknown']:
+                if 'pod_status' in worker_info and worker_info['pod_status'] in ['Pending', 'Unknown']:
                     for item in worker_info['containers_state']:
                         if item.waiting and item.waiting.reason in BAD_CONTAINER_STATES:
                             pods_name_to_delete_list.append(worker_info['name'])
