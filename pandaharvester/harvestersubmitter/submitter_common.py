@@ -38,3 +38,10 @@ def get_python_version_option(python_version, prod_source_label):
     if python_version.startswith('3'):
         option = '--pythonversion 3'
     return option
+
+# get pilot joblabel (-j) option, support unified dispatch
+def get_joblabel(prod_source_label, is_unified_dispatch=False):
+    joblabel = prod_source_label
+    if is_unified_dispatch and prod_source_label in ['managed', 'user']:
+        joblabel = 'unified'
+    return joblabel
