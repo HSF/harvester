@@ -425,6 +425,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'tokenFilename': token_filename,
             'tokenPath': token_path,
             'pilotJobLabel': submitter_common.get_joblabel(prod_source_label, is_unified_dispatch),
+            'pilotJobType': submitter_common.get_pilot_job_type(workspec.jobType, is_unified_dispatch),
         }
     # fill in template string
     jdl_str = template.format(**placeholder_map)
