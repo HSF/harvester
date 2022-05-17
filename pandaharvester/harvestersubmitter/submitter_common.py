@@ -45,3 +45,10 @@ def get_joblabel(prod_source_label, is_unified_dispatch=False):
     if is_unified_dispatch and prod_source_label in ['managed', 'user']:
         joblabel = 'unified'
     return joblabel
+
+# get pilot job type (--job-type) option, support unified dispatch
+def get_pilot_job_type(job_type, is_unified_dispatch=False):
+    pilot_job_type = job_type
+    if is_unified_dispatch:
+        pilot_job_type = 'unified'
+    return pilot_job_type
