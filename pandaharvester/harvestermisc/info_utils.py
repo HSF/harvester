@@ -148,7 +148,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             workflow = None
         else:
             pq_type = panda_queue_dict.get('type')
-            if pq_type == 'unified': # use production templates
+            if pq_type == 'unified':  # use production templates
                 pq_type = 'production'
             workflow = panda_queue_dict.get('workflow')
         return pq_type, workflow
@@ -309,3 +309,17 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             namespace = default_namespace
 
         return namespace
+
+    def get_k8s_host_image(self, panda_resource):
+
+        # check if host_image defined in the associated parameter section
+        key_namespace = 'k8s.host_image'
+        params = self.get_harvester_params(panda_resource)
+
+        host_image = None
+        try:
+            host_image = params[key_namespace]
+        except KeyError:
+            pass
+
+        return host_image

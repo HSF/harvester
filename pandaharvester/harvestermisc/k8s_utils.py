@@ -20,6 +20,11 @@ CONFIG_DIR = '/scratch/jobconfig'
 EXEC_DIR = '/scratch/executables'
 GiB_TO_GB = 2 ** 30 / 10.0 ** 9
 
+# command and image defaults
+DEF_COMMAND = ["/usr/bin/bash"]
+DEF_ARGS = ["-c", "cd; python $EXEC_DIR/pilots_starter.py || true"]
+DEF_IMAGE = 'atlasadc/atlas-grid-centos7'
+
 class k8s_Client(object):
 
     def __init__(self, namespace, config_file=None, queue_name=None):
@@ -41,8 +46,7 @@ class k8s_Client(object):
         return yaml_content
 
     def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str,
-                             pilot_python_option, pilot_version, container_image,  executable, args,
-                             cert, max_time=None):
+                             pilot_python_option, pilot_version, host_image, cert, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
                                          method_name='create_job_from_yaml')
@@ -82,12 +86,14 @@ class k8s_Client(object):
 
         container_env.setdefault('resources', {})
         # set the container image
-        if 'image' not in container_env:
-            container_env['image'] = container_image
+        if host_image:  # images defined in CRIC have absolute preference
+            container_env['image'] = DEF_IMAGE
+        elif 'image' not in container_env:  # take default image only if not defined in yaml template
+            container_env['image'] = DEF_IMAGE
 
         if 'command' not in container_env:
-            container_env['command'] = executable
-            container_env['args'] = args
+            container_env['command'] = DEF_COMMAND
+            container_env['args'] = DEF_ARGS
 
         # set the resources (CPU and memory) we need for the container
         # note that predefined values in the yaml template will NOT be overwritten
