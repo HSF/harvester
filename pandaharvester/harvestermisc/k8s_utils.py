@@ -11,7 +11,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestercore import core_utils
 
 base_logger = core_utils.setup_logger('k8s_utils')
@@ -35,7 +35,7 @@ class k8s_Client(object):
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
 
-        self.panda_queues_dict = PandaQueuesDict()
+        self.panda_queues_dict = PandaQueuesDictK8s()
         self.namespace = namespace
         self.queue_name = queue_name
 
@@ -101,6 +101,7 @@ class k8s_Client(object):
         # The CPU & memory settings will affect the QoS for the pod
         container_env.setdefault('resources', {})
         resource_settings = self.panda_queues_dict.get_k8s_resource_settings(work_spec.computingSite)
+        pilot_dir = self.panda_queues_dict.get_k8s_pilot_dir(work_spec.computingSite)
 
         # CPU resources
         cpu_scheduling_ratio = resource_settings['cpu_scheduling_ratio']
@@ -155,6 +156,13 @@ class k8s_Client(object):
                 eph_storage_limit_MiB = round(eph_storage_limit_GiB * 1024, 2)
                 container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit_MiB) + 'Mi'
 
+            # add the ephemeral storage and mount it on pilot_dir
+            yaml_content['spec']['template']['spec'].setdefault('volumes', [])
+            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+            yaml_volumes.append({'name': 'pilot-dir', 'emptyDir': {}})
+            container_env.setdefault('volumeMounts', [])
+            container_env['volumeMounts'].append({'name': 'pilot-dir', 'mountPath': pilot_dir})
+
         container_env.setdefault('env', [])
         # try to retrieve the stdout log file name
         try:
@@ -183,6 +191,8 @@ class k8s_Client(object):
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id},
             {'name': 'submit_mode', 'value': submit_mode},
             {'name': 'EXEC_DIR', 'value': EXEC_DIR},
+            {'name': 'TMP_DIR', 'value': pilot_dir},
+            {'name': 'HOME', 'value': pilot_dir},
         ])
 
         # add the pilots starter configmap
