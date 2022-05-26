@@ -128,7 +128,11 @@ class Cacher(AgentBase):
                     cert_file = harvester_config.pandacon.cert_file
                     key_file = harvester_config.pandacon.key_file
                     ca_cert = harvester_config.pandacon.ca_cert
-                    res = requests.get(info_url, cert=(cert_file, key_file), verify=ca_cert, timeout=60)
+                    if ca_cert is False:
+                        cert = None
+                    else:
+                        cert = (cert_file, key_file)
+                    res = requests.get(info_url, cert=cert, verify=ca_cert, timeout=60)
                 except requests.exceptions.SSLError:
                     # try without certificate
                     res = requests.get(info_url, timeout=60)

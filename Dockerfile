@@ -2,7 +2,7 @@ FROM docker.io/centos:7
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel gcc less git mysql-devel curl
+RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb
 
 RUN curl -fsSL https://get.htcondor.org | /bin/bash -s -- --no-dry-run
 
@@ -10,7 +10,7 @@ RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
 RUN /opt/harvester/bin/pip install -U setuptools
 RUN /opt/harvester/bin/pip install -U mysqlclient uWSGI
-RUN /opt/harvester/bin/pip install git+git://github.com/HSF/harvester.git
+RUN /opt/harvester/bin/pip install git+https://github.com/HSF/harvester.git
 
 RUN mv /opt/harvester/etc/sysconfig/panda_harvester.rpmnew.template  /opt/harvester/etc/sysconfig/panda_harvester
 RUN mv /opt/harvester/etc/panda/panda_common.cfg.rpmnew /opt/harvester/etc/panda/panda_common.cfg
