@@ -38,7 +38,8 @@ RUN chmod -R 777 /data/harvester
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
-while true; do /opt/harvester/bin/panda_common-install_igtf_ca > /var/log/panda/install_igtf_ca.log 2>&1; sleep 36000; done & \n\
+/data/harvester/init-harvester \n\
+/data/harvester/run-harvester-crons & \n\
 /opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
 RUN chmod +x /opt/harvester/etc/rc.d/init.d/run-harvester-services
