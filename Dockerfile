@@ -30,4 +30,14 @@ RUN chown -R atlpan:zp /var/log/panda
 RUN mkdir -p /data/harvester
 RUN chown -R atlpan:zp /data/harvester
 
+# to run with non-root PID
+RUN mkdir -p /etc/grid-security/certificates
+RUN chmod -R 777 /etc/grid-security/certificates
+
+# make a wrapper script to launch services and periodic jobs in non-root container
+RUN echo $'#!/bin/bash \n\
+set -m \n\
+while true; do /opt/harvester/bin/panda_common-install_igtf_ca >> /var/log/panda/install_igtf_ca.log; sleep 36000; done & \n\
+/opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
+
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
