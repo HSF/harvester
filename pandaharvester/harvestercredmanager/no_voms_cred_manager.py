@@ -27,6 +27,7 @@ class NoVomsCredManager(BaseCredManager):
         self.lifetime = self.setupMap.get('lifetime', 96)
         self.renewCommand = self.setupMap.get('renewCommand', 'voms-proxy-init')
         self.extraRenewOpts = self.setupMap.get('extraRenewOpts', '')
+        self.lifetimeOptFormat = self.setupMap.get('lifetimeOptFormat', '-valid {lifetime}:00')
 
     # check proxy lifetime for monitoring/alerting purposes
     def check_credential_lifetime(self):
@@ -86,14 +87,15 @@ class NoVomsCredManager(BaseCredManager):
             noregen_option = '-noregen'
             usercert_value = self.inCertFile
             userkey_value = self.inCertFile
+        lifetimeOpt = self.lifetimeOptFormat.format(lifetime=self.lifetime)
         # command
         comStr = "{renew_command} -rfc {noregen_option} {voms_option} "\
-                 "-out {out} -valid {lifetime}:00 -cert={cert} -key={key} {extrea_renew_opts}".format(
+                 "-out {out} {lifetime} -cert={cert} -key={key} {extrea_renew_opts}".format(
             renew_command=self.renewCommand,
             noregen_option=noregen_option,
             voms_option=voms_option,
             out=self.outCertFile,
-            lifetime=self.lifetime,
+            lifetime=lifetimeOpt,
             cert=usercert_value,
             key=userkey_value,
             extrea_renew_opts=self.extraRenewOpts
