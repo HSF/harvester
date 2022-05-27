@@ -25,6 +25,8 @@ class NoVomsCredManager(BaseCredManager):
         self.cert = self.setupMap.get('cert')
         self.checkPeriod = self.setupMap.get('checkPeriod', 1)
         self.lifetime = self.setupMap.get('lifetime', 96)
+        self.renewCommand = self.setupMap.get('renewCommand', 'voms-proxy-init')
+        self.extraRenewOpts = self.setupMap.get('extraRenewOpts', '')
 
     # check proxy lifetime for monitoring/alerting purposes
     def check_credential_lifetime(self):
@@ -85,13 +87,17 @@ class NoVomsCredManager(BaseCredManager):
             usercert_value = self.inCertFile
             userkey_value = self.inCertFile
         # command
-        comStr = "voms-proxy-init -rfc {noregen_option} {voms_option} -out {out} -valid {lifetime}:00 -cert={cert} -key={key}".format(
-                                                                                                            noregen_option=noregen_option,
-                                                                                                            voms_option=voms_option,
-                                                                                                            out=self.outCertFile,
-                                                                                                            lifetime=self.lifetime,
-                                                                                                            cert=usercert_value,
-                                                                                                            key=userkey_value)
+        comStr = "{renew_command} -rfc {noregen_option} {voms_option} "\
+                 "-out {out} -valid {lifetime}:00 -cert={cert} -key={key} {extrea_renew_opts}".format(
+            renew_command=self.renewCommand,
+            noregen_option=noregen_option,
+            voms_option=voms_option,
+            out=self.outCertFile,
+            lifetime=self.lifetime,
+            cert=usercert_value,
+            key=userkey_value,
+            extrea_renew_opts=self.extraRenewOpts
+        )
         main_log.debug(comStr)
         try:
             p = subprocess.Popen(comStr.split(),
