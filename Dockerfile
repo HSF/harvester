@@ -38,6 +38,7 @@ RUN chmod -R 777 /var/log/condor
 RUN chmod -R 777 /var/lock/condor
 RUN chmod -R 777 /var/run/condor
 RUN chmod -R 777 /etc/condor/passwords.d
+RUN chmod -R 777 /var/lib/condor
 
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
