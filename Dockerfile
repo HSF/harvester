@@ -35,12 +35,14 @@ RUN mkdir -p /etc/grid-security/certificates
 RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
 RUN chmod -R 777 /var/log/condor
+RUN chmod -R 777 /var/lock/condor
 
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
 /data/harvester/init-harvester \n\
 /data/harvester/run-harvester-crons & \n\
+condor_master \n\
 /opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
 RUN chmod +x /opt/harvester/etc/rc.d/init.d/run-harvester-services
