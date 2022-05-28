@@ -34,6 +34,7 @@ RUN chown -R atlpan:zp /data/harvester
 RUN mkdir -p /etc/grid-security/certificates
 RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
+RUN chmod -R 777 /var/log/condor
 
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
