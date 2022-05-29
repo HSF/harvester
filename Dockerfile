@@ -41,7 +41,6 @@ RUN echo $'#!/bin/bash \n\
 set -m \n\
 /data/harvester/init-harvester \n\
 /data/harvester/run-harvester-crons & \n\
-/opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n\
 cd /data/condor \n\
 tar -x -f condor.tar.gz \n\
 mv condor-*stripped condor \n\
@@ -50,7 +49,9 @@ sed "s/\$USER_ID -eq 0 || \$GROUP_ID -eq 0/\$USER_ID -eq 0 \&\& \$GROUP_ID -eq 0
 chmod +x patched.make \n\
 ./patched.make \n\
 . condor.sh \n\
-condor_master \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
+cp /data/harvester/condor_config.local /data/condor/condor/local/config.d/ \n\
+condor_master \n\
+/opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
 RUN chmod +x /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
