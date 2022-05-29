@@ -4,7 +4,7 @@ RUN yum update -y
 RUN yum install -y epel-release
 RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget
 
-RUN curl -fsSL https://get.htcondor.org | /bin/bash -s -- --no-dry-run
+RUN mkdir -p /data/condor; cd /data/condor; curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
 
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
@@ -34,19 +34,23 @@ RUN chown -R atlpan:zp /data/harvester
 RUN mkdir -p /etc/grid-security/certificates
 RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
-RUN chmod -R 777 /var/log/condor
-RUN chmod -R 777 /var/lock/condor
-RUN chmod -R 777 /var/run/condor
-RUN chmod -R 777 /etc/condor
-RUN chmod -R 777 /var/lib/condor
+RUN chmod -R 777 /data/condor
 
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
 /data/harvester/init-harvester \n\
 /data/harvester/run-harvester-crons & \n\
-condor_master \n\
-/opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
+/opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n\
+cd /data/condor \n\
+tar -x -f condor.tar.gz \n\
+mv condor-*stripped condor \n\
+cd condor \n\
+sed "s/\$USER_ID -eq 0 || \$GROUP_ID -eq 0/\$USER_ID -eq 0 \&\& \$GROUP_ID -eq 0/" ./bin/make-personal-from-tarball  > patched.make  \n\
+chmod +x patched.make \n\
+./patched.make \n\
+. condor.sh \n\
+condor_master \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
 RUN chmod +x /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
