@@ -5,7 +5,7 @@ class PandaQueuesDictK8s(PandaQueuesDict):
 
     def get_k8s_scheduler_settings(self, panda_resource):
         # this is how the affinity settings are declared in CRIC
-        key_affinity = 'k8s.scheduler.use_score_affinity'
+        key_affinity = 'k8s.scheduler.use_score_mcore_affinity'
         key_anti_affinity = 'k8s.scheduler.use_score_mcore_anti_affinity'
 
         params = self.get_harvester_params(panda_resource)
@@ -21,7 +21,7 @@ class PandaQueuesDictK8s(PandaQueuesDict):
             ret_map['use_anti_affinity'] = params[key_anti_affinity]
         except KeyError:
             # return default value
-            ret_map['use_anti_affinity'] = True
+            ret_map['use_anti_affinity'] = False
 
         # this is how the affinity settings are declared in CRIC
         key_priority_class_score = 'k8s.scheduler.priorityClassName.score'

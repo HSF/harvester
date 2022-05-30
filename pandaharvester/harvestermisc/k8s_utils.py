@@ -405,7 +405,6 @@ class k8s_Client(object):
         yaml_content['spec']['template']['spec']['affinity'] = {}
         yaml_affinity = yaml_content['spec']['template']['spec']['affinity']
 
-        res_element = {'SCORE', 'SCORE', 'MCORE', 'MCORE_HIMEM'}
         scores = ['SCORE', 'SCORE_HIMEM']
         mcores = ['MCORE', 'MCORE_HIMEM']
 
@@ -422,7 +421,7 @@ class k8s_Client(object):
                             {
                                 'key': 'resourceType',
                                 'operator': 'In',
-                                'values': ['SCORE', 'SCORE_HIMEM']
+                                'values': ['SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM']
                             }
                         ]
                     },
