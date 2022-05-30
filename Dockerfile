@@ -23,6 +23,7 @@ RUN ln -fs /opt/harvester/etc/queue_config/panda_queueconfig.json /opt/harvester
 RUN adduser atlpan
 RUN groupadd zp
 RUN usermod -a -G zp atlpan
+RUN passwd -d atlpan
 
 RUN mkdir -p /var/log/panda
 RUN chown -R atlpan:zp /var/log/panda
@@ -45,9 +46,7 @@ cd /data/condor \n\
 tar -x -f condor.tar.gz \n\
 mv condor-*stripped condor \n\
 cd condor \n\
-sed "s/\$USER_ID -eq 0 || \$GROUP_ID -eq 0/\$USER_ID -eq 0 \&\& \$GROUP_ID -eq 0/" ./bin/make-personal-from-tarball  > patched.make  \n\
-chmod +x patched.make \n\
-./patched.make \n\
+./bin/make-personal-from-tarball \n\
 . condor.sh \n\
 cp /data/harvester/condor_config.local /data/condor/condor/local/config.d/ \n\
 condor_master \n\
