@@ -4,7 +4,7 @@ RUN yum update -y
 RUN yum install -y epel-release
 RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget
 
-RUN mkdir -p /data/condor; cd /data/condor; curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
+RUN mkdir -p /data/condor; cd /data/condor; curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download --channel stable
 
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
