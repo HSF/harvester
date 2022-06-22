@@ -5,10 +5,10 @@ import tempfile
 import threading
 import random
 import json
+import re
 
 from concurrent.futures import ThreadPoolExecutor
-import re
-from math import log1p, ceil
+from math import ceil
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -24,152 +24,6 @@ from pandaharvester.harvestersubmitter import submitter_common
 baseLogger = core_utils.setup_logger('htcondor_submitter')
 
 
-# Compute weight of each CE according to worker stat, return tuple(dict, total weight score)
-def _get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None, is_slave_queue=False):
-    multiplier = 1000.
-    n_ce = len(ce_endpoint_list)
-    worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
-    N = float(n_ce)
-    Q = float(worker_limits_dict['nQueueLimitWorker'])
-    W = float(worker_limits_dict['maxWorkers'])
-    Q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce][_st]
-                            for _st in ('submitted', 'running', 'finished')
-                            for _ce in worker_ce_backend_throughput_dict))
-    Q_good_fin = float(sum(worker_ce_backend_throughput_dict[_ce][_st]
-                            for _st in ('submitted',)
-                            for _ce in worker_ce_backend_throughput_dict))
-    thruput_avg = (log1p(Q_good_init) - log1p(Q_good_fin))
-    n_new_workers = float(n_new_workers)
-    # target number of queuing
-    target_Q = Q + n_new_workers
-    if is_slave_queue:
-        # take total number of current queuing if slave queue
-        total_Q = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict ))
-        target_Q = min(total_Q, Q) + n_new_workers
-
-    def _get_thruput(_ce_endpoint):  # inner function
-        if _ce_endpoint not in worker_ce_backend_throughput_dict:
-            q_good_init = 0.
-            q_good_fin = 0.
-        else:
-            q_good_init = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
-                                    for _st in ('submitted', 'running', 'finished')))
-            q_good_fin = float(sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st]
-                                    for _st in ('submitted',)))
-        thruput = (log1p(q_good_init) - log1p(q_good_fin))
-        return thruput
-
-    def _get_thruput_adj_ratio(thruput):  # inner function
-        try:
-            thruput_adj_ratio = thruput/thruput_avg + 1/N
-        except ZeroDivisionError:
-            if thruput == 0.:
-                thruput_adj_ratio = 1/N
-            else:
-                raise
-        return thruput_adj_ratio
-    ce_base_weight_sum = sum((_get_thruput_adj_ratio(_get_thruput(_ce))
-                                for _ce in ce_endpoint_list))
-
-    def _get_init_weight(_ce_endpoint):  # inner function
-        if _ce_endpoint not in worker_ce_stats_dict:
-            q = 0.
-            r = 0.
-        else:
-            q = float(worker_ce_stats_dict[_ce_endpoint]['submitted'])
-            r = float(worker_ce_stats_dict[_ce_endpoint]['running'])
-            # q_avg = sum(( float(worker_ce_stats_dict[_k]['submitted']) for _k in worker_ce_stats_dict )) / N
-            # r_avg = sum(( float(worker_ce_stats_dict[_k]['running']) for _k in worker_ce_stats_dict )) / N
-        if ( _ce_endpoint in worker_ce_stats_dict and q > Q ):
-            return float(0)
-        ce_base_weight_normalized = _get_thruput_adj_ratio(_get_thruput(_ce_endpoint))/ce_base_weight_sum
-        # target number of queuing of the CE
-        q_expected = target_Q * ce_base_weight_normalized
-        # weight by difference
-        ret = max((q_expected - q), 2**-10)
-        # # Weight by running ratio
-        # _weight_r = 1 + N*r/R
-        if r == 0:
-            # Penalty for dead CE (no running worker)
-            ret = ret / (1 + log1p(q)**2)
-        return ret
-    init_weight_iterator = map(_get_init_weight, ce_endpoint_list)
-    sum_of_weights = sum(init_weight_iterator)
-    total_score = multiplier * N
-    try:
-        regulator = total_score / sum_of_weights
-    except ZeroDivisionError:
-        regulator = 1.
-    ce_weight_dict = {_ce: _get_init_weight(_ce) * regulator for _ce in ce_endpoint_list}
-    ce_thruput_dict = {_ce: _get_thruput(_ce) * 86400. / time_window for _ce in ce_endpoint_list}
-    return total_score, ce_weight_dict, ce_thruput_dict, target_Q
-
-
-# Choose a CE accroding to weighting
-def _choose_ce(weighting):
-    total_score, ce_weight_dict, ce_thruput_dict, target_Q = weighting
-    lucky_number = random.random() * total_score
-    cur = 0.
-    ce_now = None
-    for _ce, _w in ce_weight_dict.items():
-        if _w == 0.:
-            continue
-        ce_now = _ce
-        cur += _w
-        if cur >= lucky_number:
-            return _ce
-    if ce_weight_dict.get(ce_now, -1) > 0.:
-        return ce_now
-    else:
-        return None
-
-
-# Get better string to display the statistics and weightng of CEs
-def _get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
-    worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
-    total_score, ce_weight_dict, ce_thruput_dict, target_Q = ce_weighting
-    worker_ce_stats_dict_sub_default = {'submitted': 0, 'running': 0}
-    worker_ce_backend_throughput_dict_sub_default = {'submitted': 0, 'running': 0, 'finished': 0}
-    general_dict = {
-            'maxWorkers': int(worker_limits_dict.get('maxWorkers')),
-            'nQueueLimitWorker': int(worker_limits_dict.get('nQueueLimitWorker')),
-            'nNewWorkers': int(n_new_workers),
-            'target_Q': int(target_Q),
-            'history_time_window': int(time_window),
-        }
-    general_str = (
-            'maxWorkers={maxWorkers} '
-            'nQueueLimitWorker={nQueueLimitWorker} '
-            'nNewWorkers={nNewWorkers} '
-            'target_Q={target_Q} '
-            'hist_timeWindow={history_time_window} '
-        ).format(**general_dict)
-    ce_str_list = []
-    for _ce in ce_list:
-        schema_sub_dict = {
-                'submitted_now': int(worker_ce_stats_dict.get(_ce, worker_ce_stats_dict_sub_default).get('submitted')),
-                'running_now': int(worker_ce_stats_dict.get(_ce, worker_ce_stats_dict_sub_default).get('running')),
-                'submitted_history': int(worker_ce_backend_throughput_dict.get(_ce, worker_ce_backend_throughput_dict_sub_default).get('submitted')),
-                'running_history': int(worker_ce_backend_throughput_dict.get(_ce, worker_ce_backend_throughput_dict_sub_default).get('running')),
-                'finished_history': int(worker_ce_backend_throughput_dict.get(_ce, worker_ce_backend_throughput_dict_sub_default).get('finished')),
-                'thruput_score': ce_thruput_dict.get(_ce),
-                'weight_score': ce_weight_dict.get(_ce),
-            }
-        ce_str = (
-                '"{_ce}": '
-                'now_S={submitted_now} '
-                'now_R={running_now} '
-                'hist_S={submitted_history} '
-                'hist_R={running_history} '
-                'hist_F={finished_history} '
-                'T={thruput_score:.02f} '
-                'W={weight_score:.03f} '
-            ).format(_ce=_ce, **schema_sub_dict)
-        ce_str_list.append(ce_str)
-    stats_weighting_display_str = general_str + ' ; ' + ' , '.join(ce_str_list)
-    return stats_weighting_display_str
-
-
 # Replace condor Macro from SDF file, return string
 def _condor_macro_replace(string, **kwarg):
     new_string = string
@@ -180,22 +34,6 @@ def _condor_macro_replace(string, **kwarg):
     for k, v in macro_map.items():
         new_string = re.sub(k, v, new_string)
     return new_string
-
-
-# Parse resource type from string for Unified PanDA Queue
-def _get_resource_type(string, is_unified_queue, is_pilot_option=False):
-    string = str(string)
-    if not is_unified_queue:
-        ret = ''
-    elif string in set(['SCORE', 'MCORE', 'SCORE_HIMEM', 'MCORE_HIMEM']):
-        if is_pilot_option:
-            ret = '--resource-type {0}'.format(string)
-        else:
-            ret = string
-    else:
-        ret = ''
-    return ret
-
 
 # submit a bag of workers
 def submit_bag_of_workers(data_list):
@@ -306,7 +144,6 @@ def submit_bag_of_workers(data_list):
     retValList = [ worker_retval_map[w_id] for w_id in workerIDs_list ]
     return retValList
 
-
 # make a condor jdl for a worker
 def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, executable_file,
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
@@ -404,8 +241,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'gtag': batch_log_dict.get('gtag', 'fake_GTAG_string'),
             'prodSourceLabel': prod_source_label,
             'jobType': workspec.jobType,
-            'resourceType': _get_resource_type(workspec.resourceType, is_unified_queue),
-            'pilotResourceTypeOption': _get_resource_type(workspec.resourceType, is_unified_queue, True),
+            'resourceType': submitter_common.get_resource_type(workspec.resourceType, is_unified_queue),
+            'pilotResourceTypeOption': submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, True),
             'ioIntensity': io_intensity,
             'pilotType': pilot_type_opt,
             'pilotUrlOption': pilot_url_str,
@@ -430,7 +267,6 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     tmpLog.debug('saved sdf at {0}'.format(tmpFile.name))
     tmpLog.debug('done')
     return jdl_str, placeholder_map
-
 
 # parse log, stdout, stderr filename
 def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
@@ -681,9 +517,6 @@ class HTCondorSubmitter(PluginBase):
                         and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE'
                         and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
                     continue
-                ########################
-                # _queue_dict == ce_info_dict
-                # ce_info_dict = ce_auxilary_dict[ce_chosen].copy()
                 ce_info_dict = _queue_dict.copy()
                 # ignore protocol prefix in ce_endpoint for cream and condor CE
                 # check protocol prefix for ARC CE (gridftp or REST)
@@ -713,8 +546,6 @@ class HTCondorSubmitter(PluginBase):
                         ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                 tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
                                 pilot_version, ce_endpoint_from_queue, ce_flavour_str))
-
-                ##################
                 ce_endpoint = ce_info_dict.get('ce_endpoint')
                 if ( ce_endpoint in ce_auxilary_dict
                     and str(ce_info_dict.get('ce_queue_name', '')).lower() == 'default' ):
@@ -728,10 +559,10 @@ class HTCondorSubmitter(PluginBase):
                 tmpLog.debug('Get CE weighting')
                 worker_ce_all_tuple = self.get_ce_statistics(self.queueName, nWorkers)
                 is_slave_queue = (harvester_queue_config.runMode == 'slave')
-                ce_weighting = _get_ce_weighting(ce_endpoint_list=list(ce_auxilary_dict.keys()),
+                ce_weighting = submitter_common.get_ce_weighting(ce_endpoint_list=list(ce_auxilary_dict.keys()),
                                                         worker_ce_all_tuple=worker_ce_all_tuple,
                                                         is_slave_queue=is_slave_queue)
-                stats_weighting_display_str = _get_ce_stats_weighting_display(
+                stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(
                                                 ce_auxilary_dict.keys(), worker_ce_all_tuple, ce_weighting)
                 tmpLog.debug('CE stats and weighting: {0}'.format(stats_weighting_display_str))
             else:
@@ -771,39 +602,12 @@ class HTCondorSubmitter(PluginBase):
                 if self.useAtlasGridCE:
                     # choose a CE
                     tmpLog.info('choose a CE...')
-                    ce_chosen = _choose_ce(ce_weighting)
+                    ce_chosen = submitter_common.choose_ce(ce_weighting)
                     try:
                         ce_info_dict = ce_auxilary_dict[ce_chosen].copy()
                     except KeyError:
                         tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
-                    # go on info of the CE
-                    # ignore protocol prefix in ce_endpoint for cream and condor CE
-                    # check protocol prefix for ARC CE (gridftp or REST)
-                    # _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
-                    # ce_endpoint_prefix = ''
-                    # if _match_ce_endpoint:
-                    #     ce_endpoint_prefix = _match_ce_endpoint.group(1)
-                    # ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
-                    # ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
-                    # ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
-                    # if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
-                    #     # new ARC REST interface
-                    #     ce_info_dict['ce_arc_grid_type'] = 'arc'
-                    # else:
-                    #     ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
-                    # ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                    # if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
-                    #     and ce_info_dict['ce_arc_grid_type'] != 'arc':
-                    #     # add default port to ce_endpoint if missing
-                    #     default_port_map = {
-                    #             'cream-ce': 8443,
-                    #             'arc-ce': 2811,
-                    #             'htcondor-ce': 9619,
-                    #         }
-                    #     if ce_flavour_str in default_port_map:
-                    #         default_port = default_port_map[ce_flavour_str]
-                    #         ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
                                     pilot_version, ce_endpoint_from_queue, ce_flavour_str))
                     if self.templateFile:
