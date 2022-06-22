@@ -162,7 +162,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     io_intensity = workspec.ioIntensity if workspec.ioIntensity else 0
     ce_info_dict = ce_info_dict.copy()
     batch_log_dict = batch_log_dict.copy()
-    # possible override by AGIS special_par
+    # possible override by CRIC special_par
     if special_par:
         special_par_attr_list = ['queue', 'maxWallTime', 'xcount', ]
         _match_special_par_dict = { attr: re.search('\({attr}=([^)]+)\)'.format(attr=attr), special_par) \
@@ -176,7 +176,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
                 request_walltime = int(_match.group(1))
             elif attr == 'xcount':
                 n_core_total = int(_match.group(1))
-            tmpLog.debug('job attributes override by AGIS special_par: {0}={1}'.format(attr, str(_match.group(1))))
+            tmpLog.debug('job attributes override by CRIC special_par: {0}={1}'.format(attr, str(_match.group(1))))
     # derived job attributes
     n_node = ceil(n_core_total/n_core_per_node)
     request_ram_bytes = request_ram * 2**20
@@ -331,18 +331,22 @@ class HTCondorSubmitter(PluginBase):
             self.tokenDirAnalysis
         except AttributeError:
             self.tokenDirAnalysis = None
-        # ATLAS AGIS
+        # ATLAS CRIC
         try:
-            self.useAtlasAGIS = bool(self.useAtlasAGIS)
+            self.useAtlasCRIC = bool(self.useAtlasCRIC)
         except AttributeError:
-            self.useAtlasAGIS = False
-        # ATLAS Grid CE, requiring AGIS
+            # Try the old parameter name useAtlasAGIS
+            try:
+                self.useAtlasCRIC = bool(self.useAtlasAGIS)
+            except AttributeError:
+                self.useAtlasCRIC = False
+        # ATLAS Grid CE, requiring CRIC
         try:
             self.useAtlasGridCE = bool(self.useAtlasGridCE)
         except AttributeError:
             self.useAtlasGridCE = False
         finally:
-            self.useAtlasAGIS = self.useAtlasAGIS or self.useAtlasGridCE
+            self.useAtlasCRIC = self.useAtlasCRIC or self.useAtlasGridCE
         # sdf template directories of CEs; ignored if templateFile is set
         try:
             self.CEtemplateDir
@@ -401,8 +405,8 @@ class HTCondorSubmitter(PluginBase):
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
-        # allowed associated parameters from AGIS
-        self._allowed_agis_attrs = (
+        # allowed associated parameters from CRIC
+        self._allowed_cric_attrs = (
                 'pilot_url',
                 'pilot_args',
             )
@@ -451,16 +455,16 @@ class HTCondorSubmitter(PluginBase):
         associated_params_dict = {}
 
         is_grandly_unified_queue = False
-        # get queue info from AGIS by cacher in db
-        if self.useAtlasAGIS:
+        # get queue info from CRIC by cacher in db
+        if self.useAtlasCRIC:
             panda_queues_dict = PandaQueuesDict()
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
             is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
-            # associated params on AGIS
+            # associated params on CRIC
             for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
-                if key in self._allowed_agis_attrs:
+                if key in self._allowed_cric_attrs:
                     if isinstance(val, str):
                         # sanitized list the value
                         val = re.sub(r'[;$~`]*', '', val)
@@ -552,7 +556,7 @@ class HTCondorSubmitter(PluginBase):
                     pass
                 else:
                     ce_auxilary_dict[ce_endpoint] = ce_info_dict
-            # qualified CEs from AGIS info
+            # qualified CEs from CRIC info
             n_qualified_ce = len(ce_auxilary_dict)
             if n_qualified_ce > 0:
                 # Get CE weighting
