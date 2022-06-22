@@ -8,7 +8,7 @@ import json
 
 from concurrent.futures import ThreadPoolExecutor
 import re
-from math import log1p
+from math import log1p, ceil
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -22,11 +22,6 @@ from pandaharvester.harvestersubmitter import submitter_common
 
 # logger
 baseLogger = core_utils.setup_logger('htcondor_submitter')
-
-
-# Integer division round up
-def _div_round_up(a, b):
-    return a // b + int(a % b > 0)
 
 
 # Compute weight of each CE according to worker stat, return tuple(dict, total weight score)
@@ -346,13 +341,13 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
                 n_core_total = int(_match.group(1))
             tmpLog.debug('job attributes override by AGIS special_par: {0}={1}'.format(attr, str(_match.group(1))))
     # derived job attributes
-    n_node = _div_round_up(n_core_total, n_core_per_node)
+    n_node = ceil(n_core_total/n_core_per_node)
     request_ram_bytes = request_ram * 2**20
-    request_ram_per_core = _div_round_up(request_ram * n_node, n_core_total)
-    request_ram_bytes_per_core = _div_round_up(request_ram_bytes * n_node, n_core_total)
+    request_ram_per_core = ceil(request_ram*n_node/n_core_total)
+    request_ram_bytes_per_core = ceil(request_ram_bytes*n_node/n_core_total)
     request_cputime = request_walltime * n_core_total
-    request_walltime_minute = _div_round_up(request_walltime, 60)
-    request_cputime_minute = _div_round_up(request_cputime, 60)
+    request_walltime_minute = ceil(request_walltime/60)
+    request_cputime_minute = ceil(request_cputime/60)
     # decide prodSourceLabel
     pilot_opt_dict = submitter_common.get_complicated_pilot_options(workspec.pilotType, pilot_url, pilot_version)
     if pilot_opt_dict is None:
@@ -656,7 +651,7 @@ class HTCondorSubmitter(PluginBase):
             n_core_per_node = n_core_per_node_from_queue
 
         # deal with Condor schedd and central managers; make a random list the choose
-        n_bulks = _div_round_up(nWorkers, self.minBulkToRamdomizedSchedd)
+        n_bulks = ceil(nWorkers/self.minBulkToRamdomizedSchedd)
         if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
             orig_list = []
             if isinstance(self.condorPool, list) and len(self.condorPool) > 0:
