@@ -686,12 +686,46 @@ class HTCondorSubmitter(PluginBase):
                         and str(_queue_dict.get('ce_state', '')).upper() == 'ACTIVE'
                         and str(_queue_dict.get('ce_flavour', '')).lower() in set(['arc-ce', 'cream-ce', 'htcondor-ce']) ):
                     continue
-                ce_endpoint = _queue_dict.get('ce_endpoint')
+                ########################
+                # _queue_dict == ce_info_dict
+                # ce_info_dict = ce_auxilary_dict[ce_chosen].copy()
+                ce_info_dict = _queue_dict.copy()
+                # ignore protocol prefix in ce_endpoint for cream and condor CE
+                # check protocol prefix for ARC CE (gridftp or REST)
+                _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
+                ce_endpoint_prefix = ''
+                if _match_ce_endpoint:
+                    ce_endpoint_prefix = _match_ce_endpoint.group(1)
+                ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
+                ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
+                ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
+                    # new ARC REST interface
+                    ce_info_dict['ce_arc_grid_type'] = 'arc'
+                else:
+                    ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
+                ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
+                if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
+                    and ce_info_dict['ce_arc_grid_type'] != 'arc':
+                    # add default port to ce_endpoint if missing
+                    default_port_map = {
+                            'cream-ce': 8443,
+                            'arc-ce': 2811,
+                            'htcondor-ce': 9619,
+                        }
+                    if ce_flavour_str in default_port_map:
+                        default_port = default_port_map[ce_flavour_str]
+                        ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
+                tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
+                                pilot_version, ce_endpoint_from_queue, ce_flavour_str))
+
+                ##################
+                ce_endpoint = ce_info_dict.get('ce_endpoint')
                 if ( ce_endpoint in ce_auxilary_dict
-                    and str(_queue_dict.get('ce_queue_name', '')).lower() == 'default' ):
+                    and str(ce_info_dict.get('ce_queue_name', '')).lower() == 'default' ):
                     pass
                 else:
-                    ce_auxilary_dict[ce_endpoint] = _queue_dict
+                    ce_auxilary_dict[ce_endpoint] = ce_info_dict
             # qualified CEs from AGIS info
             n_qualified_ce = len(ce_auxilary_dict)
             if n_qualified_ce > 0:
@@ -751,30 +785,30 @@ class HTCondorSubmitter(PluginBase):
                     # go on info of the CE
                     # ignore protocol prefix in ce_endpoint for cream and condor CE
                     # check protocol prefix for ARC CE (gridftp or REST)
-                    _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
-                    ce_endpoint_prefix = ''
-                    if _match_ce_endpoint:
-                        ce_endpoint_prefix = _match_ce_endpoint.group(1)
-                    ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
-                    ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
-                    ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
-                    if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
-                        # new ARC REST interface
-                        ce_info_dict['ce_arc_grid_type'] = 'arc'
-                    else:
-                        ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
-                    ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
-                        and ce_info_dict['ce_arc_grid_type'] != 'arc':
-                        # add default port to ce_endpoint if missing
-                        default_port_map = {
-                                'cream-ce': 8443,
-                                'arc-ce': 2811,
-                                'htcondor-ce': 9619,
-                            }
-                        if ce_flavour_str in default_port_map:
-                            default_port = default_port_map[ce_flavour_str]
-                            ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
+                    # _match_ce_endpoint = re.match('^(\w+)://(\w+)', ce_info_dict.get('ce_endpoint', ''))
+                    # ce_endpoint_prefix = ''
+                    # if _match_ce_endpoint:
+                    #     ce_endpoint_prefix = _match_ce_endpoint.group(1)
+                    # ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
+                    # ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
+                    # ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                    # if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
+                    #     # new ARC REST interface
+                    #     ce_info_dict['ce_arc_grid_type'] = 'arc'
+                    # else:
+                    #     ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
+                    # ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
+                    # if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
+                    #     and ce_info_dict['ce_arc_grid_type'] != 'arc':
+                    #     # add default port to ce_endpoint if missing
+                    #     default_port_map = {
+                    #             'cream-ce': 8443,
+                    #             'arc-ce': 2811,
+                    #             'htcondor-ce': 9619,
+                    #         }
+                    #     if ce_flavour_str in default_port_map:
+                    #         default_port = default_port_map[ce_flavour_str]
+                    #         ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
                     tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
                                     pilot_version, ce_endpoint_from_queue, ce_flavour_str))
                     if self.templateFile:
