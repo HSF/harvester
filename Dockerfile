@@ -4,13 +4,21 @@ RUN yum update -y
 RUN yum install -y epel-release
 RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget
 
-RUN mkdir -p /data/condor; cd /data/condor; curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
+RUN mkdir -p /data/condor; cd /data/condor; \
+    curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download --channel stable; \
+    mv condor.tar.gz condor.tar.gz.stable; \
+    curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
 
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
 RUN /opt/harvester/bin/pip install -U setuptools
 RUN /opt/harvester/bin/pip install -U mysqlclient uWSGI pyyaml
-RUN /opt/harvester/bin/pip install git+https://github.com/HSF/harvester.git
+RUN mkdir /tmp/src
+WORKDIR /tmp/src
+COPY . .
+RUN /opt/harvester/bin/python setup.py sdist; /opt/harvester/bin/pip install `ls dist/*.tar.gz`
+WORKDIR /
+RUN rm -rf /tmp/src
 
 RUN mv /opt/harvester/etc/sysconfig/panda_harvester.rpmnew.template  /opt/harvester/etc/sysconfig/panda_harvester
 RUN mv /opt/harvester/etc/panda/panda_common.cfg.rpmnew /opt/harvester/etc/panda/panda_common.cfg
@@ -43,7 +51,7 @@ set -m \n\
 /data/harvester/init-harvester \n\
 /data/harvester/run-harvester-crons & \n\
 cd /data/condor \n\
-tar -x -f condor.tar.gz \n\
+tar -x -f condor.tar.gz${CONDOR_CHANNEL} \n\
 mv condor-*stripped condor \n\
 cd condor \n\
 ./bin/make-personal-from-tarball \n\
