@@ -220,12 +220,20 @@ class k8s_Client(object):
         if (use_affinity or use_anti_affinity) and 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content, use_affinity, use_anti_affinity)
 
-        # set the priority classes
+        # set the priority classes. Specific priority classes have precedence over general priority classes
+        priority_class = None
+
         priority_class_key = 'priority_class_{0}'.format(work_spec.resourceType.lower())
-        try:
-            priority_class = scheduling_settings[priority_class_key]
-        except KeyError:
-            priority_class = None
+        priority_class_specific = scheduling_settings.get(priority_class_key, None)
+
+        priority_class_key = 'priority_class'
+        priority_class_general = scheduling_settings.get(priority_class_key, None)
+
+        if priority_class_specific:
+            priority_class = priority_class_specific
+        elif priority_class_general:
+            priority_class = priority_class_general
+
         if priority_class and 'priorityClassName' not in yaml_content['spec']['template']['spec']:
             yaml_content['spec']['template']['spec']['priorityClassName'] = priority_class
 
