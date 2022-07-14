@@ -168,9 +168,14 @@ class k8s_Client(object):
             # add the ephemeral storage and mount it on pilot_dir
             yaml_content['spec']['template']['spec'].setdefault('volumes', [])
             yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
-            yaml_volumes.append({'name': 'pilot-dir', 'emptyDir': {}})
+            exists = list(filter(lambda vol: vol['name'] == 'pilot-dir', yaml_volumes))
+            if not exists:
+                yaml_volumes.append({'name': 'pilot-dir', 'emptyDir': {}})
+
             container_env.setdefault('volumeMounts', [])
-            container_env['volumeMounts'].append({'name': 'pilot-dir', 'mountPath': pilot_dir})
+            exists = list(filter(lambda vol_mount: vol_mount['name'] == 'pilot-dir', container_env['volumeMounts']))
+            if not exists:
+                container_env['volumeMounts'].append({'name': 'pilot-dir', 'mountPath': pilot_dir})
 
         container_env.setdefault('env', [])
         # try to retrieve the stdout log file name
