@@ -30,14 +30,13 @@ class K8sSubmitter(PluginBase):
 
         # retrieve the k8s namespace from CRIC
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
-        host_image = self.panda_queues_dict.get_k8s_host_image(self.queueName)
 
         self.k8s_client = k8s_Client(namespace=namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
 
         # update or create the pilot starter executable
         self.k8s_client.create_or_patch_configmap_starter()
 
-        # allowed associated parameters from AGIS
+        # allowed associated parameters from CRIC
         self._allowed_agis_attrs = (
                 'pilot_url',
             )
@@ -135,6 +134,7 @@ class K8sSubmitter(PluginBase):
                 pilot_url_str = pilot_opt_dict['pilot_url_str']
 
             pilot_python_option = submitter_common.get_python_version_option(python_version, prod_source_label)
+            host_image = self.panda_queues_dict.get_k8s_host_image(self.queueName)
 
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(yaml_content, work_spec, prod_source_label,
