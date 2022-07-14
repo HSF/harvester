@@ -78,6 +78,15 @@ class k8s_Client(object):
                                                                   }
                                                              })
 
+        # this flag should be respected by the k8s autoscaler not relocate (kill) the job during a scale down
+        safe_to_evict = self.panda_queues_dict.get_k8s_annotations(work_spec.computingSite)
+        if safe_to_evict is False:
+            yaml_content['spec']['template']['metadata'].update({'annotations':
+                                                                     {
+                                                                         'cluster-autoscaler.kubernetes.io/safe-to-evict': 'false'
+                                                                     }
+                                                                 })
+
         # fill the container details. we can only handle one container (take the first, delete the rest)
         yaml_containers = yaml_content['spec']['template']['spec']['containers']
         del (yaml_containers[1:len(yaml_containers)])
