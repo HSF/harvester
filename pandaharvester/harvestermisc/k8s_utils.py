@@ -87,7 +87,7 @@ class k8s_Client(object):
         container_env.setdefault('resources', {})
         # set the container image
         if host_image:  # images defined in CRIC have absolute preference
-            container_env['image'] = DEF_IMAGE
+            container_env['image'] = host_image
         elif 'image' not in container_env:  # take default image only if not defined in yaml template
             container_env['image'] = DEF_IMAGE
 
