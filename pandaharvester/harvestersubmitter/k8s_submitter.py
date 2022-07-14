@@ -12,7 +12,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestersubmitter import submitter_common
 
@@ -26,7 +26,7 @@ class K8sSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        self.panda_queues_dict = PandaQueuesDict()
+        self.panda_queues_dict = PandaQueuesDictK8s()
 
         # retrieve the k8s namespace from CRIC
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)

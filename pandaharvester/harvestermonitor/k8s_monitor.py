@@ -8,7 +8,7 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 
 # logger
 base_logger = core_utils.setup_logger('k8s_monitor')
@@ -21,7 +21,7 @@ class K8sMonitor(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
-        self.panda_queues_dict = PandaQueuesDict()
+        self.panda_queues_dict = PandaQueuesDictK8s()
 
         # retrieve the k8s namespace from CRIC
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)

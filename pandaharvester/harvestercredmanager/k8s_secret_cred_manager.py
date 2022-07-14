@@ -4,7 +4,7 @@ import traceback
 from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 
 # logger
 _logger = core_utils.setup_logger('k8s_secret_cred_manager')
