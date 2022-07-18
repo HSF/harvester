@@ -1,7 +1,7 @@
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 
 # logger
 base_logger = core_utils.setup_logger('k8s_sweeper')
@@ -14,7 +14,7 @@ class K8sSweeper(BaseSweeper):
         BaseSweeper.__init__(self, **kwarg)
 
         # retrieve the k8s namespace from CRIC
-        self.panda_queues_dict = PandaQueuesDict()
+        self.panda_queues_dict = PandaQueuesDictK8s()
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
         self.k8s_client = k8s_Client(namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
 
