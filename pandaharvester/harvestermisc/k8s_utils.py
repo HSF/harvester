@@ -11,7 +11,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestercore import core_utils
 
 base_logger = core_utils.setup_logger('k8s_utils')
@@ -19,6 +19,11 @@ base_logger = core_utils.setup_logger('k8s_utils')
 CONFIG_DIR = '/scratch/jobconfig'
 EXEC_DIR = '/scratch/executables'
 GiB_TO_GB = 2 ** 30 / 10.0 ** 9
+
+# command and image defaults
+DEF_COMMAND = ["/usr/bin/bash"]
+DEF_ARGS = ["-c", "cd; python $EXEC_DIR/pilots_starter.py || true"]
+DEF_IMAGE = 'atlasadc/atlas-grid-centos7'
 
 class k8s_Client(object):
 
@@ -30,7 +35,7 @@ class k8s_Client(object):
         self.batchv1 = client.BatchV1Api()
         self.deletev1 = client.V1DeleteOptions(propagation_policy='Background')
 
-        self.panda_queues_dict = PandaQueuesDict()
+        self.panda_queues_dict = PandaQueuesDictK8s()
         self.namespace = namespace
         self.queue_name = queue_name
 
@@ -41,8 +46,7 @@ class k8s_Client(object):
         return yaml_content
 
     def create_job_from_yaml(self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str,
-                             pilot_python_option, pilot_version, container_image,  executable, args,
-                             cert, max_time=None):
+                             pilot_python_option, pilot_version, host_image, cert, max_time=None):
 
         tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
                                          method_name='create_job_from_yaml')
@@ -74,6 +78,15 @@ class k8s_Client(object):
                                                                   }
                                                              })
 
+        # this flag should be respected by the k8s autoscaler not relocate (kill) the job during a scale down
+        safe_to_evict = self.panda_queues_dict.get_k8s_annotations(work_spec.computingSite)
+        if safe_to_evict is False:
+            yaml_content['spec']['template']['metadata'].update({'annotations':
+                                                                     {
+                                                                         'cluster-autoscaler.kubernetes.io/safe-to-evict': 'false'
+                                                                     }
+                                                                 })
+
         # fill the container details. we can only handle one container (take the first, delete the rest)
         yaml_containers = yaml_content['spec']['template']['spec']['containers']
         del (yaml_containers[1:len(yaml_containers)])
@@ -82,12 +95,14 @@ class k8s_Client(object):
 
         container_env.setdefault('resources', {})
         # set the container image
-        if 'image' not in container_env:
-            container_env['image'] = container_image
+        if host_image:  # images defined in CRIC have absolute preference
+            container_env['image'] = host_image
+        elif 'image' not in container_env:  # take default image only if not defined in yaml template
+            container_env['image'] = DEF_IMAGE
 
         if 'command' not in container_env:
-            container_env['command'] = executable
-            container_env['args'] = args
+            container_env['command'] = DEF_COMMAND
+            container_env['args'] = DEF_ARGS
 
         # set the resources (CPU and memory) we need for the container
         # note that predefined values in the yaml template will NOT be overwritten
@@ -95,6 +110,7 @@ class k8s_Client(object):
         # The CPU & memory settings will affect the QoS for the pod
         container_env.setdefault('resources', {})
         resource_settings = self.panda_queues_dict.get_k8s_resource_settings(work_spec.computingSite)
+        pilot_dir = self.panda_queues_dict.get_k8s_pilot_dir(work_spec.computingSite)
 
         # CPU resources
         cpu_scheduling_ratio = resource_settings['cpu_scheduling_ratio']
@@ -149,6 +165,18 @@ class k8s_Client(object):
                 eph_storage_limit_MiB = round(eph_storage_limit_GiB * 1024, 2)
                 container_env['resources']['limits']['ephemeral-storage'] = str(eph_storage_limit_MiB) + 'Mi'
 
+            # add the ephemeral storage and mount it on pilot_dir
+            yaml_content['spec']['template']['spec'].setdefault('volumes', [])
+            yaml_volumes = yaml_content['spec']['template']['spec']['volumes']
+            exists = list(filter(lambda vol: vol['name'] == 'pilot-dir', yaml_volumes))
+            if not exists:
+                yaml_volumes.append({'name': 'pilot-dir', 'emptyDir': {}})
+
+            container_env.setdefault('volumeMounts', [])
+            exists = list(filter(lambda vol_mount: vol_mount['name'] == 'pilot-dir', container_env['volumeMounts']))
+            if not exists:
+                container_env['volumeMounts'].append({'name': 'pilot-dir', 'mountPath': pilot_dir})
+
         container_env.setdefault('env', [])
         # try to retrieve the stdout log file name
         try:
@@ -177,6 +205,8 @@ class k8s_Client(object):
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id},
             {'name': 'submit_mode', 'value': submit_mode},
             {'name': 'EXEC_DIR', 'value': EXEC_DIR},
+            {'name': 'TMP_DIR', 'value': pilot_dir},
+            {'name': 'HOME', 'value': pilot_dir},
         ])
 
         # add the pilots starter configmap
@@ -204,12 +234,20 @@ class k8s_Client(object):
         if (use_affinity or use_anti_affinity) and 'affinity' not in yaml_content['spec']['template']['spec']:
             yaml_content = self.set_affinity(yaml_content, use_affinity, use_anti_affinity)
 
-        # set the priority classes
+        # set the priority classes. Specific priority classes have precedence over general priority classes
+        priority_class = None
+
         priority_class_key = 'priority_class_{0}'.format(work_spec.resourceType.lower())
-        try:
-            priority_class = scheduling_settings[priority_class_key]
-        except KeyError:
-            priority_class = None
+        priority_class_specific = scheduling_settings.get(priority_class_key, None)
+
+        priority_class_key = 'priority_class'
+        priority_class_general = scheduling_settings.get(priority_class_key, None)
+
+        if priority_class_specific:
+            priority_class = priority_class_specific
+        elif priority_class_general:
+            priority_class = priority_class_general
+
         if priority_class and 'priorityClassName' not in yaml_content['spec']['template']['spec']:
             yaml_content['spec']['template']['spec']['priorityClassName'] = priority_class
 
@@ -389,7 +427,6 @@ class k8s_Client(object):
         yaml_content['spec']['template']['spec']['affinity'] = {}
         yaml_affinity = yaml_content['spec']['template']['spec']['affinity']
 
-        res_element = {'SCORE', 'SCORE', 'MCORE', 'MCORE_HIMEM'}
         scores = ['SCORE', 'SCORE_HIMEM']
         mcores = ['MCORE', 'MCORE_HIMEM']
 
@@ -406,7 +443,7 @@ class k8s_Client(object):
                             {
                                 'key': 'resourceType',
                                 'operator': 'In',
-                                'values': ['SCORE', 'SCORE_HIMEM']
+                                'values': ['SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM']
                             }
                         ]
                     },

@@ -3,7 +3,7 @@ import os
 from pandaharvester.harvestercore import core_utils
 from .base_messenger import BaseMessenger
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 
 # logger
 _logger = core_utils.setup_logger('k8s_messenger')
@@ -21,7 +21,7 @@ class K8sMessenger(BaseMessenger):
             raise
 
         # retrieve the k8s namespace from CRIC
-        self.panda_queues_dict = PandaQueuesDict()
+        self.panda_queues_dict = PandaQueuesDictK8s()
         namespace = self.panda_queues_dict.get_k8s_namespace(self.queueName)
 
         self.k8s_client = k8s_Client(namespace=namespace, queue_name=self.queueName, config_file=self.k8s_config_file)
