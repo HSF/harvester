@@ -45,6 +45,10 @@ RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
 RUN chmod -R 777 /data/condor
 
+# make lock dir
+ENV PANDA_LOCK_DIR /var/run/panda
+RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
+
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
