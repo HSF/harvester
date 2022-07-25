@@ -29,15 +29,19 @@ VIRTUAL_ENV=/opt/harvester
 # FIXME
 LOG_DIR=/var/log/panda
 
-# pid and lock files
-PIDFILE=${LOG_DIR}/panda_harvester.pid
+# pid and local info files
+if [[ -z "${PANDA_LOCK_DIR}" ]]; then
+    PIDFILE=${LOG_DIR}/panda_harvester.pid
+    LOCAL_INFO_FILE=${LOG_DIR}/.harvester_info
+else
+    PIDFILE=${PANDA_LOCK_DIR}/panda_harvester.pid
+    LOCAL_INFO_FILE=${PANDA_LOCK_DIR}/.harvester_info
+fi
 
 # log files
 HSTDOUT=${LOG_DIR}/panda_harvester_stdout.log
 HSTDERR=${LOG_DIR}/panda_harvester_stderr.log
 
-# harvester local info file
-LOCAL_INFO_FILE=${LOG_DIR}/.harvester_info
 
 # check interval in second and max number of check attempts of process handle
 checkInterval=1
