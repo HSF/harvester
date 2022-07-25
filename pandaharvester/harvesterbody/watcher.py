@@ -17,7 +17,10 @@ from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandalogger import logger_config
 
 logDir = logger_config.daemon['logdir']
-lockFileName = os.path.join(logDir, 'watcher.lock')
+if 'PANDA_LOCK_DIR' in os.environ:
+    lockFileName = os.path.join('PANDA_LOCK_DIR', 'watcher.lock')
+else:
+    lockFileName = os.path.join(logDir, 'watcher.lock')
 
 # logger
 _logger = core_utils.setup_logger('watcher')
