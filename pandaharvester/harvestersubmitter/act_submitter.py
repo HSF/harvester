@@ -86,7 +86,9 @@ class ACTSubmitter(PluginBase):
             desc['prodSourceLabel'] = prodSourceLabel
             desc['sendhb'] = 0
             metadata = {'harvesteraccesspoint': workSpec.get_access_point(),
-                        'schedulerid': 'harvester-{}'.format(harvester_config.master.harvester_id)}
+                        'schedulerid': 'harvester-{}'.format(harvester_config.master.harvester_id),
+                        'harvesterid': harvester_config.master.harvester_id,
+                        'harvesterworkerid': workSpec.workerID}
             desc['metadata'] = json.dumps(metadata)
 
             if jobSpec:
