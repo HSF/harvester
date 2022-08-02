@@ -865,6 +865,37 @@ harvester_frontend = aipanda170.cern.ch:25443
 
 
 
+
+##########################
+#
+# File Syncer parameters
+#
+
+[file_syncer]
+
+# plugin configs in json
+# pluginConfigs =
+#     [
+#       {
+#         "module": "pandaharvester.harvesterfilesyncer.git_file_syncer",
+#         "name": "GitFileSyncer",
+#         "configs": {
+#           "grid_qconf": {
+#             "targetDir": "/data/atlpan/harvester_configurations",
+#             "sourceURL": "https://github.com/PanDAWMS/harvester_configurations.git",
+#             "sourceBranch": "master",
+#             "sourceRemoteName": "origin",
+#             "sourceDir": "GRID/condor_sdf_templates"
+#           }
+#         }
+#       }
+#     ]
+
+# sleep interval in sec
+sleepTime = 300
+
+
+
 ##########################
 #
 # Log level parameters

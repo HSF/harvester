@@ -36,7 +36,7 @@ class GitFileSyncer(BaseFileSyncer):
         self.sourceURL = self.setupMap.get('sourceURL')
         self.sourceBranch = self.setupMap.get('sourceBranch', 'master')
         self.sourceRemoteName = self.setupMap.get('sourceRemoteName', 'origin')
-        self.sourceDir = self.setupMap.get('sourceDir', '')
+        self.sourceSubdir = self.setupMap.get('sourceSubdir', '')
 
     # update
     def update(self):
@@ -72,8 +72,8 @@ class GitFileSyncer(BaseFileSyncer):
             # modify sparse checkout list file
             sparse_checkout_config_path = target_dir_path / '.git/info/sparse-checkout'
             with sparse_checkout_config_path.open('w') as f:
-                f.write(self.sourceDir)
-            main_log.debug('wrote {} in git sparse-checkout file'.format(self.sourceDir))
+                f.write(self.sourceSubdir)
+            main_log.debug('wrote {} in git sparse-checkout file'.format(self.sourceSubdir))
             # git pull
             execute_command('git pull {name} {branch}'.format(
                                 name=self.sourceRemoteName,

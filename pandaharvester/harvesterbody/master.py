@@ -155,6 +155,13 @@ class Master(object):
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+        # File Syncer
+        from pandaharvester.harvesterbody.file_syncer import FileSyncer
+        thr = FileSyncer(self.queueConfigMapper, single_mode=self.singleMode)
+        thr.set_stop_event(self.stopEvent)
+        thr.execute()
+        thr.start()
+        thrList.append(thr)
         # Service monitor
         try:
             sm_active = harvester_config.service_monitor.active

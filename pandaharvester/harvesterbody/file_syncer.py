@@ -38,8 +38,8 @@ class FileSyncer(AgentBase):
     # get plugin cores from harvester config
     def get_cores_from_harvester_config(self):
         # direct and merged plugin configuration in json
-        if hasattr(harvester_config.file_syncer, 'plugin_configs'):
-            plugin_configs = harvester_config.file_syncer.plugin_configs
+        if hasattr(harvester_config.file_syncer, 'pluginConfigs'):
+            plugin_configs = harvester_config.file_syncer.pluginConfigs
         else:
             plugin_configs = []
         # from plugin_configs
@@ -55,10 +55,10 @@ class FileSyncer(AgentBase):
                         exe_core = self.pluginFactory.get_plugin(plugin_params)
                         self.exe_cores.append(exe_core)
                     except Exception:
-                        _logger.error('failed to launch file_syncer in plugin_configs for {0}'.format(plugin_params))
+                        _logger.error('failed to launch file_syncer in pluginConfigs for {0}'.format(plugin_params))
                         core_utils.dump_error_message(_logger)
             except Exception:
-                _logger.error('failed to parse plugin_configs {0}'.format(pc))
+                _logger.error('failed to parse pluginConfigs {0}'.format(pc))
                 core_utils.dump_error_message(_logger)
 
     # update plugin cores from queue config
@@ -138,12 +138,12 @@ class FileSyncer(AgentBase):
             try:
                 # check freshness
                 mainLog.debug('check')
-                isFresh = exe_core.check()
-                if isFresh:
-                    mainLog.debug('is fresh, skip')
-                elif not isFresh:
+                to_update = exe_core.check()
+                if not to_update:
+                    mainLog.debug('no need to update, skip')
+                else:
                     # update if necessary
-                    mainLog.debug('not fresh, updating')
+                    mainLog.debug('updating')
                     tmpStat, tmpOut = exe_core.update()
                     if not tmpStat:
                         mainLog.error('failed : {0}'.format(tmpOut))
