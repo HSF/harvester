@@ -131,10 +131,7 @@ class FileSyncer(AgentBase):
             if exe_core is None:
                 continue
             # make logger
-            if hasattr(exe_core, 'setup_name'):
-                file_syncer_name = exe_core.setup_name
-            else:
-                file_syncer_name = '{0} {1}'.format(exe_core.inCertFile, exe_core.outCertFile)
+            file_syncer_name = exe_core.setup_name
             mainLog = self.make_logger(_logger,
                                         '{0} {1}'.format(exe_core.__class__.__name__, file_syncer_name),
                                         method_name='execute')
