@@ -38,7 +38,8 @@ class FileSyncer(AgentBase):
     # get plugin cores from harvester config
     def get_cores_from_harvester_config(self):
         # direct and merged plugin configuration in json
-        if hasattr(harvester_config.file_syncer, 'pluginConfigs'):
+        if hasattr(harvester_config, 'file_syncer') \
+                and hasattr(harvester_config.file_syncer, 'pluginConfigs'):
             plugin_configs = harvester_config.file_syncer.pluginConfigs
         else:
             plugin_configs = []
