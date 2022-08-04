@@ -123,7 +123,7 @@ class FileSyncer(AgentBase):
     def execute(self):
         # get lock
         locked = self.dbProxy.get_process_lock('file_syncer', self.get_pid(),
-                                               harvester_config.file_syncer.sleepTime)
+                                               getattr(harvester_config.file_syncer, 'sleepTime', 10))
         if not locked:
             return
         # loop over all plugins

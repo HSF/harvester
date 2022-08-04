@@ -49,10 +49,14 @@ class GitFileSyncer(BaseFileSyncer):
         # execute command and store result in result list
         def execute_command(command, **kwargs):
             ret_code, std_out, std_err = run_command(command, **kwargs)
-            main_log.debug('command: {} ; kwargs: {} ; ret_code={} ; stdout: {} ; stderr: {}'.format(
-                                command, str(kwargs), ret_code, std_out, std_err))
             if ret_code != 0:
+                main_log.error('command: {} ; kwargs: {} ; ret_code={} ; stdout: {} ; stderr: {}'.format(
+                                    command, str(kwargs), ret_code, std_out, std_err))
                 err_msg_list.append(std_err)
+            else:
+                main_log.debug('command: {} ; kwargs: {} ; ret_code={} ; stdout: {} ; stderr: {}'.format(
+                                    command, str(kwargs), ret_code, std_out, std_err))
+            return ret_code, std_out, std_err
         # run
         try:
             # assure the local target directory
@@ -61,12 +65,22 @@ class GitFileSyncer(BaseFileSyncer):
             main_log.debug('assure local target directory {}'.format(str(target_dir_path)))
             # git init
             execute_command('git init -q', cwd=target_dir_path)
-            # git remote add
-            execute_command('git remote add -f -t {branch} {name} {url}'.format(
-                                branch=self.sourceBranch,
-                                name=self.sourceRemoteName,
-                                url=self.sourceURL,
-                            ), cwd=target_dir_path)
+            # git remote
+            ret_code, std_out, std_err = execute_command('git remote set-url {name} {url}'.format(
+                                                            name=self.sourceRemoteName,
+                                                            url=self.sourceURL,
+                                                        ), cwd=target_dir_path)
+            if ret_code == 128:
+                execute_command('git remote add -f -t {branch} {name} {url}'.format(
+                                    branch=self.sourceBranch,
+                                    name=self.sourceRemoteName,
+                                    url=self.sourceURL,
+                                ), cwd=target_dir_path)
+            else:
+                execute_command('git remote set-branches {name} {branch}'.format(
+                                    branch=self.sourceBranch,
+                                    name=self.sourceRemoteName,
+                                ), cwd=target_dir_path)
             # git config
             execute_command('git config core.sparseCheckout true', cwd=target_dir_path)
             # modify sparse checkout list file
@@ -79,6 +93,13 @@ class GitFileSyncer(BaseFileSyncer):
                                 name=self.sourceRemoteName,
                                 branch=self.sourceBranch,
                             ), cwd=target_dir_path)
+            # git reset
+            execute_command('git reset --hard {name}/{branch}'.format(
+                                name=self.sourceRemoteName,
+                                branch=self.sourceBranch,
+                            ), cwd=target_dir_path)
+            # git clean
+            execute_command('git clean -d -x -f', cwd=target_dir_path)
             # return val
             ret_val = True
             main_log.info('done')
