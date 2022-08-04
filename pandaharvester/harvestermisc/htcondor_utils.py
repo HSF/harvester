@@ -476,7 +476,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         batchIDs_set = set(batchIDs_list)
         clusterids_set = set([get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list])
         # query from cache
-        def cache_query(requirements=None, projection=CONDOR_JOB_ADS_LIST, timeout=60):
+        def cache_query(constraint=None, projection=CONDOR_JOB_ADS_LIST, timeout=60):
             # query from condor xquery and update cache to fifo
             def update_cache(lockInterval=90):
                 tmpLog.debug('update_cache')
@@ -486,7 +486,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                 if lock_key is not None:
                     # acquired lock, update from condor schedd
                     tmpLog.debug('got lock, updating cache')
-                    jobs_iter_orig = self.schedd.xquery(requirements=requirements, projection=projection)
+                    jobs_iter_orig = self.schedd.xquery(constraint=constraint, projection=projection)
                     jobs_iter = []
                     for job in jobs_iter_orig:
                         try:
@@ -613,18 +613,18 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             query_method_list.append(self.schedd.history)
         # Go
         for query_method in query_method_list:
-            # Make requirements
+            # Make constraint
             clusterids_str = ','.join(list(clusterids_set))
             if query_method is cache_query or allJobs:
-                requirements = 'harvesterID =?= "{0}"'.format(harvesterID)
+                constraint = 'harvesterID =?= "{0}"'.format(harvesterID)
             else:
-                requirements = 'member(ClusterID, {{{0}}})'.format(clusterids_str)
+                constraint = 'member(ClusterID, {{{0}}})'.format(clusterids_str)
             if allJobs:
                 tmpLog.debug('Query method: {0} ; allJobs'.format(query_method.__name__))
             else:
                 tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
             # Query
-            jobs_iter = query_method(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
+            jobs_iter = query_method(constraint=constraint, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
                 try:
                     job_ads_dict = dict(job)
@@ -914,8 +914,8 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
                 # need to query queue for unterminated jobs not removed yet
                 clusterids_set = set([ get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list ])
                 clusterids_str = ','.join(list(clusterids_set))
-                requirements = 'member(ClusterID, {{{0}}}) && JobStatus =!= 3 && JobStatus =!= 4'.format(clusterids_str)
-                jobs_iter = self.schedd.xquery(requirements=requirements, projection=CONDOR_JOB_ADS_LIST)
+                constraint = 'member(ClusterID, {{{0}}}) && JobStatus =!= 3 && JobStatus =!= 4'.format(clusterids_str)
+                jobs_iter = self.schedd.xquery(constraint=constraint, projection=CONDOR_JOB_ADS_LIST)
                 all_batchid_map = {}
                 ok_batchid_list = []
                 ng_batchid_list = []
