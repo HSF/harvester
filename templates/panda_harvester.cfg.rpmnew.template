@@ -885,7 +885,7 @@ harvester_frontend = aipanda170.cern.ch:25443
 #             "sourceURL": "https://github.com/PanDAWMS/harvester_configurations.git",
 #             "sourceBranch": "master",
 #             "sourceRemoteName": "origin",
-#             "sourceDir": "GRID/condor_sdf_templates"
+#             "sourceSubdir": "GRID/condor_sdf_templates"
 #           }
 #         }
 #       }
