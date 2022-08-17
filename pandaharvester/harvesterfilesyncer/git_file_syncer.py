@@ -88,6 +88,10 @@ class GitFileSyncer(BaseFileSyncer):
             with sparse_checkout_config_path.open('w') as f:
                 f.write(self.sourceSubdir)
             main_log.debug('wrote {} in git sparse-checkout file'.format(self.sourceSubdir))
+            # git fetch (without refspec so remote can be updated)
+            execute_command('git fetch {name}'.format(
+                                name=self.sourceRemoteName,
+                            ), cwd=target_dir_path)
             # git reset to the branch
             execute_command('git reset --hard {name}/{branch}'.format(
                                 name=self.sourceRemoteName,
@@ -95,13 +99,6 @@ class GitFileSyncer(BaseFileSyncer):
                             ), cwd=target_dir_path)
             # git clean
             execute_command('git clean -d -x -f', cwd=target_dir_path)
-            # git pull
-            execute_command('git pull {name} {branch}'.format(
-                                name=self.sourceRemoteName,
-                                branch=self.sourceBranch,
-                            ), cwd=target_dir_path)
-            # git reset to head
-            execute_command('git reset --hard HEAD', cwd=target_dir_path)
             # return val
             ret_val = True
             main_log.info('done')
