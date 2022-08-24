@@ -205,7 +205,7 @@ class k8s_Client(object):
             {'name': 'HARVESTER_ID', 'value': harvester_config.master.harvester_id},
             {'name': 'submit_mode', 'value': submit_mode},
             {'name': 'EXEC_DIR', 'value': EXEC_DIR},
-            {'name': 'TMP_DIR', 'value': pilot_dir},
+            {'name': 'TMPDIR', 'value': pilot_dir},
             {'name': 'HOME', 'value': pilot_dir},
         ])
 
