@@ -20,7 +20,6 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg \n\
        https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg \n ' > /etc/yum.repos.d/google-cloud-sdk.repo
 
 RUN yum install -y google-cloud-sdk-gke-gcloud-auth-plugin kubectl
-RUN yum install -y google-cloud-cli
 
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
