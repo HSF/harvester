@@ -207,6 +207,8 @@ class k8s_Client(object):
             {'name': 'EXEC_DIR', 'value': EXEC_DIR},
             {'name': 'TMPDIR', 'value': pilot_dir},
             {'name': 'HOME', 'value': pilot_dir},
+            {'name': 'PANDA_HOSTNAME', 'valueFrom': {'fieldRef': {'apiVersion': 'v1', 'fieldPath': 'spec.nodeName'}}},
+            {'name': 'K8S_JOB_ID', 'valueFrom': {'fieldRef': {'apiVersion': 'v1', 'fieldPath': 'metadata.name'}}}
         ])
 
         # add the pilots starter configmap
