@@ -9,10 +9,26 @@ RUN mkdir -p /data/condor; cd /data/condor; \
     mv condor.tar.gz condor.tar.gz.stable; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
 
+#install gcloud
+tee -a /etc/yum.repos.d/google-cloud-sdk.repo << EOM
+[google-cloud-cli]
+name=Google Cloud CLI
+baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el8-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=0
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
+       https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOM
+
+RUN yum install -y google-cloud-sdk-gke-gcloud-auth-plugin kubectl
+RUN yum install -y google-cloud-cli
+
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
 RUN /opt/harvester/bin/pip install -U setuptools
 RUN /opt/harvester/bin/pip install -U mysqlclient uWSGI pyyaml
+RUN /opt/harvester/bin/pip install -U kubernetes
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
 COPY . .
@@ -54,6 +70,7 @@ RUN echo $'#!/bin/bash \n\
 set -m \n\
 /data/harvester/init-harvester \n\
 /data/harvester/run-harvester-crons & \n\
+source /data/harvester/setup-harvester \n\
 cd /data/condor \n\
 tar -x -f condor.tar.gz${CONDOR_CHANNEL} \n\
 mv condor-*stripped condor \n\
