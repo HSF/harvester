@@ -81,6 +81,25 @@ try:
 except Exception:
     heartbeatFile = 'worker_heartbeat.json'
 
+# task specific persistent dir
+try:
+    taskWorkBaseDir = harvester_config.payload_interaction.taskWorkBaseDir
+except Exception:
+    taskWorkBaseDir = '/tmp/workdir'
+
+# task-level work state file
+try:
+    taskWorkStateFile = harvester_config.payload_interaction.taskWorkStateFile
+except Exception:
+    taskWorkStateFile = 'state.json'
+
+# task-level work dir
+taskWorkDirPathFile = 'task_workdir_path.txt'
+
+# post-processing job attributes
+postProcessAttrs = 'post_process_job_attrs.json'
+
+
 # suffix to read json
 suffixReadJson = '.read'
 
@@ -208,6 +227,17 @@ class SharedFileMessenger(BaseMessenger):
             accessPoint = workspec.get_access_point()
         return accessPoint
 
+    # get task access point
+    def get_task_access_point(self, workspec, jobspec):
+        subAccessPoint = self.get_access_point(workspec, jobspec.PandaID)
+        tmp_file = os.path.join(subAccessPoint, taskWorkDirPathFile)
+        if os.path.exists(tmp_file):
+            with open(tmp_file) as f:
+                return f.read()
+        if jobspec.jobParams and 'onSiteMerging' in jobspec.jobParams:
+            return os.path.join(taskWorkBaseDir, str(jobspec.taskID))
+        return None
+
     # get attributes of a worker which should be propagated to job(s).
     #  * the worker needs to put a json under the access point
     def get_work_attributes(self, workspec):
@@ -251,6 +281,19 @@ class SharedFileMessenger(BaseMessenger):
                 except Exception:
                     tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             tmpLog.debug("Check file and read file time: {0} sec.".format(sw_checkjobrep.get_elapsed_time()))
+            # loop for post-processing job attributes
+            jsonFilePath = os.path.join(accessPoint, postProcessAttrs)
+            tmpLog.debug('looking for post-processing job attributes file {0}'.format(jsonFilePath))
+            if not os.path.exists(jsonFilePath):
+                # not found
+                tmpLog.debug('not found post-processing job attributes file')
+            else:
+                try:
+                    with open(jsonFilePath) as jsonFile:
+                        tmpDict = json.load(jsonFile)
+                    retDict.update(tmpDict)
+                except Exception:
+                    tmpLog.debug('failed to load {0}'.format(jsonFilePath))
             allRetDict[pandaID] = retDict
 
         tmpLog.debug("Reading {0} job report files {1}".format(numofreads, sw_readreports.get_elapsed_time()))
@@ -580,14 +623,14 @@ class SharedFileMessenger(BaseMessenger):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%d_%H_%M_%S.%f')
+                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.utcnow().strftime('%Y-%m-%d_%H_%M_%S.%f')
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%d_%H_%M_%S.%f')
+                jsonFilePath_rename = jsonFilePath + '.' + datetime.datetime.utcnow().strftime('%Y-%m-%d_%H_%M_%S.%f')
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
@@ -612,6 +655,13 @@ class SharedFileMessenger(BaseMessenger):
                         if accessPoint != subAccessPoint:
                             if not os.path.exists(subAccessPoint):
                                 os.mkdir(subAccessPoint)
+                        # task level work dir for on-site merging
+                        taskAccessDir = self.get_task_access_point(workSpec, jobSpec)
+                        if taskAccessDir:
+                            if not os.path.exists(taskAccessDir):
+                                os.mkdir(taskAccessDir)
+                            with open(os.path.join(subAccessPoint, taskWorkDirPathFile), 'w') as f:
+                                f.write(taskAccessDir)
             return True
         except Exception:
             # get logger
@@ -720,6 +770,42 @@ class SharedFileMessenger(BaseMessenger):
                             fileDict[jobSpec.PandaID] += retVal
                             nLeftOvers += len(retVal)
                     tmpLog.debug('got {0} leftovers'.format(nLeftOvers))
+                # look into task-level work state file
+                taskAccessDir = self.get_task_access_point(workspec, jobSpec)
+                if taskAccessDir:
+                    doneInputs = set()
+                    taskWorkStatePath = os.path.join(taskAccessDir, taskWorkStateFile)
+                    if os.path.exists(taskWorkStatePath):
+                        nInTaskState = 0
+                        with open(taskWorkStatePath) as f:
+                            try:
+                                tmpData = json.load(f)
+                                if "merged" in tmpData:
+                                    fileDict.setdefault(jobSpec.PandaID, [])
+                                    for tmpIn, tmpOuts in iteritems(tmpData['merged']):
+                                        nInTaskState += len(tmpOuts)
+                                        for tmpLFN, tmpFileDict in iteritems(tmpOuts):
+                                            pfn = tmpFileDict['path']
+                                            if 'fsize' not in tmpFileDict:
+                                                tmpFileDict['fsize'] = os.stat(pfn).st_size
+                                            tmpFileDict['type'] = 'output'
+                                            if 'guid' not in tmpFileDict:
+                                                tmpFileDict['guid'] = str(uuid.uuid4())
+                                            if 'chksum' not in tmpFileDict:
+                                                tmpFileDict['chksum'] = core_utils.calc_adler32(pfn)
+                                            fileDict.setdefault(jobSpec.PandaID, [])
+                                            fileDict[jobSpec.PandaID].append(tmpFileDict)
+                                        doneInputs.add(tmpIn)
+                            except Exception:
+                                core_utils.dump_error_message(tmpLog)
+                                tmpLog.error('failed to parse task-level work state file {0}'.format(taskWorkStatePath))
+                                raise
+                        tmpLog.debug('got {0} output files from task state file'.format(nInTaskState))
+                    # skipped files
+                    skippedInputs = [fileSpec.lfn for fileSpec in jobSpec.inFiles if fileSpec.lfn not in doneInputs]
+                    with open(os.path.join(accessPoint, postProcessAttrs), 'w') as f:
+                        json.dump({'skippedInputs': skippedInputs}, f)
+                    tmpLog.debug('set {0} input files to skip'.format(len(skippedInputs)))
                 # make json to stage-out
                 if len(fileDict) > 0:
                     jsonFilePath = os.path.join(origAccessPoint, jsonOutputsFileName)

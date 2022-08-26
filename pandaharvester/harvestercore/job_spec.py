@@ -201,6 +201,12 @@ class JobSpec(SpecBase):
             return False
         return attr in self.jobAttributes
 
+    # get an attribute
+    def get_one_attribute(self, attr):
+        if self.jobAttributes and attr in self.jobAttributes:
+            return self.jobAttributes[attr]
+        return None
+
     # check if final status
     def is_final_status(self, job_status=None):
         if job_status is None:
