@@ -10,19 +10,16 @@ RUN mkdir -p /data/condor; cd /data/condor; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
 
 #install gcloud
-tee -a /etc/yum.repos.d/google-cloud-sdk.repo << EOM
-[google-cloud-cli]
-name=Google Cloud CLI
-baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el8-x86_64
-enabled=1
-gpgcheck=1
-repo_gpgcheck=0
-gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
-       https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-EOM
+RUN echo $'[google-cloud-cli] \n\
+name=Google Cloud CLI \n\
+baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el8-x86_64 \n\
+enabled=1 \n\
+gpgcheck=1 \n\
+repo_gpgcheck=0 \n\
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg \n\
+       https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg \n ' > /etc/yum.repos.d/google-cloud-sdk.repo
 
 RUN yum install -y google-cloud-sdk-gke-gcloud-auth-plugin kubectl
-RUN yum install -y google-cloud-cli
 
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
