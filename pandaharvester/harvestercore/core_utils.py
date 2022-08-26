@@ -284,6 +284,17 @@ def get_output_file_report(jobspec):
         <metadata att_name="fsize" att_value = "{fsize}"/>
         <metadata att_name="adler32" att_value="{chksum}"/>
         </File> """.format(guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=chksum)
+    # skipped files
+    skippedLFNs = jobspec.get_one_attribute('skippedInputs')
+    if skippedLFNs:
+        for tmpLFN in skippedLFNs:
+            xml += """<File ID="">
+            <logical>
+            <lfn name="{lfn}"/>
+            </logical>
+            <metadata att_name="fsize" att_value = "0"/>
+            <metadata att_name="adler32" att_value=""/>
+            </File> """.format(lfn=tmpLFN)
     # tailor
     xml += """
     </POOLFILECATALOG>
