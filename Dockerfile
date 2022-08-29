@@ -57,6 +57,7 @@ RUN mkdir -p /etc/grid-security/certificates
 RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
 RUN chmod -R 777 /data/condor
+RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
