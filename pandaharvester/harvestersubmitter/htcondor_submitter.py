@@ -482,7 +482,7 @@ class HTCondorSubmitter(PluginBase):
         pilot_args = associated_params_dict.get('pilot_args', '')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
         python_version = str(this_panda_queue_dict.get('python_version', '2'))
-        sdf_suffix_str = '_pilot2'
+        sdf_suffix_str = ''
 
         # get override requirements from queue configured
         try:
