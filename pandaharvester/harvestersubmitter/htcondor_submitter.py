@@ -584,7 +584,8 @@ class HTCondorSubmitter(PluginBase):
                 job_type = workspec.jobType
                 proxy = self.x509UserProxy
                 token_dir = self.tokenDir
-                if (is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis')) or self.useAnalysisCredentials:
+                if (not is_unified_dispatch and is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis')) \
+                        or self.useAnalysisCredentials:
                     if self.x509UserProxyAnalysis:
                         tmpLog.debug('Taking analysis proxy')
                         proxy = self.x509UserProxyAnalysis

@@ -892,7 +892,7 @@ harvester_frontend = aipanda170.cern.ch:25443
 #     ]
 
 # sleep interval in sec
-sleepTime = 300
+sleepTime = 600
 
 
 
