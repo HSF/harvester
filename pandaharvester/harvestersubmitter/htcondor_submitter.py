@@ -409,6 +409,7 @@ class HTCondorSubmitter(PluginBase):
         self._allowed_cric_attrs = (
                 'pilot_url',
                 'pilot_args',
+                'unified_dispatch',
             )
 
     # get CE statistics of a site
