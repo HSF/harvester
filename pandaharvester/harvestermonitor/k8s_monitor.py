@@ -123,7 +123,7 @@ class K8sMonitor(PluginBase):
         err_str = ''
         time_now = datetime.datetime.utcnow()
         pods_status_list = []
-        pod_status_message_list = []
+        pods_status_message_list = []
         pods_name_to_delete_list = []
         job_status = ''
         job_status_reason = ''
