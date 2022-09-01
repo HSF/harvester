@@ -179,7 +179,7 @@ class K8sMonitor(PluginBase):
             elif pods_status_list:
                 # we found pods belonging to our job. Obtain the final status
                 tmp_log.debug('pods_status_list={0}'.format(pods_status_list))
-                new_status, sub_msg = self.check_pods_status(pods_status_list, containers_state_list, pod_status_message_list)
+                new_status, sub_msg = self.check_pods_status(pods_status_list, containers_state_list, pods_status_message_list)
                 if sub_msg:
                     err_str += sub_msg
                 tmp_log.debug('new_status={0}'.format(new_status))
