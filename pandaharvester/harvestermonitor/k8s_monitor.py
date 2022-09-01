@@ -45,7 +45,7 @@ class K8sMonitor(PluginBase):
 
         self._all_workers_dict = []
 
-    def check_pods_status(self, pods_status_list, containers_state_list):
+    def check_pods_status(self, pods_status_list, containers_state_list, pod_status_message_list):
         sub_msg = ''
 
         if 'Unknown' in pods_status_list:
@@ -92,7 +92,7 @@ class K8sMonitor(PluginBase):
             # Pod in Failed status
             elif 'Failed' in pods_status_list:
                 new_status = WorkSpec.ST_failed
-
+                sub_msg = ';'.join(pod_status_message_list)
             else:
                 new_status = WorkSpec.ST_idle
 
@@ -123,6 +123,7 @@ class K8sMonitor(PluginBase):
         err_str = ''
         time_now = datetime.datetime.utcnow()
         pods_status_list = []
+        pod_status_message_list = []
         pods_name_to_delete_list = []
         job_status = ''
         job_status_reason = ''
@@ -138,6 +139,7 @@ class K8sMonitor(PluginBase):
                 # make list of status of the pods belonging to our job
                 if 'pod_status' in worker_info and 'containers_state' in worker_info and 'pod_name' in worker_info:
                     pods_status_list.append(worker_info['pod_status'])
+                    pods_status_message_list.append(worker_info['pod_status_message'])
                     containers_state_list.extend(worker_info['containers_state'])
                     pods_sup_diag_list.append(worker_info['pod_name'])
 
@@ -177,7 +179,7 @@ class K8sMonitor(PluginBase):
             elif pods_status_list:
                 # we found pods belonging to our job. Obtain the final status
                 tmp_log.debug('pods_status_list={0}'.format(pods_status_list))
-                new_status, sub_msg = self.check_pods_status(pods_status_list, containers_state_list)
+                new_status, sub_msg = self.check_pods_status(pods_status_list, containers_state_list, pod_status_message_list)
                 if sub_msg:
                     err_str += sub_msg
                 tmp_log.debug('new_status={0}'.format(new_status))

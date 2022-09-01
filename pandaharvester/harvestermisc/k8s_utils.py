@@ -326,6 +326,7 @@ class k8s_Client(object):
                 'pod_start_time': i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
                 'pod_status': i.status.phase,
                 'pod_status_conditions': i.status.conditions,
+                'pod_status_message': i.status.message,
                 'containers_state': []
             }
 
