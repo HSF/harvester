@@ -65,9 +65,9 @@ class PandaQueuesDictK8s(PandaQueuesDict):
         ret_map['ephemeral_storage_offset'] = params.get(key_ephemeral_storage_resources_offset, 0)  # should come in MiB
 
         # decide whether to kill on maxtime
-        key_kill_max_time = 'k8s.use_active_deadline_seconds'
+        use_active_deadline_seconds = 'k8s.use_active_deadline_seconds'
 
-        ret_map['use_active_deadline_seconds'] = params.get(key_kill_max_time, True)  # kill on max time
+        ret_map['use_active_deadline_seconds'] = params.get(use_active_deadline_seconds, True)  # kill on max time
 
         return ret_map
 
