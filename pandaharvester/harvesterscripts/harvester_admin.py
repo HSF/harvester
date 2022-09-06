@@ -240,10 +240,10 @@ def kill_workers(arguments):
     computingElement_in = 'ALL' if (len(arguments.ces) == 1 and arguments.ces[0] == 'ALL') else arguments.ces
     submissionHost_in = 'ALL' if (len(arguments.submissionhosts) == 1 and arguments.submissionhosts[0] == 'ALL') else arguments.submissionhosts
     dbProxy = DBProxy()
-    retVal = dbProxy.kill_workers_by_query({'status': status_in,
-                                            'computingSite': computingSite_in,
-                                            'computingElement': computingElement_in,
-                                            'submissionHost': submissionHost_in})
+    retVal = dbProxy.mark_workers_to_kill_by_query({'status': status_in,
+                                                    'computingSite': computingSite_in,
+                                                    'computingElement': computingElement_in,
+                                                    'submissionHost': submissionHost_in})
     if retVal is not None:
         msg_temp = (
             'Sweeper will soon kill {n_workers} workers, with '

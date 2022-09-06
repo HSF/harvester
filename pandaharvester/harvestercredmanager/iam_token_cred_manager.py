@@ -12,7 +12,7 @@ from pandaharvester.harvestermisc.token_utils import endpoint_to_filename, WLCG_
 _logger = core_utils.setup_logger('iam_token_cred_manager')
 
 # allowed target types
-ALL_TARGET_TYPES = ['ce']
+ALL_TARGET_TYPES = ['common', 'ce']
 
 # default port for CEs
 default_port_map = {
@@ -50,6 +50,7 @@ class IamTokenCredManager(BaseCredManager):
             self.target_type = self.setupMap['target_type']
             self.out_dir = self.setupMap['out_dir']
             self.lifetime = self.setupMap.get('lifetime')
+            self.target_list = self.setupMap.get('target_list')
             self.target_list_file = self.setupMap.get('target_list_file')
         except KeyError as e:
             tmp_log.error('Missing attributes in setup. {0}'.format(traceback.format_exc()))
@@ -74,7 +75,15 @@ class IamTokenCredManager(BaseCredManager):
         except Exception as e:
             tmp_log.error('Problem calling PandaQueuesDict. {0}'.format(traceback.format_exc()))
             raise
-        if self.target_type == 'ce':
+        if self.target_type == 'common':
+            if not self.target_list:
+                pass
+            else:
+                for target in self.target_list:
+                    self.targets_dict[target] = {}
+                # scope
+                self.scope = ""
+        elif self.target_type == 'ce':
             try:
                 # retrieve CEs from CRIC
                 for site, val in self.panda_queues_dict.items():
