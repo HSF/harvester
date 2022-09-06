@@ -254,7 +254,8 @@ class k8s_Client(object):
             yaml_content['spec']['template']['spec']['priorityClassName'] = priority_class
 
         # set max_time to avoid having a pod running forever
-        if 'activeDeadlineSeconds' not in yaml_content['spec']['template']['spec']:
+        use_active_deadline_seconds = resource_settings['use_active_deadline_seconds']
+        if 'activeDeadlineSeconds' not in yaml_content['spec']['template']['spec'] and use_active_deadline_seconds:
             if not max_time:  # 4 days
                 max_time = 4 * 24 * 23600
             yaml_content['spec']['template']['spec']['activeDeadlineSeconds'] = max_time
