@@ -8,11 +8,10 @@ from math import log1p
 
 # Map "pilotType" (defined in harvester) to prodSourceLabel and pilotType option (defined in pilot, -i option)
 # and piloturl (pilot option --piloturl) for pilot 2
-def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=""):
+def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version="", prod_source_label=None, prod_rc_permille=0):
     # for pilot 3
     is_pilot3 = True if pilot_version.startswith('3') else False
-    # map
-    # 211012 currently only RC and PT may run pilot 3
+    # basic map
     pt_psl_map = {
             'RC': {
                     'prod_source_label': 'rc_test2',
@@ -34,10 +33,26 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version=""):
                                         else '--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev2.tar.gz',
                     'pilot_debug_str': '-d',
                 },
+            'PR': {
+                    'prod_source_label': prod_source_label,
+                    'pilot_type_opt': 'PR',
+                    'pilot_url_str': '',
+                    'pilot_debug_str': '',
+            },
         }
-    pilot_opt_dict = pt_psl_map.get(pilot_type, None)
-    if pilot_url and pilot_opt_dict:
+    # get pilot option dict
+    pilot_opt_dict = pt_psl_map.get(pilot_type, pt_psl_map['PR'])
+    if pilot_url:
+        # overwrite with specified pilot_url
         pilot_opt_dict['pilot_url_str'] = '--piloturl {0}'.format(pilot_url)
+    elif pilot_type == 'PR':
+        # randomization of pilot url for PR (managed, user) pilot run some portion of RC version (not RC dev) pilot
+        prod_rc_pilot_url_str = '--piloturl http://cern.ch/atlas-panda-pilot/pilot3-rc.tar.gz'
+        prod_rc_prob = min(max(prod_rc_permille/1000., 0), 1)
+        lucky_number = random.random()
+        if lucky_number < prod_rc_prob:
+            pilot_opt_dict['pilot_url_str'] = prod_rc_pilot_url_str
+    # return pilot option dict
     return pilot_opt_dict
 
 # get special flag of pilot wrapper about python version of pilot, and whether to run with python 3 if python version is "3"
