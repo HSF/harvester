@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import time
 import traceback
 
 from .base_cred_manager import BaseCredManager
@@ -25,7 +26,7 @@ class IamTokenCredManager(BaseCredManager):
     def __init__(self, **kwarg):
         BaseCredManager.__init__(self, **kwarg)
         # make logger
-        tmp_log = self.make_logger(_logger, method_name='__init__')
+        tmp_log = self.make_logger(_logger, 'config={0}'.format(self.setup_name), method_name='__init__')
         # attributes
         if hasattr(self, 'inFile'):
             # parse inFile setup configuration
@@ -49,9 +50,11 @@ class IamTokenCredManager(BaseCredManager):
                 self.client_secret = client_cred_dict['client_secret']
             self.target_type = self.setupMap['target_type']
             self.out_dir = self.setupMap['out_dir']
-            self.lifetime = self.setupMap.get('lifetime')
+            self.lifetime = self.setupMap.get('lifetime', 14*24*60*60)
             self.target_list = self.setupMap.get('target_list')
             self.target_list_file = self.setupMap.get('target_list_file')
+            self.update_ts_path = self.setupMap.get('update_ts_path', os.path.join(self.out_dir, '_last_update'))
+            self.check_interval = self.setupMap.get('check_interval', 300)
         except KeyError as e:
             tmp_log.error('Missing attributes in setup. {0}'.format(traceback.format_exc()))
             raise
@@ -67,9 +70,34 @@ class IamTokenCredManager(BaseCredManager):
         self.issuer_broker = IssuerBroker(self.issuer, self.client_id, self.client_secret,
                                             name=self.setup_name)
 
+    def _is_updated(self):
+        now_time = time.time()
+        ret = False
+        if os.path.isfile(self.update_ts_path) \
+                and now_time - os.path.getmtime(self.update_ts_path) < self.check_interval:
+            ret = True
+        return ret
+
+    def _update_ts(self):
+        tmp_log = self.make_logger(_logger, 'config={0}'.format(self.setup_name), method_name='_update_ts')
+        with open(self.update_ts_path, 'w') as f:
+            f.write(str(self.out_dir))
+        tmp_log.debug('updated timestamp file {0}'.format(self.update_ts_path))
+
+
+    def _clean_up(self):
+        tmp_log = self.make_logger(_logger, 'config={0}'.format(self.setup_name), method_name='_clean_up')
+        now_time = time.time()
+        for filename in os.listdir(self.out_dir):
+            file_path = os.path.join(self.out_dir, filename)
+            if now_time - os.path.getmtime(file_path) > self.lifetime:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    tmp_log.debug('deleted old token file {0}'.format(file_path))
+
     def _handle_target_types(self):
         # make logger
-        tmp_log = self.make_logger(_logger, method_name='_handle_target_types')
+        tmp_log = self.make_logger(_logger, 'config={0}'.format(self.setup_name), method_name='_handle_target_types')
         try:
             self.panda_queues_dict = PandaQueuesDict()
         except Exception as e:
@@ -139,8 +167,16 @@ class IamTokenCredManager(BaseCredManager):
     # check proxy
     def check_credential(self):
         # make logger
+        tmp_log = self.make_logger(_logger, 'config={0}'.format(self.setup_name), method_name='check_credential')
+        # clean up
+        self._clean_up()
         # same update period as credmanager agent
-        return False
+        is_fresh = self._is_updated()
+        if is_fresh:
+            tmp_log.debug('tokens are still very fresh, skipped')
+        else:
+            tmp_log.debug('to renew tokens')
+        return is_fresh
 
     # renew proxy
     def renew_credential(self):
@@ -166,6 +202,8 @@ class IamTokenCredManager(BaseCredManager):
                 continue
             else:
                 tmp_log.debug('got token for {0} at {1}'.format(target, token_path))
+        # update last timestamp
+        self._update_ts()
         tmp_log.debug('done')
         # return
         return all_ok, all_err_str

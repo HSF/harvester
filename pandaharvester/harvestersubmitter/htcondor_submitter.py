@@ -149,7 +149,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
                 x509_user_proxy, log_subdir=None, ce_info_dict=dict(), batch_log_dict=dict(),
                 pilot_url=None, pilot_args='', is_unified_dispatch=False,
                 special_par='', harvester_queue_config=None, is_unified_queue=False,
-                pilot_version='unknown', python_version='unknown', token_dir=None, **kwarg):
+                pilot_version='unknown', python_version='unknown', prod_rc_permille=0,
+                token_dir=None, **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -186,17 +187,16 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
     request_walltime_minute = ceil(request_walltime/60)
     request_cputime_minute = ceil(request_cputime/60)
     # decide prodSourceLabel
-    pilot_opt_dict = submitter_common.get_complicated_pilot_options(workspec.pilotType, pilot_url, pilot_version)
-    if pilot_opt_dict is None:
-        prod_source_label = harvester_queue_config.get_source_label(workspec.jobType)
-        pilot_type_opt = workspec.pilotType
-        pilot_url_str = '--piloturl {0}'.format(pilot_url) if pilot_url else ''
-        pilot_debug_str = ''
-    else:
-        prod_source_label = pilot_opt_dict['prod_source_label']
-        pilot_type_opt = pilot_opt_dict['pilot_type_opt']
-        pilot_url_str = pilot_opt_dict['pilot_url_str']
-        pilot_debug_str = pilot_opt_dict['pilot_debug_str']
+    pilot_opt_dict = submitter_common.get_complicated_pilot_options(
+                                        pilot_type=workspec.pilotType,
+                                        pilot_url=pilot_url,
+                                        pilot_version=pilot_version,
+                                        prod_source_label=harvester_queue_config.get_source_label(workspec.jobType),
+                                        prod_rc_permille=prod_rc_permille)
+    prod_source_label = pilot_opt_dict['prod_source_label']
+    pilot_type_opt = pilot_opt_dict['pilot_type_opt']
+    pilot_url_str = pilot_opt_dict['pilot_url_str']
+    pilot_debug_str = pilot_opt_dict['pilot_debug_str']
     # get token filename according to CE
     token_filename = None
     if token_dir is not None and ce_info_dict.get('ce_endpoint'):
@@ -402,6 +402,11 @@ class HTCondorSubmitter(PluginBase):
             self.useAnalysisCredentials
         except AttributeError:
             self.useAnalysisCredentials = False
+        # probability permille to randomly run PR pilot with RC pilot url
+        try:
+            self.rcPilotRandomWeightPermille
+        except AttributeError:
+            self.rcPilotRandomWeightPermille = 0
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
@@ -741,6 +746,7 @@ class HTCondorSubmitter(PluginBase):
                         'python_version': python_version,
                         'token_dir': token_dir,
                         'is_unified_dispatch': is_unified_dispatch,
+                        'prod_rc_permille': self.rcPilotRandomWeightPermille,
                         })
             return data
 
