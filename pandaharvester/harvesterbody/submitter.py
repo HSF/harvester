@@ -448,23 +448,20 @@ class Submitter(AgentBase):
         strList = []
         newSpecList = []
         workersToSubmit = []
-        try:
-            for work_spec in workspec_list:
-                if work_spec.status in [WorkSpec.ST_ready, WorkSpec.ST_running]:
-                    newSpecList.append(work_spec)
-                    retList.append(True)
-                    strList.append('')
-                else:
-                    workersToSubmit.append(work_spec)
-            tmpRetList = submitter_core.submit_workers(workersToSubmit)
+        for work_spec in workspec_list:
+            if work_spec.status in [WorkSpec.ST_ready, WorkSpec.ST_running]:
+                newSpecList.append(work_spec)
+                retList.append(True)
+                strList.append('')
+            else:
+                workersToSubmit.append(work_spec)
+        tmpRetList = submitter_core.submit_workers(workersToSubmit)
 
-            # submit the workers to the monitoring
-            self.apfmon.create_workers(workersToSubmit)
+        # submit the workers to the monitoring
+        self.apfmon.create_workers(workersToSubmit)
 
-            for tmpRet, tmpStr in tmpRetList:
-                retList.append(tmpRet)
-                strList.append(tmpStr)
-            newSpecList += workersToSubmit
-            return newSpecList, retList, strList
-        except:
-            return [], [], []
+        for tmpRet, tmpStr in tmpRetList:
+            retList.append(tmpRet)
+            strList.append(tmpStr)
+        newSpecList += workersToSubmit
+        return newSpecList, retList, strList
