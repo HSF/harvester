@@ -92,7 +92,10 @@ class K8sMonitor(PluginBase):
             # Pod in Failed status
             elif 'Failed' in pods_status_list:
                 new_status = WorkSpec.ST_failed
-                sub_msg = ';'.join(pod_status_message_list)
+                try:
+                    sub_msg = ';'.join(pod_status_message_list)
+                except:
+                    sub_msg = ''
             else:
                 new_status = WorkSpec.ST_idle
 
