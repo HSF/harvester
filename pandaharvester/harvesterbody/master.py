@@ -9,7 +9,6 @@ import daemon.pidfile
 import argparse
 import threading
 import cProfile
-import atexit
 from future.utils import iteritems
 try:
     import pprofile
