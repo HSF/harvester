@@ -128,7 +128,7 @@ class k8s_Client(object):
         use_memory_limit = resource_settings['use_memory_limit']
         memory_limit_safety_factor = resource_settings['memory_limit_safety_factor']
         memory_limit_min_offset = resource_settings['memory_limit_min_offset']
-        memory_scheduling_ratio = resource_settings['memory_scheduling_ration']
+        memory_scheduling_ratio = resource_settings['memory_scheduling_ratio']
 
         if work_spec.minRamCount > 4:  # K8S minimum memory limit = 4 MB
             # memory requests
