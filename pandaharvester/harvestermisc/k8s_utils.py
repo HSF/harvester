@@ -128,12 +128,14 @@ class k8s_Client(object):
         use_memory_limit = resource_settings['use_memory_limit']
         memory_limit_safety_factor = resource_settings['memory_limit_safety_factor']
         memory_limit_min_offset = resource_settings['memory_limit_min_offset']
+        memory_scheduling_ratio = resource_settings['memory_scheduling_ration']
 
         if work_spec.minRamCount > 4:  # K8S minimum memory limit = 4 MB
             # memory requests
             container_env['resources'].setdefault('requests', {})
             if 'memory' not in container_env['resources']['requests']:
-                container_env['resources']['requests']['memory'] = str(work_spec.minRamCount) + 'Mi'
+                memory_request = str(work_spec.minRamCount * memory_scheduling_ratio / 100.0)
+                container_env['resources']['requests']['memory'] = str(memory_request) + 'Mi'
             # memory limits: kubernetes is very aggressive killing jobs due to memory, hence making this field optional
             # and adding configuration possibilities to add a safety factor
             if use_memory_limit:

@@ -50,10 +50,12 @@ class PandaQueuesDictK8s(PandaQueuesDict):
         key_memory_limit = 'k8s.resources.limits.use_memory_limit'
         key_memory_limit_safety_factor = 'k8s.resources.limits.memory_limit_safety_factor'
         key_memory_limit_min_offset = 'k8s.resources.limits.memory_limit_min_offset'
+        key_memory_scheduling_ratio = 'k8s.resources.requests.cpu_scheduling_ratio'
 
         ret_map['use_memory_limit'] = params.get(key_memory_limit, False)
         ret_map['memory_limit_safety_factor'] = params.get(key_memory_limit_safety_factor, 100)
         ret_map['memory_limit_min_offset'] = params.get(key_memory_limit_min_offset, 0)  # in MiB to be consistent with minRamCount
+        ret_map['memory_scheduling_ratio'] = params.get(key_memory_scheduling_ratio, 100)
 
         # this is how the ephemeral storage parameters are declared in CRIC
         key_ephemeral_storage = 'k8s.resources.use_ephemeral_storage_resource_specs'
