@@ -24,6 +24,8 @@ tmpConf.read('panda_harvester.cfg', configURL)
 # get the value of env var in the config
 def env_var_parse(val):
     match = re.search('\$\{*([^\}]+)\}*', val)
+    if match is None:
+        return val
     var_name = match.group(1)
     if var_name not in os.environ:
         raise KeyError('{0} in the cfg is an undefined environment variable.'.format(var_name))
@@ -35,13 +37,13 @@ def env_var_parse(val):
 def nested_obj_env_var_sub(obj):
     if isinstance(obj, list):
         for i, v in enumerate(obj):
-            if isinstance(v, str) and '$' in v:
+            if isinstance(v, str):
                 obj[i] = env_var_parse(v)
             else:
                 nested_obj_env_var_sub(v)
     elif isinstance(obj, dict):
         for k, v in obj.items():
-            if isinstance(v, str) and '$' in v:
+            if isinstance(v, str):
                 obj[k] = env_var_parse(v)
             else:
                 nested_obj_env_var_sub(v)
