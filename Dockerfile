@@ -2,7 +2,7 @@ FROM docker.io/centos:7
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget
+RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget httpd
 
 RUN mkdir -p /data/condor; cd /data/condor; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download --channel stable; \
@@ -57,7 +57,10 @@ RUN mkdir -p /etc/grid-security/certificates
 RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
 RUN chmod -R 777 /data/condor
+RUN chmod -R 777 /etc/httpd
+RUN chmod -R 777 /var/log/httpd
 RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
+COPY docker/httpd.conf /etc/httpd/conf/
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
@@ -77,8 +80,11 @@ cd condor \n\
 . condor.sh \n\
 cp /data/harvester/condor_config.local /data/condor/condor/local/config.d/ \n\
 condor_master \n\
+/sbin/httpd \n\
 /opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi start \n ' > /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
 RUN chmod +x /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
+
+EXPOSE 8080
