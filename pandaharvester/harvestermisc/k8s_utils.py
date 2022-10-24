@@ -295,9 +295,9 @@ class k8s_Client(object):
         for worker in workspec_list:
             worker_info = {}
             batch_id = worker.batchID  # batch ID is used as the job name
-            if batch_id in pods_dict:
+            if pods_dict and batch_id in pods_dict:
                 worker_info.update(pods_dict[batch_id])
-            if batch_id in jobs_dict:
+            if jobs_dict and batch_id in jobs_dict:
                 worker_info.update(jobs_dict[batch_id])
             workers_dict[batch_id] = worker_info
 
