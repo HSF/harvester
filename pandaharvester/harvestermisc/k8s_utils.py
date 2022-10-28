@@ -67,7 +67,8 @@ class k8s_Client(object):
         queue_name = self.panda_queues_dict.get_panda_queue_name(work_spec.computingSite)
 
         # set the worker name
-        yaml_content['metadata']['name'] = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)
+        worker_name = yaml_content['metadata']['name'] + "-" + str(work_spec.workerID)  # this will be the batch id later on
+        yaml_content['metadata']['name'] = worker_name
 
         # set the resource type and other metadata to filter the pods
         yaml_content['spec']['template'].setdefault('metadata', {})
@@ -210,7 +211,7 @@ class k8s_Client(object):
             {'name': 'TMPDIR', 'value': pilot_dir},
             {'name': 'HOME', 'value': pilot_dir},
             {'name': 'PANDA_HOSTNAME', 'valueFrom': {'fieldRef': {'apiVersion': 'v1', 'fieldPath': 'spec.nodeName'}}},
-            {'name': 'K8S_JOB_ID', 'valueFrom': {'fieldRef': {'apiVersion': 'v1', 'fieldPath': 'metadata.name'}}}
+            {'name': 'K8S_JOB_ID', 'value': worker_name}
         ])
 
         # add the pilots starter configmap
@@ -295,9 +296,9 @@ class k8s_Client(object):
         for worker in workspec_list:
             worker_info = {}
             batch_id = worker.batchID  # batch ID is used as the job name
-            if batch_id in pods_dict:
+            if pods_dict and batch_id in pods_dict:
                 worker_info.update(pods_dict[batch_id])
-            if batch_id in jobs_dict:
+            if jobs_dict and batch_id in jobs_dict:
                 worker_info.update(jobs_dict[batch_id])
             workers_dict[batch_id] = worker_info
 
