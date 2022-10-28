@@ -150,7 +150,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
                 pilot_url=None, pilot_args='', is_unified_dispatch=False,
                 special_par='', harvester_queue_config=None, is_unified_queue=False,
                 pilot_version='unknown', python_version='unknown', prod_rc_permille=0,
-                token_dir=None, **kwarg):
+                token_dir=None, is_gpu_resource=False, **kwarg):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                     method_name='make_a_jdl')
@@ -258,6 +258,8 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'tokenPath': token_path,
             'pilotJobLabel': submitter_common.get_joblabel(prod_source_label, is_unified_dispatch),
             'pilotJobType': submitter_common.get_pilot_job_type(workspec.jobType, is_unified_dispatch),
+            'requestGpus': 1 if is_gpu_resource else 0,
+            'requireGpus': is_gpu_resource,
         }
     # fill in template string
     jdl_str = template.format(**placeholder_map)
@@ -488,6 +490,7 @@ class HTCondorSubmitter(PluginBase):
         pilot_args = associated_params_dict.get('pilot_args', '')
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
         python_version = str(this_panda_queue_dict.get('python_version', '2'))
+        is_gpu_resource = this_panda_queue_dict.get('resource_type', '') == 'gpu'
         sdf_suffix_str = ''
 
         # get override requirements from queue configured
@@ -747,6 +750,7 @@ class HTCondorSubmitter(PluginBase):
                         'token_dir': token_dir,
                         'is_unified_dispatch': is_unified_dispatch,
                         'prod_rc_permille': self.rcPilotRandomWeightPermille,
+                        'is_gpu_resource': is_gpu_resource,
                         })
             return data
 
