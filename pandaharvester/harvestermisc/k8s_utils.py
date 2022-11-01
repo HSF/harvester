@@ -203,7 +203,7 @@ class k8s_Client(object):
             {'name': 'jobType', 'value': work_spec.jobType},
             {'name': 'proxySecretPath', 'value': cert},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
-            {'name': 'pilotProxyCheck', 'value': pilot_proxy_check},
+            {'name': 'pilotProxyCheck', 'value': str(pilot_proxy_check)},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
             {'name': 'stdout_name', 'value': log_file_name},
