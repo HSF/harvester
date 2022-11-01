@@ -119,16 +119,16 @@ def copy_files_in_dir(src_dir, dst_dir):
         shutil.copy(full_file_name, dst_dir)
 
 
-def str_to_bool(input, default=False)
-    output = default
+def str_to_bool(input_str, default=False):
+    output_str = default
     try:
-        if input.upper() == 'FALSE':
-            output = False
-        elif input.upper() == 'TRUE':
-            output = True
+        if input_str.upper() == 'FALSE':
+            output_str = False
+        elif input_str.upper() == 'TRUE':
+            output_str = True
     except:
         pass
-    return output
+    return output_str
 
 
 def get_configuration():
