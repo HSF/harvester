@@ -188,6 +188,9 @@ class k8s_Client(object):
             tmp_log.debug('work_spec does not have stdout workAttribute, using default')
             log_file_name = ''
 
+        # get the option to activate the pilot proxy check
+        pilot_proxy_check = self.panda_queues_dict.get_k8s_pilot_proxy_check(work_spec.computingSite)
+
         container_env['env'].extend([
             {'name': 'computingSite', 'value': work_spec.computingSite},
             {'name': 'pandaQueueName', 'value': queue_name},
@@ -200,6 +203,7 @@ class k8s_Client(object):
             {'name': 'jobType', 'value': work_spec.jobType},
             {'name': 'proxySecretPath', 'value': cert},
             {'name': 'workerID', 'value': str(work_spec.workerID)},
+            {'name': 'pilotProxyCheck', 'value': pilot_proxy_check},
             {'name': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
             {'name': 'logs_frontend_r', 'value': harvester_config.pandacon.pandaCacheURL_R},
             {'name': 'stdout_name', 'value': log_file_name},

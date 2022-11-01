@@ -124,3 +124,14 @@ class PandaQueuesDictK8s(PandaQueuesDict):
         safe_to_evict = params.get(key_safe_to_evict, None)
 
         return safe_to_evict
+
+    def get_k8s_pilot_proxy_check(self, panda_resource):
+
+        # by default we tell the pilot not to run the proxy checks
+        # but some sites insist on activating it
+        key_pilot_proxy_check = 'k8s.pilot_proxy_check'
+
+        params = self.get_harvester_params(panda_resource)
+        pilot_proxy_check = params.get(key_pilot_proxy_check, False)
+
+        return pilot_proxy_check
