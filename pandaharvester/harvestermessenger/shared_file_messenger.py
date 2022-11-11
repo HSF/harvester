@@ -99,7 +99,6 @@ taskWorkDirPathFile = 'task_workdir_path.txt'
 # post-processing job attributes
 postProcessAttrs = 'post_process_job_attrs.json'
 
-
 # suffix to read json
 suffixReadJson = '.read'
 
@@ -217,6 +216,7 @@ class SharedFileMessenger(BaseMessenger):
         self.postProcessInSubDir = False
         self.outputSubDir = None
         self.subTarballName = None
+        self.maxWorkersForZip = None
         BaseMessenger.__init__(self, **kwarg)
 
     # get access point
@@ -707,7 +707,8 @@ class SharedFileMessenger(BaseMessenger):
                             if os.path.isdir(os.path.join(accessPoint, name))]
                     # tar sub dirs
                     tmpLog.debug('tar for {0} sub dirs'.format(len(dirs)))
-                    with Pool(max_workers=multiprocessing.cpu_count()) as pool:
+                    with Pool(max_workers=self.maxWorkersForZip if self.maxWorkersForZip
+                            else multiprocessing.cpu_count()) as pool:
                         retValList = pool.map(lambda x, y: tar_directory(x, sub_tarball_name=y),
                                               dirs, itertools.repeat(self.subTarballName))
                         for dirName, (comStr, retCode, stdOut, stdErr) in zip(dirs, retValList):
@@ -737,7 +738,7 @@ class SharedFileMessenger(BaseMessenger):
                     else:
                         # loop over directories first level from accessPoint and then add subdirectory name.
                         upperdirs = [os.path.join(accessPoint, name) for name in os.listdir(accessPoint)
-                                if os.path.isdir(os.path.join(accessPoint, name))]
+                                     if os.path.isdir(os.path.join(accessPoint, name))]
                         dirs = [os.path.join(dirname, self.outputSubDir) for dirname in upperdirs
                                 if os.path.isdir(os.path.join(dirname, self.outputSubDir))]
                     patterns = []
@@ -762,7 +763,8 @@ class SharedFileMessenger(BaseMessenger):
                                 tmp_patterns.append(scanPat)
                     # scan files
                     nLeftOvers = 0
-                    with Pool(max_workers=multiprocessing.cpu_count()) as pool:
+                    with Pool(max_workers=self.maxWorkersForZip if self.maxWorkersForZip
+                            else multiprocessing.cpu_count()) as pool:
                         retValList = pool.map(scan_files_in_dir, dirs, [patterns] * len(dirs),
                                               [patterns_zip] * len(dirs))
                         for retVal in retValList:
@@ -862,7 +864,7 @@ class SharedFileMessenger(BaseMessenger):
         # json file
         jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
         tmpLog.debug('looking for heartbeat file {0}'.format(jsonFilePath))
-        if not os.path.exists(jsonFilePath): # no heartbeat file was found
+        if not os.path.exists(jsonFilePath):  # no heartbeat file was found
             tmpLog.debug('startTime: {0}, now: {1}'.format(workspec.startTime, datetime.datetime.utcnow()))
             if not workspec.startTime:
                 # the worker didn't even have time to start
