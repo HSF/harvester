@@ -47,7 +47,7 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version="", 
         pilot_opt_dict['pilot_url_str'] = '--piloturl {0}'.format(pilot_url)
     elif pilot_type == 'PR':
         # randomization of pilot url for PR (managed, user) pilot run some portion of RC version (not RC dev) pilot
-        prod_rc_pilot_url_str = '--piloturl http://cern.ch/atlas-panda-pilot/pilot3-rc.tar.gz'
+        prod_rc_pilot_url_str = '--piloturl http://pandaserver.cern.ch:25085/cache/pilot/pilot3-rc.tar.gz'
         prod_rc_prob = min(max(prod_rc_permille/1000., 0), 1)
         lucky_number = random.random()
         if lucky_number < prod_rc_prob:

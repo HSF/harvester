@@ -119,6 +119,18 @@ def copy_files_in_dir(src_dir, dst_dir):
         shutil.copy(full_file_name, dst_dir)
 
 
+def str_to_bool(input_str, default=False):
+    output_str = default
+    try:
+        if input_str.upper() == 'FALSE':
+            output_str = False
+        elif input_str.upper() == 'TRUE':
+            output_str = True
+    except:
+        pass
+    return output_str
+
+
 def get_configuration():
     # get the proxy certificate and save it
     if os.environ.get('proxySecretPath'):
@@ -159,6 +171,10 @@ def get_configuration():
     pilot_version = os.environ.get('pilotVersion', '')
     logging.debug('[main] got pilotVersion: {0}'.format(pilot_version))
 
+    pilot_proxy_check_tmp = os.environ.get('pilotProxyCheck', 'False')
+    pilot_proxy_check = str_to_bool(pilot_proxy_check_tmp)
+    logging.debug('[main] got pilotProxyCheck: {0}'.format(pilot_proxy_check))
+
     # get the Harvester ID
     harvester_id = os.environ.get('HARVESTER_ID')
     logging.debug('[main] got Harvester ID: {0}'.format(harvester_id))
@@ -194,7 +210,7 @@ def get_configuration():
         WORK_DIR = tmpdir
 
     return proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, pilot_type, \
-           pilot_url_option, python_option, pilot_version, harvester_id, worker_id, logs_frontend_w, \
+           pilot_url_option, python_option, pilot_proxy_check, pilot_version, harvester_id, worker_id, logs_frontend_w, \
            logs_frontend_r, stdout_name, submit_mode
 
 
@@ -202,7 +218,7 @@ if __name__ == "__main__":
 
     # get all the configuration from environment
     proxy_path, panda_site, panda_queue, resource_type, prodSourceLabel, job_type, pilot_type, pilot_url_opt, \
-        python_option, pilot_version, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, \
+        python_option, pilot_proxy_check, pilot_version, harvester_id, worker_id, logs_frontend_w, logs_frontend_r, \
         destination_name, submit_mode = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
@@ -228,15 +244,25 @@ if __name__ == "__main__":
     if pilot_type:
         pilot_type_option = '-i {0}'.format(pilot_type)
 
+    pilot_proxy_check_option = '-t'  # This disables the proxy check
+    if pilot_proxy_check:
+        pilot_proxy_check_option = ''  # Empty enables the proxy check (default pilot behaviour)
+
+
     pilot_version_option = '--pilotversion 2'
     if pilot_version:
         pilot_version_option = '--pilotversion {0}'.format(pilot_version)
 
-    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8} {9} {10}'.format(WORK_DIR, panda_site, panda_queue,
-                                                                                panda_queue, resource_type_option,
-                                                                                psl_option, pilot_type_option,
-                                                                                job_type_option, pilot_url_opt,
-                                                                                python_option, pilot_version_option)
+    wrapper_params = '-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8} {9} {10} {11}'.format(WORK_DIR, panda_site,
+                                                                                            panda_queue, panda_queue,
+                                                                                            resource_type_option,
+                                                                                            psl_option,
+                                                                                            pilot_type_option,
+                                                                                            job_type_option,
+                                                                                            pilot_url_opt,
+                                                                                            python_option,
+                                                                                            pilot_version_option,
+                                                                                            pilot_proxy_check_option)
 
     if submit_mode == 'PUSH':
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system
@@ -244,7 +270,7 @@ if __name__ == "__main__":
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
     wrapper_executable = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
-    command = "sh {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False -t | tee /tmp/wrapper-wid.log". \
+    command = "sh {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False | tee /tmp/wrapper-wid.log". \
         format(wrapper_executable, wrapper_params, submit_mode)
 
     try:
