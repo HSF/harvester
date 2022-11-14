@@ -2,7 +2,7 @@ FROM docker.io/centos:7
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget httpd logroate
+RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget httpd logrotate
 
 RUN mkdir -p /data/condor; cd /data/condor; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download --channel stable; \
