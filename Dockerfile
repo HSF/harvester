@@ -86,6 +86,9 @@ condor_master \n\
 
 RUN chmod +x /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
+# add condor setup ins sysconfig
+RUN echo source /data/condor/condor/condor.sh >> /opt/harvester/etc/sysconfig/panda_harvester
+
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
 EXPOSE 8080
