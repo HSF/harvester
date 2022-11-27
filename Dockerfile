@@ -5,6 +5,7 @@ RUN yum install -y epel-release
 RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget httpd logrotate
 
 RUN mkdir -p /data/condor; cd /data/condor; \
+    wget https://research.cs.wisc.edu/htcondor/tarball/9.0/9.0.17/release/condor-9.0.17-x86_64_CentOS7-stripped.tar.gz -O condor.tar.gz.9.0.17; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download --channel stable; \
     mv condor.tar.gz condor.tar.gz.stable; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
