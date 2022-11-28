@@ -9,7 +9,7 @@ RUN mkdir -p /data/condor; cd /data/condor; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download --channel stable; \
     mv condor.tar.gz condor.tar.gz.stable; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download; \
-    mv condor.tar.gz condor.tar.gz.latest
+    ln -fs condor.tar.gz condor.tar.gz.latest
     
 #install gcloud
 RUN echo $'[google-cloud-cli] \n\
