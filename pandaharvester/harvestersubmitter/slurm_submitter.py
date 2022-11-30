@@ -126,24 +126,23 @@ class SlurmSubmitter(PluginBase):
             # 'x509UserProxy': x509_user_proxy,
             'logDir': self.logDir,
             'logSubDir': os.path.join(self.logDir, timeNow.strftime('%y-%m-%d_%H')),
-            'jobType': workspec.jobType,
-            'tokenDir': self.tokenDir,
-            'tokenName': self.tokenName,
-            'tokenOrigin': self.tokenOrigin,
-            'submitMode': self.submitMode
+            'jobType': workspec.jobType
         }
+        for k in ['tokenDir', 'tokenName', 'tokenOrigin', 'submitMode']:
+            try:
+                placeholder_map[k] = getattr(self, k)
+            except Exception:
+                pass
         return placeholder_map
 
     # make batch script
     def make_batch_script(self, workspec):
         # template for batch script
-        tmpFile = open(self.templateFile)
-        self.template = tmpFile.read()
-        tmpFile.close()
-        del tmpFile
+        with open(self.templateFile) as f:
+            template = f.read()
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix='_submit.sh', dir=workspec.get_access_point())
         placeholder = self.make_placeholder_map(workspec)
-        tmpFile.write(six.b(self.template.format(**placeholder)))
+        tmpFile.write(six.b(template.format_map(core_utils.SafeDict(placeholder))))
         tmpFile.close()
 
         # set execution bit and group permissions on the temp file
