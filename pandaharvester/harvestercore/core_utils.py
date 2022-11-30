@@ -665,3 +665,9 @@ def retry_period_sec(nth_retry, increment=1, max_retries=None, max_seconds=None,
         if max_seconds:
             ret_period = min(ret_period, max_seconds)
         return ret_period
+
+
+# safe dictionary to retrun original strings for missing keys
+class SafeDict(dict):
+    def __missing__(self, key):
+        return '{' + key + '}'
