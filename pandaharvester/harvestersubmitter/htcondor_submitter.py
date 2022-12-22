@@ -315,7 +315,11 @@ class HTCondorSubmitter(PluginBase):
             if '$hostname' in self.logDir or '${hostname}' in self.logDir:
                 my_hostname = socket.gethostname()
                 self.logDir = self.logDir.replace("$hostname", my_hostname).replace("${hostname}", my_hostname)
-                os.mkdir(self.logDir)
+                try:
+                    if not os.path.exists(self.logDir):
+                        os.mkdir(self.logDir)
+                except Exception as ex:
+                    tmpLog.debug("Failed to create logDir(%s): %s" % (self.logDir, str(ex)))
         except AttributeError:
             self.logDir = os.getenv('TMPDIR') or '/tmp'
         # log base url
