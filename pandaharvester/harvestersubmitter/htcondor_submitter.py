@@ -6,6 +6,7 @@ import threading
 import random
 import json
 import re
+import socket
 
 from concurrent.futures import ThreadPoolExecutor
 from math import ceil
@@ -311,8 +312,19 @@ class HTCondorSubmitter(PluginBase):
         # condor log directory
         try:
             self.logDir
+            if '$hostname' in self.logDir or '${hostname}' in self.logDir:
+                my_hostname = socket.gethostname()
+                self.logDir = self.logDir.relace("$hostname", my_hostname).relace("$%hostname}", my_hostname)
         except AttributeError:
             self.logDir = os.getenv('TMPDIR') or '/tmp'
+        # log base url
+        try:
+            self.logBaseURL
+            if '$hostname' in self.logBaseURL or '${hostname}' in self.logBaseURL:
+                my_hostname = socket.gethostname()
+                self.logBaseURL = self.logBaseURL.relace("$hostname", my_hostname).relace("$%hostname}", my_hostname)
+        except AttributeError:
+            self.logBaseURL = None
         # Default x509 proxy for a queue
         try:
             self.x509UserProxy
