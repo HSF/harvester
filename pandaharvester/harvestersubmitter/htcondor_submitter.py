@@ -325,6 +325,14 @@ class HTCondorSubmitter(PluginBase):
                 self.logBaseURL = self.logBaseURL.relace("$hostname", my_hostname).relace("$%hostname}", my_hostname)
         except AttributeError:
             self.logBaseURL = None
+        # submission host
+        try:
+            self.submissionHost
+            if '$hostname' in self.submissionHost or '${hostname}' in self.submissionHost:
+                my_hostname = socket.gethostname()
+                self.submissionHost = my_hostname
+        except:
+            self.submissionHost = None
         # Default x509 proxy for a queue
         try:
             self.x509UserProxy
@@ -696,7 +704,9 @@ class HTCondorSubmitter(PluginBase):
                     # Choose from Condor schedd and central managers
                     condor_schedd, condor_pool = random.choice(schedd_pool_choice_list)
                     # set submissionHost
-                    if not condor_schedd and not condor_pool:
+                    if self.submissionHost:
+                        workspec.submissionHost = self.submissionHost
+                    elif not condor_schedd and not condor_pool:
                         workspec.submissionHost = 'LOCAL'
                     else:
                         workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)
