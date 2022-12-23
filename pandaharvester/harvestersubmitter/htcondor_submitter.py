@@ -314,6 +314,7 @@ class HTCondorSubmitter(PluginBase):
             self.logDir
             if '$hostname' in self.logDir or '${hostname}' in self.logDir:
                 my_hostname = socket.gethostname()
+                my_hostname = my_hostname.split(".")[0]
                 self.logDir = self.logDir.replace("$hostname", my_hostname).replace("${hostname}", my_hostname)
                 try:
                     if not os.path.exists(self.logDir):
@@ -326,7 +327,7 @@ class HTCondorSubmitter(PluginBase):
         try:
             self.logBaseURL
             if '$hostname' in self.logBaseURL or '${hostname}' in self.logBaseURL:
-                my_hostname = socket.gethostname()
+                my_hostname = socket.gethostname().split(".")[0]
                 self.logBaseURL = self.logBaseURL.replace("$hostname", my_hostname).replace("${hostname}", my_hostname)
         except AttributeError:
             self.logBaseURL = None
@@ -335,7 +336,7 @@ class HTCondorSubmitter(PluginBase):
             self.submissionHost
             if '$hostname' in self.submissionHost or '${hostname}' in self.submissionHost:
                 my_hostname = socket.gethostname()
-                self.submissionHost = my_hostname
+                self.submissionHost = my_hostname.split(".")[0]
         except:
             self.submissionHost = None
         # Default x509 proxy for a queue

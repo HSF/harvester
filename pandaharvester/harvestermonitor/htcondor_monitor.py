@@ -229,7 +229,7 @@ class HTCondorMonitor(PluginBase):
             self.submissionHost
             if '$hostname' in self.submissionHost or '${hostname}' in self.submissionHost:
                 my_hostname = socket.gethostname()
-                self.submissionHost = my_hostname
+                self.submissionHost = my_hostname.split(".")[0]
         except AttributeError:
             self.submissionHost = None
 
