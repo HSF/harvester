@@ -295,6 +295,7 @@ class HTCondorSubmitter(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         self.logBaseURL = None
         self.templateFile = None
+        self.hostname = socket.gethostname().split(".")[0]
         PluginBase.__init__(self, **kwarg)
         # number of processes
         try:
@@ -313,9 +314,7 @@ class HTCondorSubmitter(PluginBase):
         try:
             self.logDir
             if '$hostname' in self.logDir or '${hostname}' in self.logDir:
-                my_hostname = socket.gethostname()
-                my_hostname = my_hostname.split(".")[0]
-                self.logDir = self.logDir.replace("$hostname", my_hostname).replace("${hostname}", my_hostname)
+                self.logDir = self.logDir.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
                 try:
                     if not os.path.exists(self.logDir):
                         os.mkdir(self.logDir)
@@ -327,18 +326,9 @@ class HTCondorSubmitter(PluginBase):
         try:
             self.logBaseURL
             if '$hostname' in self.logBaseURL or '${hostname}' in self.logBaseURL:
-                my_hostname = socket.gethostname().split(".")[0]
-                self.logBaseURL = self.logBaseURL.replace("$hostname", my_hostname).replace("${hostname}", my_hostname)
+                self.logBaseURL = self.logBaseURL.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         except AttributeError:
             self.logBaseURL = None
-        # submission host
-        try:
-            self.submissionHost
-            if '$hostname' in self.submissionHost or '${hostname}' in self.submissionHost:
-                my_hostname = socket.gethostname()
-                self.submissionHost = my_hostname.split(".")[0]
-        except:
-            self.submissionHost = None
         # Default x509 proxy for a queue
         try:
             self.x509UserProxy
@@ -383,10 +373,14 @@ class HTCondorSubmitter(PluginBase):
         # remote condor schedd and pool name (collector)
         try:
             self.condorSchedd
+            if '$hostname' in self.condorSchedd or '${hostname}' in self.condorSchedd:
+                self.condorSchedd = self.condorSchedd.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         except AttributeError:
             self.condorSchedd = None
         try:
             self.condorPool
+            if '$hostname' in self.condorPool or '${hostname}' in self.condorPool:
+                self.condorPool = self.condorPool.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         except AttributeError:
             self.condorPool = None
         # json config file of remote condor host: schedd/pool and weighting. If set, condorSchedd and condorPool are overwritten
@@ -710,9 +704,7 @@ class HTCondorSubmitter(PluginBase):
                     # Choose from Condor schedd and central managers
                     condor_schedd, condor_pool = random.choice(schedd_pool_choice_list)
                     # set submissionHost
-                    if self.submissionHost:
-                        workspec.submissionHost = self.submissionHost
-                    elif not condor_schedd and not condor_pool:
+                    if not condor_schedd and not condor_pool:
                         workspec.submissionHost = 'LOCAL'
                     else:
                         workspec.submissionHost = '{0},{1}'.format(condor_schedd, condor_pool)

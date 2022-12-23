@@ -1,6 +1,5 @@
 import time
 import json
-import socket
 
 import six
 
@@ -225,13 +224,6 @@ class HTCondorMonitor(PluginBase):
             self.condorHostConfig_list
         except AttributeError:
             self.condorHostConfig_list = []
-        try:
-            self.submissionHost
-            if '$hostname' in self.submissionHost or '${hostname}' in self.submissionHost:
-                my_hostname = socket.gethostname()
-                self.submissionHost = my_hostname.split(".")[0]
-        except AttributeError:
-            self.submissionHost = None
 
     # check workers
     def check_workers(self, workspec_list):
@@ -242,9 +234,6 @@ class HTCondorMonitor(PluginBase):
         # Loop over submissionHost
         job_ads_all_dict = {}
         for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map(workspec_list)):
-            if self.submissionHost and self.submissionHost != submissionHost:
-                tmpLog.info("Skip jobs submitted from %s, which is different from current host %s" % (submissionHost, self.submissionHost))
-                break
             # Record batch job query result to this dict, with key = batchID
             try:
                 job_query = CondorJobQuery( cacheEnable=self.cacheEnable,
