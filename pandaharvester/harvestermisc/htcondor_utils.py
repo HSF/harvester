@@ -246,8 +246,8 @@ class CondorClient(object):
             tmpLog = core_utils.make_logger(baseLogger, 'submissionHost={0}'.format(self.submissionHost), method_name='CondorClient.renew_session_if_error')
             func_name = func.__name__
             try:
-                self.schedd
-            except AttributeError:
+                self.condor_schedd
+            except AttributeError as e:
                 if self.lock.acquire(False):
                     is_renewed = self.renew_session()
                     self.lock.release()
