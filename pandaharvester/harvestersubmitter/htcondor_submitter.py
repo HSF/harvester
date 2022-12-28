@@ -6,6 +6,7 @@ import threading
 import random
 import json
 import re
+import socket
 
 from concurrent.futures import ThreadPoolExecutor
 from math import ceil
@@ -294,6 +295,7 @@ class HTCondorSubmitter(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         self.logBaseURL = None
         self.templateFile = None
+        self.hostname = socket.gethostname().split(".")[0]
         PluginBase.__init__(self, **kwarg)
         # number of processes
         try:
@@ -311,8 +313,22 @@ class HTCondorSubmitter(PluginBase):
         # condor log directory
         try:
             self.logDir
+            if '$hostname' in self.logDir or '${hostname}' in self.logDir:
+                self.logDir = self.logDir.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
+                try:
+                    if not os.path.exists(self.logDir):
+                        os.mkdir(self.logDir)
+                except Exception as ex:
+                    tmpLog.debug("Failed to create logDir(%s): %s" % (self.logDir, str(ex)))
         except AttributeError:
             self.logDir = os.getenv('TMPDIR') or '/tmp'
+        # log base url
+        try:
+            self.logBaseURL
+            if '$hostname' in self.logBaseURL or '${hostname}' in self.logBaseURL:
+                self.logBaseURL = self.logBaseURL.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
+        except AttributeError:
+            self.logBaseURL = None
         # Default x509 proxy for a queue
         try:
             self.x509UserProxy
@@ -357,10 +373,14 @@ class HTCondorSubmitter(PluginBase):
         # remote condor schedd and pool name (collector)
         try:
             self.condorSchedd
+            if '$hostname' in self.condorSchedd or '${hostname}' in self.condorSchedd:
+                self.condorSchedd = self.condorSchedd.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         except AttributeError:
             self.condorSchedd = None
         try:
             self.condorPool
+            if '$hostname' in self.condorPool or '${hostname}' in self.condorPool:
+                self.condorPool = self.condorPool.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         except AttributeError:
             self.condorPool = None
         # json config file of remote condor host: schedd/pool and weighting. If set, condorSchedd and condorPool are overwritten
