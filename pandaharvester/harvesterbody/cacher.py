@@ -1,3 +1,5 @@
+import re
+import os
 import json
 import shutil
 import datetime
@@ -95,6 +97,15 @@ class Cacher(AgentBase):
     def get_data(self, info_url, tmp_log):
         retStat = False
         retVal = None
+        # resolve env variable
+        match = re.search(r'\$\{*([^\}]+)\}*', info_url)
+        if match:
+            var_name = match.group(1)
+            if var_name not in os.environ:
+                errMsg = 'undefined environment variable: {}'.format(var_name)
+                tmp_log.error(errMsg)
+            else:
+                info_url = os.environ[var_name]
         if info_url.startswith('file:'):
             try:
                 with open(info_url.split(':')[-1], 'r') as infoFile:
