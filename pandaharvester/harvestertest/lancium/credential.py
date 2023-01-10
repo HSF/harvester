@@ -12,5 +12,5 @@ data.upload(os.path.abspath(voms_local_path), fake_callback)
 #  TODO: see what happens if you create and upload it multiple times,
 #   or if you need to list it before to validate the existence
 
-ex = data.show(voms_id)[0]
+ex = data.show(voms_lancium_path)[0]
 print(ex.__dict__)
