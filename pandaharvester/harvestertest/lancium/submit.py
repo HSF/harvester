@@ -53,8 +53,8 @@ params = {'name': 'grid-job-{0}'.format(worker_id),
 
 # create the job
 job = Job().create(**params)
-print('name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
+print('Created! name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
 
 # submit the job
 job.submit()
-print('name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
+print('Submitted! name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))

@@ -1,7 +1,11 @@
+import sys
 from lancium.api.Job import Job
-from lancium.errors.common import *
 
-job_id = 1234
+if len(sys.argv) != 2:
+    print('Pass the job id as argument')
+    return
+
+job_id = sys.argv[1]
 
 #  What is the difference between terminate, delete and destroy a job
 #  Does delete also terminate a job?
