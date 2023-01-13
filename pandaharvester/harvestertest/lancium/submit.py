@@ -10,7 +10,7 @@ memory = 1
 scratch = 20
 
 params = {'name': 'grid-job-{0}'.format(worker_id),
-          'command_line': 'cat {0}'.format(voms_job_path),
+          'command_line': 'python pilots_starter.py',
           'image': 'test/centos7-singularity',
           'resources': {'core_count': core_count,
                         'memory': memory,
