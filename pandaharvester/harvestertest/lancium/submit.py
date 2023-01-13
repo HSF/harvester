@@ -22,8 +22,8 @@ params = {'name': 'grid-job-{0}'.format(worker_id),
                "name": voms_job_path
                },
               {"source_type": "data",
-               "data": scr,
-               "name": voms_job_path
+               "data": script_lancium_path,
+               "name": script_job_path
                }
           ],
           # 'output_files': RETRIEVE THE PILOT LOG AND STORE IT IN HARVESTER?
