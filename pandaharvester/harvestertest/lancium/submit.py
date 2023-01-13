@@ -1,41 +1,16 @@
 from lancium.api.Job import Job
 import uuid
-from constants import voms_lancium_path, voms_job_path
+from constants import voms_lancium_path, voms_job_path, script_lancium_path, script_job_path
 
-"""
-https://lancium.github.io/compute-api-docs/library/lancium/api/Job.html#Job.create
-- name (string): job name
-- notes (string): job description
-- account (string): string for internal account billing
-- qos (string): quality of service
-- command_line (string): command line argument
-- image (string): base image for container to run job on
-- resources (dict): dictionary containing the fields
-    - core_count (int)
-    - gpu (string)
-    - vram (int)
-    - gpu_count (int)
-    - memory (int)
-    - scratch (int)
-- max_run_time (int): max run time for job (in seconds)
-    - Limit: 30 days
-- expected_run_time (int): expected run time of job (in seconds)
-- input_files (list of JobInput): input files for Job wrapped in a Job_Input object.
-- output_files (tuple): expected output file(s) from job
-    - Format: (‘output_file1.txt{:name_to_save_as_in_storage.txt}, …)
-    - The destination in persistent storage is optional.
-- callback_url (string): Webhook URL to receive updates when job status changes
-- environment (tuple of strings): tuple of environment variables to set for job
-    - Format: (‘var1=def1’, ‘var2=def2’,...)
-- kwargs(dictionary): can contain auth key if you would like to perform this method using a different account. {'auth': ANOTHER_API_KEY}
-"""
+# https://lancium.github.io/compute-api-docs/library/lancium/api/Job.html#Job.create
+
 worker_id = uuid.uuid1()
 core_count = 1
-memory = 2
+memory = 1
 scratch = 20
 
 params = {'name': 'grid-job-{0}'.format(worker_id),
-          'command_line': 'ls',
+          'command_line': 'cat {0}'.format(voms_job_path),
           'image': 'lancium/ubuntu',
           'resources': {'core_count': core_count,
                         'memory': memory,
@@ -45,10 +20,37 @@ params = {'name': 'grid-job-{0}'.format(worker_id),
               {"source_type": "data",
                "data": voms_lancium_path,
                "name": voms_job_path
+               },
+              {"source_type": "data",
+               "data": scr,
+               "name": voms_job_path
                }
           ],
           # 'output_files': RETRIEVE THE PILOT LOG AND STORE IT IN HARVESTER?
-          'environment': ('key1:value1', 'key2:value2', 'voms_path:{0}'.format(voms_job_path))
+          'environment': (
+              # pilotUrlOpt, stdout_name
+              {'variable': 'PILOT_NOKILL', 'value': 'True'},
+              {'variable': 'computingSite', 'value': 'GOOGLE_EUW1'},
+              {'variable': 'pandaQueueName', 'value': 'GOOGLE_EUW1'},
+              {'variable': 'resourceType', 'value': 'SCORE'},
+              {'variable': 'prodSourceLabel', 'value': 'managed'},
+              {'variable': 'pilotType', 'value': 'PR'},
+              {'variable': 'pythonOption', 'value': '--pythonversion 3'},
+              {'variable': 'pilotVersion', 'value': '3.4.7.6'},
+              {'variable': 'jobType', 'value': 'managed'},
+              {'variable': 'proxySecretPath', 'value': voms_job_path},
+              {'variable': 'workerID', 'value': '1'},
+              {'variable': 'pilotProxyCheck', 'value': 'False'},
+              {'variable': 'logs_frontend_w', 'value': 'https://aipanda047.cern.ch:25443/server/panda'},
+              {'variable': 'logs_frontend_r', 'value': 'https://aipanda047.cern.ch:25443/cache'},
+              {'variable': 'PANDA_JSID', 'value': 'harvester-CERN_central_k8s'},
+              {'variable': 'HARVESTER_WORKER_ID', 'value': '21421931'},
+              {'variable': 'HARVESTER_ID', 'value': 'CERN_central_k8s'},
+              {'variable': 'submit_mode', 'value': 'PULL'},
+              {'variable': 'TMPDIR', 'value': '/pilotdir'},
+              {'variable': 'HOME', 'value': '/pilotdir'},
+              {'variable': 'K8S_JOB_ID', 'value': 'grid-job-1'},
+          )
           }
 
 # create the job
