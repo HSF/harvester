@@ -11,7 +11,7 @@ scratch = 20
 
 params = {'name': 'grid-job-{0}'.format(worker_id),
           'command_line': 'cat {0}'.format(voms_job_path),
-          'image': 'lancium/ubuntu',
+          'image': 'test/centos7-singularity',
           'resources': {'core_count': core_count,
                         'memory': memory,
                         'scratch': scratch
