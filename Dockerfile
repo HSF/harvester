@@ -63,6 +63,7 @@ RUN chmod -R 777 /etc/httpd
 RUN chmod -R 777 /var/log/httpd
 RUN chmod -R 777 /var/lib/logrotate
 RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
+RUN chmod -R 777 /opt/harvester/etc/panda
 COPY docker/httpd.conf /etc/httpd/conf/
 
 # make lock dir
