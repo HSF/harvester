@@ -65,6 +65,9 @@ RUN chmod -R 777 /var/lib/logrotate
 RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
 COPY docker/httpd.conf /etc/httpd/conf/
 
+RUN mkdir -p /etc/vomses/
+COPY docker/vomses /etc/vomses/
+
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
