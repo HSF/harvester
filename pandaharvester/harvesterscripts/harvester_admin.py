@@ -61,6 +61,7 @@ def get_harvester_attributes():
         'harvesterID',
         'version',
         'commit_info',
+        'harvester_config',
     ]
     return attr_list
 
@@ -105,6 +106,8 @@ def get(arguments):
         print(hpi.commit_info)
     elif attr == 'harvesterID':
         print(harvester_config.master.harvester_id)
+    elif attr == 'harvester_config':
+        json_print(harvester_config.config_dict)
 
 def fifo_benchmark(arguments):
     n_object = arguments.n_object

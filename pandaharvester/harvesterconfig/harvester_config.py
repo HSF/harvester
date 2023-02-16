@@ -65,6 +65,9 @@ if 'PANDA_HOME' in os.environ:
             config_map_data = json.load(f)
 
 
+# config format in dict for print only
+config_dict = {}
+
 # loop over all sections
 for tmpSection in tmpConf.sections():
     # read section
@@ -76,6 +79,8 @@ for tmpSection in tmpConf.sections():
     tmpSelf = _SectionClass()
     # update module dict
     sys.modules[__name__].__dict__[tmpSection] = tmpSelf
+    # initialize config dict
+    config_dict[tmpSection] = {}
     # expand all values
     for tmpKey, tmpVal in iteritems(tmpDict):
         # use env vars
@@ -103,3 +108,6 @@ for tmpSection in tmpConf.sections():
             tmpVal = [x.strip() for x in tmpVal if x.strip()]
         # update dict
         setattr(tmpSelf, tmpKey, tmpVal)
+        # update config dict
+        if not any(ss in tmpKey.lower() for ss in ['password', 'passphrase', 'secret']):
+            config_dict[tmpSection][tmpKey] = tmpVal
