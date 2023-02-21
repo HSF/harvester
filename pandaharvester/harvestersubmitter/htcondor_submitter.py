@@ -349,22 +349,30 @@ class HTCondorSubmitter(PluginBase):
             self.tokenDirAnalysis
         except AttributeError:
             self.tokenDirAnalysis = None
-        # ATLAS CRIC
+        # CRIC
         try:
-            self.useAtlasCRIC = bool(self.useAtlasCRIC)
+            self.useCRIC = bool(self.useCRIC)
         except AttributeError:
-            # Try the old parameter name useAtlasAGIS
+            # Try the old parameter name useAtlasCRIC
             try:
-                self.useAtlasCRIC = bool(self.useAtlasAGIS)
+                self.useCRIC = bool(self.useAtlasCRIC)
             except AttributeError:
-                self.useAtlasCRIC = False
-        # ATLAS Grid CE, requiring CRIC
+                # Try the old parameter name useAtlasAGIS
+                try:
+                    self.useCRIC = bool(self.useAtlasAGIS)
+                except AttributeError:
+                    self.useCRIC = False
+        # Grid CE, requiring CRIC
         try:
-            self.useAtlasGridCE = bool(self.useAtlasGridCE)
+            self.useCRICGridCE = bool(self.useCRICGridCE)
         except AttributeError:
-            self.useAtlasGridCE = False
+            # Try the old parameter name useAtlasGridCE
+            try:
+                self.useCRICGridCE = bool(self.useAtlasGridCE)
+            except AttributeError:
+                self.useCRICGridCE = False
         finally:
-            self.useAtlasCRIC = self.useAtlasCRIC or self.useAtlasGridCE
+            self.useCRIC = self.useCRIC or self.useCRICGridCE
         # sdf template directories of CEs; ignored if templateFile is set
         try:
             self.CEtemplateDir
@@ -484,7 +492,7 @@ class HTCondorSubmitter(PluginBase):
 
         is_grandly_unified_queue = False
         # get queue info from CRIC by cacher in db
-        if self.useAtlasCRIC:
+        if self.useCRIC:
             panda_queues_dict = PandaQueuesDict()
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
@@ -539,7 +547,7 @@ class HTCondorSubmitter(PluginBase):
         # deal with CE
         special_par = ''
         ce_weighting = None
-        if self.useAtlasGridCE:
+        if self.useCRICGridCE:
             # If ATLAS Grid CE mode used
             tmpLog.debug('Using ATLAS Grid CE mode...')
             queues_from_queue_list = this_panda_queue_dict.get('queues', [])
@@ -633,7 +641,7 @@ class HTCondorSubmitter(PluginBase):
                     'to_submit': to_submit,}
             if to_submit:
                 sdf_template_file = None
-                if self.useAtlasGridCE:
+                if self.useCRICGridCE:
                     # choose a CE
                     tmpLog.info('choose a CE...')
                     ce_chosen = submitter_common.choose_ce(ce_weighting)
