@@ -437,6 +437,18 @@ class HTCondorSubmitter(PluginBase):
             self.rcPilotRandomWeightPermille
         except AttributeError:
             self.rcPilotRandomWeightPermille = 0
+        # whether support submission to ARC CE's gridftp and rest interface
+        self.submit_arc_gridftp = True
+        self.submit_arc_rest = True
+        try:
+            extra_plugin_configs = harvester_config.master.extraPluginConfigs['HTCondorSubmitter']
+        except AttributeError:
+            pass
+        except KeyError:
+            pass
+        else:
+            self.submit_arc_gridftp = extra_plugin_configs.get('submit_arc_gridftp', True)
+            self.submit_arc_rest = extra_plugin_configs.get('submit_arc_rest', True)
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
@@ -568,11 +580,16 @@ class HTCondorSubmitter(PluginBase):
                 ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                 ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                 ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
-                if ce_flavour_str == 'arc-ce' and ce_endpoint_prefix in ['https', 'http']:
-                    # new ARC REST interface
-                    ce_info_dict['ce_arc_grid_type'] = 'arc'
-                else:
-                    ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
+                if ce_flavour_str == 'arc-ce':
+                    if self.submit_arc_rest and ce_endpoint_prefix in ['https', 'http']:
+                        # new ARC REST interface
+                        ce_info_dict['ce_arc_grid_type'] = 'arc'
+                    elif self.submit_arc_gridftp:
+                        # old gridftp interface
+                        ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
+                    else:
+                        # not support the interface; skip this endpoint
+                        continue
                 ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
                 if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
                     and ce_info_dict['ce_arc_grid_type'] != 'arc':
