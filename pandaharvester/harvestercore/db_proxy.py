@@ -3516,7 +3516,7 @@ class DBProxy(object):
             return {}
 
     # send kill command to workers associated to a job
-    def mark_workers_to_kill_by_pandaid(self, panda_id):
+    def mark_workers_to_kill_by_pandaid(self, panda_id, delay_seconds=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id),
@@ -3528,8 +3528,13 @@ class DBProxy(object):
             # sql to get associated workers
             sqlA = "SELECT workerID FROM {0} ".format(jobWorkerTableName)
             sqlA += "WHERE PandaID=:pandaID "
-            # set an older time to trigger sweeper
-            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set time to trigger sweeper
+            if delay_seconds is None:
+                # set a past time to trigger sweeper immediately
+                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            else:
+                # set a future time to delay trigger
+                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
             # get workers
             varMap = dict()
             varMap[':pandaID'] = panda_id
@@ -3559,7 +3564,7 @@ class DBProxy(object):
             return None
 
     # send kill command to workers
-    def mark_workers_to_kill_by_workerids(self, worker_ids):
+    def mark_workers_to_kill_by_workerids(self, worker_ids, delay_seconds=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='mark_workers_to_kill_by_workerids')
@@ -3567,8 +3572,13 @@ class DBProxy(object):
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
             sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
-            # set an older time to trigger sweeper
-            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set time to trigger sweeper
+            if delay_seconds is None:
+                # set a past time to trigger sweeper immediately
+                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            else:
+                # set a future time to delay trigger
+                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
             varMaps = []
             for worker_id in worker_ids:
                 varMap = dict()
@@ -5516,16 +5526,14 @@ class DBProxy(object):
             return {}
 
     # send kill command to workers by query
-    def mark_workers_to_kill_by_query(self, params):
+    def mark_workers_to_kill_by_query(self, params, delay_seconds=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='mark_workers_to_kill_by_query')
             tmpLog.debug('start')
-
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
             sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
-
             # sql to get workers
             constraints_query_string_list = []
             tmp_varMap = {}
@@ -5548,9 +5556,13 @@ class DBProxy(object):
             constraints_query_string = ' AND '.join(constraints_query_string_list)
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE {0} ".format(constraints_query_string)
-
-            # set an older time to trigger sweeper
-            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set time to trigger sweeper
+            if delay_seconds is None:
+                # set a past time to trigger sweeper immediately
+                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            else:
+                # set a future time to delay trigger
+                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
             # get workers
             varMap = dict()
             varMap.update(tmp_varMap)
@@ -5567,7 +5579,6 @@ class DBProxy(object):
                 varMap[':st3'] = WorkSpec.ST_cancelled
                 self.execute(sqlL, varMap)
                 nRow += self.cur.rowcount
-
             # commit
             self.commit()
             tmpLog.debug('set killTime to {0} workers'.format(nRow))
