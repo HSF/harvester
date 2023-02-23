@@ -23,6 +23,10 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg \n\
 
 RUN yum install -y google-cloud-sdk-gke-gcloud-auth-plugin kubectl
 
+# install voms
+RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/osg-3.6-el7-release-latest.rpm
+RUN yum install -y vo-client.noarch
+
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
 RUN /opt/harvester/bin/pip install -U setuptools
@@ -64,9 +68,6 @@ RUN chmod -R 777 /var/log/httpd
 RUN chmod -R 777 /var/lib/logrotate
 RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
 COPY docker/httpd.conf /etc/httpd/conf/
-
-RUN mkdir -p /etc/vomses/
-COPY docker/vomses /etc/vomses/
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
