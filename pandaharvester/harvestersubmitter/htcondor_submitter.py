@@ -253,7 +253,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotArgs': pilot_args,
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
-            'ceARCGridType': ce_info_dict.get('ce_arc_grid_type', 'nordugrid'),
+            'ceARCGridType': ce_info_dict.get('ce_grid_type', 'nordugrid'),
             'tokenDir': token_dir,
             'tokenFilename': token_filename,
             'tokenPath': token_path,
@@ -437,9 +437,8 @@ class HTCondorSubmitter(PluginBase):
             self.rcPilotRandomWeightPermille
         except AttributeError:
             self.rcPilotRandomWeightPermille = 0
-        # whether support submission to ARC CE's gridftp and rest interface
-        self.submit_arc_gridftp = True
-        self.submit_arc_rest = True
+        # submission to ARC CE's with nordugrid (gridftp) or arc (REST) grid type
+        self.submit_arc_grid_type = 'nordugrid'
         try:
             extra_plugin_configs = harvester_config.master.extraPluginConfigs['HTCondorSubmitter']
         except AttributeError:
@@ -447,8 +446,8 @@ class HTCondorSubmitter(PluginBase):
         except KeyError:
             pass
         else:
-            self.submit_arc_gridftp = extra_plugin_configs.get('submit_arc_gridftp', True)
-            self.submit_arc_rest = extra_plugin_configs.get('submit_arc_rest', True)
+            if extra_plugin_configs.get('submit_arc_grid_type') == 'arc':
+                self.submit_arc_grid_type = 'arc'
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
@@ -531,7 +530,6 @@ class HTCondorSubmitter(PluginBase):
         pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
         python_version = str(this_panda_queue_dict.get('python_version', '2'))
         is_gpu_resource = this_panda_queue_dict.get('resource_type', '') == 'gpu'
-        sdf_suffix_str = ''
 
         # get override requirements from queue configured
         try:
@@ -560,8 +558,8 @@ class HTCondorSubmitter(PluginBase):
         special_par = ''
         ce_weighting = None
         if self.useCRICGridCE:
-            # If ATLAS Grid CE mode used
-            tmpLog.debug('Using ATLAS Grid CE mode...')
+            # If CRIC Grid CE mode used
+            tmpLog.debug('Using CRIC Grid CE mode...')
             queues_from_queue_list = this_panda_queue_dict.get('queues', [])
             special_par = this_panda_queue_dict.get('special_par', '')
             ce_auxilary_dict = {}
@@ -580,28 +578,34 @@ class HTCondorSubmitter(PluginBase):
                 ce_endpoint_from_queue = re.sub('^\w+://', '', ce_info_dict.get('ce_endpoint', ''))
                 ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                 ce_version_str = str(ce_info_dict.get('ce_version', '')).lower()
+                # grid type of htcondor grid universe to use; empty string as default
+                ce_info_dict['ce_grid_type'] = ''
                 if ce_flavour_str == 'arc-ce':
-                    if self.submit_arc_rest and ce_endpoint_prefix in ['https', 'http']:
-                        # new ARC REST interface
-                        ce_info_dict['ce_arc_grid_type'] = 'arc'
-                    elif self.submit_arc_gridftp:
-                        # old gridftp interface
-                        ce_info_dict['ce_arc_grid_type'] = 'nordugrid'
-                    else:
-                        # not support the interface; skip this endpoint
-                        continue
+                    ce_info_dict['ce_grid_type'] = self.submit_arc_grid_type
                 ce_info_dict['ce_hostname'] = re.sub(':\w*', '',  ce_endpoint_from_queue)
-                if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue \
-                    and ce_info_dict['ce_arc_grid_type'] != 'arc':
-                    # add default port to ce_endpoint if missing
-                    default_port_map = {
-                            'cream-ce': 8443,
-                            'arc-ce': 2811,
-                            'htcondor-ce': 9619,
-                        }
-                    if ce_flavour_str in default_port_map:
-                        default_port = default_port_map[ce_flavour_str]
-                        ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
+                if ce_info_dict['ce_grid_type'] == 'arc':
+                    default_port = None
+                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
+                        # defaut port
+                        default_port = 443
+                    else:
+                        # change port 2811 to 443
+                        ce_endpoint_from_queue = re.sub(r':2811$', ':443', ce_endpoint_from_queue)
+                    ce_info_dict['ce_endpoint'] = '{0}{1}'.format(ce_endpoint_from_queue,
+                                                    ':{0}'.format(default_port) if default_port is not None else '')
+                else:
+                    if ce_info_dict['ce_hostname'] == ce_endpoint_from_queue:
+                        # add default port to ce_endpoint if missing
+                        default_port_map = {
+                                'cream-ce': 8443,
+                                'arc-ce': 2811,
+                                'htcondor-ce': 9619,
+                            }
+                        if ce_flavour_str in default_port_map:
+                            default_port = default_port_map[ce_flavour_str]
+                            ce_info_dict['ce_endpoint'] = '{0}:{1}'.format(ce_endpoint_from_queue, default_port)
+                    if ce_flavour_str == 'arc-ce':
+                        ce_info_dict['ce_endpoint'] = '{0}'.format(ce_endpoint_from_queue)
                 tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
                                 pilot_version, ce_endpoint_from_queue, ce_flavour_str))
                 ce_endpoint = ce_info_dict.get('ce_endpoint')
@@ -672,6 +676,9 @@ class HTCondorSubmitter(PluginBase):
                     if self.templateFile:
                         sdf_template_file = self.templateFile
                     elif os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
+                        sdf_suffix_str = ''
+                        if ce_info_dict['ce_grid_type']:
+                            sdf_suffix_str = '_{ce_grid_type}'.format(ce_grid_type=ce_info_dict['ce_grid_type'])
                         sdf_template_filename = '{ce_flavour_str}{sdf_suffix_str}.sdf'.format(
                                                     ce_flavour_str=ce_flavour_str, sdf_suffix_str=sdf_suffix_str)
                         sdf_template_file = os.path.join(self.CEtemplateDir, sdf_template_filename)
