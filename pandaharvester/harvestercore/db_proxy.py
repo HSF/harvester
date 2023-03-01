@@ -3515,8 +3515,77 @@ class DBProxy(object):
             # return
             return {}
 
+    # get full worker stats
+    def get_worker_stats_full(self, filter_site_list=None):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name='get_worker_stats_full')
+            tmpLog.debug('start')
+            # sql to get nQueueLimit
+            varMap = dict()
+            sqlQ = "SELECT queueName, jobType, resourceType, nNewWorkers FROM {0} ".format(pandaQueueTableName)
+            if filter_site_list is not None:
+                site_var_name_list = []
+                for j, site in enumerate(filter_site_list):
+                    site_var_name = ':site{0}'.format(j)
+                    site_var_name_list.append(site_var_name)
+                    varMap[site_var_name] = site
+                filter_queue_str = ','.join(site_var_name_list)
+                sqlQ += "WHERE siteName IN ({0}) ".format(filter_queue_str)
+            # get nQueueLimit
+            self.execute(sqlQ, varMap)
+            resQ = self.cur.fetchall()
+            retMap = dict()
+            for computingSite, jobType, resourceType, nNewWorkers in resQ:
+                computingSite = str(computingSite)
+                jobType = str(jobType)
+                resourceType = str(resourceType)
+                retMap.setdefault(computingSite, {})
+                retMap[computingSite].setdefault(jobType, {})
+                retMap[computingSite][jobType][resourceType] = {'running': 0,
+                                                                'submitted': 0,
+                                                                'to_submit': nNewWorkers}
+            # get worker stats
+            varMap = dict()
+            sqlW = "SELECT wt.status, wt.computingSite, wt.jobType, wt.resourceType, COUNT(*) cnt "
+            sqlW += "FROM {0} wt ".format(workTableName)
+            if filter_site_list is not None:
+                site_var_name_list = []
+                for j, site in enumerate(filter_site_list):
+                    site_var_name = ':site{0}'.format(j)
+                    site_var_name_list.append(site_var_name)
+                    varMap[site_var_name] = site
+                filter_queue_str = ','.join(site_var_name_list)
+                sqlW += "WHERE wt.computingSite IN ({0}) ".format(filter_queue_str)
+            sqlW += "GROUP BY wt.status,wt.computingSite, wt.jobType, wt.resourceType "
+            # get worker stats
+            self.execute(sqlW, varMap)
+            resW = self.cur.fetchall()
+            for workerStatus, computingSite, jobType, resourceType, cnt in resW:
+                workerStatus = str(workerStatus)
+                computingSite = str(computingSite)
+                jobType = str(jobType)
+                resourceType = str(resourceType)
+                retMap.setdefault(computingSite, {})
+                retMap[computingSite].setdefault(jobType, {})
+                retMap[computingSite][jobType].setdefault(resourceType, {'running': 0,
+                                                                         'submitted': 0,
+                                                                         'to_submit': 0})
+                retMap[computingSite][jobType][resourceType][workerStatus] = cnt
+            # commit
+            self.commit()
+            tmpLog.debug('got {0}'.format(str(retMap)))
+            return retMap
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
     # send kill command to workers associated to a job
-    def mark_workers_to_kill_by_pandaid(self, panda_id):
+    def mark_workers_to_kill_by_pandaid(self, panda_id, delay_seconds=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, 'PandaID={0}'.format(panda_id),
@@ -3528,8 +3597,13 @@ class DBProxy(object):
             # sql to get associated workers
             sqlA = "SELECT workerID FROM {0} ".format(jobWorkerTableName)
             sqlA += "WHERE PandaID=:pandaID "
-            # set an older time to trigger sweeper
-            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set time to trigger sweeper
+            if delay_seconds is None:
+                # set a past time to trigger sweeper immediately
+                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            else:
+                # set a future time to delay trigger
+                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
             # get workers
             varMap = dict()
             varMap[':pandaID'] = panda_id
@@ -3559,7 +3633,7 @@ class DBProxy(object):
             return None
 
     # send kill command to workers
-    def mark_workers_to_kill_by_workerids(self, worker_ids):
+    def mark_workers_to_kill_by_workerids(self, worker_ids, delay_seconds=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='mark_workers_to_kill_by_workerids')
@@ -3567,8 +3641,13 @@ class DBProxy(object):
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
             sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
-            # set an older time to trigger sweeper
-            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set time to trigger sweeper
+            if delay_seconds is None:
+                # set a past time to trigger sweeper immediately
+                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            else:
+                # set a future time to delay trigger
+                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
             varMaps = []
             for worker_id in worker_ids:
                 varMap = dict()
@@ -5516,16 +5595,14 @@ class DBProxy(object):
             return {}
 
     # send kill command to workers by query
-    def mark_workers_to_kill_by_query(self, params):
+    def mark_workers_to_kill_by_query(self, params, delay_seconds=None):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name='mark_workers_to_kill_by_query')
             tmpLog.debug('start')
-
             # sql to set killTime
             sqlL = "UPDATE {0} SET killTime=:setTime ".format(workTableName)
             sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
-
             # sql to get workers
             constraints_query_string_list = []
             tmp_varMap = {}
@@ -5548,9 +5625,13 @@ class DBProxy(object):
             constraints_query_string = ' AND '.join(constraints_query_string_list)
             sqlW = "SELECT workerID FROM {0} ".format(workTableName)
             sqlW += "WHERE {0} ".format(constraints_query_string)
-
-            # set an older time to trigger sweeper
-            setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            # set time to trigger sweeper
+            if delay_seconds is None:
+                # set a past time to trigger sweeper immediately
+                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            else:
+                # set a future time to delay trigger
+                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
             # get workers
             varMap = dict()
             varMap.update(tmp_varMap)
@@ -5567,7 +5648,6 @@ class DBProxy(object):
                 varMap[':st3'] = WorkSpec.ST_cancelled
                 self.execute(sqlL, varMap)
                 nRow += self.cur.rowcount
-
             # commit
             self.commit()
             tmpLog.debug('set killTime to {0} workers'.format(nRow))
