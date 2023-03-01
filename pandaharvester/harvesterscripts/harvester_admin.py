@@ -260,6 +260,17 @@ def kill_workers(arguments):
     else:
         mainLogger.critical('Failed to kill workers. See panda-db_proxy.log')
 
+def query_workers(arguments):
+    dbProxy = DBProxy()
+    try:
+        if arguments.all:
+            res_obj = dbProxy.get_worker_stats_full()
+        else:
+            res_obj = dbProxy.get_worker_stats_full(filter_site_list=arguments.queue_list)
+        json_print(res_obj)
+    except TypeError as e:
+        raise
+
 #=== Command map =======================================================
 
 commandMap = {
@@ -279,6 +290,8 @@ commandMap = {
             'qconf_purge': qconf_purge,
             # kill commands
             'kill_workers': kill_workers,
+            # query commands
+            'query_workers': query_workers,
             }
 
 #=== Main ======================================================
@@ -288,13 +301,16 @@ def main():
     oparser = argparse.ArgumentParser(prog='harvester-admin', add_help=True)
     subparsers = oparser.add_subparsers()
     oparser.add_argument('-v', '--verbose', '--debug', action='store_true', dest='debug', help="Print more verbose output. (Debug mode !)")
+
     # test command
     test_parser = subparsers.add_parser('test', help='for testing only')
     test_parser.set_defaults(which='test')
+
     # get command
     get_parser = subparsers.add_parser('get', help='get attributes of this harvester')
     get_parser.set_defaults(which='get')
     get_parser.add_argument('attribute', type=str, action='store', metavar='<attribute>', choices=get_harvester_attributes(), help='attribute')
+
     # fifo parser
     fifo_parser = subparsers.add_parser('fifo', help='fifo related')
     fifo_subparsers = fifo_parser.add_subparsers()
@@ -307,12 +323,14 @@ def main():
     fifo_repopulate_parser = fifo_subparsers.add_parser('repopulate', help='Repopulate agent fifo')
     fifo_repopulate_parser.set_defaults(which='fifo_repopulate')
     fifo_repopulate_parser.add_argument('name_list', nargs='+', type=str, action='store', metavar='<agent_name>', help='Name of agent fifo, e.g. "monitor" ("ALL" for all)')
+
     # cacher parser
     cacher_parser = subparsers.add_parser('cacher', help='cacher related')
     cacher_subparsers = cacher_parser.add_subparsers()
     # cacher refresh command
     cacher_refresh_parser = cacher_subparsers.add_parser('refresh', help='refresh cacher immediately')
     cacher_refresh_parser.set_defaults(which='cacher_refresh')
+
     # qconf (queue configuration) parser
     qconf_parser = subparsers.add_parser('qconf', help='queue configuration')
     qconf_subparsers = qconf_parser.add_subparsers()
@@ -335,6 +353,7 @@ def main():
     qconf_purge_parser = qconf_subparsers.add_parser('purge', help='Purge the queue thoroughly from harvester DB (Be careful !!)')
     qconf_purge_parser.set_defaults(which='qconf_purge')
     qconf_purge_parser.add_argument('queue', type=str, action='store', metavar='<queue_name>', help='Name of panda queue to purge')
+
     # kill parser
     kill_parser = subparsers.add_parser('kill', help='kill something alive')
     kill_subparsers = kill_parser.add_subparsers()
@@ -345,6 +364,15 @@ def main():
     kill_workers_parser.add_argument('--sites', nargs='+', dest='sites', action='store', metavar='<site>', required=True, help='site (computingSite); "ALL" for all sites')
     kill_workers_parser.add_argument('--ces', nargs='+', dest='ces', action='store', metavar='<ce>', required=True, help='CE (computingElement); "ALL" for all CEs')
     kill_workers_parser.add_argument('--submissionhosts', nargs='+', dest='submissionhosts', action='store', metavar='<submission_host>', required=True, help='submission host (submissionHost); "ALL" for all submission hosts')
+
+    # query parser
+    query_parser = subparsers.add_parser('query', help='query current status about harvester')
+    query_subparsers = query_parser.add_subparsers()
+    # query worker_stats command
+    query_workers_parser = query_subparsers.add_parser('workers', help='Query statistiscs of workers in queues')
+    query_workers_parser.set_defaults(which='query_workers')
+    query_workers_parser.add_argument('-a', '--all', dest='all', action='store_true', help='Show results of all queues')
+    query_workers_parser.add_argument('queue_list', nargs='*', type=str, action='store', metavar='<queue_name>', help='Name of active queue')
 
     # start parsing
     if len(sys.argv) == 1:
