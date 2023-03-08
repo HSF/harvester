@@ -24,8 +24,7 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg \n\
 RUN yum install -y google-cloud-sdk-gke-gcloud-auth-plugin kubectl
 
 # install voms
-RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/osg-3.6-el7-release-latest.rpm
-RUN yum install -y vo-client.noarch
+RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el7/release/x86_64/vo-client-130-1.osg36.el7.noarch.rpm
 
 RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
