@@ -3,6 +3,7 @@ import os
 import sys
 import six
 import json
+import socket
 from future.utils import iteritems
 
 from liveconfigparser.LiveConfigParser import LiveConfigParser
@@ -27,6 +28,8 @@ def env_var_parse(val):
     if match is None:
         return val
     var_name = match.group(1)
+    if var_name.upper() == 'HOSTNAME':
+        return socket.gethostname().split(".")[0]
     if var_name not in os.environ:
         raise KeyError('{0} in the cfg is an undefined environment variable.'.format(var_name))
     else:
