@@ -295,7 +295,10 @@ class HTCondorSubmitter(PluginBase):
         tmpLog = core_utils.make_logger(baseLogger, method_name='__init__')
         self.logBaseURL = None
         self.templateFile = None
-        self.hostname = socket.gethostname().split(".")[0]
+        if hasattr(self, 'useFQDN') and self.useFQDN:
+            self.hostname = socket.getfqdn()
+        else:
+            self.hostname = socket.gethostname().split(".")[0]
         PluginBase.__init__(self, **kwarg)
         # number of processes
         try:
