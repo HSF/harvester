@@ -5,13 +5,13 @@ from constants import voms_lancium_path, voms_job_path, script_lancium_path, scr
 # https://lancium.github.io/compute-api-docs/library/lancium/api/Job.html#Job.create
 
 worker_id = uuid.uuid1()
-core_count = 1
+core_count = 0.5
 memory = 1
 scratch = 20
 
 params = {'name': 'grid-job-{0}'.format(worker_id),
-          'command_line': 'python pilots_starter.py',
-          'image': 'test/centos7-singularity',
+          'command_line': 'python voms/scripts/pilots_starter.py',
+          'image': 'harvester/centos7-singularity',
           'resources': {'core_count': core_count,
                         'memory': memory,
                         'scratch': scratch
@@ -35,10 +35,10 @@ params = {'name': 'grid-job-{0}'.format(worker_id),
               {'variable': 'resourceType', 'value': 'SCORE'},
               {'variable': 'prodSourceLabel', 'value': 'managed'},
               {'variable': 'pilotType', 'value': 'PR'},
-              {'variable': 'pythonOption', 'value': '--pythonversion 3'},
-              {'variable': 'pilotVersion', 'value': '3.4.7.6'},
+              #{'variable': 'pythonOption', 'value': '--pythonversion\ 3'},
+              {'variable': 'pilotVersion', 'value': '3.5.0.31'},
               {'variable': 'jobType', 'value': 'managed'},
-              {'variable': 'proxySecretPath', 'value': voms_job_path},
+              {'variable': 'proxySecretPath', 'value': '/jobDir/voms/secrets/test1'},
               {'variable': 'workerID', 'value': '1'},
               {'variable': 'pilotProxyCheck', 'value': 'False'},
               {'variable': 'logs_frontend_w', 'value': 'https://aipanda047.cern.ch:25443/server/panda'},
@@ -47,8 +47,8 @@ params = {'name': 'grid-job-{0}'.format(worker_id),
               {'variable': 'HARVESTER_WORKER_ID', 'value': '21421931'},
               {'variable': 'HARVESTER_ID', 'value': 'CERN_central_k8s'},
               {'variable': 'submit_mode', 'value': 'PULL'},
-              {'variable': 'TMPDIR', 'value': '/pilotdir'},
-              {'variable': 'HOME', 'value': '/pilotdir'},
+              {'variable': 'TMPDIR', 'value': '/jobDir'},
+              {'variable': 'HOME', 'value': '/jobDir'},
               {'variable': 'K8S_JOB_ID', 'value': 'grid-job-1'},
           )
           }
