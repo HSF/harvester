@@ -332,6 +332,8 @@ class HTCondorSubmitter(PluginBase):
                 self.logBaseURL = self.logBaseURL.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         except AttributeError:
             self.logBaseURL = None
+        if self.logBaseURL and '${harvester_id}' in self.logBaseURL:
+            self.logBaseURL = self.logBaseURL.replace("${harvester_id}", harvester_config.master.harvester_id)
         # Default x509 proxy for a queue
         try:
             self.x509UserProxy
