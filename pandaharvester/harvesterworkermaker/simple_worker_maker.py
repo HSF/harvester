@@ -28,9 +28,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         job_memory = job_spec.jobParams.get('minRamCount', 0) or 0
         job_corecount = job_spec.jobParams.get('coreCount', 1) or 1
 
-        unified_queue = queue_dict.get('capability', '') == 'ucore'
+        is_ucore = queue_dict.get('capability', '') == 'ucore'
 
-        if not job_memory and unified_queue:
+        if not job_memory and is_ucore:
             site_maxrss = queue_dict.get('maxrss', 0) or 0
             site_corecount = queue_dict.get('corecount', 1) or 1
 
@@ -60,7 +60,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         # 3. convert the prodSourcelabel from the queue configuration or leave it empty (PULL)
         else:
-            # map AGIS types to PanDA types
+            # map CRIC types to PanDA types
             if queue_type == 'analysis':
                 job_type_final = 'user'
             elif queue_type == 'production':
@@ -92,13 +92,14 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         workSpec = WorkSpec()
         workSpec.creationTime = datetime.datetime.utcnow()
 
-        # get the queue configuration from the DB
+        # get the queue configuration from CRIC
         panda_queues_dict = PandaQueuesDict()
         queue_dict = panda_queues_dict.get(queue_config.queueName, {})
+        associated_params_dict = panda_queues_dict.get_harvester_params(queue_config.queueName)
 
-        unified_queue = queue_dict.get('capability', '') == 'ucore'
-        # case of traditional (non-unified) queue: look at the queue configuration
-        if not unified_queue:
+        is_ucore = queue_dict.get('capability', '') == 'ucore'
+        # case of traditional (non-ucore) queue: look at the queue configuration
+        if not is_ucore:
             workSpec.nCore = queue_dict.get('corecount', 1) or 1
             workSpec.minRamCount = queue_dict.get('maxrss', 1) or 1
 
@@ -149,20 +150,20 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 except Exception:
                     pass
             try:
-                # maxWallTime from AGIS or qconf, not trusting job currently
+                # maxWallTime from CRIC or qconf
                 maxWalltime = queue_dict.get('maxtime', walltimeLimit_default)
             except Exception:
                 pass
-
-            if (nCore > 0 and 'nCore' in self.jobAttributesToUse) or unified_queue:
+            # fill in th values
+            if (nCore > 0 and 'nCore' in self.jobAttributesToUse) or is_ucore:
                 workSpec.nCore = nCore
-            if (minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse) or unified_queue:
+            if (minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse) or is_ucore:
                 workSpec.minRamCount = minRamCount
-            if maxDiskCount > 0 and 'maxDiskCount' in self.jobAttributesToUse:
+            if maxDiskCount > 0 and ('maxDiskCount' in self.jobAttributesToUse or associated_params_dict['job_maxdiskcount'] is True):
                 workSpec.maxDiskCount = maxDiskCount
-            if maxWalltime > 0 and 'maxWalltime' in self.jobAttributesToUse:
+            if maxWalltime > 0 and ('maxWalltime' in self.jobAttributesToUse or associated_params_dict['job_maxwalltime'] is True):
                 workSpec.maxWalltime = maxWalltime
-            if ioIntensity > 0 and 'ioIntensity' in self.jobAttributesToUse:
+            if ioIntensity > 0 and ('ioIntensity' in self.jobAttributesToUse or associated_params_dict['job_iointensity'] is True):
                 workSpec.ioIntensity = ioIntensity
 
             workSpec.pilotType = jobspec_list[0].get_pilot_type()
