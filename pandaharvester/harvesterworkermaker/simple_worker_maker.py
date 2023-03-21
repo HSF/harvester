@@ -137,6 +137,11 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             maxDiskCount = 0
             maxWalltime = 0
             ioIntensity = 0
+            try:
+                # maxWallTime default from CRIC or qconf
+                maxWalltime = queue_dict.get('maxtime', walltimeLimit_default)
+            except Exception:
+                pass
             for jobSpec in jobspec_list:
                 job_corecount, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
                 nCore += job_corecount
@@ -146,24 +151,23 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 except Exception:
                     pass
                 try:
+                    maxWalltime += jobSpec.jobParams['maxWalltime']
+                except Exception:
+                    pass
+                try:
                     ioIntensity += jobSpec.jobParams['ioIntensity']
                 except Exception:
                     pass
-            try:
-                # maxWallTime from CRIC or qconf
-                maxWalltime = queue_dict.get('maxtime', walltimeLimit_default)
-            except Exception:
-                pass
             # fill in th values
             if (nCore > 0 and 'nCore' in self.jobAttributesToUse) or is_ucore:
                 workSpec.nCore = nCore
             if (minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse) or is_ucore:
                 workSpec.minRamCount = minRamCount
-            if maxDiskCount > 0 and ('maxDiskCount' in self.jobAttributesToUse or associated_params_dict['job_maxdiskcount'] is True):
+            if maxDiskCount > 0 and ('maxDiskCount' in self.jobAttributesToUse or associated_params_dict.get('job_maxdiskcount') is True):
                 workSpec.maxDiskCount = maxDiskCount
-            if maxWalltime > 0 and ('maxWalltime' in self.jobAttributesToUse or associated_params_dict['job_maxwalltime'] is True):
+            if maxWalltime > 0 and ('maxWalltime' in self.jobAttributesToUse or associated_params_dict.get('job_maxwalltime') is True):
                 workSpec.maxWalltime = maxWalltime
-            if ioIntensity > 0 and ('ioIntensity' in self.jobAttributesToUse or associated_params_dict['job_iointensity'] is True):
+            if ioIntensity > 0 and ('ioIntensity' in self.jobAttributesToUse or associated_params_dict.get('job_iointensity') is True):
                 workSpec.ioIntensity = ioIntensity
 
             workSpec.pilotType = jobspec_list[0].get_pilot_type()
