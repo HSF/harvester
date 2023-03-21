@@ -137,11 +137,6 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             maxDiskCount = 0
             maxWalltime = 0
             ioIntensity = 0
-            try:
-                # maxWallTime default from CRIC or qconf
-                maxWalltime = queue_dict.get('maxtime', walltimeLimit_default)
-            except Exception:
-                pass
             for jobSpec in jobspec_list:
                 job_corecount, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
                 nCore += job_corecount
