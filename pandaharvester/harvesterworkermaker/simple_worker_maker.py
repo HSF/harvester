@@ -153,7 +153,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     ioIntensity += jobSpec.jobParams['ioIntensity']
                 except Exception:
                     pass
-            # fill in th values
+            # fill in worker attributes
             if (nCore > 0 and 'nCore' in self.jobAttributesToUse) or is_ucore:
                 workSpec.nCore = nCore
             if (minRamCount > 0 and 'minRamCount' in self.jobAttributesToUse) or is_ucore:
