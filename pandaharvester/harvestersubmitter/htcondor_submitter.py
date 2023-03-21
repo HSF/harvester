@@ -676,8 +676,9 @@ class HTCondorSubmitter(PluginBase):
                     except KeyError:
                         tmpLog.info('Problem choosing CE with weighting. Choose an arbitrary CE endpoint')
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
+                    ce_flavour_str = str(ce_info_dict.get('ce_flavour', '')).lower()
                     tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(
-                                    pilot_version, ce_endpoint_from_queue, ce_flavour_str))
+                                    pilot_version, ce_info_dict['ce_endpoint'], ce_flavour_str))
                     if self.templateFile:
                         sdf_template_file = self.templateFile
                     elif os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
