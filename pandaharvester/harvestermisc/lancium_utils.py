@@ -19,6 +19,9 @@ from lancium.api.Data import Data
 
 base_logger = core_utils.setup_logger('lancium_utils')
 
+SECRETS_PATH = '/secrets/'
+SCRIPTS_PATH = '/scripts/'
+
 class LanciumClient(object):
 
     def __init__(self, queue_name=None):
@@ -32,6 +35,7 @@ class LanciumClient(object):
         data.upload(os.path.abspath(local_path), fake_callback)
         ex = data.show(lancium_path)[0]
         tmp_log.debug("Uploaded file {0}".format(ex.__dict__))
+
 
 if __name__ == "__main__":
     lancium_client = LanciumClient()
