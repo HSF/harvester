@@ -1,5 +1,4 @@
 import os
-import argparse
 import traceback
 try:
     from urllib import unquote  # Python 2.X
