@@ -69,8 +69,7 @@ class LanciumSecretCredManager(BaseCredManager):
                 lancium_file = os.path.join(SECRETS_PATH, base_name)
                 self.lancium_client.upload_file(local_file, lancium_file)
             except Exception:
-                tmp_log.error('Problem uploading proxy {0}. {1}'.format(local_file,
-                                                                        traceback.format_exc()))
+                tmp_log.error('Problem uploading proxy {0}. {1}'.format(local_file, traceback.format_exc()))
 
         tmp_log.debug('Done uploading proxies')
 

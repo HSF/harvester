@@ -1,6 +1,3 @@
-import os
-# TODO: LANCIUM_API_KEY needs to be present before importing the Lancium python API
-# os.environ["LANCIUM_API_KEY"] = "XYZ"
 import traceback
 
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +8,8 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestersubmitter import submitter_common
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+
+from pandaharvester.harvestermisc.lancium_utils import LanciumClient, SCRIPTS_PATH
 
 base_logger = core_utils.setup_logger('lancium_submitter')
 
@@ -43,7 +42,21 @@ class LanciumSubmitter(PluginBase):
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
 
+        self.lancium_client = LanciumClient(queue_name=self.queueName)
+
     def upload_pilots_starter(self):
+        tmp_log = self.make_logger(_logger, method_name='upload_pilots_starter')
+
+        try:
+            base_name = 'pilots_starter.py'
+            dir_name = os.path.dirname(__file__)
+
+            local_file = os.path.join(dir_name, '../harvestercloud/{0}'.format(base_name))
+            lancium_file = os.path.join(SCRIPTS_PATH, base_name)
+
+            self.lancium_client.upload_file(local_file, lancium_file)
+        except Exception:
+            tmp_log.error('Problem uploading proxy {0}. {1}'.format(local_file, traceback.format_exc()))
 
     def _choose_proxy(self, work_spec):
         """
@@ -68,7 +81,7 @@ class LanciumSubmitter(PluginBase):
                     maxwdir_prorated_gib, max_time, pilot_type, pilot_url_str, pilot_version, prod_source_label, pilot_python_option,
                     log_file_name):
 
-        worker_name = 'atlas-lancium-worker-{0}'.format(work_spec.workerID)
+        worker_name = '{0}-{1}'.format(harvester_config.master.harvester_id, work_spec.workerID)
 
         # submit the worker
         params = {'name': worker_name,
@@ -169,20 +182,16 @@ class LanciumSubmitter(PluginBase):
                                       memory_gb, maxwdir_prorated_gib, max_time, pilot_type, pilot_url_str,
                                       pilot_version, prod_source_label, pilot_python_option, log_file_name)
 
-            # create the job
-            job = Job().create(**params)
-            print('Created! name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
-
-            # submit the job
-            job.submit()
-            print('Submitted! name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
+            return_code, error_description = self.lancium_client.submit_job(**params)
+            if not return_code:
+                return return_code, error_description
 
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
             err_str = 'Failed to create a worker; {0}'.format(_e)
             tmp_return_value = (False, err_str)
         else:
-            work_spec.batchID = yaml_content['metadata']['name']
+            work_spec.batchID = params['name']
             tmp_log.debug('Created worker {0} with batchID={1}'.format(work_spec.workerID, work_spec.batchID))
             tmp_return_value = (True, '')
 
