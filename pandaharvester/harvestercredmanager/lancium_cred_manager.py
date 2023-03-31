@@ -1,6 +1,7 @@
 import json
 import traceback
 import os
+import socket
 
 from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
@@ -14,6 +15,7 @@ _logger = core_utils.setup_logger('lancium_cred_manager')
 # upload cred to Lancium periodically
 class LanciumSecretCredManager(BaseCredManager):
     def __init__(self, **kwarg):
+        self.hostname = socket.getfqdn()
         BaseCredManager.__init__(self, **kwarg)
 
         tmp_log = self.make_logger(_logger, method_name='__init__')
@@ -47,7 +49,7 @@ class LanciumSecretCredManager(BaseCredManager):
 
         try:
             self.panda_queues_dict = PandaQueuesDict()
-            self.lancium_client = LanciumClient(queue_name=self.queueName)
+            self.lancium_client = LanciumClient(self.hostname, queue_name=self.queueName)
         except Exception as e:
             tmp_log.error('Problem instantiating lancium client for {0}. {1}'.format(self.lancium_config_file,
                                                                                      traceback.format_exc()))
