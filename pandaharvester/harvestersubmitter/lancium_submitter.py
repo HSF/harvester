@@ -162,6 +162,11 @@ class LanciumSubmitter(PluginBase):
                                                                                    workspec.nCore)
             max_time = this_panda_queue_dict.get('maxtime', None)
 
+            associated_params_dict = {}
+            for key, val in self.panda_queues_dict.get_harvester_params(self.queueName).items():
+                if key in self._allowed_agis_attrs:
+                    associated_params_dict[key] = val
+
             pilot_url = associated_params_dict.get('pilot_url')
             pilot_version = str(this_panda_queue_dict.get('pilot_version', 'current'))
             python_version = str(this_panda_queue_dict.get('python_version', '3'))
