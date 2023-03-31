@@ -247,7 +247,7 @@ class CondorClient(object):
             func_name = func.__name__
             try:
                 self.schedd
-            except AttributeError:
+            except AttributeError as e:
                 if self.lock.acquire(False):
                     is_renewed = self.renew_session()
                     self.lock.release()
@@ -296,6 +296,10 @@ class CondorClient(object):
         else:
             try:
                 self.condor_schedd, self.condor_pool = self.submissionHost.split(',')[0:2]
+                if self.condor_schedd in ['None']:
+                    self.condor_schedd = None
+                if self.condor_pool in ['None']:
+                    self.condor_pool = None
             except ValueError:
                 tmpLog.error('Invalid submissionHost: {0} . Skipped'.format(self.submissionHost))
         # Use Python API or fall back to command
