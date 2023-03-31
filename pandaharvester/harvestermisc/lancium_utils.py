@@ -382,8 +382,8 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
             for batch_id in batchIDs_set:
                 full_batch_id = self.get_full_batch_id(batch_id)
                 job_attr_all_dict[full_batch_id] = dict()
-            tmpLog.info( 'Unfound batch jobs of submissionHost={0}: {1}'.format(
-                            self.submission_host, ' '.join(list(batchIDs_set)) ) )
+            tmpLog.info('Unfound batch jobs of submissionHost={0}: {1}'.format(self.submission_host,
+                                                                               ' '.join(list(batchIDs_set))))
         # Return
         return job_attr_all_dict
 
