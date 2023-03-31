@@ -155,7 +155,7 @@ class LanciumSubmitter(PluginBase):
                 return tmp_return_value
 
             # set the container image
-            container_image = harvester_queue_config.container_image
+            container_image = 'harvester/centos7-singularity' # harvester_queue_config.container_image
             physical_cores = workspec.nCore / 2  # lancium uses hyperthreading, but expects job size in physical cores
             memory_gb = workspec.minRamCount / 2 / 1000
             maxwdir_prorated_gib = self.panda_queues_dict.get_prorated_maxwdir_GiB(workspec.computingSite,
