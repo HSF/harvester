@@ -388,9 +388,3 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
         return job_attr_all_dict
 
 
-#
-if __name__ == "__main__":
-    lancium_client = LanciumClient()
-    lancium_client.test()
-
-
