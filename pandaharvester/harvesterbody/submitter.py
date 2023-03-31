@@ -385,9 +385,10 @@ class Submitter(AgentBase):
                                                     if tmpStat:
                                                         if tmpRet:
                                                             tmpStr = \
-                                                                'submitted a workerID={0} for PandaID={1} with batchID={2}'
+                                                                'submitted a workerID={0} for PandaID={1} with submissionHost={2} batchID={3}'
                                                             tmp_log.info(tmpStr.format(work_spec.workerID,
                                                                                       job_spec.PandaID,
+                                                                                      work_spec.submissionHost,
                                                                                       work_spec.batchID))
                                                         else:
                                                             tmpStr = 'failed to submit a workerID={0} for PandaID={1}'
@@ -395,8 +396,8 @@ class Submitter(AgentBase):
                                                                                        job_spec.PandaID))
                                                     else:
                                                         tmpStr = \
-                                                            'failed to register a worker for PandaID={0} with batchID={1}'
-                                                        tmp_log.error(tmpStr.format(job_spec.PandaID, work_spec.batchID))
+                                                            'failed to register a worker for PandaID={0} with submissionHost={1} batchID={2}'
+                                                        tmp_log.error(tmpStr.format(job_spec.PandaID, work_spec.submissionHost, work_spec.batchID))
                                         # enqueue to monitor fifo
                                         if self.monitor_fifo.enabled \
                                                 and queue_config.mapType != WorkSpec.MT_MultiWorkers:

@@ -55,6 +55,7 @@ class IamTokenCredManager(BaseCredManager):
             self.target_list_file = self.setupMap.get('target_list_file')
             self.update_ts_path = self.setupMap.get('update_ts_path', os.path.join(self.out_dir, '_last_update'))
             self.check_interval = self.setupMap.get('check_interval', 300)
+            self.refresh_interval = self.setupMap.get('refresh_interval', 3600)
         except KeyError as e:
             tmp_log.error('Missing attributes in setup. {0}'.format(traceback.format_exc()))
             raise
@@ -75,6 +76,14 @@ class IamTokenCredManager(BaseCredManager):
         ret = False
         if os.path.isfile(self.update_ts_path) \
                 and now_time - os.path.getmtime(self.update_ts_path) < self.check_interval:
+            ret = True
+        return ret
+    
+    def _is_fresh(self, token_path):
+        now_time = time.time()
+        ret = False
+        if os.path.isfile(token_path) and os.path.getsize(token_path) > 0 \
+                and now_time - os.path.getmtime(token_path) < self.refresh_interval:
             ret = True
         return ret
 
@@ -173,7 +182,7 @@ class IamTokenCredManager(BaseCredManager):
         # same update period as credmanager agent
         is_fresh = self._is_updated()
         if is_fresh:
-            tmp_log.debug('tokens are still very fresh, skipped')
+            tmp_log.debug('last renewal is still recent, skipped')
         else:
             tmp_log.debug('to renew tokens')
         return is_fresh
@@ -187,21 +196,25 @@ class IamTokenCredManager(BaseCredManager):
         all_err_str = ''
         for target in self.targets_dict:
             try:
-                # get access token of target
-                access_token = self.issuer_broker.get_access_token(aud=target, scope=self.scope)
                 # write to file
                 token_filename = endpoint_to_filename(target)
                 token_path = os.path.join(self.out_dir, token_filename)
-                with open(token_path, 'w') as f:
-                    f.write(access_token)
+                # check token freshness
+                if self._is_fresh(token_path):
+                    # token still fresh, skip it
+                    tmp_log.debug('token for {0} at {1} still fresh; skipped'.format(target, token_path))
+                else:
+                    # renew access token of target
+                    access_token = self.issuer_broker.get_access_token(aud=target, scope=self.scope)
+                    with open(token_path, 'w') as f:
+                        f.write(access_token)
+                    tmp_log.info('renewed token for {0} at {1}'.format(target, token_path))
             except Exception as e:
                 err_str = 'Problem getting token for {0}. {1}'.format(target, traceback.format_exc())
                 tmp_log.error(err_str)
                 all_ok = False
                 all_err_str = 'failed to get some tokens. Check the plugin log for details '
                 continue
-            else:
-                tmp_log.debug('got token for {0} at {1}'.format(target, token_path))
         # update last timestamp
         self._update_ts()
         tmp_log.debug('done')
