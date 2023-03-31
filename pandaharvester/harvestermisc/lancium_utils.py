@@ -1,8 +1,6 @@
 """
 Lancium python API wrapper functions
-
 """
-import traceback
 
 import os
 import time
