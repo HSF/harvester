@@ -95,6 +95,41 @@ class LanciumClient(object):
         full_batch_id = '{0}#{1}'.format(self.submission_host, batch_id)
         return full_batch_id
 
+    def upload_file(self, local_path, lancium_path, force=True):
+        try:
+            tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                             method_name='upload_file')
+
+            data = Data().create(lancium_path, 'file', source=os.path.abspath(local_path), force=force)
+            data.upload(os.path.abspath(local_path), fake_callback)
+            ex = data.show(lancium_path)[0]
+            tmp_log.debug("Uploaded file {0}".format(ex.__dict__))
+
+            return True, ''
+        except Exception as _e:
+            error_message = 'Failed to upload file with {0}'.format(_e)
+            tmp_log.error('Failed to upload the file with {0}'.format(traceback.format_exc()))
+            return False, error_message
+
+    def submit_job(self, **jobparams):
+        # create and submit a job to lancium
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
+                                         method_name='submit_job')
+
+        try:
+            tmp_log.debug('Creating and submitting a job')
+
+            job = Job().create(**jobparams)
+            tmp_log.debug('Job created. name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
+
+            job.submit()
+            tmp_log.debug('Job submitted. name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
+            return True, ''
+        except Exception as _e:
+            error_message = 'Failed to create or submit a job with {0}'.format(_e)
+            tmp_log.error('Failed to create or submit a job with {0}'.format(traceback.format_exc()))
+            return False, error_message
+
 
 class LanciumJobsCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
     """
@@ -351,41 +386,6 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
                             self.submission_host, ' '.join(list(batchIDs_set)) ) )
         # Return
         return job_attr_all_dict
-
-    def upload_file(self, local_path, lancium_path, force=True):
-        try:
-            tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
-                                             method_name='upload_file')
-
-            data = Data().create(lancium_path, 'file', source=os.path.abspath(local_path), force=force)
-            data.upload(os.path.abspath(local_path), fake_callback)
-            ex = data.show(lancium_path)[0]
-            tmp_log.debug("Uploaded file {0}".format(ex.__dict__))
-
-            return True, ''
-        except Exception as _e:
-            error_message = 'Failed to upload file with {0}'.format(_e)
-            tmp_log.error('Failed to upload the file with {0}'.format(traceback.format_exc()))
-            return False, error_message
-
-    def submit_job(self, **jobparams):
-        # create and submit a job to lancium
-        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
-                                         method_name='submit_job')
-
-        try:
-            tmp_log.debug('Creating and submitting a job')
-
-            job = Job().create(**jobparams)
-            tmp_log.debug('Job created. name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
-    
-            job.submit()
-            tmp_log.debug('Job submitted. name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
-            return True, ''
-        except Exception as _e:
-            error_message = 'Failed to create or submit a job with {0}'.format(_e)
-            tmp_log.error('Failed to create or submit a job with {0}'.format(traceback.format_exc()))
-            return False, error_message
 
 
 #
