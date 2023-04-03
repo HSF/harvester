@@ -99,13 +99,14 @@ class LanciumClient(object):
 
     def upload_file(self, local_path, lancium_path, force=True):
         try:
+            tmp_log.debug("Uploading file {0}".format(local_path))
             tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
                                              method_name='upload_file')
 
             data = Data().create(lancium_path, 'file', source=os.path.abspath(local_path), force=force)
             data.upload(os.path.abspath(local_path), fake_callback)
             ex = data.show(lancium_path)[0]
-            tmp_log.debug("Uploaded file {0}".format(ex.__dict__))
+            tmp_log.debug("Done: {0}".format(ex.__dict__))
 
             return True, ''
         except Exception as _e:
