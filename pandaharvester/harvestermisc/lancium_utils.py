@@ -32,7 +32,7 @@ from lancium.api.Data import Data
 # logger
 base_logger = core_utils.setup_logger('lancium_utils')
 
-SECRETS_PATH = '/secrets/'
+SECRETS_PATH = '/voms/'
 SCRIPTS_PATH = '/scripts/'
 
 LANCIUM_JOB_ATTRS_LIST = [

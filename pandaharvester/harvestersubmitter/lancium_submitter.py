@@ -14,10 +14,10 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestermisc.lancium_utils import LanciumClient, SCRIPTS_PATH
 base_logger = core_utils.setup_logger('lancium_submitter')
 
-voms_lancium_path = '/secrets/voms'
+voms_lancium_path = '/voms/voms'
 script_lancium_path = '/scripts/pilots_starter.py'
 mount_path = 'input_files'
-full_mount_path_secrets = '/jobDir/input_files/secrets'
+full_mount_path_secrets = '/jobDir/input_files/voms'
 
 class LanciumSubmitter(PluginBase):
     # constructor
@@ -59,7 +59,6 @@ class LanciumSubmitter(PluginBase):
 
             local_file = os.path.join(dir_name, '../harvestercloud/{0}'.format(base_name))
             lancium_file = os.path.join(SCRIPTS_PATH, base_name)
-
             self.lancium_client.upload_file(local_file, lancium_file)
             tmp_log.debug('Done')
         except Exception:
@@ -105,8 +104,8 @@ class LanciumSubmitter(PluginBase):
                        "name": mount_path
                        },
                       {"source_type": "data",
-                       "data": script_lancium_path,  # TODO
-                       "name": mount_path  # TODO
+                       "data": script_lancium_path,
+                       "name": mount_path
                        }
                   ],
                   'environment': (
