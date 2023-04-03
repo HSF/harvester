@@ -72,12 +72,12 @@ class LanciumSubmitter(PluginBase):
         is_grandly_unified_queue = self.panda_queues_dict.is_grandly_unified_queue(self.queueName)
 
         if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis'):
-            if self.proxySecretPathAnalysis:
-                cert = self.prod_proxy
-            elif self.proxySecretPath:
+            if self.user_proxy:
                 cert = self.user_proxy
+            elif self.prod_proxy:
+                cert = self.prod_proxy
         else:
-            if self.proxySecretPath:
+            if self.prod_proxy:
                 cert = self.prod_proxy
 
         return cert
