@@ -45,6 +45,8 @@ LANCIUM_JOB_ATTRS_LIST = [
     'completed_at',
 ]
 
+def fake_callback(total_chunks, current_chunk):
+    pass
 
 def get_job_name_from_workspec(workspec):
      job_name = '{0}:{1}'.format(harvester_config.master.harvester_id, workspec.workerID)
