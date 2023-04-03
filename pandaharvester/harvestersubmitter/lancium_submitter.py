@@ -27,9 +27,6 @@ class LanciumSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        # update or create the pilot starter executable
-        self.upload_pilots_starter()
-
         # retrieve the configurations for the panda queues
         self.panda_queues_dict = PandaQueuesDict()
 
@@ -48,6 +45,10 @@ class LanciumSubmitter(PluginBase):
                 self.nProcesses = 1
 
         self.lancium_client = LanciumClient(self.hostname, queue_name=self.queueName)
+
+        # update or create the pilot starter executable
+        self.upload_pilots_starter()
+
 
     def upload_pilots_starter(self):
         tmp_log = self.make_logger(base_logger, method_name='upload_pilots_starter')
