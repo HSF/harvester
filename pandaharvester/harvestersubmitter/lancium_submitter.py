@@ -13,8 +13,9 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestermisc.lancium_utils import LanciumClient, SCRIPTS_PATH
 base_logger = core_utils.setup_logger('lancium_submitter')
 
-voms_lancium_path = '/secrets/test1'
+voms_lancium_path = '/secrets/voms'
 script_lancium_path = '/scripts/pilots_starter.py'
+mount_path = 'input_files'
 
 class LanciumSubmitter(PluginBase):
     # constructor
@@ -87,7 +88,7 @@ class LanciumSubmitter(PluginBase):
 
         # submit the worker
         params = {'name': worker_name,
-                  'command_line': 'python pilots_starter.py',
+                  'command_line': 'python input_files/scripts/pilots_starter.py',
                   'image': container_image,  # 'harvester/centos7-singularity'
                   'max_run_time': max_time,
                   'resources': {'core_count': physical_cores,
@@ -97,11 +98,11 @@ class LanciumSubmitter(PluginBase):
                   'input_files': [
                       {"source_type": "data",
                        "data": voms_lancium_path,
-                       "name": voms_job_path
+                       "name": mount_path
                        },
                       {"source_type": "data",
                        "data": script_lancium_path,  # TODO
-                       "name": script_job_path  # TODO
+                       "name": mount_path  # TODO
                        }
                   ],
                   'environment': (
@@ -116,7 +117,7 @@ class LanciumSubmitter(PluginBase):
                       # {'variable': 'pythonOption', 'value': pilot_python_option},
                       {'variable': 'pilotVersion', 'value': pilot_version},
                       {'variable': 'jobType', 'value': prod_source_label},
-                      {'variable': 'proxySecretPath', 'value': voms_job_path},
+                      {'variable': 'proxySecretPath', 'value': '/jobDir/input_files/secrets/voms'},
                       {'variable': 'workerID', 'value': str(workspec.workerID)},
                       {'variable': 'pilotProxyCheck', 'value': 'False'},
                       {'variable': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
