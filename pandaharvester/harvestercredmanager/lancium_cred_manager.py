@@ -13,7 +13,7 @@ _logger = core_utils.setup_logger('lancium_cred_manager')
 
 
 # upload cred to Lancium periodically
-class LanciumSecretCredManager(BaseCredManager):
+class LanciumCredManager(BaseCredManager):
     def __init__(self, **kwarg):
         self.hostname = socket.getfqdn()
         BaseCredManager.__init__(self, **kwarg)
