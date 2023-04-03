@@ -51,7 +51,7 @@ class LanciumSubmitter(PluginBase):
 
     def upload_pilots_starter(self):
         tmp_log = self.make_logger(base_logger, method_name='upload_pilots_starter')
-
+        tmp_log.debug('Start')
         try:
             base_name = 'pilots_starter.py'
             dir_name = os.path.dirname(__file__)
@@ -60,6 +60,7 @@ class LanciumSubmitter(PluginBase):
             lancium_file = os.path.join(SCRIPTS_PATH, base_name)
 
             self.lancium_client.upload_file(local_file, lancium_file)
+            tmp_log.debug('Done')
         except Exception:
             tmp_log.error('Problem uploading proxy {0}. {1}'.format(local_file, traceback.format_exc()))
 
