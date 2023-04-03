@@ -98,6 +98,7 @@ class LanciumClient(object):
         return full_batch_id
 
     def upload_file(self, local_path, lancium_path, force=True):
+        tmp_log = core_utils.make_logger(base_logger, method_name='upload_file')
         try:
             tmp_log.debug("Uploading file {0}".format(local_path))
             tmp_log = core_utils.make_logger(base_logger, 'queue_name={0}'.format(self.queue_name),
