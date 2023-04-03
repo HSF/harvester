@@ -93,7 +93,7 @@ class LanciumSubmitter(PluginBase):
                   'max_run_time': max_time,
                   'resources': {'core_count': physical_cores,
                                 'memory': memory_gb,
-                                'scratch': maxwdir_prorated_gib
+                                'scratch': int(maxwdir_prorated_gib)
                                 },
                   'input_files': [
                       {"source_type": "data",
