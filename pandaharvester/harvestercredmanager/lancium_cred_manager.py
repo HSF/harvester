@@ -40,7 +40,6 @@ class LanciumCredManager(BaseCredManager):
             self.setupMap = dict(vars(self))
         # validate setupMap
         try:
-            self.lancium_config_file = self.setupMap['lancium_config_file']
             self.proxy_files = self.setupMap['proxy_files']
             self.secret_name = self.setupMap.get('secret_name', 'proxy-secret')
         except KeyError as e:
@@ -51,8 +50,7 @@ class LanciumCredManager(BaseCredManager):
             self.panda_queues_dict = PandaQueuesDict()
             self.lancium_client = LanciumClient(self.hostname, queue_name=self.queueName)
         except Exception as e:
-            tmp_log.error('Problem instantiating lancium client for {0}. {1}'.format(self.lancium_config_file,
-                                                                                     traceback.format_exc()))
+            tmp_log.error('Problem instantiating lancium client. {1}'.format(traceback.format_exc()))
             raise
 
     # check proxy
