@@ -50,7 +50,7 @@ class LanciumSubmitter(PluginBase):
         self.lancium_client = LanciumClient(self.hostname, queue_name=self.queueName)
 
     def upload_pilots_starter(self):
-        tmp_log = self.make_logger(_logger, method_name='upload_pilots_starter')
+        tmp_log = self.make_logger(base_logger, method_name='upload_pilots_starter')
 
         try:
             base_name = 'pilots_starter.py'
