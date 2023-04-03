@@ -1,5 +1,6 @@
 import traceback
 import socket
+import os
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -16,6 +17,7 @@ base_logger = core_utils.setup_logger('lancium_submitter')
 voms_lancium_path = '/secrets/voms'
 script_lancium_path = '/scripts/pilots_starter.py'
 mount_path = 'input_files'
+full_mount_path_secrets = '/jobDir/input_files/secrets'
 
 class LanciumSubmitter(PluginBase):
     # constructor
@@ -25,8 +27,8 @@ class LanciumSubmitter(PluginBase):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
 
-        # TODO: update or create the pilot starter executable
-        # self.k8s_client.create_or_patch_configmap_starter()
+        # update or create the pilot starter executable
+        self.upload_pilots_starter()
 
         # retrieve the configurations for the panda queues
         self.panda_queues_dict = PandaQueuesDict()
@@ -71,16 +73,16 @@ class LanciumSubmitter(PluginBase):
 
         if is_grandly_unified_queue and job_type in ('user', 'panda', 'analysis'):
             if self.proxySecretPathAnalysis:
-                cert = self.proxySecretPathAnalysis
+                cert = self.prod_proxy
             elif self.proxySecretPath:
-                cert = self.proxySecretPath
+                cert = self.user_proxy
         else:
             if self.proxySecretPath:
-                cert = self.proxySecretPath
+                cert = self.prod_proxy
 
         return cert
 
-    def _fill_params(self, workspec, container_image, physical_cores, memory_gb,
+    def _fill_params(self, workspec, container_image, cert, physical_cores, memory_gb,
                     maxwdir_prorated_gib, max_time, pilot_type, pilot_url_str, pilot_version, prod_source_label, pilot_python_option,
                     log_file_name):
 
@@ -117,7 +119,7 @@ class LanciumSubmitter(PluginBase):
                       # {'variable': 'pythonOption', 'value': pilot_python_option},
                       {'variable': 'pilotVersion', 'value': pilot_version},
                       {'variable': 'jobType', 'value': prod_source_label},
-                      {'variable': 'proxySecretPath', 'value': '/jobDir/input_files/secrets/voms'},
+                      {'variable': 'proxySecretPath', 'value': os.path.join(full_mount_path_secrets, cert)},
                       {'variable': 'workerID', 'value': str(workspec.workerID)},
                       {'variable': 'pilotProxyCheck', 'value': 'False'},
                       {'variable': 'logs_frontend_w', 'value': harvester_config.pandacon.pandaCacheURL_W},
@@ -186,9 +188,9 @@ class LanciumSubmitter(PluginBase):
 
             pilot_python_option = submitter_common.get_python_version_option(python_version, prod_source_label)
 
-            params = self._fill_params(workspec, container_image, physical_cores,
-                                      memory_gb, maxwdir_prorated_gib, max_time, pilot_type, pilot_url_str,
-                                      pilot_version, prod_source_label, pilot_python_option, log_file_name)
+            params = self._fill_params(workspec, container_image, cert, physical_cores, memory_gb, maxwdir_prorated_gib,
+                                       max_time, pilot_type, pilot_url_str, pilot_version, prod_source_label,
+                                       pilot_python_option, log_file_name)
 
             return_code, error_description = self.lancium_client.submit_job(**params)
             if not return_code:
