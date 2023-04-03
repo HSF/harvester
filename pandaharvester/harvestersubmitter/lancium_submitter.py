@@ -139,7 +139,6 @@ class LanciumSubmitter(PluginBase):
     def submit_lancium_worker(self, workspec):
         tmp_log = self.make_logger(base_logger, 'queueName={0}'.format(self.queueName), method_name='submit_lancium_worker')
 
-        worker_id = str(workspec.workerID)
         this_panda_queue_dict = self.panda_queues_dict.get(self.queueName, dict())
 
         try:
@@ -193,7 +192,7 @@ class LanciumSubmitter(PluginBase):
                                        max_time, pilot_type, pilot_url_str, pilot_version, prod_source_label,
                                        pilot_python_option, log_file_name)
 
-            return_code, error_description = self.lancium_client.submit_job(**params)
+            return_code, return_str = self.lancium_client.submit_job(**params)
             if not return_code:
                 return return_code, error_description
 
@@ -202,8 +201,7 @@ class LanciumSubmitter(PluginBase):
             err_str = 'Failed to create a worker; {0}'.format(_e)
             tmp_return_value = (False, err_str)
         else:
-            workspec.submissionHost = self.hostname
-            workspec.batchID = params['name']
+            workspec.batchID = return_str
             tmp_log.debug('Created worker {0} with batchID={1}'.format(workspec.workerID, workspec.batchID))
             tmp_return_value = (True, '')
 

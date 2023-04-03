@@ -128,7 +128,8 @@ class LanciumClient(object):
 
             job.submit()
             tmp_log.debug('Job submitted. name: {0}, id: {1}, status: {2}'.format(job.name, job.id, job.status))
-            return True, ''
+            batch_id = self.get_full_batch_id(job.id)
+            return True, batch_id
         except Exception as _e:
             error_message = 'Failed to create or submit a job with {0}'.format(_e)
             tmp_log.error('Failed to create or submit a job with {0}'.format(traceback.format_exc()))
