@@ -87,7 +87,7 @@ class LanciumSubmitter(PluginBase):
                     maxwdir_prorated_gib, max_time, pilot_type, pilot_url_str, pilot_version, prod_source_label, pilot_python_option,
                     log_file_name):
 
-        lancium_job_name = self.get_job_name_from_workspec(workspec)
+        lancium_job_name = self.lancium_client.get_job_name_from_workspec(workspec)
 
         # submit the worker
         params = {'name': lancium_job_name,
