@@ -194,7 +194,7 @@ class LanciumSubmitter(PluginBase):
 
             return_code, return_str = self.lancium_client.submit_job(**params)
             if not return_code:
-                return return_code, error_description
+                return return_code, return_str
 
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
