@@ -11,7 +11,7 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestersubmitter import submitter_common
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
-from pandaharvester.harvestermisc.lancium_utils import LanciumClient, SCRIPTS_PATH
+from pandaharvester.harvestermisc.lancium_utils import LanciumClient, SCRIPTS_PATH, get_job_name_from_workspec
 base_logger = core_utils.setup_logger('lancium_submitter')
 
 voms_lancium_path = '/voms/voms'
@@ -87,7 +87,7 @@ class LanciumSubmitter(PluginBase):
                     maxwdir_prorated_gib, max_time, pilot_type, pilot_url_str, pilot_version, prod_source_label, pilot_python_option,
                     log_file_name):
 
-        lancium_job_name = self.lancium_client.get_job_name_from_workspec(workspec)
+        lancium_job_name = get_job_name_from_workspec(workspec)
 
         # submit the worker
         params = {'name': lancium_job_name,
