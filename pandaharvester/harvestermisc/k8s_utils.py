@@ -292,6 +292,7 @@ class k8s_Client(object):
         # get detailed information for available pods
         pods_dict = self.get_pods_info(label_selector)
         if pods_dict is None:  # communication failure to the cluster
+            tmp_log.error('Communication failure to cluster. Stopping')
             return None
 
         # complement pod information with coarse job information
