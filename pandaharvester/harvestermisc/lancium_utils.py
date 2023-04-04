@@ -43,6 +43,7 @@ LANCIUM_JOB_ATTRS_LIST = [
     'updated_at',
     'submitted_at',
     'completed_at',
+    'exit_code',
 ]
 
 def fake_callback(total_chunks, current_chunk):
@@ -62,6 +63,10 @@ def get_workerid_from_job_name(job_name):
     except Exception:
         pass
     return (harvester_id, worker_id)
+
+def get_full_batch_id(submission_host, batch_id):
+    full_batch_id = '{0}#{1}'.format(submission_host, batch_id)
+    return full_batch_id
 
 def get_full_batch_id_from_workspec(workspec):
     full_batch_id = '{0}#{1}'.format(workspec.submissionHost, workspec.batchID)
@@ -87,16 +92,13 @@ def get_host_batch_id_map(workspec_list):
 def timestamp_to_datetime(timestamp_str):
     return datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S.%fZ')
 
+
 class LanciumClient(object):
 
     def __init__(self, submission_host, queue_name=None):
         self.submission_host = submission_host
         self.queue_name = queue_name
     
-    def get_full_batch_id(self, batch_id):
-        full_batch_id = '{0}#{1}'.format(self.submission_host, batch_id)
-        return full_batch_id
-
     def upload_file(self, local_path, lancium_path, force=True):
         tmp_log = core_utils.make_logger(base_logger, method_name='upload_file')
         try:
@@ -168,7 +170,7 @@ class LanciumJobsCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
             return False
 
 
-class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
+class LanciumJobQuery(object, metaclass=SingletonWithID):
     # class lock
     classLock = threading.Lock()
 
@@ -180,7 +182,6 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
         # Initialize
         with self.classLock:
             tmpLog.debug('Start')
-            LanciumClient.__init__(self, self.submission_host, *args, **kwargs)
             # For cache
             self.cacheEnable = cacheEnable
             if self.cacheEnable:
@@ -212,11 +213,11 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
                     jobs_iter = []
                     for job in all_jobs_light_list:
                         try:
-                            lancium_job_id = job['id']
+                            lancium_job_id = job.id
                             one_job_attr = Job().get(lancium_job_id)
                             one_job_dict = dict()
                             for attr in LANCIUM_JOB_ATTRS_LIST:
-                                one_job_dict[attr] = one_job_attr.get(attr)
+                                one_job_dict[attr] = getattr(one_job_attr, attr, None)
                             jobs_iter.append(one_job_dict)
                         except Exception as e:
                             tmpLog.error('In update_cache all job; got exception {0}: {1} ; {2}'.format(
@@ -340,7 +341,7 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
                     all_jobs_light_list = Job().all()
                     batch_ids = set()
                     for job in all_jobs_light_list:
-                        lancium_job_id = job['id']
+                        lancium_job_id = job.id
                         batch_ids.add(lancium_job_id)
                 except Exception as e:
                     tmpLog.error('In doing Job().all(); got exception {0}: {1} '.format(
@@ -351,7 +352,7 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
                     one_job_attr = Job().get(lancium_job_id)
                     one_job_dict = dict()
                     for attr in LANCIUM_JOB_ATTRS_LIST:
-                        one_job_dict[attr] = one_job_attr.get(attr)
+                        one_job_dict[attr] = getattr(one_job_attr, attr, None)
                     jobs_iter.append(one_job_dict)
                 except Exception as e:
                     tmpLog.error('In doing Job().get({0}); got exception {1}: {2} '.format(
@@ -374,7 +375,7 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
                     tmpLog.error('in querying; got exception {0}: {1} ; {2}'.format(
                                     e.__class__.__name__, e, repr(job)))
                 else:
-                    full_batch_id = self.get_full_batch_id(batch_id)
+                    full_batch_id = get_full_batch_id(self.submission_host, batch_id)
                     job_attr_all_dict[full_batch_id] = job_attr_dict
                 # Remove batch jobs already gotten from the list
                 if not all_jobs:
@@ -385,11 +386,9 @@ class LanciumJobQuery(LanciumClient, metaclass=SingletonWithID):
         if not all_jobs and len(batchIDs_set) > 0:
             # Job unfound, marked as unknown worker in harvester
             for batch_id in batchIDs_set:
-                full_batch_id = self.get_full_batch_id(batch_id)
+                full_batch_id = get_full_batch_id(self.submission_host, batch_id)
                 job_attr_all_dict[full_batch_id] = dict()
             tmpLog.info('Unfound batch jobs of submissionHost={0}: {1}'.format(self.submission_host,
                                                                                ' '.join(list(batchIDs_set))))
         # Return
         return job_attr_all_dict
-
-
