@@ -291,6 +291,8 @@ class k8s_Client(object):
 
         # get detailed information for available pods
         pods_dict = self.get_pods_info(label_selector)
+        if pods_dict is None:  # communication failure to the cluster
+            return None
 
         # complement pod information with coarse job information
         jobs_dict = self.get_jobs_info(label_selector)
