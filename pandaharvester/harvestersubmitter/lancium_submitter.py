@@ -87,10 +87,10 @@ class LanciumSubmitter(PluginBase):
                     maxwdir_prorated_gib, max_time, pilot_type, pilot_url_str, pilot_version, prod_source_label, pilot_python_option,
                     log_file_name):
 
-        worker_name = '{0}-{1}'.format(harvester_config.master.harvester_id, workspec.workerID)
+        lancium_job_name = self.get_job_name_from_workspec(workspec)
 
         # submit the worker
-        params = {'name': worker_name,
+        params = {'name': lancium_job_name,
                   'command_line': 'python input_files/scripts/pilots_starter.py',
                   'image': container_image,  # 'harvester/centos7-singularity'
                   'max_run_time': max_time,
@@ -131,7 +131,7 @@ class LanciumSubmitter(PluginBase):
                       {'variable': 'submit_mode', 'value': 'PULL'},
                       {'variable': 'TMPDIR', 'value': '/jobDir'},
                       {'variable': 'HOME', 'value': '/jobDir'},
-                      # {'variable': 'K8S_JOB_ID', 'value': worker_name},
+                      # {'variable': 'K8S_JOB_ID', 'value': lancium_job_name},
                   )
                   }
         return params
