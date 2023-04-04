@@ -84,33 +84,49 @@ def _check_one_worker(workspec, job_attr_all_dict, cancel_unknown=False, held_ti
                 tmp_log.debug('Called workspec set_pilot_closed')
             elif batchStatus in ['finished']:
                 # finished
+                # try:
+                #     payloadExitCode_str = str(job_attr_dict['exit_code'])
+                #     payloadExitCode = int(payloadExitCode_str)
+                # except KeyError:
+                #     errStr = 'cannot get exit_code of submissionHost={0} batchID={1}. Regard the worker as failed'.format(workspec.submissionHost, workspec.batchID)
+                #     tmp_log.warning(errStr)
+                #     newStatus = WorkSpec.ST_failed
+                # except ValueError:
+                #     errStr = 'got invalid exit_code {0} of submissionHost={1} batchID={2}. Regard the worker as failed'.format(payloadExitCode_str, workspec.submissionHost, workspec.batchID)
+                #     tmp_log.warning(errStr)
+                #     newStatus = WorkSpec.ST_failed
+                # else:
+                #     # Propagate exit_code code
+                #     workspec.nativeExitCode = payloadExitCode
+                #     if payloadExitCode == 0:
+                #         # Payload should return 0 after successful run
+                #         newStatus = WorkSpec.ST_finished
+                #     else:
+                #         # Other return codes are considered failed
+                #         newStatus = WorkSpec.ST_failed
+                #         errStr = 'Payload execution error: returned non-zero {0}'.format(payloadExitCode)
+                #         tmp_log.debug(errStr)
+                #         # Map return code to Pilot error code
+                #         reduced_exit_code = payloadExitCode // 256 if (payloadExitCode % 256 == 0) else payloadExitCode
+                #         pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
+                #         if pilot_error_code is not None:
+                #             workspec.set_pilot_error(pilot_error_code, pilot_error_diag)
+                #     tmp_log.info('Payload return code = {0}'.format(payloadExitCode))
+                #
+                # finished
+                newStatus = WorkSpec.ST_finished
                 try:
                     payloadExitCode_str = str(job_attr_dict['exit_code'])
                     payloadExitCode = int(payloadExitCode_str)
                 except KeyError:
-                    errStr = 'cannot get exit_code of submissionHost={0} batchID={1}. Regard the worker as failed'.format(workspec.submissionHost, workspec.batchID)
+                    errStr = 'cannot get exit_code of submissionHost={0} batchID={1}'.format(workspec.submissionHost, workspec.batchID)
                     tmp_log.warning(errStr)
-                    newStatus = WorkSpec.ST_failed
                 except ValueError:
-                    errStr = 'got invalid exit_code {0} of submissionHost={1} batchID={2}. Regard the worker as failed'.format(payloadExitCode_str, workspec.submissionHost, workspec.batchID)
+                    errStr = 'got invalid exit_code {0} of submissionHost={1} batchID={2}'.format(payloadExitCode_str, workspec.submissionHost, workspec.batchID)
                     tmp_log.warning(errStr)
-                    newStatus = WorkSpec.ST_failed
                 else:
                     # Propagate exit_code code
                     workspec.nativeExitCode = payloadExitCode
-                    if payloadExitCode == 0:
-                        # Payload should return 0 after successful run
-                        newStatus = WorkSpec.ST_finished
-                    else:
-                        # Other return codes are considered failed
-                        newStatus = WorkSpec.ST_failed
-                        errStr = 'Payload execution error: returned non-zero {0}'.format(payloadExitCode)
-                        tmp_log.debug(errStr)
-                        # Map return code to Pilot error code
-                        reduced_exit_code = payloadExitCode // 256 if (payloadExitCode % 256 == 0) else payloadExitCode
-                        pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
-                        if pilot_error_code is not None:
-                            workspec.set_pilot_error(pilot_error_code, pilot_error_diag)
                     tmp_log.info('Payload return code = {0}'.format(payloadExitCode))
             else:
                 errStr = 'cannot get reasonable job status of submissionHost={0} batchID={1}. Regard the worker as failed by default'.format(
