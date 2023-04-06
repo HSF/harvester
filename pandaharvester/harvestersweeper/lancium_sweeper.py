@@ -18,11 +18,14 @@ class LanciumSweeper(BaseSweeper):
 
     # kill workers
     def kill_workers(self, workspec_list):
+        tmp_log = self.make_logger(base_logger, method_name='kill_workers')
+        tmp_log.debug('Start')
         ret_list = []
         for workspec in workspec_list:
+            tmp_log.debug('Running kill_worker for {0}'.format(workspec.workerID))
             tmp_ret_val = self.kill_worker(workspec)
             ret_list.append(tmp_ret_val)
-
+        tmp_log.debug('Done')
         return ret_list
 
     def kill_worker(self, workspec):
@@ -43,5 +46,7 @@ class LanciumSweeper(BaseSweeper):
 
     def sweep_worker(self, workspec):
         # cleanup for a worker
+        tmp_log = self.make_logger(base_logger, 'workerID={0}'.format(workspec.workerID), method_name='sweep_worker')
+        tmp_log.debug('Returning kill_worker')
         return self.kill_worker(workspec)
 
