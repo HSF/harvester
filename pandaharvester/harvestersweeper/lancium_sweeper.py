@@ -31,6 +31,7 @@ class LanciumSweeper(BaseSweeper):
     def kill_worker(self, workspec):
         tmp_log = self.make_logger(base_logger, 'workerID={0}'.format(workspec.workerID), method_name='kill_worker')
         batch_id = workspec.batchID
+        tmp_log.debug('Running kill_worker')
         if batch_id:  # sometimes there are missed workers that were not submitted
             try:
                 self.lancium_client.delete_job(batch_id)
@@ -42,6 +43,7 @@ class LanciumSweeper(BaseSweeper):
                 return False, err_str
 
         else:  # the worker does not need be cleaned
+            tmp_log.debug('No action necessary, since no batch ID')
             return True, ''
 
     def sweep_worker(self, workspec):
