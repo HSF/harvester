@@ -137,6 +137,16 @@ class LanciumClient(object):
             tmp_log.error('Failed to create or submit a job with {0}'.format(traceback.format_exc()))
             return False, error_message
 
+    def delete_job(self, job_id):
+        # delete job by job ID
+        tmp_log = core_utils.make_logger(base_logger, 'queue_name={0} job_id={1}'.format(self.queue_name, job_id),
+                                         method_name='delete_job')
+        tmp_log.debug('Going to delete job {0}'.format(job_id))
+        try:
+            Job.delete(job_id)
+            tmp_log.debug('Deleted job {0}'.format(job_id))
+        except Exception as _e:
+            tmp_log.error('Failed to delete job {0} with: {1}'.format(job_name, _e))
 
 class LanciumJobsCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
     """
