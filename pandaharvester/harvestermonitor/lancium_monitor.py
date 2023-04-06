@@ -41,7 +41,7 @@ def _check_one_worker(workspec, job_attr_all_dict, cancel_unknown=False, held_ti
         # Check 
         try:
             # FIXME
-            new_batch_status = job_attr_dict.get('status')
+            new_batch_status = job_attr_dict['status']
         except KeyError:
             # Propagate native job status as unknown
             workspec.nativeStatus = 'unknown'
