@@ -41,9 +41,7 @@ class WorkerAdjuster(object):
 
             # get job statistics
             job_stats = self.dbProxy.get_cache("job_statistics.json", None)
-            if job_stats is None:
-                job_stats = dict()
-            else:
+            if job_stats is not None:
                 job_stats = job_stats.data
 
             # define num of new workers
@@ -147,16 +145,22 @@ class WorkerAdjuster(object):
                                     max_queued_workers = maxQueuedWorkers_slave
 
                             elif queue_config.mapType == 'NoJob': # for pull mode, limit to activated jobs
-                                # limit the queue to the number of activated jobs to avoid empty pilots
-                                try:
-                                    n_activated = max(job_stats[queue_name]['activated'], 1) # avoid no activity queues
-                                    queue_limit = max_queued_workers
-                                    max_queued_workers = min(n_activated, max_queued_workers)
-                                    tmp_log.debug('limiting max_queued_workers to min(n_activated={0}, queue_limit={1})'.
-                                                 format(n_activated, queue_limit))
-                                except KeyError:
+                                if job_stats is None:
                                     tmp_log.warning('n_activated not defined, defaulting to configured queue limits')
                                     pass
+                                else:
+                                    # limit the queue to the number of activated jobs to avoid empty pilots
+                                    try:
+                                        n_activated = max(job_stats[queue_name]['activated'], 1) # avoid no activity queues
+                                    except KeyError:
+                                        # zero job in the queue
+                                        tmp_log.debug('no job in queue')
+                                        n_activated = 1
+                                    finally:
+                                        queue_limit = max_queued_workers
+                                        max_queued_workers = min(n_activated, max_queued_workers)
+                                        tmp_log.debug('limiting max_queued_workers to min(n_activated={0}, queue_limit={1})'.
+                                                    format(n_activated, queue_limit))
 
                             if max_queued_workers is None:  # no value found, use default value
                                 max_queued_workers = 1
