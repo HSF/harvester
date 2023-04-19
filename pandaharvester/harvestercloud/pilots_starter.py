@@ -40,10 +40,9 @@ CONFIG_FILES = [PJD, PFC]
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s', stream=sys.stdout)
 
-
-# handlers=[logging.FileHandler('/tmp/vm_script.log'), logging.StreamHandler(sys.stdout)])
-# filename='/tmp/vm_script.log', filemode='w')
-
+# This is necessary in Lancium, otherwise the wrapper breaks
+os.unsetenv("SINGULARITY_ENVIRONMENT")
+os.unsetenv("SINGULARITY_BIND")
 
 def post_multipart(host, port, selector, files, proxy_cert):
     """
