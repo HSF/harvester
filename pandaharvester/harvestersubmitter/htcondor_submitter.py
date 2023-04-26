@@ -253,7 +253,7 @@ def make_a_jdl(workspec, template, n_core_per_node, log_dir, panda_queue_name, e
             'pilotArgs': pilot_args,
             'submissionHost': workspec.submissionHost,
             'submissionHostShort': workspec.submissionHost.split('.')[0],
-            'ceARCGridType': ce_info_dict.get('ce_grid_type', 'nordugrid'),
+            'ceARCGridType': ce_info_dict.get('ce_grid_type', 'arc'),
             'tokenDir': token_dir,
             'tokenFilename': token_filename,
             'tokenPath': token_path,
@@ -443,7 +443,7 @@ class HTCondorSubmitter(PluginBase):
         except AttributeError:
             self.rcPilotRandomWeightPermille = 0
         # submission to ARC CE's with nordugrid (gridftp) or arc (REST) grid type
-        self.submit_arc_grid_type = 'nordugrid'
+        self.submit_arc_grid_type = 'arc'
         try:
             extra_plugin_configs = harvester_config.master.extraPluginConfigs['HTCondorSubmitter']
         except AttributeError:
@@ -451,8 +451,8 @@ class HTCondorSubmitter(PluginBase):
         except KeyError:
             pass
         else:
-            if extra_plugin_configs.get('submit_arc_grid_type') == 'arc':
-                self.submit_arc_grid_type = 'arc'
+            if extra_plugin_configs.get('submit_arc_grid_type') == 'nordugrid':
+                self.submit_arc_grid_type = 'nordugrid'
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
