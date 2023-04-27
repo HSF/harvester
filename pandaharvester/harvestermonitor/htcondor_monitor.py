@@ -31,6 +31,13 @@ CONDOR_JOB_STATUS_MAP = {
     }
 
 
+# Condor jobs held with these reasons should be killed
+TO_KILL_HOLD_REASONS = [
+    'Job not found', 
+    'Failed to start GAHP', 
+    ]
+
+
 # pilot error object
 PILOT_ERRORS = PilotErrors()
 
@@ -95,13 +102,17 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                 newStatus = WorkSpec.ST_cancelled
             elif batchStatus in ['5']:
                 # 5 held
-                errStr = 'Condor HoldReason: {0} '.format(job_ads_dict.get('HoldReason'))
+                hold_reason = job_ads_dict.get('HoldReason')
+                errStr = 'Condor HoldReason: {0} '.format(hold_reason)
                 if (
-                    job_ads_dict.get('HoldReason') == 'Job not found'
+                    hold_reason in TO_KILL_HOLD_REASONS 
                     or int(time.time()) - int(job_ads_dict.get('EnteredCurrentStatus', 0)) > held_timeout
                     ):
                     # Kill the job if held too long or other reasons
-                    tmpLog.debug('trying to kill job submissionHost={0} batchID={1} due to held too long or not found'.format(workspec.submissionHost, workspec.batchID))
+                    if hold_reason in TO_KILL_HOLD_REASONS:
+                        tmpLog.debug('trying to kill job submissionHost={0} batchID={1} due to HoldReason: {2}'.format(workspec.submissionHost, workspec.batchID, hold_reason))
+                    else:
+                        tmpLog.debug('trying to kill job submissionHost={0} batchID={1} due to held too long'.format(workspec.submissionHost, workspec.batchID))
                     for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map([workspec])):
                         condor_job_manage = CondorJobManage(id=workspec.submissionHost)
                         try:
