@@ -4641,6 +4641,9 @@ class DBProxy(object):
                     if nQueueLimitWorkerMax is not None:
                         nQueueLimitWorker = min(nQueueLimitWorker, nQueueLimitWorkerMax)
                         nQueueLimitWorkerPerRT = min(nQueueLimitWorkerPerRT, nQueueLimitWorkerMax)
+                    if nQueueLimitWorker_orig is not None:
+                        nQueueLimitWorker = min(nQueueLimitWorker, nQueueLimitWorker_orig)
+                        nQueueLimitWorkerPerRT = min(nQueueLimitWorkerPerRT, nQueueLimitWorker_orig)
                 elif nQueueLimitWorker_orig is not None:
                     nQueueLimitWorker = nQueueLimitWorker_orig
                     nQueueLimitWorkerPerRT = nQueueLimitWorker
