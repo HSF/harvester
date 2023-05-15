@@ -164,7 +164,7 @@ class K8sMonitor(PluginBase):
                 if 'pod_status' in worker_info and worker_info['pod_status'] in ['Pending', 'Unknown']:
                     for item in worker_info['containers_state']:
                         if item.waiting and item.waiting.reason in BAD_CONTAINER_STATES:
-                            pods_name_to_delete_list.append(worker_info['name'])
+                            pods_name_to_delete_list.append(worker_info['pod_name'])
 
         except Exception as _e:
             err_str = 'Failed to get status for id={0} ; {1}'.format(job_id, traceback.format_exc())
