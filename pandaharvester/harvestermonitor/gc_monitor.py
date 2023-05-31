@@ -3,9 +3,7 @@ import ast
 import json
 import os
 import shlex
-import tarfile
 import traceback
-import uuid
 
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore import core_utils
@@ -15,8 +13,6 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
-
-from pandaharvester.harvestermover import mover_utils
 
 from globus_compute_sdk import Client
 from globus_compute_sdk import errors as gc_errors
@@ -44,10 +40,6 @@ class GlobusComputeMonitor(PluginBase):
         messenger = pluginFactory.get_plugin(queueConfig.messenger)
         return messenger
 
-    def get_surl(self, scope, lfn):
-        dstPath = mover_utils.construct_file_path(self.baseSURL, scope, lfn)
-        return dstPath
-
     def get_panda_argparser(self):
         if self.parser is None:
             parser = argparse.ArgumentParser(description='PanDA argparser')
@@ -60,21 +52,6 @@ class GlobusComputeMonitor(PluginBase):
             parser.add_argument('-a', '--archive', type=str, required=False, default='', help='source archive file')
             self.parser = parser
         return self.parser
-
-    def get_log_file_info(self, workSpec, jobSpec, logFile, logger):
-        base_dir = os.path.dirname(logFile)
-
-        logfile_info = jobSpec.get_logfile_info()
-        lfn = logfile_info['lfn']
-        guid = logfile_info['guid']
-        scopeLog = jobSpec.jobParams['scopeLog']
-
-        surl = self.get_surl(scopeLog, lfn)
-        log_pfn = os.path.join(base_dir, lfn)
-        with tarfile.open(log_pfn, "w:gz", dereference=True) as tar:
-            tar.add(logFile, arcname=os.path.basename(logFile))
-        logFileInfo = {'lfn': lfn, 'path': log_pfn, 'guid': guid, 'surl': surl}
-        return logFileInfo
 
     def get_out_file_infos(self, workSpec, jobSpec, logFile, ret, logger):
         base_dir = os.path.dirname(logFile)
@@ -95,7 +72,6 @@ class GlobusComputeMonitor(PluginBase):
             # the first file is for function output
             lfn = output[keys[0]]
             scope = scopes[0]
-            surl = self.get_surl(scope, lfn)
 
             pfn = os.path.join(base_dir, lfn)
             with open(pfn, 'w') as fp:
@@ -104,17 +80,16 @@ class GlobusComputeMonitor(PluginBase):
                     result = ret.get('result', None)
                 fp.write(str(result))
 
-            outFileInfo = {'lfn': lfn, 'path': pfn, 'guid': str(uuid.uuid4()), 'surl': surl}
+            outFileInfo = {'lfn': lfn, 'path': pfn}
             outFileInfos.append(outFileInfo)
 
             for key, scope in zip(keys[1:], scopes[1:]):
                 lfn = output[key]
-                surl = self.get_surl(scope, lfn)
                 src = os.path.join(base_dir, key)
                 dest = os.path.join(base_dir, lfn)
                 if os.path.exists(src):
                     os.rename(src, dest)
-                    outFileInfo = {'lfn': lfn, 'path': dest, 'guid': str(uuid.uuid4()), 'surl': surl}
+                    outFileInfo = {'lfn': lfn, 'path': dest}
                     outFileInfos.append(outFileInfo)
         return outFileInfos
 
@@ -152,7 +127,7 @@ class GlobusComputeMonitor(PluginBase):
 
         messenger = self.get_messenger(workSpec)
         jsonAttrsFileName = harvester_config.payload_interaction.workerAttributesFile
-        postProcessAttrs = 'post_process_job_attrs.json'
+        # postProcessAttrs = 'post_process_job_attrs.json'
         jsonJobReport = harvester_config.payload_interaction.jobReportFile
         jsonOutputsFileName = harvester_config.payload_interaction.eventStatusDumpJsonFile
 
@@ -181,29 +156,16 @@ class GlobusComputeMonitor(PluginBase):
             jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
             logger.debug('set attributes file {0}'.format(jsonFilePath))
             logger.debug('jobSpec: %s' % str(jobSpec))
-            job_attr_xml = {}
             # logger.debug('jobSpec jobParams: %s' % str(jobSpec.jobParams))
-            logFile_info = self.get_log_file_info(workSpec, jobSpec, logFile, logger)
             outFile_infos = self.get_out_file_infos(workSpec, jobSpec, logFile, ret, logger)
-            out_files = {str(pandaID): [{'path': logFile_info['path'],
-                                         'type': 'log',
-                                         'guid': logFile_info['guid']}]}
-            job_attr_xml[logFile_info['lfn']] = {'guid': logFile_info['guid'],
-                                                 'fsize': os.stat(logFile_info['path']).st_size,
-                                                 'adler32': core_utils.calc_adler32(logFile_info['path']),
-                                                 'surl': logFile_info['surl']}
+            logger.debug("outFile_infos: %s" % str(outFile_infos))
+
+            out_files = {str(pandaID): []}
             for outFile_info in outFile_infos:
                 out_files[str(pandaID)].append({'path': outFile_info['path'],
-                                                'type': 'output',
-                                                'guid': outFile_info['guid']})
-                job_attr_xml[outFile_info['lfn']] = {'guid': outFile_info['guid'],
-                                                     'fsize': os.stat(outFile_info['path']).st_size,
-                                                     'adler32': core_utils.calc_adler32(outFile_info['path']),
-                                                     'surl': outFile_info['surl']}
+                                                'type': 'output'})
             with open(jsonFilePath, 'w') as jsonFile:
                 json.dump(out_files, jsonFile)
-
-            attrs['xml'] = json.dumps(job_attr_xml)
 
             # work attr
             jsonFilePath = os.path.join(accessPoint, jsonAttrsFileName)
@@ -218,10 +180,10 @@ class GlobusComputeMonitor(PluginBase):
                 json.dump(attrs, jsonFile)
 
             # post process
-            jsonFilePath = os.path.join(accessPoint, postProcessAttrs)
-            logger.debug('set attributes file {0}'.format(jsonFilePath))
-            with open(jsonFilePath, 'w') as jsonFile:
-                json.dump(attrs, jsonFile)
+            # jsonFilePath = os.path.join(accessPoint, postProcessAttrs)
+            # logger.debug('set attributes file {0}'.format(jsonFilePath))
+            # with open(jsonFilePath, 'w') as jsonFile:
+            #     json.dump(attrs, jsonFile)
 
     # check workers
     def check_workers(self, workspec_list):
@@ -262,6 +224,8 @@ class GlobusComputeMonitor(PluginBase):
                         panda_ids = workSpec.pandaid_list
                         batch_ids = json.loads(workSpec.batchID)
                         tmpLog.debug("batch_ids: %s" % str(batch_ids))
+                        if not batch_ids:
+                            raise Exception("batchID is empty")
                         rets = self.gc_client.get_batch_result(batch_ids)
                         tmpLog.debug("get_batch_result rets: %s" % rets)
                         if not rets:
