@@ -783,10 +783,14 @@ class SharedFileMessenger(BaseMessenger):
                             try:
                                 tmpData = json.load(f)
                                 if "merged" in tmpData:
+                                    output_lfns = set()
                                     fileDict.setdefault(jobSpec.PandaID, [])
                                     for tmpIn, tmpOuts in iteritems(tmpData['merged']):
-                                        nInTaskState += len(tmpOuts)
                                         for tmpLFN, tmpFileDict in iteritems(tmpOuts):
+                                            if tmpLFN in output_lfns:
+                                                continue
+                                            output_lfns.add(tmpLFN)
+                                            nInTaskState += 1
                                             pfn = tmpFileDict['path']
                                             if 'fsize' not in tmpFileDict:
                                                 tmpFileDict['fsize'] = os.stat(pfn).st_size
