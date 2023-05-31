@@ -4,17 +4,12 @@ import json
 import shlex
 import os
 import tarfile
-import datetime
-from math import ceil
 import urllib.request as urllib
 import traceback
 
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestersubmitter import submitter_common
 
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
@@ -22,15 +17,6 @@ from globus_compute_sdk import Client
 
 # logger
 baseLogger = core_utils.setup_logger('gc_submitter')
-
-
-def run_pilot_wrapper_with_args(run_pilotwrapper_cmd, args):
-    import subprocess                    # noqa F811
-
-    run_pilotwrapper_cmd = run_pilotwrapper_cmd.format_map(args)
-    p = subprocess.Popen(run_pilotwrapper_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = p.communicate()
-    return p.returncode, stdout, stderr
 
 
 def run_wrapper(base_path, data_path, func_str):
@@ -242,106 +228,8 @@ class GlobusComputeSubmitter(PluginBase):
             retList.append(tmpRetVal)
         return retList
 
-    def make_submit_args(self, workspec, logger):
-        timeNow = datetime.datetime.utcnow()
-
-        panda_queue_name = self.queueName
-        this_panda_queue_dict = dict()
-
-        # get default information from queue info
-        n_core_per_node_from_queue = this_panda_queue_dict.get('corecount', 1) if this_panda_queue_dict.get('corecount', 1) else 1
-
-        # get override requirements from queue configured
-        try:
-            n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
-        except AttributeError:
-            n_core_per_node = n_core_per_node_from_queue
-
-        n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
-        request_ram = max(workspec.minRamCount, 1 * n_core_total) if workspec.minRamCount else 1 * n_core_total
-        request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
-        request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
-
-        n_node = ceil(n_core_total / n_core_per_node)
-        request_ram_bytes = request_ram * 2 ** 20
-        request_ram_per_core = ceil(request_ram * n_node / n_core_total)
-        request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
-        request_cputime = request_walltime * n_core_total
-        request_walltime_minute = ceil(request_walltime / 60)
-        request_cputime_minute = ceil(request_cputime / 60)
-
-        job_data = None
-        if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiJobs, WorkSpec.MT_MultiWorkers]:
-            base_dir = workspec.get_access_point()
-            jobSpecFileName = harvester_config.payload_interaction.jobSpecFile
-            jobSpecFileName = os.path.join(base_dir, jobSpecFileName)
-            logger.debug("jobSpecFileName: %s" % jobSpecFileName)
-            if os.path.exists(jobSpecFileName):
-                with open(jobSpecFileName, 'r') as jobSpecFile:
-                    job_data = jobSpecFile.read()
-
-        _queueConfigMapper = QueueConfigMapper()
-        harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
-
-        pilot_version = 'unknown'
-        pilot_opt_dict = submitter_common.get_complicated_pilot_options(pilot_type=workspec.pilotType,
-                                                                        pilot_url=None,
-                                                                        pilot_version=pilot_version,
-                                                                        prod_source_label=harvester_queue_config.get_source_label(workspec.jobType),
-                                                                        prod_rc_permille=0)
-        prod_source_label = pilot_opt_dict['prod_source_label']
-        pilot_type_opt = pilot_opt_dict['pilot_type_opt']
-        # pilot_url_str = pilot_opt_dict['pilot_url_str']
-
-        placeholder_map = {
-            'nCorePerNode': n_core_per_node,
-            'nCoreTotal': n_core_total,
-            'nNode': n_node,
-            'requestRam': request_ram,
-            'requestRamBytes': request_ram_bytes,
-            'requestRamPerCore': request_ram_per_core,
-            'requestRamBytesPerCore': request_ram_bytes_per_core,
-            'requestDisk': request_disk,
-            'requestWalltime': request_walltime,
-            'requestWalltimeMinute': request_walltime_minute,
-            'requestCputime': request_cputime,
-            'requestCputimeMinute': request_cputime_minute,
-            'accessPoint': workspec.accessPoint,
-            'harvesterID': harvester_config.master.harvester_id,
-            'workerID': workspec.workerID,
-            'computingSite': workspec.computingSite,
-            'pandaQueueName': panda_queue_name,
-            # 'x509UserProxy': x509_user_proxy,
-            'logDir': self.logDir,
-            'logSubDir': os.path.join(self.logDir, timeNow.strftime('%y-%m-%d_%H')),
-            'jobType': workspec.jobType,
-            'prodSourceLabel': prod_source_label,
-            'pilotType': pilot_type_opt,
-            'pilotUrlOption': None,
-            'pilotVersion': 3
-        }
-        # for k in ['tokenDir', 'tokenName', 'tokenOrigin', 'submitMode', 'tokenFile']:
-        for k in ['tokenOrigin', 'tokenFile']:
-            try:
-                placeholder_map[k] = getattr(self, k)
-            except Exception:
-                pass
-        # read token
-        token = None
-        try:
-            with open(self.tokenFile) as tokenFile:
-                token = tokenFile.read()
-        except Exception as ex:
-            logger.error("Failed to read the token: %s" % ex)
-        placeholder_map['token'] = token
-
-        if job_data:
-            placeholder_map['jobData'] = job_data
-
-        return placeholder_map
-
     # get log file names
     def get_log_file_names(self, batch_id):
         stdOut = "stdout.txt"
-        stdErr = "tderr.txt"
+        stdErr = "stderr.txt"
         return stdOut, stdErr

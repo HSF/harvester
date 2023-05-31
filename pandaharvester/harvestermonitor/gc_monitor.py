@@ -294,14 +294,18 @@ class GlobusComputeMonitor(PluginBase):
 
             if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed]:
                 baseDir = workSpec.get_access_point()
-                stdOutErr = self.get_log_file_name()
-                stdOutErr = os.path.join(baseDir, stdOutErr)
-                tmpLog.info("stdout_stderr: %s" % (stdOutErr))
-                with open(stdOutErr, 'w') as fp:
-                    fp.write(str(outLogStr) + "\n" + str(errLogStr))
+
+                stdOut, stdErr = self.get_log_file_names(workSpec.batchID)
+                stdOut = os.path.join(baseDir, stdOut)
+                stdErr = os.path.join(baseDir, stdErr)
+                tmpLog.info("stdout: %s, stderr: %s" % (stdOut, stdErr))
+                with open(stdOut, 'w') as fp:
+                    fp.write(str(outLogStr))
+                with open(stdErr, 'w') as fp:
+                    fp.write(str(errLogStr))
 
                 try:
-                    self.set_work_attributes(workSpec, stdOutErr, work_rets, tmpLog)
+                    self.set_work_attributes(workSpec, stdOut, work_rets, tmpLog)
                 except Exception as ex:
                     tmpLog.error(ex)
                     tmpLog.debug(traceback.format_exc())
@@ -309,7 +313,8 @@ class GlobusComputeMonitor(PluginBase):
             retList.append(tmpRetVal)
         return True, retList
 
-        # get log file names
-    def get_log_file_name(self):
-        stdOutErr = "stdout_stderr.txt"
-        return stdOutErr
+    # get log file names
+    def get_log_file_names(self, batch_id):
+        stdOut = "stdout.txt"
+        stdErr = "stderr.txt"
+        return stdOut, stdErr
