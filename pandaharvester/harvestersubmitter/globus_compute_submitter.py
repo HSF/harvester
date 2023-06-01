@@ -16,7 +16,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from globus_compute_sdk import Client
 
 # logger
-baseLogger = core_utils.setup_logger('gc_submitter')
+baseLogger = core_utils.setup_logger('globus_compute_submitter')
 
 
 def run_wrapper(base_path, data_path, func_str):

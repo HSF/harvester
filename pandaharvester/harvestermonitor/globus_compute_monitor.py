@@ -19,7 +19,7 @@ from globus_compute_sdk import errors as gc_errors
 
 
 # logger
-baseLogger = core_utils.setup_logger('gc_monitor')
+baseLogger = core_utils.setup_logger('globus_compute_monitor')
 
 
 # monitor for globus compute batch system

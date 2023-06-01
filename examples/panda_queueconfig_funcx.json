@@ -373,17 +373,13 @@
     },
     "submitter": {
 	    "name": "GlobusComputeSubmitter",
-            "module": "pandaharvester.harvestersubmitter.gc_submitter",
+            "module": "pandaharvester.harvestersubmitter.globus_compute_submitter",
 	    "funcxEndpointId": "d614a625-a276-453b-afdc-42422e327573",
-	    "tokenOrigin": "panda_dev.pilot",
-	    "tokenFile": "/data/idds/harvester_wdirs/auth_tokens/48975ff1c8b067b9dcea54d5cdd28cc8",
-	    "dataPath": "/data/idds/rucio",
-	    "pandaURL": "https://pandacache.cern.ch/server/panda"
+	    "dataPath": "/data/idds/rucio"
       },
     "monitor":{
           "name": "GlobusComputeMonitor",
-          "module": "pandaharvester.harvestermonitor.gc_monitor",
-	  "baseSURL": "davs://dcgftp.usatlas.bnl.gov:443/pnfs/usatlas.bnl.gov/atlasscratchdisk/rucio"
+          "module": "pandaharvester.harvestermonitor.globus_compute_monitor"
       }
   }
 
