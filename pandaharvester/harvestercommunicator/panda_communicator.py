@@ -885,3 +885,21 @@ class PandaCommunicator(BaseCommunicator):
             retMap['StatusCode'] = 999
         tmp_log.debug('done with {0}'.format(str(retMap)))
         return retMap
+
+    # check event availability
+    def get_max_worker_id(self):
+        retStat = False
+        retVal = None
+        tmpLog = self.make_logger(method_name='get_max_worker_id')
+        tmpLog.debug('start')
+        data = {':harvester_id': harvester_config.master.harvester_id}
+        tmpStat, tmpRes = self.post_ssl('get_worker_id', data)
+        if tmpStat is False:
+            core_utils.dump_error_message(tmpLog, tmpRes)
+        else:
+            try:
+                retVal = tmpRes.json()
+            except Exception:
+                core_utils.dump_error_message(tmpLog, tmpRes)
+        tmpLog.debug('done with {0}'.format(retVal))
+        return retStat, retVal

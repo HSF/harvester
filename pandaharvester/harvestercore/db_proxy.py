@@ -499,7 +499,10 @@ class DBProxy(object):
         return self.check_table(cls, table_name)
 
     # make tables
-    def make_tables(self, queue_config_mapper):
+    def make_tables(self, queue_config_mapper, communicator_pool):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name='make_tables')
+        tmpLog.debug('start')
         outStrs = []
         outStrs += self.make_table(CommandSpec, commandTableName)
         outStrs += self.make_table(JobSpec, jobTableName)
@@ -526,13 +529,25 @@ class DBProxy(object):
                 print (outStr)
             sys.exit(1)
 
+        # sync workerID
+        init_worker = 1
+        if hasattr(harvester_config.db, 'syncMaxWorkerID') and harvester_config.db.syncMaxWorkerID:
+            retVal, out = self.communicator.get_max_worker_id()
+            if not retVal:
+                tmpLog.warning('failed to get max workerID with {}'.format(out))
+            elif not retVal:
+                tmpLog.debug('max workerID is undefined')
+            else:
+                tmpLog.debug('got max_workerID={}'.format(out))
+                init_worker = out + 1
         # add sequential numbers
-        self.add_seq_number('SEQ_workerID', 1)
+        self.add_seq_number('SEQ_workerID', init_worker)
         self.add_seq_number('SEQ_configID', 1)
         # fill PandaQueue table
         queue_config_mapper.load_data()
         # delete process locks
         self.clean_process_locks()
+        tmpLog.debug('done')
 
     # check table
     def check_table(self, cls, table_name, get_missing=False):
