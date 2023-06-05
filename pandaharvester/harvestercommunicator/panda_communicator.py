@@ -892,14 +892,14 @@ class PandaCommunicator(BaseCommunicator):
         retVal = None
         tmpLog = self.make_logger(method_name='get_max_worker_id')
         tmpLog.debug('start')
-        data = {':harvester_id': harvester_config.master.harvester_id}
-        tmpStat, tmpRes = self.post_ssl('get_worker_id', data)
+        data = {'harvester_id': harvester_config.master.harvester_id}
+        tmpStat, tmpRes = self.post_ssl('get_max_worker_id', data)
         if tmpStat is False:
             core_utils.dump_error_message(tmpLog, tmpRes)
         else:
             try:
                 retVal = tmpRes.json()
             except Exception:
-                core_utils.dump_error_message(tmpLog, tmpRes)
-        tmpLog.debug('done with {0}'.format(retVal))
+                core_utils.dump_error_message(tmpLog, tmpRes.text)
+        tmpLog.debug('done with {} {}'.format(retStat, retVal))
         return retStat, retVal
