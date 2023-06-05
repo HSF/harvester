@@ -46,7 +46,7 @@ class Master(object):
         self.queueConfigMapper = QueueConfigMapper()
         from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
         dbProxy = DBProxy()
-        dbProxy.make_tables(self.queueConfigMapper)
+        dbProxy.make_tables(self.queueConfigMapper, self.communicatorPool)
 
     # main loop
     def start(self):

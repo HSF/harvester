@@ -69,6 +69,10 @@ port = 	3306
 # max time in seconds to keep trying to reconnect DB before timeout
 reconnectTimeout = 300
 
+# synchronize max workerID when starting up
+syncMaxWorkerID = False
+
+
 
 
 ##########################
