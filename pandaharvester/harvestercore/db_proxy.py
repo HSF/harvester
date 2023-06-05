@@ -535,7 +535,7 @@ class DBProxy(object):
             retVal, out = communicator_pool.get_max_worker_id()
             if not retVal:
                 tmpLog.warning('failed to get max workerID with {}'.format(out))
-            elif not retVal:
+            elif not out:
                 tmpLog.debug('max workerID is undefined')
             else:
                 tmpLog.debug('got max_workerID={}'.format(out))
