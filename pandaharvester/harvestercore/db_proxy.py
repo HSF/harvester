@@ -532,7 +532,7 @@ class DBProxy(object):
         # sync workerID
         init_worker = 1
         if hasattr(harvester_config.db, 'syncMaxWorkerID') and harvester_config.db.syncMaxWorkerID:
-            retVal, out = self.communicator.get_max_worker_id()
+            retVal, out = communicator_pool.get_max_worker_id()
             if not retVal:
                 tmpLog.warning('failed to get max workerID with {}'.format(out))
             elif not retVal:
