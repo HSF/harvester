@@ -122,6 +122,10 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     workSpec.nCore = site_corecount
                     workSpec.minRamCount = site_maxrss
             else:
+                if resource_type not in ['SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM']:
+                    # some testing PQs have ucore + pure pull, need to default to SCORE
+                    tmpLog.warning('Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to SCORE'.format(resource_type=resource_type))
+                    resource_type = 'SCORE'
                 workSpec.nCore, workSpec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type,
                                                                                                     queue_dict)
 
