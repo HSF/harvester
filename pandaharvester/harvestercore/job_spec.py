@@ -4,6 +4,7 @@ Job spec class
 """
 
 import copy
+import json
 import datetime
 from past.builtins import long
 from future.utils import iteritems
@@ -128,6 +129,12 @@ class JobSpec(SpecBase):
 
     # convert from Job JSON
     def convert_job_json(self, data):
+        # decode secrets
+        try:
+            if 'secrets' in data:
+                data['secrets'] = json.loads(data['secrets'])
+        except Exception:
+            pass
         self.PandaID = data['PandaID']
         if data['taskID'] == 'NULL':
             self.taskID = None
