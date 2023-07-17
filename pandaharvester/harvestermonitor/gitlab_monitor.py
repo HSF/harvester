@@ -26,7 +26,7 @@ class GitlabMonitor(PluginBase):
                                       method_name='check_workers')
             try:
                 params = get_job_params(workSpec)
-                url = '{}/{}/pipelines/{}'.format(params['project_url'], params['project_id'],
+                url = '{}/{}/pipelines/{}'.format(params['project_api'], params['project_id'],
                                                   workSpec.batchID.split()[0])
                 try:
                     tmpLog.debug('check pipeline at {}'.format(url))

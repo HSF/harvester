@@ -29,7 +29,7 @@ class GitlabSubmitter(PluginBase):
                 params = json.loads(jobSpec.jobParams['jobPars'])
                 params['secrets'] = secrets
                 store_job_params(workSpec, params)
-                url = '{}/{}/trigger/pipeline'.format(params['project_url'], params['project_id'])
+                url = '{}/{}/trigger/pipeline'.format(params['project_api'], params['project_id'])
                 data = {'token': secrets[params['trigger_token']],
                         'ref': params['ref']}
                 try:

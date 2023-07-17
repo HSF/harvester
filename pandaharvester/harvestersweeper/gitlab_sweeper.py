@@ -35,7 +35,7 @@ class GitlabSweeper(BaseSweeper):
         tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
                                   method_name='kill_worker')
         params = get_job_params(workspec)
-        url = '{}/{}/pipelines/{}/cancel'.format(params['project_url'], params['project_id'],
+        url = '{}/{}/pipelines/{}/cancel'.format(params['project_api'], params['project_id'],
                                                  workspec.batchID.split()[0])
         try:
             tmpLog.debug('cancel pipeline at {}'.format(url))
