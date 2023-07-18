@@ -187,6 +187,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         self.lock = threading.Lock()
         self.lastUpdate = None
         self.lastReload = None
+        self.lastCheck = None
         self.dbProxy = DBProxy()
         self.toUpdateDB = update_db
         try:
@@ -290,10 +291,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             time_now = datetime.datetime.utcnow()
             updateInterval_td = datetime.timedelta(seconds=self.updateInterval)
             checkInterval_td = datetime.timedelta(seconds=self.checkInterval)
-            # skip if lastUpdate is fresh (within checkInterval)
-            if (self.lastUpdate is not None
-                and time_now - self.lastUpdate < checkInterval_td):
+            # skip if lastCheck is fresh (within checkInterval)
+            if (self.lastCheck is not None
+                and time_now - self.lastCheck < checkInterval_td):
+                self.lastCheck = time_now
                 return
+            self.lastCheck = time_now
             # get last_reload_timestamp from DB
             last_reload_timestamp = self._get_last_reload_time()
             self.lastReload = None if last_reload_timestamp is None else datetime.datetime.utcfromtimestamp(last_reload_timestamp)
@@ -628,8 +631,9 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 queueConfig.configID = dumpSpec.configID
                 newQueueConfigWithID[dumpSpec.configID] = queueConfig
             self.queueConfigWithID = newQueueConfigWithID
-            # update lastUpdate
+            # update lastUpdate and lastCheck
             self.lastUpdate = datetime.datetime.utcnow()
+            self.lastCheck = self.lastUpdate
         # update database
         if self.toUpdateDB:
             self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
