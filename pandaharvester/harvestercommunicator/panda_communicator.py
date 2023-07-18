@@ -480,7 +480,7 @@ class PandaCommunicator(BaseCommunicator):
                     tmpLog.debug('Commands {0}'.format(tmp_dict['Commands']))
                     return tmp_dict['Commands']
                 return []
-            except KeyError:
+            except Exception:
                 core_utils.dump_error_message(tmpLog, tmp_res)
         return []
 
@@ -502,7 +502,7 @@ class PandaCommunicator(BaseCommunicator):
                     tmpLog.debug('Finished acknowledging commands')
                     return True
                 return False
-            except KeyError:
+            except Exception:
                 core_utils.dump_error_message(tmpLog, tmp_res)
         return False
 
