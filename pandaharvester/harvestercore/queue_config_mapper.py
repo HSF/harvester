@@ -294,7 +294,6 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             # skip if lastCheck is fresh (within checkInterval)
             if (self.lastCheck is not None
                 and time_now - self.lastCheck < checkInterval_td):
-                self.lastCheck = time_now
                 return
             self.lastCheck = time_now
             # get last_reload_timestamp from DB
