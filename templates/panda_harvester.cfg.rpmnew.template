@@ -205,6 +205,11 @@ autoBlacklist = False
 # restrict to a certain pilot version (optional)
 #pilotVersion = 2
 
+# update interval in sec (default: 600) - period to update qconf
+updateInterval = 600
+
+# check interval in sec (default: 5) - period for other agent threads to check last qconf update
+checkInterval = 5
 
 
 ##########################
