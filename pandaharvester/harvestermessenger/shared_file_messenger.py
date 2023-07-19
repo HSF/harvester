@@ -137,8 +137,8 @@ def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None, sub
         com += 'find . '
         if max_depth is not None:
             com += '-maxdepth {0} '.format(max_depth)
-        com += r'-type f \( ' + filter_log_tgz(extra_files) + r'\) -print0 '
-        com += '| '
+        com += r'-type f \( ' + filter_log_tgz(extra_files) + r'\) '
+        com += r'| grep -v {0} | tr "\n" "\0" | '.format(jobSpecFileName)
         com += 'tar '
         if distutils.spawn.find_executable('pigz') is None:
             com += '-z '
