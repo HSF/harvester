@@ -2,7 +2,7 @@ FROM docker.io/centos:7
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget httpd logrotate
+RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget httpd logrotate mod_ssl
 
 RUN mkdir -p /data/condor; cd /data/condor; \
     wget https://research.cs.wisc.edu/htcondor/tarball/9.0/9.0.17/release/condor-9.0.17-x86_64_CentOS7-stripped.tar.gz -O condor.tar.gz.9; \
@@ -67,7 +67,14 @@ RUN chmod -R 777 /etc/httpd
 RUN chmod -R 777 /var/log/httpd
 RUN chmod -R 777 /var/lib/logrotate
 RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
+
+RUN mv /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.back
 COPY docker/httpd.conf /etc/httpd/conf/
+COPY docker/ssl-httpd.conf /etc/httpd/conf.d/
+RUN mkdir -p /opt/harvester/etc/certs
+RUN ln -s /opt/harvester/etc/certs/hostkey.pem /etc/grid-security/hostkey.pem
+RUN ln -s /opt/harvester/etc/certs/hostcert.pem /etc/grid-security/hostcert.pem
+RUN ln -s /opt/harvester/etc/certs/chain.pem /etc/grid-security/chain.pem
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
@@ -94,10 +101,8 @@ RUN chmod +x /opt/harvester/etc/rc.d/init.d/run-harvester-services
 
 # add condor setup ins sysconfig
 RUN echo source /data/condor/condor/condor.sh >> /opt/harvester/etc/sysconfig/panda_harvester
-
-# add harvester setup
 RUN echo source /data/harvester/setup-harvester >> /opt/harvester/etc/sysconfig/panda_harvester
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
-EXPOSE 8080
+EXPOSE 8080 8443
