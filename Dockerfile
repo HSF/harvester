@@ -72,9 +72,10 @@ RUN mv /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.back
 COPY docker/httpd.conf /etc/httpd/conf/
 COPY docker/ssl-httpd.conf /etc/httpd/conf.d/
 RUN mkdir -p /opt/harvester/etc/certs
-RUN ln -s /opt/harvester/etc/certs/hostkey.pem /etc/grid-security/hostkey.pem
-RUN ln -s /opt/harvester/etc/certs/hostcert.pem /etc/grid-security/hostcert.pem
-RUN ln -s /opt/harvester/etc/certs/chain.pem /etc/grid-security/chain.pem
+RUN chmod -R 777 /opt/harvester/etc/certs
+RUN ln -fs /opt/harvester/etc/certs/hostkey.pem /etc/grid-security/hostkey.pem
+RUN ln -fs /opt/harvester/etc/certs/hostcert.pem /etc/grid-security/hostcert.pem
+RUN ln -fs /opt/harvester/etc/certs/chain.pem /etc/grid-security/chain.pem
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
