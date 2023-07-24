@@ -86,6 +86,14 @@ set -m \n\
 /data/harvester/init-harvester \n\
 /data/harvester/run-harvester-crons & \n\
 source /data/harvester/setup-harvester \n\
+\n\
+# if no host certificate \n\
+if [[ ! -f /opt/harvester/etc/certs/hostkey.pem ]]; then \n\
+    ln -s /etc/pki/tls/certs/localhost.crt   /opt/harvester/etc/certs/hostcert.pem \n\
+    ln -s /etc/pki/tls/private/localhost.key /opt/harvester/etc/certs/hostkey.pem \n\
+    ln -s /etc/pki/tls/certs/ca-bundle.crt   /opt/harvester/etc/certs/chain.pem \n\
+fi \n\
+\n\
 cd /data/condor \n\
 tar -x -f condor.tar.gz${CONDOR_CHANNEL} \n\
 mv condor-*stripped condor \n\
