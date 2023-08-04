@@ -7,7 +7,7 @@ ARG PYTHON_VERSION
 RUN yum update -y
 RUN yum install -y epel-release
 RUN yum install -y gcc make less git curl voms-clients-cpp wget httpd logrotate mod_ssl \
-    openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel \
+    openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
 # install mysql-community for CC7+Python3.11
 RUN wget https://dev.mysql.com/get/mysql80-community-release-el7-9.noarch.rpm && \
