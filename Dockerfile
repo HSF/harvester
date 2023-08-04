@@ -1,9 +1,26 @@
+ARG PYTHON_VERSION=3.11.4
+
 FROM docker.io/centos:7
+
+ARG PYTHON_VERSION
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel gcc less git mysql-devel curl mariadb voms-clients-cpp wget httpd logrotate mod_ssl
+RUN yum install -y gcc make less git mysql-devel curl mariadb voms-clients-cpp wget httpd logrotate mod_ssl \
+    openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
+# install python
+RUN mkdir /tmp/python && cd /tmp/python && \
+    wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
+    tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
+    cd Python-* && \
+    sed -i 's/PKG_CONFIG openssl /PKG_CONFIG openssl11 /g' configure && \
+    ./configure --enable-shared && \
+    make altinstall && \
+    echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
+    cd / && rm -rf /tmp/pyton
+
+# install condor
 RUN mkdir -p /data/condor; cd /data/condor; \
     wget https://research.cs.wisc.edu/htcondor/tarball/9.0/9.0.17/release/condor-9.0.17-x86_64_CentOS7-stripped.tar.gz -O condor.tar.gz.9; \
     curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download --channel stable; \
@@ -27,7 +44,8 @@ RUN yum install -y google-cloud-sdk-gke-gcloud-auth-plugin kubectl
 RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el7/release/x86_64/osg-ca-certs-1.109-1.osg36.el7.noarch.rpm
 RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el7/release/x86_64/vo-client-130-1.osg36.el7.noarch.rpm
 
-RUN python3 -m venv /opt/harvester
+# setup venv with pythonX.Y
+RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
 RUN /opt/harvester/bin/pip install -U setuptools
 RUN /opt/harvester/bin/pip install -U mysqlclient uWSGI pyyaml
