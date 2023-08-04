@@ -6,8 +6,13 @@ ARG PYTHON_VERSION
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y gcc make less git mariadb-devel curl mariadb voms-clients-cpp wget httpd logrotate mod_ssl \
-    openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
+RUN yum install -y gcc make less git curl voms-clients-cpp wget httpd logrotate mod_ssl \
+    openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel \
+
+# install mysql-community for CC7+Python3.11
+RUN wget https://dev.mysql.com/get/mysql80-community-release-el7-9.noarch.rpm && \
+    rpm -Uvh mysql80-community-release-el7-9.noarch.rpm && \
+    yum install -y mysql-community-devel
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
@@ -96,6 +101,8 @@ RUN ln -fs /opt/harvester/etc/certs/hostcert.pem /etc/grid-security/hostcert.pem
 RUN ln -fs /opt/harvester/etc/certs/chain.pem /etc/grid-security/chain.pem
 RUN chmod 644 /etc/pki/tls/private/localhost.key
 RUN chmod 644 /etc/pki/tls/certs/localhost.crt
+
+RUN yum clean all
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
