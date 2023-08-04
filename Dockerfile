@@ -6,7 +6,7 @@ ARG PYTHON_VERSION
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y gcc make less git mysql-devel curl mariadb voms-clients-cpp wget httpd logrotate mod_ssl \
+RUN yum install -y gcc make less git mariadb-devel curl mariadb voms-clients-cpp wget httpd logrotate mod_ssl \
     openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
 # install python
