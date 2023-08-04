@@ -12,7 +12,7 @@ RUN yum install -y gcc make less git curl voms-clients-cpp wget httpd logrotate 
 # install mysql-community for CC7+Python3.11
 RUN wget https://dev.mysql.com/get/mysql80-community-release-el7-9.noarch.rpm && \
     rpm -Uvh mysql80-community-release-el7-9.noarch.rpm && \
-    yum install -y mysql-community-devel
+    yum install -y mysql-community-devel mysql-community-client
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
