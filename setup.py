@@ -67,12 +67,12 @@ setup(
                              ]
          ),
         # admin tool
-        ('local/bin', ['templates/harvester-admin.rpmnew.template',
+        ('local/bin', ['templates/bin/harvester-admin.rpmnew.template',
                  ]
          ),
         ],
 
-    scripts=['templates/panda_jedi-renice',
-             'templates/panda_harvester-sqlite3backup',
+    scripts=['templates/bin/panda_jedi-renice',
+             'templates/bin/panda_harvester-sqlite3backup',
              ]
     )
