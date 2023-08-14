@@ -173,10 +173,6 @@ class GlobusBulkStager(BaseStager):
         transferID = None
         # get the scope of the log files
         outfileattrib = jobspec.get_output_file_attributes()
-        scopeLog = 'xxxx'
-        for key in list(outfileattrib.keys()):
-            if "log.tgz" in key :
-                scopeLog = outfileattrib[key]['scope']
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
         tmpLog.debug('jobspec.get_groups_of_output_files() = : {0}'.format(groups))
@@ -271,9 +267,6 @@ class GlobusBulkStager(BaseStager):
                         # for EventService job set the scope to transient for non log files
                         if self.EventServicejob :
                             scope = 'transient'
-                        if fileSpec.fileType == "log" :
-                            logfile = True
-                            scope = scopeLog
                         # only print to log file first 25 files
                         if ifile < 25 :
                             msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
