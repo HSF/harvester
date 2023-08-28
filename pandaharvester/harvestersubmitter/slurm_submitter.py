@@ -27,6 +27,8 @@ class SlurmSubmitter(PluginBase):
         self.uploadLog = False
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
+        if not hasattr(self, 'localQueueName'):
+            self.localQueueName = 'grid'
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -123,6 +125,7 @@ class SlurmSubmitter(PluginBase):
             'workerID': workspec.workerID,
             'computingSite': workspec.computingSite,
             'pandaQueueName': panda_queue_name,
+            'localQueueName': self.localQueueName,
             # 'x509UserProxy': x509_user_proxy,
             'logDir': self.logDir,
             'logSubDir': os.path.join(self.logDir, timeNow.strftime('%y-%m-%d_%H')),
