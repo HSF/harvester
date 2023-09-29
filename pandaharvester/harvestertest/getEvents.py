@@ -15,13 +15,13 @@ accessPoint = workSpec.get_access_point()
 
 try:
     os.makedirs(accessPoint)
-except:
+except BaseException:
     pass
 
 node = {}
-node['pandaID'] = jobSpec.PandaID
-node['jobsetID'] = jobSpec.jobParams['jobsetID']
-node['taskID'] = jobSpec.taskID
+node["pandaID"] = jobSpec.PandaID
+node["jobsetID"] = jobSpec.jobParams["jobsetID"]
+node["taskID"] = jobSpec.taskID
 
 
 a = CommunicatorPool()

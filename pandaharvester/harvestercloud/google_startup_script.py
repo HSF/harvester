@@ -10,7 +10,7 @@ This script will be executed at the VM startup time.
 import requests
 try:
     import subprocess32 as subprocess
-except:
+except BaseException:
     import subprocess
 import os
 import sys
@@ -44,7 +44,7 @@ def upload_logs(url, log_file_name, destination_name, proxy_path):
         logging.debug('[upload_logs] finished with code={0} msg={1}'.format(res.status_code, res.text))
         if res.status_code == 200:
             return True
-    except:
+    except BaseException:
         err_type, err_value = sys.exc_info()[:2]
         err_messsage = "failed to put with {0}:{1} ".format(err_type, err_value)
         err_messsage += traceback.format_exc()
@@ -58,7 +58,7 @@ def contact_harvester(harvester_frontend, data, auth_token, proxy_path):
         headers = {'Content-Type': 'application/json',
                    'Authorization': 'Bearer {0}'.format(auth_token)}
         cert = [proxy_path, proxy_path]
-        #verify = '/etc/grid-security/certificates' # not supported in CernVM - requests.exceptions.SSLError: [Errno 21] Is a directory
+        # verify = '/etc/grid-security/certificates' # not supported in CernVM - requests.exceptions.SSLError: [Errno 21] Is a directory
         verify = False
         resp = requests.post(harvester_frontend, json=data, headers=headers, cert=cert, verify=verify)
         logging.debug('[contact_harvester] harvester returned: {0}'.format(resp.text))
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # the pilot should propagate the download link via the pilotId field in the job table
     destination_name = '{0}.log'.format(worker_id)
     log_download_url = '{0}/{1}'.format(logs_frontend_r, destination_name)
-    os.environ['GTAG'] = log_download_url # GTAG env variable is read by pilot
+    os.environ['GTAG'] = log_download_url  # GTAG env variable is read by pilot
 
     # get the pilot wrapper
     wrapper_path = "/tmp/runpilot3-wrapper.sh"
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     wrapper_string = get_url(wrapper_url)
     with open(wrapper_path, "w") as wrapper_file:
         wrapper_file.write(wrapper_string)
-    os.chmod(wrapper_path, 0544) # make pilot wrapper executable
+    os.chmod(wrapper_path, 0544)  # make pilot wrapper executable
     logging.debug('[main] downloaded pilot wrapper')
 
     # execute the pilot wrapper

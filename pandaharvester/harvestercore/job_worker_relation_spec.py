@@ -9,10 +9,11 @@ from .spec_base import SpecBase
 # relationship spec
 class JobWorkerRelationSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('PandaID:integer / index',
-                           'workerID:integer / index',
-                           'relationType:text',
-                           )
+    attributesWithTypes = (
+        "PandaID:integer / index",
+        "workerID:integer / index",
+        "relationType:text",
+    )
 
     # constructor
     def __init__(self):

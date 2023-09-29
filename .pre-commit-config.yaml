@@ -23,5 +23,6 @@ exclude: |
         ^pandaharvester/harvestertest/stageOutTest_globus.py|
         ^pandaharvester/harvestertest/stageInTest_go_bulk_preparator.py|
         ^pandaharvester/harvesterpayload/ATLAS_simple_wrapper_mpi.py|
+        ^pandaharvester/harvestercloud/google_startup_script.py|
         ^&
     )

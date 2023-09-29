@@ -21,11 +21,13 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 
 # handle exception from globus software
+
+
 def handle_globus_exception(tmp_log):
     if not isinstance(tmp_log, LogWrapper):
-        methodName = '{0} : '.format(inspect.stack()[1][3])
+        methodName = "{0} : ".format(inspect.stack()[1][3])
     else:
-        methodName = ''
+        methodName = ""
     # extract errtype and check if it a GlobusError Class
     errtype, errvalue = sys.exc_info()[:2]
     errStat = None
@@ -34,24 +36,19 @@ def handle_globus_exception(tmp_log):
         # Error response from the REST service, check the code and message for
         # details.
         errStat = None
-        errMsg += "HTTP status code: {0} Error Code: {1} Error Message: {2} ".format(errvalue.http_status,
-                                                                                      errvalue.code, 
-                                                                                      errvalue.message)
+        errMsg += "HTTP status code: {0} Error Code: {1} Error Message: {2} ".format(errvalue.http_status, errvalue.code, errvalue.message)
     elif isinstance(errvalue, TransferAPIError):
         err_args = list(errvalue._get_args())
-        errStat = None    
-        errMsg += " http_status: {0} code: {1} message: {2} requestID: {3} ".format(err_args[0],
-                                                                                     err_args[1],
-                                                                                     err_args[2],
-                                                                                     err_args[3])
+        errStat = None
+        errMsg += " http_status: {0} code: {1} message: {2} requestID: {3} ".format(err_args[0], err_args[1], err_args[2], err_args[3])
     elif isinstance(errvalue, NetworkError):
-        errStat = None    
+        errStat = None
         errMsg += "Network Failure. Possibly a firewall or connectivity issue "
     elif isinstance(errvalue, GlobusConnectionError):
-        errStat = None    
+        errStat = None
         errMsg += "A connection error occured while making a REST request. "
     elif isinstance(errvalue, GlobusTimeoutError):
-        errStat = None    
+        errStat = None
         errMsg += "A REST request timeout. "
     elif isinstance(errvalue, GlobusError):
         errStat = False
@@ -59,74 +56,81 @@ def handle_globus_exception(tmp_log):
     else:  # some other error
         errStat = False
         errMsg = "{0} ".format(errvalue)
-    #errMsg += traceback.format_exc()
+    # errMsg += traceback.format_exc()
     tmp_log.error(errMsg)
-    return (errStat,errMsg)
+    return (errStat, errMsg)
+
 
 # Globus create transfer client
-def create_globus_transfer_client(tmpLog,globus_client_id,globus_refresh_token):
+
+
+def create_globus_transfer_client(tmpLog, globus_client_id, globus_refresh_token):
     """
     create Globus Transfer Client and return the transfer client
     """
     # get logger
-    tmpLog.info('Creating instance of GlobusTransferClient')
-    # start the Native App authentication process 
+    tmpLog.info("Creating instance of GlobusTransferClient")
+    # start the Native App authentication process
     # use the refresh token to get authorizer
     # create the Globus Transfer Client
     tc = None
     ErrStat = True
     try:
         client = NativeAppAuthClient(client_id=globus_client_id)
-        authorizer = RefreshTokenAuthorizer(refresh_token=globus_refresh_token,auth_client=client)
+        authorizer = RefreshTokenAuthorizer(refresh_token=globus_refresh_token, auth_client=client)
         tc = TransferClient(authorizer=authorizer)
-    except:
+    except BaseException:
         errStat, errMsg = handle_globus_exception(tmpLog)
-    return ErrStat,tc
+    return ErrStat, tc
 
-def check_endpoint_activation (tmpLog,tc,endpoint_id):
+
+def check_endpoint_activation(tmpLog, tc, endpoint_id):
     """
-    check if endpoint is activated 
+    check if endpoint is activated
     """
     # test we have a Globus Transfer Client
-    if not tc :
-        errStr = 'failed to get Globus Transfer Client'
+    if not tc:
+        errStr = "failed to get Globus Transfer Client"
         tmpLog.error(errStr)
         return False, errStr
-    try: 
+    try:
         endpoint = tc.get_endpoint(endpoint_id)
         r = tc.endpoint_autoactivate(endpoint_id, if_expires_in=3600)
 
-        tmpLog.info("Endpoint - %s - activation status code %s"%(endpoint["display_name"],str(r["code"])))
-        if r['code'] == 'AutoActivationFailed':
-            errStr = 'Endpoint({0}) Not Active! Error! Source message: {1}'.format(endpoint_id, r['message'])
+        tmpLog.info("Endpoint - %s - activation status code %s" % (endpoint["display_name"], str(r["code"])))
+        if r["code"] == "AutoActivationFailed":
+            errStr = "Endpoint({0}) Not Active! Error! Source message: {1}".format(endpoint_id, r["message"])
             tmpLog.debug(errStr)
             return False, errStr
-        elif r['code'] == 'AutoActivated.CachedCredential': 
-            errStr = 'Endpoint({0}) autoactivated using a cached credential.'.format(endpoint_id)
+        elif r["code"] == "AutoActivated.CachedCredential":
+            errStr = "Endpoint({0}) autoactivated using a cached credential.".format(endpoint_id)
             tmpLog.debug(errStr)
-            return True,errStr
-        elif r['code'] == 'AutoActivated.GlobusOnlineCredential':
-            errStr = 'Endpoint({0}) autoactivated using a built-in Globus '.format(endpoint_id)
+            return True, errStr
+        elif r["code"] == "AutoActivated.GlobusOnlineCredential":
+            errStr = "Endpoint({0}) autoactivated using a built-in Globus ".format(endpoint_id)
             tmpLog.debug(errStr)
-            return True,errStr
-        elif r['code'] == 'AlreadyActivated':
-            errStr = 'Endpoint({0}) already active until at least {1}'.format(endpoint_id,3600)
+            return True, errStr
+        elif r["code"] == "AlreadyActivated":
+            errStr = "Endpoint({0}) already active until at least {1}".format(endpoint_id, 3600)
             tmpLog.debug(errStr)
-            return True,errStr
-    except:
-        errStat,errMsg = handle_globus_exception(tmpLog)
+            return True, errStr
+    except BaseException:
+        errStat, errMsg = handle_globus_exception(tmpLog)
         return errStat, {}
 
+
 # get transfer tasks
-def get_transfer_task_by_id(tmpLog,tc,transferID=None):
+
+
+def get_transfer_task_by_id(tmpLog, tc, transferID=None):
     # test we have a Globus Transfer Client
-    if not tc :
-        errStr = 'failed to get Globus Transfer Client'
+    if not tc:
+        errStr = "failed to get Globus Transfer Client"
         tmpLog.error(errStr)
         return False, errStr
-    if transferID == None:                
+    if transferID is None:
         # error need to have task ID
-        errStr = 'failed to provide transfer task ID '
+        errStr = "failed to provide transfer task ID "
         tmpLog.error(errStr)
         return False, errStr
     try:
@@ -136,35 +140,38 @@ def get_transfer_task_by_id(tmpLog,tc,transferID=None):
         tasks = {}
         tasks[transferID] = gRes
         # return
-        tmpLog.debug('got {0} tasks'.format(len(tasks)))
+        tmpLog.debug("got {0} tasks".format(len(tasks)))
         return True, tasks
-    except:
-        errStat,errMsg = handle_globus_exception(tmpLog)
+    except BaseException:
+        errStat, errMsg = handle_globus_exception(tmpLog)
         return errStat, {}
 
+
 # get transfer tasks
-def get_transfer_tasks(tmpLog,tc,label=None):
+
+
+def get_transfer_tasks(tmpLog, tc, label=None):
     # test we have a Globus Transfer Client
-    if not tc :
-        errStr = 'failed to get Globus Transfer Client'
+    if not tc:
+        errStr = "failed to get Globus Transfer Client"
         tmpLog.error(errStr)
         return False, errStr
     try:
         # execute
-        if label == None:                
+        if label is None:
             params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED"}
-            gRes = tc.task_list(num_results=1000,**params)
+            gRes = tc.task_list(num_results=1000, **params)
         else:
             params = {"filter": "type:TRANSFER/status:SUCCEEDED,INACTIVE,FAILED,SUCCEEDED/label:{0}".format(label)}
             gRes = tc.task_list(**params)
         # parse output
         tasks = {}
         for res in gRes:
-            reslabel = res.data['label']
+            reslabel = res.data["label"]
             tasks[reslabel] = res.data
         # return
-        tmpLog.debug('got {0} tasks'.format(len(tasks)))
+        tmpLog.debug("got {0} tasks".format(len(tasks)))
         return True, tasks
-    except:
-        errStat,errMsg = handle_globus_exception(tmpLog)
+    except BaseException:
+        errStat, errMsg = handle_globus_exception(tmpLog)
         return errStat, {}

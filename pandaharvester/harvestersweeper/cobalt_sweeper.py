@@ -1,26 +1,27 @@
-
-#=== Imports ==================================================
+# === Imports ==================================================
 
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
 import os
+
 try:
     import subprocess32 as subprocess
-except:
+except BaseException:
     import subprocess
 import shutil
 
-#==============================================================
+# ==============================================================
 
-#=== Definitions ==============================================
+# === Definitions ==============================================
 
-## Logger
-baseLogger = core_utils.setup_logger('cobalt_sweeper')
+# Logger
+baseLogger = core_utils.setup_logger("cobalt_sweeper")
 
-#==============================================================
+# ==============================================================
 
-#=== Functions ================================================
+# === Functions ================================================
+
 
 def _runShell(cmd):
     cmd = str(cmd)
@@ -29,11 +30,14 @@ def _runShell(cmd):
     retCode = p.returncode
     return (retCode, stdOut, stdErr)
 
-#==============================================================
 
-#=== Classes ==================================================
+# ==============================================================
+
+# === Classes ==================================================
 
 # dummy plugin for sweeper
+
+
 class CobaltSweeper(PluginBase):
     # constructor
     def __init__(self, **kwarg):
@@ -49,23 +53,22 @@ class CobaltSweeper(PluginBase):
         :rtype: (bool, string)
         """
 
-        ## Make logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                  method_name='kill_worker')
+        # Make logger
+        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
 
-        ## Kill command
-        comStr = 'qdel {0}'.format(workspec.batchID)
+        # Kill command
+        comStr = "qdel {0}".format(workspec.batchID)
         (retCode, stdOut, stdErr) = _runShell(comStr)
         if retCode != 0:
-            ## Command failed
+            # Command failed
             errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
             tmpLog.error(errStr)
             return False, errStr
         else:
-            tmpLog.info('Succeeded to kill workerID={0} batchID={1}'.format(workspec.workerID, workspec.workerID))
+            tmpLog.info("Succeeded to kill workerID={0} batchID={1}".format(workspec.workerID, workspec.workerID))
 
-        ## Return
-        return True, ''
+        # Return
+        return True, ""
 
     # cleanup for a worker
     def sweep_worker(self, workspec):
@@ -77,17 +80,17 @@ class CobaltSweeper(PluginBase):
         :rtype: (bool, string)
         """
 
-        ## Make logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                  method_name='sweep_worker')
+        # Make logger
+        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
 
-        ## Clean up worker directory
+        # Clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)
-            tmpLog.info(' removed {1}'.format(workspec.workerID, workspec.accessPoint))
+            tmpLog.info(" removed {1}".format(workspec.workerID, workspec.accessPoint))
         else:
-            tmpLog.info('access point already removed.')
-        ## Return
-        return True, ''
+            tmpLog.info("access point already removed.")
+        # Return
+        return True, ""
 
-#==============================================================
+
+# ==============================================================
