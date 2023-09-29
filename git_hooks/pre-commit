@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# start templated
+INSTALL_PYTHON=/usr/bin/python3
+ARGS=(hook-impl --config=.pre-commit-config.yaml --hook-type=pre-commit)
+# end templated
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ARGS+=(--hook-dir "$HERE" -- "$@")
+
+if [ -x "$INSTALL_PYTHON" ]; then
+    exec "$INSTALL_PYTHON" -mpre_commit "${ARGS[@]}"
+elif command -v pre-commit > /dev/null; then
+    exec pre-commit "${ARGS[@]}"
+else
+    echo '`pre-commit` not found. Skipped...' 1>&2
+fi
+
+
+# commit timestamp
+DATE=`date -u '+%d-%m-%Y %H:%M:%S'`
+NAME=`git config --global user.name`
+BRANCH=`git rev-parse --abbrev-ref HEAD`
+FILE=pandaharvester/commit_timestamp.py
+echo timestamp = \"$DATE on $BRANCH \(by $NAME\)\" > $FILE
+git add $FILE
