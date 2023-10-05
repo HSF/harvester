@@ -26,7 +26,7 @@ from .db_interface import DBInterface
 
 
 # logger
-_logger = core_utils.setup_logger('queue_config_mapper')
+_logger = core_utils.setup_logger("queue_config_mapper")
 _dbInterface = DBInterface()
 
 
@@ -41,21 +41,20 @@ def _make_logger(base_log=_logger, token=None, method_name=None, send_dialog=Tru
 
 # class for queue config
 class QueueConfig(object):
-
     def __init__(self, queue_name):
         self.queueName = queue_name
         self.pandaQueueName = None
-        self.prodSourceLabel = 'managed'
+        self.prodSourceLabel = "managed"
         # default parameters
         self.mapType = WorkSpec.MT_OneToOne
         self.useJobLateBinding = False
         self.zipPerMB = None
-        self.siteName = ''
+        self.siteName = ""
         self.maxWorkers = 0
         self.nNewWorkers = 0
         self.maxNewWorkersPerCycle = 0
-        self.noHeartbeat = ''
-        self.runMode = 'self'
+        self.noHeartbeat = ""
+        self.runMode = "self"
         self.resourceType = PandaQueueSpec.RT_catchall
         self.jobType = PandaQueueSpec.JT_catchall
         self.getJobCriteria = None
@@ -71,7 +70,7 @@ class QueueConfig(object):
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
-        return self.noHeartbeat.split(',')
+        return self.noHeartbeat.split(",")
 
     # check if status without heartbeat
     def is_no_heartbeat_status(self, status):
@@ -85,12 +84,12 @@ class QueueConfig(object):
         #     return 'test'
 
         # grandly unified queues: prodsourcelabel in job has precedence over queue prodsourcelabel
-        if job_type in ('user', 'panda'):
-            return 'user'
+        if job_type in ("user", "panda"):
+            return "user"
 
         # grandly unified queues: call to getJobs should not request for a particular prodSourceLabel
         if is_gu:
-            return 'unified'
+            return "unified"
 
         return self.prodSourceLabel
 
@@ -105,28 +104,26 @@ class QueueConfig(object):
 
     # get synchronization level between job and worker
     def get_synchronization_level(self):
-        if self.mapType == WorkSpec.MT_NoJob or self.truePilot or self.is_no_heartbeat_status('finished'):
+        if self.mapType == WorkSpec.MT_NoJob or self.truePilot or self.is_no_heartbeat_status("finished"):
             return 1
         return None
 
     # str
     def __str__(self):
-        header = self.queueName + '\n' + '-' * len(self.queueName) + '\n'
-        tmpStr = ''
-        pluginStr = ''
-        keys = list(self.__dict__.keys())
-        keys.sort()
+        header = self.queueName + "\n" + "-" * len(self.queueName) + "\n"
+        tmpStr = ""
+        pluginStr = ""
+        keys = sorted(self.__dict__.keys())
         for key in keys:
             val = self.__dict__[key]
             if isinstance(val, dict):
-                pluginStr += ' {0} :\n'.format(key)
-                pKeys = list(val.keys())
-                pKeys.sort()
+                pluginStr += " {0} :\n".format(key)
+                pKeys = sorted(val.keys())
                 for pKey in pKeys:
                     pVal = val[pKey]
-                    pluginStr += '  {0} = {1}\n'.format(pKey, pVal)
+                    pluginStr += "  {0} = {1}\n".format(pKey, pVal)
             else:
-                tmpStr += ' {0} = {1}\n'.format(key, val)
+                tmpStr += " {0} = {1}\n".format(key, val)
         return header + tmpStr + pluginStr
 
 
@@ -146,41 +143,34 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
     FQ = FT updated with RQ, then updated with DQ, then updated with LQ
     """
 
-    mandatory_attrs = set([
-            'messenger',
-            'monitor',
-            'preparator',
-            'stager',
-            'submitter',
-            'sweeper',
-            'workerMaker',
-        ])
-    dynamic_queue_generic_attrs = set([
-            'nQueueLimitWorker',
-            'maxWorkers',
-            'maxNewWorkersPerCycle',
-            'nQueueLimitJob',
-            'nQueueLimitJobRatio',
-            'nQueueLimitJobMax',
-            'nQueueLimitJobMin',
-            'nQueueLimitWorkerRatio',
-            'nQueueLimitWorkerMax',
-            'nQueueLimitWorkerMin',
-        ])
-    updatable_plugin_attrs = set([
-            'common',
-            'messenger',
-            'monitor',
-            'preparator',
-            'stager',
-            'submitter',
-            'sweeper',
-            'workerMaker',
-            'throttler',
-            'zipper',
-            'aux_preparator',
-            'extractor'
-        ])
+    mandatory_attrs = set(
+        [
+            "messenger",
+            "monitor",
+            "preparator",
+            "stager",
+            "submitter",
+            "sweeper",
+            "workerMaker",
+        ]
+    )
+    dynamic_queue_generic_attrs = set(
+        [
+            "nQueueLimitWorker",
+            "maxWorkers",
+            "maxNewWorkersPerCycle",
+            "nQueueLimitJob",
+            "nQueueLimitJobRatio",
+            "nQueueLimitJobMax",
+            "nQueueLimitJobMin",
+            "nQueueLimitWorkerRatio",
+            "nQueueLimitWorkerMax",
+            "nQueueLimitWorkerMin",
+        ]
+    )
+    updatable_plugin_attrs = set(
+        ["common", "messenger", "monitor", "preparator", "stager", "submitter", "sweeper", "workerMaker", "throttler", "zipper", "aux_preparator", "extractor"]
+    )
 
     # constructor
     def __init__(self, update_db=True):
@@ -207,61 +197,56 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
 
     # load config from DB cache of URL with validation
     def _load_config_from_cache(self):
-        mainLog = _make_logger(method_name='QueueConfigMapper._load_config_from_cache')
+        mainLog = _make_logger(method_name="QueueConfigMapper._load_config_from_cache")
         # load config json on URL
         if self.configFromCacher:
-            queueConfig_cacheSpec = self.dbProxy.get_cache('queues_config_file')
+            queueConfig_cacheSpec = self.dbProxy.get_cache("queues_config_file")
             if queueConfig_cacheSpec is not None:
                 queueConfigJson = queueConfig_cacheSpec.data
                 if isinstance(queueConfigJson, dict):
                     return queueConfigJson
                 else:
-                    mainLog.error('Invalid JSON in cache queues_config_file. Skipped')
+                    mainLog.error("Invalid JSON in cache queues_config_file. Skipped")
             else:
-                mainLog.debug('queues config not fount in cache. Skipped')
+                mainLog.debug("queues config not fount in cache. Skipped")
         else:
-            mainLog.debug('queues config URL not set. Skipped')
+            mainLog.debug("queues config URL not set. Skipped")
         return None
 
     # load config from local json file with syntax validation
     @staticmethod
     def _load_config_from_file():
-        mainLog = _make_logger(method_name='QueueConfigMapper._load_config_from_file')
+        mainLog = _make_logger(method_name="QueueConfigMapper._load_config_from_file")
         # define config file path
         if os.path.isabs(harvester_config.qconf.configFile):
             confFilePath = harvester_config.qconf.configFile
         else:
             # check if in PANDA_HOME
             confFilePath = None
-            if 'PANDA_HOME' in os.environ:
-                confFilePath = os.path.join(os.environ['PANDA_HOME'],
-                                            'etc/panda',
-                                            harvester_config.qconf.configFile)
+            if "PANDA_HOME" in os.environ:
+                confFilePath = os.path.join(os.environ["PANDA_HOME"], "etc/panda", harvester_config.qconf.configFile)
                 if not os.path.exists(confFilePath):
                     confFilePath = None
             # look into /etc/panda
             if confFilePath is None:
-                confFilePath = os.path.join('/etc/panda',
-                                            harvester_config.qconf.configFile)
+                confFilePath = os.path.join("/etc/panda", harvester_config.qconf.configFile)
         # load from config file
         try:
             with open(confFilePath) as f:
                 queueConfigJson = json.load(f)
         except OSError as e:
-            mainLog.error('Cannot read file: {0} ; {1}'.format(confFilePath, e))
+            mainLog.error("Cannot read file: {0} ; {1}".format(confFilePath, e))
             return None
         except JSONDecodeError as e:
-            mainLog.error('Invalid JSON in file: {0} ; {1}'.format(confFilePath, e))
+            mainLog.error("Invalid JSON in file: {0} ; {1}".format(confFilePath, e))
             return None
         return queueConfigJson
 
     # get resolver module
     @staticmethod
     def _get_resolver():
-        if hasattr(harvester_config.qconf, 'resolverModule') and \
-                hasattr(harvester_config.qconf, 'resolverClass'):
-            pluginConf = {'module': harvester_config.qconf.resolverModule,
-                          'name': harvester_config.qconf.resolverClass}
+        if hasattr(harvester_config.qconf, "resolverModule") and hasattr(harvester_config.qconf, "resolverClass"):
+            pluginConf = {"module": harvester_config.qconf.resolverModule, "name": harvester_config.qconf.resolverClass}
             pluginFactory = PluginFactory()
             resolver = pluginFactory.get_plugin(pluginConf)
         else:
@@ -272,12 +257,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
     def _update_last_reload_time(self, ts=None):
         if ts is None:
             ts = time.time()
-        new_info = '{0:.3f}'.format(ts)
-        return self.dbProxy.refresh_cache('_qconf_last_reload', '_universal', new_info)
+        new_info = "{0:.3f}".format(ts)
+        return self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_info)
 
     # get last reload time
     def _get_last_reload_time(self):
-        cacheSpec = self.dbProxy.get_cache('_qconf_last_reload', '_universal', from_local_cache=False)
+        cacheSpec = self.dbProxy.get_cache("_qconf_last_reload", "_universal", from_local_cache=False)
         if cacheSpec is None:
             return None
         timestamp = float(cacheSpec.data)
@@ -285,39 +270,41 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
 
     # load data
     def load_data(self, refill_table=False):
-        mainLog = _make_logger(method_name='QueueConfigMapper.load_data')
+        mainLog = _make_logger(method_name="QueueConfigMapper.load_data")
         # check if to update
         with self.lock:
             time_now = datetime.datetime.utcnow()
             updateInterval_td = datetime.timedelta(seconds=self.updateInterval)
             checkInterval_td = datetime.timedelta(seconds=self.checkInterval)
             # skip if lastCheck is fresh (within checkInterval)
-            if (self.lastCheck is not None
-                and time_now - self.lastCheck < checkInterval_td):
+            if self.lastCheck is not None and time_now - self.lastCheck < checkInterval_td:
                 return
             self.lastCheck = time_now
             # get last_reload_timestamp from DB
             last_reload_timestamp = self._get_last_reload_time()
             self.lastReload = None if last_reload_timestamp is None else datetime.datetime.utcfromtimestamp(last_reload_timestamp)
             # skip if lastReload is fresh and lastUpdate fresher than lastReload (within updateInterval)
-            if (self.lastReload is not None and self.lastUpdate is not None
+            if (
+                self.lastReload is not None
+                and self.lastUpdate is not None
                 and self.lastReload < self.lastUpdate
-                and time_now - self.lastReload < updateInterval_td):
+                and time_now - self.lastReload < updateInterval_td
+            ):
                 return
         # start
         with self.lock:
             # update timesatmp of last reload, lock with check interval
-            got_timesatmp_update_lock = self.dbProxy.get_process_lock('qconf_reload', 'qconf_universal', self.updateInterval)
+            got_timesatmp_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
             if got_timesatmp_update_lock:
                 now_ts = time.time()
                 retVal = self._update_last_reload_time(now_ts)
                 self.lastReload = datetime.datetime.utcfromtimestamp(now_ts)
                 if retVal:
-                    mainLog.debug('updated last reload timestamp')
+                    mainLog.debug("updated last reload timestamp")
                 else:
-                    mainLog.warning('failed to update last reload timestamp. Skipped')
+                    mainLog.warning("failed to update last reload timestamp. Skipped")
             else:
-                mainLog.debug('did not get qconf_reload timestamp lock. Skipped to update last reload timestamp')
+                mainLog.debug("did not get qconf_reload timestamp lock. Skipped to update last reload timestamp")
             # init
             newQueueConfig = dict()
             localTemplatesDict = dict()
@@ -333,53 +320,48 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             # get resolver
             resolver = self._get_resolver()
             if resolver is None:
-                mainLog.debug('No resolver is configured')
+                mainLog.debug("No resolver is configured")
             # load config json from cacher (RT & RQ)
             queueConfigJson_cacher = self._load_config_from_cache()
             if queueConfigJson_cacher is not None:
                 for queueName, queueDict in iteritems(queueConfigJson_cacher):
-                    if queueDict.get('isTemplateQueue') is True \
-                        or queueName.endswith('_TEMPLATE'):
+                    if queueDict.get("isTemplateQueue") is True or queueName.endswith("_TEMPLATE"):
                         # is RT
-                        queueDict['isTemplateQueue'] = True
-                        queueDict.pop('templateQueueName', None)
+                        queueDict["isTemplateQueue"] = True
+                        queueDict.pop("templateQueueName", None)
                         remoteTemplatesDict[queueName] = queueDict
                     else:
                         # is RQ
-                        queueDict['isTemplateQueue'] = False
+                        queueDict["isTemplateQueue"] = False
                         remoteQueuesDict[queueName] = queueDict
             # load config from local json file (LT & LQ)
             queueConfigJson_local = self._load_config_from_file()
             if queueConfigJson_local is not None:
                 for queueName, queueDict in iteritems(queueConfigJson_local):
-                    if queueDict.get('isTemplateQueue') is True \
-                        or queueName.endswith('_TEMPLATE'):
+                    if queueDict.get("isTemplateQueue") is True or queueName.endswith("_TEMPLATE"):
                         # is LT
-                        queueDict['isTemplateQueue'] = True
-                        queueDict.pop('templateQueueName', None)
+                        queueDict["isTemplateQueue"] = True
+                        queueDict.pop("templateQueueName", None)
                         localTemplatesDict[queueName] = queueDict
                     else:
                         # is LQ
-                        queueDict['isTemplateQueue'] = False
+                        queueDict["isTemplateQueue"] = False
                         localQueuesDict[queueName] = queueDict
             else:
-                mainLog.warning('Failed to load config from local json file. Skipped')
+                mainLog.warning("Failed to load config from local json file. Skipped")
             # fill in final template (FT)
             finalTemplatesDict.update(remoteTemplatesDict)
             finalTemplatesDict.update(localTemplatesDict)
             finalTemplatesDict.pop(None, None)
             # remove queues with invalid templateQueueName
-            for acr, queuesDict in [('RQ', remoteQueuesDict), ('LQ', localQueuesDict)]:
+            for acr, queuesDict in [("RQ", remoteQueuesDict), ("LQ", localQueuesDict)]:
                 for queueName, queueDict in iteritems(queuesDict.copy()):
-                    templateQueueName = queueDict.get('templateQueueName')
-                    if templateQueueName is not None \
-                        and templateQueueName not in finalTemplatesDict:
+                    templateQueueName = queueDict.get("templateQueueName")
+                    if templateQueueName is not None and templateQueueName not in finalTemplatesDict:
                         del queuesDict[queueName]
-                        mainLog.warning('Invalid templateQueueName "{0}" for {1} ({2}). Skipped'.format(
-                                            templateQueueName, queueName, acr))
+                        mainLog.warning('Invalid templateQueueName "{0}" for {1} ({2}). Skipped'.format(templateQueueName, queueName, acr))
             # get queue names from resolver and fill in dynamic queue (DQ)
-            if resolver is not None \
-                and 'DYNAMIC' in harvester_config.qconf.queueList:
+            if resolver is not None and "DYNAMIC" in harvester_config.qconf.queueList:
                 getQueuesDynamic = True
                 dynamicQueuesNameList = resolver.get_all_queue_names()
                 for queueName in dynamicQueuesNameList.copy():
@@ -393,16 +375,13 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     if resolver_harvester_template:
                         templateQueueName = resolver_harvester_template
                     elif not (resolver_type is None or resolver_workflow is None):
-                        templateQueueName = '{pq_type}.{workflow}'.format(
-                                                pq_type=resolver_type,
-                                                workflow=resolver_workflow)
+                        templateQueueName = "{pq_type}.{workflow}".format(pq_type=resolver_type, workflow=resolver_workflow)
                     else:
                         templateQueueName = harvester_config.qconf.defaultTemplateQueueName
                     if templateQueueName not in finalTemplatesDict:
                         # remove queues with invalid templateQueueName
                         dynamicQueuesNameList.discard(queueName)
-                        mainLog.warning('Invalid templateQueueName "{0}" for {1} (DQ). Skipped'.format(
-                                            templateQueueName, queueName))
+                        mainLog.warning('Invalid templateQueueName "{0}" for {1} (DQ). Skipped'.format(templateQueueName, queueName))
                         continue
                     # parameters
                     resolver_harvester_params = resolver.get_harvester_params(queueName)
@@ -410,8 +389,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         if key in self.dynamic_queue_generic_attrs:
                             queueDict[key] = val
                     # fill in dynamic queue configs
-                    queueDict['templateQueueName'] = templateQueueName
-                    queueDict['isTemplateQueue'] = False
+                    queueDict["templateQueueName"] = templateQueueName
+                    queueDict["isTemplateQueue"] = False
                     dynamicQueuesDict[queueName] = queueDict
             # fill in all queue name list (names of RQ + DQ + LQ)
             allQueuesNameList |= set(remoteQueuesDict)
@@ -429,103 +408,96 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     if queueName not in queuesDict:
                         continue
                     tmp_queueDict = queuesDict[queueName]
-                    tmp_templateQueueName = tmp_queueDict.get('templateQueueName')
+                    tmp_templateQueueName = tmp_queueDict.get("templateQueueName")
                     if tmp_templateQueueName is not None:
                         templateQueueName = tmp_templateQueueName
                 # prepare queueDict
                 queueDict = dict()
                 if templateQueueName in finalTemplatesDict:
                     queueDict.update(copy.deepcopy(finalTemplatesDict[templateQueueName]))
-                for acr, templatesDict in [('RT', remoteTemplatesDict), ('LT', localTemplatesDict)]:
+                for acr, templatesDict in [("RT", remoteTemplatesDict), ("LT", localTemplatesDict)]:
                     if templateQueueName in templatesDict:
                         templateSourceList.append(acr)
                 # update queueDict
-                for acr, queuesDict in [('RQ', remoteQueuesDict),
-                        ('DQ', dynamicQueuesDict), ('LQ', localQueuesDict)]:
+                for acr, queuesDict in [("RQ", remoteQueuesDict), ("DQ", dynamicQueuesDict), ("LQ", localQueuesDict)]:
                     if queueName not in queuesDict:
                         continue
                     queueSourceList.append(acr)
                     tmp_queueDict = queuesDict[queueName]
                     for key, val in iteritems(tmp_queueDict):
                         val = copy.deepcopy(val)
-                        if key in self.updatable_plugin_attrs \
-                            and isinstance(queueDict.get(key), dict) \
-                            and isinstance(val, dict):
+                        if key in self.updatable_plugin_attrs and isinstance(queueDict.get(key), dict) and isinstance(val, dict):
                             # update plugin parameters instead of overwriting whole plugin section
                             queueDict[key].update(val)
                         else:
                             queueDict[key] = val
                 # record sources of the queue config and its templates in log
                 if templateQueueName:
-                    mainLog.debug(('queue {queueName} comes from {queueSource} '
-                                    '(with template {templateName} '
-                                    'from {templateSource})').format(
-                                    queueName=queueName,
-                                    templateName=templateQueueName,
-                                    queueSource=','.join(queueSourceList),
-                                    templateSource=','.join(templateSourceList) ))
+                    mainLog.debug(
+                        ("queue {queueName} comes from {queueSource} " "(with template {templateName} " "from {templateSource})").format(
+                            queueName=queueName,
+                            templateName=templateQueueName,
+                            queueSource=",".join(queueSourceList),
+                            templateSource=",".join(templateSourceList),
+                        )
+                    )
                 else:
-                    mainLog.debug('queue {queueName} comes from {queueSource}'.format(
-                                    queueName=queueName,
-                                    queueSource=','.join(queueSourceList)))
+                    mainLog.debug("queue {queueName} comes from {queueSource}".format(queueName=queueName, queueSource=",".join(queueSourceList)))
                 # prepare queueConfig
                 if queueName in newQueueConfig:
                     queueConfig = newQueueConfig[queueName]
                 else:
                     queueConfig = QueueConfig(queueName)
                 # queueName = siteName/resourceType
-                queueConfig.siteName = queueConfig.queueName.split('/')[0]
+                queueConfig.siteName = queueConfig.queueName.split("/")[0]
                 if queueConfig.siteName != queueConfig.queueName:
-                    queueConfig.resourceType = queueConfig.queueName.split('/')[-1]
+                    queueConfig.resourceType = queueConfig.queueName.split("/")[-1]
                 # get common attributes
                 commonAttrDict = dict()
-                if isinstance(queueDict.get('common'), dict):
-                    commonAttrDict = queueDict.get('common')
+                if isinstance(queueDict.get("common"), dict):
+                    commonAttrDict = queueDict.get("common")
                 # according to queueDict
                 for key, val in iteritems(queueDict):
-                    if isinstance(val, dict) and 'module' in val and 'name' in val:
+                    if isinstance(val, dict) and "module" in val and "name" in val:
                         # plugin attributes
                         val = copy.deepcopy(val)
                         # fill in common attributes for all plugins
                         for c_key, c_val in iteritems(commonAttrDict):
-                            if c_key not in val and c_key not in ('module', 'name'):
+                            if c_key not in val and c_key not in ("module", "name"):
                                 val[c_key] = c_val
                         # check module and class name
                         try:
-                            _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val['module'])
-                            _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val['name'])
+                            _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val["module"])
+                            _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val["name"])
                         except Exception as _e:
                             invalidQueueList.add(queueConfig.queueName)
-                            mainLog.error('Module or class not found. Omitted {0} in queue config ({1})'.format(
-                                            queueConfig.queueName, _e))
+                            mainLog.error("Module or class not found. Omitted {0} in queue config ({1})".format(queueConfig.queueName, _e))
                             continue
                         else:
                             del _t3mP_1Mp0R7_mO6U1e__
                             del _t3mP_1Mp0R7_N4m3__
                         # fill in siteName and queueName
-                        if 'siteName' not in val:
-                            val['siteName'] = queueConfig.siteName
-                        if 'queueName' not in val:
-                            val['queueName'] = queueConfig.queueName
+                        if "siteName" not in val:
+                            val["siteName"] = queueConfig.siteName
+                        if "queueName" not in val:
+                            val["queueName"] = queueConfig.queueName
                         # middleware
-                        if 'middleware' in val and val['middleware'] in queueDict:
+                        if "middleware" in val and val["middleware"] in queueDict:
                             # keep original config
-                            val['original_config'] = copy.deepcopy(val)
+                            val["original_config"] = copy.deepcopy(val)
                             # overwrite with middleware config
-                            for m_key, m_val in iteritems(queueDict[val['middleware']]):
+                            for m_key, m_val in iteritems(queueDict[val["middleware"]]):
                                 val[m_key] = m_val
                     setattr(queueConfig, key, val)
                 # delete isTemplateQueue attribute
                 try:
-                    if getattr(queueConfig, 'isTemplateQueue'):
-                        mainLog.error('Internal error: isTemplateQueue is True. Omitted {0} in queue config'.format(
-                                        queueConfig.queueName))
+                    if getattr(queueConfig, "isTemplateQueue"):
+                        mainLog.error("Internal error: isTemplateQueue is True. Omitted {0} in queue config".format(queueConfig.queueName))
                         invalidQueueList.add(queueConfig.queueName)
                     else:
-                        delattr(queueConfig, 'isTemplateQueue')
+                        delattr(queueConfig, "isTemplateQueue")
                 except AttributeError as _e:
-                    mainLog.error('Internal error with attr "isTemplateQueue". Omitted {0} in queue config ({1})'.format(
-                                    queueConfig.queueName, _e))
+                    mainLog.error('Internal error with attr "isTemplateQueue". Omitted {0} in queue config ({1})'.format(queueConfig.queueName, _e))
                     invalidQueueList.add(queueConfig.queueName)
                 # get Panda Queue Name
                 if resolver is not None:
@@ -533,8 +505,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 # additional criteria for getJob
                 if queueConfig.getJobCriteria is not None:
                     tmpCriteria = dict()
-                    for tmpItem in queueConfig.getJobCriteria.split(','):
-                        tmpKey, tmpVal = tmpItem.split('=')
+                    for tmpItem in queueConfig.getJobCriteria.split(","):
+                        tmpKey, tmpVal = tmpItem.split("=")
                         tmpCriteria[tmpKey] = tmpVal
                     if len(tmpCriteria) == 0:
                         queueConfig.getJobCriteria = None
@@ -542,12 +514,11 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         queueConfig.getJobCriteria = tmpCriteria
                 # nullify job attributes if NoJob mapType
                 if queueConfig.mapType == WorkSpec.MT_NoJob:
-                    for attName in ['nQueueLimitJob', 'nQueueLimitJobRatio',
-                                    'nQueueLimitJobMax', 'nQueueLimitJobMin']:
+                    for attName in ["nQueueLimitJob", "nQueueLimitJobRatio", "nQueueLimitJobMax", "nQueueLimitJobMin"]:
                         setattr(queueConfig, attName, None)
                 # heartbeat suppression
-                if queueConfig.truePilot and queueConfig.noHeartbeat == '':
-                    queueConfig.noHeartbeat = 'running,transferring,finished,failed'
+                if queueConfig.truePilot and queueConfig.noHeartbeat == "":
+                    queueConfig.noHeartbeat = "running,transferring,finished,failed"
                 # set unique name
                 queueConfig.set_unique_name()
                 # put into new queue configs
@@ -561,16 +532,16 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                             invalidQueueList.add(queueConfig.queueName)
                             missing_attr_list.append(_attr)
                     if missing_attr_list:
-                        mainLog.error('Missing mandatory attributes {0} . Omitted {1} in queue config'.format(
-                                        ','.join(missing_attr_list), queueConfig.queueName))
+                        mainLog.error(
+                            "Missing mandatory attributes {0} . Omitted {1} in queue config".format(",".join(missing_attr_list), queueConfig.queueName)
+                        )
             # delete invalid queues
             for invalidQueueName in invalidQueueList:
                 if invalidQueueName in newQueueConfig:
                     del newQueueConfig[invalidQueueName]
             # auto blacklisting
             autoBlacklist = False
-            if resolver is not None and hasattr(harvester_config.qconf, 'autoBlacklist') and \
-                    harvester_config.qconf.autoBlacklist:
+            if resolver is not None and hasattr(harvester_config.qconf, "autoBlacklist") and harvester_config.qconf.autoBlacklist:
                 autoBlacklist = True
             # get queue dumps
             queueConfigDumps = self.dbProxy.get_queue_config_dumps()
@@ -581,14 +552,14 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 if queueConfig.queueStatus is None and autoBlacklist:
                     queueConfig.queueStatus = resolver.get_queue_status(queueName)
                 # get dynamic information
-                if 'DYNAMIC' in harvester_config.qconf.queueList:
+                if "DYNAMIC" in harvester_config.qconf.queueList:
                     # UPS queue
                     if resolver is not None and resolver.is_ups_queue(queueName):
-                        queueConfig.runMode = 'slave'
-                        queueConfig.mapType = 'NoJob'
+                        queueConfig.runMode = "slave"
+                        queueConfig.mapType = "NoJob"
                 # set online if undefined
                 if queueConfig.queueStatus is None:
-                    queueConfig.queueStatus = 'online'
+                    queueConfig.queueStatus = "online"
                 queueConfig.queueStatus = queueConfig.queueStatus.lower()
                 # look for configID
                 dumpSpec = QueueConfigDumpSpec()
@@ -599,26 +570,30 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 else:
                     # add dump
                     dumpSpec.creationTime = datetime.datetime.utcnow()
-                    dumpSpec.configID = self.dbProxy.get_next_seq_number('SEQ_configID')
+                    dumpSpec.configID = self.dbProxy.get_next_seq_number("SEQ_configID")
                     tmpStat = self.dbProxy.add_queue_config_dump(dumpSpec)
                     if not tmpStat:
                         dumpSpec.configID = self.dbProxy.get_config_id_dump(dumpSpec)
                         if dumpSpec.configID is None:
-                            mainLog.error('failed to get configID for {0}'.format(dumpSpec.dumpUniqueName))
+                            mainLog.error("failed to get configID for {0}".format(dumpSpec.dumpUniqueName))
                             continue
                     queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
                 queueConfig.configID = dumpSpec.configID
                 # ignore offline
-                if queueConfig.queueStatus == 'offline':
+                if queueConfig.queueStatus == "offline":
                     continue
                 # filter for pilot version
-                if hasattr(harvester_config.qconf, 'pilotVersion') and \
-                    pandaQueueDict.get(queueConfig.siteName) is not None and \
-                    pandaQueueDict.get(queueConfig.siteName).get('pilot_version') != str(harvester_config.qconf.pilotVersion):
+                if (
+                    hasattr(harvester_config.qconf, "pilotVersion")
+                    and pandaQueueDict.get(queueConfig.siteName) is not None
+                    and pandaQueueDict.get(queueConfig.siteName).get("pilot_version") != str(harvester_config.qconf.pilotVersion)
+                ):
                     continue
-                if 'ALL' not in harvester_config.qconf.queueList and \
-                        'DYNAMIC' not in harvester_config.qconf.queueList and \
-                        queueName not in harvester_config.qconf.queueList:
+                if (
+                    "ALL" not in harvester_config.qconf.queueList
+                    and "DYNAMIC" not in harvester_config.qconf.queueList
+                    and queueName not in harvester_config.qconf.queueList
+                ):
                     continue
                 activeQueues[queueName] = queueConfig
             self.queueConfig = newQueueConfig
@@ -636,9 +611,9 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         # update database
         if self.toUpdateDB:
             self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
-            mainLog.debug('updated to DB')
+            mainLog.debug("updated to DB")
         # done
-        mainLog.debug('done')
+        mainLog.debug("done")
 
     # check if valid queue
     def has_queue(self, queue_name, config_id=None):
@@ -675,7 +650,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         active_queues = self.get_active_queues()
         for queue_name, queue_attribs in iteritems(active_queues):
             try:
-                if queue_attribs.runMode == 'slave' and queue_attribs.mapType == 'NoJob':
+                if queue_attribs.runMode == "slave" and queue_attribs.mapType == "NoJob":
                     active_ups_queues.append(queue_name)
             except KeyError:
                 continue

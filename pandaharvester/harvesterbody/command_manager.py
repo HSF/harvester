@@ -11,7 +11,7 @@ from pandaharvester import panda_pkg_info
 
 
 # logger
-_logger = core_utils.setup_logger('command_manager')
+_logger = core_utils.setup_logger("command_manager")
 
 
 # class to retrieve commands from panda server
@@ -49,66 +49,57 @@ class CommandManager(AgentBase):
         """
         main
         """
-        main_log = self.make_logger(_logger, 'id={0}'.format(self.get_pid()), method_name='run')
+        main_log = self.make_logger(_logger, "id={0}".format(self.get_pid()), method_name="run")
         bulk_size = harvester_config.commandmanager.commands_bulk_size
-        locked = self.db_proxy.get_process_lock('commandmanager', self.get_pid(),
-                                                harvester_config.commandmanager.sleepTime)
+        locked = self.db_proxy.get_process_lock("commandmanager", self.get_pid(), harvester_config.commandmanager.sleepTime)
         if locked:
             # send command list to be received
             siteNames = set()
             commandList = []
             for queueName, queueConfig in iteritems(self.queueConfigMapper.get_active_queues()):
-                if queueConfig is None or queueConfig.runMode != 'slave':
+                if queueConfig is None or queueConfig.runMode != "slave":
                     continue
                 # one command for all queues in one site
                 if queueConfig.siteName not in siteNames:
-                    commandItem = {'command': CommandSpec.COM_reportWorkerStats,
-                                   'computingSite': queueConfig.siteName,
-                                   'resourceType': queueConfig.resourceType
-                                   }
+                    commandItem = {
+                        "command": CommandSpec.COM_reportWorkerStats,
+                        "computingSite": queueConfig.siteName,
+                        "resourceType": queueConfig.resourceType,
+                    }
                     commandList.append(commandItem)
                 siteNames.add(queueConfig.siteName)
                 # one command for each queue
-                commandItem = {'command': CommandSpec.COM_setNWorkers,
-                               'computingSite': queueConfig.siteName,
-                               'resourceType': queueConfig.resourceType
-                               }
+                commandItem = {"command": CommandSpec.COM_setNWorkers, "computingSite": queueConfig.siteName, "resourceType": queueConfig.resourceType}
                 commandList.append(commandItem)
-            data = {'startTime': datetime.datetime.utcnow(),
-                    'sw_version': panda_pkg_info.release_version,
-                    'commit_stamp': commit_timestamp.timestamp}
+            data = {"startTime": datetime.datetime.utcnow(), "sw_version": panda_pkg_info.release_version, "commit_stamp": commit_timestamp.timestamp}
             if len(commandList) > 0:
-                main_log.debug('sending command list to receive')
-                data['commands'] = commandList
+                main_log.debug("sending command list to receive")
+                data["commands"] = commandList
             self.communicator.is_alive(data)
 
         # main loop
         while True:
             # get lock
-            locked = self.db_proxy.get_process_lock('commandmanager', self.get_pid(),
-                                                    harvester_config.commandmanager.sleepTime)
+            locked = self.db_proxy.get_process_lock("commandmanager", self.get_pid(), harvester_config.commandmanager.sleepTime)
             if locked or self.singleMode:
-
-                main_log.debug('polling commands loop')
+                main_log.debug("polling commands loop")
 
                 # send heartbeat
-                if self.lastHeartbeat is None \
-                        or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                if self.lastHeartbeat is None or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
                     self.lastHeartbeat = datetime.datetime.utcnow()
                     self.communicator.is_alive({})
 
                 continuous_loop = True  # as long as there are commands, retrieve them
 
                 while continuous_loop:
-
                     # get commands from panda server for this harvester instance
                     commands = self.communicator.get_commands(bulk_size)
-                    main_log.debug('got {0} commands (bulk size: {1})'.format(len(commands), bulk_size))
+                    main_log.debug("got {0} commands (bulk size: {1})".format(len(commands), bulk_size))
                     command_specs = self.convert_to_command_specs(commands)
 
                     # cache commands in internal DB
                     self.db_proxy.store_commands(command_specs)
-                    main_log.debug('cached {0} commands in internal DB'.format(len(command_specs)))
+                    main_log.debug("cached {0} commands in internal DB".format(len(command_specs)))
 
                     # retrieve processed commands from harvester cache
                     command_ids_ack = self.db_proxy.get_commands_ack()
@@ -116,7 +107,7 @@ class CommandManager(AgentBase):
                     for shard in core_utils.create_shards(command_ids_ack, bulk_size):
                         # post acknowledgements to panda server
                         self.communicator.ack_commands(shard)
-                        main_log.debug('acknowledged {0} commands to panda server'.format(len(shard)))
+                        main_log.debug("acknowledged {0} commands to panda server".format(len(shard)))
 
                         # clean acknowledged commands
                         self.db_proxy.clean_commands_by_id(shard)
@@ -130,5 +121,5 @@ class CommandManager(AgentBase):
 
             # check if being terminated
             if self.terminated(harvester_config.commandmanager.sleepTime, randomize=False):
-                main_log.debug('terminated')
+                main_log.debug("terminated")
                 return

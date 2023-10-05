@@ -8,10 +8,7 @@ from .spec_base import SpecBase
 
 class ProcessLockSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('processName:text primary key',
-                           'lockedBy:text',
-                           'lockTime:timestamp'
-                           )
+    attributesWithTypes = ("processName:text primary key", "lockedBy:text", "lockTime:timestamp")
 
     # constructor
     def __init__(self):

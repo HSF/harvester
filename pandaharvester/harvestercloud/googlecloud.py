@@ -13,18 +13,18 @@ IMAGE = harvester_config.googlecloud.image
 ZONE = harvester_config.googlecloud.zone
 PROJECT = harvester_config.googlecloud.project
 SERVICE_ACCOUNT_FILE = harvester_config.googlecloud.service_account_file
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = SERVICE_ACCOUNT_FILE
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = SERVICE_ACCOUNT_FILE
 
-compute = googleapiclient.discovery.build('compute', 'v1')
+compute = googleapiclient.discovery.build("compute", "v1")
 
-class GoogleVM():
 
+class GoogleVM:
     def __init__(self, work_spec, queue_config):
         self.harvester_token = HarvesterToken()
         self.work_spec = work_spec
         self.queue_config = queue_config
-        harvester_id_clean = harvester_config.master.harvester_id.replace('-','').replace('_','').lower()
-        self.name = '{0}-gce-{1}'.format(harvester_id_clean, work_spec.workerID)
+        harvester_id_clean = harvester_config.master.harvester_id.replace("-", "").replace("_", "").lower()
+        self.name = "{0}-gce-{1}".format(harvester_id_clean, work_spec.workerID)
         # self.name = self.name.replace('_', '-') # underscores in VM names are not allowed by GCE
         self.image = self.resolve_image_url()
         self.instance_type = self.resolve_instance_type()
@@ -37,8 +37,8 @@ class GoogleVM():
         :return: URL pointing to the machine type to use
         """
         # Get the latest Debian Jessie image
-        image_response = compute.images().getFromFamily(project=PROJECT, family='cernvm').execute()
-        source_disk_image = image_response['selfLink']
+        image_response = compute.images().getFromFamily(project=PROJECT, family="cernvm").execute()
+        source_disk_image = image_response["selfLink"]
 
         return source_disk_image
 
@@ -54,7 +54,7 @@ class GoogleVM():
         """
 
         # Calculate the number of VCPUs
-        cores = 8 # default value. TODO: probably should except if we don't find a suitable number
+        cores = 8  # default value. TODO: probably should except if we don't find a suitable number
         standard_cores = [1, 2, 4, 8, 16, 32, 64, 96]
         for standard_core in standard_cores:
             if self.work_spec.nCore <= standard_core:
@@ -64,7 +64,7 @@ class GoogleVM():
         # Calculate the memory: 2 GBs per core. It needs to be expressed in MB
         # https://cloud.google.com/compute/docs/instances/creating-instance-with-custom-machine-type
         try:
-            ram_per_core = self.queue_config.submitter['ram_per_core']
+            ram_per_core = self.queue_config.submitter["ram_per_core"]
         except KeyError:
             ram_per_core = 2
         memory = cores * ram_per_core * 1024
@@ -74,9 +74,9 @@ class GoogleVM():
         except AttributeError:
             zone = ZONE
 
-        #instance_type = 'zones/{0}/machineTypes/n1-standard-{1}'.format(zone, cores)
+        # instance_type = 'zones/{0}/machineTypes/n1-standard-{1}'.format(zone, cores)
         # Use custom machine types to reduce cost
-        instance_type = 'zones/{0}/machineTypes/custom-{1}-{2}'.format(zone, cores, memory)
+        instance_type = "zones/{0}/machineTypes/custom-{1}-{2}".format(zone, cores, memory)
 
         return instance_type
 
@@ -87,109 +87,46 @@ class GoogleVM():
         """
 
         # read the proxy
-        with open(PROXY_PATH, 'r') as proxy_file:
+        with open(PROXY_PATH, "r") as proxy_file:
             proxy_string = proxy_file.read()
 
-        with open(USER_DATA_PATH, 'r') as user_data_file:
+        with open(USER_DATA_PATH, "r") as user_data_file:
             user_data = user_data_file.read()
 
         try:
-            preemptible = self.queue_config.submitter['preemptible']
+            preemptible = self.queue_config.submitter["preemptible"]
         except KeyError:
             preemptible = False
 
         try:
-            disk_size = self.queue_config.submitter['disk_size']
+            disk_size = self.queue_config.submitter["disk_size"]
         except KeyError:
             disk_size = 50
 
         config = {
-         'name': self.name,
-         'machineType': self.instance_type,
-
-         'scheduling':
-             {
-                 'preemptible': preemptible
-             },
-
-         # Specify the boot disk and the image to use as a source.
-         'disks':
-             [
-                 {
-                     'boot': True,
-                     'autoDelete': True,
-                     'initializeParams': {
-                         'sourceImage': IMAGE,
-                         'diskSizeGb': 50}
-                 }
-             ],
-
-         # Specify a network interface with NAT to access the public internet
-         'networkInterfaces':
-             [
-                 {
-                     'network': 'global/networks/default',
-                     'accessConfigs':
-                         [
-                             {
-                                 'type': 'ONE_TO_ONE_NAT',
-                                 'name': 'External NAT'
-                             }
-                         ]
-                 }
-             ],
-
-         # Allow the instance to access cloud storage and logging.
-         'serviceAccounts':
-             [
-                 {
-                     'email': 'default',
-                     'scopes':
-                         [
-                             'https://www.googleapis.com/auth/devstorage.read_write',
-                             'https://www.googleapis.com/auth/logging.write'
-                         ]
-                 }
-             ],
-
-         'metadata':
-             {
-                 'items':
-                     [
-                         {
-                             'key': 'user-data',
-                             'value': str(cernvm_aux.encode_user_data(user_data))
-                         },
-                         {
-                             'key': 'proxy',
-                             'value': proxy_string
-                         },
-                         {
-                             'key': 'panda_queue',
-                             'value': self.work_spec.computingSite
-                         },
-                         {
-                             'key': 'harvester_frontend',
-                             'value': HARVESTER_FRONTEND
-                         },
-                         {
-                             'key': 'worker_id',
-                             'value': self.work_spec.workerID
-                         },
-                         {
-                             'key': 'auth_token',
-                             'value': self.harvester_token.generate(payload={'sub': str(self.work_spec.batchID)})
-                         },
-                         {
-                             'key': 'logs_url_w',
-                             'value': '{0}/{1}'.format(harvester_config.pandacon.pandaCacheURL_W, 'updateLog')
-                         },
-                         {
-                             'key': 'logs_url_r',
-                             'value': harvester_config.pandacon.pandaCacheURL_R
-                         }
-                     ]
-             }
-         }
+            "name": self.name,
+            "machineType": self.instance_type,
+            "scheduling": {"preemptible": preemptible},
+            # Specify the boot disk and the image to use as a source.
+            "disks": [{"boot": True, "autoDelete": True, "initializeParams": {"sourceImage": IMAGE, "diskSizeGb": 50}}],
+            # Specify a network interface with NAT to access the public internet
+            "networkInterfaces": [{"network": "global/networks/default", "accessConfigs": [{"type": "ONE_TO_ONE_NAT", "name": "External NAT"}]}],
+            # Allow the instance to access cloud storage and logging.
+            "serviceAccounts": [
+                {"email": "default", "scopes": ["https://www.googleapis.com/auth/devstorage.read_write", "https://www.googleapis.com/auth/logging.write"]}
+            ],
+            "metadata": {
+                "items": [
+                    {"key": "user-data", "value": str(cernvm_aux.encode_user_data(user_data))},
+                    {"key": "proxy", "value": proxy_string},
+                    {"key": "panda_queue", "value": self.work_spec.computingSite},
+                    {"key": "harvester_frontend", "value": HARVESTER_FRONTEND},
+                    {"key": "worker_id", "value": self.work_spec.workerID},
+                    {"key": "auth_token", "value": self.harvester_token.generate(payload={"sub": str(self.work_spec.batchID)})},
+                    {"key": "logs_url_w", "value": "{0}/{1}".format(harvester_config.pandacon.pandaCacheURL_W, "updateLog")},
+                    {"key": "logs_url_r", "value": harvester_config.pandacon.pandaCacheURL_R},
+                ]
+            },
+        }
 
         return config

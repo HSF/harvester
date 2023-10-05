@@ -18,44 +18,44 @@ class RedisFifo(PluginBase):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         _redis_conn_opt_dict = {}
-        if hasattr(self, 'redisHost'):
-            _redis_conn_opt_dict['host'] = self.redisHost
-        elif hasattr(harvester_config.fifo, 'redisHost'):
-            _redis_conn_opt_dict['host'] = harvester_config.fifo.redisHost
-        if hasattr(self, 'redisPort'):
-            _redis_conn_opt_dict['port'] = self.redisPort
-        elif hasattr(harvester_config.fifo, 'redisPort'):
-            _redis_conn_opt_dict['port'] = harvester_config.fifo.redisPort
-        if hasattr(self, 'redisDB'):
-            _redis_conn_opt_dict['db'] = self.redisDB
-        elif hasattr(harvester_config.fifo, 'redisDB'):
-            _redis_conn_opt_dict['db'] = harvester_config.fifo.redisDB
-        if hasattr(self, 'redisPassword'):
-            _redis_conn_opt_dict['password'] = self.redisPassword
-        elif hasattr(harvester_config.fifo, 'redisPassword'):
-            _redis_conn_opt_dict['password'] = harvester_config.fifo.redisPassword
+        if hasattr(self, "redisHost"):
+            _redis_conn_opt_dict["host"] = self.redisHost
+        elif hasattr(harvester_config.fifo, "redisHost"):
+            _redis_conn_opt_dict["host"] = harvester_config.fifo.redisHost
+        if hasattr(self, "redisPort"):
+            _redis_conn_opt_dict["port"] = self.redisPort
+        elif hasattr(harvester_config.fifo, "redisPort"):
+            _redis_conn_opt_dict["port"] = harvester_config.fifo.redisPort
+        if hasattr(self, "redisDB"):
+            _redis_conn_opt_dict["db"] = self.redisDB
+        elif hasattr(harvester_config.fifo, "redisDB"):
+            _redis_conn_opt_dict["db"] = harvester_config.fifo.redisDB
+        if hasattr(self, "redisPassword"):
+            _redis_conn_opt_dict["password"] = self.redisPassword
+        elif hasattr(harvester_config.fifo, "redisPassword"):
+            _redis_conn_opt_dict["password"] = harvester_config.fifo.redisPassword
         self.qconn = redis.StrictRedis(**_redis_conn_opt_dict)
-        self.id_score = '{0}-fifo_id-score'.format(self.titleName)
-        self.id_item = '{0}-fifo_id-item'.format(self.titleName)
-        self.id_temp = '{0}-fifo_id-temp'.format(self.titleName)
+        self.id_score = "{0}-fifo_id-score".format(self.titleName)
+        self.id_item = "{0}-fifo_id-item".format(self.titleName)
+        self.id_temp = "{0}-fifo_id-temp".format(self.titleName)
 
     def __len__(self):
         return self.qconn.zcard(self.id_score)
 
-    def _peek(self, mode='first', id=None, skip_item=False):
-        if mode == 'first':
+    def _peek(self, mode="first", id=None, skip_item=False):
+        if mode == "first":
             try:
                 id_gotten, score = self.qconn.zrange(self.id_score, 0, 0, withscores=True)[0]
             except IndexError:
                 return None
-        elif mode == 'last':
+        elif mode == "last":
             try:
                 id_gotten, score = self.qconn.zrevrange(self.id_score, 0, 0, withscores=True)[0]
             except IndexError:
                 return None
         else:
             resVal = self.qconn.sismember(self.id_temp, id)
-            if (mode == 'id' and not resVal) or (mode == 'idtemp' and resVal):
+            if (mode == "id" and not resVal) or (mode == "idtemp" and resVal):
                 id_gotten = id
                 score = self.qconn.zscore(self.id_score, id)
             else:
@@ -69,7 +69,7 @@ class RedisFifo(PluginBase):
         else:
             return (id_gotten, item, score)
 
-    def _pop(self, timeout=None, protective=False, mode='first'):
+    def _pop(self, timeout=None, protective=False, mode="first"):
         keep_polling = True
         wait = 0.1
         max_wait = 2
@@ -80,7 +80,7 @@ class RedisFifo(PluginBase):
             peeked_tuple = self._peek(mode=mode)
             if peeked_tuple is None:
                 time.sleep(wait)
-                wait = min(max_wait, tries/10.0 + wait)
+                wait = min(max_wait, tries / 10.0 + wait)
             else:
                 id, item, score = peeked_tuple
                 while True:
@@ -123,7 +123,7 @@ class RedisFifo(PluginBase):
                     try:
                         pipeline.watch(self.id_score, self.id_item)
                         pipeline.multi()
-                        pipeline.execute_command('ZADD', self.id_score, 'NX', score, id)
+                        pipeline.execute_command("ZADD", self.id_score, "NX", score, id)
                         pipeline.hsetnx(self.id_item, id, item)
                         resVal = pipeline.execute()
                     except redis.WatchError:
@@ -134,7 +134,7 @@ class RedisFifo(PluginBase):
                 if resVal[-2] == 1 and resVal[-1] == 1:
                     return True
             if time.time() > generate_id_attempt_timestamp + 60:
-                raise Exception('Cannot generate unique id')
+                raise Exception("Cannot generate unique id")
                 return False
             time.sleep(0.0001)
         return False
@@ -146,7 +146,7 @@ class RedisFifo(PluginBase):
                 try:
                     pipeline.watch(self.id_score, self.id_item)
                     pipeline.multi()
-                    pipeline.execute_command('ZADD', self.id_score, 'NX', score, id)
+                    pipeline.execute_command("ZADD", self.id_score, "NX", score, id)
                     pipeline.hsetnx(self.id_item, id, item)
                     resVal = pipeline.execute()
                 except redis.WatchError:
@@ -160,11 +160,11 @@ class RedisFifo(PluginBase):
 
     # dequeue the first object
     def get(self, timeout=None, protective=False):
-        return self._pop(timeout=timeout, protective=protective, mode='first')
+        return self._pop(timeout=timeout, protective=protective, mode="first")
 
     # dequeue the last object
     def getlast(self, timeout=None, protective=False):
-        return self._pop(timeout=timeout, protective=protective, mode='last')
+        return self._pop(timeout=timeout, protective=protective, mode="last")
 
     # get tuple of (id, item, score) of the first object without dequeuing it
     def peek(self, skip_item=False):
@@ -172,14 +172,14 @@ class RedisFifo(PluginBase):
 
     # get tuple of (id, item, score) of the last object without dequeuing it
     def peeklast(self, skip_item=False):
-        return self._peek(mode='last', skip_item=skip_item)
+        return self._peek(mode="last", skip_item=skip_item)
 
     # get tuple of (id, item, score) of object by id without dequeuing it
     def peekbyid(self, id, temporary=False, skip_item=False):
         if temporary:
-            return self._peek(mode='idtemp', id=id, skip_item=skip_item)
+            return self._peek(mode="idtemp", id=id, skip_item=skip_item)
         else:
-            return self._peek(mode='id', id=id, skip_item=skip_item)
+            return self._peek(mode="id", id=id, skip_item=skip_item)
 
     # drop all objects in queue
     def clear(self):
@@ -215,7 +215,7 @@ class RedisFifo(PluginBase):
                         n_row = resVal[-1]
                         return n_row
         else:
-            raise TypeError('ids should be list or tuple')
+            raise TypeError("ids should be list or tuple")
 
     # Move objects in temporary space to the queue
     def restore(self, ids):
@@ -234,7 +234,7 @@ class RedisFifo(PluginBase):
                             pipeline.srem(self.id_temp, *ids)
                             pipeline.execute()
                     else:
-                        raise TypeError('ids should be list or tuple or None')
+                        raise TypeError("ids should be list or tuple or None")
                 except redis.WatchError:
                     continue
                 else:

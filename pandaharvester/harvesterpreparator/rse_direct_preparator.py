@@ -12,17 +12,19 @@ class RseDirectPreparator(PluginBase):
     the job and constructs input file paths that point to pfns in the storage. This means
     that the job directly read input files from the storage.
     """
+
     # constructor
+
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
 
     # check status
     def check_stage_in_status(self, jobspec):
-        return True, ''
+        return True, ""
 
     # trigger preparation
     def trigger_preparation(self, jobspec):
-        return True, ''
+        return True, ""
 
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
@@ -30,7 +32,7 @@ class RseDirectPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in iteritems(inFiles):
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
+            inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)
-        return True, ''
+        return True, ""

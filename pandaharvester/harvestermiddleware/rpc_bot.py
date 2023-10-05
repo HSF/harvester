@@ -10,8 +10,8 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 
 # rpyc configuration
-rpyc.core.protocol.DEFAULT_CONFIG['allow_pickle'] = True
-rpyc.core.protocol.DEFAULT_CONFIG['sync_request_timeout'] = 1800
+rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
+rpyc.core.protocol.DEFAULT_CONFIG["sync_request_timeout"] = 1800
 
 
 # logger setup
@@ -20,19 +20,21 @@ def setupLogger(logger, pid=None, to_file=None):
         hdlr = logging.FileHandler(to_file)
     else:
         hdlr = logging.StreamHandler()
+
     def emit_decorator(fn):
         def func(*args):
-            formatter = logging.Formatter('%(asctime)s %(levelname)s]({0})(%(name)s.%(funcName)s) %(message)s'.format(pid))
+            formatter = logging.Formatter("%(asctime)s %(levelname)s]({0})(%(name)s.%(funcName)s) %(message)s".format(pid))
             hdlr.setFormatter(formatter)
             return fn(*args)
+
         return func
+
     hdlr.emit = emit_decorator(hdlr.emit)
     logger.addHandler(hdlr)
 
 
 # RPC bot running on remote node
 class RpcBot(rpyc.Service):
-
     # initialization action
     def on_connect(self, conn):
         self.pluginFactory = PluginFactory(no_db=True)
@@ -185,33 +187,24 @@ class RpcBot(rpyc.Service):
 def main():
     # arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pid', action='store', dest='pid', default='/var/tmp/harvester_rpc.pid',
-                        help='pid filename')
-    parser.add_argument('--port', dest='port', type=int, default=18861,
-                        help='the TCP port to bind to')
-    parser.add_argument('--backlog', dest='backlog', type=int, default=10,
-                        help='backlog for the port')
-    parser.add_argument('--stdout', action='store', dest='stdout', default='/var/tmp/harvester_rpc.out',
-                        help='stdout filename')
-    parser.add_argument('--stderr', action='store', dest='stderr', default='/var/tmp/harvester_rpc.err',
-                        help='stderr filename')
+    parser.add_argument("--pid", action="store", dest="pid", default="/var/tmp/harvester_rpc.pid", help="pid filename")
+    parser.add_argument("--port", dest="port", type=int, default=18861, help="the TCP port to bind to")
+    parser.add_argument("--backlog", dest="backlog", type=int, default=10, help="backlog for the port")
+    parser.add_argument("--stdout", action="store", dest="stdout", default="/var/tmp/harvester_rpc.out", help="stdout filename")
+    parser.add_argument("--stderr", action="store", dest="stderr", default="/var/tmp/harvester_rpc.err", help="stderr filename")
     options = parser.parse_args()
     # logger
-    _logger = logging.getLogger('rpc_bot')
+    _logger = logging.getLogger("rpc_bot")
     setupLogger(_logger, pid=os.getpid())
     # make daemon context
-    outfile = open(options.stdout, 'a+')
-    errfile = open(options.stderr, 'a+')
-    dc = daemon.DaemonContext(
-                pidfile=daemon.pidfile.PIDLockFile(options.pid),
-                stdout=outfile,
-                stderr=errfile)
+    outfile = open(options.stdout, "a+")
+    errfile = open(options.stderr, "a+")
+    dc = daemon.DaemonContext(pidfile=daemon.pidfile.PIDLockFile(options.pid), stdout=outfile, stderr=errfile)
     # run thread server
     with dc:
         from rpyc.utils.server import ThreadPoolServer
-        t = ThreadPoolServer(RpcBot, port=options.port, backlog=options.backlog,
-                            logger=_logger,
-                            protocol_config={"allow_all_attrs": True})
+
+        t = ThreadPoolServer(RpcBot, port=options.port, backlog=options.backlog, logger=_logger, protocol_config={"allow_all_attrs": True})
         t.start()
     # finalize
     outfile.close()

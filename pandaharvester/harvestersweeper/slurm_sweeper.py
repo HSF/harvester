@@ -1,5 +1,6 @@
 import os
 import shutil
+
 try:
     import subprocess32 as subprocess
 except ImportError:
@@ -9,7 +10,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
 # logger
-baseLogger = core_utils.setup_logger('slurm_sweeper')
+baseLogger = core_utils.setup_logger("slurm_sweeper")
 
 
 # plugin for sweeper with SLURM
@@ -28,10 +29,9 @@ class SlurmSweeper(BaseSweeper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                  method_name='kill_worker')
+        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
         # kill command
-        comStr = 'scancel {0}'.format(workspec.batchID)
+        comStr = "scancel {0}".format(workspec.batchID)
         # execute
         p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdOut, stdErr = p.communicate()
@@ -42,9 +42,9 @@ class SlurmSweeper(BaseSweeper):
             tmpLog.error(errStr)
             return False, errStr
         else:
-            tmpLog.info('Succeeded to kill workerID={0} batchID={1}'.format(workspec.workerID, workspec.workerID))
+            tmpLog.info("Succeeded to kill workerID={0} batchID={1}".format(workspec.workerID, workspec.workerID))
         # return
-        return True, ''
+        return True, ""
 
     # cleanup for a worker
     def sweep_worker(self, workspec):
@@ -56,13 +56,12 @@ class SlurmSweeper(BaseSweeper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                  method_name='sweep_worker')
+        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
         # clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)
-            tmpLog.info('removed {0}'.format(workspec.accessPoint))
+            tmpLog.info("removed {0}".format(workspec.accessPoint))
         else:
-            tmpLog.info('access point already removed.')
+            tmpLog.info("access point already removed.")
         # return
-        return True, ''
+        return True, ""

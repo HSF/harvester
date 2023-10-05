@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 
-DATE=`date -u '+%d-%m-%Y %H:%M:%S'`
-NAME=`git config --global user.name`
-BRANCH=`git rev-parse --abbrev-ref HEAD`
-FILE=pandaharvester/commit_timestamp.py
-echo timestamp = \"$DATE on $BRANCH \(by $NAME\)\" > $FILE
-git add $FILE
+basedir="$(dirname $0)/pre-commit.d"
+
+for hook in $(ls -1 $basedir); do
+    bash $basedir/$hook
+    RESULT=$?
+    if [ $RESULT != 0 ]; then
+        echo "$hook returned non-zero: $RESULT, abort commit"
+        exit $RESULT
+    fi
+done
+
 exit 0

@@ -4,7 +4,7 @@ from .base_stager import BaseStager
 import uuid
 
 # logger
-_logger = core_utils.setup_logger('dummy_stager')
+_logger = core_utils.setup_logger("dummy_stager")
 
 
 # dummy plugin for stager
@@ -31,8 +31,8 @@ class DummyStager(BaseStager):
         :rtype: (bool, string)
         """
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
-            fileSpec.status = 'finished'
-        return True, ''
+            fileSpec.status = "finished"
+        return True, ""
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
@@ -51,7 +51,7 @@ class DummyStager(BaseStager):
             # fileSpec.objstoreID = 123
             # fileSpec.fileAttributes['guid']
             pass
-        return True, ''
+        return True, ""
 
     # zip output files
     def zip_output(self, jobspec):
@@ -68,8 +68,7 @@ class DummyStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='zip_output')
+        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)
 
     # asynchronous zip output
@@ -88,18 +87,14 @@ class DummyStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='zip_output')
+        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
         # set some ID which can be used for lookup in post_zip_output()
         groupID = str(uuid.uuid4())
         lfns = []
         for fileSpec in jobspec.outFiles:
             lfns.append(fileSpec.lfn)
-        jobspec.set_groups_to_files({groupID: {'lfns': lfns,
-                                               'groupStatus': 'zipping'}
-                                     }
-                                    )
-        return True, ''
+        jobspec.set_groups_to_files({groupID: {"lfns": lfns, "groupStatus": "zipping"}})
+        return True, ""
 
     # post zipping
     def post_zip_output(self, jobspec):
@@ -114,15 +109,14 @@ class DummyStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='zip_output')
+        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
         # get groups for lookup
         groups = jobspec.get_groups_of_output_files()
         # do something with groupIDs
         pass
         # update file attributes
         for fileSpec in jobspec.outFiles:
-            fileSpec.path = '/path/to/zip'
+            fileSpec.path = "/path/to/zip"
             fileSpec.fsize = 12345
-            fileSpec.chksum = '66bb0985'
-        return True, ''
+            fileSpec.chksum = "66bb0985"
+        return True, ""

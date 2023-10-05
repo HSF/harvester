@@ -5,11 +5,12 @@ import jwt
 from pandaharvester.harvesterconfig import harvester_config
 
 
-class HarvesterToken():
+class HarvesterToken:
     """
     Methods of JSON Web Token used in harvester frontend
     """
-    algorithm = 'HS256'
+
+    algorithm = "HS256"
 
     def __init__(self, **kwarg):
         # load secret from file
@@ -23,11 +24,11 @@ class HarvesterToken():
         self.default_lifetime = 345600
         # default payload spec
         self.default_payload_dict = {
-            'sub': 'Subject',
-            'exp': 0,
-            'iss': harvester_config.master.harvester_id,
-            'iat': 0,
-            }
+            "sub": "Subject",
+            "exp": 0,
+            "iss": harvester_config.master.harvester_id,
+            "iat": 0,
+        }
 
     def generate(self, payload=None, header=None):
         """
@@ -36,8 +37,8 @@ class HarvesterToken():
         """
         timestamp_now = int(time.time())
         payload_dict = self.default_payload_dict.copy()
-        payload_dict['iat'] = timestamp_now
-        payload_dict['exp'] = timestamp_now + self.default_lifetime
+        payload_dict["iat"] = timestamp_now
+        payload_dict["exp"] = timestamp_now + self.default_lifetime
         if payload:
             payload_dict.update(payload)
         token = jwt.encode(payload_dict, key=self.secret, algorithm=self.algorithm, headers=header)

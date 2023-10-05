@@ -7,12 +7,10 @@ from pandaharvester.commit_timestamp import timestamp as commitTimestamp
 from pandaharvester.panda_pkg_info import release_version as releaseVersion
 
 
-
-
 class harvesterPackageInfo(object):
-    """
-    """
-    _attributes = ('commit_info', 'version', 'info_digest')
+    """ """
+
+    _attributes = ("commit_info", "version", "info_digest")
 
     def __init__(self, local_info_file):
         self.local_info_file = local_info_file
@@ -22,7 +20,7 @@ class harvesterPackageInfo(object):
     @staticmethod
     def _get_hash(data):
         h = hashlib.md5()
-        h.update(str(data).encode('utf-8'))
+        h.update(str(data).encode("utf-8"))
         return h.hexdigest()
 
     @property
@@ -33,7 +31,7 @@ class harvesterPackageInfo(object):
     def _local_info_dict(self):
         info_dict = {}
         try:
-            with open(self.local_info_file, 'r') as f:
+            with open(self.local_info_file, "r") as f:
                 info_dict = json.load(f)
         except IOError as e:
             if e.errno == errno.ENOENT:
@@ -46,9 +44,9 @@ class harvesterPackageInfo(object):
         info_dict = {}
         for attr in self._attributes:
             info_dict[attr] = getattr(self, attr)
-        with open(self.local_info_file, 'w') as f:
+        with open(self.local_info_file, "w") as f:
             json.dump(info_dict, f)
 
     @property
     def package_changed(self):
-        return self.info_digest != self._local_info_dict.get('info_digest')
+        return self.info_digest != self._local_info_dict.get("info_digest")

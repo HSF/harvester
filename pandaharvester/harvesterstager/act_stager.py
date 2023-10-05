@@ -11,23 +11,25 @@ from .base_stager import BaseStager
 from act.atlas.aCTDBPanda import aCTDBPanda
 
 # logger
-baseLogger = core_utils.setup_logger('act_stager')
+baseLogger = core_utils.setup_logger("act_stager")
 
 # json for job report
 jsonJobReport = harvester_config.payload_interaction.jobReportFile
 
 # aCT stager plugin
+
+
 class ACTStager(BaseStager):
     # constructor
     def __init__(self, **kwarg):
         BaseStager.__init__(self, **kwarg)
 
         # Set up aCT DB connection
-        self.log = core_utils.make_logger(baseLogger, 'aCT stager', method_name='__init__')
+        self.log = core_utils.make_logger(baseLogger, "aCT stager", method_name="__init__")
         try:
             self.actDB = aCTDBPanda(self.log)
         except Exception as e:
-            self.log.error('Could not connect to aCT database: {0}'.format(str(e)))
+            self.log.error("Could not connect to aCT database: {0}".format(str(e)))
             self.actDB = None
 
     # check status
@@ -46,11 +48,10 @@ class ACTStager(BaseStager):
 
         workSpec = jobspec.get_workspec_list()[0]
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
-                                        method_name='check_workers')
+        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
         try:
-            tmpLog.debug('Querying aCT for id {0}'.format(workSpec.batchID))
-            columns = ['actpandastatus', 'error']
+            tmpLog.debug("Querying aCT for id {0}".format(workSpec.batchID))
+            columns = ["actpandastatus", "error"]
             actjobs = self.actDB.getJobs("id={0}".format(workSpec.batchID), columns)
         except Exception as e:
             if self.actDB:
@@ -62,35 +63,35 @@ class ACTStager(BaseStager):
             tmpLog.error("Job with id {0} not found in aCT".format(workSpec.batchID))
             return False, "Job not found in aCT"
 
-        actstatus = actjobs[0]['actpandastatus']
+        actstatus = actjobs[0]["actpandastatus"]
         # Only check for final states
-        if actstatus == 'done':
+        if actstatus == "done":
             # Do post processing
             self.post_processing(workSpec, jobspec)
-        elif actstatus == 'donefailed':
+        elif actstatus == "donefailed":
             # Call post processing to collect attributes set by aCT for failed jobs
             self.post_processing(workSpec, jobspec)
             # Set error reported by aCT
-            errorMsg = actjobs[0]['error'] or 'Unknown error'
-            error_code = WorkerErrors.error_codes.get('GENERAL_ERROR')
-            jobspec.status = 'failed'
+            errorMsg = actjobs[0]["error"] or "Unknown error"
+            error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
+            jobspec.status = "failed"
             # No way to update workspec here
-            #workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
+            # workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
             jobspec.set_pilot_error(error_code, errorMsg)
-            tmpLog.info('Job {0} failed with error {1}'.format(jobspec.PandaID, errorMsg))
-        elif actstatus == 'donecancelled':
+            tmpLog.info("Job {0} failed with error {1}".format(jobspec.PandaID, errorMsg))
+        elif actstatus == "donecancelled":
             # Nothing to do
             pass
         else:
             # Still staging
-            return None, 'still staging'
+            return None, "still staging"
 
-        tmpLog.info('ID {0} completed in state {1}'.format(workSpec.batchID, actstatus))
+        tmpLog.info("ID {0} completed in state {1}".format(workSpec.batchID, actstatus))
 
         # Set dummy output file to finished
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
-            fileSpec.status = 'finished'
-        return True, ''
+            fileSpec.status = "finished"
+        return True, ""
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
@@ -107,43 +108,42 @@ class ACTStager(BaseStager):
         fileSpec = FileSpec()
         fileSpec.PandaID = jobspec.PandaID
         fileSpec.taskID = jobspec.taskID
-        fileSpec.lfn = 'dummy.{0}'.format(jobspec.PandaID)
-        fileSpec.scope = 'dummy'
-        fileSpec.fileType = 'output'
+        fileSpec.lfn = "dummy.{0}".format(jobspec.PandaID)
+        fileSpec.scope = "dummy"
+        fileSpec.fileType = "output"
         jobspec.add_in_file(fileSpec)
 
-        return True, ''
+        return True, ""
 
     # zip output files
     def zip_output(self, jobspec):
         """Dummy"""
-        return True, ''
+        return True, ""
 
     def post_processing(self, workspec, jobspec):
-        '''
+        """
         Take the jobReport placed by aCT in the access point and fill metadata
         attributes of the jobspec.
-        '''
+        """
 
         # get logger
-        tmpLog = core_utils.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                        method_name='post_processing')
+        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="post_processing")
         # look for job report
         jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
-        tmpLog.debug('looking for job report file {0}'.format(jsonFilePath))
+        tmpLog.debug("looking for job report file {0}".format(jsonFilePath))
         try:
             with open(jsonFilePath) as jsonFile:
                 jobreport = json.load(jsonFile)
-        except:
+        except BaseException:
             # Assume no job report available means true pilot or push mode
             # If job report is not available in full push mode aCT would have failed the job
-            tmpLog.debug('no job report at {0}'.format(jsonFilePath))
+            tmpLog.debug("no job report at {0}".format(jsonFilePath))
             return
 
-        tmpLog.debug('got {0} kB of job report'.format(os.stat(jsonFilePath).st_size / 1024))
+        tmpLog.debug("got {0} kB of job report".format(os.stat(jsonFilePath).st_size / 1024))
         tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, jobreport))
 
         # Set info for final heartbeat and final status
         jobspec.set_attributes({jobspec.PandaID: jobreport})
-        jobspec.set_one_attribute('jobStatus', jobreport.get('state', 'failed'))
-        jobspec.status = jobreport.get('state', 'failed')
+        jobspec.set_one_attribute("jobStatus", jobreport.get("state", "failed"))
+        jobspec.status = jobreport.get("state", "failed")

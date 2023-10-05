@@ -38,7 +38,7 @@ class DBInterface(object):
             thrName = currentThr.ident
         else:
             thrName = None
-        return 'plugin-{0}-{1}'.format(os.getpid(), thrName)
+        return "plugin-{0}-{1}".format(os.getpid(), thrName)
 
     # get a lock for an object
     def get_object_lock(self, object_name, lock_interval):
@@ -73,9 +73,9 @@ class DBInterface(object):
     # add dialog message
     def add_dialog_message(self, message, level, module_name, identifier=None):
         # set level
-        validLevels = ['DEBUG', 'INFO', 'ERROR', 'WARNING']
+        validLevels = ["DEBUG", "INFO", "ERROR", "WARNING"]
         if level not in validLevels:
-            level = 'INFO'
+            level = "INFO"
         levelNum = getattr(logging, level)
         # get minimum level
         try:
@@ -83,7 +83,7 @@ class DBInterface(object):
         except Exception:
             minLevel = None
         if minLevel not in validLevels:
-            minLevel = 'WARNING'
+            minLevel = "WARNING"
         minLevelNum = getattr(logging, minLevel)
         # check level to avoid redundant db lock
         if levelNum < minLevelNum:

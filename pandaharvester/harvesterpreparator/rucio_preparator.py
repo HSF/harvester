@@ -9,7 +9,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 
 # logger
-baseLogger = core_utils.setup_logger('rucio_preparator')
+baseLogger = core_utils.setup_logger("rucio_preparator")
 
 
 def get_num_files(logs):
@@ -46,14 +46,14 @@ class RucioPreparator(PluginBase):
         PluginBase.__init__(self, **kwarg)
         if not hasattr(self, "rucioEnv"):
             self.rucioEnv = None
-        if not hasattr(self, 'timeout'):
+        if not hasattr(self, "timeout"):
             self.timeout = 30 * 60
 
         # Default x509 proxy for a queue
         try:
             self.x509UserProxy
         except AttributeError:
-            self.x509UserProxy = os.getenv('X509_USER_PROXY')
+            self.x509UserProxy = os.getenv("X509_USER_PROXY")
 
         try:
             self.cacheDir
@@ -67,25 +67,24 @@ class RucioPreparator(PluginBase):
 
     # check status
     def check_stage_in_status(self, jobspec):
-        return True, ''
+        return True, ""
 
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='trigger_preparation')
-        tmpLog.debug('Start. Trigger data transfer for job: {0}'.format(jobspec.PandaID))
+        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
+        tmpLog.debug("Start. Trigger data transfer for job: {0}".format(jobspec.PandaID))
 
         try:
-            params = json.loads(jobspec.jobParams['jobPars'])
-            if 'input_datasets' not in params or 'input_location' not in params:
-                errMsg = 'input_datasets or input_location not in job parameters'
+            params = json.loads(jobspec.jobParams["jobPars"])
+            if "input_datasets" not in params or "input_location" not in params:
+                errMsg = "input_datasets or input_location not in job parameters"
                 tmpLog.error(errMsg)
                 return True, errMsg
 
-            datasets = params['input_datasets']   # a comma-separated string
+            datasets = params["input_datasets"]  # a comma-separated string
             datasets = datasets.split(",")
-            base_dir = params['input_location']   # dir name in EOS
+            base_dir = params["input_location"]  # dir name in EOS
 
             if not base_dir:
                 tmpLog.debug("input_location is not defined. will use harvester defaultDest: %s" % self.defaultDest)
@@ -99,30 +98,34 @@ class RucioPreparator(PluginBase):
             for dataset in datasets:
                 upload_src_dir = os.path.join(self.cacheDir, dataset)
                 if self.rucioEnv:
-                    command = "%s; export X509_USER_PROXY=%s; rucio download --dir %s %s; gfal-copy -f -r -v %s %s" % (self.rucioEnv,
-                                                                                                                       self.x509UserProxy,
-                                                                                                                       self.cacheDir,
-                                                                                                                       dataset,
-                                                                                                                       upload_src_dir,
-                                                                                                                       base_dir)
+                    command = "%s; export X509_USER_PROXY=%s; rucio download --dir %s %s; gfal-copy -f -r -v %s %s" % (
+                        self.rucioEnv,
+                        self.x509UserProxy,
+                        self.cacheDir,
+                        dataset,
+                        upload_src_dir,
+                        base_dir,
+                    )
                 else:
                     # command = "rucio download --dir %s %s" % (base_dir, dataset)
-                    command = "export X509_USER_PROXY=%s; rucio download --dir %s %s; gfal-copy -f -r -v %s %s" % (self.x509UserProxy,
-                                                                                                                   self.cacheDir,
-                                                                                                                   dataset,
-                                                                                                                   upload_src_dir,
-                                                                                                                   base_dir)
-                tmpLog.debug('execute: ' + command)
+                    command = "export X509_USER_PROXY=%s; rucio download --dir %s %s; gfal-copy -f -r -v %s %s" % (
+                        self.x509UserProxy,
+                        self.cacheDir,
+                        dataset,
+                        upload_src_dir,
+                        base_dir,
+                    )
+                tmpLog.debug("execute: " + command)
                 exit_code = 0
                 try:
-                    p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8', errors='replace')
+                    p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="replace")
                     stdout, stderr = p.communicate(timeout=self.timeout)
                     exit_code = p.poll()
                 except subprocess.TimeoutExpired:
                     p.kill()
                     stdout, stderr = p.communicate()
                     exit_code = -1
-                    tmpLog.warning('command timeout')
+                    tmpLog.warning("command timeout")
 
                 tmpLog.debug("stdout: %s" % stdout)
                 tmpLog.debug("stderr: %s" % stderr)
@@ -142,7 +145,7 @@ class RucioPreparator(PluginBase):
                     downloaded_datasets += 1
             if final_exit_code == 0 and total_datasets == downloaded_datasets:
                 tmpLog.info("All datasets have been downloaded")
-                return True, ''
+                return True, ""
             else:
                 errMsg = "Not all datasets have been downloaded"
                 tmpLog.error(errMsg)
@@ -155,14 +158,14 @@ class RucioPreparator(PluginBase):
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
         # get input base location
-        params = json.loads(jobspec.jobParams['jobPars'])
-        base_dir = params['input_location']  # dir name in EOS
+        params = json.loads(jobspec.jobParams["jobPars"])
+        base_dir = params["input_location"]  # dir name in EOS
 
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in iteritems(inFiles):
-            inFile['path'] = mover_utils.construct_file_path(base_dir, inFile['scope'], inLFN)
+            inFile["path"] = mover_utils.construct_file_path(base_dir, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)
-        return True, ''
+        return True, ""

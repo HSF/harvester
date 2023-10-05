@@ -3,7 +3,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger
-_logger = core_utils.setup_logger('worker_maker')
+_logger = core_utils.setup_logger("worker_maker")
 
 
 # class to make worker
@@ -19,16 +19,17 @@ class WorkerMaker(object):
 
     # make workers
     def make_workers(self, jobchunk_list, queue_config, n_ready, job_type, resource_type, maker=None):
-        tmpLog = core_utils.make_logger(_logger, 'queue={0} jtype={1} rtype={2}'.format(queue_config.queueName, job_type, resource_type),
-                                        method_name='make_workers')
-        tmpLog.debug('start')
+        tmpLog = core_utils.make_logger(
+            _logger, "queue={0} jtype={1} rtype={2}".format(queue_config.queueName, job_type, resource_type), method_name="make_workers"
+        )
+        tmpLog.debug("start")
         try:
             # get plugin
             if maker is None:
                 maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
             if maker is None:
                 # not found
-                tmpLog.error('plugin for {0} not found'.format(queue_config.queueName))
+                tmpLog.error("plugin for {0} not found".format(queue_config.queueName))
                 return [], jobchunk_list
             # get ready workers
             readyWorkers = self.dbProxy.get_ready_workers(queue_config.queueName, n_ready)
@@ -51,13 +52,12 @@ class WorkerMaker(object):
                     continue
                 # set workerID
                 if workSpec.workerID is None:
-                    workSpec.workerID = self.dbProxy.get_next_seq_number('SEQ_workerID')
+                    workSpec.workerID = self.dbProxy.get_next_seq_number("SEQ_workerID")
                     workSpec.configID = queue_config.configID
                     workSpec.isNew = True
                 okChunks.append((workSpec, jobChunk))
             # dump
-            tmpLog.debug('made {0} workers while {1} chunks failed'.format(len(okChunks),
-                                                                           len(ngChunks)))
+            tmpLog.debug("made {0} workers while {1} chunks failed".format(len(okChunks), len(ngChunks)))
             return okChunks, ngChunks
         except Exception:
             # dump error

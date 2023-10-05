@@ -16,6 +16,7 @@ def _md5sum(data):
     hash_hex = hash.hexdigest()
     return hash_hex
 
+
 def endpoint_to_filename(endpoint):
     """
     get token file name according to service (CE, storage, etc.) endpoint
@@ -26,7 +27,7 @@ def endpoint_to_filename(endpoint):
 
 
 class WLCG_scopes(object):
-    COMPUTE_ALL = 'compute.read compute.modify compute.create compute.cancel'
+    COMPUTE_ALL = "compute.read compute.modify compute.create compute.cancel"
 
 
 class IssuerBroker(object):
@@ -34,19 +35,19 @@ class IssuerBroker(object):
     Talk to token issuer with client credentials flow
     """
 
-    def __init__(self, issuer, client_id, client_secret, name='unknown'):
+    def __init__(self, issuer, client_id, client_secret, name="unknown"):
         self.issuer = issuer
         self.client_id = client_id
         self.client_secret = client_secret
         self.name = name
         self.timeout = 3
         # derived attributes
-        self.token_request_url = '{0}/token'.format(self.issuer)
+        self.token_request_url = "{0}/token".format(self.issuer)
         self._base_post_data = {
-                'grant_type': 'client_credentials',
-                'client_id': self.client_id,
-                'client_secret': self.client_secret,
-            }
+            "grant_type": "client_credentials",
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+        }
 
     def _post(self, **kwarg):
         data_dict = copy.deepcopy(self._base_post_data)
@@ -62,7 +63,7 @@ class IssuerBroker(object):
                 resp_dict = json.loads(resp.text)
             except Exception as e:
                 raise
-            token = resp_dict['access_token']
+            token = resp_dict["access_token"]
             return token
         else:
             resp.raise_for_status()

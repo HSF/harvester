@@ -1,15 +1,16 @@
 import os
 import shutil
+
 try:
     import subprocess32 as subprocess
-except:
+except BaseException:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
-baseLogger = core_utils.setup_logger('pbs_sweeper')
+baseLogger = core_utils.setup_logger("pbs_sweeper")
 
 
 # plugin for sweeper with PBS
@@ -28,10 +29,9 @@ class PBSSweeper(PluginBase):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                  method_name='kill_worker')
+        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
         # kill command
-        comStr = 'qdel {0}'.format(workspec.batchID)
+        comStr = "qdel {0}".format(workspec.batchID)
         # execute
         p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdOut, stdErr = p.communicate()
@@ -42,9 +42,9 @@ class PBSSweeper(PluginBase):
             tmpLog.error(errStr)
             return False, errStr
         else:
-            tmpLog.info('Succeeded to kill workerID={0} batchID={1}'.format(workspec.workerID, workspec.workerID))
+            tmpLog.info("Succeeded to kill workerID={0} batchID={1}".format(workspec.workerID, workspec.workerID))
         # return
-        return True, ''
+        return True, ""
 
     # cleanup for a worker
     def sweep_worker(self, workspec):
@@ -56,13 +56,12 @@ class PBSSweeper(PluginBase):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                  method_name='sweep_worker')
+        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
         # clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)
-            tmpLog.info('removed {0}'.format(workspec.accessPoint))
+            tmpLog.info("removed {0}".format(workspec.accessPoint))
         else:
-            tmpLog.info('access point already removed.')
+            tmpLog.info("access point already removed.")
         # return
-        return True, ''
+        return True, ""

@@ -21,14 +21,14 @@ class PythonObjectEncoder(json.JSONEncoder):
         if isinstance(obj, rpyc.core.netref.BaseNetref):
             retVal = rpyc.utils.classic.obtain(obj)
         else:
-            retVal = {'_non_json_object': pickle.dumps(obj)}
+            retVal = {"_non_json_object": pickle.dumps(obj)}
         return retVal
 
 
 # hook for decoder
 def as_python_object(dct):
-    if '_non_json_object' in dct:
-        return pickle.loads(str(dct['_non_json_object']))
+    if "_non_json_object" in dct:
+        return pickle.loads(str(dct["_non_json_object"]))
     return dct
 
 
@@ -42,13 +42,13 @@ class SpecBase(object):
     # constructor
     def __init__(self):
         # remove types
-        object.__setattr__(self, 'attributes', [])
-        object.__setattr__(self, 'serializedAttrs', set())
+        object.__setattr__(self, "attributes", [])
+        object.__setattr__(self, "serializedAttrs", set())
         for attr in self.attributesWithTypes:
-            attr, attrType = attr.split(':')
+            attr, attrType = attr.split(":")
             attrType = attrType.split()[0]
             self.attributes.append(attr)
-            if attrType in ['blob']:
+            if attrType in ["blob"]:
                 self.serializedAttrs.add(attr)
         # install attributes
         for attr in self.attributes:
@@ -57,7 +57,7 @@ class SpecBase(object):
             else:
                 object.__setattr__(self, attr, None)
         # map of changed attributes
-        object.__setattr__(self, 'changedAttrs', {})
+        object.__setattr__(self, "changedAttrs", {})
 
     # override __setattr__ to collect changed attributes
     def __setattr__(self, name, value):
@@ -71,7 +71,7 @@ class SpecBase(object):
     # keep state for pickle
     def __getstate__(self):
         odict = self.__dict__.copy()
-        del odict['changedAttrs']
+        del odict["changedAttrs"]
         return odict
 
     # restore state from the unpickled state values
@@ -82,7 +82,7 @@ class SpecBase(object):
 
     # reset changed attribute list
     def reset_changed_list(self):
-        object.__setattr__(self, 'changedAttrs', {})
+        object.__setattr__(self, "changedAttrs", {})
 
     # force update
     def force_update(self, name):
@@ -100,7 +100,7 @@ class SpecBase(object):
 
     # pack into attributes
     def pack(self, values, slim=False):
-        if hasattr(values, '_asdict'):
+        if hasattr(values, "_asdict"):
             values = values._asdict()
         for attr in self.attributes:
             if slim and attr in self.skipAttrsToSlim:
@@ -126,7 +126,7 @@ class SpecBase(object):
     def column_names(cls, prefix=None, slim=False):
         ret = ""
         for attr in cls.attributesWithTypes:
-            attr = attr.split(':')[0]
+            attr = attr.split(":")[0]
             if slim and attr in cls.skipAttrsToSlim:
                 continue
             if prefix is None:
@@ -142,7 +142,7 @@ class SpecBase(object):
     def bind_values_expression(cls):
         ret = "VALUES("
         for attr in cls.attributesWithTypes:
-            attr = attr.split(':')[0]
+            attr = attr.split(":")[0]
             ret += ":%s," % attr
         ret = ret[:-1]
         ret += ")"
@@ -155,9 +155,9 @@ class SpecBase(object):
         ret = ""
         for attr in self.attributes:
             if attr in self.changedAttrs:
-                ret += '%s=:%s,' % (attr, attr)
+                ret += "%s=:%s," % (attr, attr)
         ret = ret[:-1]
-        ret += ' '
+        ret += " "
         return ret
 
     # return map of values
@@ -176,7 +176,7 @@ class SpecBase(object):
                     val = None
             if attr in self.serializedAttrs:
                 val = json.dumps(val, cls=PythonObjectEncoder)
-            ret[':%s' % attr] = val
+            ret[":%s" % attr] = val
         return ret
 
     # return list of values

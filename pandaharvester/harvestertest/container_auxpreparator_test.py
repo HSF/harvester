@@ -3,7 +3,7 @@ import sys
 import time
 from pprint import pprint
 
-#from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+# from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvesterextractor.aux_extractor import AuxExtractor
 
@@ -11,13 +11,15 @@ job_data_json = """{"container_name": "atlas.athena:21.0.15_DBRelease-100.0.2_Pa
 
 job_data = json.loads(job_data_json)
 
-job_data["jobPars"] = '--inputEVNTFile=EVNT.21265061._000036.pool.root.1 --maxEvents=1000 --postInclude "default:RecJobTransforms/UseFrontier.py" --preExec "EVNTtoHITS:simFlags.SimBarcodeOffset.set_Value_and_Lock(200000)" "EVNTtoHITS:simFlags.TRTRangeCut=30.0;simFlags.TightMuonStepping=True" --preInclude "EVNTtoHITS:SimulationJobOptions/preInclude.BeamPipeKill.py,SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py" --skipEvents=1000 --firstEvent=331001 --outputHITSFile=HITS.21265064._002580.pool.root.1 --physicsList=FTFP_BERT_ATL_VALIDATION --randomSeed=352 --DBRelease="all:current" --conditionsTag "default:OFLCOND-MC16-SDR-14" --geometryVersion="default:ATLAS-R2-2016-01-00-01_VALIDATION" --runNumber=830011 --AMITag=s3126 --DataRunNumber=284500 --simulator=FullG4 --truthStrategy=MC15aPlus'
+job_data[
+    "jobPars"
+] = '--inputEVNTFile=EVNT.21265061._000036.pool.root.1 --maxEvents=1000 --postInclude "default:RecJobTransforms/UseFrontier.py" --preExec "EVNTtoHITS:simFlags.SimBarcodeOffset.set_Value_and_Lock(200000)" "EVNTtoHITS:simFlags.TRTRangeCut=30.0;simFlags.TightMuonStepping=True" --preInclude "EVNTtoHITS:SimulationJobOptions/preInclude.BeamPipeKill.py,SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py" --skipEvents=1000 --firstEvent=331001 --outputHITSFile=HITS.21265064._002580.pool.root.1 --physicsList=FTFP_BERT_ATL_VALIDATION --randomSeed=352 --DBRelease="all:current" --conditionsTag "default:OFLCOND-MC16-SDR-14" --geometryVersion="default:ATLAS-R2-2016-01-00-01_VALIDATION" --runNumber=830011 --AMITag=s3126 --DataRunNumber=284500 --simulator=FullG4 --truthStrategy=MC15aPlus'
 
 
 jobSpec = JobSpec()
 jobSpec.convert_job_json(job_data)
 
-#pprint(jobSpec.jobParams)
+# pprint(jobSpec.jobParams)
 
 ae = AuxExtractor()
 print(ae.get_aux_inputs(jobSpec))

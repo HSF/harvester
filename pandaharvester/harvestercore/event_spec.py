@@ -11,15 +11,16 @@ from .spec_base import SpecBase
 
 class EventSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('eventRangeID:text / index',
-                           'PandaID:integer / index',
-                           'eventStatus:text',
-                           'coreCount:integer',
-                           'cpuConsumptionTime:integer',
-                           'subStatus:text / index',
-                           'fileID:integer',
-                           'loss:text'
-                           )
+    attributesWithTypes = (
+        "eventRangeID:text / index",
+        "PandaID:integer / index",
+        "eventStatus:text",
+        "coreCount:integer",
+        "cpuConsumptionTime:integer",
+        "subStatus:text / index",
+        "fileID:integer",
+        "loss:text",
+    )
 
     # constructor
     def __init__(self):
@@ -30,14 +31,13 @@ class EventSpec(SpecBase):
         data = {}
         for attr in self.attributes:
             # ignore some attributes
-            if attr not in ['eventRangeID', 'eventStatus', 'coreCount',
-                            'cpuConsumptionTime', 'loss']:
+            if attr not in ["eventRangeID", "eventStatus", "coreCount", "cpuConsumptionTime", "loss"]:
                 continue
             val = getattr(self, attr)
             # don't propagate finished until subStatus is finished
-            if attr == 'eventStatus':
-                if val == 'finished' and not self.is_final_status():
-                    val = 'running'
+            if attr == "eventStatus":
+                if val == "finished" and not self.is_final_status():
+                    val = "running"
             if val is not None:
                 data[attr] = val
         return data
@@ -53,4 +53,4 @@ class EventSpec(SpecBase):
 
     # final status
     def is_final_status(self):
-        return self.subStatus in ['finished', 'done', 'failed']
+        return self.subStatus in ["finished", "done", "failed"]

@@ -10,6 +10,7 @@ except ImportError:
 
 from queue import Queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
 # try:
 #     from urllib.parse import parse_qsl
 # except ImportError:
@@ -21,7 +22,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermessenger import shared_file_messenger
 
 # logger
-_logger = core_utils.setup_logger('http_server_messenger')
+_logger = core_utils.setup_logger("http_server_messenger")
 shared_file_messenger.set_logger(_logger)
 
 
@@ -33,7 +34,6 @@ def set_logger(master_logger):
 
 # handler for http front-end
 class HttpHandler(BaseHTTPRequestHandler):
-
     def __init__(self, *args, **kwargs):
         self.dbProxy = DBProxy()
         self.tmpLog = None
@@ -44,7 +44,7 @@ class HttpHandler(BaseHTTPRequestHandler):
         pass
 
     def get_form(self):
-        dataStr = self.rfile.read(int(self.headers['Content-Length']))
+        dataStr = self.rfile.read(int(self.headers["Content-Length"]))
         return json.loads(dataStr)
 
     def do_postprocessing(self, message):
@@ -59,97 +59,87 @@ class HttpHandler(BaseHTTPRequestHandler):
         form = None
         methodName = None
         dataStr = None
-        message = ''
+        message = ""
         # parse the form data posted
         try:
             form = self.get_form()
         except Exception:
-            message = 'corrupted json'
+            message = "corrupted json"
             toSkip = True
         # check parameters
         if not toSkip:
             toSkip = True
             # method is not set
-            if 'methodName' not in form:
-                message = 'methodName is not given'
+            if "methodName" not in form:
+                message = "methodName is not given"
                 self.send_response(400)
-            elif 'workerID' not in form:
-                message = 'workerID is not given'
+            elif "workerID" not in form:
+                message = "workerID is not given"
                 self.send_response(400)
-            elif 'data' not in form:
-                message = 'data is not given'
+            elif "data" not in form:
+                message = "data is not given"
                 self.send_response(400)
             else:
                 toSkip = False
         # get worker
         if not toSkip:
             try:
-                workerID = form['workerID']
+                workerID = form["workerID"]
                 workSpec = self.dbProxy.get_worker_with_id(workerID)
                 if workSpec is None:
-                    message = 'workerID={0} not found in DB'.format(workerID)
+                    message = "workerID={0} not found in DB".format(workerID)
                     self.send_response(400)
                 else:
                     # chose file and operation for each action
-                    methodName = form['methodName']
+                    methodName = form["methodName"]
                     opType = None
-                    filePath = ''
-                    if methodName == 'requestJobs':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jsonJobRequestFileName)
-                        opType = 'w'
-                    elif methodName == 'getJobs':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jobSpecFileName)
-                        opType = 'r'
-                    elif methodName == 'requestEventRanges':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jsonEventsRequestFileName)
-                        opType = 'w'
-                    elif methodName == 'getEventRanges':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jsonEventsFeedFileName)
-                        opType = 'r'
-                    elif methodName == 'updateJobs':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jsonAttrsFileName)
-                        opType = 'w'
-                    elif methodName == 'uploadJobReport':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jsonJobReport)
-                        opType = 'w'
-                    elif methodName == 'uploadEventOutputDump':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.jsonOutputsFileName)
-                        opType = 'w'
-                    elif methodName == 'setPandaIDs':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.pandaIDsFile)
-                        opType = 'w'
-                    elif methodName == 'killWorker':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.killWorkerFile)
-                        opType = 'w'
-                    elif methodName == 'heartbeat':
-                        filePath = os.path.join(workSpec.get_access_point(),
-                                                shared_file_messenger.heartbeatFile)
-                        opType = 'w'
+                    filePath = ""
+                    if methodName == "requestJobs":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonJobRequestFileName)
+                        opType = "w"
+                    elif methodName == "getJobs":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jobSpecFileName)
+                        opType = "r"
+                    elif methodName == "requestEventRanges":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonEventsRequestFileName)
+                        opType = "w"
+                    elif methodName == "getEventRanges":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonEventsFeedFileName)
+                        opType = "r"
+                    elif methodName == "updateJobs":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonAttrsFileName)
+                        opType = "w"
+                    elif methodName == "uploadJobReport":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonJobReport)
+                        opType = "w"
+                    elif methodName == "uploadEventOutputDump":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonOutputsFileName)
+                        opType = "w"
+                    elif methodName == "setPandaIDs":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.pandaIDsFile)
+                        opType = "w"
+                    elif methodName == "killWorker":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.killWorkerFile)
+                        opType = "w"
+                    elif methodName == "heartbeat":
+                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.heartbeatFile)
+                        opType = "w"
                     else:
                         self.send_response(501)
-                        message = 'method not implemented'
+                        message = "method not implemented"
                         toSkip = True
                     # take action
                     if not toSkip:
                         # write actions
-                        if opType == 'w':
+                        if opType == "w":
                             # check if file exists. Methods such as heartbeat however need to overwrite the file
-                            if os.path.exists(filePath) and methodName not in ['heartbeat']:
-                                message = 'previous request is not yet processed'
+                            if os.path.exists(filePath) and methodName not in ["heartbeat"]:
+                                message = "previous request is not yet processed"
                                 self.send_response(503)
                             else:
-                                with open(filePath, 'w') as fileHandle:
-                                    json.dump(form['data'], fileHandle)
-                                    message = 'OK'
+                                with open(filePath, "w") as fileHandle:
+                                    json.dump(form["data"], fileHandle)
+                                    message = "OK"
                                     self.send_response(200)
                         else:
                             # read actions
@@ -158,22 +148,21 @@ class HttpHandler(BaseHTTPRequestHandler):
                                     try:
                                         _message = json.load(fileHandle)
                                         message = json.dumps(_message)
-                                        self.send_header('Content-Type', 'application/json')
+                                        self.send_header("Content-Type", "application/json")
                                     except JSONDecodeError:
                                         _f_qs = open(filePath).read()
                                         # _message = dict(parse_qsl(_f_qs, keep_blank_values=True))
                                         message = _f_qs
-                                        self.send_header('Content-Type', 'text/plain')
+                                        self.send_header("Content-Type", "text/plain")
                                     self.send_response(200)
                             else:
-                                message = 'previous request is not yet processed'
+                                message = "previous request is not yet processed"
                                 self.send_response(503)
             except Exception:
                 self.send_response(500)
                 message = core_utils.dump_error_message(_logger)
         if harvester_config.frontend.verbose:
-            self.tmpLog.debug('ip={3} - method={0} json={1} msg={2}'.format(methodName, dataStr, message,
-                                                                            self.client_address[0]))
+            self.tmpLog.debug("ip={3} - method={0} json={1} msg={2}".format(methodName, dataStr, message, self.client_address[0]))
         # set the response
         self.do_postprocessing(message)
         return
@@ -216,8 +205,8 @@ class FrontendLauncher(object):
         if cls.instance is None:
             with cls.lock:
                 if cls.instance is None:
-                    if harvester_config.frontend.type == 'simple':
-                        httpd = ThreadedHttpServer(('', harvester_config.frontend.portNumber), HttpHandler)
+                    if harvester_config.frontend.type == "simple":
+                        httpd = ThreadedHttpServer(("", harvester_config.frontend.portNumber), HttpHandler)
                         thr = threading.Thread(target=httpd.serve_forever)
                         thr.daemon = True
                         thr.start()
@@ -225,6 +214,7 @@ class FrontendLauncher(object):
                     else:
                         cls.instance = 1
         return cls.instance
+
 
 # start frontend
 frontend = FrontendLauncher()

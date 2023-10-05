@@ -16,11 +16,12 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from globus_compute_sdk import Client
 
 # logger
-baseLogger = core_utils.setup_logger('globus_compute_submitter')
+baseLogger = core_utils.setup_logger("globus_compute_submitter")
 
 
 def run_wrapper(base_path, data_path, func_str):
     import traceback
+
     try:
         import json
         import os
@@ -30,12 +31,12 @@ def run_wrapper(base_path, data_path, func_str):
         current_dir = os.getcwd()
         os.chdir(base_path)
 
-        os.environ['HARVESTER_WORKER_BASE_PATH'] = base_path
-        os.environ['HARVESTER_DATA_PATH'] = data_path
-        os.environ['PYTHONPATH'] = base_path + ":" + os.environ.get("PYTHONPATH", "")
+        os.environ["HARVESTER_WORKER_BASE_PATH"] = base_path
+        os.environ["HARVESTER_DATA_PATH"] = data_path
+        os.environ["PYTHONPATH"] = base_path + ":" + os.environ.get("PYTHONPATH", "")
         print("hostname: %s" % socket.gethostname())
         print("current directory: %s" % os.getcwd())
-        print("PYTHONPATH: %s" % os.environ['PYTHONPATH'])
+        print("PYTHONPATH: %s" % os.environ["PYTHONPATH"])
         print("execute programe: %s" % str(func_str))
 
         func_json = json.loads(func_str)
@@ -59,7 +60,7 @@ def run_wrapper(base_path, data_path, func_str):
         print(ex)
         print(traceback.format_exc())
         raise Exception(traceback.format_exc())
-    except:
+    except BaseException:
         print("traceback")
         print(traceback.format_exc())
         raise Exception(traceback.format_exc())
@@ -93,7 +94,7 @@ class GlobusComputeSubmitter(PluginBase):
         func_args = {}
         for jobSpec in jobSpecs:
             # logger.info(jobSpec)
-            logger.debug(" ".join([jobSpec.jobParams['transformation'], jobSpec.jobParams['jobPars']]))
+            logger.debug(" ".join([jobSpec.jobParams["transformation"], jobSpec.jobParams["jobPars"]]))
             panda_id = jobSpec.PandaID
             func_arg = self.get_job_funcx_args(workSpec, jobSpec, logger)
             func_args[panda_id] = func_arg
@@ -101,20 +102,20 @@ class GlobusComputeSubmitter(PluginBase):
 
     def get_panda_argparser(self):
         if self.parser is None:
-            parser = argparse.ArgumentParser(description='PanDA argparser')
-            parser.add_argument('-j', type=str, required=False, default='', help='j')
-            parser.add_argument('--sourceURL', type=str, required=False, default='', help='source url')
-            parser.add_argument('-r', type=str, required=False, default='', help='directory')
-            parser.add_argument('-l', '--lib', required=False, action='store_true', default=False, help='library')
-            parser.add_argument('-i', '--input', type=str, required=False, default='', help='input')
-            parser.add_argument('-o', '--output', type=str, required=False, default='', help='output')
-            parser.add_argument('-p', '--program', type=str, required=False, default='', help='program')
-            parser.add_argument('-a', '--archive', type=str, required=False, default='', help='source archive file')
+            parser = argparse.ArgumentParser(description="PanDA argparser")
+            parser.add_argument("-j", type=str, required=False, default="", help="j")
+            parser.add_argument("--sourceURL", type=str, required=False, default="", help="source url")
+            parser.add_argument("-r", type=str, required=False, default="", help="directory")
+            parser.add_argument("-l", "--lib", required=False, action="store_true", default=False, help="library")
+            parser.add_argument("-i", "--input", type=str, required=False, default="", help="input")
+            parser.add_argument("-o", "--output", type=str, required=False, default="", help="output")
+            parser.add_argument("-p", "--program", type=str, required=False, default="", help="program")
+            parser.add_argument("-a", "--archive", type=str, required=False, default="", help="source archive file")
             self.parser = parser
         return self.parser
 
     def get_job_funcx_args(self, workSpec, jobSpec, logger):
-        job_pars = jobSpec.jobParams['jobPars']
+        job_pars = jobSpec.jobParams["jobPars"]
         job_arguments = shlex.split(job_pars)
         parser = self.get_panda_argparser()
         job_args, _ = parser.parse_known_args(job_arguments)
@@ -154,12 +155,13 @@ class GlobusComputeSubmitter(PluginBase):
             os.environ["PANDACACHE_URL"] = source_url
             logger.info("PANDACACHE_URL: %s" % (os.environ["PANDACACHE_URL"]))
             from pandaclient import Client
+
             Client.baseURLCSRVSSL = source_url
             status, output = Client.getFile(archive_basename, output_path=full_output_filename)
             logger.info("Download archive file from pandacache status: %s, output: %s" % (status, output))
             if status != 0:
                 raise RuntimeError("Failed to download archive file from pandacache")
-            with tarfile.open(full_output_filename, 'r:gz') as f:
+            with tarfile.open(full_output_filename, "r:gz") as f:
                 f.extractall(base_dir)
             logger.info("Extract %s to %s" % (full_output_filename, base_dir))
 
@@ -172,15 +174,13 @@ class GlobusComputeSubmitter(PluginBase):
                 self.gc_client = Client()
                 self.submit_func_id = self.gc_client.register_function(run_wrapper)
         except Exception as ex:
-            tmpLog = self.make_logger(baseLogger, "init_gc_client",
-                                      method_name='submit_workers')
+            tmpLog = self.make_logger(baseLogger, "init_gc_client", method_name="submit_workers")
             tmpLog.error("Failed to init gc client: %s" % str(ex))
             tmpLog.error(traceback.format_exc())
 
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
-                                      method_name='submit_workers')
+            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="submit_workers")
             try:
                 if self.gc_client is None or self.submit_func_id is None:
                     errStr = "Globus Compute client is not initialized"
@@ -201,8 +201,8 @@ class GlobusComputeSubmitter(PluginBase):
                         batch_ids.append(batch_id)
 
                     workSpec.batchID = json.dumps(batch_ids)
-                    tmpLog.debug('PanDAID={0}'.format([panda_id for panda_id in func_args]))
-                    tmpLog.debug('batchID={0}'.format(workSpec.batchID))
+                    tmpLog.debug("PanDAID={0}".format([panda_id for panda_id in func_args]))
+                    tmpLog.debug("batchID={0}".format(workSpec.batchID))
                     # batch_id = self.gc_client.run(base_path, data_path, job_script, endpoint_id=self.funcxEndpointId, function_id=self.submit_func_id)
                     # workSpec.batchID = batch_id
                     # tmpLog.debug('batchID={0}'.format(workSpec.batchID))
@@ -215,10 +215,10 @@ class GlobusComputeSubmitter(PluginBase):
                             baseDir = self.logBaseURL
                         stdOut, stdErr = self.get_log_file_names(workSpec.batchID)
                         if stdOut is not None:
-                            workSpec.set_log_file('stdout', '{0}/{1}'.format(baseDir, stdOut))
+                            workSpec.set_log_file("stdout", "{0}/{1}".format(baseDir, stdOut))
                         if stdErr is not None:
-                            workSpec.set_log_file('stderr', '{0}/{1}'.format(baseDir, stdErr))
-                    tmpRetVal = (True, '')
+                            workSpec.set_log_file("stderr", "{0}/{1}".format(baseDir, stdErr))
+                    tmpRetVal = (True, "")
             except Exception as ex:
                 # failed
                 errStr = str(ex)

@@ -77,4 +77,4 @@ class BaseMessenger(PluginBase):
 
     # clean up. Called by sweeper agent to clean up stuff made by messenger for the worker
     def clean_up(self, workspec):
-        return (None, 'skipped')
+        return (None, "skipped")

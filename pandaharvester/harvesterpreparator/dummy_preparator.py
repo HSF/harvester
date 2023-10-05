@@ -5,7 +5,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
 # logger
-_logger = core_utils.setup_logger('dummy_preparator')
+_logger = core_utils.setup_logger("dummy_preparator")
 
 
 # dummy plugin for preparator
@@ -54,7 +54,7 @@ class DummyPreparator(PluginBase):
         # -- set transfer ID which are used for later lookup
         # jobspec.set_groups_to_files({transferID: {'lfns': lfns, 'groupStatus': 'active'}})
         # tmpLog.debug('done')
-        return True, ''
+        return True, ""
 
     # check status
     def check_stage_in_status(self, jobspec):
@@ -78,7 +78,7 @@ class DummyPreparator(PluginBase):
         # -- update transfer status
         # for transferID, transferInfo in iteritems(transferGroups):
         #    jobspec.update_group_status_in_files(transferID, 'done')
-        return True, ''
+        return True, ""
 
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
@@ -96,7 +96,7 @@ class DummyPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # -- set path to each file
         for inLFN, inFile in iteritems(inFiles):
-            inFile['path'] = 'dummypath/{0}'.format(inLFN)
+            inFile["path"] = "dummypath/{0}".format(inLFN)
         # -- set
         jobspec.set_input_file_paths(inFiles)
-        return True, ''
+        return True, ""
