@@ -99,6 +99,9 @@ RUN chmod -R 777 /opt/harvester/etc/certs
 RUN ln -fs /opt/harvester/etc/certs/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/harvester/etc/certs/hostcert.pem /etc/grid-security/hostcert.pem
 RUN ln -fs /opt/harvester/etc/certs/chain.pem /etc/grid-security/chain.pem
+RUN openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/pki/tls/private/localhost.key \
+    -out /etc/ssl/certs/localhost.crt \
+    -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"
 RUN chmod 644 /etc/pki/tls/private/localhost.key
 RUN chmod 644 /etc/pki/tls/certs/localhost.crt
 
