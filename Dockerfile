@@ -6,7 +6,7 @@ ARG PYTHON_VERSION
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
+RUN yum install -y --allowerasing gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
     openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel
 
 # install mysql-community for CC7+Python3.11
