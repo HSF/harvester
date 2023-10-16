@@ -1,17 +1,17 @@
 ARG PYTHON_VERSION=3.11.4
 
-FROM docker.io/centos:7
+FROM docker.io/almalinux:9
 
 ARG PYTHON_VERSION
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y gcc make less git curl voms-clients-cpp wget httpd logrotate mod_ssl \
-    openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
+RUN yum install -y gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
+    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel
 
 # install mysql-community for CC7+Python3.11
-RUN wget https://dev.mysql.com/get/mysql80-community-release-el7-9.noarch.rpm && \
-    rpm -Uvh mysql80-community-release-el7-9.noarch.rpm && \
+RUN wget https://dev.mysql.com/get/mysql80-community-release-el9-4.noarch.rpm && \
+    rpm -Uvh mysql80-community-release-*.noarch.rpm && \
     yum install -y mysql-community-devel mysql-community-client
 
 # install python
@@ -19,8 +19,7 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
     cd Python-* && \
-    sed -i 's/PKG_CONFIG openssl /PKG_CONFIG openssl11 /g' configure && \
-    ./configure --enable-shared && \
+    ./configure --enable-shared --enable-optimizations --with-lto && \
     make altinstall && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
     cd / && rm -rf /tmp/pyton
@@ -46,13 +45,14 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg \n\
 RUN yum install -y google-cloud-sdk-gke-gcloud-auth-plugin kubectl
 
 # install voms
-RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el7/release/x86_64/osg-ca-certs-1.109-1.osg36.el7.noarch.rpm
-RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el7/release/x86_64/vo-client-130-1.osg36.el7.noarch.rpm
+RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/osg-ca-certs-1.114-2.osg36.el9.noarch.rpm
+RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/vo-client-131-1.osg36.el9.noarch.rpm
 
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
 RUN /opt/harvester/bin/pip install -U setuptools
+RUN /opt/harvester/bin/pip install -U gnureadline
 RUN /opt/harvester/bin/pip install -U mysqlclient uWSGI pyyaml
 RUN /opt/harvester/bin/pip install -U kubernetes
 RUN mkdir /tmp/src
@@ -102,7 +102,7 @@ RUN ln -fs /opt/harvester/etc/certs/chain.pem /etc/grid-security/chain.pem
 RUN chmod 644 /etc/pki/tls/private/localhost.key
 RUN chmod 644 /etc/pki/tls/certs/localhost.crt
 
-RUN yum clean all
+RUN yum clean all && rm -rf /var/cache/yum
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
