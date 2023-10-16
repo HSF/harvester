@@ -3,7 +3,6 @@ from .base_cred_manager import BaseCredManager
 
 # dummy credential manager
 class DummyCredManager(BaseCredManager):
-
     # constructor
     def __init__(self, **kwarg):
         BaseCredManager.__init__(self, **kwarg)
@@ -14,4 +13,4 @@ class DummyCredManager(BaseCredManager):
 
     # renew proxy
     def renew_credential(self):
-        return True, ''
+        return True, ""

@@ -11,7 +11,7 @@ from pandaharvester.harvestercore.db_interface import DBInterface
 
 
 harvesterID = harvester_config.master.harvester_id
-resolver_config = getattr(harvester_config.qconf, 'resolverConfig', {})
+resolver_config = getattr(harvester_config.qconf, "resolverConfig", {})
 
 
 class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
@@ -20,13 +20,14 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
     Key is PanDA Resource name (rather than PanDA Queue name)
     Able to query with either PanDA Queue name or PanDA Resource name
     """
+
     def __init__(self, **kwargs):
         dict.__init__(self)
         PluginBase.__init__(self, **kwargs)
         self.lock = threading.Lock()
         self.dbInterface = DBInterface()
-        self.cacher_key = kwargs.get('cacher_key', 'panda_queues.json')
-        self.refresh_period = resolver_config.get('refreshPeriod', 300)
+        self.cacher_key = kwargs.get("cacher_key", "panda_queues.json")
+        self.refresh_period = resolver_config.get("refreshPeriod", 300)
         self.last_refresh_ts = 0
         self._refresh()
 
@@ -44,10 +45,10 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             self.last_refresh_ts = time.time()
             if panda_queues_cache and isinstance(panda_queues_cache.data, dict):
                 panda_queues_dict = panda_queues_cache.data
-                for (k, v) in iteritems(panda_queues_dict):
+                for k, v in iteritems(panda_queues_dict):
                     try:
-                        panda_resource = v['panda_resource']
-                        assert k == v['nickname']
+                        panda_resource = v["panda_resource"]
+                        assert k == v["nickname"]
                     except Exception:
                         pass
                     else:
@@ -76,7 +77,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         Return PanDA Queue name with specified PanDA Resource name
         """
         try:
-            panda_queue = self.get(panda_resource).get('nickname')
+            panda_queue = self.get(panda_resource).get("nickname")
             return panda_queue
         except Exception:
             return None
@@ -87,17 +88,15 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         if panda_queue_dict is None:
             return None
         # offline if not with harvester or not of this harvester instance
-        if panda_queue_dict.get('pilot_manager') not in ['Harvester'] \
-            or panda_queue_dict.get('harvester') != harvesterID:
-            return 'offline'
-        return panda_queue_dict['status']
+        if panda_queue_dict.get("pilot_manager") not in ["Harvester"] or panda_queue_dict.get("harvester") != harvesterID:
+            return "offline"
+        return panda_queue_dict["status"]
 
     # get all queue names of this harvester instance
     def get_all_queue_names(self):
         names = set()
         for queue_name, queue_dict in iteritems(self):
-            if queue_dict.get('pilot_manager') in ['Harvester'] \
-                    and queue_dict.get('harvester') == harvesterID:
+            if queue_dict.get("pilot_manager") in ["Harvester"] and queue_dict.get("harvester") == harvesterID:
                 names.add(queue_name)
         return names
 
@@ -106,8 +105,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         panda_queue_dict = self.get(panda_resource)
         if panda_queue_dict is None:
             return False
-        if panda_queue_dict.get('capability') == 'ucore' \
-            and panda_queue_dict.get('workflow') == 'pull_ups':
+        if panda_queue_dict.get("capability") == "ucore" and panda_queue_dict.get("workflow") == "pull_ups":
             return True
         return False
 
@@ -118,8 +116,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             return False
 
         # initial, temporary nomenclature
-        if 'grandly_unified' in panda_queue_dict.get('catchall') \
-                or panda_queue_dict.get('type') == 'unified':
+        if "grandly_unified" in panda_queue_dict.get("catchall") or panda_queue_dict.get("type") == "unified":
             return True
 
         return False
@@ -130,7 +127,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         if panda_queue_dict is None:
             return dict()
         else:
-            return panda_queue_dict.get('params', dict())
+            return panda_queue_dict.get("params", dict())
 
     # get harvester_template
     def get_harvester_template(self, panda_resource):
@@ -138,7 +135,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         if panda_queue_dict is None:
             return None
         else:
-            return panda_queue_dict.get('harvester_template', '')
+            return panda_queue_dict.get("harvester_template", "")
 
     # get a tuple of type (production, analysis, etc.) and workflow
     def get_type_workflow(self, panda_resource):
@@ -147,18 +144,18 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             pq_type = None
             workflow = None
         else:
-            pq_type = panda_queue_dict.get('type')
-            if pq_type == 'unified':  # use production templates
-                pq_type = 'production'
-            workflow = panda_queue_dict.get('workflow')
+            pq_type = panda_queue_dict.get("type")
+            if pq_type == "unified":  # use production templates
+                pq_type = "production"
+            workflow = panda_queue_dict.get("workflow")
         return pq_type, workflow
 
     def get_prorated_maxwdir_GiB(self, panda_resource, worker_corecount):
         try:
             panda_queue_dict = self.get(panda_resource)
-            maxwdir = panda_queue_dict.get('maxwdir') / 1024  # convert to GiB
-            corecount = panda_queue_dict.get('corecount')
-            if panda_queue_dict.get('capability') == 'ucore':
+            maxwdir = panda_queue_dict.get("maxwdir") / 1024  # convert to GiB
+            corecount = panda_queue_dict.get("corecount")
+            if panda_queue_dict.get("capability") == "ucore":
                 maxwdir_prorated = maxwdir * worker_corecount / corecount
             else:
                 maxwdir_prorated = maxwdir

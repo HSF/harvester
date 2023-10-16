@@ -7,7 +7,6 @@ from pandaharvester.harvestercore.db_interface import DBInterface
 
 # base class for agents
 class AgentBase(threading.Thread):
-
     # constructor
     def __init__(self, single_mode):
         threading.Thread.__init__(self)
@@ -30,11 +29,11 @@ class AgentBase(threading.Thread):
     # get process identifier
     def get_pid(self):
         thread_id = self.ident if self.ident else 0
-        return '{0}_{1}-{2}'.format(self.hostname, self.os_pid, format(thread_id, 'x'))
+        return "{0}_{1}-{2}".format(self.hostname, self.os_pid, format(thread_id, "x"))
 
     # make logger
     def make_logger(self, base_log, token=None, method_name=None, send_dialog=True):
-        if send_dialog and hasattr(self, 'dbInterface'):
+        if send_dialog and hasattr(self, "dbInterface"):
             hook = self.dbInterface
         else:
             hook = None

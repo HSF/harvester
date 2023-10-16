@@ -4,7 +4,7 @@ from pandaharvester.harvestercore import core_utils
 from .base_zipper import BaseZipper
 
 # logger
-_logger = core_utils.setup_logger('dummy_zipper')
+_logger = core_utils.setup_logger("dummy_zipper")
 
 
 # dummy plugin for zipper
@@ -27,8 +27,7 @@ class DummyZipper(BaseZipper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='zip_output')
+        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)
 
     # asynchronous zip output
@@ -46,19 +45,15 @@ class DummyZipper(BaseZipper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='async_zip_output')
-        tmpLog.debug('start')
+        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="async_zip_output")
+        tmpLog.debug("start")
         # set some ID which can be used for lookup in post_zip_output()
         groupID = str(uuid.uuid4())
         lfns = []
         for fileSpec in jobspec.outFiles:
             lfns.append(fileSpec.lfn)
-        jobspec.set_groups_to_files({groupID: {'lfns': lfns,
-                                               'groupStatus': 'zipping'}
-                                     }
-                                    )
-        return True, ''
+        jobspec.set_groups_to_files({groupID: {"lfns": lfns, "groupStatus": "zipping"}})
+        return True, ""
 
     # post zipping
     def post_zip_output(self, jobspec):
@@ -72,16 +67,15 @@ class DummyZipper(BaseZipper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='post_zip_output')
-        tmpLog.debug('start')
+        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="post_zip_output")
+        tmpLog.debug("start")
         # get groups for lookup
         groups = jobspec.get_groups_of_output_files()
         # do something with groupIDs
         pass
         # update file attributes
         for fileSpec in jobspec.outFiles:
-            fileSpec.path = '/path/to/zip'
+            fileSpec.path = "/path/to/zip"
             fileSpec.fsize = 12345
-            fileSpec.chksum = '66bb0985'
-        return True, ''
+            fileSpec.chksum = "66bb0985"
+        return True, ""

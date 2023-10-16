@@ -2,6 +2,7 @@ import traceback
 import psutil
 import re
 import multiprocessing
+
 try:
     import subprocess32 as subprocess
 except Exception:
@@ -16,7 +17,7 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvesterbody.cred_manager import CredManager
 
 # logger
-_logger = core_utils.setup_logger('service_monitor')
+_logger = core_utils.setup_logger("service_monitor")
 
 
 def round_floats(value):
@@ -53,7 +54,7 @@ class ServiceMonitor(AgentBase):
         :return:
         """
         try:
-            fh = open(self.pid_file, 'r')
+            fh = open(self.pid_file, "r")
             pid = int(fh.readline())
             fh.close()
         except Exception:
@@ -63,7 +64,6 @@ class ServiceMonitor(AgentBase):
         return pid
 
     def refresh_children_list(self, children):
-
         children_refreshed = []
 
         for child_current in children:
@@ -102,11 +102,11 @@ class ServiceMonitor(AgentBase):
                 cpu_pc += child.cpu_percent()
 
             # convert bytes to MiB
-            rss_mib = rss / float(2 ** 20)
+            rss_mib = rss / float(2**20)
             # normalize cpu percentage by cpu count
             cpu_pc = cpu_pc * 1.0 / self.cpu_count
         except Exception:
-            _logger.error('Excepted with: {0}'.format(traceback.format_exc()))
+            _logger.error("Excepted with: {0}".format(traceback.format_exc()))
             rss_mib = None
             memory_pc = None
             cpu_pc = None
@@ -119,7 +119,7 @@ class ServiceMonitor(AgentBase):
         tmp_array = command.split()
         output = subprocess.Popen(tmp_array, stdout=subprocess.PIPE).communicate()[0].decode("utf-8")
 
-        for line in output.split('\n'):
+        for line in output.split("\n"):
             if re.search(volume_name, line):
                 used_amount = re.search(r"(\d+)\%", line).group(1)
 
@@ -127,7 +127,7 @@ class ServiceMonitor(AgentBase):
             used_amount_float = float(used_amount)
         except ValueError:
             used_amount_float = None
-            _logger.error('Could not convert used amount {0} to float for volume {1}'.format(used_amount, volume_name))
+            _logger.error("Could not convert used amount {0} to float for volume {1}".format(used_amount, volume_name))
 
         return used_amount_float
 
@@ -136,41 +136,40 @@ class ServiceMonitor(AgentBase):
             cert_validities = self.cred_manager.execute_monit()
             return cert_validities
         except Exception:
-            _logger.error('Could not extract ')
+            _logger.error("Could not extract ")
             return {}
 
     # main loop
     def run(self):
         while True:
-            _logger.debug('Running service monitor')
+            _logger.debug("Running service monitor")
 
             service_metrics = {}
 
             # get memory usage
             rss_mib, memory_pc, cpu_pc = self.get_memory_n_cpu()
-            service_metrics['rss_mib'] = round_floats(rss_mib)
-            service_metrics['memory_pc'] = round_floats(memory_pc)
-            service_metrics['cpu_pc'] = round_floats(cpu_pc)
-            _logger.debug('Memory usage: {0} MiB/{1}%, CPU usage: {2}'.format(service_metrics['rss_mib'],
-                                                                              service_metrics['memory_pc'],
-                                                                              service_metrics['cpu_pc']))
+            service_metrics["rss_mib"] = round_floats(rss_mib)
+            service_metrics["memory_pc"] = round_floats(memory_pc)
+            service_metrics["cpu_pc"] = round_floats(cpu_pc)
+            _logger.debug(
+                "Memory usage: {0} MiB/{1}%, CPU usage: {2}".format(service_metrics["rss_mib"], service_metrics["memory_pc"], service_metrics["cpu_pc"])
+            )
 
             # get volume usage
             try:
-                volumes = harvester_config.service_monitor.disk_volumes.split(',')
+                volumes = harvester_config.service_monitor.disk_volumes.split(",")
             except Exception:
                 volumes = []
             for volume in volumes:
                 volume_use = self.volume_use(volume)
-                service_metrics['volume_{0}_pc'.format(volume)] = round_floats(volume_use)
-                _logger.debug('Disk usage of {0}: {1} %'.format(volume,
-                                                                service_metrics['volume_{0}_pc'.format(volume)]))
+                service_metrics["volume_{0}_pc".format(volume)] = round_floats(volume_use)
+                _logger.debug("Disk usage of {0}: {1} %".format(volume, service_metrics["volume_{0}_pc".format(volume)]))
 
             # get certificate lifetimes. Not all plugins have implemented it
-            _logger.debug('Getting cert lifetimes')
-            service_metrics['cert_lifetime'] = {cert: round(value) for (cert, value) in self.cert_validities().items()}
+            _logger.debug("Getting cert lifetimes")
+            service_metrics["cert_lifetime"] = {cert: round(value) for (cert, value) in self.cert_validities().items()}
 
-            _logger.debug('Got cert validities: {0}'.format(service_metrics['cert_lifetime']))
+            _logger.debug("Got cert validities: {0}".format(service_metrics["cert_lifetime"]))
 
             service_metrics_spec = ServiceMetricSpec(service_metrics)
             self.db_proxy.insert_service_metrics(service_metrics_spec)

@@ -19,7 +19,7 @@ from globus_compute_sdk import errors as gc_errors
 
 
 # logger
-baseLogger = core_utils.setup_logger('globus_compute_monitor')
+baseLogger = core_utils.setup_logger("globus_compute_monitor")
 
 
 # monitor for globus compute batch system
@@ -42,21 +42,21 @@ class GlobusComputeMonitor(PluginBase):
 
     def get_panda_argparser(self):
         if self.parser is None:
-            parser = argparse.ArgumentParser(description='PanDA argparser')
-            parser.add_argument('-j', type=str, required=False, default='', help='j')
-            parser.add_argument('--sourceURL', type=str, required=False, default='', help='source url')
-            parser.add_argument('-r', type=str, required=False, default='', help='directory')
-            parser.add_argument('-l', '--lib', required=False, action='store_true', default=False, help='library')
-            parser.add_argument('-o', '--output', type=str, required=False, default='', help='output')
-            parser.add_argument('-p', '--program', type=str, required=False, default='', help='program')
-            parser.add_argument('-a', '--archive', type=str, required=False, default='', help='source archive file')
+            parser = argparse.ArgumentParser(description="PanDA argparser")
+            parser.add_argument("-j", type=str, required=False, default="", help="j")
+            parser.add_argument("--sourceURL", type=str, required=False, default="", help="source url")
+            parser.add_argument("-r", type=str, required=False, default="", help="directory")
+            parser.add_argument("-l", "--lib", required=False, action="store_true", default=False, help="library")
+            parser.add_argument("-o", "--output", type=str, required=False, default="", help="output")
+            parser.add_argument("-p", "--program", type=str, required=False, default="", help="program")
+            parser.add_argument("-a", "--archive", type=str, required=False, default="", help="source archive file")
             self.parser = parser
         return self.parser
 
     def get_out_file_infos(self, workSpec, jobSpec, logFile, ret, logger):
         base_dir = os.path.dirname(logFile)
 
-        job_pars = jobSpec.jobParams['jobPars']
+        job_pars = jobSpec.jobParams["jobPars"]
         job_arguments = shlex.split(job_pars)
         parser = self.get_panda_argparser()
         job_args, _ = parser.parse_known_args(job_arguments)
@@ -65,7 +65,7 @@ class GlobusComputeMonitor(PluginBase):
 
         outFileInfos = []
         if output:
-            scopes = jobSpec.jobParams['scopeOut'].split(',')
+            scopes = jobSpec.jobParams["scopeOut"].split(",")
             output = ast.literal_eval(output)
 
             keys = list(output.keys())
@@ -74,13 +74,13 @@ class GlobusComputeMonitor(PluginBase):
             scope = scopes[0]
 
             pfn = os.path.join(base_dir, lfn)
-            with open(pfn, 'w') as fp:
+            with open(pfn, "w") as fp:
                 result = None
                 if ret:
-                    result = ret.get('result', None)
+                    result = ret.get("result", None)
                 fp.write(str(result))
 
-            outFileInfo = {'lfn': lfn, 'path': pfn}
+            outFileInfo = {"lfn": lfn, "path": pfn}
             outFileInfos.append(outFileInfo)
 
             for key, scope in zip(keys[1:], scopes[1:]):
@@ -89,41 +89,42 @@ class GlobusComputeMonitor(PluginBase):
                 dest = os.path.join(base_dir, lfn)
                 if os.path.exists(src):
                     os.rename(src, dest)
-                    outFileInfo = {'lfn': lfn, 'path': dest}
+                    outFileInfo = {"lfn": lfn, "path": dest}
                     outFileInfos.append(outFileInfo)
         return outFileInfos
 
     def get_state_data_structure(self, workSpec, jobSpec, ret, error):
         if ret:
-            status = ret.get('status', None)
+            status = ret.get("status", None)
         else:
             status = None
-        state = 'failed'
+        state = "failed"
         if status:
-            if status in ['success']:
-                state = 'finished'
-        data = {'jobId': jobSpec.PandaID,
-                'state': state,
-                # 'timestamp': time_stamp(),
-                'siteName': workSpec.computingSite,  # args.site,
-                'node': None,
-                # 'attemptNr': None,
-                'startTime': None,
-                'jobMetrics': None,
-                'metaData': None,
-                'xml': None,
-                'coreCount': 1,
-                'cpuConsumptionTime': None,
-                'cpuConversionFactor': None,
-                'cpuConsumptionUnit': None,
-                'cpu_architecture_level': None,
-                # 'maxRSS', 'maxVMEM', 'maxSWAP', 'maxPSS', 'avgRSS', 'avgVMEM', 'avgSWAP', 'avgPSS'
-                }
+            if status in ["success"]:
+                state = "finished"
+        data = {
+            "jobId": jobSpec.PandaID,
+            "state": state,
+            # 'timestamp': time_stamp(),
+            "siteName": workSpec.computingSite,  # args.site,
+            "node": None,
+            # 'attemptNr': None,
+            "startTime": None,
+            "jobMetrics": None,
+            "metaData": None,
+            "xml": None,
+            "coreCount": 1,
+            "cpuConsumptionTime": None,
+            "cpuConversionFactor": None,
+            "cpuConsumptionUnit": None,
+            "cpu_architecture_level": None,
+            # 'maxRSS', 'maxVMEM', 'maxSWAP', 'maxPSS', 'avgRSS', 'avgVMEM', 'avgSWAP', 'avgPSS'
+        }
         return data
 
     def set_work_attributes(self, workSpec, logFile, work_rets, logger):
-        rets = work_rets.get('ret', {})
-        error = work_rets.get('err', None)
+        rets = work_rets.get("ret", {})
+        error = work_rets.get("err", None)
 
         messenger = self.get_messenger(workSpec)
         jsonAttrsFileName = harvester_config.payload_interaction.workerAttributesFile
@@ -131,11 +132,7 @@ class GlobusComputeMonitor(PluginBase):
         jsonJobReport = harvester_config.payload_interaction.jobReportFile
         jsonOutputsFileName = harvester_config.payload_interaction.eventStatusDumpJsonFile
 
-        jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID,
-                                                        None,
-                                                        with_file=True,
-                                                        only_running=False,
-                                                        slim=False)
+        jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID, None, with_file=True, only_running=False, slim=False)
         jobSpec_map = {}
         for jobSpec in jobSpecs:
             jobSpec_map[jobSpec.PandaID] = jobSpec
@@ -145,7 +142,7 @@ class GlobusComputeMonitor(PluginBase):
             ret = rets.get(pandaID, None)
             logger.debug("pandaID %s ret: %s" % (pandaID, str(ret)))
             if ret:
-                ret = ret.get('ret', {})
+                ret = ret.get("ret", {})
             attrs = self.get_state_data_structure(workSpec, jobSpec, ret, error)
 
             accessPoint = messenger.get_access_point(workSpec, pandaID)
@@ -154,29 +151,28 @@ class GlobusComputeMonitor(PluginBase):
 
             # outputs
             jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
-            logger.debug('set attributes file {0}'.format(jsonFilePath))
-            logger.debug('jobSpec: %s' % str(jobSpec))
+            logger.debug("set attributes file {0}".format(jsonFilePath))
+            logger.debug("jobSpec: %s" % str(jobSpec))
             # logger.debug('jobSpec jobParams: %s' % str(jobSpec.jobParams))
             outFile_infos = self.get_out_file_infos(workSpec, jobSpec, logFile, ret, logger)
             logger.debug("outFile_infos: %s" % str(outFile_infos))
 
             out_files = {str(pandaID): []}
             for outFile_info in outFile_infos:
-                out_files[str(pandaID)].append({'path': outFile_info['path'],
-                                                'type': 'output'})
-            with open(jsonFilePath, 'w') as jsonFile:
+                out_files[str(pandaID)].append({"path": outFile_info["path"], "type": "output"})
+            with open(jsonFilePath, "w") as jsonFile:
                 json.dump(out_files, jsonFile)
 
             # work attr
             jsonFilePath = os.path.join(accessPoint, jsonAttrsFileName)
-            logger.debug('set attributes file {0}'.format(jsonFilePath))
-            with open(jsonFilePath, 'w') as jsonFile:
+            logger.debug("set attributes file {0}".format(jsonFilePath))
+            with open(jsonFilePath, "w") as jsonFile:
                 json.dump(attrs, jsonFile)
 
             # job report
             jsonFilePath = os.path.join(accessPoint, jsonJobReport)
-            logger.debug('set attributes file {0}'.format(jsonFilePath))
-            with open(jsonFilePath, 'w') as jsonFile:
+            logger.debug("set attributes file {0}".format(jsonFilePath))
+            with open(jsonFilePath, "w") as jsonFile:
                 json.dump(attrs, jsonFile)
 
             # post process
@@ -193,14 +189,12 @@ class GlobusComputeMonitor(PluginBase):
             if self.gc_client is None:
                 self.gc_client = Client()
         except Exception as ex:
-            tmpLog = self.make_logger(baseLogger, "init_gc_client",
-                                      method_name='check_workers')
+            tmpLog = self.make_logger(baseLogger, "init_gc_client", method_name="check_workers")
             tmpLog.error("Failed to init gc client: %s" % str(ex))
 
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
-                                      method_name='check_workers')
+            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
 
             errStr, errLogStr, outLogStr = None, None, None
             work_rets = {}
@@ -211,7 +205,7 @@ class GlobusComputeMonitor(PluginBase):
                     errLogStr = errStr
                     newStatus = WorkSpec.ST_failed
                     tmpRetVal = (newStatus, errStr)
-                    work_rets['err'] = errStr
+                    work_rets["err"] = errStr
                 else:
                     try:
                         # jobSpecs = workSpec.get_jobspec_list()
@@ -239,7 +233,7 @@ class GlobusComputeMonitor(PluginBase):
                         tmpLog.info("worker terminated: %s" % ex)
                         tmpLog.debug(traceback.format_exc())
                         errLogStr = errStr + "\n" + str(traceback.format_exc())
-                        work_rets['err'] = errStr
+                        work_rets["err"] = errStr
                     else:
                         newStatus = None
                         all_finished = True
@@ -249,13 +243,13 @@ class GlobusComputeMonitor(PluginBase):
                                 all_finished = False
                                 newStatus = WorkSpec.ST_running
                                 break
-                            if rets[batch_id].get("pending", True) or rets[batch_id].get("status", None) in ['waiting-for-launch', 'running']:
+                            if rets[batch_id].get("pending", True) or rets[batch_id].get("status", None) in ["waiting-for-launch", "running"]:
                                 newStatus = WorkSpec.ST_running
                                 all_finished = False
                                 break
                             else:
                                 batch_status = rets[batch_id].get("status", None)
-                                if batch_status and batch_status != 'success':
+                                if batch_status and batch_status != "success":
                                     all_finished = False
 
                         if newStatus is None:
@@ -269,17 +263,17 @@ class GlobusComputeMonitor(PluginBase):
                             if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed]:
                                 new_rets = {}
                                 for panda_id, batch_id in zip(panda_ids, list(rets.keys())):
-                                    new_rets[panda_id] = {'funcx_id': batch_id, 'ret': rets[batch_id]}
+                                    new_rets[panda_id] = {"funcx_id": batch_id, "ret": rets[batch_id]}
 
                                 outLogStr = str(new_rets)
-                                work_rets['ret'] = new_rets
+                                work_rets["ret"] = new_rets
                         except Exception as ex:
                             newStatus = WorkSpec.ST_failed
                             errStr = "Failed to parse worker result: %s" % ex
                             tmpLog.error(errStr)
                             tmpLog.debug(traceback.format_exc())
                             errLogStr = errStr + "\n" + str(traceback.format_exc())
-                            work_rets['err'] = errStr
+                            work_rets["err"] = errStr
 
                         tmpRetVal = (newStatus, errStr)
             except Exception as ex:
@@ -287,7 +281,7 @@ class GlobusComputeMonitor(PluginBase):
                 errStr = str(ex)
                 tmpLog.error(errStr)
                 tmpLog.debug(traceback.format_exc())
-                work_rets['err'] = errStr
+                work_rets["err"] = errStr
 
                 newStatus = WorkSpec.ST_failed
                 tmpRetVal = (newStatus, errStr)
@@ -299,9 +293,9 @@ class GlobusComputeMonitor(PluginBase):
                 stdOut = os.path.join(baseDir, stdOut)
                 stdErr = os.path.join(baseDir, stdErr)
                 tmpLog.info("stdout: %s, stderr: %s" % (stdOut, stdErr))
-                with open(stdOut, 'w') as fp:
+                with open(stdOut, "w") as fp:
                     fp.write(str(outLogStr))
-                with open(stdErr, 'w') as fp:
+                with open(stdErr, "w") as fp:
                     fp.write(str(errLogStr))
 
                 try:

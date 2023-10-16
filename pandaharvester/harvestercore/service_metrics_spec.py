@@ -8,12 +8,14 @@ import datetime
 import json
 import socket
 
+
 class ServiceMetricSpec(SpecBase):
     # attributes
-    attributesWithTypes = ('creationTime:timestamp / index',
-                           'hostName:text',
-                           'metrics:blob',
-                           )
+    attributesWithTypes = (
+        "creationTime:timestamp / index",
+        "hostName:text",
+        "metrics:blob",
+    )
 
     # constructor
     def __init__(self, service_metrics):

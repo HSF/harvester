@@ -5,9 +5,8 @@ from pandaharvester.harvesterbody.watcher import Watcher
 
 try:
     os.remove(watcher.lockFileName)
-except:
+except BaseException:
     pass
 
 watcher = Watcher(single_mode=True)
 watcher.run()
-

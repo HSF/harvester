@@ -2,7 +2,7 @@ import sys
 from lancium.api.Job import Job
 
 if len(sys.argv) != 2:
-    print('Pass the job id as argument')
+    print("Pass the job id as argument")
     return
 
 job_id = sys.argv[1]

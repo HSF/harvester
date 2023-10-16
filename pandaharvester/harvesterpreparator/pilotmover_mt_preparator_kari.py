@@ -12,7 +12,7 @@ from pilot.info.filespec import FileSpec as PilotFileSpec
 from pilot.info import infosys
 
 # logger
-baseLogger = core_utils.setup_logger('pilotmover_mt_preparator_kari')
+baseLogger = core_utils.setup_logger("pilotmover_mt_preparator_kari")
 
 
 # plugin for preparator based on Pilot2.0 Data API, MultipleThreads
@@ -20,6 +20,7 @@ baseLogger = core_utils.setup_logger('pilotmover_mt_preparator_kari')
 # default self.basePath came from preparator section of configuration file
 
 # Modified by FaHui Lin to be compatible with current pilot 2 code
+
 
 class PilotmoverMTPreparator(PluginBase):
     """
@@ -35,10 +36,10 @@ class PilotmoverMTPreparator(PluginBase):
 
     # check status
     def check_stage_in_status(self, jobspec):
-        return True, ''
+        return True, ""
 
     def stage_in(self, tmpLog, jobspec, files):
-        tmpLog.debug('To stagein files[] {0}'.format(files))
+        tmpLog.debug("To stagein files[] {0}".format(files))
         # get infosys
         # infoservice = InfoService()
         # infoservice.init(jobspec.computingSite, infosys.confinfo, infosys.extinfo)
@@ -47,9 +48,9 @@ class PilotmoverMTPreparator(PluginBase):
         infosys.queuedata.direct_access_lan = False
         infosys.queuedata.direct_access_wan = False
         # set data client, always use rucio
-        data_client = data.StageInClient(infosys, acopytools={'default': ['rucio']}, default_copytools='rucio')
+        data_client = data.StageInClient(infosys, acopytools={"default": ["rucio"]}, default_copytools="rucio")
         allChecked = True
-        ErrMsg = 'These files failed to download : '
+        ErrMsg = "These files failed to download : "
         # change directory to basPath for input to pass pilot check_availablespace
         os.chdir(self.basePath)
         # transfer
@@ -57,10 +58,10 @@ class PilotmoverMTPreparator(PluginBase):
             try:
                 result = data_client.transfer(files)
             except Exception as e:
-                tmpLog.error('error when stage_in: {0} ; {1}'.format(e.__class__.__name__, e))
+                tmpLog.error("error when stage_in: {0} ; {1}".format(e.__class__.__name__, e))
                 raise
             else:
-                tmpLog.debug('pilot.api data.StageInClient.transfer(files) result: {0}'.format(result))
+                tmpLog.debug("pilot.api data.StageInClient.transfer(files) result: {0}".format(result))
 
                 # loop over each file check result all must be true for entire result to be true
                 if result:
@@ -69,36 +70,35 @@ class PilotmoverMTPreparator(PluginBase):
                             allChecked = False
                             ErrMsg = ErrMsg + (" %s " % answer.lfn)
                 else:
-                    tmpLog.info('Looks like all files already inplace: {0}'.format(files))
+                    tmpLog.info("Looks like all files already inplace: {0}".format(files))
         # return
-        tmpLog.debug('stop thread')
+        tmpLog.debug("stop thread")
         if allChecked:
-            return True, ''
+            return True, ""
         else:
             return False, ErrMsg
 
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, 'PandaID={0}'.format(jobspec.PandaID),
-                                  method_name='trigger_preparation')
-        tmpLog.debug('start')
+        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
+        tmpLog.debug("start")
 
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
             # not found
-            tmpLog.error('jobspec.computingSite is not defined')
-            return False, 'jobspec.computingSite is not defined'
+            tmpLog.error("jobspec.computingSite is not defined")
+            return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug('jobspec.computingSite : {0}'.format(jobspec.computingSite))
+            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
         # get input files
         files = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
         for inLFN, inFile in iteritems(inFiles):
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
-            tmpLog.debug('To check file: %s' % inFile)
-            if os.path.exists(inFile['path']):
+            inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
+            tmpLog.debug("To check file: %s" % inFile)
+            if os.path.exists(inFile["path"]):
                 # checksum = core_utils.calc_adler32(inFile['path'])
                 # checksum = 'ad:%s' % checksum
                 # tmpLog.debug('checksum for file %s is %s' % (inFile['path'], checksum))
@@ -107,61 +107,64 @@ class PilotmoverMTPreparator(PluginBase):
                 #     continue
 
                 # lazy but unsafe check to be faster...
-                file_size = os.stat(inFile['path']).st_size
-                tmpLog.debug('file size for file %s is %s' % (inFile['path'], file_size))
-                if 'fsize' in inFile and inFile['fsize'] and inFile['fsize'] == file_size:
-                    tmpLog.debug('File %s already exists at %s' % (inLFN, inFile['path']))
+                file_size = os.stat(inFile["path"]).st_size
+                tmpLog.debug("file size for file %s is %s" % (inFile["path"], file_size))
+                if "fsize" in inFile and inFile["fsize"] and inFile["fsize"] == file_size:
+                    tmpLog.debug("File %s already exists at %s" % (inLFN, inFile["path"]))
                     continue
-            dstpath = os.path.dirname(inFile['path'])
+            dstpath = os.path.dirname(inFile["path"])
             # check if path exists if not create it.
             if not os.access(dstpath, os.F_OK):
                 os.makedirs(dstpath)
             file_data = {
-                            'scope': inFile['scope'],
-                            'dataset': inFile.get('dataset'),
-                            'lfn': inLFN,
-                            'ddmendpoint': inFile.get('endpoint'),
-                            'guid': inFile.get('guid'),
-                            'workdir': dstpath,
-                        }
-            pilotfilespec = PilotFileSpec(type='input', **file_data)
+                "scope": inFile["scope"],
+                "dataset": inFile.get("dataset"),
+                "lfn": inLFN,
+                "ddmendpoint": inFile.get("endpoint"),
+                "guid": inFile.get("guid"),
+                "workdir": dstpath,
+            }
+            pilotfilespec = PilotFileSpec(type="input", **file_data)
             files.append(pilotfilespec)
         # tmpLog.debug('files[] {0}'.format(files))
-        tmpLog.debug('path set')
+        tmpLog.debug("path set")
 
         allChecked = True
-        ErrMsg = 'These files failed to download : '
+        ErrMsg = "These files failed to download : "
         if files:
             threads = []
             n_files_per_thread = (len(files) + self.n_threads - 1) // self.n_threads
-            tmpLog.debug('num files per thread: %s' % n_files_per_thread)
+            tmpLog.debug("num files per thread: %s" % n_files_per_thread)
             for i in range(0, len(files), n_files_per_thread):
-                sub_files = files[i:i + n_files_per_thread]
-                thread = threading.Thread(target=self.stage_in, kwargs={
-                                            'tmpLog': tmpLog,
-                                            'jobspec': jobspec,
-                                            'files': sub_files,
-                                            })
+                sub_files = files[i : i + n_files_per_thread]
+                thread = threading.Thread(
+                    target=self.stage_in,
+                    kwargs={
+                        "tmpLog": tmpLog,
+                        "jobspec": jobspec,
+                        "files": sub_files,
+                    },
+                )
                 threads.append(thread)
             [t.start() for t in threads]
             while len(threads) > 0:
                 time.sleep(1)
                 threads = [t for t in threads if t and t.isAlive()]
 
-            tmpLog.info('Checking all files: {0}'.format(files))
+            tmpLog.info("Checking all files: {0}".format(files))
             for file in files:
                 if file.status_code != 0:
                     allChecked = False
                     ErrMsg = ErrMsg + (" %s " % file.lfn)
             for inLFN, inFile in iteritems(inFiles):
-                if not os.path.isfile(inFile['path']):
+                if not os.path.isfile(inFile["path"]):
                     allChecked = False
                     ErrMsg = ErrMsg + (" %s " % file.lfn)
         # return
-        tmpLog.debug('stop')
+        tmpLog.debug("stop")
         if allChecked:
-            tmpLog.info('Looks like all files are successfully downloaded.')
-            return True, ''
+            tmpLog.info("Looks like all files are successfully downloaded.")
+            return True, ""
         else:
             # keep retrying
             return None, ErrMsg
@@ -173,7 +176,7 @@ class PilotmoverMTPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in iteritems(inFiles):
-            inFile['path'] = mover_utils.construct_file_path(self.basePath, inFile['scope'], inLFN)
+            inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)
-        return True, ''
+        return True, ""

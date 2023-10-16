@@ -16,7 +16,7 @@ class DummySweeper(BaseSweeper):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        return True, ''
+        return True, ""
 
     # kill workers
     def kill_workers(self, workspec_list):
@@ -28,7 +28,7 @@ class DummySweeper(BaseSweeper):
         """
         retList = []
         for workspec in workspec_list:
-            retList.append((True, ''))
+            retList.append((True, ""))
         return retList
 
     # cleanup for a worker
@@ -43,4 +43,4 @@ class DummySweeper(BaseSweeper):
         :return: A tuple of return code (True for success, False otherwise) and error dialog
         :rtype: (bool, string)
         """
-        return True, ''
+        return True, ""

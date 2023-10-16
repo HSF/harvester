@@ -17,26 +17,26 @@ accessPoint = workSpec.get_access_point()
 
 try:
     os.makedirs(accessPoint)
-except:
+except BaseException:
     pass
 
 node = {}
-node['eventRangeID'] = eventID
-node['eventStatus'] = status
+node["eventRangeID"] = eventID
+node["eventStatus"] = status
 
-f = open(os.path.join(accessPoint, shared_file_messenger.jsonEventsUpdateFileName), 'w')
+f = open(os.path.join(accessPoint, shared_file_messenger.jsonEventsUpdateFileName), "w")
 json.dump([node], f)
 f.close()
 
-if status == 'finished':
-    lfn = id + '.data'
+if status == "finished":
+    lfn = id + ".data"
     data = {}
-    data['path'] = os.path.join(accessPoint, lfn)
-    data['type'] = 'output'
-    data['fsize'] = 10 * 1024 * 1024
-    data['eventRangeID'] = eventID
+    data["path"] = os.path.join(accessPoint, lfn)
+    data["type"] = "output"
+    data["fsize"] = 10 * 1024 * 1024
+    data["eventRangeID"] = eventID
     node = {}
     node[lfn] = data
-    f = open(os.path.join(accessPoint, shared_file_messenger.jsonOutputsFileName), 'w')
+    f = open(os.path.join(accessPoint, shared_file_messenger.jsonOutputsFileName), "w")
     json.dump(node, f)
     f.close()

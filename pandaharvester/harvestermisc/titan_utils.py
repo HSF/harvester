@@ -10,14 +10,14 @@ except Exception:
 import datetime
 
 # logger
-baseLogger = core_utils.setup_logger('titan_utils')
+baseLogger = core_utils.setup_logger("titan_utils")
 
 
 class TitanUtils(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        tmpLog = self.make_logger(baseLogger, method_name='__init__')
+        tmpLog = self.make_logger(baseLogger, method_name="__init__")
         tmpLog.info("Titan utils initiated")
 
     def get_batchjob_info(self, batchid):
@@ -27,22 +27,22 @@ class TitanUtils(PluginBase):
         :return res - dictonary with job state and some timing:
         """
         """
-        :param batchid: 
-        :return: 
+        :param batchid:
+        :return:
         """
-        tmpLog = self.make_logger(baseLogger, method_name='get_batchjob_info')
+        tmpLog = self.make_logger(baseLogger, method_name="get_batchjob_info")
         res = {}
         tmpLog.info("Collect job info for batchid {}".format(batchid))
         info_dict = self.get_moabjob_info(batchid)
         tmpLog.info("Got: {0}".format(info_dict))
         if info_dict:
             tmpLog.debug("Translate results")
-            res['status'] = self.translate_status(info_dict['state'])
-            res['nativeStatus'] = info_dict['state']
-            res['nativeExitCode'] = info_dict['exit_code']
-            res['nativeExitMsg'] = self.get_message(info_dict['exit_code'])
-            res['start_time'] = self.fixdate(info_dict['start_time'])
-            res['finish_time'] = self.fixdate(info_dict['finish_time'])
+            res["status"] = self.translate_status(info_dict["state"])
+            res["nativeStatus"] = info_dict["state"]
+            res["nativeExitCode"] = info_dict["exit_code"]
+            res["nativeExitMsg"] = self.get_message(info_dict["exit_code"])
+            res["start_time"] = self.fixdate(info_dict["start_time"])
+            res["finish_time"] = self.fixdate(info_dict["finish_time"])
         tmpLog.info("Collected job info: {0}".format(res))
         return res
 
@@ -51,21 +51,12 @@ class TitanUtils(PluginBase):
         Parsing of checkjob output to get job state, exit code, start time, finish time (if available)
         :return job_info dictonary:
         """
-        tmpLog = self.make_logger(baseLogger, method_name='get_moabjob_info')
+        tmpLog = self.make_logger(baseLogger, method_name="get_moabjob_info")
 
-        job_info = {
-            'state': "",
-            'exit_code': None,
-            'queued_time': None,
-            'start_time': None,
-            'finish_time': None
-        }
+        job_info = {"state": "", "exit_code": None, "queued_time": None, "start_time": None, "finish_time": None}
 
-        cmd = 'checkjob -v {0}'.format(batchid)
-        p = subprocess.Popen(cmd.split(),
-                             shell=False,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+        cmd = "checkjob -v {0}".format(batchid)
+        p = subprocess.Popen(cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # check return code
         stdOut, stdErr = p.communicate()
         retCode = p.returncode
@@ -78,15 +69,15 @@ class TitanUtils(PluginBase):
         if checkjob_str:
             checkjob_out = checkjob_str.splitlines()
             for l in checkjob_out:
-                if l.startswith('State: '):
-                    job_info['state'] = l[7:].split()[0]
-                elif l.startswith('Completion Code: '):
-                    job_info['exit_code'] = int(l[17:].split()[0])
-                    if 'Time: ' in l:
-                        job_info['finish_time'] = l[l.index('Time: ') + 6:]
-                elif l.startswith('StartTime: '):
-                    job_info['start_time'] = l[11:]
-                elif l.startswith('WallTime: '):
+                if l.startswith("State: "):
+                    job_info["state"] = l[7:].split()[0]
+                elif l.startswith("Completion Code: "):
+                    job_info["exit_code"] = int(l[17:].split()[0])
+                    if "Time: " in l:
+                        job_info["finish_time"] = l[l.index("Time: ") + 6 :]
+                elif l.startswith("StartTime: "):
+                    job_info["start_time"] = l[11:]
+                elif l.startswith("WallTime: "):
                     tmpLog.info(l)
         tmpLog.debug("checkjob parsing results: {0}".format(job_info))
         return job_info
@@ -97,11 +88,11 @@ class TitanUtils(PluginBase):
         :param status:
         :return:
         """
-        submited = ['deferred', 'hold', 'idle', 'migrated', 'staged']
-        running = ['starting', 'running', 'suspended', 'canceling']
-        finished = ['completed']
-        cancelled = ['removed']
-        failed = ['vacated']
+        submited = ["deferred", "hold", "idle", "migrated", "staged"]
+        running = ["starting", "running", "suspended", "canceling"]
+        finished = ["completed"]
+        cancelled = ["removed"]
+        failed = ["vacated"]
         status = status.lower()
         if status in submited:
             return ws.ST_submitted
@@ -144,7 +135,7 @@ class TitanUtils(PluginBase):
             -10: "Job exceeded a memory limit (stopped by the resource manager)",
             -11: "Job exceeded a walltime limit",
             -12: "Job exceeded a CPU time limit",
-            -13: "Could not create the jobs control groups (cgroups)"
+            -13: "Could not create the jobs control groups (cgroups)",
         }
 
         if exit_code in codes_messages.keys():
@@ -159,11 +150,11 @@ class TitanUtils(PluginBase):
         :param date_str:
         :return: date (datetime object)
         """
-        tmpLog = self.make_logger(baseLogger, method_name='fixdate')
+        tmpLog = self.make_logger(baseLogger, method_name="fixdate")
         if not date_str:
             return None
         tmpLog.debug("Date to fix: {0}".format(date_str))
-        format_str = '%a %b %d %H:%M:%S %Y'
+        format_str = "%a %b %d %H:%M:%S %Y"
         date_str = " ".join([date_str, str(datetime.datetime.now().year)])
         date = datetime.datetime.strptime(date_str, format_str)
         if date > datetime.datetime.now():
@@ -171,7 +162,7 @@ class TitanUtils(PluginBase):
         date = datetime.datetime.strptime(date_str, format_str)
 
         tmpLog.debug("Full date: {0}".format(str(date)))
-        utc_offset = datetime.timedelta(0, 18000, 0) # 5H UTC offset for Oak-Ridge
+        utc_offset = datetime.timedelta(0, 18000, 0)  # 5H UTC offset for Oak-Ridge
         tmpLog.debug("UTC offset: {0}".format(str(utc_offset)))
         fixed_date = date + utc_offset
         tmpLog.debug("Fixed date: {0}".format(str(fixed_date)))
@@ -181,11 +172,11 @@ class TitanUtils(PluginBase):
     def get_resources(self):
         """
         Fucnction to provide number of nodes with walltime limit to worker maker
-        :return: 
-        nodes: integer  
+        :return:
+        nodes: integer
         walltime: intger, seconds
         """
-        tmpLog = self.make_logger(baseLogger, method_name='get_backfill')
+        tmpLog = self.make_logger(baseLogger, method_name="get_backfill")
         tmpLog.info("Looking for gap more than '%s' sec" % self.minWalltime)
         nodes = 0
         walltime = self.minWalltime
@@ -205,21 +196,17 @@ class TitanUtils(PluginBase):
         return nodes, walltime
 
     def get_backfill(self):
-
         #  Function collect information about current available resources and
         #  return number of nodes with possible maximum value for walltime according Titan policy
         #
-        tmpLog = self.make_logger(baseLogger, method_name='get_backfill')
+        tmpLog = self.make_logger(baseLogger, method_name="get_backfill")
         res = {}
-        cmd = 'showbf --blocking -p %s' % self.partition
-        p = subprocess.Popen(cmd.split(),
-                             shell=False,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+        cmd = "showbf --blocking -p %s" % self.partition
+        p = subprocess.Popen(cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # check return code
         stdOut, stdErr = p.communicate()
         retCode = p.returncode
-        tmpLog.info('retCode={0}'.format(retCode))
+        tmpLog.info("retCode={0}".format(retCode))
         showbf_str = ""
         if retCode == 0:
             showbf_str = stdOut
@@ -234,11 +221,10 @@ class TitanUtils(PluginBase):
             for l in shobf_out[2:]:
                 d = l.split()
                 nodes = int(d[2])
-                if not d[3] == 'INFINITY':
+                if not d[3] == "INFINITY":
                     walltime_arr = d[3].split(":")
                     if len(walltime_arr) < 4:
-                        walltime_sec = int(walltime_arr[0]) * (60 * 60) + int(walltime_arr[1]) * 60 + int(
-                            walltime_arr[2])
+                        walltime_sec = int(walltime_arr[0]) * (60 * 60) + int(walltime_arr[1]) * 60 + int(walltime_arr[2])
                         if walltime_sec > 24 * 3600:  # in case we will have more than 24H
                             walltime_sec = 24 * 3600
                     else:

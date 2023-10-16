@@ -51,11 +51,13 @@ sync_lock = threading.Lock()
 
 # synchronize decorator
 def synchronize(func):
-    """ synchronize decorator """
+    """synchronize decorator"""
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with sync_lock:
             return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -68,8 +70,7 @@ class StopWatch(object):
     # get elapsed time
     def get_elapsed_time(self):
         diff = datetime.datetime.utcnow() - self.startTime
-        return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600,
-                                               diff.microseconds // 1000)
+        return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600, diff.microseconds // 1000)
 
     # get elapsed time in seconds
     def get_elapsed_time_in_sec(self, precise=False):
@@ -113,13 +114,13 @@ class MapWithLock(object):
 
 # singleton distinguishable with id
 class SingletonWithID(type):
-    def __init__(cls, *args,**kwargs):
+    def __init__(cls, *args, **kwargs):
         cls.__instance = {}
         super(SingletonWithID, cls).__init__(*args, **kwargs)
 
     @synchronize
     def __call__(cls, *args, **kwargs):
-        obj_id = str(kwargs.get('id', ''))
+        obj_id = str(kwargs.get("id", ""))
         if obj_id not in cls.__instance:
             cls.__instance[obj_id] = super(SingletonWithID, cls).__call__(*args, **kwargs)
         return cls.__instance.get(obj_id)
@@ -127,14 +128,14 @@ class SingletonWithID(type):
 
 # singleton distinguishable with each thread and id
 class SingletonWithThreadAndID(type):
-    def __init__(cls, *args,**kwargs):
+    def __init__(cls, *args, **kwargs):
         cls.__instance = {}
         super(SingletonWithThreadAndID, cls).__init__(*args, **kwargs)
 
     @synchronize
     def __call__(cls, *args, **kwargs):
         thread_id = get_ident()
-        obj_id = (thread_id, str(kwargs.get('id', '')))
+        obj_id = (thread_id, str(kwargs.get("id", "")))
         if obj_id not in cls.__instance:
             cls.__instance[obj_id] = super(SingletonWithThreadAndID, cls).__call__(*args, **kwargs)
         return cls.__instance.get(obj_id)
@@ -151,7 +152,7 @@ def setup_logger(name=None):
     if name is None:
         frm = inspect.stack()[1][0]
         mod = inspect.getmodule(frm)
-        name = mod.__name__.split('.')[-1]
+        name = mod.__name__.split(".")[-1]
     try:
         log_level = getattr(harvester_config.log_level, name)
         return PandaLogger().getLogger(name, log_level=log_level)
@@ -168,9 +169,9 @@ def make_logger(tmp_log, token=None, method_name=None, hook=None):
     else:
         tmpStr = method_name
     if token is not None:
-        tmpStr += ' <{0}>'.format(token)
+        tmpStr += " <{0}>".format(token)
     else:
-        tmpStr += ' :'.format(token)
+        tmpStr += " :".format(token)
     newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile, hook=hook)
     return newLog
 
@@ -178,9 +179,9 @@ def make_logger(tmp_log, token=None, method_name=None, hook=None):
 # dump error message
 def dump_error_message(tmp_log, err_str=None, no_message=False):
     if not isinstance(tmp_log, LogWrapper):
-        methodName = '{0} : '.format(inspect.stack()[1][3])
+        methodName = "{0} : ".format(inspect.stack()[1][3])
     else:
-        methodName = ''
+        methodName = ""
     # error
     if err_str is None:
         errtype, errvalue = sys.exc_info()[:2]
@@ -230,7 +231,9 @@ def make_pool_file_catalog(jobspec_list):
     </physical>
     <logical/>
   </File>
-  """.format(guid=inFile['guid'], lfn=inLFN)
+  """.format(
+                guid=inFile["guid"], lfn=inLFN
+            )
     xmlStr += "</POOLFILECATALOG>"
     return xmlStr
 
@@ -239,14 +242,14 @@ def make_pool_file_catalog(jobspec_list):
 def calc_adler32(file_name):
     val = 1
     blockSize = 32 * 1024 * 1024
-    with open(file_name, 'rb') as fp:
+    with open(file_name, "rb") as fp:
         while True:
             data = fp.read(blockSize)
             if not data:
                 break
             val = zlib.adler32(data, val)
     if val < 0:
-        val += 2 ** 32
+        val += 2**32
     return hex(val)[2:10].zfill(8).lower()
 
 
@@ -263,18 +266,18 @@ def get_output_file_report(jobspec):
     # body
     for fileSpec in jobspec.outFiles:
         # only successful files
-        if fileSpec.status != 'finished':
+        if fileSpec.status != "finished":
             continue
         # extract guid
-        if 'guid' in fileSpec.fileAttributes:
-            guid = fileSpec.fileAttributes['guid']
-        elif fileSpec.fileType == 'log':
-            guid = jobspec.get_logfile_info()['guid']
+        if "guid" in fileSpec.fileAttributes:
+            guid = fileSpec.fileAttributes["guid"]
+        elif fileSpec.fileType == "log":
+            guid = jobspec.get_logfile_info()["guid"]
         else:
             guid = str(uuid.uuid4())
         # checksum
-        if fileSpec.chksum is not None and ':' in fileSpec.chksum:
-            chksum = fileSpec.chksum.split(':')[-1]
+        if fileSpec.chksum is not None and ":" in fileSpec.chksum:
+            chksum = fileSpec.chksum.split(":")[-1]
         else:
             chksum = fileSpec.chksum
         xml += """<File ID="{guid}">
@@ -284,9 +287,11 @@ def get_output_file_report(jobspec):
         <metadata att_name="fsize" att_value = "{fsize}"/>
         <metadata att_name="adler32" att_value="{chksum}"/>
         </File>
-        """.format(guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=chksum)
+        """.format(
+            guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=chksum
+        )
     # skipped files
-    skippedLFNs = jobspec.get_one_attribute('skippedInputs')
+    skippedLFNs = jobspec.get_one_attribute("skippedInputs")
     if skippedLFNs:
         for tmpLFN in skippedLFNs:
             xml += """<File ID="">
@@ -296,7 +301,9 @@ def get_output_file_report(jobspec):
             <metadata att_name="fsize" att_value = "0"/>
             <metadata att_name="adler32" att_value=""/>
             </File>
-            """.format(lfn=tmpLFN)
+            """.format(
+                lfn=tmpLFN
+            )
     # tailor
     xml += """
     </POOLFILECATALOG>
@@ -321,15 +328,14 @@ def create_shards(input_list, size):
 
 
 # update job attributes with workers
-def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, files_to_stage_out_list,
-                                       events_to_update_list):
+def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, files_to_stage_out_list, events_to_update_list):
     if map_type in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiJobs]:
         workSpec = workspec_list[0]
         for jobSpec in jobspec_list:
             jobSpec.set_attributes(workSpec.workAttributes)
             # delete job metadata from worker attributes
             try:
-                del workSpec.workAttributes[jobSpec.PandaID]['metaData']
+                del workSpec.workAttributes[jobSpec.PandaID]["metaData"]
             except Exception:
                 pass
             # set start and end times
@@ -348,9 +354,9 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                 except Exception:
                     pass
             # batch ID
-            if not jobSpec.has_attribute('batchID'):
+            if not jobSpec.has_attribute("batchID"):
                 if workSpec.batchID is not None:
-                    jobSpec.set_one_attribute('batchID', workSpec.batchID)
+                    jobSpec.set_one_attribute("batchID", workSpec.batchID)
             # add files
             outFileAttrs = jobSpec.get_output_file_attributes()
             for tmpWorkerID, files_to_stage_out in iteritems(files_to_stage_out_list):
@@ -361,25 +367,25 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                             fileSpec.lfn = lfn
                             fileSpec.PandaID = jobSpec.PandaID
                             fileSpec.taskID = jobSpec.taskID
-                            fileSpec.path = fileAtters['path']
-                            fileSpec.fsize = fileAtters['fsize']
-                            fileSpec.fileType = fileAtters['type']
+                            fileSpec.path = fileAtters["path"]
+                            fileSpec.fsize = fileAtters["fsize"]
+                            fileSpec.fileType = fileAtters["type"]
                             fileSpec.fileAttributes = fileAtters
                             fileSpec.workerID = tmpWorkerID
-                            if 'isZip' in fileAtters:
-                                fileSpec.isZip = fileAtters['isZip']
-                            if 'chksum' in fileAtters:
-                                fileSpec.chksum = fileAtters['chksum']
-                            if 'eventRangeID' in fileAtters:
-                                fileSpec.eventRangeID = fileAtters['eventRangeID']
+                            if "isZip" in fileAtters:
+                                fileSpec.isZip = fileAtters["isZip"]
+                            if "chksum" in fileAtters:
+                                fileSpec.chksum = fileAtters["chksum"]
+                            if "eventRangeID" in fileAtters:
+                                fileSpec.eventRangeID = fileAtters["eventRangeID"]
                                 # use input fileID as provenanceID
                                 try:
-                                    provenanceID = fileSpec.eventRangeID.split('-')[2]
+                                    provenanceID = fileSpec.eventRangeID.split("-")[2]
                                 except Exception:
                                     provenanceID = None
                                 fileSpec.provenanceID = provenanceID
                             if lfn in outFileAttrs:
-                                fileSpec.scope = outFileAttrs[lfn]['scope']
+                                fileSpec.scope = outFileAttrs[lfn]["scope"]
                             jobSpec.add_out_file(fileSpec)
             # add events
             for events_to_update in events_to_update_list:
@@ -451,25 +457,25 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                         fileSpec.lfn = lfn
                         fileSpec.PandaID = jobSpec.PandaID
                         fileSpec.taskID = jobSpec.taskID
-                        fileSpec.path = fileAtters['path']
-                        fileSpec.fsize = fileAtters['fsize']
-                        fileSpec.fileType = fileAtters['type']
+                        fileSpec.path = fileAtters["path"]
+                        fileSpec.fsize = fileAtters["fsize"]
+                        fileSpec.fileType = fileAtters["type"]
                         fileSpec.fileAttributes = fileAtters
                         fileSpec.workerID = tmpWorkerID
-                        if 'isZip' in fileAtters:
-                            fileSpec.isZip = fileAtters['isZip']
-                        if 'chksum' in fileAtters:
-                            fileSpec.chksum = fileAtters['chksum']
-                        if 'eventRangeID' in fileAtters:
-                            fileSpec.eventRangeID = fileAtters['eventRangeID']
+                        if "isZip" in fileAtters:
+                            fileSpec.isZip = fileAtters["isZip"]
+                        if "chksum" in fileAtters:
+                            fileSpec.chksum = fileAtters["chksum"]
+                        if "eventRangeID" in fileAtters:
+                            fileSpec.eventRangeID = fileAtters["eventRangeID"]
                             # use input fileID as provenanceID
                             try:
-                                provenanceID = fileSpec.eventRangeID.split('-')[2]
+                                provenanceID = fileSpec.eventRangeID.split("-")[2]
                             except Exception:
                                 provenanceID = None
                             fileSpec.provenanceID = provenanceID
                         if lfn in outFileAttrs:
-                            fileSpec.scope = outFileAttrs[lfn]['scope']
+                            fileSpec.scope = outFileAttrs[lfn]["scope"]
                         jobSpec.add_out_file(fileSpec)
         # add events
         for events_to_update in events_to_update_list:
@@ -488,7 +494,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             else:
                 jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_cancelled)
         else:
-            if isRunning or jobSpec.status == 'running':
+            if isRunning or jobSpec.status == "running":
                 jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_running)
             else:
                 jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_submitted)
@@ -518,9 +524,9 @@ def get_global_dict():
 @contextmanager
 def get_file_lock(file_name, lock_interval):
     if os.path.exists(file_name):
-        opt = 'r+'
+        opt = "r+"
     else:
-        opt = 'w+'
+        opt = "w+"
     with open(file_name, opt) as f:
         locked = False
         try:
@@ -570,9 +576,9 @@ def encrypt_string(key_phrase, plain_text):
 def decrypt_string(key_phrase, cipher_text):
     cipher_text = base64.b64decode(cipher_text)
     k = convert_phrase_to_key(key_phrase)
-    v = cipher_text[:Cryptodome.Cipher.AES.block_size]
+    v = cipher_text[: Cryptodome.Cipher.AES.block_size]
     c = Cryptodome.Cipher.AES.new(k, Cryptodome.Cipher.AES.MODE_CFB, v)
-    cipher_text = cipher_text[Cryptodome.Cipher.AES.block_size:]
+    cipher_text = cipher_text[Cryptodome.Cipher.AES.block_size :]
     return c.decrypt(cipher_text)
 
 
@@ -601,14 +607,14 @@ def set_file_permission(path):
 # get URL of queues config file
 def get_queues_config_url():
     try:
-        return os.environ['HARVESTER_QUEUE_CONFIG_URL']
+        return os.environ["HARVESTER_QUEUE_CONFIG_URL"]
     except Exception:
         return None
 
 
 # get unique queue name
 def get_unique_queue_name(queue_name, resource_type, job_type):
-    return '{0}:{1}:{2}'.format(queue_name, resource_type, job_type)
+    return "{0}:{1}:{2}".format(queue_name, resource_type, job_type)
 
 
 # capability to dynamically change plugins
@@ -638,20 +644,20 @@ def make_choice_list(pdpm={}, default=None):
             real_weight = int(weight * 1000 / weight_sum)
         else:
             real_weight = int(weight)
-        ret_list.extend([candidate]*real_weight)
+        ret_list.extend([candidate] * real_weight)
         weight_default -= real_weight
-    ret_list.extend([default]*weight_default)
+    ret_list.extend([default] * weight_default)
     return ret_list
 
 
 # pickle to text
 def pickle_to_text(data):
-    return codecs.encode(pickle.dumps(data), 'base64').decode()
+    return codecs.encode(pickle.dumps(data), "base64").decode()
 
 
 # unpickle from text
 def unpickle_from_text(text):
-    return pickle.loads(codecs.decode(text.encode(), 'base64'))
+    return pickle.loads(codecs.decode(text.encode(), "base64"))
 
 
 # increasing retry period after timeout or failure
@@ -661,7 +667,7 @@ def retry_period_sec(nth_retry, increment=1, max_retries=None, max_seconds=None,
     if max_retries and nth_retry > max_retries:
         return False
     else:
-        ret_period += (nth - 1)*increment
+        ret_period += (nth - 1) * increment
         if max_seconds:
             ret_period = min(ret_period, max_seconds)
         return ret_period
@@ -670,4 +676,4 @@ def retry_period_sec(nth_retry, increment=1, max_retries=None, max_seconds=None,
 # safe dictionary to retrun original strings for missing keys
 class SafeDict(dict):
     def __missing__(self, key):
-        return '{' + key + '}'
+        return "{" + key + "}"

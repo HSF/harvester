@@ -4,7 +4,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
 
 # logger
-baseLogger = core_utils.setup_logger('dummy_monitor')
+baseLogger = core_utils.setup_logger("dummy_monitor")
 
 
 # dummy monitor
@@ -29,20 +29,19 @@ class DummyMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workSpec.workerID),
-                                      method_name='check_workers')
-            dummyFilePath = os.path.join(workSpec.get_access_point(), 'status.txt')
-            tmpLog.debug('look for {0}'.format(dummyFilePath))
+            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
+            dummyFilePath = os.path.join(workSpec.get_access_point(), "status.txt")
+            tmpLog.debug("look for {0}".format(dummyFilePath))
             newStatus = WorkSpec.ST_finished
             try:
                 with open(dummyFilePath) as dummyFile:
                     newStatus = dummyFile.readline()
                     newStatus = newStatus.strip()
-                    if newStatus == 'finished':
+                    if newStatus == "finished":
                         workSpec.nativeExitCode = 0
-                        workSpec.nativeStatus = 'done'
+                        workSpec.nativeStatus = "done"
             except Exception:
                 pass
-            tmpLog.debug('newStatus={0}'.format(newStatus))
-            retList.append((newStatus, 'dialog_message'))
+            tmpLog.debug("newStatus={0}".format(newStatus))
+            retList.append((newStatus, "dialog_message"))
         return True, retList

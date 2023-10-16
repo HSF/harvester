@@ -1,6 +1,7 @@
 import os
 import json
-job_params_file = '__job_params__'
+
+job_params_file = "__job_params__"
 
 
 # get job params from file
@@ -11,7 +12,7 @@ def get_job_params(work_spec):
 
 # store job params in file
 def store_job_params(work_spec, params):
-    with open(make_file_path(work_spec), 'w') as f:
+    with open(make_file_path(work_spec), "w") as f:
         json.dump(params, f)
 
 

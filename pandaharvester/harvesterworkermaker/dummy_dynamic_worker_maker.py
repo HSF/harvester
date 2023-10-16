@@ -5,6 +5,7 @@ from .base_worker_maker import BaseWorkerMaker
 
 # dummy worker maker
 
+
 class DummyDynamicWorkerMaker(BaseWorkerMaker):
     # constructor
     def __init__(self, **kwarg):
@@ -21,20 +22,20 @@ class DummyDynamicWorkerMaker(BaseWorkerMaker):
             workSpec.maxWalltime = 0
             for jobSpec in jobspec_list:
                 try:
-                    workSpec.nCore += jobSpec.jobParams['coreCount']
+                    workSpec.nCore += jobSpec.jobParams["coreCount"]
                 except Exception:
                     workSpec.nCore += 1
                 try:
-                    workSpec.minRamCount += jobSpec.jobParams['minRamCount']
+                    workSpec.minRamCount += jobSpec.jobParams["minRamCount"]
                 except Exception:
                     pass
                 try:
-                    workSpec.maxDiskCount += jobSpec.jobParams['maxDiskCount']
+                    workSpec.maxDiskCount += jobSpec.jobParams["maxDiskCount"]
                 except Exception:
                     pass
                 try:
-                    if jobSpec.jobParams['maxWalltime'] not in (None, "NULL"):
-                        workSpec.maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams['maxWalltime'])
+                    if jobSpec.jobParams["maxWalltime"] not in (None, "NULL"):
+                        workSpec.maxWalltime = max(int(queue_config.walltimeLimit), jobSpec.jobParams["maxWalltime"])
                     else:
                         workSpec.maxWalltime = queue_config.walltimeLimit
                 except Exception:

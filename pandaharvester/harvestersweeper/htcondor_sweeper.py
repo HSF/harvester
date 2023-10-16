@@ -15,7 +15,7 @@ from pandaharvester.harvestermisc.htcondor_utils import CondorJobManage
 
 
 # Logger
-baseLogger = core_utils.setup_logger('htcondor_sweeper')
+baseLogger = core_utils.setup_logger("htcondor_sweeper")
 
 
 # sweeper for HTCONDOR batch system
@@ -81,12 +81,12 @@ class HTCondorSweeper(BaseSweeper):
     #     # Return
     #     return True, ''
 
-
     # kill workers
+
     def kill_workers(self, workspec_list):
         # Make logger
-        tmpLog = self.make_logger(baseLogger, method_name='kill_workers')
-        tmpLog.debug('start')
+        tmpLog = self.make_logger(baseLogger, method_name="kill_workers")
+        tmpLog.debug("start")
         # Initialization
         all_job_ret_map = {}
         retList = []
@@ -97,36 +97,34 @@ class HTCondorSweeper(BaseSweeper):
                 ret_map = condor_job_manage.remove(batchIDs_list)
             except Exception as e:
                 ret_map = {}
-                ret_err_str = 'Exception {0}: {1}'.format(e.__class__.__name__, e)
+                ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
                 tmpLog.error(ret_err_str)
             all_job_ret_map.update(ret_map)
         # Fill return list
         for workspec in workspec_list:
             if workspec.batchID is None:
-                ret = (True, 'worker without batchID; skipped')
+                ret = (True, "worker without batchID; skipped")
             else:
-                ret = all_job_ret_map.get(condor_job_id_from_workspec(workspec),
-                                          (False, 'batch job not found in return map'))
+                ret = all_job_ret_map.get(condor_job_id_from_workspec(workspec), (False, "batch job not found in return map"))
             retList.append(ret)
-        tmpLog.debug('done')
+        tmpLog.debug("done")
         # Return
         return retList
 
     # cleanup for a worker
     def sweep_worker(self, workspec):
         # Make logger
-        tmpLog = self.make_logger(baseLogger, 'workerID={0}'.format(workspec.workerID),
-                                  method_name='sweep_worker')
-        tmpLog.debug('start')
+        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
+        tmpLog.debug("start")
         # Clean up preparator base directory (staged-in files)
         try:
             preparatorBasePath = self.preparatorBasePath
         except AttributeError:
-            tmpLog.debug('No preparator base directory is configured. Skipped cleaning up preparator directory')
+            tmpLog.debug("No preparator base directory is configured. Skipped cleaning up preparator directory")
         else:
             if os.path.isdir(preparatorBasePath):
                 if not workspec.get_jobspec_list():
-                    tmpLog.warning('No job PandaID found relate to workerID={0}. Skipped cleaning up preparator directory'.format(workspec.workerID))
+                    tmpLog.warning("No job PandaID found relate to workerID={0}. Skipped cleaning up preparator directory".format(workspec.workerID))
                 else:
                     for jobspec in workspec.get_jobspec_list():
                         preparator_dir_for_cleanup = os.path.join(preparatorBasePath, str(jobspec.PandaID))
@@ -134,19 +132,21 @@ class HTCondorSweeper(BaseSweeper):
                             try:
                                 shutil.rmtree(preparator_dir_for_cleanup)
                             except OSError as _err:
-                                if 'No such file or directory' in _err.strerror:
-                                    tmpLog.debug('Found that {0} was already removed'.format(_err.filename))
+                                if "No such file or directory" in _err.strerror:
+                                    tmpLog.debug("Found that {0} was already removed".format(_err.filename))
                                 pass
-                            tmpLog.info('Succeeded to clean up preparator directory: Removed {0}'.format(preparator_dir_for_cleanup))
+                            tmpLog.info("Succeeded to clean up preparator directory: Removed {0}".format(preparator_dir_for_cleanup))
                         else:
-                            errStr = 'Failed to clean up preparator directory: {0} does not exist or invalid to be cleaned up'.format(preparator_dir_for_cleanup)
+                            errStr = "Failed to clean up preparator directory: {0} does not exist or invalid to be cleaned up".format(
+                                preparator_dir_for_cleanup
+                            )
                             tmpLog.error(errStr)
                             return False, errStr
             else:
-                errStr = 'Configuration error: Preparator base directory {0} does not exist'.format(preparatorBasePath)
+                errStr = "Configuration error: Preparator base directory {0} does not exist".format(preparatorBasePath)
                 tmpLog.error(errStr)
                 return False, errStr
-        tmpLog.info('Succeeded to clean up everything about workerID={0}'.format(workspec.workerID))
-        tmpLog.debug('done')
+        tmpLog.info("Succeeded to clean up everything about workerID={0}".format(workspec.workerID))
+        tmpLog.debug("done")
         # Return
-        return True, ''
+        return True, ""

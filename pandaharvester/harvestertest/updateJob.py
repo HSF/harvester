@@ -13,9 +13,9 @@ accessPoint = workSpec.get_access_point()
 
 try:
     os.makedirs(accessPoint)
-except:
+except BaseException:
     pass
 
-f = open(os.path.join(accessPoint, 'status.txt'), 'w')
+f = open(os.path.join(accessPoint, "status.txt"), "w")
 f.write(status)
 f.close()
