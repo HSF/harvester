@@ -1,0 +1,78 @@
+# placed in a sub directory since the top directory is problematic for old setuptoos and legacy python
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "panda-harvester"
+dynamic = ["version"]
+description = "Havester Package"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [
+    { name = "PanDA Team", email = "panda-support@cern.ch" },
+]
+
+dependencies = [
+    'requests',
+    'python-daemon',
+    'future',
+    'futures; python_version == "2.*"',
+    'pycryptodomex',
+    'panda-common',
+    'pyjwt',
+    'subprocess32; python_version == "2.*"',
+    'rpyc',
+    'paramiko',
+    'pexpect',
+    'psutil >= 5.4.8',
+    'scandir; python_version < "3.5"',
+    'panda-pilot >= 2.7.2.1',
+    'six',
+]
+
+[project.optional-dependencies]
+kubernetes = ['kubernetes', 'pyyaml']
+mysql = ['mysqlclient']
+atlasgrid = ['uWSGI >= 2.0.20', 'htcondor >= 9.2.0', 'mysqlclient >= 2.0.3']
+
+[project.urls]
+Homepage = "https://github.com/PanDAWMS/panda-harvester/wiki"
+
+[tool.hatch.version]
+path = "pandaharvester/panda_pkg_info.py"
+pattern = "release_version = \"(?P<version>[^\"]+)\""
+
+[tool.hatch.build]
+directory = "dist"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pandaharvester"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"templates" = "etc/panda"
+"templates/sysconfig" = "etc/sysconfig"
+"templates/init.d" = "etc/rc.d/init.d"
+"templates/systemd" = "etc/systemd/system"
+"templates/bin" = "local/bin"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "package/hatch_build.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".github",
+    ".idea",
+]
+
+[tool.black]
+line-length=160
+
+[tool.autopep8]
+# https://pypi.org/project/autopep8/#pyproject-toml
+max_line_length = 160
+ignore = ["E203", "E501", "W6"]
+in-place = true
+recursive = true
+aggressive = 3

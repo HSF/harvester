@@ -78,12 +78,12 @@ setup(
         (
             "local/bin",
             [
-                "templates/harvester-admin.rpmnew.template",
+                "templates/bin/harvester-admin.rpmnew.template",
             ],
         ),
     ],
     scripts=[
-        "templates/panda_jedi-renice",
-        "templates/panda_harvester-sqlite3backup",
+        "templates/bin/panda_jedi-renice",
+        "templates/bin/panda_harvester-sqlite3backup",
     ],
 )
