@@ -1,3 +1,5 @@
+# placed in a sub directory since the top directory is problematic for old setuptoos and legacy python
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

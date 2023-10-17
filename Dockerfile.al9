@@ -1,3 +1,5 @@
+# non default Dockerfile since Condor 9 doesn't support AL9
+
 ARG PYTHON_VERSION=3.11.4
 
 FROM docker.io/almalinux:9
