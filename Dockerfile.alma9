@@ -69,6 +69,8 @@ RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
 RUN chmod -R 777 /data/condor
 RUN chmod -R 777 /etc/httpd
+RUN chmod -R 777 /etc/vomses
+RUN chmod -R 777 /etc/grid-security/vomsdir/lsst
 RUN chmod -R 777 /var/log/httpd
 RUN chmod -R 777 /var/lib/logrotate
 RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
