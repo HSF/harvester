@@ -149,7 +149,7 @@ class WorkerAdjuster(object):
                                     except KeyError:
                                         # zero job in the queue
                                         tmp_log.debug("no job in queue")
-                                        n_activated = 1
+                                        n_activated = max(1 - n_queue - n_ready - n_running, 0)
                                     finally:
                                         queue_limit = max_queued_workers
                                         max_queued_workers = min(n_activated, max_queued_workers)
