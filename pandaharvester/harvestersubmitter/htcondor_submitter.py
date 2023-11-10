@@ -539,8 +539,8 @@ class HTCondorSubmitter(PluginBase):
         # get queue info from CRIC by cacher in db
         if self.useCRIC:
             panda_queues_dict = PandaQueuesDict()
-            panda_queues_dict_last_refresh = datetime.utcfromtimestamp(panda_queues_dict.last_refresh_ts)
-            tmpLog.debug(f"PandaQueuesDic last refresh at {panda_queues_dict_last_refresh}")
+            panda_queues_dict_last_refresh = datetime.datetime.utcfromtimestamp(panda_queues_dict.last_refresh_ts)
+            tmpLog.debug(f"PandaQueuesDict last refresh at {panda_queues_dict_last_refresh}")
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
             is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
