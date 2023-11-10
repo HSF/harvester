@@ -173,7 +173,7 @@ def make_a_jdl(
     prod_rc_permille=0,
     token_dir=None,
     is_gpu_resource=False,
-    **kwarg
+    **kwarg,
 ):
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="make_a_jdl")
@@ -539,6 +539,8 @@ class HTCondorSubmitter(PluginBase):
         # get queue info from CRIC by cacher in db
         if self.useCRIC:
             panda_queues_dict = PandaQueuesDict()
+            panda_queues_dict_last_refresh = datetime.utcfromtimestamp(panda_queues_dict.last_refresh_ts)
+            tmpLog.debug(f"PandaQueuesDic last refresh at {panda_queues_dict_last_refresh}")
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
             is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)

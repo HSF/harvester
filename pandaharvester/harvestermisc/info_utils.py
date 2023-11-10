@@ -42,7 +42,6 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             if self._is_fresh():
                 return
             panda_queues_cache = self.dbInterface.get_cache(self.cacher_key)
-            self.last_refresh_ts = time.time()
             if panda_queues_cache and isinstance(panda_queues_cache.data, dict):
                 panda_queues_dict = panda_queues_cache.data
                 for k, v in iteritems(panda_queues_dict):
@@ -53,10 +52,10 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
                         pass
                     else:
                         self[panda_resource] = v
+                self.last_refresh_ts = time.time()
 
     def __getitem__(self, panda_resource):
-        if not self._is_fresh():
-            self._refresh()
+        self._refresh()
         if panda_resource in self:
             return dict.__getitem__(self, panda_resource)
         else:
@@ -64,8 +63,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
             return dict.__getitem__(self, panda_queue)
 
     def get(self, panda_resource, default=None):
-        if not self._is_fresh():
-            self._refresh()
+        self._refresh()
         if panda_resource in self:
             return dict.get(self, panda_resource, default)
         else:
