@@ -4,7 +4,9 @@
 #
 #
 import sys
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
+
 from pandaharvester import panda_pkg_info
 
 sys.path.insert(0, ".")
@@ -44,7 +46,7 @@ setup(
     extras_require={
         "kubernetes": ["kubernetes", "pyyaml"],
         "mysql": ["mysqlclient"],
-        "atlasgrid": ["uWSGI >= 2.0.20", "htcondor >= 9.2.0", "mysqlclient >= 2.0.3"],
+        "atlasgrid": ["uWSGI >= 2.0.20", "htcondor >= 10.3.0", "mysqlclient >= 2.1.1"],
     },
     data_files=[
         # config and cron files
