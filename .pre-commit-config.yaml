@@ -1,14 +1,24 @@
 repos:
--   repo: https://github.com/pre-commit/mirrors-autopep8
-    rev: v2.0.4
+-   repo: https://github.com/ikamensh/flynt
+    rev: ''  # Specify a specific version if desired
     hooks:
-    -   id: autopep8
-        args: ["--global-config", "package/pyproject.toml"]
+    -   id: flynt
+        args: [ "--line-length", "160"]  # Flynt does not support pyproject.toml in special locations
+
 -   repo: https://github.com/psf/black
     rev: 23.9.1
     hooks:
     -   id: black
+        types: [python]
         args: ["--config", "package/pyproject.toml"]
+
+-   repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+    -   id: isort
+        name: isort (python)
+        args: ["--settings-path", "package/pyproject.toml"]
+
 # exclude python 2 code which cannot be dealt with black
 exclude: |
     (?x)(
