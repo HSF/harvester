@@ -1,13 +1,13 @@
 import datetime
-import os
 import json
-
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from .base_messenger import BaseMessenger
-from pandaharvester.harvesterconfig import harvester_config
+import os
 
 from act.atlas.aCTDBPanda import aCTDBPanda
+from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.work_spec import WorkSpec
+
+from .base_messenger import BaseMessenger
 
 # json for outputs
 jsonOutputsFileName = harvester_config.payload_interaction.eventStatusDumpJsonFile
@@ -63,13 +63,13 @@ class ACTMessenger(BaseMessenger):
         """
 
         # get logger
-        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="feed_events")
+        tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="feed_events")
         retVal = True
         if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
             # insert the event range into aCT DB and mark the job ready to go
             for pandaid, eventranges in events_dict.items():
                 desc = {"eventranges": json.dumps(eventranges), "actpandastatus": "sent", "pandastatus": "sent", "arcjobid": None}
-                tmpLog.info("Inserting {0} events for job {1}".format(len(eventranges), pandaid))
+                tmpLog.info(f"Inserting {len(eventranges)} events for job {pandaid}")
                 try:
                     self.actDB.updateJob(pandaid, desc)
                 except Exception as e:
@@ -85,7 +85,7 @@ class ACTMessenger(BaseMessenger):
         """Report events processed for harvester to update"""
 
         # get logger
-        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="events_to_update")
+        tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="events_to_update")
         # look for the json just under the access point
         retDict = dict()
         for pandaID in workspec.pandaid_list:
@@ -95,11 +95,11 @@ class ACTMessenger(BaseMessenger):
             jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
             readJsonPath = jsonFilePath + suffixReadJson
             # first look for json.read which is not yet acknowledged
-            tmpLog.debug("looking for event update file {0}".format(readJsonPath))
+            tmpLog.debug(f"looking for event update file {readJsonPath}")
             if os.path.exists(readJsonPath):
                 pass
             else:
-                tmpLog.debug("looking for event update file {0}".format(jsonFilePath))
+                tmpLog.debug(f"looking for event update file {jsonFilePath}")
                 if not os.path.exists(jsonFilePath):
                     # not found
                     tmpLog.debug("not found")
@@ -122,21 +122,21 @@ class ACTMessenger(BaseMessenger):
                         retDict[tmpPandaID] = tmpDict
                         nData += len(tmpDict)
             except Exception as x:
-                tmpLog.error("failed to load json: {0}".format(str(x)))
+                tmpLog.error(f"failed to load json: {str(x)}")
             # delete empty file
             if nData == 0:
                 try:
                     os.remove(readJsonPath)
                 except Exception:
                     pass
-            tmpLog.debug("got {0} events for PandaID={1}".format(nData, pandaID))
+            tmpLog.debug(f"got {nData} events for PandaID={pandaID}")
         return retDict
 
     def acknowledge_events_files(self, workspec):
         """Acknowledge that events were picked up by harvester"""
 
         # get logger
-        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="acknowledge_events_files")
+        tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="acknowledge_events_files")
         # remove request file
         for pandaID in workspec.pandaid_list:
             accessPoint = self.get_access_point(workspec, pandaID)

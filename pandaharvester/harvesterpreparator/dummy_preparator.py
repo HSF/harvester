@@ -1,8 +1,8 @@
 import uuid
-from future.utils import iteritems
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # logger
 _logger = core_utils.setup_logger("dummy_preparator")
@@ -96,7 +96,7 @@ class DummyPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # -- set path to each file
         for inLFN, inFile in iteritems(inFiles):
-            inFile["path"] = "dummypath/{0}".format(inLFN)
+            inFile["path"] = f"dummypath/{inLFN}"
         # -- set
         jobspec.set_input_file_paths(inFiles)
         return True, ""

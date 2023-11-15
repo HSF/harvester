@@ -1,7 +1,8 @@
-from pandaharvester.harvestercore import core_utils
-from .base_stager import BaseStager
-
 import uuid
+
+from pandaharvester.harvestercore import core_utils
+
+from .base_stager import BaseStager
 
 # logger
 _logger = core_utils.setup_logger("dummy_stager")
@@ -68,7 +69,7 @@ class DummyStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)
 
     # asynchronous zip output
@@ -87,7 +88,7 @@ class DummyStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         # set some ID which can be used for lookup in post_zip_output()
         groupID = str(uuid.uuid4())
         lfns = []
@@ -109,7 +110,7 @@ class DummyStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         # get groups for lookup
         groups = jobspec.get_groups_of_output_files()
         # do something with groupIDs

@@ -1,16 +1,16 @@
 import os
-import sys
-import shutil
 import os.path
+import shutil
+import sys
 import uuid
+
 from future.utils import iteritems
-
 from pandaharvester.harvestercore import core_utils
-from .base_stager import BaseStager
 from pandaharvester.harvestermover import mover_utils
-
 from rucio.client import Client as RucioClient
 from rucio.common.exception import RuleNotFound
+
+from .base_stager import BaseStager
 
 # logger
 baseLogger = core_utils.setup_logger("rucio_stager")
@@ -27,7 +27,7 @@ class RucioStager(BaseStager):
     # check status
     def check_stage_out_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="check_stage_out_status")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         # loop over all files
         allChecked = True
@@ -45,14 +45,14 @@ class RucioStager(BaseStager):
                     rucioAPI = RucioClient()
                     ruleInfo = rucioAPI.get_replication_rule(transferID)
                     tmpTransferStatus = ruleInfo["state"]
-                    tmpLog.debug("got state={0} for rule={1}".format(tmpTransferStatus, transferID))
+                    tmpLog.debug(f"got state={tmpTransferStatus} for rule={transferID}")
                 except RuleNotFound:
-                    tmpLog.error("rule {0} not found".format(transferID))
+                    tmpLog.error(f"rule {transferID} not found")
                     tmpTransferStatus = "FAILED"
                 except BaseException:
                     err_type, err_value = sys.exc_info()[:2]
-                    errMsg = "{0} {1}".format(err_type.__name__, err_value)
-                    tmpLog.error("failed to get status for rule={0} with {1}".format(transferID, errMsg))
+                    errMsg = f"{err_type.__name__} {err_value}"
+                    tmpLog.error(f"failed to get status for rule={transferID} with {errMsg}")
                     # set dummy not to lookup again
                     tmpTransferStatus = None
                     allChecked = False
@@ -74,7 +74,7 @@ class RucioStager(BaseStager):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_stage_out")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_stage_out")
         tmpLog.debug("start")
         # loop over all files
         files = dict()
@@ -109,7 +109,7 @@ class RucioStager(BaseStager):
             if os.path.exists(dstPath):
                 os.remove(dstPath)
             # copy
-            tmpLog.debug("copy src={srcPath} dst={dstPath}".format(srcPath=srcPath, dstPath=dstPath))
+            tmpLog.debug(f"copy src={srcPath} dst={dstPath}")
             dstDir = os.path.dirname(dstPath)
             if not os.path.exists(dstDir):
                 os.makedirs(dstDir)
@@ -133,7 +133,7 @@ class RucioStager(BaseStager):
             elif fileType == "log":
                 dstRSE = self.dstRSE_Log
             else:
-                errMsg = "unsupported file type {0}".format(fileType)
+                errMsg = f"unsupported file type {fileType}"
                 tmpLog.error(errMsg)
                 return (False, errMsg)
             # skip if destination is None
@@ -143,7 +143,7 @@ class RucioStager(BaseStager):
             if fileType not in transferDatasets:
                 try:
                     tmpScope = self.scopeForTmp
-                    tmpDS = "panda.harvester_stage_out.{0}".format(str(uuid.uuid4()))
+                    tmpDS = f"panda.harvester_stage_out.{str(uuid.uuid4())}"
                     rucioAPI.add_dataset(tmpScope, tmpDS, meta={"hidden": True}, lifetime=30 * 24 * 60 * 60, files=fileList, rse=self.srcRSE)
                     transferDatasets[fileType] = tmpDS
                     # add rule
@@ -153,7 +153,7 @@ class RucioStager(BaseStager):
                     tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE, lifetime=30 * 24 * 60 * 60)
                     tmpTransferIDs = tmpRet[0]
                     transferIDs[fileType] = tmpTransferIDs
-                    tmpLog.debug("register dataset {0} with rule {1}".format(tmpDS, str(tmpTransferIDs)))
+                    tmpLog.debug(f"register dataset {tmpDS} with rule {str(tmpTransferIDs)}")
                 except BaseException:
                     errMsg = core_utils.dump_error_message(tmpLog)
                     return (False, errMsg)
@@ -163,7 +163,7 @@ class RucioStager(BaseStager):
                     tmpScope = self.scopeForTmp
                     tmpDS = transferDatasets[fileType]
                     rucioAPI.add_files_to_dataset(tmpScope, tmpDS, fileList, self.srcRSE)
-                    tmpLog.debug("added files to {0}".format(tmpDS))
+                    tmpLog.debug(f"added files to {tmpDS}")
                 except BaseException:
                     errMsg = core_utils.dump_error_message(tmpLog)
                     return (False, errMsg)
@@ -195,5 +195,5 @@ class RucioStager(BaseStager):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)

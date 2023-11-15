@@ -1,9 +1,11 @@
 import os
 import queue
 import threading
+
 from pandaharvester.harvesterconfig import harvester_config
-from .db_proxy import DBProxy
+
 from . import core_utils
+from .db_proxy import DBProxy
 
 # logger
 _logger = core_utils.setup_logger("db_proxy_pool")
@@ -18,12 +20,12 @@ class DBProxyMethod(object):
 
     # method emulation
     def __call__(self, *args, **kwargs):
-        tmpLog = core_utils.make_logger(_logger, "method={0}".format(self.methodName), method_name="call")
+        tmpLog = core_utils.make_logger(_logger, f"method={self.methodName}", method_name="call")
         sw = core_utils.get_stopwatch()
         try:
             # get connection
             con = self.pool.get()
-            tmpLog.debug("got lock. qsize={0} {1}".format(self.pool.qsize(), sw.get_elapsed_time()))
+            tmpLog.debug(f"got lock. qsize={self.pool.qsize()} {sw.get_elapsed_time()}")
             sw.reset()
             # get function
             func = getattr(con, self.methodName)
@@ -54,9 +56,9 @@ class DBProxyPool(object):
             thrID = None
         else:
             thrID = currentThr.ident
-        thrName = "{0}-{1}".format(os.getpid(), thrID)
+        thrName = f"{os.getpid()}-{thrID}"
         for i in range(harvester_config.db.nConnections):
-            con = DBProxy(thr_name="{0}-{1}".format(thrName, i), read_only=read_only)
+            con = DBProxy(thr_name=f"{thrName}-{i}", read_only=read_only)
             self.pool.put(con)
 
     # override __new__ to have a singleton

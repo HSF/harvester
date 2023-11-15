@@ -3,14 +3,14 @@ Work spec class
 
 """
 
-import re
-import os
 import datetime
+import os
+import re
+
 from future.utils import iteritems
+from pandaharvester.harvesterconfig import harvester_config
 
 from .spec_base import SpecBase
-
-from pandaharvester.harvesterconfig import harvester_config
 
 
 # work spec
@@ -344,8 +344,8 @@ class WorkSpec(SpecBase):
         if stream.startswith("http"):
             url = stream
         else:
-            remoteName = "{0}__{1}".format(harvester_config.master.harvester_id, os.path.basename(stream))
-            url = "{0}/{1}".format(harvester_config.pandacon.pandaCacheURL_R, remoteName)
+            remoteName = f"{harvester_config.master.harvester_id}__{os.path.basename(stream)}"
+            url = f"{harvester_config.pandacon.pandaCacheURL_R}/{remoteName}"
             # set file to periodically upload
             self.update_log_files_to_upload(stream, 0, remoteName, keyName)
         self.set_work_attributes({keyName: url})

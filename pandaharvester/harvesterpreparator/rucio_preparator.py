@@ -2,8 +2,8 @@ import json
 import os
 import subprocess
 import traceback
-from future.utils import iteritems
 
+from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
@@ -72,8 +72,8 @@ class RucioPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
-        tmpLog.debug("Start. Trigger data transfer for job: {0}".format(jobspec.PandaID))
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_preparation")
+        tmpLog.debug(f"Start. Trigger data transfer for job: {jobspec.PandaID}")
 
         try:
             params = json.loads(jobspec.jobParams["jobPars"])
@@ -87,7 +87,7 @@ class RucioPreparator(PluginBase):
             base_dir = params["input_location"]  # dir name in EOS
 
             if not base_dir:
-                tmpLog.debug("input_location is not defined. will use harvester defaultDest: %s" % self.defaultDest)
+                tmpLog.debug(f"input_location is not defined. will use harvester defaultDest: {self.defaultDest}")
                 base_dir = self.defaultDest
                 # tmpLog.error("input_location is not defined.")
 
@@ -127,21 +127,21 @@ class RucioPreparator(PluginBase):
                     exit_code = -1
                     tmpLog.warning("command timeout")
 
-                tmpLog.debug("stdout: %s" % stdout)
-                tmpLog.debug("stderr: %s" % stderr)
+                tmpLog.debug(f"stdout: {stdout}")
+                tmpLog.debug(f"stderr: {stderr}")
 
                 if exit_code != 0:
                     final_exit_code = exit_code
 
                 total_files, downloaded_files, cannot_download_files = get_num_files(stdout)
                 if total_files is None or downloaded_files is None:
-                    errMsg = "Failed to download dataset %s: cannot parse total files or downloaded files: stdout: %s, stderr: %s" % (dataset, stdout, stderr)
+                    errMsg = f"Failed to download dataset {dataset}: cannot parse total files or downloaded files: stdout: {stdout}, stderr: {stderr}"
                     tmpLog.error(errMsg)
                 elif total_files > downloaded_files or cannot_download_files:
-                    errMsg = "Not all files are downloaded for dataset %s: stdout: %s, stderr: %s" % (dataset, stdout, stderr)
+                    errMsg = f"Not all files are downloaded for dataset {dataset}: stdout: {stdout}, stderr: {stderr}"
                     tmpLog.error(errMsg)
                 else:
-                    tmpLog.info("All files are downloaded for dataset %s: stdout: %s, stderr: %s" % (dataset, stdout, stderr))
+                    tmpLog.info(f"All files are downloaded for dataset {dataset}: stdout: {stdout}, stderr: {stderr}")
                     downloaded_datasets += 1
             if final_exit_code == 0 and total_datasets == downloaded_datasets:
                 tmpLog.info("All datasets have been downloaded")

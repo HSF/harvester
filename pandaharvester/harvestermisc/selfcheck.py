@@ -1,8 +1,8 @@
 import errno
-import json
 import hashlib
-import psutil
+import json
 
+import psutil
 from pandaharvester.commit_timestamp import timestamp as commitTimestamp
 from pandaharvester.panda_pkg_info import release_version as releaseVersion
 

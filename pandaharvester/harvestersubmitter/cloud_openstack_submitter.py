@@ -5,17 +5,15 @@ try:
     import subprocess32 as subprocess
 except BaseException:
     import subprocess
+
 import random
-import uuid
-
-from concurrent.futures import ThreadPoolExecutor
-
 import re
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.cloud_openstack_utils import OS_SimpleClient
-
 
 # setup base logger
 baseLogger = core_utils.setup_logger("cloud_openstack_submitter")
@@ -36,7 +34,7 @@ def _init_script_replace(string, **kwarg):
 # make cloud initialization script
 def _make_init_script(workspec, template_str):
     # make logger
-    tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="_make_init_script")
+    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_make_init_script")
 
     # make init tempfile
     tmpFile = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_init.sh", dir=workspec.get_access_point())
@@ -57,13 +55,13 @@ class CloudOpenstackSubmitter(PluginBase):
 
     def _submit_a_vm(self, workspec):
         # set logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="_submit_a_vm")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_submit_a_vm")
 
         # initial return values
         tmpRetVal = (None, "Nothing done")
 
         # decide id
-        vm_name = "harvester-vm_{0}".format(str(uuid.uuid4()))
+        vm_name = f"harvester-vm_{str(uuid.uuid4())}"
 
         # # decide image
         vm_image_id = self.vmImageID
@@ -88,7 +86,7 @@ class CloudOpenstackSubmitter(PluginBase):
             vm_image = self.vm_client.nova.glance.find_image(vm_image_id)
             vm_flavor = self.vm_client.nova.flavors.get(vm_flavor_id)
         except Exception as _e:
-            errStr = "Failed to create a VM with name={0} ; {1}".format(vm_name, _e)
+            errStr = f"Failed to create a VM with name={vm_name} ; {_e}"
             tmpLog.error(errStr)
             tmpRetVal = (None, errStr)
             return tmpRetVal
@@ -97,7 +95,7 @@ class CloudOpenstackSubmitter(PluginBase):
         try:
             self.vm_client.nova.servers.create(name=vm_name, image=vm_image, flavor=vm_flavor, userdata=vm_userdata, **self.vmCreateAttributes)
         except Exception as _e:
-            errStr = "Failed to create a VM with name={0} ; {1}".format(vm_name, _e)
+            errStr = f"Failed to create a VM with name={vm_name} ; {_e}"
             tmpLog.error(errStr)
             tmpRetVal = (None, errStr)
         else:
@@ -105,12 +103,12 @@ class CloudOpenstackSubmitter(PluginBase):
                 vm_server = self.vm_client.nova.servers.list(search_opts={"name": vm_name}, limit=1)[0]
                 vm_id = vm_server.id
             except Exception as _e:
-                errStr = "Failed to create a VM with name={0} ; {1}".format(vm_name, _e)
+                errStr = f"Failed to create a VM with name={vm_name} ; {_e}"
                 tmpLog.error(errStr)
                 tmpRetVal = (None, errStr)
             else:
                 workspec.batchID = vm_id
-                tmpLog.info("Created a VM with name={vm_name} id={vm_id}".format(vm_name=vm_name, vm_id=vm_id))
+                tmpLog.info(f"Created a VM with name={vm_name} id={vm_id}")
                 tmpRetVal = (True, "")
 
         vm_userdata.close()
@@ -125,12 +123,12 @@ class CloudOpenstackSubmitter(PluginBase):
         tmpLog = self.make_logger(baseLogger, method_name="submit_workers")
 
         nWorkers = len(workspec_list)
-        tmpLog.debug("start nWorkers={0}".format(nWorkers))
+        tmpLog.debug(f"start nWorkers={nWorkers}")
 
         # exec with multi-thread
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
             retValList = thread_pool.map(self._submit_a_vm, workspec_list)
-        tmpLog.debug("{0} workers submitted".format(nWorkers))
+        tmpLog.debug(f"{nWorkers} workers submitted")
 
         # return
         retList = list(retValList)

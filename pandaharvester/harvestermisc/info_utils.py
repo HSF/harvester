@@ -1,14 +1,12 @@
-import time
 import threading
-from future.utils import iteritems
+import time
 
 import six
-
+from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestercore.db_interface import DBInterface
-
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
 harvesterID = harvester_config.master.harvester_id
 resolver_config = getattr(harvester_config.qconf, "resolverConfig", {})

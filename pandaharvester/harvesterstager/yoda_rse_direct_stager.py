@@ -1,24 +1,23 @@
-import time
 import datetime
-import uuid
-import os
-import sys
-import stat
-import os.path
-import threading
-import tarfile
-import hashlib
-import string
-import shutil
 import errno
+import hashlib
+import os
+import os.path
+import shutil
+import stat
+import string
+import sys
+import tarfile
+import threading
+import time
+import uuid
 
 from future.utils import iteritems
-
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvesterstager.base_stager import BaseStager
 
 from .base_stager import BaseStager
@@ -49,7 +48,7 @@ class YodaRseDirectStager(BaseStager):
 
     def __init__(self, **kwarg):
         BaseStager.__init__(self, **kwarg)
-        tmpLog = self.make_logger(baseLogger, "ThreadID={0}".format(threading.current_thread().ident), method_name="YodaRseDirectStager __init__ ")
+        tmpLog = self.make_logger(baseLogger, f"ThreadID={threading.current_thread().ident}", method_name="YodaRseDirectStager __init__ ")
         tmpLog.debug("start")
         self.Yodajob = False
         self.pathConvention = None
@@ -60,9 +59,7 @@ class YodaRseDirectStager(BaseStager):
     # check status
     def check_stage_out_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(
-            baseLogger, "PandaID={0} ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="check_stage_out_status"
-        )
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
             fileSpec.objstoreID = self.objstoreID
@@ -74,9 +71,7 @@ class YodaRseDirectStager(BaseStager):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(
-            baseLogger, "PandaID={0} ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="trigger_stage_out"
-        )
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident}", method_name="trigger_stage_out")
         tmpLog.debug("start")
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
@@ -84,12 +79,12 @@ class YodaRseDirectStager(BaseStager):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # get the queueConfig and corresponding objStoreID_ES
         queueConfigMapper = QueueConfigMapper()
         queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
         # write to debug log queueConfig.stager
-        tmpLog.debug("jobspec.computingSite - {0} queueConfig.stager {1}".format(jobspec.computingSite, queueConfig.stager))
+        tmpLog.debug(f"jobspec.computingSite - {jobspec.computingSite} queueConfig.stager {queueConfig.stager}")
         # check queueConfig stager section to see if jobtype is set
         if "jobtype" in queueConfig.stager:
             if queueConfig.stager["jobtype"] == "Yoda":
@@ -99,10 +94,10 @@ class YodaRseDirectStager(BaseStager):
         self.objstoreID = int(queueConfig.stager["objStoreID_ES"])
         if self.Yodajob:
             self.pathConvention = int(queueConfig.stager["pathConvention"])
-            tmpLog.debug("Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}".format(jobspec.PandaID, self.objstoreID, self.pathConvention))
+            tmpLog.debug(f"Yoda Job - PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID} pathConvention ={self.pathConvention}")
         else:
             self.pathConvention = None
-            tmpLog.debug("PandaID = {0} objstoreID = {1}".format(jobspec.PandaID, self.objstoreID))
+            tmpLog.debug(f"PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID}")
         self.RSE_dstpath = queueConfig.stager["RSE_dstPath"]
         # loop over the output files and copy the files
         ifile = 0
@@ -116,24 +111,22 @@ class YodaRseDirectStager(BaseStager):
                 scope = "transient"
             # only print to log file first 25 files
             if ifile < 25:
-                msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
+                msgStr = f"fileSpec.lfn - {fileSpec.lfn} fileSpec.scope - {fileSpec.scope}"
                 tmpLog.debug(msgStr)
             if ifile == 25:
                 msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                 tmpLog.debug(msgStr)
             hash = hashlib.md5()
-            hash.update("%s:%s" % (scope, fileSpec.lfn))
+            hash.update(f"{scope}:{fileSpec.lfn}")
             hash_hex = hash.hexdigest()
             correctedscope = "/".join(scope.split("."))
             srcURL = fileSpec.path
-            dstURL = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(
-                endPoint=self.RSE_dstPath, scope=correctedscope, hash1=hash_hex[0:2], hash2=hash_hex[2:4], lfn=fileSpec.lfn
-            )
+            dstURL = f"{self.RSE_dstPath}/{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{fileSpec.lfn}"
             if ifile < 25:
-                tmpLog.debug("src={srcURL} dst={dstURL}".format(srcURL=srcURL, dstURL=dstURL))
+                tmpLog.debug(f"src={srcURL} dst={dstURL}")
             # copy the source file from source to destination skip over if file already exists
             if os.path.exists(dstURL):
-                tmpLog.debug("Already copied file {0}".format(dstURL))
+                tmpLog.debug(f"Already copied file {dstURL}")
                 # Set the file spec status
                 if self.changeFileStatusOnSuccess:
                     fileSpec.status = "finished"
@@ -160,7 +153,7 @@ class YodaRseDirectStager(BaseStager):
         #  Now test for any errors
         if errors:
             for error in errors:
-                tmpLog.debug("copy error source {0} destination {1} Reason {2}".format(error[0], error[1], error[2]))
+                tmpLog.debug(f"copy error source {error[0]} destination {error[1]} Reason {error[2]}")
             raise Error(errors)
         # otherwise we are OK
         tmpLog.debug("stop")
@@ -169,5 +162,5 @@ class YodaRseDirectStager(BaseStager):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)

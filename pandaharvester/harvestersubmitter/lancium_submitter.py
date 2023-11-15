@@ -1,17 +1,19 @@
-import traceback
-import socket
 import os
-
+import socket
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestersubmitter import submitter_common
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
-
-from pandaharvester.harvestermisc.lancium_utils import LanciumClient, SCRIPTS_PATH, get_job_name_from_workspec
+from pandaharvester.harvestermisc.lancium_utils import (
+    SCRIPTS_PATH,
+    LanciumClient,
+    get_job_name_from_workspec,
+)
+from pandaharvester.harvestersubmitter import submitter_common
 
 base_logger = core_utils.setup_logger("lancium_submitter")
 
@@ -56,12 +58,12 @@ class LanciumSubmitter(PluginBase):
             base_name = "pilots_starter.py"
             dir_name = os.path.dirname(__file__)
 
-            local_file = os.path.join(dir_name, "../harvestercloud/{0}".format(base_name))
+            local_file = os.path.join(dir_name, f"../harvestercloud/{base_name}")
             lancium_file = os.path.join(SCRIPTS_PATH, base_name)
             self.lancium_client.upload_file(local_file, lancium_file)
             tmp_log.debug("Done")
         except Exception:
-            tmp_log.error("Problem uploading proxy {0}. {1}".format(local_file, traceback.format_exc()))
+            tmp_log.error(f"Problem uploading proxy {local_file}. {traceback.format_exc()}")
 
     def _choose_proxy(self, workspec):
         """
@@ -140,7 +142,7 @@ class LanciumSubmitter(PluginBase):
         return params
 
     def submit_lancium_worker(self, workspec):
-        tmp_log = self.make_logger(base_logger, "queueName={0}".format(self.queueName), method_name="submit_lancium_worker")
+        tmp_log = self.make_logger(base_logger, f"queueName={self.queueName}", method_name="submit_lancium_worker")
 
         this_panda_queue_dict = self.panda_queues_dict.get(self.queueName, dict())
 
@@ -150,8 +152,8 @@ class LanciumSubmitter(PluginBase):
             harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
 
             # set the stdout log file
-            log_file_name = "{0}_{1}.out".format(harvester_config.master.harvester_id, workspec.workerID)
-            workspec.set_log_file("stdout", "{0}/{1}".format(self.logBaseURL, log_file_name))
+            log_file_name = f"{harvester_config.master.harvester_id}_{workspec.workerID}.out"
+            workspec.set_log_file("stdout", f"{self.logBaseURL}/{log_file_name}")
 
             # choose the appropriate proxy
             cert = self._choose_proxy(workspec)
@@ -181,7 +183,7 @@ class LanciumSubmitter(PluginBase):
             if pilot_opt_dict is None:
                 prod_source_label = prod_source_label_tmp
                 pilot_type = workspec.pilotType
-                pilot_url_str = "--piloturl {0}".format(pilot_url) if pilot_url else ""
+                pilot_url_str = f"--piloturl {pilot_url}" if pilot_url else ""
             else:
                 prod_source_label = pilot_opt_dict["prod_source_label"]
                 pilot_type = pilot_opt_dict["pilot_type_opt"]
@@ -211,21 +213,21 @@ class LanciumSubmitter(PluginBase):
 
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
-            err_str = "Failed to create a worker; {0}".format(_e)
+            err_str = f"Failed to create a worker; {_e}"
             tmp_return_value = (False, err_str)
         else:
             workspec.batchID = return_str
-            tmp_log.debug("Created worker {0} with batchID={1}".format(workspec.workerID, workspec.batchID))
+            tmp_log.debug(f"Created worker {workspec.workerID} with batchID={workspec.batchID}")
             tmp_return_value = (True, "")
 
         return tmp_return_value
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmp_log = self.make_logger(base_logger, "queueName={0}".format(self.queueName), method_name="submit_workers")
+        tmp_log = self.make_logger(base_logger, f"queueName={self.queueName}", method_name="submit_workers")
 
         n_workers = len(workspec_list)
-        tmp_log.debug("start, n_workers={0}".format(n_workers))
+        tmp_log.debug(f"start, n_workers={n_workers}")
 
         ret_list = list()
         if not workspec_list:
@@ -234,7 +236,7 @@ class LanciumSubmitter(PluginBase):
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
             ret_val_list = thread_pool.map(self.submit_lancium_worker, workspec_list)
-            tmp_log.debug("{0} workers submitted".format(n_workers))
+            tmp_log.debug(f"{n_workers} workers submitted")
 
         ret_list = list(ret_val_list)
 

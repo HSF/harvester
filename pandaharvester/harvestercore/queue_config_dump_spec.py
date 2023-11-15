@@ -2,9 +2,9 @@
 Queue Config dump class
 
 """
-import json
 import copy
 import hashlib
+import json
 
 from .spec_base import SpecBase
 
@@ -37,4 +37,4 @@ class QueueConfigDumpSpec(SpecBase):
         m.update(json.dumps(self.data).encode("utf-8"))
         self.checksum = m.hexdigest()
         # set unique name
-        self.dumpUniqueName = "{0}_{1}".format(self.queueName, self.checksum)
+        self.dumpUniqueName = f"{self.queueName}_{self.checksum}"

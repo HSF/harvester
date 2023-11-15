@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-import os
-import sys
-import optparse
-import logging
-import sqlite3
 import datetime
+import logging
+import optparse
+import os
+import sqlite3
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +93,9 @@ def main():
     if options.hours:
         utcnow = datetime.datetime.utcnow() - datetime.timedelta(hours=options.hours)
         utcnow_str = utcnow.strftime("%Y-%d-%m %H:%M:%S")
-        work_cmd = 'SELECT workerID,batchID,status FROM work_table WHERE modificationTime > "%s"' % utcnow_str
+        work_cmd = f'SELECT workerID,batchID,status FROM work_table WHERE modificationTime > "{utcnow_str}"'
     elif options.workers:
-        work_cmd = "SELECT workerID,batchID,status FROM work_table ORDER BY workerID DESC LIMIT %s" % options.workers
+        work_cmd = f"SELECT workerID,batchID,status FROM work_table ORDER BY workerID DESC LIMIT {options.workers}"
     cursor.execute(work_cmd)
 
     work_entries = cursor.fetchall()
@@ -106,7 +106,7 @@ def main():
         jobs_in_state = {}
         jobs_in_substate = {}
 
-        jw_cmd = "SELECT * FROM jw_table WHERE workerID=%s" % workerID
+        jw_cmd = f"SELECT * FROM jw_table WHERE workerID={workerID}"
 
         cursor.execute(jw_cmd)
         jw_entries = cursor.fetchall()
@@ -114,7 +114,7 @@ def main():
         for jw_entry in jw_entries:
             pandaID, workerID, relationType = jw_entry
 
-            job_cmd = "SELECT status,subStatus FROM job_table WHERE PandaID=%s" % pandaID
+            job_cmd = f"SELECT status,subStatus FROM job_table WHERE PandaID={pandaID}"
 
             cursor.execute(job_cmd)
             job_info = cursor.fetchall()[0]
@@ -130,10 +130,10 @@ def main():
             # logger.info('pandaID: %s status: %s subStatus: %s',pandaID,status,subStatus)
         string = "job status = ["
         for job_status, count in jobs_in_state.iteritems():
-            string += " %s(%s)" % (job_status, count)
+            string += f" {job_status}({count})"
         string += "] subStatus = {"
         for job_substatus, count in jobs_in_substate.iteritems():
-            string += "%s(%s)" % (job_substatus, count)
+            string += f"{job_substatus}({count})"
         string += "}"
         logger.info("workerID: %s; batchID: %s; worker status: %s; %s", workerID, batchID, workerStatus, string)
 

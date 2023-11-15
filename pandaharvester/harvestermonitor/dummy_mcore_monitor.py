@@ -1,9 +1,9 @@
 import os.path
 from concurrent.futures import ProcessPoolExecutor as Pool
 
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # logger
 baseLogger = core_utils.setup_logger("dummy_mcore_monitor")
@@ -12,9 +12,9 @@ baseLogger = core_utils.setup_logger("dummy_mcore_monitor")
 # check a worker
 def check_a_worker(workspec):
     # make logger
-    tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="check_a_worker")
+    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="check_a_worker")
     dummyFilePath = os.path.join(workspec.get_access_point(), "status.txt")
-    tmpLog.debug("look for {0}".format(dummyFilePath))
+    tmpLog.debug(f"look for {dummyFilePath}")
     newStatus = WorkSpec.ST_finished
     try:
         with open(dummyFilePath) as dummyFile:
@@ -22,7 +22,7 @@ def check_a_worker(workspec):
             newStatus = newStatus.strip()
     except BaseException:
         pass
-    tmpLog.debug("newStatus={0}".format(newStatus))
+    tmpLog.debug(f"newStatus={newStatus}")
     return (newStatus, "")
 
 
@@ -36,7 +36,7 @@ class DummyMcoreMonitor(PluginBase):
     def check_workers(self, workspec_list):
         # make logger
         tmpLog = self.make_logger(baseLogger, method_name="check_workers")
-        tmpLog.debug("start nWorkers={0}".format(len(workspec_list)))
+        tmpLog.debug(f"start nWorkers={len(workspec_list)}")
         with Pool() as pool:
             retList = pool.map(check_a_worker, workspec_list)
         tmpLog.debug("done")

@@ -5,9 +5,8 @@
 #
 import sys
 
-from setuptools import find_packages, setup
-
 from pandaharvester import panda_pkg_info
+from setuptools import find_packages, setup
 
 sys.path.insert(0, ".")
 

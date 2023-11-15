@@ -1,7 +1,6 @@
 import abc
 
 import six
-
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 

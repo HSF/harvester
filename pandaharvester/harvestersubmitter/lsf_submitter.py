@@ -1,6 +1,6 @@
 import datetime
-import tempfile
 import re
+import tempfile
 
 try:
     import subprocess32 as subprocess
@@ -31,27 +31,27 @@ class LSFSubmitter(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="submit_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
             # make batch script
             batchFile = self.make_batch_script(workSpec)
             # command
             comStr = "bsub -L /bin/sh"
             # submit
-            tmpLog.debug("submit with {0} and LSF options file {1}".format(comStr, batchFile))
+            tmpLog.debug(f"submit with {comStr} and LSF options file {batchFile}")
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=open(batchFile, "r"))
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            tmpLog.debug("retCode={0}".format(retCode))
-            tmpLog.debug("stdOut={0}".format(stdOut))
-            tmpLog.debug("stdErr={0}".format(stdErr))
+            tmpLog.debug(f"retCode={retCode}")
+            tmpLog.debug(f"stdOut={stdOut}")
+            tmpLog.debug(f"stdErr={stdErr}")
             if retCode == 0:
                 # extract batchID
                 batchID = str(stdOut.split()[1], "utf-8")
                 result = re.sub("[^0-9]", "", batchID)
-                tmpLog.debug("strip out non-numberic charactors from {0} - result {1}".format(batchID, result))
+                tmpLog.debug(f"strip out non-numberic charactors from {batchID} - result {result}")
                 workSpec.batchID = result
-                tmpLog.debug("batchID={0}".format(workSpec.batchID))
+                tmpLog.debug(f"batchID={workSpec.batchID}")
                 # set log files
                 if self.uploadLog:
                     if self.logBaseURL is None:
@@ -60,9 +60,9 @@ class LSFSubmitter(PluginBase):
                         baseDir = self.logBaseURL
                     stdOut, stdErr = self.get_log_file_names(batchFile, workSpec.batchID)
                     if stdOut is not None:
-                        workSpec.set_log_file("stdout", "{0}/{1}".format(baseDir, stdOut))
+                        workSpec.set_log_file("stdout", f"{baseDir}/{stdOut}")
                     if stdErr is not None:
-                        workSpec.set_log_file("stderr", "{0}/{1}".format(baseDir, stdErr))
+                        workSpec.set_log_file("stderr", f"{baseDir}/{stdErr}")
                 tmpRetVal = (True, "")
             else:
                 # failed

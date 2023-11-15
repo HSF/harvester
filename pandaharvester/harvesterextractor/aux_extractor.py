@@ -1,4 +1,5 @@
 import re
+
 from .base_extractor import BaseExtractor
 
 
@@ -29,7 +30,7 @@ class AuxExtractor(BaseExtractor):
                 tmpM = re.search("-i\s+([^\s]+)", jobPars)
             if tmpM is not None:
                 lfn = tmpM.group(1)
-                url = "{0}/cache/{1}".format(sourceURL, lfn)
+                url = f"{sourceURL}/cache/{lfn}"
                 url_list.append(url)
         # extract container image
         if "container_name" in jobspec.jobParams:

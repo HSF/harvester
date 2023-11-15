@@ -1,4 +1,5 @@
 import sys
+
 from lancium.api.Job import Job
 
 if len(sys.argv) != 2:

@@ -15,16 +15,16 @@ nodes_av = {}
 # get nodes and make a dictionary with the available ones
 nodes = corev1.list_node()
 for node in nodes.items:
-    print("Processing {0}".format(node.metadata.name))
+    print(f"Processing {node.metadata.name}")
     for condition in node.status.conditions:
-        print("Condition: {0}, status: {1}".format(condition.type, type(condition.status)))
+        print(f"Condition: {condition.type}, status: {type(condition.status)}")
         if condition.type == "Ready" and condition.status == "Unknown":
             nodes_unav.append(node.metadata.name)
         elif condition.type == "Ready" and condition.status == "True":
             nodes_av.setdefault(node.metadata.name, [])
 
-print("Unavailable nodes: {0}".format(len(nodes_unav)))
-print("Available nodes: {0}".format(len(nodes_av.keys())))
+print(f"Unavailable nodes: {len(nodes_unav)}")
+print(f"Available nodes: {len(nodes_av.keys())}")
 
 # get pods and pack them into the available nodes
 pods = corev1.list_namespaced_pod(namespace=namespace)
@@ -43,4 +43,4 @@ for pod in pods.items:
 
 for node in nodes_av:
     if not sum(nodes_av[node]):
-        print("{0}: occupied cpus {1}".format(node, nodes_av[node]))
+        print(f"{node}: occupied cpus {nodes_av[node]}")

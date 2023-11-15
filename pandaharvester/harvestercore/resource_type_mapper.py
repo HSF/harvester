@@ -1,8 +1,8 @@
 from __future__ import division
 
+import datetime
 import math
 import threading
-import datetime
 
 from .db_proxy_pool import DBProxyPool as DBProxy
 

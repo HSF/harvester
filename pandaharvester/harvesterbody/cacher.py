@@ -1,17 +1,16 @@
-import re
-import os
-import json
-import shutil
 import datetime
-import requests
-import requests.exceptions
-
+import json
+import os
+import re
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 
+import requests
+import requests.exceptions
+from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvesterbody.agent_base import AgentBase
 
 # logger
 _logger = core_utils.setup_logger("cacher")
@@ -36,7 +35,7 @@ class Cacher(AgentBase):
 
     # main
     def execute(self, force_update=False, skip_lock=False, n_thread=0):
-        mainLog = self.make_logger(_logger, "id={0}".format(self.get_pid()), method_name="execute")
+        mainLog = self.make_logger(_logger, f"id={self.get_pid()}", method_name="execute")
         # get lock
         locked = self.dbProxy.get_process_lock("cacher", self.get_pid(), harvester_config.cacher.sleepTime)
         if locked or skip_lock:
@@ -64,12 +63,12 @@ class Cacher(AgentBase):
                 # get information
                 tmpStat, newInfo = self.get_data(infoURL, mainLog)
                 if not tmpStat:
-                    mainLog.error("failed to get info for key={0} subKey={1}".format(mainKey, subKey))
+                    mainLog.error(f"failed to get info for key={mainKey} subKey={subKey}")
                     return
                 # update
                 tmpStat = self.dbProxy.refresh_cache(mainKey, subKey, newInfo)
                 if tmpStat:
-                    mainLog.debug("refreshed key={0} subKey={1}".format(mainKey, subKey))
+                    mainLog.debug(f"refreshed key={mainKey} subKey={subKey}")
                     if dumpFile is not None:
                         try:
                             tmpFileName = dumpFile + ".tmp"
@@ -79,11 +78,11 @@ class Cacher(AgentBase):
                         except Exception:
                             core_utils.dump_error_message(mainLog)
                 else:
-                    mainLog.error("failed to refresh key={0} subKey={1} due to a DB error".format(mainKey, subKey))
+                    mainLog.error(f"failed to refresh key={mainKey} subKey={subKey} due to a DB error")
 
             # loop over all items
             if n_thread:
-                mainLog.debug("refresh cache with {0} threads".format(n_thread))
+                mainLog.debug(f"refresh cache with {n_thread} threads")
                 with ThreadPoolExecutor(n_thread) as thread_pool:
                     thread_pool.map(_refresh_cache, itemsList)
             else:
@@ -102,7 +101,7 @@ class Cacher(AgentBase):
         if match:
             var_name = match.group(1)
             if var_name not in os.environ:
-                errMsg = "undefined environment variable: {}".format(var_name)
+                errMsg = f"undefined environment variable: {var_name}"
                 tmp_log.error(errMsg)
             else:
                 info_url = os.environ[var_name]
@@ -123,13 +122,13 @@ class Cacher(AgentBase):
                     try:
                         retVal = res.json()
                     except Exception:
-                        errMsg = "corrupted json from {0} : {1}".format(info_url, res.text)
+                        errMsg = f"corrupted json from {info_url} : {res.text}"
                         tmp_log.error(errMsg)
                 else:
-                    errMsg = "failed to get {0} with StatusCode={1} {2}".format(info_url, res.status_code, res.text)
+                    errMsg = f"failed to get {info_url} with StatusCode={res.status_code} {res.text}"
                     tmp_log.error(errMsg)
             except requests.exceptions.ReadTimeout:
-                tmp_log.error("read timeout when getting data from {0}".format(info_url))
+                tmp_log.error(f"read timeout when getting data from {info_url}")
             except Exception:
                 core_utils.dump_error_message(tmp_log)
         elif info_url.startswith("https:"):
@@ -148,7 +147,7 @@ class Cacher(AgentBase):
                     # try without certificate
                     res = requests.get(info_url, timeout=60)
             except requests.exceptions.ReadTimeout:
-                tmp_log.error("read timeout when getting data from {0}".format(info_url))
+                tmp_log.error(f"read timeout when getting data from {info_url}")
             except Exception:
                 core_utils.dump_error_message(tmp_log)
             else:
@@ -156,10 +155,10 @@ class Cacher(AgentBase):
                     try:
                         retVal = res.json()
                     except Exception:
-                        errMsg = "corrupted json from {0} : {1}".format(info_url, res.text)
+                        errMsg = f"corrupted json from {info_url} : {res.text}"
                         tmp_log.error(errMsg)
                 else:
-                    errMsg = "failed to get {0} with StatusCode={1} {2}".format(info_url, res.status_code, res.text)
+                    errMsg = f"failed to get {info_url} with StatusCode={res.status_code} {res.text}"
                     tmp_log.error(errMsg)
         elif info_url.startswith("panda_cache:"):
             try:
@@ -179,7 +178,7 @@ class Cacher(AgentBase):
             except Exception:
                 core_utils.dump_error_message(tmp_log)
         else:
-            errMsg = "unsupported protocol for {0}".format(info_url)
+            errMsg = f"unsupported protocol for {info_url}"
             tmp_log.error(errMsg)
         if retVal is not None:
             retStat = True

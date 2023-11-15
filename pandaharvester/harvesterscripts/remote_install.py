@@ -1,13 +1,13 @@
+import argparse
+import logging
 import os
 import re
-import sys
 import shutil
-import argparse
-import tempfile
 import subprocess
-import paramiko
-import logging
+import sys
+import tempfile
 
+import paramiko
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 
@@ -68,12 +68,12 @@ def main():
     qcm.load_data()
     queueConfig = qcm.get_queue(options.queueName)
     if queueConfig is None:
-        print("ERROR: queue={0} not found in panda_queueconfig.json".format(options.queueName))
+        print(f"ERROR: queue={options.queueName} not found in panda_queueconfig.json")
         sys.exit(1)
 
     # get middleware
     if not hasattr(queueConfig, options.middleware):
-        print("ERROR: middleware={0} is not defined for {1} in panda_queueconfig.json".format(options.middleware, options.queueName))
+        print(f"ERROR: middleware={options.middleware} is not defined for {options.queueName} in panda_queueconfig.json")
         sys.exit(1)
     middleware = getattr(queueConfig, options.middleware)
 
@@ -95,7 +95,7 @@ def main():
         try:
             privateKey = middleware["privateKey"]
         except Exception:
-            print("ERROR: set sshPassword or privateKey in middleware={0}".format(options.middleware))
+            print(f"ERROR: set sshPassword or privateKey in middleware={options.middleware}")
             sys.exit(1)
         try:
             passPhrase = middleware["passPhrase"]
@@ -118,7 +118,7 @@ def main():
     exec_out = sshClient.exec_command(";".join([options.remotePythonSetup, """python -c 'import sys;print("{0}{1}".format(*(sys.version_info[:2])))' """]))
     remotePythonVer = exec_out[1].read().rstrip()
     sshClient.close()
-    print("remote python version : {0}".format(remotePythonVer))
+    print(f"remote python version : {remotePythonVer}")
 
     # make tmp dir
     with TemporaryDirectory() as tmpDir:
@@ -137,12 +137,12 @@ def main():
         packages.remove("pandaharvester")
 
         # download packages
-        print("pip download to {0}".format(tmpDir))
+        print(f"pip download to {tmpDir}")
         for package in packages:
-            print("getting {0}".format(package))
-            ret = subprocess.call("pip download --no-deps --python-version {0} -d {1} {2}".format(remotePythonVer, tmpDir, package), shell=True)
+            print(f"getting {package}")
+            ret = subprocess.call(f"pip download --no-deps --python-version {remotePythonVer} -d {tmpDir} {package}", shell=True)
             if ret != 0:
-                print("ERROR: failed to download {0}".format(package))
+                print(f"ERROR: failed to download {package}")
                 sys.exit(1)
 
         # sftp
@@ -157,7 +157,7 @@ def main():
             if os.path.isdir(path):
                 continue
             remotePath = os.path.join(options.remoteBuildDir, name)
-            print("copy {0} to {1}".format(name, remotePath))
+            print(f"copy {name} to {remotePath}")
             sftp.put(path, remotePath)
 
         # install
@@ -166,9 +166,7 @@ def main():
         if not buildDir.startswith("/"):
             buildDir = "~/" + buildDir
         exec_out = sshClient.exec_command(
-            ";".join(
-                [options.remotePythonSetup, "cd {0}".format(options.remoteDir), "pip install pip pandaharvester --no-index --find-links {0}".format(buildDir)]
-            )
+            ";".join([options.remotePythonSetup, f"cd {options.remoteDir}", f"pip install pip pandaharvester --no-index --find-links {buildDir}"])
         )
         print(exec_out[1].read())
         print(exec_out[2].read())

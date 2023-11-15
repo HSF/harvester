@@ -1,31 +1,32 @@
-import sys
+import datetime
+import hashlib
+import logging
 import os
 import os.path
-import hashlib
-import datetime
-import uuid
 import random
 import string
-import time
+import sys
 import threading
-import logging
+import time
+import uuid
+
 from future.utils import iteritems
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.file_spec import FileSpec
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from globus_sdk import (
+    NativeAppAuthClient,
+    RefreshTokenAuthorizer,
+    TransferClient,
+    TransferData,
+)
 from pandaharvester.harvesterbody.cacher import Cacher
-from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestermisc import globus_utils
-
-from globus_sdk import TransferClient
-from globus_sdk import TransferData
-from globus_sdk import NativeAppAuthClient
-from globus_sdk import RefreshTokenAuthorizer
-
 
 # initial variables
 fileTableName = "file_table"
@@ -41,7 +42,7 @@ conLock = threading.Lock()
 def dump(obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+            print(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 if len(sys.argv) > 1:
@@ -80,11 +81,11 @@ for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
         stdoutHandler.setFormatter(loggerObj.handlers[0].formatter)
         loggerObj.addHandler(stdoutHandler)
 
-msgStr = "plugin={0}".format(stagerCore.__class__.__name__)
+msgStr = f"plugin={stagerCore.__class__.__name__}"
 tmpLog.debug(msgStr)
-msgStr = "Initial queueConfig.stager = {}".format(initial_queueConfig_stager)
+msgStr = f"Initial queueConfig.stager = {initial_queueConfig_stager}"
 tmpLog.debug(msgStr)
-msgStr = "Modified queueConfig.stager = {}".format(modified_queueConfig_stager)
+msgStr = f"Modified queueConfig.stager = {modified_queueConfig_stager}"
 tmpLog.debug(msgStr)
 
 scope = "panda"
@@ -94,20 +95,20 @@ communicator = CommunicatorPool()
 cacher = Cacher(communicator, single_mode=True)
 cacher.run()
 
-tmpLog.debug("plugin={0}".format(stagerCore.__class__.__name__))
-tmpLog.debug("BasePath from stager configuration: %s " % stagerCore.basePath)
+tmpLog.debug(f"plugin={stagerCore.__class__.__name__}")
+tmpLog.debug(f"BasePath from stager configuration: {stagerCore.basePath} ")
 
 # get all jobs in table in a preparing substate
 tmpLog.debug("try to get all jobs in a transferring substate")
 jobSpec_list = proxy.get_jobs_in_sub_status("transferring", 2000, None, None, None, None, None, None)
-tmpLog.debug("got {0} jobs".format(len(jobSpec_list)))
+tmpLog.debug(f"got {len(jobSpec_list)} jobs")
 # loop over all found jobs
 if len(jobSpec_list) > 0:
     for jobSpec in jobSpec_list:
         tmpLog.debug(" PandaID = %d status = %s subStatus = %s lockedBy = %s" % (jobSpec.PandaID, jobSpec.status, jobSpec.subStatus, jobSpec.lockedBy))
         # get the transfer groups
         groups = jobSpec.get_groups_of_input_files(skip_ready=True)
-        tmpLog.debug("jobspec.get_groups_of_input_files() = : {0}".format(groups))
+        tmpLog.debug(f"jobspec.get_groups_of_input_files() = : {groups}")
         # loop over groups keys to see if db is locked
         for key in groups:
             locked = stagerCore.dbInterface.get_object_lock(key, lock_interval=120)
@@ -120,7 +121,7 @@ if len(jobSpec_list) > 0:
             else:
                 tmpLog.debug(" Could not unlock db")
         # print out jobSpec PandID
-        msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
+        msgStr = f"jobSpec PandaID - {jobSpec.PandaID}"
         tmpLog.debug(msgStr)
         # msgStr = "testing trigger_preparation"
         # tmpLog.debug(msgStr)
@@ -138,17 +139,17 @@ if len(jobSpec_list) > 0:
 
         # check status to actually trigger transfer
         # get the files with the group_id and print out
-        msgStr = "Original dummy_transfer_id = {}".format(stagerCore.get_dummy_transfer_id())
+        msgStr = f"Original dummy_transfer_id = {stagerCore.get_dummy_transfer_id()}"
         tmpLog.debug(msgStr)
         # modify dummy_transfer_id from groups of input files
         for key in groups:
             stagerCore.set_dummy_transfer_id_testing(key)
-            msgStr = "Revised dummy_transfer_id = {}".format(stagerCore.get_dummy_transfer_id())
+            msgStr = f"Revised dummy_transfer_id = {stagerCore.get_dummy_transfer_id()}"
             tmpLog.debug(msgStr)
             files = proxy.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
-            tmpLog.debug("Number proxy.get_files_with_group_id(stagerCore.get_dummy_transfer_id()) = {0}".format(len(files)))
+            tmpLog.debug(f"Number proxy.get_files_with_group_id(stagerCore.get_dummy_transfer_id()) = {len(files)}")
             files = stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
-            tmpLog.debug("Number stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id()) = {0}".format(len(files)))
+            tmpLog.debug(f"Number stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id()) = {len(files)}")
             msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
             tmpLog.debug(msgStr)
             tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
@@ -156,8 +157,8 @@ if len(jobSpec_list) > 0:
                 msgStr = " OK"
                 tmpLog.debug(msgStr)
             elif tmpStat is None:
-                msgStr = " Temporary failure No Good {0}".format(tmpOut)
+                msgStr = f" Temporary failure No Good {tmpOut}"
                 tmpLog.debug(msgStr)
             elif not tmpStat:
-                msgStr = " No Good {0}".format(tmpOut)
+                msgStr = f" No Good {tmpOut}"
                 tmpLog.debug(msgStr)

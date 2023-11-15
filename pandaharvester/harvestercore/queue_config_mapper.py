@@ -1,10 +1,11 @@
-import os
-import json
 import copy
-import time
 import datetime
-import threading
 import importlib
+import json
+import os
+import threading
+import time
+
 import six
 from future.utils import iteritems
 
@@ -15,15 +16,15 @@ except ImportError:
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
-from .work_spec import WorkSpec
-from .panda_queue_spec import PandaQueueSpec
+
 from . import core_utils
 from .core_utils import SingletonWithID
+from .db_interface import DBInterface
 from .db_proxy_pool import DBProxyPool as DBProxy
+from .panda_queue_spec import PandaQueueSpec
 from .plugin_factory import PluginFactory
 from .queue_config_dump_spec import QueueConfigDumpSpec
-from .db_interface import DBInterface
-
+from .work_spec import WorkSpec
 
 # logger
 _logger = core_utils.setup_logger("queue_config_mapper")
@@ -117,13 +118,13 @@ class QueueConfig(object):
         for key in keys:
             val = self.__dict__[key]
             if isinstance(val, dict):
-                pluginStr += " {0} :\n".format(key)
+                pluginStr += f" {key} :\n"
                 pKeys = sorted(val.keys())
                 for pKey in pKeys:
                     pVal = val[pKey]
-                    pluginStr += "  {0} = {1}\n".format(pKey, pVal)
+                    pluginStr += f"  {pKey} = {pVal}\n"
             else:
-                tmpStr += " {0} = {1}\n".format(key, val)
+                tmpStr += f" {key} = {val}\n"
         return header + tmpStr + pluginStr
 
 
@@ -235,10 +236,10 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             with open(confFilePath) as f:
                 queueConfigJson = json.load(f)
         except OSError as e:
-            mainLog.error("Cannot read file: {0} ; {1}".format(confFilePath, e))
+            mainLog.error(f"Cannot read file: {confFilePath} ; {e}")
             return None
         except JSONDecodeError as e:
-            mainLog.error("Invalid JSON in file: {0} ; {1}".format(confFilePath, e))
+            mainLog.error(f"Invalid JSON in file: {confFilePath} ; {e}")
             return None
         return queueConfigJson
 
@@ -257,7 +258,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
     def _update_last_reload_time(self, ts=None):
         if ts is None:
             ts = time.time()
-        new_info = "{0:.3f}".format(ts)
+        new_info = f"{ts:.3f}"
         return self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_info)
 
     # get last reload time
@@ -359,7 +360,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     templateQueueName = queueDict.get("templateQueueName")
                     if templateQueueName is not None and templateQueueName not in finalTemplatesDict:
                         del queuesDict[queueName]
-                        mainLog.warning('Invalid templateQueueName "{0}" for {1} ({2}). Skipped'.format(templateQueueName, queueName, acr))
+                        mainLog.warning(f'Invalid templateQueueName "{templateQueueName}" for {queueName} ({acr}). Skipped')
             # get queue names from resolver and fill in dynamic queue (DQ)
             if resolver is not None and "DYNAMIC" in harvester_config.qconf.queueList:
                 getQueuesDynamic = True
@@ -375,13 +376,13 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     if resolver_harvester_template:
                         templateQueueName = resolver_harvester_template
                     elif not (resolver_type is None or resolver_workflow is None):
-                        templateQueueName = "{pq_type}.{workflow}".format(pq_type=resolver_type, workflow=resolver_workflow)
+                        templateQueueName = f"{resolver_type}.{resolver_workflow}"
                     else:
                         templateQueueName = harvester_config.qconf.defaultTemplateQueueName
                     if templateQueueName not in finalTemplatesDict:
                         # remove queues with invalid templateQueueName
                         dynamicQueuesNameList.discard(queueName)
-                        mainLog.warning('Invalid templateQueueName "{0}" for {1} (DQ). Skipped'.format(templateQueueName, queueName))
+                        mainLog.warning(f'Invalid templateQueueName "{templateQueueName}" for {queueName} (DQ). Skipped')
                         continue
                     # parameters
                     resolver_harvester_params = resolver.get_harvester_params(queueName)
@@ -434,15 +435,10 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 # record sources of the queue config and its templates in log
                 if templateQueueName:
                     mainLog.debug(
-                        ("queue {queueName} comes from {queueSource} " "(with template {templateName} " "from {templateSource})").format(
-                            queueName=queueName,
-                            templateName=templateQueueName,
-                            queueSource=",".join(queueSourceList),
-                            templateSource=",".join(templateSourceList),
-                        )
+                        f"queue {queueName} comes from {','.join(queueSourceList)} (with template {templateQueueName} from {','.join(templateSourceList)})"
                     )
                 else:
-                    mainLog.debug("queue {queueName} comes from {queueSource}".format(queueName=queueName, queueSource=",".join(queueSourceList)))
+                    mainLog.debug(f"queue {queueName} comes from {','.join(queueSourceList)}")
                 # prepare queueConfig
                 if queueName in newQueueConfig:
                     queueConfig = newQueueConfig[queueName]
@@ -471,7 +467,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                             _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val["name"])
                         except Exception as _e:
                             invalidQueueList.add(queueConfig.queueName)
-                            mainLog.error("Module or class not found. Omitted {0} in queue config ({1})".format(queueConfig.queueName, _e))
+                            mainLog.error(f"Module or class not found. Omitted {queueConfig.queueName} in queue config ({_e})")
                             continue
                         else:
                             del _t3mP_1Mp0R7_mO6U1e__
@@ -492,12 +488,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 # delete isTemplateQueue attribute
                 try:
                     if getattr(queueConfig, "isTemplateQueue"):
-                        mainLog.error("Internal error: isTemplateQueue is True. Omitted {0} in queue config".format(queueConfig.queueName))
+                        mainLog.error(f"Internal error: isTemplateQueue is True. Omitted {queueConfig.queueName} in queue config")
                         invalidQueueList.add(queueConfig.queueName)
                     else:
                         delattr(queueConfig, "isTemplateQueue")
                 except AttributeError as _e:
-                    mainLog.error('Internal error with attr "isTemplateQueue". Omitted {0} in queue config ({1})'.format(queueConfig.queueName, _e))
+                    mainLog.error(f'Internal error with attr "isTemplateQueue". Omitted {queueConfig.queueName} in queue config ({_e})')
                     invalidQueueList.add(queueConfig.queueName)
                 # get Panda Queue Name
                 if resolver is not None:
@@ -532,9 +528,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                             invalidQueueList.add(queueConfig.queueName)
                             missing_attr_list.append(_attr)
                     if missing_attr_list:
-                        mainLog.error(
-                            "Missing mandatory attributes {0} . Omitted {1} in queue config".format(",".join(missing_attr_list), queueConfig.queueName)
-                        )
+                        mainLog.error(f"Missing mandatory attributes {','.join(missing_attr_list)} . Omitted {queueConfig.queueName} in queue config")
             # delete invalid queues
             for invalidQueueName in invalidQueueList:
                 if invalidQueueName in newQueueConfig:
@@ -575,7 +569,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     if not tmpStat:
                         dumpSpec.configID = self.dbProxy.get_config_id_dump(dumpSpec)
                         if dumpSpec.configID is None:
-                            mainLog.error("failed to get configID for {0}".format(dumpSpec.dumpUniqueName))
+                            mainLog.error(f"failed to get configID for {dumpSpec.dumpUniqueName}")
                             continue
                     queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
                 queueConfig.configID = dumpSpec.configID

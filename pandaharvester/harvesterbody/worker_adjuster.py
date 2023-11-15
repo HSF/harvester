@@ -1,6 +1,6 @@
 import copy
-from future.utils import iteritems
 
+from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -27,9 +27,9 @@ class WorkerAdjuster(object):
 
     # define number of workers to submit based on various information
     def define_num_workers(self, static_num_workers, site_name):
-        tmp_log = core_utils.make_logger(_logger, "site={0}".format(site_name), method_name="define_num_workers")
+        tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="define_num_workers")
         tmp_log.debug("start")
-        tmp_log.debug("static_num_workers: {0}".format(static_num_workers))
+        tmp_log.debug(f"static_num_workers: {static_num_workers}")
         dyn_num_workers = copy.deepcopy(static_num_workers)
         try:
             # get queue status
@@ -57,18 +57,14 @@ class WorkerAdjuster(object):
                 apf_data = None
                 for job_type, jt_values in iteritems(static_num_workers[queue_name]):
                     for resource_type, tmp_val in iteritems(jt_values):
-                        tmp_log.debug(
-                            "Processing queue {0} job_type {1} resource_type {2} with static_num_workers {3}".format(
-                                queue_name, job_type, resource_type, tmp_val
-                            )
-                        )
+                        tmp_log.debug(f"Processing queue {queue_name} job_type {job_type} resource_type {resource_type} with static_num_workers {tmp_val}")
 
                         # set 0 to num of new workers when the queue is disabled
                         if queue_name in queue_stat and queue_stat[queue_name]["status"] in ["offline", "standby", "maintenance"]:
                             dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
-                            ret_msg = "set n_new_workers=0 since status={0}".format(queue_stat[queue_name]["status"])
+                            ret_msg = f"set n_new_workers=0 since status={queue_stat[queue_name]['status']}"
                             tmp_log.debug(ret_msg)
-                            apf_msg = "Not submitting workers since queue status = {0}".format(queue_stat[queue_name]["status"])
+                            apf_msg = f"Not submitting workers since queue status = {queue_stat[queue_name]['status']}"
                             continue
 
                         # protection against not-up-to-date queue config
@@ -93,7 +89,7 @@ class WorkerAdjuster(object):
                             to_throttle, tmp_msg = throttler.to_be_throttled(queue_config)
                             if to_throttle:
                                 dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
-                                ret_msg = "set n_new_workers=0 by {0}:{1}".format(throttler.__class__.__name__, tmp_msg)
+                                ret_msg = f"set n_new_workers=0 by {throttler.__class__.__name__}:{tmp_msg}"
                                 tmp_log.debug(ret_msg)
                                 continue
 
@@ -119,13 +115,13 @@ class WorkerAdjuster(object):
                         n_new_workers = 0
                         if n_queue >= n_queue_limit_per_rt > 0:
                             # enough queued workers
-                            ret_msg = "No n_new_workers since n_queue({0})>=n_queue_limit_per_rt({1})".format(n_queue, n_queue_limit_per_rt)
+                            ret_msg = f"No n_new_workers since n_queue({n_queue})>=n_queue_limit_per_rt({n_queue_limit_per_rt})"
                             tmp_log.debug(ret_msg)
                             pass
                         elif (n_queue + n_ready + n_running) >= max_workers > 0:
                             # enough workers in the system
-                            ret_msg = "No n_new_workers since n_queue({0}) + n_ready({1}) + n_running({2}) ".format(n_queue, n_ready, n_running)
-                            ret_msg += ">= max_workers({0})".format(max_workers)
+                            ret_msg = f"No n_new_workers since n_queue({n_queue}) + n_ready({n_ready}) + n_running({n_running}) "
+                            ret_msg += f">= max_workers({max_workers})"
                             tmp_log.debug(ret_msg)
                             pass
                         else:
@@ -157,23 +153,23 @@ class WorkerAdjuster(object):
                                     finally:
                                         queue_limit = max_queued_workers
                                         max_queued_workers = min(n_activated, max_queued_workers)
-                                        tmp_log.debug("limiting max_queued_workers to min(n_activated={0}, queue_limit={1})".format(n_activated, queue_limit))
+                                        tmp_log.debug(f"limiting max_queued_workers to min(n_activated={n_activated}, queue_limit={queue_limit})")
 
                             if max_queued_workers is None:  # no value found, use default value
                                 max_queued_workers = 1
 
                             # new workers
                             n_new_workers = max(max_queued_workers - n_queue, 0)
-                            tmp_log.debug("setting n_new_workers to {0} in max_queued_workers calculation".format(n_new_workers))
+                            tmp_log.debug(f"setting n_new_workers to {n_new_workers} in max_queued_workers calculation")
                             if max_workers > 0:
                                 n_new_workers = min(n_new_workers, max(max_workers - n_queue - n_ready - n_running, 0))
-                                tmp_log.debug("setting n_new_workers to {0} to respect max_workers".format(n_new_workers))
+                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect max_workers")
                         if queue_config.maxNewWorkersPerCycle > 0:
                             n_new_workers = min(n_new_workers, queue_config.maxNewWorkersPerCycle)
-                            tmp_log.debug("setting n_new_workers to {0} in order to respect maxNewWorkersPerCycle".format(n_new_workers))
+                            tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect maxNewWorkersPerCycle")
                         if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
                             n_new_workers = min(n_new_workers, self.maxNewWorkers)
-                            tmp_log.debug("setting n_new_workers to {0} in order to respect universal maxNewWorkers".format(n_new_workers))
+                            tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect universal maxNewWorkers")
                         dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = n_new_workers
 
                 # adjust n_new_workers for UCORE to let aggregations over RT respect nQueueLimitWorker and max_workers
@@ -203,7 +199,7 @@ class WorkerAdjuster(object):
                                     dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
                             tmp_log.debug("No n_new_workers since n_new_workers_max_agg=0 for UCORE")
                         else:
-                            tmp_log.debug("n_new_workers_max_agg={0} for UCORE".format(n_new_workers_max_agg))
+                            tmp_log.debug(f"n_new_workers_max_agg={n_new_workers_max_agg} for UCORE")
                             _d = dyn_num_workers[queue_name].copy()
                             del _d["ANY"]
 
@@ -245,7 +241,7 @@ class WorkerAdjuster(object):
                 self.apf_mon.update_label(queue_name, apf_msg, apf_data)
 
             # dump
-            tmp_log.debug("defined {0}".format(str(dyn_num_workers)))
+            tmp_log.debug(f"defined {str(dyn_num_workers)}")
             return dyn_num_workers
         except Exception:
             # dump error

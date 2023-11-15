@@ -1,6 +1,7 @@
 import uuid
 
 from pandaharvester.harvestercore import core_utils
+
 from .base_zipper import BaseZipper
 
 # logger
@@ -27,7 +28,7 @@ class DummyZipper(BaseZipper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)
 
     # asynchronous zip output
@@ -45,7 +46,7 @@ class DummyZipper(BaseZipper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="async_zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="async_zip_output")
         tmpLog.debug("start")
         # set some ID which can be used for lookup in post_zip_output()
         groupID = str(uuid.uuid4())
@@ -67,7 +68,7 @@ class DummyZipper(BaseZipper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="post_zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="post_zip_output")
         tmpLog.debug("start")
         # get groups for lookup
         groups = jobspec.get_groups_of_output_files()

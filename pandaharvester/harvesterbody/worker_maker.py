@@ -19,9 +19,7 @@ class WorkerMaker(object):
 
     # make workers
     def make_workers(self, jobchunk_list, queue_config, n_ready, job_type, resource_type, maker=None):
-        tmpLog = core_utils.make_logger(
-            _logger, "queue={0} jtype={1} rtype={2}".format(queue_config.queueName, job_type, resource_type), method_name="make_workers"
-        )
+        tmpLog = core_utils.make_logger(_logger, f"queue={queue_config.queueName} jtype={job_type} rtype={resource_type}", method_name="make_workers")
         tmpLog.debug("start")
         try:
             # get plugin
@@ -29,7 +27,7 @@ class WorkerMaker(object):
                 maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
             if maker is None:
                 # not found
-                tmpLog.error("plugin for {0} not found".format(queue_config.queueName))
+                tmpLog.error(f"plugin for {queue_config.queueName} not found")
                 return [], jobchunk_list
             # get ready workers
             readyWorkers = self.dbProxy.get_ready_workers(queue_config.queueName, n_ready)
@@ -57,7 +55,7 @@ class WorkerMaker(object):
                     workSpec.isNew = True
                 okChunks.append((workSpec, jobChunk))
             # dump
-            tmpLog.debug("made {0} workers while {1} chunks failed".format(len(okChunks), len(ngChunks)))
+            tmpLog.debug(f"made {len(okChunks)} workers while {len(ngChunks)} chunks failed")
             return okChunks, ngChunks
         except Exception:
             # dump error

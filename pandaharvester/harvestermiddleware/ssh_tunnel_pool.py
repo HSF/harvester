@@ -1,11 +1,10 @@
 import random
+import socket
 import threading
 import uuid
-import socket
 
-import six
 import pexpect
-
+import six
 from pandaharvester.harvestercore import core_utils
 
 if six.PY2:
@@ -27,7 +26,7 @@ class SshTunnelPool(object):
 
     # make a dict key
     def make_dict_key(self, host, port):
-        return "{0}:{1}".format(host, port)
+        return f"{host}:{port}"
 
     # make a tunnel server
     def make_tunnel_server(
@@ -120,7 +119,7 @@ class SshTunnelPool(object):
                     break
                 if idx == 1:
                     # timeout
-                    baseLogger.error("timeout when making a tunnel with com={0} out={1}".format(com, c.buffer))
+                    baseLogger.error(f"timeout when making a tunnel with com={com} out={c.buffer}")
                     c.close()
                     break
                 if idx == 2:
@@ -129,7 +128,7 @@ class SshTunnelPool(object):
                     idx = c.expect(expected_list, timeout=login_timeout)
                 if idx == 1:
                     # timeout
-                    baseLogger.error("timeout after accepting new cert with com={0} out={1}".format(com, c.buffer))
+                    baseLogger.error(f"timeout after accepting new cert with com={com} out={c.buffer}")
                     c.close()
                     break
                 if idx == 3:
@@ -139,11 +138,11 @@ class SshTunnelPool(object):
                     # passphrase prompt
                     c.sendline(pass_phrase)
                 elif idx == 0:
-                    baseLogger.error("something weired with com={0} out={1}".format(com, c.buffer))
+                    baseLogger.error(f"something weired with com={com} out={c.buffer}")
                     c.close()
                     break
                 # exec to confirm login
-                c.sendline("echo {0}".format(loginString))
+                c.sendline(f"echo {loginString}")
             if isOK:
                 self.pool[dict_key].append((local_bind_port, c))
         if with_lock:

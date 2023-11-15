@@ -1,17 +1,16 @@
-import arc
 import json
 import socket
 import time
 import urllib.parse
 
+import arc
+from act.atlas.aCTDBPanda import aCTDBPanda
+from act.common.aCTConfig import aCTConfigARC
+from act.common.aCTProxy import aCTProxy
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvesterconfig import harvester_config
-
-from act.common.aCTConfig import aCTConfigARC
-from act.common.aCTProxy import aCTProxy
-from act.atlas.aCTDBPanda import aCTDBPanda
 
 # logger
 baseLogger = core_utils.setup_logger("act_submitter")
@@ -46,7 +45,7 @@ class ACTSubmitter(PluginBase):
             attr = "/atlas/Role=" + role
             proxyid = actp.getProxyId(dn, attr)
             if not proxyid:
-                raise Exception("Proxy with DN {0} and attribute {1} was not found in proxies table".format(dn, attr))
+                raise Exception(f"Proxy with DN {dn} and attribute {attr} was not found in proxies table")
 
             self.proxymap[role] = proxyid
 
@@ -55,7 +54,7 @@ class ACTSubmitter(PluginBase):
     def submit_workers(self, workspec_list):
         retList = []
         for workSpec in workspec_list:
-            tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="submit_workers")
+            tmpLog = core_utils.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
 
             queueconfigmapper = QueueConfigMapper()
             queueconfig = queueconfigmapper.get_queue(workSpec.computingSite)
@@ -66,7 +65,7 @@ class ACTSubmitter(PluginBase):
             jobSpec = workSpec.get_jobspec_list()
             if jobSpec:
                 jobSpec = jobSpec[0]
-                tmpLog.debug("JobSpec: {0}".format(jobSpec.values_map()))
+                tmpLog.debug(f"JobSpec: {jobSpec.values_map()}")
                 # Unified queues: take prodsourcelabel from job
                 prodSourceLabel = jobSpec.jobParams.get("prodSourceLabel", prodSourceLabel)
 
@@ -86,7 +85,7 @@ class ACTSubmitter(PluginBase):
             desc["sendhb"] = 0
             metadata = {
                 "harvesteraccesspoint": workSpec.get_access_point(),
-                "schedulerid": "harvester-{}".format(harvester_config.master.harvester_id),
+                "schedulerid": f"harvester-{harvester_config.master.harvester_id}",
                 "harvesterid": harvester_config.master.harvester_id,
                 "harvesterworkerid": workSpec.workerID,
             }
@@ -101,32 +100,32 @@ class ACTSubmitter(PluginBase):
                 pandaid = workSpec.workerID
                 actjobdesc = "&".join(
                     [
-                        "PandaID={}".format(pandaid),
-                        "prodSourceLabel={}".format(prodSourceLabel),
-                        "resourceType={}".format(workSpec.resourceType),
-                        "minRamCount={}".format(workSpec.minRamCount),
-                        "coreCount={}".format(workSpec.nCore),
-                        "logFile={}.pilot.log".format(pandaid),
+                        f"PandaID={pandaid}",
+                        f"prodSourceLabel={prodSourceLabel}",
+                        f"resourceType={workSpec.resourceType}",
+                        f"minRamCount={workSpec.minRamCount}",
+                        f"coreCount={workSpec.nCore}",
+                        f"logFile={pandaid}.pilot.log",
                     ]
                 )
 
-            tmpLog.info("Inserting job {0} into aCT DB: {1}".format(pandaid, str(desc)))
+            tmpLog.info(f"Inserting job {pandaid} into aCT DB: {str(desc)}")
             try:
                 batchid = self.actDB.insertJob(pandaid, actjobdesc, desc)["LAST_INSERT_ID()"]
             except Exception as e:
-                result = (False, "Failed to insert job into aCT DB: {0}".format(str(e)))
+                result = (False, f"Failed to insert job into aCT DB: {str(e)}")
             else:
-                tmpLog.info("aCT batch id {0}".format(batchid))
+                tmpLog.info(f"aCT batch id {batchid}")
                 workSpec.batchID = str(batchid)
                 workSpec.submissionHost = self.hostname
                 workSpec.nativeStatus = desc["actpandastatus"]
                 # Set log files in workSpec
                 today = time.strftime("%Y-%m-%d", time.gmtime())
                 logurl = "/".join([queueconfig.submitter.get("logBaseURL"), today, workSpec.computingSite, str(pandaid)])
-                workSpec.set_log_file("batch_log", "{0}.log".format(logurl))
-                workSpec.set_log_file("stdout", "{0}.out".format(logurl))
-                workSpec.set_log_file("stderr", "{0}.err".format(logurl))
-                workSpec.set_log_file("jdl", "{0}.jdl".format(logurl))
+                workSpec.set_log_file("batch_log", f"{logurl}.log")
+                workSpec.set_log_file("stdout", f"{logurl}.out")
+                workSpec.set_log_file("stderr", f"{logurl}.err")
+                workSpec.set_log_file("jdl", f"{logurl}.jdl")
                 result = (True, "")
             retList.append(result)
 

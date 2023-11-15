@@ -32,9 +32,9 @@ class TitanUtils(PluginBase):
         """
         tmpLog = self.make_logger(baseLogger, method_name="get_batchjob_info")
         res = {}
-        tmpLog.info("Collect job info for batchid {}".format(batchid))
+        tmpLog.info(f"Collect job info for batchid {batchid}")
         info_dict = self.get_moabjob_info(batchid)
-        tmpLog.info("Got: {0}".format(info_dict))
+        tmpLog.info(f"Got: {info_dict}")
         if info_dict:
             tmpLog.debug("Translate results")
             res["status"] = self.translate_status(info_dict["state"])
@@ -43,7 +43,7 @@ class TitanUtils(PluginBase):
             res["nativeExitMsg"] = self.get_message(info_dict["exit_code"])
             res["start_time"] = self.fixdate(info_dict["start_time"])
             res["finish_time"] = self.fixdate(info_dict["finish_time"])
-        tmpLog.info("Collected job info: {0}".format(res))
+        tmpLog.info(f"Collected job info: {res}")
         return res
 
     def get_moabjob_info(self, batchid):
@@ -55,7 +55,7 @@ class TitanUtils(PluginBase):
 
         job_info = {"state": "", "exit_code": None, "queued_time": None, "start_time": None, "finish_time": None}
 
-        cmd = "checkjob -v {0}".format(batchid)
+        cmd = f"checkjob -v {batchid}"
         p = subprocess.Popen(cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # check return code
         stdOut, stdErr = p.communicate()
@@ -64,7 +64,7 @@ class TitanUtils(PluginBase):
         if retCode == 0:
             checkjob_str = stdOut
         else:
-            tmpLog.info("checkjob failed with errcode: {0}\nstdout:{1}\nstderr:{2}".format(retCode, stdOut, stdErr))
+            tmpLog.info(f"checkjob failed with errcode: {retCode}\nstdout:{stdOut}\nstderr:{stdErr}")
             return {}
         if checkjob_str:
             checkjob_out = checkjob_str.splitlines()
@@ -79,7 +79,7 @@ class TitanUtils(PluginBase):
                     job_info["start_time"] = l[11:]
                 elif l.startswith("WallTime: "):
                     tmpLog.info(l)
-        tmpLog.debug("checkjob parsing results: {0}".format(job_info))
+        tmpLog.debug(f"checkjob parsing results: {job_info}")
         return job_info
 
     def translate_status(self, status):
@@ -153,7 +153,7 @@ class TitanUtils(PluginBase):
         tmpLog = self.make_logger(baseLogger, method_name="fixdate")
         if not date_str:
             return None
-        tmpLog.debug("Date to fix: {0}".format(date_str))
+        tmpLog.debug(f"Date to fix: {date_str}")
         format_str = "%a %b %d %H:%M:%S %Y"
         date_str = " ".join([date_str, str(datetime.datetime.now().year)])
         date = datetime.datetime.strptime(date_str, format_str)
@@ -161,11 +161,11 @@ class TitanUtils(PluginBase):
             date_str = " ".join([date_str, str(datetime.datetime.now().year - 1)])
         date = datetime.datetime.strptime(date_str, format_str)
 
-        tmpLog.debug("Full date: {0}".format(str(date)))
+        tmpLog.debug(f"Full date: {str(date)}")
         utc_offset = datetime.timedelta(0, 18000, 0)  # 5H UTC offset for Oak-Ridge
-        tmpLog.debug("UTC offset: {0}".format(str(utc_offset)))
+        tmpLog.debug(f"UTC offset: {str(utc_offset)}")
         fixed_date = date + utc_offset
-        tmpLog.debug("Fixed date: {0}".format(str(fixed_date)))
+        tmpLog.debug(f"Fixed date: {str(fixed_date)}")
 
         return fixed_date
 
@@ -177,7 +177,7 @@ class TitanUtils(PluginBase):
         walltime: intger, seconds
         """
         tmpLog = self.make_logger(baseLogger, method_name="get_backfill")
-        tmpLog.info("Looking for gap more than '%s' sec" % self.minWalltime)
+        tmpLog.info(f"Looking for gap more than '{self.minWalltime}' sec")
         nodes = 0
         walltime = self.minWalltime
 
@@ -191,7 +191,7 @@ class TitanUtils(PluginBase):
 
         if nodes < self.minNodes:
             nodes = 0
-        tmpLog.info("Nodes: {0} Walltime: {1}".format(nodes, walltime))
+        tmpLog.info(f"Nodes: {nodes} Walltime: {walltime}")
 
         return nodes, walltime
 
@@ -201,20 +201,20 @@ class TitanUtils(PluginBase):
         #
         tmpLog = self.make_logger(baseLogger, method_name="get_backfill")
         res = {}
-        cmd = "showbf --blocking -p %s" % self.partition
+        cmd = f"showbf --blocking -p {self.partition}"
         p = subprocess.Popen(cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # check return code
         stdOut, stdErr = p.communicate()
         retCode = p.returncode
-        tmpLog.info("retCode={0}".format(retCode))
+        tmpLog.info(f"retCode={retCode}")
         showbf_str = ""
         if retCode == 0:
             showbf_str = stdOut
         else:
-            tmpLog.error("showbf failed with errcode: {0} stdout: {1} stderr: {2}".format(retCode, stdOut, stdErr))
+            tmpLog.error(f"showbf failed with errcode: {retCode} stdout: {stdOut} stderr: {stdErr}")
             return res
 
-        tmpLog.debug("Available resources in {0} partition\n{1}".format(self.partition, showbf_str))
+        tmpLog.debug(f"Available resources in {self.partition} partition\n{showbf_str}")
         if showbf_str:
             shobf_out = showbf_str.splitlines()
             tmpLog.info("Fitted resources")
@@ -244,7 +244,7 @@ class TitanUtils(PluginBase):
                 elif nodes < 3749 and walltime_sec > 12 * 3600:  # between 312 and 3749 nodes, max 12H
                     walltime_sec = 12 * 3600
 
-                tmpLog.info("Nodes: %s, Walltime (str): %s, Walltime (sec) %s" % (nodes, d[3], walltime_sec))
+                tmpLog.info(f"Nodes: {nodes}, Walltime (str): {d[3]}, Walltime (sec) {walltime_sec}")
 
                 res.update({nodes: walltime_sec})
 

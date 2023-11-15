@@ -1,9 +1,10 @@
 import json
-import requests
 import os.path
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+
+import requests
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.gitlab_utils import get_job_params
 
 # logger
@@ -22,15 +23,15 @@ class GitlabMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="check_workers")
             try:
                 params = get_job_params(workSpec)
-                url = "{}/{}/pipelines/{}".format(params["project_api"], params["project_id"], workSpec.batchID.split()[0])
+                url = f"{params['project_api']}/{params['project_id']}/pipelines/{workSpec.batchID.split()[0]}"
                 try:
-                    tmpLog.debug("check pipeline at {}".format(url))
+                    tmpLog.debug(f"check pipeline at {url}")
                     r = requests.get(url, headers={"PRIVATE-TOKEN": params["secrets"][params["access_token"]]}, timeout=self.timeout)
                     response = r.json()
-                    tmpLog.debug("got {}".format(str(response)))
+                    tmpLog.debug(f"got {str(response)}")
                 except Exception:
                     err_str = core_utils.dump_error_message(tmpLog)
                     retList.append((WorkSpec.ST_idle, err_str))
@@ -53,7 +54,7 @@ class GitlabMonitor(PluginBase):
                         newStatus = WorkSpec.ST_pending
                     else:
                         newStatus = WorkSpec.ST_running
-                tmpLog.debug("newStatus={0}".format(newStatus))
+                tmpLog.debug(f"newStatus={newStatus}")
                 retList.append((newStatus, newMsg))
             except Exception:
                 err_str = core_utils.dump_error_message(tmpLog)

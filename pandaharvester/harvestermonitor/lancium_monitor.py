@@ -1,16 +1,19 @@
 import time
-
 from concurrent.futures import ThreadPoolExecutor as Pool
 
-from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore.pilot_errors import PilotErrors
-from pandaharvester.harvestermisc.lancium_utils import get_full_batch_id_from_workspec, get_workerid_from_job_name, get_host_batch_id_map, timestamp_to_datetime
-from pandaharvester.harvestermisc.lancium_utils import LanciumJobQuery
-
+from pandaharvester.harvestermisc.lancium_utils import (
+    LanciumJobQuery,
+    get_full_batch_id_from_workspec,
+    get_host_batch_id_map,
+    get_workerid_from_job_name,
+    timestamp_to_datetime,
+)
 
 # logger
 base_logger = core_utils.setup_logger("lancium_monitor")
@@ -22,7 +25,7 @@ PILOT_ERRORS = PilotErrors()
 # Check one worker
 def _check_one_worker(workspec, job_attr_all_dict, cancel_unknown=False, held_timeout=3600):
     # Make logger for one single worker
-    tmp_log = core_utils.make_logger(base_logger, "workerID={0}".format(workspec.workerID), method_name="_check_one_worker")
+    tmp_log = core_utils.make_logger(base_logger, f"workerID={workspec.workerID}", method_name="_check_one_worker")
     # Initialize newStatus
     newStatus = workspec.status
     errStr = ""
@@ -32,7 +35,7 @@ def _check_one_worker(workspec, job_attr_all_dict, cancel_unknown=False, held_ti
         got_job_attr = False
     except Exception as e:
         got_job_attr = False
-        tmp_log.error("With error {0}".format(e))
+        tmp_log.error(f"With error {e}")
     else:
         got_job_attr = True
     # Parse job ads
@@ -46,13 +49,11 @@ def _check_one_worker(workspec, job_attr_all_dict, cancel_unknown=False, held_ti
             workspec.nativeStatus = "unknown"
             if cancel_unknown:
                 newStatus = WorkSpec.ST_cancelled
-                errStr = "cannot get job status of submissionHost={0} batchID={1}. Regard the worker as canceled".format(
-                    workspec.submissionHost, workspec.batchID
-                )
+                errStr = f"cannot get job status of submissionHost={workspec.submissionHost} batchID={workspec.batchID}. Regard the worker as canceled"
                 tmp_log.error(errStr)
             else:
                 newStatus = None
-                errStr = "cannot get job status of submissionHost={0} batchID={1}. Skipped".format(workspec.submissionHost, workspec.batchID)
+                errStr = f"cannot get job status of submissionHost={workspec.submissionHost} batchID={workspec.batchID}. Skipped"
                 tmp_log.warning(errStr)
         else:
             # Possible native statuses: "created" "submitted" "queued" "ready" "running" "error" "finished" "delete pending"
@@ -78,11 +79,11 @@ def _check_one_worker(workspec, job_attr_all_dict, cancel_unknown=False, held_ti
                 newStatus = WorkSpec.ST_submitted
             elif batchStatus in ["error"]:
                 # failed
-                errStr += "job error_string: {0} ".format(job_attr_dict.get("error_string"))
+                errStr += f"job error_string: {job_attr_dict.get('error_string')} "
                 newStatus = WorkSpec.ST_failed
             elif batchStatus in ["delete pending"]:
                 # cancelled
-                errStr = "job error_string: {0} ".format(job_attr_dict.get("error_string"))
+                errStr = f"job error_string: {job_attr_dict.get('error_string')} "
                 newStatus = WorkSpec.ST_cancelled
                 # Mark the PanDA job as closed instead of failed
                 workspec.set_pilot_closed()
@@ -124,38 +125,32 @@ def _check_one_worker(workspec, job_attr_all_dict, cancel_unknown=False, held_ti
                     payloadExitCode_str = str(job_attr_dict["exit_code"])
                     payloadExitCode = int(payloadExitCode_str)
                 except KeyError:
-                    errStr = "cannot get exit_code of submissionHost={0} batchID={1}".format(workspec.submissionHost, workspec.batchID)
+                    errStr = f"cannot get exit_code of submissionHost={workspec.submissionHost} batchID={workspec.batchID}"
                     tmp_log.warning(errStr)
                 except ValueError:
-                    errStr = "got invalid exit_code {0} of submissionHost={1} batchID={2}".format(
-                        payloadExitCode_str, workspec.submissionHost, workspec.batchID
-                    )
+                    errStr = f"got invalid exit_code {payloadExitCode_str} of submissionHost={workspec.submissionHost} batchID={workspec.batchID}"
                     tmp_log.warning(errStr)
                 else:
                     # Propagate exit_code code
                     workspec.nativeExitCode = payloadExitCode
-                    tmp_log.info("Payload return code = {0}".format(payloadExitCode))
+                    tmp_log.info(f"Payload return code = {payloadExitCode}")
             else:
                 errStr = "cannot get reasonable job status of submissionHost={0} batchID={1}. Regard the worker as failed by default".format(
                     workspec.submissionHost, workspec.batchID
                 )
                 tmp_log.error(errStr)
                 newStatus = WorkSpec.ST_failed
-            tmp_log.info(
-                "submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}".format(workspec.submissionHost, workspec.batchID, batchStatus, newStatus)
-            )
+            tmp_log.info(f"submissionHost={workspec.submissionHost} batchID={workspec.batchID} : batchStatus {batchStatus} -> workerStatus {newStatus}")
     else:
         # Propagate native job status as unknown
         workspec.nativeStatus = "unknown"
         if cancel_unknown:
-            errStr = "job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default".format(workspec.submissionHost, workspec.batchID)
+            errStr = f"job submissionHost={workspec.submissionHost} batchID={workspec.batchID} not found. Regard the worker as canceled by default"
             tmp_log.error(errStr)
             newStatus = WorkSpec.ST_cancelled
-            tmp_log.info(
-                "submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}".format(workspec.submissionHost, workspec.batchID, "3", newStatus)
-            )
+            tmp_log.info(f"submissionHost={workspec.submissionHost} batchID={workspec.batchID} : batchStatus 3 -> workerStatus {newStatus}")
         else:
-            errStr = "job submissionHost={0} batchID={1} not found. Skipped".format(workspec.submissionHost, workspec.batchID)
+            errStr = f"job submissionHost={workspec.submissionHost} batchID={workspec.batchID} not found. Skipped"
             tmp_log.warning(errStr)
             newStatus = None
     # Set supplemental error message
@@ -200,7 +195,7 @@ class LanciumMonitor(PluginBase):
     # check workers
     def check_workers(self, workspec_list):
         # Make logger for batch job query
-        tmp_log = self.make_logger(base_logger, "{0}".format("batch job query"), method_name="check_workers")
+        tmp_log = self.make_logger(base_logger, "batch job query", method_name="check_workers")
         tmp_log.debug("start")
         # Loop over submissionHost
         job_attr_all_dict = {}
@@ -211,7 +206,7 @@ class LanciumMonitor(PluginBase):
                 host_job_attr_dict = job_query.query_jobs(batchIDs_list=batchIDs_list)
             except Exception as e:
                 host_job_attr_dict = {}
-                ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
+                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
                 tmp_log.error(ret_err_str)
             job_attr_all_dict.update(host_job_attr_dict)
         # Check for all workers
@@ -240,9 +235,9 @@ class LanciumMonitor(PluginBase):
             try:
                 job_query = LanciumJobQuery(cacheEnable=self.cacheEnable, cacheRefreshInterval=self.cacheRefreshInterval, id=submissionHost)
                 job_attr_all_dict.update(job_query.query_jobs(all_jobs=True))
-                tmp_log.debug("got information of jobs on {0}".format(submissionHost))
+                tmp_log.debug(f"got information of jobs on {submissionHost}")
             except Exception as e:
-                ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
+                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
                 tmp_log.error(ret_err_str)
         # Choose workers updated within a time window
         workers_to_check_list = []
@@ -252,7 +247,7 @@ class LanciumMonitor(PluginBase):
             try:
                 job_update_at = timestamp_to_datetime(job_update_at_str)
             except Exception as e:
-                ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
+                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
                 tmp_log.error(ret_err_str)
                 job_update_at = None
             if job_update_at is not None and not (job_update_at > timeNow - time_window):
@@ -262,6 +257,6 @@ class LanciumMonitor(PluginBase):
             if worker_id is None or harvester_id != harvester_config.master.harvester_id:
                 continue
             workers_to_check_list.append((worker_id, job_update_at))
-        tmp_log.debug("got {0} workers".format(len(workers_to_check_list)))
+        tmp_log.debug(f"got {len(workers_to_check_list)} workers")
         tmp_log.debug("done")
         return workers_to_check_list

@@ -1,10 +1,15 @@
-from rucio.client import Client as RucioClient
-from rucio.common.exception import DataIdentifierNotFound, DuplicateRule, DataIdentifierAlreadyExists, FileAlreadyExists
-
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterstager import yoda_rucio_rse_direct_stager
-from pandaharvester.harvesterstager.yoda_rucio_rse_direct_stager import YodaRseDirectStager
-
+from pandaharvester.harvesterstager.yoda_rucio_rse_direct_stager import (
+    YodaRseDirectStager,
+)
+from rucio.client import Client as RucioClient
+from rucio.common.exception import (
+    DataIdentifierAlreadyExists,
+    DataIdentifierNotFound,
+    DuplicateRule,
+    FileAlreadyExists,
+)
 
 # logger
 _logger = core_utils.setup_logger("rucio_rse_direct_stager")
@@ -39,16 +44,14 @@ class RucioRseDirectStager(YodaRseDirectStager):
         tmpStat = True
         tmpMsg = ""
         # make logger
-        tmpLog = self.make_logger(
-            baseLogger, "PandaID={0} ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="check_stage_out_status"
-        )
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         # Get the files grouped by Rucio Rule ID
         groups = jobspec.get_groups_of_output_files()
         if len(groups) == 0:
             tmpLog.debug("No Rucio Rules")
             return None, "No Rucio Rules"
-        tmpLog.debug("#Rucio Rules - {0} - Rules - {1}".format(len(groups), groups))
+        tmpLog.debug(f"#Rucio Rules - {len(groups)} - Rules - {groups}")
 
         try:
             rucioAPI = RucioClient()
@@ -63,7 +66,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
             # lock
             have_db_lock = self.dbInterface.get_object_lock(rucioRule, lock_interval=120)
             if not have_db_lock:
-                msgStr = "escape since {0} is locked by another thread".format(rucioRule)
+                msgStr = f"escape since {rucioRule} is locked by another thread"
                 tmpLog.debug(msgStr)
                 return None, msgStr
             # get transfer status
@@ -74,41 +77,41 @@ class RucioRseDirectStager(YodaRseDirectStager):
             elif "failed" in groupStatus:
                 # transfer failure
                 tmpStat = False
-                tmpMsg = "rucio rule for {0}:{1} already failed".format(datasetScope, datasetName)
+                tmpMsg = f"rucio rule for {datasetScope}:{datasetName} already failed"
             elif "transferring" in groupStatus:
                 # transfer started in Rucio check status
                 try:
                     result = rucioAPI.get_replication_rule(rucioRule, False)
                     if result["state"] == "OK":
                         # files transfered to nucleus
-                        tmpLog.debug("Files for Rucio Rule {0} successfully transferred".format(rucioRule))
+                        tmpLog.debug(f"Files for Rucio Rule {rucioRule} successfully transferred")
                         self.dbInterface.update_file_group_status(rucioRule, "transferred")
                         # set the fileSpec status for these files
                         self.set_FileSpec_status(jobspec, "finished")
                     elif result["state"] == "FAILED":
                         # failed Rucio Transfer
                         tmpStat = False
-                        tmpMsg = "Failed Rucio Transfer - Rucio Rule - {0}".format(rucioRule)
+                        tmpMsg = f"Failed Rucio Transfer - Rucio Rule - {rucioRule}"
                         tmpLog.debug(tmpMsg)
                         self.set_FileSpec_status(jobspec, "failed")
                     elif result["state"] == "STUCK":
                         tmpStat = None
-                        tmpMsg = "Rucio Transfer Rule {0} Stuck".format(rucioRule)
+                        tmpMsg = f"Rucio Transfer Rule {rucioRule} Stuck"
                         tmpLog.debug(tmpMsg)
                 except BaseException:
                     tmpStat = None
-                    tmpMsg = "Could not get information or Rucio Rule {0}".format(rucioRule)
+                    tmpMsg = f"Could not get information or Rucio Rule {rucioRule}"
                     tmpLog.error(tmpMsg)
                     pass
             # release the lock
             if have_db_lock:
-                tmpLog.debug("attempt to release DB lock for Rucio Rule {0}".format(rucioRule))
+                tmpLog.debug(f"attempt to release DB lock for Rucio Rule {rucioRule}")
                 release_db_lock = self.dbInterface.release_object_lock(rucioRule)
                 if release_db_lock:
-                    tmpLog.debug("released DB lock for rucioRule - {0}".format(rucioRule))
+                    tmpLog.debug(f"released DB lock for rucioRule - {rucioRule}")
                     have_db_lock = False
                 else:
-                    msgStr = " Could not release DB lock for {}".format(rucioRule)
+                    msgStr = f" Could not release DB lock for {rucioRule}"
                     tmpLog.error(msgStr)
                     return None, msgStr
 
@@ -119,12 +122,10 @@ class RucioRseDirectStager(YodaRseDirectStager):
 
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(
-            _logger, "PandaID={0} ThreadID={1} ".format(jobspec.PandaID, threading.current_thread().ident), method_name="trigger_stage_out"
-        )
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident} ", method_name="trigger_stage_out")
         tmpLog.debug("executing base trigger_stage_out")
         tmpStat, tmpMsg = YodaRseDirect.trigger_stage_out(self, jobspec)
-        tmpLog.debug("got {0} {1}".format(tmpStat, tmpMsg))
+        tmpLog.debug(f"got {tmpStat} {tmpMsg}")
         if tmpStat is not True:
             return tmpStat, tmpMsg
         # Now that output files have been all copied to Local RSE register transient dataset
@@ -133,7 +134,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
         tmpMsg = ""
         srcRSE = None
         dstRSE = None
-        datasetName = "panda.harvester.{0}.{1}".format(jobspec.PandaID, str(uuid.uuid4()))
+        datasetName = f"panda.harvester.{jobspec.PandaID}.{str(uuid.uuid4())}"
         datasetScope = "transient"
         # get destination endpoint
         nucleus = jobspec.jobParams["nucleus"]
@@ -171,7 +172,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
         # create the dataset and add files to it and create a transfer rule
         try:
             # register dataset
-            tmpLog.debug("register {0}:{1}".format(datasetScope, datasetName))
+            tmpLog.debug(f"register {datasetScope}:{datasetName}")
             rucioAPI = RucioClient()
             try:
                 rucioAPI.add_dataset(datasetScope, datasetName, meta={"hidden": True}, lifetime=30 * 24 * 60 * 60, rse=srcRSE)
@@ -179,7 +180,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
                 # ignore even if the dataset already exists
                 pass
             except Exception:
-                tmpLog.error("Could not create dataset with scope: {0} Name: {1} in Rucio".format(datasetScope, datasetName))
+                tmpLog.error(f"Could not create dataset with scope: {datasetScope} Name: {datasetName} in Rucio")
                 raise
 
             # add files to dataset
@@ -189,7 +190,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
                 # ignore if files already exist
                 pass
             except Exception:
-                tmpLog.error("Could add files to dataset with scope: {0} Name: {1} in Rucio".format(datasetScope, datasetName))
+                tmpLog.error(f"Could add files to dataset with scope: {datasetScope} Name: {datasetName} in Rucio")
                 raise
 
             # add rule
@@ -199,10 +200,10 @@ class RucioRseDirectStager(YodaRseDirectStager):
                 tmpDID["name"] = datasetName
                 tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE, lifetime=30 * 24 * 60 * 60)
                 ruleIDs = tmpRet[0]
-                tmpLog.debug("registered dataset {0}:{1} with rule {2}".format(datasetScope, datasetName, str(ruleIDs)))
+                tmpLog.debug(f"registered dataset {datasetScope}:{datasetName} with rule {str(ruleIDs)}")
                 # group the output files together by the Rucio transfer rule
                 jobspec.set_groups_to_files({ruleIDs: {"lfns": lfns, "groupStatus": "pending"}})
-                msgStr = "jobspec.set_groups_to_files -Rucio rule - {0}, lfns - {1}, groupStatus - pending".format(ruleIDs, lfns)
+                msgStr = f"jobspec.set_groups_to_files -Rucio rule - {ruleIDs}, lfns - {lfns}, groupStatus - pending"
                 tmpLog.debug(msgStr)
                 tmpLog.debug("call self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,pending)")
                 tmpStat = self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True), ruleIDs, "pending")
@@ -213,7 +214,7 @@ class RucioRseDirectStager(YodaRseDirectStager):
                 # ignore duplicated rule
                 tmpLog.debug("rule is already available")
             except Exception:
-                tmpLog.debug("Error creating rule for dataset {0}:{1}".format(datasetScope, datasetName))
+                tmpLog.debug(f"Error creating rule for dataset {datasetScope}:{datasetName}")
                 raise
             # update file group status
             self.dbInterface.update_file_group_status(ruleIDs, "transferring")
@@ -221,6 +222,6 @@ class RucioRseDirectStager(YodaRseDirectStager):
             core_utils.dump_error_message(tmpLog)
             # treat as a temporary error
             tmpStat = None
-            tmpMsg = "failed to add a rule for {0}:{1}".format(datasetScope, datasetName)
+            tmpMsg = f"failed to add a rule for {datasetScope}:{datasetName}"
 
         return tmpStat, tmpMsg

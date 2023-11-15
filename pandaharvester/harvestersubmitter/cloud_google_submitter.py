@@ -4,11 +4,10 @@ Based on: https://cloud.google.com/compute/docs/tutorials/python-guide#before-yo
 
 import time
 
+# from requests.exceptions import SSLError
+from pandaharvester.harvestercloud.googlecloud import PROJECT, ZONE, GoogleVM, compute
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-
-# from requests.exceptions import SSLError
-from pandaharvester.harvestercloud.googlecloud import compute, GoogleVM, ZONE, PROJECT
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # setup base logger
@@ -48,7 +47,7 @@ def create_vm(work_spec, queue_config):
     """
     work_spec.reset_changed_list()
 
-    tmp_log = core_utils.make_logger(base_logger, "workerID={0}".format(work_spec.workerID), method_name="submit_a_worker")
+    tmp_log = core_utils.make_logger(base_logger, f"workerID={work_spec.workerID}", method_name="submit_a_worker")
 
     tmp_log.debug(
         "nCore={0} minRamCount={1} maxDiskCount={2} maxWalltime={0}".format(
@@ -65,22 +64,22 @@ def create_vm(work_spec, queue_config):
             zone = ZONE
 
     except Exception as e:
-        tmp_log.debug("VM preparation failed with: {0}".format(e))
+        tmp_log.debug(f"VM preparation failed with: {e}")
         # there was some problem preparing the VM, usually related to interaction with GCE
         # since the VM was not submitted yet, we mark the worker as "missed"
         return (False, str(e)), work_spec.get_changed_attributes()
 
     try:
-        tmp_log.debug("Going to submit VM {0}".format(vm.name))
+        tmp_log.debug(f"Going to submit VM {vm.name}")
         work_spec.batchID = vm.name
         operation = compute.instances().insert(project=PROJECT, zone=zone, body=vm.config).execute()
         # tmp_log.debug('Submitting VM {0}'.format(vm.name))
         # wait_for_operation(PROJECT, ZONE, operation['name'])
-        tmp_log.debug("Submitted VM {0}".format(vm.name))
+        tmp_log.debug(f"Submitted VM {vm.name}")
 
         return (True, "OK"), work_spec.get_changed_attributes()
     except Exception as e:
-        tmp_log.debug("GCE API exception: {0}".format(e))
+        tmp_log.debug(f"GCE API exception: {e}")
         # Despite the exception we will consider the submission successful to set the worker as "submitted".
         # This is related to the GCE API reliability. We have observed that despite failures (time outs, SSL errors, etc)
         # in many cases the VMs still start and we don't want VMs that are not inventorized. If the VM submission failed
@@ -106,7 +105,7 @@ class GoogleSubmitter(PluginBase):
         """
 
         tmp_log = self.make_logger(base_logger, method_name="submit_workers")
-        tmp_log.debug("start nWorkers={0}".format(len(work_spec_list)))
+        tmp_log.debug(f"start nWorkers={len(work_spec_list)}")
 
         ret_list = []
         if not work_spec_list:
@@ -131,9 +130,9 @@ class GoogleSubmitter(PluginBase):
             ret_val, tmp_dict = tmp_val
 
             work_spec.set_attributes_with_dict(tmp_dict)
-            work_spec.set_log_file("batch_log", "{0}/{1}.log".format(self.logBaseURL, work_spec.batchID))
-            work_spec.set_log_file("stdout", "{0}/{1}.out".format(self.logBaseURL, work_spec.batchID))
-            work_spec.set_log_file("stderr", "{0}/{1}.err".format(self.logBaseURL, work_spec.batchID))
+            work_spec.set_log_file("batch_log", f"{self.logBaseURL}/{work_spec.batchID}.log")
+            work_spec.set_log_file("stdout", f"{self.logBaseURL}/{work_spec.batchID}.out")
+            work_spec.set_log_file("stderr", f"{self.logBaseURL}/{work_spec.batchID}.err")
             ret_list.append(ret_val)
 
         tmp_log.debug("done")

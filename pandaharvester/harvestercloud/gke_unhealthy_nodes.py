@@ -1,6 +1,7 @@
-from kubernetes import client, config
 import datetime
-from subprocess import Popen, PIPE
+from subprocess import PIPE, Popen
+
+from kubernetes import client, config
 
 config.load_kube_config(config_file="PATH TO YOUR CONFIG")
 namespace = "default"

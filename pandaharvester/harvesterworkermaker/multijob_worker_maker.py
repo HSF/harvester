@@ -1,6 +1,7 @@
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from .base_worker_maker import BaseWorkerMaker
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.work_spec import WorkSpec
+
+from .base_worker_maker import BaseWorkerMaker
 
 # multijob worker maker. one job per node. aprun as executor (initially)
 # static parameters collected from queue config file
@@ -29,7 +30,7 @@ class MultiJobWorkerMaker(BaseWorkerMaker):
         # prepare executor
         try:
             if self.executor == "aprun":  # "aprun -n [number of required nodes/jobs] -d [number of cpu per node/job]" - for one multicore job per node
-                exe_str = self.executor + " -n {0} -d {1} ".format(self.nJobsPerWorker, queue_config.submitter["nCorePerNode"])
+                exe_str = self.executor + f" -n {self.nJobsPerWorker} -d {queue_config.submitter['nCorePerNode']} "
                 exe_str += self.pilot
             else:
                 exe_str = self.executor + " " + self.pilot
@@ -40,7 +41,7 @@ class MultiJobWorkerMaker(BaseWorkerMaker):
             exe_str = ""
 
         exe_str = "\n".join([env_str, exe_str])
-        tmpLog.debug("Shell script body: \n%s" % exe_str)
+        tmpLog.debug(f"Shell script body: \n{exe_str}")
 
         return exe_str
 
@@ -49,7 +50,7 @@ class MultiJobWorkerMaker(BaseWorkerMaker):
         tmpLog = self.make_logger(baseLogger, method_name="make_worker")
         workSpec = WorkSpec()
         self.nJobsPerWorker = len(jobspec_list)
-        tmpLog.info("Worker for {0} jobs will be prepared".format(self.nJobsPerWorker))
+        tmpLog.info(f"Worker for {self.nJobsPerWorker} jobs will be prepared")
         if self.nJobsPerWorker > 0:
             workSpec.nCore = int(queue_config.submitter["nCorePerNode"]) * self.nJobsPerWorker
             workSpec.minRamCount = 0
@@ -57,7 +58,7 @@ class MultiJobWorkerMaker(BaseWorkerMaker):
             workSpec.maxWalltime = 0
             if queue_config.walltimeLimit:
                 workSpec.maxWalltime = queue_config.walltimeLimit
-                tmpLog.debug("Wall time limit for worker: {0}".format(workSpec.maxWalltime))
+                tmpLog.debug(f"Wall time limit for worker: {workSpec.maxWalltime}")
             for jobSpec in jobspec_list:
                 try:
                     workSpec.minRamCount = max(workSpec.minRamCount, jobSpec.jobParams["minRamCount"])

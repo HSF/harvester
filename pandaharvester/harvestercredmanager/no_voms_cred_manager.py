@@ -3,8 +3,9 @@ try:
 except Exception:
     import subprocess
 
-from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
+
+from .base_cred_manager import BaseCredManager
 
 # logger
 _logger = core_utils.setup_logger("no_voms_cred_manager")
@@ -34,19 +35,19 @@ class NoVomsCredManager(BaseCredManager):
         main_log = self.make_logger(_logger, method_name="check_credential_lifetime")
         lifetime = None
         try:
-            command_str = "voms-proxy-info -timeleft -file {0}".format(self.outCertFile)
+            command_str = f"voms-proxy-info -timeleft -file {self.outCertFile}"
             p = subprocess.Popen(command_str.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = p.communicate()
             return_code = p.returncode
-            main_log.debug("retCode={0} stdout={1} stderr={2}".format(return_code, stdout, stderr))
+            main_log.debug(f"retCode={return_code} stdout={stdout} stderr={stderr}")
             if return_code == 0:  # OK
                 lifetime = int(stdout) / 3600
         except Exception:
             core_utils.dump_error_message(main_log)
         if isinstance(lifetime, float):
-            main_log.debug("returning lifetime {0:.3f}".format(lifetime))
+            main_log.debug(f"returning lifetime {lifetime:.3f}")
         else:
-            main_log.debug("returning lifetime {0}".format(lifetime))
+            main_log.debug(f"returning lifetime {lifetime}")
         return lifetime
 
     # check proxy
@@ -55,7 +56,7 @@ class NoVomsCredManager(BaseCredManager):
         main_log = self.make_logger(_logger, method_name="check_credential")
         # lifetime threshold to trigger renew in hour
         threshold = max(self.lifetime - self.checkPeriod, 0)
-        comStr = "voms-proxy-info -exists -hours {0} -file {1}".format(threshold, self.outCertFile)
+        comStr = f"voms-proxy-info -exists -hours {threshold} -file {self.outCertFile}"
         main_log.debug(comStr)
         try:
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -64,7 +65,7 @@ class NoVomsCredManager(BaseCredManager):
         except Exception:
             core_utils.dump_error_message(main_log)
             return False
-        main_log.debug("retCode={0} stdOut={1} stdErr={2}".format(retCode, stdOut, stdErr))
+        main_log.debug(f"retCode={retCode} stdOut={stdOut} stdErr={stdErr}")
         return retCode == 0
 
     # renew proxy
@@ -74,7 +75,7 @@ class NoVomsCredManager(BaseCredManager):
         # voms or no-voms
         voms_option = ""
         if self.voms is not None:
-            voms_option = "-voms {0}".format(self.voms)
+            voms_option = f"-voms {self.voms}"
         # generate proxy with a long lifetime proxy (default) or from key/cert pair
         if self.genFromKeyCert:
             noregen_option = ""
@@ -101,9 +102,9 @@ class NoVomsCredManager(BaseCredManager):
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            main_log.debug("retCode={0} stdOut={1} stdErr={2}".format(retCode, stdOut, stdErr))
+            main_log.debug(f"retCode={retCode} stdOut={stdOut} stdErr={stdErr}")
         except Exception:
             stdOut = ""
             stdErr = core_utils.dump_error_message(main_log)
             retCode = -1
-        return retCode == 0, "{0} {1}".format(stdOut, stdErr)
+        return retCode == 0, f"{stdOut} {stdErr}"

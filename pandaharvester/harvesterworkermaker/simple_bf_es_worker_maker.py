@@ -7,11 +7,11 @@ try:
 except Exception:
     import subprocess
 
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from .base_worker_maker import BaseWorkerMaker
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
+from .base_worker_maker import BaseWorkerMaker
 
 # simple backfill eventservice maker
 
@@ -30,9 +30,9 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
 
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
-        tmpLog = self.make_logger(_logger, "queue={0}".format(queue_config.queueName), method_name="make_worker")
+        tmpLog = self.make_logger(_logger, f"queue={queue_config.queueName}", method_name="make_worker")
 
-        tmpLog.debug("jobspec_list: {0}".format(jobspec_list))
+        tmpLog.debug(f"jobspec_list: {jobspec_list}")
 
         workSpec = WorkSpec()
         workSpec.creationTime = datetime.datetime.utcnow()
@@ -87,7 +87,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
                     return len(self.dyn_resources)
             return 0
         except Exception:
-            tmpLog.error("Failed to get num of ready resources: %s" % (traceback.format_exc()))
+            tmpLog.error(f"Failed to get num of ready resources: {traceback.format_exc()}")
             return 0
 
     def init_adjusters_defaults(self):
@@ -125,19 +125,19 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
         resources = []
         # command
         if blocking:
-            comStr = "showbf -p {0} --blocking".format(self.partition)
+            comStr = f"showbf -p {self.partition} --blocking"
         else:
-            comStr = "showbf -p {0}".format(self.partition)
+            comStr = f"showbf -p {self.partition}"
         # get backfill resources
-        tmpLog.debug("Get backfill resources with {0}".format(comStr))
+        tmpLog.debug(f"Get backfill resources with {comStr}")
         p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # check return code
         stdOut, stdErr = p.communicate()
         retCode = p.returncode
-        tmpLog.debug("retCode={0}".format(retCode))
+        tmpLog.debug(f"retCode={retCode}")
         if retCode == 0:
             # extract batchID
-            tmpLog.debug("Available backfill resources for partition(%s):\n%s" % (self.partition, stdOut))
+            tmpLog.debug(f"Available backfill resources for partition({self.partition}):\n{stdOut}")
             lines = stdOut.splitlines()
             for line in lines:
                 line = line.strip()
@@ -150,12 +150,12 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
                         walltime = items[3]
                         resources.append({"nodes": nodes, "walltime": walltime})
                     except BaseException:
-                        tmpLog.error("Failed to parse line: %s" % line)
+                        tmpLog.error(f"Failed to parse line: {line}")
         else:
             # failed
             errStr = stdOut + " " + stdErr
             tmpLog.error(errStr)
-        tmpLog.info("Available backfill resources: %s" % resources)
+        tmpLog.info(f"Available backfill resources: {resources}")
         return resources
 
     def get_adjuster(self, nodes):
@@ -194,7 +194,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
                         walltime = adjuster["maxWalltimeSeconds"] - adjuster["walltimeSecondsToDecrease"]
                         ret_resources.append({"nodes": nodes, "walltime": walltime, "nCore": nodes * self.nCorePerNode})
         ret_resources.sort(key=lambda my_dict: my_dict["nodes"] * my_dict["walltime"], reverse=True)
-        tmpLog.info("Available backfill resources after adjusting: %s" % ret_resources)
+        tmpLog.info(f"Available backfill resources after adjusting: {ret_resources}")
         return ret_resources
 
     def get_dynamic_resource(self, queue_name, job_type, resource_type):
@@ -234,7 +234,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
                 return x["solutionNodes"] - y["solutionNodes"]
 
         solutions.sort(cmp=solution_compare, reverse=True)
-        tmpLog.info("Available solutions: %s" % solutions)
+        tmpLog.info(f"Available solutions: {solutions}")
         if solutions:
             return solutions[0]["solutionNodes"], solutions[0]["solutionWalltime"]
         else:
@@ -253,7 +253,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
         walltime = None
         if self.dyn_resources:
             resource = self.dyn_resources.pop(0)
-            tmpLog.debug("Selected dynamic resources: %s" % resource)
+            tmpLog.debug(f"Selected dynamic resources: {resource}")
             walltime = resource["walltime"]
             if nRemainingEvents <= 0:
                 if resource["nodes"] < self.defaultNodes:
@@ -269,7 +269,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
                 )
 
                 neededNodes, neededWalltime = self.get_needed_nodes_walltime(resource["nodes"], walltime, neededCapacity)
-                tmpLog.info("neededNodes: %s, neededWalltime: %s" % (neededNodes, neededWalltime))
+                tmpLog.info(f"neededNodes: {neededNodes}, neededWalltime: {neededWalltime}")
                 neededNodes = int(math.ceil(neededNodes))
                 walltime = int(neededWalltime)
                 if neededNodes < 2:

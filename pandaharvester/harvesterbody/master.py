@@ -1,14 +1,15 @@
+import argparse
+import cProfile
+import grp
+import logging
 import os
 import pwd
-import grp
-import sys
-import socket
 import signal
-import logging
-import daemon.pidfile
-import argparse
+import socket
+import sys
 import threading
-import cProfile
+
+import daemon.pidfile
 from future.utils import iteritems
 
 try:
@@ -16,13 +17,11 @@ try:
 except Exception:
     pass
 
-from pandalogger import logger_config
-
-from pandaharvester import commit_timestamp
-from pandaharvester import panda_pkg_info
+from pandaharvester import commit_timestamp, panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.apfmon import Apfmon
+from pandalogger import logger_config
 
 # logger
 _logger = core_utils.setup_logger("master")
@@ -212,7 +211,7 @@ class DummyContext(object):
 class StdErrWrapper(object):
     def write(self, message):
         # set a header and footer to the message to make it easier to parse
-        wrapped_message = "#####START#####\n{0}#####END#####\n".format(message)
+        wrapped_message = f"#####START#####\n{message}#####END#####\n"
         _logger.error(wrapped_message)
 
     def flush(self):
@@ -254,12 +253,12 @@ def main(daemon_mode=True):
     options = parser.parse_args()
     # show version information
     if options.showVersion:
-        print("Version : {0}".format(panda_pkg_info.release_version))
-        print("Last commit : {0}".format(commit_timestamp.timestamp))
+        print(f"Version : {panda_pkg_info.release_version}")
+        print(f"Last commit : {commit_timestamp.timestamp}")
         return
     # check pid
     if options.pid is not None and os.path.exists(options.pid):
-        print("ERROR: Cannot start since lock file {0} already exists".format(options.pid))
+        print(f"ERROR: Cannot start since lock file {options.pid} already exists")
         return
     # uid and gid
     uid = pwd.getpwnam(harvester_config.master.uname).pw_uid
@@ -305,7 +304,7 @@ def main(daemon_mode=True):
         if options.pid:
             core_utils.set_file_permission(options.pid)
         core_utils.set_file_permission(logger_config.daemon["logdir"])
-        _logger.info("start : version = {0}, last_commit = {1}".format(panda_pkg_info.release_version, commit_timestamp.timestamp))
+        _logger.info(f"start : version = {panda_pkg_info.release_version}, last_commit = {commit_timestamp.timestamp}")
 
         # stop event
         stopEvent = threading.Event()
@@ -344,7 +343,7 @@ def main(daemon_mode=True):
         # signal handlers
         def catch_sigkill(sig, frame):
             disable_profiler()
-            _logger.info("got signal={0} to be killed".format(sig))
+            _logger.info(f"got signal={sig} to be killed")
             try:
                 os.remove(options.pid)
             except Exception:
@@ -370,9 +369,9 @@ def main(daemon_mode=True):
         """
 
         def catch_debug(sig, frame):
-            _logger.info("got signal={0} to go into debugger mode".format(sig))
-            from trepan.interfaces import server
+            _logger.info(f"got signal={sig} to go into debugger mode")
             from trepan.api import debug
+            from trepan.interfaces import server
 
             try:
                 portNum = harvester_config.master.debugger_port
@@ -381,7 +380,7 @@ def main(daemon_mode=True):
             connection_opts = {"IO": "TCP", "PORT": portNum}
             interface = server.ServerInterface(connection_opts=connection_opts)
             dbg_opts = {"interface": interface}
-            _logger.info("starting debugger on port {0}".format(portNum))
+            _logger.info(f"starting debugger on port {portNum}")
             debug(dbg_opts=dbg_opts)
 
         # set handler

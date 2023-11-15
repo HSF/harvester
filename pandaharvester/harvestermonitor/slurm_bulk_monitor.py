@@ -4,8 +4,8 @@ except ImportError:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # logger
 baseLogger = core_utils.setup_logger("slurm_monitor")
@@ -42,20 +42,20 @@ class SlurmBulkMonitor(PluginBase):
                 batch_id_list.append(str(workSpec.batchID))
             batch_id_list_str = ",".join(batch_id_list)
             # command
-            comStr = "sacct -X --jobs={0}".format(batch_id_list_str)
+            comStr = f"sacct -X --jobs={batch_id_list_str}"
             # check
-            tmpLog.debug("check with {0}".format(comStr))
+            tmpLog.debug(f"check with {comStr}")
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             newStatus = workSpec.status
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            tmpLog.debug("retCode={0}".format(retCode))
+            tmpLog.debug(f"retCode={retCode}")
             errStr = ""
             stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
             stdErr_str = stdErr if (isinstance(stdErr, str) or stdErr is None) else stdErr.decode()
-            tmpLog.debug("stdout={0}".format(stdOut_str))
-            tmpLog.debug("stderr={0}".format(stdErr_str))
+            tmpLog.debug(f"stdout={stdOut_str}")
+            tmpLog.debug(f"stderr={stdErr_str}")
             if retCode == 0:
                 for tmpLine in stdOut_str.split("\n"):
                     if len(tmpLine) == 0 or tmpLine.startswith("JobID") or tmpLine.startswith("--"):
@@ -76,11 +76,11 @@ class SlurmBulkMonitor(PluginBase):
                         newStatus = WorkSpec.ST_submitted
                     else:
                         newStatus = WorkSpec.ST_failed
-                    tmpLog.debug("batchStatus {0} -> workerStatus {1}".format(batchStatus, newStatus))
+                    tmpLog.debug(f"batchStatus {batchStatus} -> workerStatus {newStatus}")
                     batch_id_status_map[batchID] = (newStatus, stdErr_str)
             else:
                 # failed
-                errStr = "{0} {1}".format(stdOut_str, stdErr_str)
+                errStr = f"{stdOut_str} {stdErr_str}"
                 tmpLog.error(errStr)
                 if "slurm_load_jobs error: Invalid job id specified" in errStr:
                     newStatus = WorkSpec.ST_failed
@@ -96,7 +96,7 @@ class SlurmBulkMonitor(PluginBase):
                 newStatus = WorkSpec.ST_failed
                 errStr = "Unknown batchID"
             retList.append((newStatus, errStr))
-            tmpLog.debug("Worker {0} -> workerStatus {1} errStr {2}".format(workSpec.workerID, newStatus, errStr))
+            tmpLog.debug(f"Worker {workSpec.workerID} -> workerStatus {newStatus} errStr {errStr}")
         return True, retList
 
     def check_workers_squeue(self, workspec_list, bulk_size=100):
@@ -113,20 +113,20 @@ class SlurmBulkMonitor(PluginBase):
                 batch_id_list.append(str(workSpec.batchID))
             batch_id_list_str = ",".join(batch_id_list)
             # command
-            comStr = "squeue -t all --jobs={0}".format(batch_id_list_str)
+            comStr = f"squeue -t all --jobs={batch_id_list_str}"
             # check
-            tmpLog.debug("check with {0}".format(comStr))
+            tmpLog.debug(f"check with {comStr}")
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             newStatus = workSpec.status
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            tmpLog.debug("retCode={0}".format(retCode))
+            tmpLog.debug(f"retCode={retCode}")
             errStr = ""
             stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
             stdErr_str = stdErr if (isinstance(stdErr, str) or stdErr is None) else stdErr.decode()
-            tmpLog.debug("stdout={0}".format(stdOut_str))
-            tmpLog.debug("stderr={0}".format(stdErr_str))
+            tmpLog.debug(f"stdout={stdOut_str}")
+            tmpLog.debug(f"stderr={stdErr_str}")
             if retCode == 0:
                 for tmpLine in stdOut_str.split("\n"):
                     tmpLine = tmpLine.strip()
@@ -145,11 +145,11 @@ class SlurmBulkMonitor(PluginBase):
                         newStatus = WorkSpec.ST_submitted
                     else:
                         newStatus = WorkSpec.ST_failed
-                    tmpLog.debug("batchStatus {0} -> workerStatus {1}".format(batchStatus, newStatus))
+                    tmpLog.debug(f"batchStatus {batchStatus} -> workerStatus {newStatus}")
                     batch_id_status_map[batchID] = (newStatus, stdErr_str)
             else:
                 # failed
-                errStr = "{0} {1}".format(stdOut_str, stdErr_str)
+                errStr = f"{stdOut_str} {stdErr_str}"
                 tmpLog.error(errStr)
                 if "slurm_load_jobs error: Invalid job id specified" in errStr:
                     newStatus = WorkSpec.ST_failed
@@ -165,5 +165,5 @@ class SlurmBulkMonitor(PluginBase):
                 newStatus = WorkSpec.ST_failed
                 errStr = "Unknown batchID"
             retList.append((newStatus, errStr))
-            tmpLog.debug("Worker {0} -> workerStatus {1} errStr {2}".format(workSpec.workerID, newStatus, errStr))
+            tmpLog.debug(f"Worker {workSpec.workerID} -> workerStatus {newStatus} errStr {errStr}")
         return True, retList

@@ -2,9 +2,9 @@ import json
 import types
 
 import six
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+
 from .ssh_master_pool import sshMasterPool
 
 # logger
@@ -69,7 +69,7 @@ class Method(object):
         tmpLog = core_utils.make_logger(_logger, method_name=self.function_name)
         tmpLog.debug("start")
         if self.conn is None:
-            tmpLog.warning("connection is not alive; method {0} returns None".format(self.function_name))
+            tmpLog.warning(f"connection is not alive; method {self.function_name} returns None")
             return None
         params = {
             "plugin_config": self.plugin_config,
@@ -95,7 +95,7 @@ class Method(object):
                 update_object(old_kwarg, new_kwarg)
             return core_utils.unpickle_from_text(str(return_dict["return"]))
         else:
-            tmpLog.error("execution failed with {0}; method={1} returns None".format(self.conn.returncode, self.function_name))
+            tmpLog.error(f"execution failed with {self.conn.returncode}; method={self.function_name} returns None")
             return None
 
 

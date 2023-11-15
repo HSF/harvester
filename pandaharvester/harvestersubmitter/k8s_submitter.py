@@ -8,12 +8,12 @@ except ImportError:
 
 from concurrent.futures import ThreadPoolExecutor
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
+from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvestersubmitter import submitter_common
 
 # logger
@@ -83,15 +83,15 @@ class K8sSubmitter(PluginBase):
         return cert
 
     def submit_k8s_worker(self, work_spec):
-        tmp_log = self.make_logger(base_logger, "queueName={0}".format(self.queueName), method_name="submit_k8s_worker")
+        tmp_log = self.make_logger(base_logger, f"queueName={self.queueName}", method_name="submit_k8s_worker")
 
         # get info from harvester queue config
         _queueConfigMapper = QueueConfigMapper()
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
 
         # set the stdout log file
-        log_file_name = "{0}_{1}.out".format(harvester_config.master.harvester_id, work_spec.workerID)
-        work_spec.set_log_file("stdout", "{0}/{1}".format(self.logBaseURL, log_file_name))
+        log_file_name = f"{harvester_config.master.harvester_id}_{work_spec.workerID}.out"
+        work_spec.set_log_file("stdout", f"{self.logBaseURL}/{log_file_name}")
         # TODO: consider if we want to upload the yaml file to PanDA cache
 
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
@@ -110,7 +110,7 @@ class K8sSubmitter(PluginBase):
             try:
                 max_time = this_panda_queue_dict["maxtime"]
             except Exception as e:
-                tmp_log.warning("Could not retrieve maxtime field for queue {0}".format(self.queueName))
+                tmp_log.warning(f"Could not retrieve maxtime field for queue {self.queueName}")
                 max_time = None
 
             associated_params_dict = {}
@@ -127,7 +127,7 @@ class K8sSubmitter(PluginBase):
             if pilot_opt_dict is None:
                 prod_source_label = prod_source_label_tmp
                 pilot_type = work_spec.pilotType
-                pilot_url_str = "--piloturl {0}".format(pilot_url) if pilot_url else ""
+                pilot_url_str = f"--piloturl {pilot_url}" if pilot_url else ""
             else:
                 prod_source_label = pilot_opt_dict["prod_source_label"]
                 pilot_type = pilot_opt_dict["pilot_type_opt"]
@@ -142,21 +142,21 @@ class K8sSubmitter(PluginBase):
             )
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
-            err_str = "Failed to create a JOB; {0}".format(_e)
+            err_str = f"Failed to create a JOB; {_e}"
             tmp_return_value = (False, err_str)
         else:
             work_spec.batchID = yaml_content["metadata"]["name"]
-            tmp_log.debug("Created worker {0} with batchID={1}".format(work_spec.workerID, work_spec.batchID))
+            tmp_log.debug(f"Created worker {work_spec.workerID} with batchID={work_spec.batchID}")
             tmp_return_value = (True, "")
 
         return tmp_return_value
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmp_log = self.make_logger(base_logger, "queueName={0}".format(self.queueName), method_name="submit_workers")
+        tmp_log = self.make_logger(base_logger, f"queueName={self.queueName}", method_name="submit_workers")
 
         n_workers = len(workspec_list)
-        tmp_log.debug("start, n_workers={0}".format(n_workers))
+        tmp_log.debug(f"start, n_workers={n_workers}")
 
         ret_list = list()
         if not workspec_list:
@@ -165,7 +165,7 @@ class K8sSubmitter(PluginBase):
 
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:
             ret_val_list = thread_pool.map(self.submit_k8s_worker, workspec_list)
-            tmp_log.debug("{0} workers submitted".format(n_workers))
+            tmp_log.debug(f"{n_workers} workers submitted")
 
         ret_list = list(ret_val_list)
 

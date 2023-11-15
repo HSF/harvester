@@ -8,11 +8,14 @@ try:
 except Exception:
     import subprocess
 
-from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestermisc.htcondor_utils import condor_job_id_from_workspec, get_host_batchid_map, _runShell
-from pandaharvester.harvestermisc.htcondor_utils import CondorJobManage
-
+from pandaharvester.harvestermisc.htcondor_utils import (
+    CondorJobManage,
+    _runShell,
+    condor_job_id_from_workspec,
+    get_host_batchid_map,
+)
+from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
 # Logger
 baseLogger = core_utils.setup_logger("htcondor_sweeper")
@@ -97,7 +100,7 @@ class HTCondorSweeper(BaseSweeper):
                 ret_map = condor_job_manage.remove(batchIDs_list)
             except Exception as e:
                 ret_map = {}
-                ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
+                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
                 tmpLog.error(ret_err_str)
             all_job_ret_map.update(ret_map)
         # Fill return list
@@ -114,7 +117,7 @@ class HTCondorSweeper(BaseSweeper):
     # cleanup for a worker
     def sweep_worker(self, workspec):
         # Make logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="sweep_worker")
         tmpLog.debug("start")
         # Clean up preparator base directory (staged-in files)
         try:
@@ -124,7 +127,7 @@ class HTCondorSweeper(BaseSweeper):
         else:
             if os.path.isdir(preparatorBasePath):
                 if not workspec.get_jobspec_list():
-                    tmpLog.warning("No job PandaID found relate to workerID={0}. Skipped cleaning up preparator directory".format(workspec.workerID))
+                    tmpLog.warning(f"No job PandaID found relate to workerID={workspec.workerID}. Skipped cleaning up preparator directory")
                 else:
                     for jobspec in workspec.get_jobspec_list():
                         preparator_dir_for_cleanup = os.path.join(preparatorBasePath, str(jobspec.PandaID))
@@ -133,20 +136,18 @@ class HTCondorSweeper(BaseSweeper):
                                 shutil.rmtree(preparator_dir_for_cleanup)
                             except OSError as _err:
                                 if "No such file or directory" in _err.strerror:
-                                    tmpLog.debug("Found that {0} was already removed".format(_err.filename))
+                                    tmpLog.debug(f"Found that {_err.filename} was already removed")
                                 pass
-                            tmpLog.info("Succeeded to clean up preparator directory: Removed {0}".format(preparator_dir_for_cleanup))
+                            tmpLog.info(f"Succeeded to clean up preparator directory: Removed {preparator_dir_for_cleanup}")
                         else:
-                            errStr = "Failed to clean up preparator directory: {0} does not exist or invalid to be cleaned up".format(
-                                preparator_dir_for_cleanup
-                            )
+                            errStr = f"Failed to clean up preparator directory: {preparator_dir_for_cleanup} does not exist or invalid to be cleaned up"
                             tmpLog.error(errStr)
                             return False, errStr
             else:
-                errStr = "Configuration error: Preparator base directory {0} does not exist".format(preparatorBasePath)
+                errStr = f"Configuration error: Preparator base directory {preparatorBasePath} does not exist"
                 tmpLog.error(errStr)
                 return False, errStr
-        tmpLog.info("Succeeded to clean up everything about workerID={0}".format(workspec.workerID))
+        tmpLog.info(f"Succeeded to clean up everything about workerID={workspec.workerID}")
         tmpLog.debug("done")
         # Return
         return True, ""

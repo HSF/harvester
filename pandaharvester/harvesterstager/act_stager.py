@@ -1,14 +1,14 @@
 import json
 import os
 
+from act.atlas.aCTDBPanda import aCTDBPanda
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
-from pandaharvester.harvestercore.file_spec import FileSpec
-from pandaharvester.harvesterconfig import harvester_config
-from .base_stager import BaseStager
 
-from act.atlas.aCTDBPanda import aCTDBPanda
+from .base_stager import BaseStager
 
 # logger
 baseLogger = core_utils.setup_logger("act_stager")
@@ -29,7 +29,7 @@ class ACTStager(BaseStager):
         try:
             self.actDB = aCTDBPanda(self.log)
         except Exception as e:
-            self.log.error("Could not connect to aCT database: {0}".format(str(e)))
+            self.log.error(f"Could not connect to aCT database: {str(e)}")
             self.actDB = None
 
     # check status
@@ -48,19 +48,19 @@ class ACTStager(BaseStager):
 
         workSpec = jobspec.get_workspec_list()[0]
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
+        tmpLog = core_utils.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="check_workers")
         try:
-            tmpLog.debug("Querying aCT for id {0}".format(workSpec.batchID))
+            tmpLog.debug(f"Querying aCT for id {workSpec.batchID}")
             columns = ["actpandastatus", "error"]
-            actjobs = self.actDB.getJobs("id={0}".format(workSpec.batchID), columns)
+            actjobs = self.actDB.getJobs(f"id={workSpec.batchID}", columns)
         except Exception as e:
             if self.actDB:
-                tmpLog.error("Failed to query aCT DB: {0}".format(str(e)))
+                tmpLog.error(f"Failed to query aCT DB: {str(e)}")
             # try again later
             return None, "Failed to query aCT DB"
 
         if not actjobs:
-            tmpLog.error("Job with id {0} not found in aCT".format(workSpec.batchID))
+            tmpLog.error(f"Job with id {workSpec.batchID} not found in aCT")
             return False, "Job not found in aCT"
 
         actstatus = actjobs[0]["actpandastatus"]
@@ -78,7 +78,7 @@ class ACTStager(BaseStager):
             # No way to update workspec here
             # workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
             jobspec.set_pilot_error(error_code, errorMsg)
-            tmpLog.info("Job {0} failed with error {1}".format(jobspec.PandaID, errorMsg))
+            tmpLog.info(f"Job {jobspec.PandaID} failed with error {errorMsg}")
         elif actstatus == "donecancelled":
             # Nothing to do
             pass
@@ -86,7 +86,7 @@ class ACTStager(BaseStager):
             # Still staging
             return None, "still staging"
 
-        tmpLog.info("ID {0} completed in state {1}".format(workSpec.batchID, actstatus))
+        tmpLog.info(f"ID {workSpec.batchID} completed in state {actstatus}")
 
         # Set dummy output file to finished
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
@@ -108,7 +108,7 @@ class ACTStager(BaseStager):
         fileSpec = FileSpec()
         fileSpec.PandaID = jobspec.PandaID
         fileSpec.taskID = jobspec.taskID
-        fileSpec.lfn = "dummy.{0}".format(jobspec.PandaID)
+        fileSpec.lfn = f"dummy.{jobspec.PandaID}"
         fileSpec.scope = "dummy"
         fileSpec.fileType = "output"
         jobspec.add_in_file(fileSpec)
@@ -127,21 +127,21 @@ class ACTStager(BaseStager):
         """
 
         # get logger
-        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="post_processing")
+        tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="post_processing")
         # look for job report
         jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobReport)
-        tmpLog.debug("looking for job report file {0}".format(jsonFilePath))
+        tmpLog.debug(f"looking for job report file {jsonFilePath}")
         try:
             with open(jsonFilePath) as jsonFile:
                 jobreport = json.load(jsonFile)
         except BaseException:
             # Assume no job report available means true pilot or push mode
             # If job report is not available in full push mode aCT would have failed the job
-            tmpLog.debug("no job report at {0}".format(jsonFilePath))
+            tmpLog.debug(f"no job report at {jsonFilePath}")
             return
 
-        tmpLog.debug("got {0} kB of job report".format(os.stat(jsonFilePath).st_size / 1024))
-        tmpLog.debug("pilot info for {0}: {1}".format(jobspec.PandaID, jobreport))
+        tmpLog.debug(f"got {os.stat(jsonFilePath).st_size / 1024} kB of job report")
+        tmpLog.debug(f"pilot info for {jobspec.PandaID}: {jobreport}")
 
         # Set info for final heartbeat and final status
         jobspec.set_attributes({jobspec.PandaID: jobreport})

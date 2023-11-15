@@ -1,7 +1,8 @@
 import random
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from .base_worker_maker import BaseWorkerMaker
 
+from pandaharvester.harvestercore.work_spec import WorkSpec
+
+from .base_worker_maker import BaseWorkerMaker
 
 # dummy worker maker
 

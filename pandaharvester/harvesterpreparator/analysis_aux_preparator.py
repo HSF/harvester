@@ -8,9 +8,8 @@ except Exception:
 
 import requests
 import requests.exceptions
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 
 # logger
@@ -29,18 +28,18 @@ class AnalysisAuxPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_preparation")
         tmpLog.debug("start")
         # loop over all inputs
         allDone = True
         bulkExtCommand = {}
-        tmpLog.debug("number of inFiles : {0}".format(len(jobspec.inFiles)))
+        tmpLog.debug(f"number of inFiles : {len(jobspec.inFiles)}")
         for tmpFileSpec in jobspec.inFiles:
             # local access path
             url = tmpFileSpec.url
             accPath = self.make_local_access_path(tmpFileSpec.scope, tmpFileSpec.lfn)
             accPathTmp = accPath + ".tmp"
-            tmpLog.debug("url : {0} accPath : {1}".format(url, accPath))
+            tmpLog.debug(f"url : {url} accPath : {accPath}")
             # check if already exits
             if os.path.exists(accPath):
                 continue
@@ -65,18 +64,18 @@ class AnalysisAuxPreparator(PluginBase):
             return_code = 1
             if url.startswith("http"):
                 try:
-                    tmpLog.debug("getting via http from {0} to {1}".format(url, accPathTmp))
+                    tmpLog.debug(f"getting via http from {url} to {accPathTmp}")
                     res = requests.get(url, timeout=180, verify=False)
                     if res.status_code == 200:
                         with open(accPathTmp, "wb") as f:
                             f.write(res.content)
-                        tmpLog.debug("Successfully fetched file - {0}".format(accPathTmp))
+                        tmpLog.debug(f"Successfully fetched file - {accPathTmp}")
                         return_code = 0
                     else:
-                        errMsg = "failed to get {0} with StatusCode={1} {2}".format(url, res.status_code, res.text)
+                        errMsg = f"failed to get {url} with StatusCode={res.status_code} {res.text}"
                         tmpLog.error(errMsg)
                 except requests.exceptions.ReadTimeout:
-                    tmpLog.error("read timeout when getting data from {0}".format(url))
+                    tmpLog.error(f"read timeout when getting data from {url}")
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             elif url.startswith("docker"):
@@ -93,7 +92,7 @@ class AnalysisAuxPreparator(PluginBase):
                     args = ["shifterimg", "pull", url]
                     return_code = self.make_image(jobspec, args)
                 else:
-                    tmpLog.error("unsupported container runtime : {0}".format(self.containerRuntime))
+                    tmpLog.error(f"unsupported container runtime : {self.containerRuntime}")
             elif url.startswith("/"):
                 try:
                     shutil.copyfile(url, accPathTmp)
@@ -101,11 +100,11 @@ class AnalysisAuxPreparator(PluginBase):
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             else:
-                tmpLog.error("unsupported protocol in {0}".format(url))
+                tmpLog.error(f"unsupported protocol in {url}")
             # remove empty files
             if os.path.exists(accPathTmp) and os.path.getsize(accPathTmp) == 0:
                 return_code = 1
-                tmpLog.debug("remove empty file - {0}".format(accPathTmp))
+                tmpLog.debug(f"remove empty file - {accPathTmp}")
                 try:
                     os.remove(accPathTmp)
                 except Exception:
@@ -121,7 +120,7 @@ class AnalysisAuxPreparator(PluginBase):
                 allDone = False
         # execute external command
         execIdMap = {}
-        tmpLog.debug("bulkExtCommand : {0}".format(bulkExtCommand))
+        tmpLog.debug(f"bulkExtCommand : {bulkExtCommand}")
         for protocol in bulkExtCommand:
             args = []
             for arg in bulkExtCommand[protocol]["command"]["trigger"]["args"]:
@@ -145,20 +144,20 @@ class AnalysisAuxPreparator(PluginBase):
                 if return_code == 0 and "check" in bulkExtCommand[protocol]["command"]:
                     executionID = [s for s in stdout.split("\n") if s][-1]
                     dst = ",".join(bulkExtCommand[protocol]["dst"])
-                    executionID = "{0}:{1}:{2}".format(protocol, executionID, dst)
-                    tmpLog.debug("executionID - {0}".format(executionID))
+                    executionID = f"{protocol}:{executionID}:{dst}"
+                    tmpLog.debug(f"executionID - {executionID}")
                     execIdMap[executionID] = {"lfns": bulkExtCommand[protocol]["lfn"], "groupStatus": "active"}
                 stdout = stdout.replace("\n", " ")
                 stderr = stderr.replace("\n", " ")
-                tmpLog.debug("stdout: {0}".format(stdout))
-                tmpLog.debug("stderr: {0}".format(stderr))
+                tmpLog.debug(f"stdout: {stdout}")
+                tmpLog.debug(f"stderr: {stderr}")
                 if executionID is not None:
-                    tmpLog.debug("execution ID: {0}".format(executionID))
+                    tmpLog.debug(f"execution ID: {executionID}")
             except Exception:
                 core_utils.dump_error_message(tmpLog)
                 allDone = False
         # keep execution ID to check later
-        tmpLog.debug("execIdMap : {0}".format(execIdMap))
+        tmpLog.debug(f"execIdMap : {execIdMap}")
         if execIdMap:
             jobspec.set_groups_to_files(execIdMap)
         # done
@@ -179,7 +178,7 @@ class AnalysisAuxPreparator(PluginBase):
     # check status
     def check_stage_in_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="check_stage_in_status")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="check_stage_in_status")
         tmpLog.debug("start")
         allDone = True
         errMsg = ""
@@ -188,7 +187,7 @@ class AnalysisAuxPreparator(PluginBase):
             if tmpGroupID is None:
                 continue
             tmpGroupID_parts = tmpGroupID.split(":", 2)
-            tmpLog.debug("transfer group ID : {0} components: {1}".format(tmpGroupID, tmpGroupID_parts))
+            tmpLog.debug(f"transfer group ID : {tmpGroupID} components: {tmpGroupID_parts}")
             protocol, executionID, dst = tmpGroupID.split(":", 2)
             args = []
             for arg in self.externalCommand[protocol]["check"]["args"]:
@@ -209,11 +208,11 @@ class AnalysisAuxPreparator(PluginBase):
                     stderr = ""
                 stdout = stdout.replace("\n", " ")
                 stderr = stderr.replace("\n", " ")
-                tmpLog.debug("return_code: {0}".format(return_code))
-                tmpLog.debug("stdout: {0}".format(stdout))
-                tmpLog.debug("stderr: {0}".format(stderr))
+                tmpLog.debug(f"return_code: {return_code}")
+                tmpLog.debug(f"stdout: {stdout}")
+                tmpLog.debug(f"stderr: {stderr}")
                 if return_code != 0:
-                    errMsg = "{0} is not ready".format(tmpGroupID)
+                    errMsg = f"{tmpGroupID} is not ready"
                     allDone = False
                     break
             except Exception:
@@ -221,7 +220,7 @@ class AnalysisAuxPreparator(PluginBase):
                 allDone = False
                 break
         if not allDone:
-            tmpLog.debug("check_stage_in_status: Return : None errMsg : {0}".format(errMsg))
+            tmpLog.debug(f"check_stage_in_status: Return : None errMsg : {errMsg}")
             return None, errMsg
         tmpLog.debug("check_stage_in_status: Return : True")
         return True, ""
@@ -229,13 +228,13 @@ class AnalysisAuxPreparator(PluginBase):
     # resolve input file paths
     def resolve_input_paths(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="resolve_input_paths")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="resolve_input_paths")
         pathInfo = dict()
         for tmpFileSpec in jobspec.inFiles:
             url = tmpFileSpec.lfn
             accPath = self.make_local_access_path(tmpFileSpec.scope, tmpFileSpec.lfn)
             pathInfo[tmpFileSpec.lfn] = {"path": accPath}
-            tmpLog.debug("lfn: {0} scope : {1} accPath : {2} pathInfo : {3}".format(url, tmpFileSpec.scope, accPath, pathInfo))
+            tmpLog.debug(f"lfn: {url} scope : {tmpFileSpec.scope} accPath : {accPath} pathInfo : {pathInfo}")
         jobspec.set_input_file_paths(pathInfo)
         return True, ""
 
@@ -246,7 +245,7 @@ class AnalysisAuxPreparator(PluginBase):
     # run the command to create the image
     def make_image(self, jobspec, args):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="make_image")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="make_image")
         tmpLog.debug("start")
         return_code = 1
         try:
@@ -258,9 +257,9 @@ class AnalysisAuxPreparator(PluginBase):
                 stdout = stdout.replace("\n", " ")
             if stderr is not None:
                 stderr = stderr.replace("\n", " ")
-            tmpLog.debug("stdout: {0}".format(stdout))
+            tmpLog.debug(f"stdout: {stdout}")
             tmpLog.debug("stderr: [0}".format(stderr))
         except Exception:
             core_utils.dump_error_message(tmpLog)
-        tmpLog.debug("end with return code {0}".format(return_code))
+        tmpLog.debug(f"end with return code {return_code}")
         return return_code

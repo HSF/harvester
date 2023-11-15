@@ -6,8 +6,8 @@ try:
 except Exception:
     import subprocess
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 
 # logger
@@ -48,7 +48,7 @@ class GridFtpPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_preparation")
         tmpLog.debug("start")
         # loop over all inputs
         inFileInfo = jobspec.get_input_file_attributes()
@@ -64,7 +64,7 @@ class GridFtpPreparator(PluginBase):
                 if os.path.exists(accPath):
                     # calculate checksum
                     checksum = core_utils.calc_adler32(accPath)
-                    checksum = "ad:{0}".format(checksum)
+                    checksum = f"ad:{checksum}"
                     if checksum == inFileInfo[tmpFileSpec.lfn]["checksum"]:
                         continue
                 # make directories if needed
@@ -73,7 +73,7 @@ class GridFtpPreparator(PluginBase):
             # make input for globus-url-copy
             if gucInput is None:
                 gucInput = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_guc_in.tmp")
-            gucInput.write("{0} {1}\n".format(srcPath, dstPath))
+            gucInput.write(f"{srcPath} {dstPath}\n")
             tmpFileSpec.attemptNr += 1
         # nothing to transfer
         if gucInput is None:
@@ -103,8 +103,8 @@ class GridFtpPreparator(PluginBase):
                 if not isinstance(stderr, str):
                     stderr = stderr.decode()
                 stderr = stderr.replace("\n", " ")
-            tmpLog.debug("stdout: %s" % stdout)
-            tmpLog.debug("stderr: %s" % stderr)
+            tmpLog.debug(f"stdout: {stdout}")
+            tmpLog.debug(f"stderr: {stderr}")
         except Exception:
             core_utils.dump_error_message(tmpLog)
             return_code = 1
@@ -113,7 +113,7 @@ class GridFtpPreparator(PluginBase):
             tmpLog.debug("succeeded")
             return True, ""
         else:
-            errMsg = "failed with {0}".format(return_code)
+            errMsg = f"failed with {return_code}"
             tmpLog.error(errMsg)
             # check attemptNr
             for tmpFileSpec in jobspec.inFiles:

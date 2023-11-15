@@ -1,13 +1,13 @@
 import datetime
 
+from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from pandaharvester.harvesterbody.agent_base import AgentBase
-from pandaharvester.harvestercore.pilot_errors import PilotErrors
-from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger
 _logger = core_utils.setup_logger("preparator")
@@ -26,10 +26,10 @@ class Preparator(AgentBase):
     # main loop
 
     def run(self):
-        lockedBy = "preparator-{0}".format(self.get_pid())
+        lockedBy = f"preparator-{self.get_pid()}"
         while True:
             sw = core_utils.get_stopwatch()
-            mainLog = self.make_logger(_logger, "id={0}".format(lockedBy), method_name="run")
+            mainLog = self.make_logger(_logger, f"id={lockedBy}", method_name="run")
             mainLog.debug("try to get jobs to check")
             # get jobs to check preparation
             try:
@@ -49,10 +49,10 @@ class Preparator(AgentBase):
                 max_files_per_job=maxFilesPerJob,
                 ng_file_status_list=["ready"],
             )
-            mainLog.debug("got {0} jobs to check".format(len(jobsToCheck)))
+            mainLog.debug(f"got {len(jobsToCheck)} jobs to check")
             # loop over all jobs
             for jobSpec in jobsToCheck:
-                tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobSpec.PandaID), method_name="run")
+                tmpLog = self.make_logger(_logger, f"PandaID={jobSpec.PandaID}", method_name="run")
                 try:
                     tmpLog.debug("start checking")
                     # configID
@@ -61,7 +61,7 @@ class Preparator(AgentBase):
                         configID = None
                     # get queue
                     if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
-                        tmpLog.error("queue config for {0}/{1} not found".format(jobSpec.computingSite, configID))
+                        tmpLog.error(f"queue config for {jobSpec.computingSite}/{configID} not found")
                         continue
                     queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, jobSpec.configID)
                     oldSubStatus = jobSpec.subStatus
@@ -72,9 +72,9 @@ class Preparator(AgentBase):
                         preparatorCore = self.pluginFactory.get_plugin(queueConfig.aux_preparator)
                     if preparatorCore is None:
                         # not found
-                        tmpLog.error("plugin for {0} not found".format(jobSpec.computingSite))
+                        tmpLog.error(f"plugin for {jobSpec.computingSite} not found")
                         continue
-                    tmpLog.debug("plugin={0}".format(preparatorCore.__class__.__name__))
+                    tmpLog.debug(f"plugin={preparatorCore.__class__.__name__}")
                     # lock job again
                     lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, "preparatorTime", "lockedBy", lockedBy)
                     if not lockedAgain:
@@ -86,7 +86,7 @@ class Preparator(AgentBase):
                         # update job
                         jobSpec.lockedBy = None
                         self.dbProxy.update_job(jobSpec, {"lockedBy": lockedBy, "subStatus": oldSubStatus})
-                        tmpLog.debug("try to check later since still preparing with {0}".format(tmpStr))
+                        tmpLog.debug(f"try to check later since still preparing with {tmpStr}")
                         continue
                     # succeeded
                     if tmpStat is True:
@@ -95,7 +95,7 @@ class Preparator(AgentBase):
                         if tmpStat is False:
                             jobSpec.lockedBy = None
                             self.dbProxy.update_job(jobSpec, {"lockedBy": lockedBy, "subStatus": oldSubStatus})
-                            tmpLog.error("failed to resolve input file paths : {0}".format(tmpStr))
+                            tmpLog.error(f"failed to resolve input file paths : {tmpStr}")
                             continue
                         # manipulate container-related job params
                         jobSpec.manipulate_job_params_for_container()
@@ -130,11 +130,11 @@ class Preparator(AgentBase):
                         jobSpec.lockedBy = None
                         jobSpec.preparatorTime = None
                         jobSpec.stateChangeTime = datetime.datetime.utcnow()
-                        errStr = "stage-in failed with {0}".format(tmpStr)
+                        errStr = f"stage-in failed with {tmpStr}"
                         jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()
                         self.dbProxy.update_job(jobSpec, {"lockedBy": lockedBy, "subStatus": oldSubStatus})
-                        tmpLog.error("failed with {0}".format(tmpStr))
+                        tmpLog.error(f"failed with {tmpStr}")
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             # get jobs to trigger preparation
@@ -157,11 +157,11 @@ class Preparator(AgentBase):
                 max_files_per_job=maxFilesPerJob,
                 ng_file_status_list=["triggered", "ready"],
             )
-            mainLog.debug("got {0} jobs to prepare".format(len(jobsToTrigger)))
+            mainLog.debug(f"got {len(jobsToTrigger)} jobs to prepare")
             # loop over all jobs
             fileStatMap = dict()
             for jobSpec in jobsToTrigger:
-                tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobSpec.PandaID), method_name="run")
+                tmpLog = self.make_logger(_logger, f"PandaID={jobSpec.PandaID}", method_name="run")
                 try:
                     tmpLog.debug("try to trigger preparation")
                     # configID
@@ -170,7 +170,7 @@ class Preparator(AgentBase):
                         configID = None
                     # get queue
                     if not self.queueConfigMapper.has_queue(jobSpec.computingSite, configID):
-                        tmpLog.error("queue config for {0}/{1} not found".format(jobSpec.computingSite, configID))
+                        tmpLog.error(f"queue config for {jobSpec.computingSite}/{configID} not found")
                         continue
                     queueConfig = self.queueConfigMapper.get_queue(jobSpec.computingSite, configID)
                     oldSubStatus = jobSpec.subStatus
@@ -183,9 +183,9 @@ class Preparator(AgentBase):
                         fileType = FileSpec.AUX_INPUT
                     if preparatorCore is None:
                         # not found
-                        tmpLog.error("plugin for {0} not found".format(jobSpec.computingSite))
+                        tmpLog.error(f"plugin for {jobSpec.computingSite} not found")
                         continue
-                    tmpLog.debug("plugin={0}".format(preparatorCore.__class__.__name__))
+                    tmpLog.debug(f"plugin={preparatorCore.__class__.__name__}")
                     # lock job again
                     lockedAgain = self.dbProxy.lock_job_again(jobSpec.PandaID, "preparatorTime", "lockedBy", lockedBy)
                     if not lockedAgain:
@@ -288,16 +288,16 @@ class Preparator(AgentBase):
                         jobSpec.lockedBy = None
                         jobSpec.preparatorTime = None
                         jobSpec.stateChangeTime = datetime.datetime.utcnow()
-                        errStr = "stage-in failed with {0}".format(tmpStr)
+                        errStr = f"stage-in failed with {tmpStr}"
                         jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()
                         self.dbProxy.update_job(jobSpec, {"lockedBy": lockedBy, "subStatus": oldSubStatus})
-                        tmpLog.debug("failed to trigger with {0}".format(tmpStr))
+                        tmpLog.debug(f"failed to trigger with {tmpStr}")
                     else:
                         # temporary error
                         jobSpec.lockedBy = None
                         self.dbProxy.update_job(jobSpec, {"lockedBy": lockedBy, "subStatus": oldSubStatus})
-                        tmpLog.debug("try to prepare later since {0}".format(tmpStr))
+                        tmpLog.debug(f"try to prepare later since {tmpStr}")
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
             mainLog.debug("done" + sw.get_elapsed_time())

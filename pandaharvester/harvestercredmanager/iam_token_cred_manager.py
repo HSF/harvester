@@ -1,13 +1,18 @@
-import os
 import json
+import os
 import re
 import time
 import traceback
 
-from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
-from pandaharvester.harvestermisc.token_utils import endpoint_to_filename, WLCG_scopes, IssuerBroker
+from pandaharvester.harvestermisc.token_utils import (
+    IssuerBroker,
+    WLCG_scopes,
+    endpoint_to_filename,
+)
+
+from .base_cred_manager import BaseCredManager
 
 # logger
 _logger = core_utils.setup_logger("iam_token_cred_manager")
@@ -28,7 +33,7 @@ class IamTokenCredManager(BaseCredManager):
     def __init__(self, **kwarg):
         BaseCredManager.__init__(self, **kwarg)
         # make logger
-        tmp_log = self.make_logger(_logger, "config={0}".format(self.setup_name), method_name="__init__")
+        tmp_log = self.make_logger(_logger, f"config={self.setup_name}", method_name="__init__")
         # attributes
         if hasattr(self, "inFile"):
             # parse inFile setup configuration
@@ -36,7 +41,7 @@ class IamTokenCredManager(BaseCredManager):
                 with open(self.inFile) as f:
                     self.setupMap = json.load(f)
             except Exception as e:
-                tmp_log.error("Error with inFile. {0}: {1}".format(e.__class__.__name__, e))
+                tmp_log.error(f"Error with inFile. {e.__class__.__name__}: {e}")
                 self.setupMap = {}
                 raise
         else:
@@ -59,11 +64,11 @@ class IamTokenCredManager(BaseCredManager):
             self.check_interval = self.setupMap.get("check_interval", 300)
             self.refresh_interval = self.setupMap.get("refresh_interval", 3600)
         except KeyError as e:
-            tmp_log.error("Missing attributes in setup. {0}".format(traceback.format_exc()))
+            tmp_log.error(f"Missing attributes in setup. {traceback.format_exc()}")
             raise
         else:
             if self.target_type not in ALL_TARGET_TYPES:
-                tmp_log.error("Unsupported target_type: {0}".format(self.target_type))
+                tmp_log.error(f"Unsupported target_type: {self.target_type}")
                 raise Exception("Unsupported target_type")
         # initialize
         self.targets_dict = dict()
@@ -87,28 +92,28 @@ class IamTokenCredManager(BaseCredManager):
         return ret
 
     def _update_ts(self):
-        tmp_log = self.make_logger(_logger, "config={0}".format(self.setup_name), method_name="_update_ts")
+        tmp_log = self.make_logger(_logger, f"config={self.setup_name}", method_name="_update_ts")
         with open(self.update_ts_path, "w") as f:
             f.write(str(self.out_dir))
-        tmp_log.debug("updated timestamp file {0}".format(self.update_ts_path))
+        tmp_log.debug(f"updated timestamp file {self.update_ts_path}")
 
     def _clean_up(self):
-        tmp_log = self.make_logger(_logger, "config={0}".format(self.setup_name), method_name="_clean_up")
+        tmp_log = self.make_logger(_logger, f"config={self.setup_name}", method_name="_clean_up")
         now_time = time.time()
         for filename in os.listdir(self.out_dir):
             file_path = os.path.join(self.out_dir, filename)
             if now_time - os.path.getmtime(file_path) > self.lifetime:
                 if os.path.isfile(file_path):
                     os.remove(file_path)
-                    tmp_log.debug("deleted old token file {0}".format(file_path))
+                    tmp_log.debug(f"deleted old token file {file_path}")
 
     def _handle_target_types(self):
         # make logger
-        tmp_log = self.make_logger(_logger, "config={0}".format(self.setup_name), method_name="_handle_target_types")
+        tmp_log = self.make_logger(_logger, f"config={self.setup_name}", method_name="_handle_target_types")
         try:
             self.panda_queues_dict = PandaQueuesDict()
         except Exception as e:
-            tmp_log.error("Problem calling PandaQueuesDict. {0}".format(traceback.format_exc()))
+            tmp_log.error(f"Problem calling PandaQueuesDict. {traceback.format_exc()}")
             raise
         if self.target_type == "common":
             if not self.target_list:
@@ -142,7 +147,7 @@ class IamTokenCredManager(BaseCredManager):
                                 # no port, add default port
                                 if ce_flavour_str in default_port_map:
                                     default_port = default_port_map[ce_flavour_str]
-                                    ce_endpoint_modified = "{0}:{1}".format(ce_hostname, default_port)
+                                    ce_endpoint_modified = f"{ce_hostname}:{default_port}"
                             if ce_endpoint_modified and ce_flavour:
                                 target_attr_dict = {
                                     "ce_flavour": ce_flavour,
@@ -152,7 +157,7 @@ class IamTokenCredManager(BaseCredManager):
                         # do not generate token if no queues of CE
                         continue
             except Exception as e:
-                tmp_log.error("Problem retrieving CEs from CRIC. {0}".format(traceback.format_exc()))
+                tmp_log.error(f"Problem retrieving CEs from CRIC. {traceback.format_exc()}")
                 raise
             # retrieve CEs from local file
             if self.target_list_file:
@@ -166,7 +171,7 @@ class IamTokenCredManager(BaseCredManager):
                                 }
                                 self.targets_dict[target] = target_attr_dict
                 except Exception as e:
-                    tmp_log.error("Problem retrieving CEs from local file. {0}".format(traceback.format_exc()))
+                    tmp_log.error(f"Problem retrieving CEs from local file. {traceback.format_exc()}")
                     raise
             # scope for CE
             self.scope = WLCG_scopes.COMPUTE_ALL
@@ -174,7 +179,7 @@ class IamTokenCredManager(BaseCredManager):
     # check proxy
     def check_credential(self):
         # make logger
-        tmp_log = self.make_logger(_logger, "config={0}".format(self.setup_name), method_name="check_credential")
+        tmp_log = self.make_logger(_logger, f"config={self.setup_name}", method_name="check_credential")
         # clean up
         self._clean_up()
         # same update period as credmanager agent
@@ -188,7 +193,7 @@ class IamTokenCredManager(BaseCredManager):
     # renew proxy
     def renew_credential(self):
         # make logger
-        tmp_log = self.make_logger(_logger, "config={0}".format(self.setup_name), method_name="renew_credential")
+        tmp_log = self.make_logger(_logger, f"config={self.setup_name}", method_name="renew_credential")
         # go
         all_ok = True
         all_err_str = ""
@@ -200,15 +205,15 @@ class IamTokenCredManager(BaseCredManager):
                 # check token freshness
                 if self._is_fresh(token_path):
                     # token still fresh, skip it
-                    tmp_log.debug("token for {0} at {1} still fresh; skipped".format(target, token_path))
+                    tmp_log.debug(f"token for {target} at {token_path} still fresh; skipped")
                 else:
                     # renew access token of target
                     access_token = self.issuer_broker.get_access_token(aud=target, scope=self.scope)
                     with open(token_path, "w") as f:
                         f.write(access_token)
-                    tmp_log.info("renewed token for {0} at {1}".format(target, token_path))
+                    tmp_log.info(f"renewed token for {target} at {token_path}")
             except Exception as e:
-                err_str = "Problem getting token for {0}. {1}".format(target, traceback.format_exc())
+                err_str = f"Problem getting token for {target}. {traceback.format_exc()}"
                 tmp_log.error(err_str)
                 all_ok = False
                 all_err_str = "failed to get some tokens. Check the plugin log for details "

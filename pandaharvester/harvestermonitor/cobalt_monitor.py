@@ -4,13 +4,14 @@ try:
     import subprocess32 as subprocess
 except BaseException:
     import subprocess
+
 import json
 import os.path
 from pprint import pprint
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # logger
 baseLogger = core_utils.setup_logger("cobalt_monitor")
@@ -37,20 +38,20 @@ class CobaltMonitor(PluginBase):
             # print "pprint(vars(workSpec))"
             # pprint(vars(workSpec))
             # make logger
-            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="check_workers")
             # first command
-            comStr = "qstat {0}".format(workSpec.batchID)
+            comStr = f"qstat {workSpec.batchID}"
             # first check
-            tmpLog.debug("check with {0}".format(comStr))
+            tmpLog.debug(f"check with {comStr}")
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             oldStatus = workSpec.status
             newStatus = None
             # first check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            tmpLog.debug("retCode= {0}".format(retCode))
-            tmpLog.debug("stdOut = {0}".format(stdOut))
-            tmpLog.debug("stdErr = {0}".format(stdErr))
+            tmpLog.debug(f"retCode= {retCode}")
+            tmpLog.debug(f"stdOut = {stdOut}")
+            tmpLog.debug(f"stdErr = {stdErr}")
             errStr = ""
             if retCode == 0:
                 # batch job is still running and has a state, output looks like this:
@@ -67,7 +68,7 @@ class CobaltMonitor(PluginBase):
                 state = parts[4]
 
                 if int(batchid) != int(workSpec.batchID):
-                    errStr += "qstat returned status for wrong batch id %s != %s" % (batchid, workSpec.batchID)
+                    errStr += f"qstat returned status for wrong batch id {batchid} != {workSpec.batchID}"
                     newStatus = WorkSpec.ST_failed
                 else:
                     if "running" in state:
@@ -85,7 +86,7 @@ class CobaltMonitor(PluginBase):
                     elif "maxrun_hold" in state:
                         newStatus = WorkSpec.ST_submitted
                     else:
-                        raise Exception('failed to parse job state "%s" qstat stdout: %s\n stderr: %s' % (state, stdOut, stdErr))
+                        raise Exception(f'failed to parse job state "{state}" qstat stdout: {stdOut}\n stderr: {stdErr}')
 
                 retList.append((newStatus, errStr))
             elif retCode == 1 and len(stdOut.strip()) == 0 and len(stdErr.strip()) == 0:
@@ -127,21 +128,21 @@ class CobaltMonitor(PluginBase):
                             retList.append((newStatus, errStr))
                         else:
                             tmpLog.debug("job has no exit code, failing job")
-                            errStr += " exit code not found in cobalt log file %s " % cobalt_logfile
+                            errStr += f" exit code not found in cobalt log file {cobalt_logfile} "
                             newStatus = WorkSpec.ST_failed
                             retList.append((newStatus, errStr))
                     else:
-                        tmpLog.debug(" non zero exit code %s from batch job id %s" % (return_code, workSpec.batchID))
-                        errStr += " non-zero exit code %s from batch job id %s " % (return_code, workSpec.batchID)
+                        tmpLog.debug(f" non zero exit code {return_code} from batch job id {workSpec.batchID}")
+                        errStr += f" non-zero exit code {return_code} from batch job id {workSpec.batchID} "
                         newStatus = WorkSpec.ST_failed
                         retList.append((newStatus, errStr))
                 else:
                     tmpLog.debug(" cobalt log file does not exist")
-                    errStr += " cobalt log file %s does not exist " % cobalt_logfile
+                    errStr += f" cobalt log file {cobalt_logfile} does not exist "
                     newStatus = WorkSpec.ST_failed
                     retList.append((newStatus, errStr))
 
-            tmpLog.debug("batchStatus {0} -> workerStatus {1}".format(oldStatus, newStatus))
-            tmpLog.debug("errStr: %s" % errStr)
+            tmpLog.debug(f"batchStatus {oldStatus} -> workerStatus {newStatus}")
+            tmpLog.debug(f"errStr: {errStr}")
 
         return True, retList

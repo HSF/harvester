@@ -1,6 +1,5 @@
 import re
-from shlex import quote
-from shlex import split
+from shlex import quote, split
 
 try:
     import subprocess32 as subprocess
@@ -8,8 +7,8 @@ except BaseException:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # logger
 baseLogger = core_utils.setup_logger("lsf_monitor")
@@ -26,9 +25,9 @@ class LSFMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="check_workers")
             # command
-            comStr = "bjobs -a -noheader -o {0} {1} ".format(quote("jobid:10 stat:10"), workSpec.batchID)
+            comStr = f"bjobs -a -noheader -o {quote('jobid:10 stat:10')} {workSpec.batchID} "
             comStr_split = split(comStr)
             # check
             p = subprocess.Popen(comStr_split, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -36,9 +35,9 @@ class LSFMonitor(PluginBase):
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            tmpLog.debug("len(stdOut) = {0} stdOut={1}".format(len(str(stdOut)), stdOut))
-            tmpLog.debug("len(stdErr) = {0}  stdErr={1}".format(len(str(stdErr)), stdErr))
-            tmpLog.debug("retCode={0}".format(retCode))
+            tmpLog.debug(f"len(stdOut) = {len(str(stdOut))} stdOut={stdOut}")
+            tmpLog.debug(f"len(stdErr) = {len(str(stdErr))}  stdErr={stdErr}")
+            tmpLog.debug(f"retCode={retCode}")
             errStr = ""
             if retCode == 0:
                 # check if any came back on stdOut otherwise check stdErr
@@ -50,16 +49,16 @@ class LSFMonitor(PluginBase):
                 # tmpLog.debug('tempresponse = {0}'.format(tempresponse))
                 # parse
                 for tmpLine in tempresponse.split("\n"):
-                    tmpMatch = re.search("{0}".format(workSpec.batchID), tmpLine)
-                    tmpLog.debug("tmpLine = {0} tmpMatch = {1}".format(tmpLine, tmpMatch))
+                    tmpMatch = re.search(f"{workSpec.batchID}", tmpLine)
+                    tmpLog.debug(f"tmpLine = {tmpLine} tmpMatch = {tmpMatch}")
                     if tmpMatch is not None:
                         errStr = tmpLine
                         # search for phrase  is not found
                         tmpMatch = re.search("is not found", tmpLine)
                         if tmpMatch is not None:
-                            batchStatus = "Job {0} is not found".format(workSpec.batchID)
+                            batchStatus = f"Job {workSpec.batchID} is not found"
                             newStatus = WorkSpec.ST_failed
-                            tmpLog.debug("batchStatus {0} -> workerStatus {1}".format(batchStatus, retCode))
+                            tmpLog.debug(f"batchStatus {batchStatus} -> workerStatus {retCode}")
                         else:
                             batchStatus = tmpLine.split()[-2]
                             if batchStatus in ["RUN"]:
@@ -70,7 +69,7 @@ class LSFMonitor(PluginBase):
                                 newStatus = WorkSpec.ST_submitted
                             else:
                                 newStatus = WorkSpec.ST_failed
-                            tmpLog.debug("batchStatus {0} -> workerStatus {1}".format(batchStatus, newStatus))
+                            tmpLog.debug(f"batchStatus {batchStatus} -> workerStatus {newStatus}")
                         break
                 retList.append((newStatus, errStr))
             else:

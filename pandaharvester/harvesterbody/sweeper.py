@@ -6,12 +6,12 @@ except ImportError:
     from scandir import walk
 
 from future.utils import iteritems
+from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from pandaharvester.harvesterbody.agent_base import AgentBase
-from pandaharvester.harvestercore.command_spec import CommandSpec
 
 # logger
 _logger = core_utils.setup_logger("sweeper")
@@ -30,36 +30,36 @@ class Sweeper(AgentBase):
     def process_kill_commands(self):
         # process commands for marking workers that need to be killed
 
-        tmp_log = self.make_logger(_logger, "id={0}".format(self.lockedBy), method_name="process_commands")
+        tmp_log = self.make_logger(_logger, f"id={self.lockedBy}", method_name="process_commands")
 
         # 1. KILL_WORKER commands that were sent to panda server and forwarded to harvester
         stopwatch = core_utils.get_stopwatch()
         command_string = CommandSpec.COM_killWorkers
-        tmp_log.debug("try to get {0} commands".format(command_string))
+        tmp_log.debug(f"try to get {command_string} commands")
         command_specs = self.dbProxy.get_commands_for_receiver("sweeper", command_string)
-        tmp_log.debug("got {0} {1} commands".format(len(command_specs), command_string))
+        tmp_log.debug(f"got {len(command_specs)} {command_string} commands")
         for command_spec in command_specs:
             n_to_kill = self.dbProxy.mark_workers_to_kill_by_query(command_spec.params)
-            tmp_log.debug("will kill {0} workers with {1}".format(n_to_kill, command_spec.params))
-        tmp_log.debug("done handling {0} commands took {1}s".format(command_string, stopwatch.get_elapsed_time()))
+            tmp_log.debug(f"will kill {n_to_kill} workers with {command_spec.params}")
+        tmp_log.debug(f"done handling {command_string} commands took {stopwatch.get_elapsed_time()}s")
 
         # 2. SYNC_WORKERS_KILL commands from comparing worker status provided by pilot and harvester
         stopwatch = core_utils.get_stopwatch()
         command_string = CommandSpec.COM_syncWorkersKill
-        tmp_log.debug("try to get {0} commands".format(command_string))
+        tmp_log.debug(f"try to get {command_string} commands")
         command_specs = self.dbProxy.get_commands_for_receiver("sweeper", command_string)
-        tmp_log.debug("got {0} {1} commands".format(len(command_specs), command_string))
+        tmp_log.debug(f"got {len(command_specs)} {command_string} commands")
         for command_spec in command_specs:
             n_to_kill = self.dbProxy.mark_workers_to_kill_by_workerids(command_spec.params)
-            tmp_log.debug("will kill {0} workers with {1}".format(n_to_kill, command_spec.params))
-        tmp_log.debug("done handling {0} commands took {1}s".format(command_string, stopwatch.get_elapsed_time()))
+            tmp_log.debug(f"will kill {n_to_kill} workers with {command_spec.params}")
+        tmp_log.debug(f"done handling {command_string} commands took {stopwatch.get_elapsed_time()}s")
 
     # main loop
     def run(self):
-        self.lockedBy = "sweeper-{0}".format(self.get_pid())
+        self.lockedBy = f"sweeper-{self.get_pid()}"
         while True:
             sw_main = core_utils.get_stopwatch()
-            main_log = self.make_logger(_logger, "id={0}".format(self.lockedBy), method_name="run")
+            main_log = self.make_logger(_logger, f"id={self.lockedBy}", method_name="run")
 
             # process commands that mark workers to be killed
             try:
@@ -72,37 +72,37 @@ class Sweeper(AgentBase):
             main_log.debug("try to get workers to kill")
             # get workers to kill
             workers_to_kill = self.dbProxy.get_workers_to_kill(harvester_config.sweeper.maxWorkers, harvester_config.sweeper.checkInterval)
-            main_log.debug("got {0} queues to kill workers".format(len(workers_to_kill)))
+            main_log.debug(f"got {len(workers_to_kill)} queues to kill workers")
             # loop over all workers
             sw = core_utils.get_stopwatch()
             for queue_name, configIdWorkSpecList in iteritems(workers_to_kill):
                 for configID, workspec_list in iteritems(configIdWorkSpecList):
                     # get sweeper
                     if not self.queueConfigMapper.has_queue(queue_name, configID):
-                        main_log.error("queue config for {0}/{1} not found".format(queue_name, configID))
+                        main_log.error(f"queue config for {queue_name}/{configID} not found")
                         continue
                     queue_config = self.queueConfigMapper.get_queue(queue_name, configID)
                     try:
                         sweeper_core = self.pluginFactory.get_plugin(queue_config.sweeper)
                     except Exception:
-                        main_log.error("failed to launch sweeper plugin for {0}/{1}".format(queue_name, configID))
+                        main_log.error(f"failed to launch sweeper plugin for {queue_name}/{configID}")
                         core_utils.dump_error_message(main_log)
                         continue
                     sw.reset()
                     n_workers = len(workspec_list)
                     try:
                         # try bulk method
-                        tmp_log = self.make_logger(_logger, "id={0}".format(self.lockedBy), method_name="run")
+                        tmp_log = self.make_logger(_logger, f"id={self.lockedBy}", method_name="run")
                         tmp_log.debug("start killing")
                         tmp_list = sweeper_core.kill_workers(workspec_list)
                     except AttributeError:
                         # fall back to single-worker method
                         for workspec in workspec_list:
-                            tmp_log = self.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="run")
+                            tmp_log = self.make_logger(_logger, f"workerID={workspec.workerID}", method_name="run")
                             try:
                                 tmp_log.debug("start killing one worker")
                                 tmp_stat, tmp_out = sweeper_core.kill_worker(workspec)
-                                tmp_log.debug("done killing with status={0} diag={1}".format(tmp_stat, tmp_out))
+                                tmp_log.debug(f"done killing with status={tmp_stat} diag={tmp_out}")
                             except Exception:
                                 core_utils.dump_error_message(tmp_log)
                     except Exception:
@@ -111,11 +111,11 @@ class Sweeper(AgentBase):
                         # bulk method
                         n_killed = 0
                         for workspec, (tmp_stat, tmp_out) in zip(workspec_list, tmp_list):
-                            tmp_log.debug("done killing workerID={0} with status={1} diag={2}".format(workspec.workerID, tmp_stat, tmp_out))
+                            tmp_log.debug(f"done killing workerID={workspec.workerID} with status={tmp_stat} diag={tmp_out}")
                             if tmp_stat:
                                 n_killed += 1
-                        tmp_log.debug("killed {0}/{1} workers".format(n_killed, n_workers))
-                    main_log.debug("done killing {0} workers".format(n_workers) + sw.get_elapsed_time())
+                        tmp_log.debug(f"killed {n_killed}/{n_workers} workers")
+                    main_log.debug(f"done killing {n_workers} workers" + sw.get_elapsed_time())
             main_log.debug("done all killing" + sw_kill.get_elapsed_time())
 
             # cleanup stage
@@ -138,13 +138,13 @@ class Sweeper(AgentBase):
                 "pending": keep_pending,
             }
             workersForCleanup = self.dbProxy.get_workers_for_cleanup(harvester_config.sweeper.maxWorkers, statusTimeoutMap)
-            main_log.debug("got {0} queues for workers cleanup".format(len(workersForCleanup)))
+            main_log.debug(f"got {len(workersForCleanup)} queues for workers cleanup")
             sw = core_utils.get_stopwatch()
             for queue_name, configIdWorkSpecList in iteritems(workersForCleanup):
                 for configID, workspec_list in iteritems(configIdWorkSpecList):
                     # get sweeper
                     if not self.queueConfigMapper.has_queue(queue_name, configID):
-                        main_log.error("queue config for {0}/{1} not found".format(queue_name, configID))
+                        main_log.error(f"queue config for {queue_name}/{configID} not found")
                         continue
                     queue_config = self.queueConfigMapper.get_queue(queue_name, configID)
                     sweeper_core = self.pluginFactory.get_plugin(queue_config.sweeper)
@@ -159,7 +159,7 @@ class Sweeper(AgentBase):
                     except AttributeError:
                         # fall back to single-worker method
                         for workspec in workspec_list:
-                            tmp_log = self.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="run")
+                            tmp_log = self.make_logger(_logger, f"workerID={workspec.workerID}", method_name="run")
                             try:
                                 tmp_stat, tmp_out = sweeper_core.kill_worker(workspec)
                             except Exception:
@@ -169,20 +169,20 @@ class Sweeper(AgentBase):
                     main_log.debug("made sure workers to clean up are all terminated")
                     # start cleanup
                     for workspec in workspec_list:
-                        tmp_log = self.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="run")
+                        tmp_log = self.make_logger(_logger, f"workerID={workspec.workerID}", method_name="run")
                         try:
                             tmp_log.debug("start cleaning up one worker")
                             # sweep worker
                             tmp_stat, tmp_out = sweeper_core.sweep_worker(workspec)
-                            tmp_log.debug("swept_worker with status={0} diag={1}".format(tmp_stat, tmp_out))
+                            tmp_log.debug(f"swept_worker with status={tmp_stat} diag={tmp_out}")
                             tmp_log.debug("start messenger cleanup")
                             mc_tmp_stat, mc_tmp_out = messenger.clean_up(workspec)
-                            tmp_log.debug("messenger cleaned up with status={0} diag={1}".format(mc_tmp_stat, mc_tmp_out))
+                            tmp_log.debug(f"messenger cleaned up with status={mc_tmp_stat} diag={mc_tmp_out}")
                             if tmp_stat:
                                 self.dbProxy.delete_worker(workspec.workerID)
                         except Exception:
                             core_utils.dump_error_message(tmp_log)
-                    main_log.debug("done cleaning up {0} workers".format(n_workers) + sw.get_elapsed_time())
+                    main_log.debug(f"done cleaning up {n_workers} workers" + sw.get_elapsed_time())
             main_log.debug("done all cleanup" + sw_cleanup.get_elapsed_time())
 
             # old-job-deletion stage
@@ -202,7 +202,7 @@ class Sweeper(AgentBase):
                         for item in harvester_config.sweeper.diskHighWatermark.split(","):
                             # dir name and watermark in GB
                             dir_name, watermark = item.split("|")
-                            main_log.debug("checking {0} for cleanup with watermark {1} GB".format(dir_name, watermark))
+                            main_log.debug(f"checking {dir_name} for cleanup with watermark {watermark} GB")
                             watermark = int(watermark) * 10**9
                             total_size = 0
                             file_dict = {}
@@ -217,15 +217,9 @@ class Sweeper(AgentBase):
                                     file_dict[mtime].add((base_name, full_name, f_size))
                             # delete if necessary
                             if total_size < watermark:
-                                main_log.debug(
-                                    "skip cleanup {0} due to total_size {1} GB < watermark {2} GB".format(
-                                        dir_name, total_size // (10**9), watermark // (10**9)
-                                    )
-                                )
+                                main_log.debug(f"skip cleanup {dir_name} due to total_size {total_size // 10 ** 9} GB < watermark {watermark // 10 ** 9} GB")
                             else:
-                                main_log.debug(
-                                    "cleanup {0} due to total_size {1} GB >= watermark {2} GB".format(dir_name, total_size // (10**9), watermark // (10**9))
-                                )
+                                main_log.debug(f"cleanup {dir_name} due to total_size {total_size // 10 ** 9} GB >= watermark {watermark // 10 ** 9} GB")
                                 # get active input files
                                 if all_active_files is None:
                                     all_active_files = self.dbProxy.get_all_active_input_files()

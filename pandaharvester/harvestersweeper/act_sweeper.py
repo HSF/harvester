@@ -1,11 +1,10 @@
 import os
 import shutil
 
+from act.atlas.aCTDBPanda import aCTDBPanda
+from act.common.aCTConfig import aCTConfigARC
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-
-from act.common.aCTConfig import aCTConfigARC
-from act.atlas.aCTDBPanda import aCTDBPanda
 
 # logger
 baseLogger = core_utils.setup_logger("act_sweeper")
@@ -21,7 +20,7 @@ class ACTSweeper(PluginBase):
         try:
             self.actDB = aCTDBPanda(self.log)
         except Exception as e:
-            self.log.error("Could not connect to aCT database: {0}".format(str(e)))
+            self.log.error(f"Could not connect to aCT database: {str(e)}")
             self.actDB = None
 
     # kill a worker
@@ -35,23 +34,23 @@ class ACTSweeper(PluginBase):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
+        tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="kill_worker")
 
         if workspec.batchID is None:
-            tmpLog.info("workerID={0} has no batch ID so assume was not submitted - skipped".format(workspec.workerID))
+            tmpLog.info(f"workerID={workspec.workerID} has no batch ID so assume was not submitted - skipped")
             return True, ""
 
         try:
             # Only kill jobs which are still active
             self.actDB.updateJobs(
-                "id={0} AND actpandastatus IN ('sent', 'starting', 'running')".format(workspec.batchID), {"actpandastatus": "tobekilled", "pandastatus": None}
+                f"id={workspec.batchID} AND actpandastatus IN ('sent', 'starting', 'running')", {"actpandastatus": "tobekilled", "pandastatus": None}
             )
         except Exception as e:
             if self.actDB:
-                tmpLog.error("Failed to cancel job {0} in aCT: {1}".format(workspec.batchID, str(e)))
+                tmpLog.error(f"Failed to cancel job {workspec.batchID} in aCT: {str(e)}")
             return False, str(e)
 
-        tmpLog.info("Job {0} cancelled in aCT".format(workspec.batchID))
+        tmpLog.info(f"Job {workspec.batchID} cancelled in aCT")
         return True, ""
 
     # cleanup for a worker
@@ -65,12 +64,12 @@ class ACTSweeper(PluginBase):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
+        tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="sweep_worker")
         # clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)
-            tmpLog.info("removed {0}".format(workspec.accessPoint))
+            tmpLog.info(f"removed {workspec.accessPoint}")
         else:
-            tmpLog.info("access point {0} already removed.".format(workspec.accessPoint))
+            tmpLog.info(f"access point {workspec.accessPoint} already removed.")
         # return
         return True, ""

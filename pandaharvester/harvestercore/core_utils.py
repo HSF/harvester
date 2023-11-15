@@ -3,26 +3,27 @@ utilities
 
 """
 
-import os
-import sys
-import time
-import zlib
-import uuid
-import math
-import fcntl
-import codecs
 import base64
-import random
-import inspect
+import codecs
 import datetime
-import threading
-import traceback
+import fcntl
 import functools
-import Cryptodome.Random
-import Cryptodome.Hash.HMAC
-import Cryptodome.Cipher.AES
-from future.utils import iteritems
+import inspect
+import math
+import os
+import random
+import sys
+import threading
+import time
+import traceback
+import uuid
+import zlib
 from contextlib import contextmanager
+
+import Cryptodome.Cipher.AES
+import Cryptodome.Hash.HMAC
+import Cryptodome.Random
+from future.utils import iteritems
 
 try:
     from threading import get_ident
@@ -34,13 +35,13 @@ try:
 except ImportError:
     import pickle
 
-from .work_spec import WorkSpec
-from .file_spec import FileSpec
-from .event_spec import EventSpec
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
 from pandaharvester.harvesterconfig import harvester_config
+from pandalogger.LogWrapper import LogWrapper
+from pandalogger.PandaLogger import PandaLogger
 
+from .event_spec import EventSpec
+from .file_spec import FileSpec
+from .work_spec import WorkSpec
 
 with_memory_profile = False
 
@@ -70,7 +71,7 @@ class StopWatch(object):
     # get elapsed time
     def get_elapsed_time(self):
         diff = datetime.datetime.utcnow() - self.startTime
-        return " : took {0}.{1:03} sec".format(diff.seconds + diff.days * 24 * 3600, diff.microseconds // 1000)
+        return f" : took {diff.seconds + diff.days * 24 * 3600}.{diff.microseconds // 1000:03} sec"
 
     # get elapsed time in seconds
     def get_elapsed_time_in_sec(self, precise=False):
@@ -169,7 +170,7 @@ def make_logger(tmp_log, token=None, method_name=None, hook=None):
     else:
         tmpStr = method_name
     if token is not None:
-        tmpStr += " <{0}>".format(token)
+        tmpStr += f" <{token}>"
     else:
         tmpStr += " :".format(token)
     newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile, hook=hook)
@@ -179,13 +180,13 @@ def make_logger(tmp_log, token=None, method_name=None, hook=None):
 # dump error message
 def dump_error_message(tmp_log, err_str=None, no_message=False):
     if not isinstance(tmp_log, LogWrapper):
-        methodName = "{0} : ".format(inspect.stack()[1][3])
+        methodName = f"{inspect.stack()[1][3]} : "
     else:
         methodName = ""
     # error
     if err_str is None:
         errtype, errvalue = sys.exc_info()[:2]
-        err_str = "{0} {1} {2} ".format(methodName, errtype.__name__, errvalue)
+        err_str = f"{methodName} {errtype.__name__} {errvalue} "
         err_str += traceback.format_exc()
     if not no_message:
         tmp_log.error(err_str)
@@ -225,15 +226,13 @@ def make_pool_file_catalog(jobspec_list):
             if inLFN in doneLFNs:
                 continue
             doneLFNs.add(inLFN)
-            xmlStr += """  <File ID="{guid}">
+            xmlStr += f"""  <File ID="{inFile['guid']}">
     <physical>
-      <pfn filetype="ROOT_All" name="{lfn}"/>
+      <pfn filetype="ROOT_All" name="{inLFN}"/>
     </physical>
     <logical/>
   </File>
-  """.format(
-                guid=inFile["guid"], lfn=inLFN
-            )
+  """
     xmlStr += "</POOLFILECATALOG>"
     return xmlStr
 
@@ -280,30 +279,26 @@ def get_output_file_report(jobspec):
             chksum = fileSpec.chksum.split(":")[-1]
         else:
             chksum = fileSpec.chksum
-        xml += """<File ID="{guid}">
+        xml += f"""<File ID="{guid}">
         <logical>
-        <lfn name="{lfn}"/>
+        <lfn name="{fileSpec.lfn}"/>
         </logical>
-        <metadata att_name="fsize" att_value = "{fsize}"/>
+        <metadata att_name="fsize" att_value = "{fileSpec.fsize}"/>
         <metadata att_name="adler32" att_value="{chksum}"/>
         </File>
-        """.format(
-            guid=guid, lfn=fileSpec.lfn, fsize=fileSpec.fsize, chksum=chksum
-        )
+        """
     # skipped files
     skippedLFNs = jobspec.get_one_attribute("skippedInputs")
     if skippedLFNs:
         for tmpLFN in skippedLFNs:
-            xml += """<File ID="">
+            xml += f"""<File ID="">
             <logical>
-            <lfn name="{lfn}"/>
+            <lfn name="{tmpLFN}"/>
             </logical>
             <metadata att_name="fsize" att_value = "0"/>
             <metadata att_name="adler32" att_value=""/>
             </File>
-            """.format(
-                lfn=tmpLFN
-            )
+            """
     # tailor
     xml += """
     </POOLFILECATALOG>
@@ -614,7 +609,7 @@ def get_queues_config_url():
 
 # get unique queue name
 def get_unique_queue_name(queue_name, resource_type, job_type):
-    return "{0}:{1}:{2}".format(queue_name, resource_type, job_type)
+    return f"{queue_name}:{resource_type}:{job_type}"
 
 
 # capability to dynamically change plugins

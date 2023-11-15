@@ -1,11 +1,11 @@
-import tempfile
+import datetime
+import os
 import re
+import stat
+import tempfile
+from math import ceil
 
 import six
-import os
-import stat
-import datetime
-from math import ceil
 
 try:
     import subprocess32 as subprocess
@@ -35,26 +35,26 @@ class SlurmSubmitter(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="submit_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
             # set nCore
             workSpec.nCore = self.nCore
             # make batch script
             batchFile = self.make_batch_script(workSpec)
             # command
-            comStr = "sbatch -D {0} {1}".format(workSpec.get_access_point(), batchFile)
+            comStr = f"sbatch -D {workSpec.get_access_point()} {batchFile}"
             # submit
-            tmpLog.debug("submit with {0}".format(batchFile))
+            tmpLog.debug(f"submit with {batchFile}")
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            tmpLog.debug("retCode={0}".format(retCode))
+            tmpLog.debug(f"retCode={retCode}")
             stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
             stdErr_str = stdErr if (isinstance(stdErr, str) or stdErr is None) else stdErr.decode()
             if retCode == 0:
                 # extract batchID
-                workSpec.batchID = re.search("[^0-9]*([0-9]+)[^0-9]*$", "{0}".format(stdOut_str)).group(1)
-                tmpLog.debug("batchID={0}".format(workSpec.batchID))
+                workSpec.batchID = re.search("[^0-9]*([0-9]+)[^0-9]*$", f"{stdOut_str}").group(1)
+                tmpLog.debug(f"batchID={workSpec.batchID}")
                 # set log files
                 if self.uploadLog:
                     if self.logBaseURL is None:
@@ -63,13 +63,13 @@ class SlurmSubmitter(PluginBase):
                         baseDir = self.logBaseURL
                     stdOut, stdErr = self.get_log_file_names(batchFile, workSpec.batchID)
                     if stdOut is not None:
-                        workSpec.set_log_file("stdout", "{0}/{1}".format(baseDir, stdOut))
+                        workSpec.set_log_file("stdout", f"{baseDir}/{stdOut}")
                     if stdErr is not None:
-                        workSpec.set_log_file("stderr", "{0}/{1}".format(baseDir, stdErr))
+                        workSpec.set_log_file("stderr", f"{baseDir}/{stdErr}")
                 tmpRetVal = (True, "")
             else:
                 # failed
-                errStr = "{0} {1}".format(stdOut_str, stdErr_str)
+                errStr = f"{stdOut_str} {stdErr_str}"
                 tmpLog.error(errStr)
                 tmpRetVal = (False, errStr)
             retList.append(tmpRetVal)

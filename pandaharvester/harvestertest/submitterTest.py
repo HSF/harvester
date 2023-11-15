@@ -1,12 +1,12 @@
 import os
 import sys
-from future.utils import iteritems
 
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from future.utils import iteritems
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc import signal_utils
 
 fork_child_pid = os.fork()
@@ -36,15 +36,15 @@ else:
         if sys.argv[2] in ("user", "managed"):
             jobType = sys.argv[2]
         else:
-            print("value for jobType not valid, defaulted to {0}".format(jobType))
+            print(f"value for jobType not valid, defaulted to {jobType}")
 
         # resourceType should be 'SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM'. If not specified defaults to single core
         if sys.argv[3] in ("SCORE", "SCORE_HIMEM", "MCORE", "MCORE_HIMEM"):
             resourceType = sys.argv[3]
         else:
-            print("value for resourceType not valid, defaulted to {0}".format(resourceType))
+            print(f"value for resourceType not valid, defaulted to {resourceType}")
 
-    print("Running with queueName:{0}, jobType:{1}, resourceType:{2}".format(queueName, jobType, resourceType))
+    print(f"Running with queueName:{queueName}, jobType:{jobType}, resourceType:{resourceType}")
 
     pluginFactory = PluginFactory()
 
@@ -55,7 +55,7 @@ else:
     if queueConfig.mapType != WorkSpec.MT_NoJob:
         jobs, errStr = com.get_jobs(queueConfig.queueName, "nodeName", queueConfig.prodSourceLabel, "computingElement", 1, None)
         if len(jobs) == 0:
-            print("Failed to get jobs at {0} due to {1}".format(queueConfig.queueName, errStr))
+            print(f"Failed to get jobs at {queueConfig.queueName} due to {errStr}")
             sys.exit(0)
 
         jobSpec = JobSpec()
@@ -64,7 +64,7 @@ else:
         # set input file paths
         inFiles = jobSpec.get_input_file_attributes()
         for inLFN, inFile in iteritems(inFiles):
-            inFile["path"] = "{0}/{1}".format(os.getcwd(), inLFN)
+            inFile["path"] = f"{os.getcwd()}/{inLFN}"
         jobSpec.set_input_file_paths(inFiles)
         jobSpecList.append(jobSpec)
 
@@ -106,33 +106,33 @@ else:
             tmpStat, events = com.get_event_ranges(workSpec.eventsRequestParams, False, os.getcwd())
             # failed
             if tmpStat is False:
-                print("failed to get events with {0}".format(events))
+                print(f"failed to get events with {events}")
                 sys.exit(0)
             tmpStat = messenger.feed_events(workSpec, events)
             if tmpStat is False:
-                print("failed to feed events with {0}".format(events))
+                print(f"failed to feed events with {events}")
                 sys.exit(0)
 
     # get submitter plugin
     submitterCore = pluginFactory.get_plugin(queueConfig.submitter)
-    print("testing submission with plugin={0}".format(submitterCore.__class__.__name__))
+    print(f"testing submission with plugin={submitterCore.__class__.__name__}")
     tmpRetList = submitterCore.submit_workers([workSpec])
     tmpStat, tmpOut = tmpRetList[0]
     if tmpStat:
-        print(" OK batchID={0}".format(workSpec.batchID))
+        print(f" OK batchID={workSpec.batchID}")
     else:
-        print(" NG {0}".format(tmpOut))
+        print(f" NG {tmpOut}")
         sys.exit(1)
 
     print("")
 
     # get monitoring plug-in
     monCore = pluginFactory.get_plugin(queueConfig.monitor)
-    print("testing monitoring for batchID={0} with plugin={1}".format(workSpec.batchID, monCore.__class__.__name__))
+    print(f"testing monitoring for batchID={workSpec.batchID} with plugin={monCore.__class__.__name__}")
     tmpStat, tmpOut = monCore.check_workers([workSpec])
     tmpOut = tmpOut[0]
     if tmpStat:
-        print(" OK workerStatus={0}".format(tmpOut[0]))
+        print(f" OK workerStatus={tmpOut[0]}")
     else:
-        print(" NG {0}".format(tmpOut[1]))
+        print(f" NG {tmpOut[1]}")
         sys.exit(1)

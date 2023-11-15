@@ -1,5 +1,4 @@
 from future.utils import iteritems
-
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 

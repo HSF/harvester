@@ -1,8 +1,8 @@
-import googleapiclient.discovery
 import os
 
-from pandaharvester.harvesterconfig import harvester_config
+import googleapiclient.discovery
 from pandaharvester.harvestercloud import cernvm_aux
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.frontend_utils import HarvesterToken
 
 PROXY_PATH = harvester_config.pandacon.cert_file
@@ -24,7 +24,7 @@ class GoogleVM:
         self.work_spec = work_spec
         self.queue_config = queue_config
         harvester_id_clean = harvester_config.master.harvester_id.replace("-", "").replace("_", "").lower()
-        self.name = "{0}-gce-{1}".format(harvester_id_clean, work_spec.workerID)
+        self.name = f"{harvester_id_clean}-gce-{work_spec.workerID}"
         # self.name = self.name.replace('_', '-') # underscores in VM names are not allowed by GCE
         self.image = self.resolve_image_url()
         self.instance_type = self.resolve_instance_type()
@@ -76,7 +76,7 @@ class GoogleVM:
 
         # instance_type = 'zones/{0}/machineTypes/n1-standard-{1}'.format(zone, cores)
         # Use custom machine types to reduce cost
-        instance_type = "zones/{0}/machineTypes/custom-{1}-{2}".format(zone, cores, memory)
+        instance_type = f"zones/{zone}/machineTypes/custom-{cores}-{memory}"
 
         return instance_type
 
@@ -123,7 +123,7 @@ class GoogleVM:
                     {"key": "harvester_frontend", "value": HARVESTER_FRONTEND},
                     {"key": "worker_id", "value": self.work_spec.workerID},
                     {"key": "auth_token", "value": self.harvester_token.generate(payload={"sub": str(self.work_spec.batchID)})},
-                    {"key": "logs_url_w", "value": "{0}/{1}".format(harvester_config.pandacon.pandaCacheURL_W, "updateLog")},
+                    {"key": "logs_url_w", "value": f"{harvester_config.pandacon.pandaCacheURL_W}/updateLog"},
                     {"key": "logs_url_r", "value": harvester_config.pandacon.pandaCacheURL_R},
                 ]
             },

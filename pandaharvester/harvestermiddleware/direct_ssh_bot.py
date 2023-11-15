@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import sys
 
 from pandaharvester.harvestercore import core_utils
@@ -19,7 +19,7 @@ class DirectSshBot(object):
             param_dict = json.load(sys.stdin)
             plugin_config = param_dict["plugin_config"]
             function_name = param_dict["function_name"]
-            tmpLog = core_utils.make_logger(_logger, "pid={0}".format(os.getpid()), method_name=function_name)
+            tmpLog = core_utils.make_logger(_logger, f"pid={os.getpid()}", method_name=function_name)
             tmpLog.debug("start")
             args = core_utils.unpickle_from_text(str(param_dict["args"]))
             kwargs = core_utils.unpickle_from_text(str(param_dict["kwargs"]))

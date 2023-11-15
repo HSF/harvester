@@ -1,27 +1,28 @@
-import os
-import sys
-import os.path
-import zipfile
 import hashlib
-from future.utils import iteritems
-
-from globus_sdk import TransferClient
-from globus_sdk import TransferData
-from globus_sdk import NativeAppAuthClient
-from globus_sdk import RefreshTokenAuthorizer
+import os
+import os.path
+import sys
+import zipfile
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
+from future.utils import iteritems
+from globus_sdk import (
+    NativeAppAuthClient,
+    RefreshTokenAuthorizer,
+    TransferClient,
+    TransferData,
+)
 
 try:
     requests.packages.urllib3.disable_warnings()
 except BaseException:
     pass
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestermisc import globus_utils
+from pandaharvester.harvestermover import mover_utils
 
 # logger
 _logger = core_utils.setup_logger("go_stager")
@@ -30,7 +31,7 @@ _logger = core_utils.setup_logger("go_stager")
 def dump(obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+            print(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 # plugin for stager with FTS
@@ -72,11 +73,11 @@ class GlobusStager(PluginBase):
     # check status
     def check_stage_out_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="check_stage_out_status")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         # get label
         label = self.make_label(jobspec)
-        tmpLog.debug("label={0}".format(label))
+        tmpLog.debug(f"label={label}")
         # get transfer task
         tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog, self.tc, label)
         # return a temporary error when failed to get task
@@ -92,17 +93,17 @@ class GlobusStager(PluginBase):
         # succeeded
         transferID = transferTasks[label]["task_id"]
         if transferTasks[label]["status"] == "SUCCEEDED":
-            tmpLog.debug("transfer task {} succeeded".format(transferID))
+            tmpLog.debug(f"transfer task {transferID} succeeded")
             self.set_FileSpec_status(jobspec, "finished")
             return True, ""
         # failed
         if transferTasks[label]["status"] == "FAILED":
-            errStr = "transfer task {} failed".format(transferID)
+            errStr = f"transfer task {transferID} failed"
             tmpLog.error(errStr)
             self.set_FileSpec_status(jobspec, "failed")
             return False, errStr
         # another status
-        tmpStr = "transfer task {0} status: {1}".format(transferID, transferTasks[label]["status"])
+        tmpStr = f"transfer task {transferID} status: {transferTasks[label]['status']}"
         tmpLog.debug(tmpStr)
         return None, ""
 
@@ -110,7 +111,7 @@ class GlobusStager(PluginBase):
 
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_stage_out")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="trigger_stage_out")
         tmpLog.debug("start")
         # default return
         tmpRetVal = (True, "")
@@ -120,7 +121,7 @@ class GlobusStager(PluginBase):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # test we have a Globus Transfer Client
         if not self.tc:
             errStr = "failed to get Globus Transfer Client"
@@ -128,7 +129,7 @@ class GlobusStager(PluginBase):
             return False, errStr
         # get label
         label = self.make_label(jobspec)
-        tmpLog.debug("label={0}".format(label))
+        tmpLog.debug(f"label={label}")
         # get transfer tasks
         tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog, self.tc, label)
         if not tmpStat:
@@ -137,7 +138,7 @@ class GlobusStager(PluginBase):
             return False, errStr
         # check if already queued
         if label in transferTasks:
-            tmpLog.debug("skip since already queued with {0}".format(str(transferTasks[label])))
+            tmpLog.debug(f"skip since already queued with {str(transferTasks[label])}")
             return True, ""
         # set the Globus destination Endpoint id and path will get them from Agis eventually
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -179,21 +180,19 @@ class GlobusStager(PluginBase):
         for fileSpec in jobspec.outFiles:
             scope = fileAttrs[fileSpec.lfn]["scope"]
             hash = hashlib.md5()
-            hash.update("%s:%s" % (scope, fileSpec.lfn))
+            hash.update(f"{scope}:{fileSpec.lfn}")
             hash_hex = hash.hexdigest()
             correctedscope = "/".join(scope.split("."))
             srcURL = fileSpec.path
-            dstURL = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(
-                endPoint=self.Globus_dstPath, scope=correctedscope, hash1=hash_hex[0:2], hash2=hash_hex[2:4], lfn=fileSpec.lfn
-            )
-            tmpLog.debug("src={srcURL} dst={dstURL}".format(srcURL=srcURL, dstURL=dstURL))
+            dstURL = f"{self.Globus_dstPath}/{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{fileSpec.lfn}"
+            tmpLog.debug(f"src={srcURL} dst={dstURL}")
             # add files to transfer object - tdata
             if os.access(srcURL, os.R_OK):
-                tmpLog.debug("tdata.add_item({},{})".format(srcURL, dstURL))
+                tmpLog.debug(f"tdata.add_item({srcURL},{dstURL})")
                 tdata.add_item(srcURL, dstURL)
                 lfns.append(fileSpec.lfn)
             else:
-                errMsg = "source file {} does not exist".format(srcURL)
+                errMsg = f"source file {srcURL} does not exist"
                 tmpLog.error(errMsg)
                 tmpRetVal = (False, errMsg)
                 return tmpRetVal
@@ -206,7 +205,7 @@ class GlobusStager(PluginBase):
                 # succeeded
                 # set transfer ID which are used for later lookup
                 transferID = transfer_result["task_id"]
-                tmpLog.debug("successfully submitted id={0}".format(transferID))
+                tmpLog.debug(f"successfully submitted id={transferID}")
                 jobspec.set_groups_to_files({transferID: {"lfns": lfns, "groupStatus": "active"}})
                 # set
                 for fileSpec in jobspec.outFiles:
@@ -219,7 +218,7 @@ class GlobusStager(PluginBase):
             errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
             if errMsg is None:
                 errtype, errvalue = sys.exc_info()[:2]
-                errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+                errMsg = f"{errtype.__name__} {errvalue}"
             tmpRetVal = (errStat, errMsg)
         # return
         tmpLog.debug("done")
@@ -228,7 +227,7 @@ class GlobusStager(PluginBase):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         tmpLog.debug("start")
         try:
             for fileSpec in jobspec.outFiles:
@@ -254,13 +253,13 @@ class GlobusStager(PluginBase):
                 fileSpec.fsize = statInfo.st_size
         except BaseException:
             errMsg = core_utils.dump_error_message(tmpLog)
-            return False, "failed to zip with {0}".format(errMsg)
+            return False, f"failed to zip with {errMsg}"
         tmpLog.debug("done")
         return True, ""
 
     # make label for transfer task
     def make_label(self, jobspec):
-        return "OUT-{computingSite}-{PandaID}".format(computingSite=jobspec.computingSite, PandaID=jobspec.PandaID)
+        return f"OUT-{jobspec.computingSite}-{jobspec.PandaID}"
 
     # resolve input file paths
     def resolve_input_paths(self, jobspec):

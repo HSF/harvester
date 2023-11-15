@@ -3,9 +3,10 @@ try:
 except Exception:
     import subprocess
 
-from .base_cred_manager import BaseCredManager
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+
+from .base_cred_manager import BaseCredManager
 
 # logger
 _logger = core_utils.setup_logger("proxy_cache_cred_manager")
@@ -21,7 +22,7 @@ class ProxyCacheCredManager(BaseCredManager):
     def check_credential(self):
         # make logger
         mainLog = self.make_logger(_logger, method_name="check_credential")
-        comStr = "voms-proxy-info -exists -hours 72 -file {0}".format(self.outCertFile)
+        comStr = f"voms-proxy-info -exists -hours 72 -file {self.outCertFile}"
         mainLog.debug(comStr)
         try:
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -30,7 +31,7 @@ class ProxyCacheCredManager(BaseCredManager):
         except Exception:
             core_utils.dump_error_message(mainLog)
             return False
-        mainLog.debug("retCode={0} stdOut={1} stdErr={2}".format(retCode, stdOut, stdErr))
+        mainLog.debug(f"retCode={retCode} stdOut={stdOut} stdErr={stdErr}")
         return retCode == 0
 
     # renew proxy
@@ -45,5 +46,5 @@ class ProxyCacheCredManager(BaseCredManager):
             pFile.write(proxy)
             pFile.close()
         else:
-            mainLog.error("failed to renew credential with a server message : {0}".format(msg))
+            mainLog.error(f"failed to renew credential with a server message : {msg}")
         return proxy is not None, msg

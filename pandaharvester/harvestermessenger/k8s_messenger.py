@@ -1,9 +1,10 @@
 import os
 
 from pandaharvester.harvestercore import core_utils
-from .base_messenger import BaseMessenger
-from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
+from pandaharvester.harvestermisc.k8s_utils import k8s_Client
+
+from .base_messenger import BaseMessenger
 
 # logger
 _logger = core_utils.setup_logger("k8s_messenger")
@@ -33,7 +34,7 @@ class K8sMessenger(BaseMessenger):
         - Store or upload logs
         """
         # get logger
-        tmp_log = core_utils.make_logger(_logger, "queueName={0} workerID={1}".format(self.queueName, workspec.workerID), method_name="post_processing")
+        tmp_log = core_utils.make_logger(_logger, f"queueName={self.queueName} workerID={workspec.workerID}", method_name="post_processing")
         tmp_log.debug("start")
 
         if self._all_pods_list is None:
@@ -46,7 +47,7 @@ class K8sMessenger(BaseMessenger):
             job_id = workspec.batchID
             pods_list = self.k8s_client.filter_pods_info(self._all_pods_list, job_name=job_id)
             pod_name_list = [pods_info["name"] for pods_info in pods_list]
-            outlog_filename = os.path.join(self.logDir, "gridK8S.{0}.{1}.out".format(workspec.workerID, workspec.batchID))
+            outlog_filename = os.path.join(self.logDir, f"gridK8S.{workspec.workerID}.{workspec.batchID}.out")
             with open(outlog_filename, "w") as f:
                 for pod_name in pod_name_list:
                     current_log_str = self.k8s_client.get_pod_logs(pod_name)

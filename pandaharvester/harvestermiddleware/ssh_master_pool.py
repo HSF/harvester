@@ -1,12 +1,12 @@
-import random
-import threading
-import uuid
 import os
-import time
-
-import six
-import pexpect
+import random
 import tempfile
+import threading
+import time
+import uuid
+
+import pexpect
+import six
 
 try:
     import subprocess32 as subprocess
@@ -34,7 +34,7 @@ class SshMasterPool(object):
 
     # make a dict key
     def make_dict_key(self, host, port):
-        return "{0}:{1}".format(host, port)
+        return f"{host}:{port}"
 
     # make a control master
     def make_control_master(
@@ -88,7 +88,7 @@ class SshMasterPool(object):
         # make a master
         for i in range(num_masters - len(self.pool[dict_key])):
             # make a socket file
-            sock_file = os.path.join(sock_dir, "sock_{0}_{1}".format(remote_host, uuid.uuid4().hex))
+            sock_file = os.path.join(sock_dir, f"sock_{remote_host}_{uuid.uuid4().hex}")
             com = "ssh -M -S {sock_file} "
             com += "-p {remote_port} {ssh_username}@{remote_host} "
             com += "-o ServerAliveInterval=120 -o ServerAliveCountMax=2 "
@@ -106,7 +106,7 @@ class SshMasterPool(object):
                 sock_file=sock_file,
             )
             loginString = "login_to_be_confirmed_with " + uuid.uuid4().hex
-            com += "'echo {0}; bash".format(loginString)
+            com += f"'echo {loginString}; bash"
             # list of expected strings
             expected_list = [
                 pexpect.EOF,
@@ -128,7 +128,7 @@ class SshMasterPool(object):
                     break
                 if idx == 1:
                     # timeout
-                    baseLogger.error("timeout when making a master with com={0} out={1}".format(com, c.buffer))
+                    baseLogger.error(f"timeout when making a master with com={com} out={c.buffer}")
                     c.close()
                     break
                 if idx == 2:
@@ -137,7 +137,7 @@ class SshMasterPool(object):
                     idx = c.expect(expected_list, timeout=login_timeout)
                 if idx == 1:
                     # timeout
-                    baseLogger.error("timeout after accepting new cert with com={0} out={1}".format(com, c.buffer))
+                    baseLogger.error(f"timeout after accepting new cert with com={com} out={c.buffer}")
                     c.close()
                     break
                 if idx == 3:
@@ -147,11 +147,11 @@ class SshMasterPool(object):
                     # passphrase prompt
                     c.sendline(pass_phrase)
                 elif idx == 0:
-                    baseLogger.error("something weired with com={0} out={1}".format(com, c.buffer))
+                    baseLogger.error(f"something weired with com={com} out={c.buffer}")
                     c.close()
                     break
                 # exec to confirm login
-                c.sendline("echo {0}".format(loginString))
+                c.sendline(f"echo {loginString}")
             if isOK:
                 conn_exp_time = (time.time() + connection_lifetime) if connection_lifetime is not None else None
                 self.pool[dict_key].append((sock_file, c, conn_exp_time))
@@ -179,7 +179,7 @@ class SshMasterPool(object):
         if someClosed:
             self.make_control_master(remote_host, remote_port, reconnect=True, with_lock=False)
             active_masters = [item for item in self.pool[dict_key] if os.path.exists(item[0])]
-            baseLogger.debug("reconnected; now {0} active connections".format(len(active_masters)))
+            baseLogger.debug(f"reconnected; now {len(active_masters)} active connections")
         if len(active_masters) > 0:
             sock_file, child, conn_exp_time = random.choice(active_masters)
             con = subprocess.Popen(

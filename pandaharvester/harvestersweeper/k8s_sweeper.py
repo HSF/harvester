@@ -1,7 +1,7 @@
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
-from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
+from pandaharvester.harvestermisc.k8s_utils import k8s_Client
+from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
 # logger
 base_logger = core_utils.setup_logger("k8s_sweeper")
@@ -33,20 +33,20 @@ class K8sSweeper(BaseSweeper):
                 if work_spec.mapType != "NoJob":
                     try:
                         self.k8s_client.delete_config_map(worker_id)
-                        tmp_log.debug("Deleted configmap {0}".format(worker_id))
+                        tmp_log.debug(f"Deleted configmap {worker_id}")
                     except Exception as _e:
-                        err_str = "Failed to delete a CONFIGMAP with id={0} ; {1}".format(worker_id, _e)
+                        err_str = f"Failed to delete a CONFIGMAP with id={worker_id} ; {_e}"
                         tmp_log.error(err_str)
                         tmp_ret_val = (False, err_str)
                 else:
-                    tmp_log.debug("No pandajob/configmap associated to worker {0}".format(work_spec.workerID))
+                    tmp_log.debug(f"No pandajob/configmap associated to worker {work_spec.workerID}")
 
                 # delete the job
                 try:
                     self.k8s_client.delete_job(batch_id)
-                    tmp_log.debug("Deleted JOB {0}".format(batch_id))
+                    tmp_log.debug(f"Deleted JOB {batch_id}")
                 except Exception as _e:
-                    err_str = "Failed to delete a JOB with id={0} ; {1}".format(batch_id, _e)
+                    err_str = f"Failed to delete a JOB with id={batch_id} ; {_e}"
                     tmp_log.error(err_str)
                     tmp_ret_val = (False, err_str)
 
@@ -59,7 +59,7 @@ class K8sSweeper(BaseSweeper):
 
     def sweep_worker(self, work_spec):
         # cleanup for a worker
-        tmp_log = self.make_logger(base_logger, "workerID={0}".format(work_spec.workerID), method_name="sweep_worker")
+        tmp_log = self.make_logger(base_logger, f"workerID={work_spec.workerID}", method_name="sweep_worker")
 
         # retrieve and upload the logs to panda cache
         # batch_id = work_spec.batchID

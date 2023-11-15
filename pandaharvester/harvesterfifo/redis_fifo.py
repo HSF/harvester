@@ -1,12 +1,11 @@
 import os
-import time
-import re
 import random
+import re
+import time
 
 import redis
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
 
 def random_id():
@@ -35,9 +34,9 @@ class RedisFifo(PluginBase):
         elif hasattr(harvester_config.fifo, "redisPassword"):
             _redis_conn_opt_dict["password"] = harvester_config.fifo.redisPassword
         self.qconn = redis.StrictRedis(**_redis_conn_opt_dict)
-        self.id_score = "{0}-fifo_id-score".format(self.titleName)
-        self.id_item = "{0}-fifo_id-item".format(self.titleName)
-        self.id_temp = "{0}-fifo_id-temp".format(self.titleName)
+        self.id_score = f"{self.titleName}-fifo_id-score"
+        self.id_item = f"{self.titleName}-fifo_id-item"
+        self.id_temp = f"{self.titleName}-fifo_id-temp"
 
     def __len__(self):
         return self.qconn.zcard(self.id_score)

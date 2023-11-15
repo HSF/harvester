@@ -1,19 +1,20 @@
-import time
 import json
-
-import six
-
+import time
 from concurrent.futures import ThreadPoolExecutor as Pool
 
-from pandaharvester.harvestercore import core_utils
+import six
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore.pilot_errors import PilotErrors
-from pandaharvester.harvestermisc.htcondor_utils import condor_job_id_from_workspec, get_host_batchid_map
-from pandaharvester.harvestermisc.htcondor_utils import CondorJobQuery, CondorJobManage
-
+from pandaharvester.harvestermisc.htcondor_utils import (
+    CondorJobManage,
+    CondorJobQuery,
+    condor_job_id_from_workspec,
+    get_host_batchid_map,
+)
 
 # logger
 baseLogger = core_utils.setup_logger("htcondor_monitor")
@@ -45,7 +46,7 @@ PILOT_ERRORS = PilotErrors()
 # Check one worker
 def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_timeout=3600):
     # Make logger for one single worker
-    tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="_check_one_worker")
+    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_check_one_worker")
     # Initialize newStatus
     newStatus = workspec.status
     errStr = ""
@@ -55,7 +56,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
         got_job_ads = False
     except Exception as e:
         got_job_ads = False
-        tmpLog.error("With error {0}".format(e))
+        tmpLog.error(f"With error {e}")
     else:
         got_job_ads = True
     # Parse job ads
@@ -68,13 +69,11 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             workspec.nativeStatus = "unknown"
             if cancel_unknown:
                 newStatus = WorkSpec.ST_cancelled
-                errStr = "cannot get JobStatus of job submissionHost={0} batchID={1}. Regard the worker as canceled".format(
-                    workspec.submissionHost, workspec.batchID
-                )
+                errStr = f"cannot get JobStatus of job submissionHost={workspec.submissionHost} batchID={workspec.batchID}. Regard the worker as canceled"
                 tmpLog.error(errStr)
             else:
                 newStatus = None
-                errStr = "cannot get JobStatus of job submissionHost={0} batchID={1}. Skipped".format(workspec.submissionHost, workspec.batchID)
+                errStr = f"cannot get JobStatus of job submissionHost={workspec.submissionHost} batchID={workspec.batchID}. Skipped"
                 tmpLog.warning(errStr)
         else:
             # Try to get LastJobStatus
@@ -101,36 +100,32 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             elif batchStatus in ["3"]:
                 # 3 removed
                 if not errStr:
-                    errStr = "Condor HoldReason: {0} ; Condor RemoveReason: {1} ".format(job_ads_dict.get("LastHoldReason"), job_ads_dict.get("RemoveReason"))
+                    errStr = f"Condor HoldReason: {job_ads_dict.get('LastHoldReason')} ; Condor RemoveReason: {job_ads_dict.get('RemoveReason')} "
                 newStatus = WorkSpec.ST_cancelled
             elif batchStatus in ["5"]:
                 # 5 held
                 hold_reason = job_ads_dict.get("HoldReason")
-                errStr = "Condor HoldReason: {0} ".format(hold_reason)
+                errStr = f"Condor HoldReason: {hold_reason} "
                 if hold_reason in TO_KILL_HOLD_REASONS or int(time.time()) - int(job_ads_dict.get("EnteredCurrentStatus", 0)) > held_timeout:
                     # Kill the job if held too long or other reasons
                     if hold_reason in TO_KILL_HOLD_REASONS:
-                        tmpLog.debug(
-                            "trying to kill job submissionHost={0} batchID={1} due to HoldReason: {2}".format(
-                                workspec.submissionHost, workspec.batchID, hold_reason
-                            )
-                        )
+                        tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to HoldReason: {hold_reason}")
                     else:
-                        tmpLog.debug("trying to kill job submissionHost={0} batchID={1} due to held too long".format(workspec.submissionHost, workspec.batchID))
+                        tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to held too long")
                     for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map([workspec])):
                         condor_job_manage = CondorJobManage(id=workspec.submissionHost)
                         try:
                             ret_map = condor_job_manage.remove(batchIDs_list)
                         except Exception as e:
                             ret_map = {}
-                            ret_err_str = "failed to kill job. Exception {0}: {1}".format(e.__class__.__name__, e)
+                            ret_err_str = f"failed to kill job. Exception {e.__class__.__name__}: {e}"
                             tmpLog.error(ret_err_str)
                         else:
                             ret = ret_map.get(condor_job_id_from_workspec(workspec))
                             if ret and ret[0]:
-                                tmpLog.info("killed held job submissionHost={0} batchID={1}".format(workspec.submissionHost, workspec.batchID))
+                                tmpLog.info(f"killed held job submissionHost={workspec.submissionHost} batchID={workspec.batchID}")
                             else:
-                                tmpLog.error("cannot kill held job submissionHost={0} batchID={1}".format(workspec.submissionHost, workspec.batchID))
+                                tmpLog.error(f"cannot kill held job submissionHost={workspec.submissionHost} batchID={workspec.batchID}")
                     newStatus = WorkSpec.ST_cancelled
                     errStr += " ; Worker canceled by harvester due to held too long or not found"
                     # Mark the PanDA job as closed instead of failed
@@ -147,9 +142,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     payloadExitCode_str = str(job_ads_dict["ExitCode"])
                     payloadExitCode = int(payloadExitCode_str)
                 except KeyError:
-                    errStr = "cannot get ExitCode of job submissionHost={0} batchID={1}. Regard the worker as failed".format(
-                        workspec.submissionHost, workspec.batchID
-                    )
+                    errStr = f"cannot get ExitCode of job submissionHost={workspec.submissionHost} batchID={workspec.batchID}. Regard the worker as failed"
                     tmpLog.warning(errStr)
                     newStatus = WorkSpec.ST_failed
                 except ValueError:
@@ -167,37 +160,31 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     else:
                         # Other return codes are considered failed
                         newStatus = WorkSpec.ST_failed
-                        errStr = "Payload execution error: returned non-zero {0}".format(payloadExitCode)
+                        errStr = f"Payload execution error: returned non-zero {payloadExitCode}"
                         tmpLog.debug(errStr)
                         # Map return code to Pilot error code
                         reduced_exit_code = payloadExitCode // 256 if (payloadExitCode % 256 == 0) else payloadExitCode
                         pilot_error_code, pilot_error_diag = PILOT_ERRORS.convertToPilotErrors(reduced_exit_code)
                         if pilot_error_code is not None:
                             workspec.set_pilot_error(pilot_error_code, pilot_error_diag)
-                    tmpLog.info("Payload return code = {0}".format(payloadExitCode))
+                    tmpLog.info(f"Payload return code = {payloadExitCode}")
             else:
                 errStr = "cannot get reasonable JobStatus of job submissionHost={0} batchID={1}. Regard the worker as failed by default".format(
                     workspec.submissionHost, workspec.batchID
                 )
                 tmpLog.error(errStr)
                 newStatus = WorkSpec.ST_failed
-            tmpLog.info(
-                "submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}".format(workspec.submissionHost, workspec.batchID, batchStatus, newStatus)
-            )
+            tmpLog.info(f"submissionHost={workspec.submissionHost} batchID={workspec.batchID} : batchStatus {batchStatus} -> workerStatus {newStatus}")
     else:
         # Propagate native condor job status as unknown
         workspec.nativeStatus = "unknown"
         if cancel_unknown:
-            errStr = "condor job submissionHost={0} batchID={1} not found. Regard the worker as canceled by default".format(
-                workspec.submissionHost, workspec.batchID
-            )
+            errStr = f"condor job submissionHost={workspec.submissionHost} batchID={workspec.batchID} not found. Regard the worker as canceled by default"
             tmpLog.error(errStr)
             newStatus = WorkSpec.ST_cancelled
-            tmpLog.info(
-                "submissionHost={0} batchID={1} : batchStatus {2} -> workerStatus {3}".format(workspec.submissionHost, workspec.batchID, "3", newStatus)
-            )
+            tmpLog.info(f"submissionHost={workspec.submissionHost} batchID={workspec.batchID} : batchStatus 3 -> workerStatus {newStatus}")
         else:
-            errStr = "condor job submissionHost={0} batchID={1} not found. Skipped".format(workspec.submissionHost, workspec.batchID)
+            errStr = f"condor job submissionHost={workspec.submissionHost} batchID={workspec.batchID} not found. Skipped"
             tmpLog.warning(errStr)
             newStatus = None
     # Set supplemental error message
@@ -250,7 +237,7 @@ class HTCondorMonitor(PluginBase):
     # check workers
     def check_workers(self, workspec_list):
         # Make logger for batch job query
-        tmpLog = self.make_logger(baseLogger, "{0}".format("batch job query"), method_name="check_workers")
+        tmpLog = self.make_logger(baseLogger, "batch job query", method_name="check_workers")
         tmpLog.debug("start")
         # Loop over submissionHost
         job_ads_all_dict = {}
@@ -263,7 +250,7 @@ class HTCondorMonitor(PluginBase):
                 host_job_ads_dict = job_query.get_all(batchIDs_list=batchIDs_list)
             except Exception as e:
                 host_job_ads_dict = {}
-                ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
+                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
                 tmpLog.error(ret_err_str)
             job_ads_all_dict.update(host_job_ads_dict)
         # Check for all workers
@@ -292,10 +279,10 @@ class HTCondorMonitor(PluginBase):
                     condor_host_config_map = json.load(f)
                 for _schedd, _cm in condor_host_config_map.items():
                     _pool = _cm["pool"]
-                    submissionHost = "{0},{1}".format(_schedd, _pool)
+                    submissionHost = f"{_schedd},{_pool}"
                     submission_host_set.add(submissionHost)
             except Exception as e:
-                err_str = "failed to parse condorHostConfig {0}; {1}: {2}".format(condorHostConfig, e.__class__.__name__, e)
+                err_str = f"failed to parse condorHostConfig {condorHostConfig}; {e.__class__.__name__}: {e}"
                 tmpLog.error(err_str)
                 continue
         # Loop over submissionHost and get all jobs
@@ -306,9 +293,9 @@ class HTCondorMonitor(PluginBase):
                     cacheEnable=self.cacheEnable, cacheRefreshInterval=self.cacheRefreshInterval, useCondorHistory=self.useCondorHistory, id=submissionHost
                 )
                 job_ads_all_dict.update(job_query.get_all(allJobs=True))
-                tmpLog.debug("got information of condor jobs on {0}".format(submissionHost))
+                tmpLog.debug(f"got information of condor jobs on {submissionHost}")
             except Exception as e:
-                ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
+                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
                 tmpLog.error(ret_err_str)
         # Choose workers updated within a time window
         workers_to_check_list = []
@@ -323,6 +310,6 @@ class HTCondorMonitor(PluginBase):
             else:
                 workerid = int(workerid)
             workers_to_check_list.append((workerid, job_EnteredCurrentStatus))
-        tmpLog.debug("got {0} workers".format(len(workers_to_check_list)))
+        tmpLog.debug(f"got {len(workers_to_check_list)} workers")
         tmpLog.debug("done")
         return workers_to_check_list

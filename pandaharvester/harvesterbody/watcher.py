@@ -1,20 +1,20 @@
-import os
-import time
-import signal
-import socket
-import smtplib
 import datetime
+import os
+import signal
+import smtplib
+import socket
+import time
 
 try:
     import subprocess32 as subprocess
 except Exception:
     import subprocess
+
 from email.mime.text import MIMEText
 
+from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvesterbody.agent_base import AgentBase
-
 from pandalogger import logger_config
 
 logDir = logger_config.daemon["logdir"]
@@ -48,7 +48,7 @@ class Watcher(AgentBase):
         # avoid too early check
         if not self.singleMode and datetime.datetime.utcnow() - self.startTime < datetime.timedelta(seconds=harvester_config.watcher.checkInterval):
             return
-        mainLog = core_utils.make_logger(_logger, "id={0}".format(self.get_pid()), method_name="execute")
+        mainLog = core_utils.make_logger(_logger, f"id={self.get_pid()}", method_name="execute")
         mainLog.debug("start")
         # get file lock
         try:
@@ -77,7 +77,7 @@ class Watcher(AgentBase):
                         # get processing time for last 1000 queries
                         try:
                             p = subprocess.Popen(
-                                "tail -{0} {1} | head -1".format(harvester_config.watcher.nMessages, logFilePath),
+                                f"tail -{harvester_config.watcher.nMessages} {logFilePath} | head -1",
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 shell=True,
@@ -87,10 +87,10 @@ class Watcher(AgentBase):
                             if tmpLastTime is not None:
                                 tmpLogDuration = tmpLastTime - firstTime
                         except Exception as e:
-                            mainLog.warning("Skip with error {0}: {1}".format(e.__class__.__name__, e))
+                            mainLog.warning(f"Skip with error {e.__class__.__name__}: {e}")
                         tmpMsg = "log={0} : last message at {0}. ".format(logFileName, tmpLastTime)
                         if tmpLogDuration is not None:
-                            tmpMsg += "{0} messages took {1} sec".format(harvester_config.watcher.nMessages, tmpLogDuration.total_seconds())
+                            tmpMsg += f"{harvester_config.watcher.nMessages} messages took {tmpLogDuration.total_seconds()} sec"
                         mainLog.debug(tmpMsg)
                         if tmpLastTime is not None and (lastTime is None or lastTime > tmpLastTime):
                             lastTime = tmpLastTime
@@ -105,14 +105,14 @@ class Watcher(AgentBase):
                         and lastTime is not None
                         and timeNow - lastTime > datetime.timedelta(seconds=harvester_config.watcher.maxStalled)
                     ):
-                        mainLog.warning("last log message is too old in {0}. seems to be stalled".format(lastTimeName))
+                        mainLog.warning(f"last log message is too old in {lastTimeName}. seems to be stalled")
                         doAction = True
                     elif (
                         harvester_config.watcher.maxDuration > 0
                         and logDuration is not None
                         and logDuration.total_seconds() > harvester_config.watcher.maxDuration
                     ):
-                        mainLog.warning("slow message generation in {0}. seems to be a performance issue".format(logDurationName))
+                        mainLog.warning(f"slow message generation in {logDurationName}. seems to be a performance issue")
                         doAction = True
                     # take action
                     if doAction:
@@ -125,7 +125,7 @@ class Watcher(AgentBase):
                             if harvester_config.watcher.mailUser != "" and harvester_config.watcher.mailPassword != "":
                                 envName = harvester_config.watcher.passphraseEnv
                                 if envName not in os.environ:
-                                    tmpMsg = "{0} is undefined in etc/sysconfig/panda_harvester".format(envName)
+                                    tmpMsg = f"{envName} is undefined in etc/sysconfig/panda_harvester"
                                     mainLog.error(tmpMsg)
                                     toSkip = True
                                 else:
@@ -134,15 +134,15 @@ class Watcher(AgentBase):
                                     mailPass = core_utils.decrypt_string(key, harvester_config.watcher.mailPassword)
                             if not toSkip:
                                 # message
-                                msgBody = "harvester {0} ".format(harvester_config.master.harvester_id)
-                                msgBody += "is having a problem on {0} ".format(socket.getfqdn())
-                                msgBody += "at {0} (UTC)".format(datetime.datetime.utcnow())
+                                msgBody = f"harvester {harvester_config.master.harvester_id} "
+                                msgBody += f"is having a problem on {socket.getfqdn()} "
+                                msgBody += f"at {datetime.datetime.utcnow()} (UTC)"
                                 message = MIMEText(msgBody)
                                 message["Subject"] = "Harvester Alarm"
                                 message["From"] = harvester_config.watcher.mailFrom
                                 message["To"] = harvester_config.watcher.mailTo
                                 # send email
-                                mainLog.debug("sending email to {0}".format(harvester_config.watcher.mailTo))
+                                mainLog.debug(f"sending email to {harvester_config.watcher.mailTo}")
                                 server = smtplib.SMTP(harvester_config.watcher.mailServer, harvester_config.watcher.mailPort)
                                 if hasattr(harvester_config.watcher, "mailUseSSL") and harvester_config.watcher.mailUseSSL is True:
                                     server.starttls()
@@ -163,7 +163,7 @@ class Watcher(AgentBase):
                             mainLog.debug("sending SIGTERM")
                             os.killpg(os.getpgrp(), signal.SIGTERM)
                     else:
-                        mainLog.debug("No action needed for {0}".format(logFileName))
+                        mainLog.debug(f"No action needed for {logFileName}")
         except IOError:
             mainLog.debug("skip as locked by another thread or too early to check")
         except Exception:

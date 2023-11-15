@@ -1,18 +1,18 @@
-import time
-import datetime
 import collections
-import random
+import datetime
 import itertools
-from future.utils import iteritems
+import random
+import time
 
+from future.utils import iteritems
+from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.fifos import MonitorEventFIFO, MonitorFIFO
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
-from pandaharvester.harvestercore.fifos import MonitorFIFO, MonitorEventFIFO
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
@@ -51,20 +51,20 @@ class Monitor(AgentBase):
                 try:
                     self.eventBasedMonCoreList.append(pluginFactory.get_plugin(pluginConf))
                 except Exception:
-                    tmp_log.error("failed to launch event-based-monitor plugin of {0}".format(plugin_key))
+                    tmp_log.error(f"failed to launch event-based-monitor plugin of {plugin_key}")
                     core_utils.dump_error_message(tmp_log)
 
     # main loop
     def run(self):
-        lockedBy = "monitor-{0}".format(self.get_pid())
-        mainLog = self.make_logger(_logger, "id={0}".format(lockedBy), method_name="run")
+        lockedBy = f"monitor-{self.get_pid()}"
+        mainLog = self.make_logger(_logger, f"id={lockedBy}", method_name="run")
         # init messengers
         for queueName, queueConfig in self.queueConfigMapper.get_all_queues().items():
             # just import for module initialization
             try:
                 self.pluginFactory.get_plugin(queueConfig.messenger)
             except Exception:
-                mainLog.error("failed to launch messenger plugin for {0}".format(queueName))
+                mainLog.error(f"failed to launch messenger plugin for {queueName}")
                 core_utils.dump_error_message(mainLog)
         # main
         fifoSleepTimeMilli = getattr(harvester_config.monitor, "fifoSleepTimeMilli", 5000)
@@ -96,14 +96,14 @@ class Monitor(AgentBase):
                 workSpecsPerQueue = self.dbProxy.get_workers_to_update(
                     harvester_config.monitor.maxWorkers, harvester_config.monitor.checkInterval, harvester_config.monitor.lockInterval, lockedBy
                 )
-                mainLog.debug("got {0} queues".format(len(workSpecsPerQueue)))
+                mainLog.debug(f"got {len(workSpecsPerQueue)} queues")
                 # loop over all workers
                 for queueName, configIdWorkSpecs in iteritems(workSpecsPerQueue):
                     for configID, workSpecsList in iteritems(configIdWorkSpecs):
                         try:
                             retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID, check_source="DB")
                         except Exception as e:
-                            mainLog.error("monitor_agent_core excepted with {0}".format(e))
+                            mainLog.error(f"monitor_agent_core excepted with {e}")
                             retVal = None  # skip the loop
 
                         if monitor_fifo.enabled and retVal is not None:
@@ -113,17 +113,17 @@ class Monitor(AgentBase):
                                 try:
                                     score = fifoCheckInterval + timeNow_timestamp
                                     monitor_fifo.put((queueName, workSpecsToEnqueue), score)
-                                    mainLog.info("put workers of {0} to FIFO with score {1}".format(queueName, score))
+                                    mainLog.info(f"put workers of {queueName} to FIFO with score {score}")
                                 except Exception as errStr:
-                                    mainLog.error("failed to put object from FIFO: {0}".format(errStr))
+                                    mainLog.error(f"failed to put object from FIFO: {errStr}")
                             if workSpecsToEnqueueToHead:
                                 mainLog.debug("putting workers to FIFO head")
                                 try:
                                     score = fifoCheckInterval - timeNow_timestamp
                                     monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
-                                    mainLog.info("put workers of {0} to FIFO with score {1}".format(queueName, score))
+                                    mainLog.info(f"put workers of {queueName} to FIFO with score {score}")
                                 except Exception as errStr:
-                                    mainLog.error("failed to put object from FIFO head: {0}".format(errStr))
+                                    mainLog.error(f"failed to put object from FIFO head: {errStr}")
                 last_DB_cycle_timestamp = time.time()
                 if sw_db.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
                     mainLog.warning("a single DB cycle was longer than lockInterval " + sw_db.get_elapsed_time())
@@ -181,7 +181,7 @@ class Monitor(AgentBase):
                         try:
                             retVal, overhead_time = monitor_fifo.to_check_workers()
                         except Exception as e:
-                            mainLog.error("failed to check workers from FIFO: {0}".format(e))
+                            mainLog.error(f"failed to check workers from FIFO: {e}")
                         if overhead_time is not None:
                             n_chunk_peeked_stat += 1
                             sum_overhead_time_stat += overhead_time
@@ -189,16 +189,16 @@ class Monitor(AgentBase):
                             # check fifo size
                             try:
                                 fifo_size = monitor_fifo.size()
-                                mainLog.debug("FIFO size is {0}".format(fifo_size))
+                                mainLog.debug(f"FIFO size is {fifo_size}")
                             except Exception as e:
-                                mainLog.error("failed to get size of FIFO: {0}".format(e))
+                                mainLog.error(f"failed to get size of FIFO: {e}")
                                 time.sleep(2)
                                 continue
                             mainLog.debug("starting run with FIFO")
                             try:
                                 obj_gotten = monitor_fifo.get(timeout=1, protective=fifoProtectiveDequeue)
                             except Exception as errStr:
-                                mainLog.error("failed to get object from FIFO: {0}".format(errStr))
+                                mainLog.error(f"failed to get object from FIFO: {errStr}")
                                 time.sleep(2)
                                 continue
                             else:
@@ -207,7 +207,7 @@ class Monitor(AgentBase):
                                     if fifoProtectiveDequeue:
                                         obj_dequeued_id_list.append(obj_gotten.id)
                                     queueName, workSpecsList = obj_gotten.item
-                                    mainLog.debug("got a chunk of {0} workers of {1} from FIFO".format(len(workSpecsList), queueName) + sw.get_elapsed_time())
+                                    mainLog.debug(f"got a chunk of {len(workSpecsList)} workers of {queueName} from FIFO" + sw.get_elapsed_time())
                                     sw.reset()
                                     configID = None
                                     for workSpecs in workSpecsList:
@@ -226,7 +226,7 @@ class Monitor(AgentBase):
                                             lockedBy, queueName, workSpecsList, from_fifo=True, config_id=configID, check_source="FIFO"
                                         )
                                     except Exception as e:
-                                        mainLog.error("monitor_agent_core excepted with {0}".format(e))
+                                        mainLog.error(f"monitor_agent_core excepted with {e}")
                                         retVal = None  # skip the loop
 
                                     if retVal is not None:
@@ -241,7 +241,7 @@ class Monitor(AgentBase):
                                                 to_break = True
                                                 remaining_obj_to_enqueue_dict[qc_key] = [workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval]
                                         except Exception as errStr:
-                                            mainLog.error("failed to gather workers for FIFO: {0}".format(errStr))
+                                            mainLog.error(f"failed to gather workers for FIFO: {errStr}")
                                             to_break = True
                                         try:
                                             if len(obj_to_enqueue_to_head_dict[qc_key][0]) + len(workSpecsToEnqueueToHead) <= fifoMaxWorkersPerChunk:
@@ -252,9 +252,9 @@ class Monitor(AgentBase):
                                                 to_break = True
                                                 remaining_obj_to_enqueue_to_head_dict[qc_key] = [workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval]
                                         except Exception as errStr:
-                                            mainLog.error("failed to gather workers for FIFO head: {0}".format(errStr))
+                                            mainLog.error(f"failed to gather workers for FIFO head: {errStr}")
                                             to_break = True
-                                        mainLog.debug("checked {0} workers from FIFO".format(len(workSpecsList)) + sw.get_elapsed_time())
+                                        mainLog.debug(f"checked {len(workSpecsList)} workers from FIFO" + sw.get_elapsed_time())
                                     else:
                                         mainLog.debug("monitor_agent_core returned None. Skipped putting to FIFO")
                                     if sw_fifo.get_elapsed_time_in_sec() > harvester_config.monitor.lockInterval:
@@ -274,7 +274,7 @@ class Monitor(AgentBase):
                                 time.sleep(max(-overhead_time * random.uniform(0.1, 1), adjusted_sleepTime))
                             else:
                                 time.sleep(max(fifoCheckDuration * random.uniform(0.1, 1), adjusted_sleepTime))
-                    mainLog.debug("run {0} loops, including {1} FIFO cycles".format(n_loops, n_loops_hit))
+                    mainLog.debug(f"run {n_loops} loops, including {n_loops_hit} FIFO cycles")
                 # enqueue to fifo
                 sw.reset()
                 n_chunk_put = 0
@@ -287,9 +287,9 @@ class Monitor(AgentBase):
                                 score = fifoCheckInterval + timeNow_timestamp
                                 monitor_fifo.put((queueName, workSpecsToEnqueue), score)
                                 n_chunk_put += 1
-                                mainLog.info("put a chunk of {0} workers of {1} to FIFO with score {2}".format(len(workSpecsToEnqueue), queueName, score))
+                                mainLog.info(f"put a chunk of {len(workSpecsToEnqueue)} workers of {queueName} to FIFO with score {score}")
                         except Exception as errStr:
-                            mainLog.error("failed to put object from FIFO: {0}".format(errStr))
+                            mainLog.error(f"failed to put object from FIFO: {errStr}")
                 mainLog.debug("putting worker chunks to FIFO head")
                 for _dct in (obj_to_enqueue_to_head_dict, remaining_obj_to_enqueue_to_head_dict):
                     for (queueName, configID), obj_to_enqueue_to_head in iteritems(_dct):
@@ -299,16 +299,16 @@ class Monitor(AgentBase):
                                 score = fifoCheckInterval + timeNow_timestamp - 2**32
                                 monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
                                 n_chunk_put += 1
-                                mainLog.info("put a chunk of {0} workers of {1} to FIFO with score {2}".format(len(workSpecsToEnqueueToHead), queueName, score))
+                                mainLog.info(f"put a chunk of {len(workSpecsToEnqueueToHead)} workers of {queueName} to FIFO with score {score}")
                         except Exception as errStr:
-                            mainLog.error("failed to put object from FIFO head: {0}".format(errStr))
+                            mainLog.error(f"failed to put object from FIFO head: {errStr}")
                 # delete protective dequeued objects
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
                     try:
                         monitor_fifo.delete(ids=obj_dequeued_id_list)
                     except Exception as e:
-                        mainLog.error("failed to delete object from FIFO: {0}".format(e))
-                mainLog.debug("put {0} worker chunks into FIFO".format(n_chunk_put) + sw.get_elapsed_time())
+                        mainLog.error(f"failed to delete object from FIFO: {e}")
+                mainLog.debug(f"put {n_chunk_put} worker chunks into FIFO" + sw.get_elapsed_time())
                 # adjust adjusted_sleepTime
                 if n_chunk_peeked_stat > 0 and sum_overhead_time_stat > sleepTime:
                     speedup_factor = (sum_overhead_time_stat - sleepTime) / (n_chunk_peeked_stat * harvester_config.monitor.checkInterval)
@@ -316,7 +316,7 @@ class Monitor(AgentBase):
                     adjusted_sleepTime = adjusted_sleepTime / (1.0 + speedup_factor)
                 elif n_chunk_peeked_stat == 0 or sum_overhead_time_stat < 0:
                     adjusted_sleepTime = (sleepTime + adjusted_sleepTime) / 2
-                mainLog.debug("adjusted_sleepTime becomes {0:.3f} sec".format(adjusted_sleepTime))
+                mainLog.debug(f"adjusted_sleepTime becomes {adjusted_sleepTime:.3f} sec")
                 # end run with fifo
                 mainLog.debug("ended run with FIFO")
             # time the cycle
@@ -328,7 +328,7 @@ class Monitor(AgentBase):
 
     # core of monitor agent to check workers in workSpecsList of queueName
     def monitor_agent_core(self, lockedBy, queueName, workSpecsList, from_fifo=False, config_id=None, check_source=None):
-        tmpQueLog = self.make_logger(_logger, "id={0} queue={1}".format(lockedBy, queueName), method_name="run")
+        tmpQueLog = self.make_logger(_logger, f"id={lockedBy} queue={queueName}", method_name="run")
         # check queue
         if not self.queueConfigMapper.has_queue(queueName, config_id):
             tmpQueLog.error("config not found")
@@ -360,7 +360,7 @@ class Monitor(AgentBase):
             fifoMaxPreemptInterval = 60
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
-        tmpQueLog.debug("checking {0} workers".format(len(allWorkers)))
+        tmpQueLog.debug(f"checking {len(allWorkers)} workers")
         tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog, from_fifo)
         if tmpStat:
             # loop over all worker chunks
@@ -375,7 +375,7 @@ class Monitor(AgentBase):
                 mapType = workSpecs[0].mapType
                 # loop over workSpecs
                 for workSpec in workSpecs:
-                    tmpLog = self.make_logger(_logger, "id={0} workerID={1} from={2}".format(lockedBy, workSpec.workerID, check_source), method_name="run")
+                    tmpLog = self.make_logger(_logger, f"id={lockedBy} workerID={workSpec.workerID} from={check_source}", method_name="run")
                     tmpOut = tmpRetMap[workSpec.workerID]
                     oldStatus = tmpOut["oldStatus"]
                     newStatus = tmpOut["newStatus"]
@@ -394,7 +394,7 @@ class Monitor(AgentBase):
                     iWorker += 1
                     # check status
                     if newStatus not in WorkSpec.ST_LIST:
-                        tmpLog.error("unknown status={0}".format(newStatus))
+                        tmpLog.error(f"unknown status={newStatus}")
                         return
                     # update worker
                     workSpec.set_status(newStatus)
@@ -429,9 +429,7 @@ class Monitor(AgentBase):
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
                     # apfmon status update
                     if newStatus != oldStatus:
-                        tmpQueLog.debug(
-                            "newStatus: {0} monStatus: {1} oldStatus: {2} workSpecStatus: {3}".format(newStatus, monStatus, oldStatus, workSpec.status)
-                        )
+                        tmpQueLog.debug(f"newStatus: {newStatus} monStatus: {monStatus} oldStatus: {oldStatus} workSpecStatus: {workSpec.status}")
                         self.apfmon.update_worker(workSpec, monStatus)
 
                 # lock workers for fifo
@@ -456,13 +454,13 @@ class Monitor(AgentBase):
                         continue
                 # update jobs and workers
                 if jobSpecs is not None and len(jobSpecs) > 0:
-                    tmpQueLog.debug("updating {0} jobs with {1} workers".format(len(jobSpecs), len(workSpecs)))
+                    tmpQueLog.debug(f"updating {len(jobSpecs)} jobs with {len(workSpecs)} workers")
                     core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs, filesToStageOutList, eventsToUpdateList)
                 # update local database
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:
                     for workSpec in workSpecs:
-                        tmpLog = self.make_logger(_logger, "id={0} workerID={1}".format(lockedBy, workSpec.workerID), method_name="run")
+                        tmpLog = self.make_logger(_logger, f"id={lockedBy} workerID={workSpec.workerID}", method_name="run")
                         if from_fifo:
                             tmpLog.info("failed to update the DB. Maybe locked by other thread running with DB")
                         else:
@@ -473,11 +471,9 @@ class Monitor(AgentBase):
                 else:
                     if jobSpecs is not None:
                         for jobSpec in jobSpecs:
-                            tmpLog = self.make_logger(_logger, "id={0} PandaID={1}".format(lockedBy, jobSpec.PandaID), method_name="run")
+                            tmpLog = self.make_logger(_logger, f"id={lockedBy} PandaID={jobSpec.PandaID}", method_name="run")
                             tmpLog.debug(
-                                "new status={0} subStatus={1} status_in_metadata={2}".format(
-                                    jobSpec.status, jobSpec.subStatus, jobSpec.get_job_status_from_attributes()
-                                )
+                                f"new status={jobSpec.status} subStatus={jobSpec.subStatus} status_in_metadata={jobSpec.get_job_status_from_attributes()}"
                             )
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
@@ -486,7 +482,7 @@ class Monitor(AgentBase):
                             messenger.acknowledge_events_files(workSpec)
                         except Exception:
                             core_utils.dump_error_message(tmpQueLog)
-                            tmpQueLog.error("failed to send ACK to workerID={0}".format(workSpec.workerID))
+                            tmpQueLog.error(f"failed to send ACK to workerID={workSpec.workerID}")
                 # active workers for fifo
                 if self.monitor_fifo.enabled and workSpecs:
                     workSpec = workSpecs[0]
@@ -526,9 +522,7 @@ class Monitor(AgentBase):
                                 )
                             else:
                                 tmpQueLog.warning(
-                                    "last check period of workerID={0} is {1} sec, longer than monitor checkInterval".format(
-                                        workSpec.workerID, last_check_period
-                                    )
+                                    f"last check period of workerID={workSpec.workerID} is {last_check_period} sec, longer than monitor checkInterval"
                                 )
                         # prepartion to enqueue fifo
                         if (from_fifo) or (
@@ -555,7 +549,7 @@ class Monitor(AgentBase):
                                 if not _bool or startFifoPreemptAt is None:
                                     startFifoPreemptAt = timeNow_timestamp
                                     workSpec.set_work_params({"startFifoPreemptAt": startFifoPreemptAt})
-                                tmpQueLog.debug("workerID={0} , startFifoPreemptAt: {1}".format(workSpec.workerID, startFifoPreemptAt))
+                                tmpQueLog.debug(f"workerID={workSpec.workerID} , startFifoPreemptAt: {startFifoPreemptAt}")
                                 if timeNow_timestamp - startFifoPreemptAt < fifoMaxPreemptInterval:
                                     workSpecsToEnqueueToHead_dict[workSpec.workerID] = workSpecs
                                 else:
@@ -643,7 +637,7 @@ class Monitor(AgentBase):
             if workersToCheck:
                 tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
                 if not tmpStat:
-                    tmp_log.error("failed to check workers with: {0}".format(tmpOut))
+                    tmp_log.error(f"failed to check workers with: {tmpOut}")
                     workersToCheck = []
                     tmpOut = []
                 else:
@@ -654,12 +648,12 @@ class Monitor(AgentBase):
             timeNow = datetime.datetime.utcnow()
             for workSpec, (newStatus, diagMessage) in itertools.chain(zip(workersToCheck, tmpOut), thingsToPostProcess):
                 workerID = workSpec.workerID
-                tmp_log.debug("Going to check workerID={0}".format(workerID))
+                tmp_log.debug(f"Going to check workerID={workerID}")
                 pandaIDs = []
                 if workerID in retMap:
                     # failed to check status
                     if newStatus is None:
-                        tmp_log.warning("Failed to check workerID={0} with {1}".format(workerID, diagMessage))
+                        tmp_log.warning(f"Failed to check workerID={workerID} with {diagMessage}")
                         retMap[workerID]["isChecked"] = False
                         # set status
                         if (
@@ -668,7 +662,7 @@ class Monitor(AgentBase):
                             and timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout)
                         ):
                             # kill due to timeout
-                            tmp_log.debug("kill workerID={0} due to consecutive check failures".format(workerID))
+                            tmp_log.debug(f"kill workerID={workerID} due to consecutive check failures")
                             self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                             newStatus = WorkSpec.ST_cancelled
                             diagMessage = "Killed by Harvester due to consecutive worker check failures. " + diagMessage
@@ -678,11 +672,11 @@ class Monitor(AgentBase):
                             newStatus = workSpec.status
                     # request kill
                     if messenger.kill_requested(workSpec):
-                        tmp_log.debug("kill workerID={0} as requested".format(workerID))
+                        tmp_log.debug(f"kill workerID={workerID} as requested")
                         self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                     # stuck queuing for too long
                     if workSpec.status == WorkSpec.ST_submitted and timeNow > workSpec.submitTime + datetime.timedelta(seconds=workerQueueTimeLimit):
-                        tmp_log.debug("kill workerID={0} due to queuing longer than {1} seconds".format(workerID, workerQueueTimeLimit))
+                        tmp_log.debug(f"kill workerID={workerID} due to queuing longer than {workerQueueTimeLimit} seconds")
                         self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                         diagMessage = "Killed by Harvester due to worker queuing too long. " + diagMessage
                         workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
@@ -694,12 +688,12 @@ class Monitor(AgentBase):
                         worker_heartbeat_limit = int(queue_config.messenger["worker_heartbeat"])
                     except (AttributeError, KeyError):
                         worker_heartbeat_limit = None
-                    tmp_log.debug("workerID={0} heartbeat limit is configured to {1}".format(workerID, worker_heartbeat_limit))
+                    tmp_log.debug(f"workerID={workerID} heartbeat limit is configured to {worker_heartbeat_limit}")
                     if worker_heartbeat_limit:
                         if messenger.is_alive(workSpec, worker_heartbeat_limit):
-                            tmp_log.debug("heartbeat for workerID={0} is valid".format(workerID))
+                            tmp_log.debug(f"heartbeat for workerID={workerID} is valid")
                         else:
-                            tmp_log.debug("heartbeat for workerID={0} expired: sending kill request".format(workerID))
+                            tmp_log.debug(f"heartbeat for workerID={workerID} expired: sending kill request")
                             self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                             diagMessage = "Killed by Harvester due to worker heartbeat expired. " + diagMessage
                             workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
@@ -760,7 +754,7 @@ class Monitor(AgentBase):
                     retMap[workerID]["newStatus"] = newStatus
                     retMap[workerID]["diagMessage"] = diagMessage
                 else:
-                    tmp_log.debug("workerID={0} not in retMap".format(workerID))
+                    tmp_log.debug(f"workerID={workerID} not in retMap")
             return True, retMap
         except Exception:
             core_utils.dump_error_message(tmp_log)
@@ -768,35 +762,35 @@ class Monitor(AgentBase):
 
     # ask plugin for workers to update, get workspecs, and queue the event
     def monitor_event_deliverer(self, time_window):
-        tmpLog = self.make_logger(_logger, "id=monitor-{0}".format(self.get_pid()), method_name="monitor_event_deliverer")
+        tmpLog = self.make_logger(_logger, f"id=monitor-{self.get_pid()}", method_name="monitor_event_deliverer")
         tmpLog.debug("start")
         for mon_core in self.eventBasedMonCoreList:
-            tmpLog.debug("run with {0}".format(mon_core.__class__.__name__))
+            tmpLog.debug(f"run with {mon_core.__class__.__name__}")
             worker_update_list = mon_core.report_updated_workers(time_window=time_window)
             for workerID, updateTimestamp in worker_update_list:
                 retVal = self.monitor_event_fifo.putbyid(id=workerID, item=True, score=updateTimestamp)
                 if not retVal:
                     retVal = self.monitor_event_fifo.update(id=workerID, score=updateTimestamp, temporary=0, cond_score="gt")
                     if retVal:
-                        tmpLog.debug("updated event with workerID={0}".format(workerID))
+                        tmpLog.debug(f"updated event with workerID={workerID}")
                     else:
-                        tmpLog.debug("event with workerID={0} is updated. Skipped".format(workerID))
+                        tmpLog.debug(f"event with workerID={workerID} is updated. Skipped")
                 else:
-                    tmpLog.debug("put event with workerID={0}".format(workerID))
+                    tmpLog.debug(f"put event with workerID={workerID}")
         tmpLog.debug("done")
 
     # get events and check workers
     def monitor_event_digester(self, locked_by, max_events):
-        tmpLog = self.make_logger(_logger, "id=monitor-{0}".format(self.get_pid()), method_name="monitor_event_digester")
+        tmpLog = self.make_logger(_logger, f"id=monitor-{self.get_pid()}", method_name="monitor_event_digester")
         tmpLog.debug("start")
         retMap = {}
         try:
             obj_gotten_list = self.monitor_event_fifo.getmany(mode="first", count=max_events, protective=True)
         except Exception as e:
             obj_gotten_list = []
-            tmpLog.error("monitor_event_fifo excepted with {0}".format(e))
+            tmpLog.error(f"monitor_event_fifo excepted with {e}")
         workerID_list = [obj_gotten.id for obj_gotten in obj_gotten_list]
-        tmpLog.debug("got {0} worker events".format(len(workerID_list)))
+        tmpLog.debug(f"got {len(workerID_list)} worker events")
         if len(workerID_list) > 0:
             updated_workers_dict = self.dbProxy.get_workers_from_ids(workerID_list)
             tmpLog.debug("got workspecs for worker events")
@@ -807,7 +801,7 @@ class Monitor(AgentBase):
                     try:
                         retVal = self.monitor_agent_core(locked_by, queueName, workSpecsList, from_fifo=True, config_id=configID, check_source="Event")
                     except Exception as e:
-                        tmpLog.error("monitor_agent_core excepted with {0}".format(e))
+                        tmpLog.error(f"monitor_agent_core excepted with {e}")
                         retVal = None  # skip the loop
 
                     if retVal:
@@ -817,18 +811,18 @@ class Monitor(AgentBase):
 
     # remove outdated events
     def monitor_event_disposer(self, event_lifetime, max_events):
-        tmpLog = self.make_logger(_logger, "id=monitor-{0}".format(self.get_pid()), method_name="monitor_event_disposer")
+        tmpLog = self.make_logger(_logger, f"id=monitor-{self.get_pid()}", method_name="monitor_event_disposer")
         tmpLog.debug("start")
         timeNow_timestamp = time.time()
         try:
             obj_gotten_list = self.monitor_event_fifo.getmany(mode="first", maxscore=(timeNow_timestamp - event_lifetime), count=max_events, temporary=True)
         except Exception as e:
             obj_gotten_list = []
-            tmpLog.error("monitor_event_fifo excepted with {0}".format(e))
-        tmpLog.debug("removed {0} events".format(len(obj_gotten_list)))
+            tmpLog.error(f"monitor_event_fifo excepted with {e}")
+        tmpLog.debug(f"removed {len(obj_gotten_list)} events")
         try:
             n_events = self.monitor_event_fifo.size()
-            tmpLog.debug("now {0} events in monitor-event fifo".format(n_events))
+            tmpLog.debug(f"now {n_events} events in monitor-event fifo")
         except Exception as e:
-            tmpLog.error("failed to get size of monitor-event fifo: {0}".format(e))
+            tmpLog.error(f"failed to get size of monitor-event fifo: {e}")
         tmpLog.debug("done")

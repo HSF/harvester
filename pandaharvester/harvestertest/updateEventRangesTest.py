@@ -1,10 +1,10 @@
 import sys
 import uuid
-from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.file_spec import FileSpec
-from pandaharvester.harvestercore.event_spec import EventSpec
 
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore.event_spec import EventSpec
+from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
 
 rID = sys.argv[1]
 taskid = rID.split("-")[0]

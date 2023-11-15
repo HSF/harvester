@@ -1,8 +1,9 @@
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from .base_worker_maker import BaseWorkerMaker
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.work_spec import WorkSpec
+
+from .base_worker_maker import BaseWorkerMaker
 
 # multinode worker maker. one job per node. aprun as executor (initially)
 # static parameters collected from queue config file
@@ -20,7 +21,7 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
         self.queue_config_mapper = QueueConfigMapper()
         tmpLog = self.make_logger(baseLogger, method_name="__init__")
         tmpLog.info("Multinode workermaker: created.")
-        tmpLog.debug("Queue name: {0}".format(self.queueName))
+        tmpLog.debug(f"Queue name: {self.queueName}")
         if self.mode == "static":
             tmpLog.info("Static configuration")
         elif self.mode == "dynamic":
@@ -42,7 +43,7 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
         # prepare executor
         try:
             if self.executor == "aprun":  # "aprun -n [number of required nodes/jobs] -d [number of cpu per node/job]" - for one multicore job per node
-                exe_str = self.executor + " -n {0} -d {1} ".format(self.nJobsPerWorker, self.nCorePerJob)
+                exe_str = self.executor + f" -n {self.nJobsPerWorker} -d {self.nCorePerJob} "
                 exe_str += self.pilot
             else:
                 exe_str = self.executor + " " + self.pilot
@@ -53,16 +54,16 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
             exe_str = ""
 
         exe_str = "\n".join([env_str, exe_str])
-        tmpLog.debug("Shell script body: \n%s" % exe_str)
+        tmpLog.debug(f"Shell script body: \n{exe_str}")
 
         return exe_str
 
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
-        tmpLog = core_utils.make_logger(baseLogger, "queue={0}".format(queue_config.queueName), method_name="make_worker")
+        tmpLog = core_utils.make_logger(baseLogger, f"queue={queue_config.queueName}", method_name="make_worker")
 
         tmpLog.info("Multi node worker preparation started.")
-        tmpLog.info("Worker size: {0} jobs on {2} nodes for {1} sec.".format(self.nJobsPerWorker, self.walltimelimit, self.nNodes))
+        tmpLog.info(f"Worker size: {self.nJobsPerWorker} jobs on {self.nNodes} nodes for {self.walltimelimit} sec.")
 
         workSpec = WorkSpec()
         workSpec.nCore = self.nNodes * queue_config.submitter["nCorePerNode"]
@@ -89,7 +90,7 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
                 #        workSpec.maxWalltime = queue_config.walltimeLimit
                 # except Exception:
                 #    pass
-        tmpLog.info("Worker for {0} nodes with {2} jobs with walltime {1} sec. defined".format(self.nNodes, workSpec.maxWalltime, self.nJobsPerWorker))
+        tmpLog.info(f"Worker for {self.nNodes} nodes with {self.nJobsPerWorker} jobs with walltime {workSpec.maxWalltime} sec. defined")
 
         return workSpec
 
@@ -116,7 +117,7 @@ class MultiNodeWorkerMaker(BaseWorkerMaker):
         """
         Function to get resourcese and map them to number of jobs
         """
-        tmpLog = core_utils.make_logger(baseLogger, "queue={0}".format(self.queueName), method_name="get_resources")
+        tmpLog = core_utils.make_logger(baseLogger, f"queue={self.queueName}", method_name="get_resources")
         njobs = 0
         walltime = self.walltimelimit
         queue_config = self.queue_config_mapper.get_queue(self.queueName)
