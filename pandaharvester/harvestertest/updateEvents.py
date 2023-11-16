@@ -1,6 +1,7 @@
+import json
 import os
 import sys
-import json
+
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestermessenger import shared_file_messenger
 

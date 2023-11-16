@@ -6,8 +6,8 @@ try:
 except Exception:
     import subprocess
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 
 # logger
@@ -46,7 +46,7 @@ class XrdcpPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_preparation")
         tmpLog.debug("start")
         # get the environment
         harvester_env = os.environ.copy()
@@ -66,13 +66,13 @@ class XrdcpPreparator(PluginBase):
                 if os.path.exists(localPath):
                     # calculate checksum
                     checksum = core_utils.calc_adler32(localPath)
-                    checksum = "ad:{0}".format(checksum)
+                    checksum = f"ad:{checksum}"
                     if checksum == inFileInfo[tmpFileSpec.lfn]["checksum"]:
                         continue
                 # make directories if needed
                 if not os.path.isdir(os.path.dirname(localPath)):
                     os.makedirs(os.path.dirname(localPath))
-                    tmpLog.debug("Make directory - {0}".format(os.path.dirname(localPath)))
+                    tmpLog.debug(f"Make directory - {os.path.dirname(localPath)}")
             # collect list of input files
             if xrdcpInput is None:
                 xrdcpInput = [srcPath]
@@ -88,7 +88,7 @@ class XrdcpPreparator(PluginBase):
             tmpFileSpec.attemptNr += 1
             try:
                 xrdcp_cmd = " ".join(args)
-                tmpLog.debug("execute: {0}".format(xrdcp_cmd))
+                tmpLog.debug(f"execute: {xrdcp_cmd}")
                 p = subprocess.Popen(xrdcp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=harvester_env, shell=True)
                 try:
                     stdout, stderr = p.communicate(timeout=self.timeout)
@@ -105,15 +105,15 @@ class XrdcpPreparator(PluginBase):
                     if not isinstance(stderr, str):
                         stderr = stderr.decode()
                     stderr = stderr.replace("\n", " ")
-                tmpLog.debug("stdout: %s" % stdout)
-                tmpLog.debug("stderr: %s" % stderr)
+                tmpLog.debug(f"stdout: {stdout}")
+                tmpLog.debug(f"stderr: {stderr}")
             except Exception:
                 core_utils.dump_error_message(tmpLog)
                 return_code = 1
             if return_code != 0:
-                overall_errMsg += "file - {0} did not transfer error code {1} ".format(localPath, return_code)
+                overall_errMsg += f"file - {localPath} did not transfer error code {return_code} "
                 allfiles_transfered = False
-                errMsg = "failed with {0}".format(return_code)
+                errMsg = f"failed with {return_code}"
                 tmpLog.error(errMsg)
                 # check attemptNr
                 if tmpFileSpec.attemptNr >= self.maxAttempts:

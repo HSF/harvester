@@ -2,13 +2,13 @@
 API described here: http://apfmon.lancs.ac.uk/help
 """
 
-import requests
 import json
 import time
 import traceback
 
-from pandaharvester.harvesterconfig import harvester_config
+import requests
 from pandaharvester import panda_pkg_info
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
@@ -69,7 +69,7 @@ class Apfmon(object):
         """
 
         start_time = time.time()
-        tmp_log = core_utils.make_logger(_base_logger, "harvester_id={0}".format(self.harvester_id), method_name="create_factory")
+        tmp_log = core_utils.make_logger(_base_logger, f"harvester_id={self.harvester_id}", method_name="create_factory")
 
         if not self.__active:
             tmp_log.debug("APFMon reporting not enabled")
@@ -78,24 +78,24 @@ class Apfmon(object):
         try:
             tmp_log.debug("start")
 
-            url = "{0}/factories/{1}".format(self.base_url, self.harvester_id)
+            url = f"{self.base_url}/factories/{self.harvester_id}"
 
             f = {"url": "url_to_logs", "email": "atlas-adc-harvester-central-support@cern.ch", "version": panda_pkg_info.release_version}
             payload = json.dumps(f)
 
             r = requests.put(url, data=payload, timeout=self.__label_timeout)
-            tmp_log.debug("registration ended with {0} {1}".format(r.status_code, r.text))
+            tmp_log.debug(f"registration ended with {r.status_code} {r.text}")
             end_time = time.time()
-            tmp_log.debug("done (took {0})".format(end_time - start_time))
+            tmp_log.debug(f"done (took {end_time - start_time})")
         except BaseException:
-            tmp_log.error("Excepted with: {0}".format(traceback.format_exc()))
+            tmp_log.error(f"Excepted with: {traceback.format_exc()}")
 
     def create_labels(self):
         """
         Creates or updates a collection of labels (=panda queue+CE)
         """
         start_time = time.time()
-        tmp_log = core_utils.make_logger(_base_logger, "harvester_id={0}".format(self.harvester_id), method_name="create_labels")
+        tmp_log = core_utils.make_logger(_base_logger, f"harvester_id={self.harvester_id}", method_name="create_labels")
 
         if not self.__active:
             tmp_log.debug("APFMon reporting not enabled")
@@ -104,7 +104,7 @@ class Apfmon(object):
         try:
             tmp_log.debug("start")
 
-            url = "{0}/labels".format(self.base_url)
+            url = f"{self.base_url}/labels"
 
             # get the active queues from the config mapper
             all_sites = self.queue_config_mapper.get_active_queues().keys()
@@ -117,7 +117,7 @@ class Apfmon(object):
                     try:
                         site_info = panda_queues_dict.get(site, dict())
                         if not site_info:
-                            tmp_log.warning("No site info for {0}".format(site))
+                            tmp_log.warning(f"No site info for {site}")
                             continue
 
                         # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
@@ -142,23 +142,23 @@ class Apfmon(object):
                             except KeyError:
                                 ce_queue_id = 0
 
-                            labels.append({"name": "{0}-{1}".format(site, ce), "wmsqueue": site, "ce_queue_id": ce_queue_id, "factory": self.harvester_id})
+                            labels.append({"name": f"{site}-{ce}", "wmsqueue": site, "ce_queue_id": ce_queue_id, "factory": self.harvester_id})
                     except BaseException:
-                        tmp_log.error("Excepted for site {0} with: {1}".format(site, traceback.format_exc()))
+                        tmp_log.error(f"Excepted for site {site} with: {traceback.format_exc()}")
                         continue
 
                 payload = json.dumps(labels)
 
                 r = requests.put(url, data=payload, timeout=self.__label_timeout)
-                tmp_log.debug("label creation for {0} ended with {1} {2}".format(sites, r.status_code, r.text))
+                tmp_log.debug(f"label creation for {sites} ended with {r.status_code} {r.text}")
 
             end_time = time.time()
-            tmp_log.debug("done (took {0})".format(end_time - start_time))
+            tmp_log.debug(f"done (took {end_time - start_time})")
         except BaseException:
-            tmp_log.error("Excepted with: {0}".format(traceback.format_exc()))
+            tmp_log.error(f"Excepted with: {traceback.format_exc()}")
 
     def massage_label_data(self, data):
-        tmp_log = core_utils.make_logger(_base_logger, "harvester_id={0}".format(self.harvester_id), method_name="massage_label_data")
+        tmp_log = core_utils.make_logger(_base_logger, f"harvester_id={self.harvester_id}", method_name="massage_label_data")
         if not data:
             return data
 
@@ -178,10 +178,10 @@ class Apfmon(object):
             else:
                 data["ANY"] = any
 
-            tmp_log.debug("Massaged to data: {0}".format(data))
+            tmp_log.debug(f"Massaged to data: {data}")
 
         except Exception:
-            tmp_log.debug("Exception in data: {0}".format(data))
+            tmp_log.debug(f"Exception in data: {data}")
 
         return data
 
@@ -190,7 +190,7 @@ class Apfmon(object):
         Updates a label (=panda queue+CE)
         """
         start_time = time.time()
-        tmp_log = core_utils.make_logger(_base_logger, "harvester_id={0}".format(self.harvester_id), method_name="update_label")
+        tmp_log = core_utils.make_logger(_base_logger, f"harvester_id={self.harvester_id}", method_name="update_label")
 
         if not self.__active:
             tmp_log.debug("APFMon reporting not enabled")
@@ -206,7 +206,7 @@ class Apfmon(object):
 
             site_info = panda_queues_dict.get(site, dict())
             if not site_info:
-                tmp_log.warning("No site info for {0}".format(site))
+                tmp_log.warning(f"No site info for {site}")
                 return
 
             # when no CEs associated to a queue, e.g. P1, HPCs, etc. Try to see if there is something
@@ -228,26 +228,26 @@ class Apfmon(object):
                         ce = ""
 
                     label_data = {"status": msg, "data": data}
-                    label = "{0}-{1}".format(site, ce)
-                    label_id = "{0}:{1}".format(self.harvester_id, label)
-                    url = "{0}/labels/{1}".format(self.base_url, label_id)
+                    label = f"{site}-{ce}"
+                    label_id = f"{self.harvester_id}:{label}"
+                    url = f"{self.base_url}/labels/{label_id}"
 
                     r = requests.post(url, data=json.dumps(label_data), timeout=self.__label_timeout)
-                    tmp_log.debug("label update for {0} ended with {1} {2}".format(label, r.status_code, r.text))
+                    tmp_log.debug(f"label update for {label} ended with {r.status_code} {r.text}")
                 except BaseException:
-                    tmp_log.error("Excepted for site {0} with: {1}".format(label, traceback.format_exc()))
+                    tmp_log.error(f"Excepted for site {label} with: {traceback.format_exc()}")
 
             end_time = time.time()
-            tmp_log.debug("done (took {0})".format(end_time - start_time))
+            tmp_log.debug(f"done (took {end_time - start_time})")
         except BaseException:
-            tmp_log.error("Excepted with: {0}".format(traceback.format_exc()))
+            tmp_log.error(f"Excepted with: {traceback.format_exc()}")
 
     def create_workers(self, worker_spec_list):
         """
         Creates a worker
         """
         start_time = time.time()
-        tmp_log = core_utils.make_logger(_base_logger, "harvester_id={0}".format(self.harvester_id), method_name="create_workers")
+        tmp_log = core_utils.make_logger(_base_logger, f"harvester_id={self.harvester_id}", method_name="create_workers")
 
         if not self.__active:
             tmp_log.debug("APFMon reporting not enabled")
@@ -256,7 +256,7 @@ class Apfmon(object):
         try:
             tmp_log.debug("start")
 
-            url = "{0}/jobs".format(self.base_url)
+            url = f"{self.base_url}/jobs"
 
             for worker_spec_shard in core_utils.create_shards(worker_spec_list, 20):
                 apfmon_workers = []
@@ -264,14 +264,14 @@ class Apfmon(object):
                     batch_id = worker_spec.batchID
                     worker_id = worker_spec.workerID
                     if not batch_id:
-                        tmp_log.debug("no batchID found for workerID {0}... skipping".format(worker_id))
+                        tmp_log.debug(f"no batchID found for workerID {worker_id}... skipping")
                         continue
                     factory = self.harvester_id
                     computingsite = worker_spec.computingSite
                     try:
                         ce = clean_ce(worker_spec.computingElement)
                     except AttributeError:
-                        tmp_log.debug("no CE found for workerID {0} batchID {1}".format(worker_id, batch_id))
+                        tmp_log.debug(f"no CE found for workerID {worker_id} batchID {batch_id}")
                         ce = NO_CE
 
                     # extract the log URLs
@@ -295,27 +295,27 @@ class Apfmon(object):
                     apfmon_worker = {
                         "cid": batch_id,
                         "factory": factory,
-                        "label": "{0}-{1}".format(computingsite, ce),
+                        "label": f"{computingsite}-{ce}",
                         "jdlurl": jdl_url,
                         "stdouturl": stdout_url,
                         "stderrurl": stderr_url,
                         "logurl": log_url,
                     }
-                    tmp_log.debug("packed worker: {0}".format(apfmon_worker))
+                    tmp_log.debug(f"packed worker: {apfmon_worker}")
                     apfmon_workers.append(apfmon_worker)
 
                 payload = json.dumps(apfmon_workers)
 
                 try:
                     r = requests.put(url, data=payload, timeout=self.__worker_timeout)
-                    tmp_log.debug("worker creation for {0} ended with {1} {2}".format(apfmon_workers, r.status_code, r.text))
+                    tmp_log.debug(f"worker creation for {apfmon_workers} ended with {r.status_code} {r.text}")
                 except BaseException:
                     tmp_log.debug("worker creation for {0} failed with".format(apfmon_workers, format(traceback.format_exc())))
 
             end_time = time.time()
-            tmp_log.debug("done (took {0})".format(end_time - start_time))
+            tmp_log.debug(f"done (took {end_time - start_time})")
         except BaseException:
-            tmp_log.error("Excepted with: {0}".format(traceback.format_exc()))
+            tmp_log.error(f"Excepted with: {traceback.format_exc()}")
 
     def convert_status(self, harvester_status):
         """
@@ -338,7 +338,7 @@ class Apfmon(object):
         connectivity on the worker node
         """
         start_time = time.time()
-        tmp_log = core_utils.make_logger(_base_logger, "harvester_id={0}".format(self.harvester_id), method_name="update_worker")
+        tmp_log = core_utils.make_logger(_base_logger, f"harvester_id={self.harvester_id}", method_name="update_worker")
 
         if not self.__active:
             tmp_log.debug("APFMon reporting not enabled")
@@ -350,7 +350,7 @@ class Apfmon(object):
             batch_id = worker_spec.batchID
             factory = self.harvester_id
 
-            url = "{0}/jobs/{1}:{2}".format(self.base_url, factory, batch_id)
+            url = f"{self.base_url}/jobs/{factory}:{batch_id}"
 
             apfmon_status = self.convert_status(worker_status)
             apfmon_worker = {}
@@ -360,15 +360,15 @@ class Apfmon(object):
             if apfmon_status in ("fault", "done") and hasattr(worker_spec, "pandaid_list") and worker_spec.pandaid_list:
                 apfmon_worker["ids"] = ",".join(str(x) for x in worker_spec.pandaid_list)
 
-            tmp_log.debug("updating worker {0}: {1}".format(batch_id, apfmon_worker))
+            tmp_log.debug(f"updating worker {batch_id}: {apfmon_worker}")
 
             r = requests.post(url, data=apfmon_worker, timeout=self.__worker_update_timeout)
-            tmp_log.debug("worker update for {0} ended with {1} {2}".format(batch_id, r.status_code, r.text))
+            tmp_log.debug(f"worker update for {batch_id} ended with {r.status_code} {r.text}")
 
             end_time = time.time()
-            tmp_log.debug("done (took {0})".format(end_time - start_time))
+            tmp_log.debug(f"done (took {end_time - start_time})")
         except BaseException:
-            tmp_log.error("Excepted with: {0}".format(traceback.format_exc()))
+            tmp_log.error(f"Excepted with: {traceback.format_exc()}")
 
 
 if __name__ == "__main__":

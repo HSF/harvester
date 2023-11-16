@@ -2,6 +2,7 @@ import datetime
 import uuid
 
 from pandaharvester.harvestercore import core_utils
+
 from .base_stager import BaseStager
 
 # dummy transfer identifier
@@ -21,7 +22,7 @@ class DummyBulkStager(BaseStager):
     # check status
     def check_stage_out_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="check_stage_out_status")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
@@ -51,7 +52,7 @@ class DummyBulkStager(BaseStager):
                     transferID = str(uuid.uuid4())
                     # set the real transfer ID
                     self.dbInterface.set_file_group(fileSpecs, transferID, "running")
-                    msgStr = "submitted transfer with ID={0}".format(transferID)
+                    msgStr = f"submitted transfer with ID={transferID}"
                     tmpLog.debug(msgStr)
                 else:
                     msgStr = "wait until enough files are pooled"
@@ -81,5 +82,5 @@ class DummyBulkStager(BaseStager):
 
     # zip output files
     def zip_output(self, jobspec):
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)

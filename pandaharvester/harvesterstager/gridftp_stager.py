@@ -8,8 +8,9 @@ except Exception:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
-from .base_stager import BaseStager
 from pandaharvester.harvestermover import mover_utils
+
+from .base_stager import BaseStager
 
 # logger
 baseLogger = core_utils.setup_logger("gridftp_stager")
@@ -63,7 +64,7 @@ class GridFtpStager(BaseStager):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_stage_out")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_stage_out")
         tmpLog.debug("start")
         # loop over all files
         gucInput = None
@@ -96,23 +97,23 @@ class GridFtpStager(BaseStager):
                     tmp_dest_path = re.sub(self.srcNewBasePath, dst_base, srcPath)
                     # make input for globus-url-copy
                     if guc_inputs_list[ibp_i] is None:
-                        guc_inputs_list[ibp_i] = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_guc_out_{0}.tmp".format(ibp_i))
+                        guc_inputs_list[ibp_i] = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f"_guc_out_{ibp_i}.tmp")
                     guc_input = guc_inputs_list[ibp_i]
                     if ibp_i == 0:
-                        guc_input.write("{0} {1}\n".format(srcPath, tmp_dest_path))
-                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i + 1, srcPath, tmp_dest_path))
+                        guc_input.write(f"{srcPath} {tmp_dest_path}\n")
+                        tmpLog.debug(f"step {ibp_i + 1}: {srcPath} {tmp_dest_path}")
                     elif ibp_i == len(self.intermediateBasePaths):
-                        guc_input.write("{0} {1}\n".format(tmp_src_path, dstPath))
-                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i + 1, tmp_src_path, dstPath))
+                        guc_input.write(f"{tmp_src_path} {dstPath}\n")
+                        tmpLog.debug(f"step {ibp_i + 1}: {tmp_src_path} {dstPath}")
                     else:
-                        guc_input.write("{0} {1}\n".format(tmp_src_path, tmp_dest_path))
-                        tmpLog.debug("step {0}: {1} {2}".format(ibp_i + 1, tmp_src_path, tmp_dest_path))
+                        guc_input.write(f"{tmp_src_path} {tmp_dest_path}\n")
+                        tmpLog.debug(f"step {ibp_i + 1}: {tmp_src_path} {tmp_dest_path}")
             else:
                 # single-step transfer
                 # make input for globus-url-copy
                 if gucInput is None:
                     gucInput = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_guc_out.tmp")
-                gucInput.write("{0} {1}\n".format(srcPath, dstPath))
+                gucInput.write(f"{srcPath} {dstPath}\n")
             fileSpec.attemptNr += 1
         # nothing to transfer
         if is_multistep:
@@ -151,17 +152,17 @@ class GridFtpStager(BaseStager):
                         if not isinstance(stderr, str):
                             stderr = stderr.decode()
                         stderr = stderr.replace("\n", " ")
-                    tmpLog.debug("stdout: %s" % stdout)
-                    tmpLog.debug("stderr: %s" % stderr)
+                    tmpLog.debug(f"stdout: {stdout}")
+                    tmpLog.debug(f"stderr: {stderr}")
                 except Exception:
                     core_utils.dump_error_message(tmpLog)
                     return_code = 1
                 os.remove(guc_input.name)
                 if return_code == 0:
-                    tmpLog.debug("step {0} succeeded".format(guc_input_i))
+                    tmpLog.debug(f"step {guc_input_i} succeeded")
                     guc_input_i += 1
                 else:
-                    errMsg = "step {0} failed with {1}".format(guc_input_i, return_code)
+                    errMsg = f"step {guc_input_i} failed with {return_code}"
                     tmpLog.error(errMsg)
                     # check attemptNr
                     for fileSpec in jobspec.inFiles:
@@ -170,7 +171,7 @@ class GridFtpStager(BaseStager):
                             tmpLog.error(errMsg)
                             return (False, errMsg)
                     return None, errMsg
-            tmpLog.debug("multistep transfer ({0} steps) succeeded".format(len(guc_inputs_list)))
+            tmpLog.debug(f"multistep transfer ({len(guc_inputs_list)} steps) succeeded")
             return True, ""
         else:
             gucInput.close()
@@ -195,8 +196,8 @@ class GridFtpStager(BaseStager):
                     if not isinstance(stderr, str):
                         stderr = stderr.decode()
                     stderr = stderr.replace("\n", " ")
-                tmpLog.debug("stdout: %s" % stdout)
-                tmpLog.debug("stderr: %s" % stderr)
+                tmpLog.debug(f"stdout: {stdout}")
+                tmpLog.debug(f"stderr: {stderr}")
             except Exception:
                 core_utils.dump_error_message(tmpLog)
                 return_code = 1
@@ -205,7 +206,7 @@ class GridFtpStager(BaseStager):
                 tmpLog.debug("succeeded")
                 return True, ""
             else:
-                errMsg = "failed with {0}".format(return_code)
+                errMsg = f"failed with {return_code}"
                 tmpLog.error(errMsg)
                 # check attemptNr
                 for fileSpec in jobspec.inFiles:

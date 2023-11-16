@@ -1,13 +1,16 @@
-from rucio.client import Client as RucioClient
-from rucio.common.exception import DataIdentifierNotFound, DuplicateRule, DataIdentifierAlreadyExists, FileAlreadyExists
-
-from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermover import mover_utils
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvesterstager import go_bulk_stager
 from pandaharvester.harvesterstager.go_bulk_stager import GlobusBulkStager
-
+from rucio.client import Client as RucioClient
+from rucio.common.exception import (
+    DataIdentifierAlreadyExists,
+    DataIdentifierNotFound,
+    DuplicateRule,
+    FileAlreadyExists,
+)
 
 # logger
 _logger = core_utils.setup_logger("go_rucio_stager")
@@ -24,10 +27,10 @@ class GlobusRucioStager(GlobusBulkStager):
     # check status
     def check_stage_out_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="check_stage_out_status")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="check_stage_out_status")
         tmpLog.debug("executing base check_stage_out_status")
         tmpStat, tmpMsg = GlobusBulkStager.check_stage_out_status(self, jobspec)
-        tmpLog.debug("got {0} {1}".format(tmpStat, tmpMsg))
+        tmpLog.debug(f"got {tmpStat} {tmpMsg}")
         if tmpStat is not True:
             return tmpStat, tmpMsg
         # get transfer groups
@@ -38,7 +41,7 @@ class GlobusRucioStager(GlobusBulkStager):
         queueConfigMapper = QueueConfigMapper()
         queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
         # write to debug log queueConfig.stager
-        tmpLog.debug("jobspec.computingSite - {0} queueConfig.stager {1}".format(jobspec.computingSite, queueConfig.stager))
+        tmpLog.debug(f"jobspec.computingSite - {jobspec.computingSite} queueConfig.stager {queueConfig.stager}")
         # check queueConfig stager section to see if srcRSE is set
         if "srcRSE" in queueConfig.stager:
             srcRSE = queueConfig.stager["srcRSE"]
@@ -49,9 +52,9 @@ class GlobusRucioStager(GlobusBulkStager):
         agis = self.dbInterface.get_cache("panda_queues.json").data
         dstRSE = [agis[x]["astorages"]["pr"][0] for x in agis if agis[x]["atlas_site"] == nucleus][0]
         # if debugging log source and destination RSEs
-        tmpLog.debug("srcRSE - {0} dstRSE - {1}".format(srcRSE, dstRSE))
+        tmpLog.debug(f"srcRSE - {srcRSE} dstRSE - {dstRSE}")
         # test that srcRSE and dstRSE are defined
-        tmpLog.debug("srcRSE - {0} dstRSE - {1}".format(srcRSE, dstRSE))
+        tmpLog.debug(f"srcRSE - {srcRSE} dstRSE - {dstRSE}")
         errStr = ""
         if srcRSE is None:
             errStr = "Source RSE is not defined "
@@ -70,10 +73,10 @@ class GlobusRucioStager(GlobusBulkStager):
         self.objstoreID = ddm[dstRSE]["id"]
         if self.Yodajob:
             self.pathConvention = int(queueConfig.stager["pathConvention"])
-            tmpLog.debug("Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}".format(jobspec.PandaID, self.objstoreID, self.pathConvention))
+            tmpLog.debug(f"Yoda Job - PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID} pathConvention ={self.pathConvention}")
         else:
             self.pathConvention = None
-            tmpLog.debug("PandaID = {0} objstoreID = {1}".format(jobspec.PandaID, self.objstoreID))
+            tmpLog.debug(f"PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID}")
         # set the location of the files in fileSpec.objstoreID
         self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
         # create the Rucio Client
@@ -84,7 +87,7 @@ class GlobusRucioStager(GlobusBulkStager):
             core_utils.dump_error_message(tmpLog)
             # treat as a temporary error
             tmpStat = None
-            tmpMsg = "failed to add a rule for {0}:{1}".format(datasetScope, datasetName)
+            tmpMsg = f"failed to add a rule for {datasetScope}:{datasetName}"
             return tmpStat, tmpMsg
         # loop over all transfers
         tmpStat = True
@@ -92,12 +95,12 @@ class GlobusRucioStager(GlobusBulkStager):
         for transferID in groups:
             if transferID is None:
                 continue
-            datasetName = "panda.harvester.{0}.{1}".format(jobspec.PandaID, transferID)
+            datasetName = f"panda.harvester.{jobspec.PandaID}.{transferID}"
             datasetScope = "transient"
             # lock
             have_db_lock = self.dbInterface.get_object_lock(transferID, lock_interval=120)
             if not have_db_lock:
-                msgStr = "escape since {0} is locked by another thread".format(transferID)
+                msgStr = f"escape since {transferID} is locked by another thread"
                 tmpLog.debug(msgStr)
                 return None, msgStr
             # get transfer status
@@ -108,17 +111,17 @@ class GlobusRucioStager(GlobusBulkStager):
             elif "failed" in groupStatus:
                 # transfer failure
                 tmpStat = False
-                tmpMsg = "rucio rule for {0}:{1} already failed".format(datasetScope, datasetName)
+                tmpMsg = f"rucio rule for {datasetScope}:{datasetName} already failed"
             elif "hopping" in groupStatus:
                 # check rucio rule
                 ruleStatus = "FAILED"
                 try:
-                    tmpLog.debug("check state for {0}:{1}".format(datasetScope, datasetName))
+                    tmpLog.debug(f"check state for {datasetScope}:{datasetName}")
                     for ruleInfo in rucioAPI.list_did_rules(datasetScope, datasetName):
                         if ruleInfo["rse_expression"] != dstRSE:
                             continue
                         ruleStatus = ruleInfo["state"]
-                        tmpLog.debug("got state={0}".format(ruleStatus))
+                        tmpLog.debug(f"got state={ruleStatus}")
                         if ruleStatus == "OK":
                             break
                 except DataIdentifierNotFound:
@@ -129,7 +132,7 @@ class GlobusRucioStager(GlobusBulkStager):
                 if ruleStatus in ["FAILED", "CANCELED"]:
                     # transfer failure
                     tmpStat = False
-                    tmpMsg = "rucio rule for {0}:{1} failed with {2}".format(datasetScope, datasetName, ruleStatus)
+                    tmpMsg = f"rucio rule for {datasetScope}:{datasetName} failed with {ruleStatus}"
                     # update file group status
                     self.dbInterface.update_file_group_status(transferID, "failed")
                 elif ruleStatus == "OK":
@@ -138,7 +141,7 @@ class GlobusRucioStager(GlobusBulkStager):
                 else:
                     # replicating or temporary error
                     tmpStat = None
-                    tmpMsg = "replicating or temporary error for {0}:{1}".format(datasetScope, datasetName)
+                    tmpMsg = f"replicating or temporary error for {datasetScope}:{datasetName}"
             else:
                 # make rucio rule
                 fileSpecs = self.dbInterface.get_files_with_group_id(transferID)
@@ -152,8 +155,8 @@ class GlobusRucioStager(GlobusBulkStager):
                     if fileSpec.fileAttributes is not None and "guid" in fileSpec.fileAttributes:
                         tmpFile["meta"] = {"guid": fileSpec.fileAttributes["guid"]}
                     else:
-                        tmpLog.debug("File - {0} does not have a guid value".format(fileSpec.lfn))
-                    tmpLog.debug("Adding file {0} to fileList".format(fileSpec.lfn))
+                        tmpLog.debug(f"File - {fileSpec.lfn} does not have a guid value")
+                    tmpLog.debug(f"Adding file {fileSpec.lfn} to fileList")
                     fileList.append(tmpFile)
                     # get source RSE
                     if srcRSE is None and fileSpec.objstoreID is not None:
@@ -161,14 +164,14 @@ class GlobusRucioStager(GlobusBulkStager):
                         srcRSE = [x for x in ddm if ddm[x]["id"] == fileSpec.objstoreID][0]
                 try:
                     # register dataset
-                    tmpLog.debug("register {0}:{1} rse = {2} meta=(hidden: True) lifetime = {3}".format(datasetScope, datasetName, srcRSE, (30 * 24 * 60 * 60)))
+                    tmpLog.debug(f"register {datasetScope}:{datasetName} rse = {srcRSE} meta=(hidden: True) lifetime = {30 * 24 * 60 * 60}")
                     try:
                         rucioAPI.add_dataset(datasetScope, datasetName, meta={"hidden": True}, lifetime=30 * 24 * 60 * 60, rse=srcRSE)
                     except DataIdentifierAlreadyExists:
                         # ignore even if the dataset already exists
                         pass
                     except Exception:
-                        errMsg = "Could not create dataset {0}:{1} srcRSE - {2}".format(datasetScope, datasetName, srcRSE)
+                        errMsg = f"Could not create dataset {datasetScope}:{datasetName} srcRSE - {srcRSE}"
                         core_utils.dump_error_message(tmpLog)
                         tmpLog.error(errMsg)
                         raise
@@ -195,7 +198,7 @@ class GlobusRucioStager(GlobusBulkStager):
                             # ignore if files already exist
                             pass
                         except Exception:
-                            errMsg = "Could not add files to DS - {0}:{1}  rse - {2} files - {3}".format(datasetScope, datasetName, srcRSE, fileList)
+                            errMsg = f"Could not add files to DS - {datasetScope}:{datasetName}  rse - {srcRSE} files - {fileList}"
                             core_utils.dump_error_message(tmpLog)
                             tmpLog.error(errMsg)
                             return None, errMsg
@@ -206,12 +209,12 @@ class GlobusRucioStager(GlobusBulkStager):
                         tmpDID["name"] = datasetName
                         tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE, lifetime=30 * 24 * 60 * 60)
                         ruleIDs = tmpRet[0]
-                        tmpLog.debug("registered dataset {0}:{1} with rule {2}".format(datasetScope, datasetName, str(ruleIDs)))
+                        tmpLog.debug(f"registered dataset {datasetScope}:{datasetName} with rule {str(ruleIDs)}")
                     except DuplicateRule:
                         # ignore duplicated rule
                         tmpLog.debug("rule is already available")
                     except Exception:
-                        errMsg = "Error creating rule for dataset {0}:{1}".format(datasetScope, datasetName)
+                        errMsg = f"Error creating rule for dataset {datasetScope}:{datasetName}"
                         core_utils.dump_error_message(tmpLog)
                         tmpLog.debug(errMsg)
                         # raise
@@ -222,7 +225,7 @@ class GlobusRucioStager(GlobusBulkStager):
                     core_utils.dump_error_message(tmpLog)
                     # treat as a temporary error
                     tmpStat = None
-                    tmpMsg = "failed to add a rule for {0}:{1}".format(datasetScope, datasetName)
+                    tmpMsg = f"failed to add a rule for {datasetScope}:{datasetName}"
             # release lock
             self.dbInterface.release_object_lock(transferID)
             # escape if already failed
@@ -231,5 +234,5 @@ class GlobusRucioStager(GlobusBulkStager):
         # all done
         if tmpStat is True:
             self.set_FileSpec_status(jobspec, "finished")
-        tmpLog.debug("done with {0} : {1}".format(tmpStat, tmpMsg))
+        tmpLog.debug(f"done with {tmpStat} : {tmpMsg}")
         return tmpStat, tmpMsg

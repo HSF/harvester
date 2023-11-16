@@ -9,28 +9,28 @@ try:
     ssl.HAS_SNI = False
 except Exception:
     pass
-import os
-import sys
-import json
-import pickle
-import zlib
-import uuid
-import inspect
 import datetime
+import inspect
+import json
+import os
+import pickle
+import sys
 import traceback
-from future.utils import iteritems
+import uuid
+import zlib
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
+from future.utils import iteritems
 
 try:
     requests.packages.urllib3.disable_warnings()
 except Exception:
     pass
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermisc import idds_utils
 from pandacommon.pandautils.net_utils import get_http_adapter_with_random_dns_resolution
+from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestermisc import idds_utils
 
 from .base_communicator import BaseCommunicator
 
@@ -78,20 +78,20 @@ class PandaCommunicator(BaseCommunicator):
                     tmpExec = inspect.stack()[1][3]
                     tmpExec += "/"
                 tmpExec = str(uuid.uuid4())
-            url = "{0}/{1}".format(harvester_config.pandacon.pandaURL, path)
+            url = f"{harvester_config.pandacon.pandaURL}/{path}"
             if self.verbose:
-                tmpLog.debug("exec={0} URL={1} data={2}".format(tmpExec, url, str(data)))
+                tmpLog.debug(f"exec={tmpExec} URL={url} data={str(data)}")
             session = get_http_adapter_with_random_dns_resolution()
             res = session.post(url, data=data, headers={"Accept": "application/json", "Connection": "close"}, timeout=harvester_config.pandacon.timeout)
             if self.verbose:
-                tmpLog.debug("exec={0} code={1} return={2}".format(tmpExec, res.status_code, res.text))
+                tmpLog.debug(f"exec={tmpExec} code={res.status_code} return={res.text}")
             if res.status_code == 200:
                 return True, res
             else:
-                errMsg = "StatusCode={0} {1}".format(res.status_code, res.text)
+                errMsg = f"StatusCode={res.status_code} {res.text}"
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
+            errMsg = f"failed to post with {errType}:{errValue} "
             errMsg += traceback.format_exc()
         return False, errMsg
 
@@ -107,14 +107,14 @@ class PandaCommunicator(BaseCommunicator):
                 tmpExec = str(uuid.uuid4())
             if base_url is None:
                 base_url = harvester_config.pandacon.pandaURLSSL
-            url = "{0}/{1}".format(base_url, path)
+            url = f"{base_url}/{path}"
             if self.verbose:
-                tmpLog.debug("exec={0} URL={1} data={2}".format(tmpExec, url, str(data)))
+                tmpLog.debug(f"exec={tmpExec} URL={url} data={str(data)}")
             headers = {"Accept": "application/json", "Connection": "close"}
             if self.auth_type == "oidc":
                 self.renew_token()
                 cert = None
-                headers["Authorization"] = "Bearer {0}".format(self.auth_token)
+                headers["Authorization"] = f"Bearer {self.auth_token}"
                 headers["Origin"] = harvester_config.pandacon.auth_origin
             else:
                 if cert is None:
@@ -123,14 +123,14 @@ class PandaCommunicator(BaseCommunicator):
             sw = core_utils.get_stopwatch()
             res = session.post(url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=harvester_config.pandacon.ca_cert, cert=cert)
             if self.verbose:
-                tmpLog.debug("exec={0} code={1} {3}. return={2}".format(tmpExec, res.status_code, res.text, sw.get_elapsed_time()))
+                tmpLog.debug(f"exec={tmpExec} code={res.status_code} {sw.get_elapsed_time()}. return={res.text}")
             if res.status_code == 200:
                 return True, res
             else:
-                errMsg = "StatusCode={0} {1}".format(res.status_code, res.text)
+                errMsg = f"StatusCode={res.status_code} {res.text}"
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            errMsg = "failed to post with {0}:{1} ".format(errType, errValue)
+            errMsg = f"failed to post with {errType}:{errValue} "
             errMsg += traceback.format_exc()
         return False, errMsg
 
@@ -147,14 +147,14 @@ class PandaCommunicator(BaseCommunicator):
                 tmpExec = str(uuid.uuid4())
             if base_url is None:
                 base_url = harvester_config.pandacon.pandaCacheURL_W
-            url = "{0}/{1}".format(base_url, path)
+            url = f"{base_url}/{path}"
             if self.verbose:
-                tmpLog.debug("exec={0} URL={1} files={2}".format(tmpExec, url, files["file"][0]))
+                tmpLog.debug(f"exec={tmpExec} URL={url} files={files['file'][0]}")
             if self.auth_type == "oidc":
                 self.renew_token()
                 cert = None
                 headers = dict()
-                headers["Authorization"] = "Bearer {0}".format(self.auth_token)
+                headers["Authorization"] = f"Bearer {self.auth_token}"
                 headers["Origin"] = harvester_config.pandacon.auth_origin
             else:
                 headers = None
@@ -165,14 +165,14 @@ class PandaCommunicator(BaseCommunicator):
                 url, files=files, headers=headers, timeout=harvester_config.pandacon.timeout, verify=harvester_config.pandacon.ca_cert, cert=cert
             )
             if self.verbose:
-                tmpLog.debug("exec={0} code={1} return={2}".format(tmpExec, res.status_code, res.text))
+                tmpLog.debug(f"exec={tmpExec} code={res.status_code} return={res.text}")
             if res.status_code == 200:
                 return True, res
             else:
-                errMsg = "StatusCode={0} {1}".format(res.status_code, res.text)
+                errMsg = f"StatusCode={res.status_code} {res.text}"
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            errMsg = "failed to put with {0}:{1} ".format(errType, errValue)
+            errMsg = f"failed to put with {errType}:{errValue} "
             errMsg += traceback.format_exc()
         return False, errMsg
 
@@ -187,36 +187,36 @@ class PandaCommunicator(BaseCommunicator):
     # get jobs
     def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs, additional_criteria):
         # get logger
-        tmpLog = self.make_logger("siteName={0}".format(site_name), method_name="get_jobs")
-        tmpLog.debug("try to get {0} jobs".format(n_jobs))
+        tmpLog = self.make_logger(f"siteName={site_name}", method_name="get_jobs")
+        tmpLog.debug(f"try to get {n_jobs} jobs")
         data = {}
         data["siteName"] = site_name
         data["node"] = node_name
         data["prodSourceLabel"] = prod_source_label
         data["computingElement"] = computing_element
         data["nJobs"] = n_jobs
-        data["schedulerID"] = "harvester-{0}".format(harvester_config.master.harvester_id)
+        data["schedulerID"] = f"harvester-{harvester_config.master.harvester_id}"
         if additional_criteria is not None:
             for tmpKey, tmpVal in iteritems(additional_criteria):
                 data[tmpKey] = tmpVal
         sw = core_utils.get_stopwatch()
         tmpStat, tmpRes = self.post_ssl("getJob", data)
-        tmpLog.debug("getJob for {0} jobs {1}".format(n_jobs, sw.get_elapsed_time()))
+        tmpLog.debug(f"getJob for {n_jobs} jobs {sw.get_elapsed_time()}")
         errStr = "OK"
         if tmpStat is False:
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)
         else:
             try:
                 tmpDict = tmpRes.json()
-                tmpLog.debug("StatusCode={0}".format(tmpDict["StatusCode"]))
+                tmpLog.debug(f"StatusCode={tmpDict['StatusCode']}")
                 if tmpDict["StatusCode"] == 0:
-                    tmpLog.debug("got {0} jobs".format(len(tmpDict["jobs"])))
+                    tmpLog.debug(f"got {len(tmpDict['jobs'])} jobs")
                     return tmpDict["jobs"], errStr
                 else:
                     if "errorDialog" in tmpDict:
                         errStr = tmpDict["errorDialog"]
                     else:
-                        errStr = "StatusCode={0}".format(tmpDict["StatusCode"])
+                        errStr = f"StatusCode={tmpDict['StatusCode']}"
                 return [], errStr
             except Exception:
                 errStr = core_utils.dump_error_message(tmpLog, tmpRes)
@@ -225,13 +225,13 @@ class PandaCommunicator(BaseCommunicator):
     # update jobs
     def update_jobs(self, jobspec_list, id):
         sw = core_utils.get_stopwatch()
-        tmpLogG = self.make_logger("id={0}".format(id), method_name="update_jobs")
-        tmpLogG.debug("update {0} jobs".format(len(jobspec_list)))
+        tmpLogG = self.make_logger(f"id={id}", method_name="update_jobs")
+        tmpLogG.debug(f"update {len(jobspec_list)} jobs")
         retList = []
         # upload checkpoints
         for jobSpec in jobspec_list:
             if jobSpec.outFiles:
-                tmpLogG.debug("upload {0} checkpoint files for PandaID={1}".format(len(jobSpec.outFiles), jobSpec.PandaID))
+                tmpLogG.debug(f"upload {len(jobSpec.outFiles)} checkpoint files for PandaID={jobSpec.PandaID}")
             for fileSpec in jobSpec.outFiles:
                 if "sourceURL" in jobSpec.jobParams:
                     tmpS = self.upload_checkpoint(jobSpec.jobParams["sourceURL"], jobSpec.taskID, jobSpec.PandaID, fileSpec.lfn, fileSpec.path)
@@ -241,7 +241,7 @@ class PandaCommunicator(BaseCommunicator):
         for jobSpec in jobspec_list:
             eventRanges, eventSpecs = jobSpec.to_event_data(max_events=10000)
             if eventRanges != []:
-                tmpLogG.debug("update {0} events for PandaID={1}".format(len(eventSpecs), jobSpec.PandaID))
+                tmpLogG.debug(f"update {len(eventSpecs)} events for PandaID={jobSpec.PandaID}")
                 tmpRet = self.update_event_ranges(eventRanges, tmpLogG)
                 if tmpRet["StatusCode"] == 0:
                     for eventSpec, retVal in zip(eventSpecs, tmpRet["Returns"]):
@@ -290,7 +290,7 @@ class PandaCommunicator(BaseCommunicator):
                 try:
                     tmpStat, retMaps = tmpRes.json()
                     if tmpStat is False:
-                        tmpLogG.error("updateJobsInBulk failed with {0}".format(retMaps))
+                        tmpLogG.error(f"updateJobsInBulk failed with {retMaps}")
                         retMaps = None
                 except Exception:
                     errStr = core_utils.dump_error_message(tmpLogG)
@@ -301,16 +301,16 @@ class PandaCommunicator(BaseCommunicator):
                 retMap["content"]["ErrorDiag"] = errStr
                 retMaps = [json.dumps(retMap)] * len(jobSpecSubList)
             for jobSpec, retMap, data in zip(jobSpecSubList, retMaps, dataList):
-                tmpLog = self.make_logger("id={0} PandaID={1}".format(id, jobSpec.PandaID), method_name="update_jobs")
+                tmpLog = self.make_logger(f"id={id} PandaID={jobSpec.PandaID}", method_name="update_jobs")
                 try:
                     retMap = json.loads(retMap["content"])
                 except Exception:
-                    errStr = "failed to json_load {}".format(str(retMap))
+                    errStr = f"failed to json_load {str(retMap)}"
                     retMap = {}
                     retMap["StatusCode"] = 999
                     retMap["ErrorDiag"] = errStr
-                tmpLog.debug("data={0}".format(str(data)))
-                tmpLog.debug("done with {0}".format(str(retMap)))
+                tmpLog.debug(f"data={str(data)}")
+                tmpLog.debug(f"done with {str(retMap)}")
                 retList.append(retMap)
             iLookup += nLookup
         tmpLogG.debug("done" + sw.get_elapsed_time())
@@ -326,7 +326,7 @@ class PandaCommunicator(BaseCommunicator):
             getEventsChunkSize = 5120
         for pandaID, data in iteritems(data_map):
             # get logger
-            tmpLog = self.make_logger("PandaID={0}".format(data["pandaID"]), method_name="get_event_ranges")
+            tmpLog = self.make_logger(f"PandaID={data['pandaID']}", method_name="get_event_ranges")
             if "nRanges" in data:
                 nRanges = data["nRanges"]
             else:
@@ -343,7 +343,7 @@ class PandaCommunicator(BaseCommunicator):
                 del data["sourceURL"]
             else:
                 sourceURL = None
-            tmpLog.debug("start nRanges={0}".format(nRanges))
+            tmpLog.debug(f"start nRanges={nRanges}")
             while nRanges > 0:
                 # use a small chunk size to avoid timeout
                 chunkSize = min(getEventsChunkSize, nRanges)
@@ -383,7 +383,7 @@ class PandaCommunicator(BaseCommunicator):
                         core_utils.dump_error_message(tmpLog)
                         break
                 nRanges -= chunkSize
-            tmpLog.debug("done with {0}".format(str(retVal)))
+            tmpLog.debug(f"done with {str(retVal)}")
         return retStat, retVal
 
     # update events
@@ -402,7 +402,7 @@ class PandaCommunicator(BaseCommunicator):
                     tmpSI, tmpOI = idds_utils.update_hp_point(harvester_config.pandacon.iddsURL, task_id, point_id, event["loss"], tmp_log, self.verbose)
                     if not tmpSI:
                         core_utils.dump_error_message(tmp_log, tmpOI)
-                        tmp_log.error("skip {0} since cannot update iDDS".format(event_id))
+                        tmp_log.error(f"skip {event_id} since cannot update iDDS")
                         continue
                     else:
                         # clear checkpoint
@@ -417,7 +417,7 @@ class PandaCommunicator(BaseCommunicator):
         data = {}
         data["eventRanges"] = json.dumps(event_ranges)
         data["version"] = 1
-        tmp_log.debug("data={0}".format(str(data)))
+        tmp_log.debug(f"data={str(data)}")
         tmpStat, tmpRes = self.post_ssl("updateEventRanges", data)
         retMap = None
         if tmpStat is False:
@@ -430,14 +430,14 @@ class PandaCommunicator(BaseCommunicator):
         if retMap is None:
             retMap = {}
             retMap["StatusCode"] = 999
-        tmp_log.debug("done updateEventRanges with {0}".format(str(retMap)))
+        tmp_log.debug(f"done updateEventRanges with {str(retMap)}")
         return retMap
 
     # get commands
     def get_commands(self, n_commands):
         harvester_id = harvester_config.master.harvester_id
-        tmpLog = self.make_logger("harvesterID={0}".format(harvester_id), method_name="get_commands")
-        tmpLog.debug("Start retrieving {0} commands".format(n_commands))
+        tmpLog = self.make_logger(f"harvesterID={harvester_id}", method_name="get_commands")
+        tmpLog.debug(f"Start retrieving {n_commands} commands")
         data = {}
         data["harvester_id"] = harvester_id
         data["n_commands"] = n_commands
@@ -448,7 +448,7 @@ class PandaCommunicator(BaseCommunicator):
             try:
                 tmp_dict = tmp_res.json()
                 if tmp_dict["StatusCode"] == 0:
-                    tmpLog.debug("Commands {0}".format(tmp_dict["Commands"]))
+                    tmpLog.debug(f"Commands {tmp_dict['Commands']}")
                     return tmp_dict["Commands"]
                 return []
             except Exception:
@@ -458,8 +458,8 @@ class PandaCommunicator(BaseCommunicator):
     # send ACKs
     def ack_commands(self, command_ids):
         harvester_id = harvester_config.master.harvester_id
-        tmpLog = self.make_logger("harvesterID={0}".format(harvester_id), method_name="ack_commands")
-        tmpLog.debug("Start acknowledging {0} commands (command_ids={1})".format(len(command_ids), command_ids))
+        tmpLog = self.make_logger(f"harvesterID={harvester_id}", method_name="ack_commands")
+        tmpLog.debug(f"Start acknowledging {len(command_ids)} commands (command_ids={command_ids})")
         data = {}
         data["command_ids"] = json.dumps(command_ids)
         tmp_stat, tmp_res = self.post_ssl("ackCommands", data)
@@ -500,7 +500,7 @@ class PandaCommunicator(BaseCommunicator):
                 retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
                 tmpStat = False
         if tmpStat:
-            tmpLog.debug("done with {0}".format(str(retVal)))
+            tmpLog.debug(f"done with {str(retVal)}")
         return retVal, retMsg
 
     # get resource types
@@ -518,7 +518,7 @@ class PandaCommunicator(BaseCommunicator):
                 tmp_dict = tmp_res.json()
                 if tmp_dict["StatusCode"] == 0:
                     ret_val = tmp_dict["ResourceTypes"]
-                    tmp_log.debug("Resource types: {0}".format(ret_val))
+                    tmp_log.debug(f"Resource types: {ret_val}")
                 else:
                     ret_msg = tmp_dict["errorDialog"]
                     core_utils.dump_error_message(tmp_log, ret_msg)
@@ -557,7 +557,7 @@ class PandaCommunicator(BaseCommunicator):
         data = dict()
         data["harvesterID"] = harvester_config.master.harvester_id
         data["workers"] = json.dumps(dataList)
-        tmpLog.debug("update {0} workers".format(len(dataList)))
+        tmpLog.debug(f"update {len(dataList)} workers")
         tmpStat, tmpRes = self.post_ssl("updateWorkers", data)
         retList = None
         errStr = "OK"
@@ -572,10 +572,10 @@ class PandaCommunicator(BaseCommunicator):
                     tmpStat = False
             except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error("conversion failure from {0}".format(tmpRes.text))
+                tmpLog.error(f"conversion failure from {tmpRes.text}")
                 tmpStat = False
         if tmpStat:
-            tmpLog.debug("done with {0}".format(errStr))
+            tmpLog.debug(f"done with {errStr}")
         return retList, errStr
 
     # send heartbeat of harvester instance
@@ -600,10 +600,10 @@ class PandaCommunicator(BaseCommunicator):
                 retCode, tmpStr = tmpRes.json()
             except Exception:
                 tmpStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error("conversion failure from {0}".format(tmpRes.text))
+                tmpLog.error(f"conversion failure from {tmpRes.text}")
                 tmpStat = False
         if tmpStat:
-            tmpLog.debug("done with {0} : {1}".format(retCode, tmpStr))
+            tmpLog.debug(f"done with {retCode} : {tmpStr}")
         return retCode, tmpStr
 
     # update worker stats
@@ -614,7 +614,7 @@ class PandaCommunicator(BaseCommunicator):
         data["harvesterID"] = harvester_config.master.harvester_id
         data["siteName"] = site_name
         data["paramsList"] = json.dumps(stats)
-        tmpLog.debug("update stats for {0}, stats: {1}".format(site_name, stats))
+        tmpLog.debug(f"update stats for {site_name}, stats: {stats}")
         tmpStat, tmpRes = self.post_ssl("reportWorkerStats_jobtype", data)
         errStr = "OK"
         if tmpStat is False:
@@ -628,9 +628,9 @@ class PandaCommunicator(BaseCommunicator):
             except Exception:
                 tmpStat = False
                 errStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error("conversion failure from {0}".format(tmpRes.text))
+                tmpLog.error(f"conversion failure from {tmpRes.text}")
         if tmpStat:
-            tmpLog.debug("done with {0}:{1}".format(tmpStat, errStr))
+            tmpLog.debug(f"done with {tmpStat}:{errStr}")
         return tmpStat, errStr
 
     # check jobs
@@ -668,13 +668,13 @@ class PandaCommunicator(BaseCommunicator):
                     retMap["StatusCode"] = 0
                     retMap["ErrorDiag"] = errStr
                 retList.append(retMap)
-                tmpLog.debug("got {0} for PandaID={1}".format(str(retMap), pandaID))
+                tmpLog.debug(f"got {str(retMap)} for PandaID={pandaID}")
         return retList
 
     # get key pair
     def get_key_pair(self, public_key_name, private_key_name):
         tmpLog = self.make_logger(method_name="get_key_pair")
-        tmpLog.debug("start for {0}:{1}".format(public_key_name, private_key_name))
+        tmpLog.debug(f"start for {public_key_name}:{private_key_name}")
         data = dict()
         data["publicKeyName"] = public_key_name
         data["privateKeyName"] = private_key_name
@@ -687,7 +687,7 @@ class PandaCommunicator(BaseCommunicator):
             try:
                 retMap = tmpRes.json()
                 if retMap["StatusCode"] != 0:
-                    errStr = "failed to get key with StatusCode={0} : {1}".format(retMap["StatusCode"], retMap["errorDialog"])
+                    errStr = f"failed to get key with StatusCode={retMap['StatusCode']} : {retMap['errorDialog']}"
                     tmpLog.error(errStr)
                     retMap = None
                 else:
@@ -699,7 +699,7 @@ class PandaCommunicator(BaseCommunicator):
     # upload file
     def upload_file(self, file_name, file_object, offset, read_bytes):
         tmpLog = self.make_logger(method_name="upload_file")
-        tmpLog.debug("start for {0} {1}:{2}".format(file_name, offset, read_bytes))
+        tmpLog.debug(f"start for {file_name} {offset}:{read_bytes}")
         file_object.seek(offset)
         files = {"file": (file_name, zlib.compress(file_object.read(read_bytes)))}
         tmpStat, tmpRes = self.put_ssl("updateLog", files)
@@ -708,14 +708,14 @@ class PandaCommunicator(BaseCommunicator):
             errStr = core_utils.dump_error_message(tmpLog, tmpRes)
         else:
             errStr = tmpRes.text
-            tmpLog.debug("got {0}".format(errStr))
+            tmpLog.debug(f"got {errStr}")
         return tmpStat, errStr
 
     # check event availability
     def check_event_availability(self, jobspec):
         retStat = False
         retVal = None
-        tmpLog = self.make_logger("PandaID={0}".format(jobspec.PandaID), method_name="check_event_availability")
+        tmpLog = self.make_logger(f"PandaID={jobspec.PandaID}", method_name="check_event_availability")
         tmpLog.debug("start")
         data = dict()
         data["taskID"] = jobspec.taskID
@@ -735,7 +735,7 @@ class PandaCommunicator(BaseCommunicator):
                     retVal = tmpDict["nEventRanges"]
             except Exception:
                 core_utils.dump_error_message(tmpLog, tmpRes)
-        tmpLog.debug("done with {0}".format(retVal))
+        tmpLog.debug(f"done with {retVal}")
         return retStat, retVal
 
     # send dialog messages
@@ -748,7 +748,7 @@ class PandaCommunicator(BaseCommunicator):
         data = dict()
         data["harvesterID"] = harvester_config.master.harvester_id
         data["dialogs"] = json.dumps(dataList)
-        tmpLog.debug("send {0} messages".format(len(dataList)))
+        tmpLog.debug(f"send {len(dataList)} messages")
         tmpStat, tmpRes = self.post_ssl("addHarvesterDialogs", data)
         errStr = "OK"
         if tmpStat is False:
@@ -761,10 +761,10 @@ class PandaCommunicator(BaseCommunicator):
                     tmpStat = False
             except Exception:
                 errStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error("conversion failure from {0}".format(tmpRes.text))
+                tmpLog.error(f"conversion failure from {tmpRes.text}")
                 tmpStat = False
         if tmpStat:
-            tmpLog.debug("done with {0}".format(errStr))
+            tmpLog.debug(f"done with {errStr}")
         return tmpStat, errStr
 
     # update service metrics
@@ -788,22 +788,22 @@ class PandaCommunicator(BaseCommunicator):
             except Exception:
                 tmp_stat = False
                 err_str = core_utils.dump_error_message(tmp_log)
-                tmp_log.error("conversion failure from {0}".format(tmp_res.text))
+                tmp_log.error(f"conversion failure from {tmp_res.text}")
         if tmp_stat:
-            tmp_log.debug("done with {0}:{1}".format(tmp_stat, err_str))
+            tmp_log.debug(f"done with {tmp_stat}:{err_str}")
         return tmp_stat, err_str
 
     # upload checkpoint
     def upload_checkpoint(self, base_url, task_id, panda_id, file_name, file_path):
-        tmp_log = self.make_logger("taskID={0} pandaID={1}".format(task_id, panda_id), method_name="upload_checkpoint")
-        tmp_log.debug("start for {0}".format(file_name))
+        tmp_log = self.make_logger(f"taskID={task_id} pandaID={panda_id}", method_name="upload_checkpoint")
+        tmp_log.debug(f"start for {file_name}")
         try:
             files = {"file": (file_name, open(file_path).read())}
             tmpStat, tmpRes = self.put_ssl("server/panda/put_checkpoint", files, base_url=base_url)
             if tmpStat is False:
                 core_utils.dump_error_message(tmp_log, tmpRes)
             else:
-                tmp_log.debug("got {0}".format(tmpRes.text))
+                tmp_log.debug(f"got {tmpRes.text}")
             return tmpStat
         except Exception:
             core_utils.dump_error_message(tmp_log)
@@ -811,10 +811,10 @@ class PandaCommunicator(BaseCommunicator):
 
     # download checkpoint
     def download_checkpoint(self, base_url, task_id, panda_id, point_id, base_path):
-        tmp_log = self.make_logger("taskID={0} pandaID={1}".format(task_id, panda_id), method_name="download_checkpoint")
-        tmp_log.debug("start for ID={0}".format(point_id))
+        tmp_log = self.make_logger(f"taskID={task_id} pandaID={panda_id}", method_name="download_checkpoint")
+        tmp_log.debug(f"start for ID={point_id}")
         try:
-            path = "cache/hpo_cp_{0}_{1}".format(task_id, point_id)
+            path = f"cache/hpo_cp_{task_id}_{point_id}"
             tmpStat, tmpRes = self.post_ssl(path, {}, base_url=base_url)
             file_name = None
             if tmpStat is False:
@@ -823,7 +823,7 @@ class PandaCommunicator(BaseCommunicator):
                 file_name = os.path.join(base_path, str(uuid.uuid4()))
                 with open(file_name, "w") as f:
                     f.write(tmpRes.content)
-                tmp_log.debug("got {0}".format(file_name))
+                tmp_log.debug(f"got {file_name}")
             return tmpStat, file_name
         except Exception:
             core_utils.dump_error_message(tmp_log)
@@ -831,7 +831,7 @@ class PandaCommunicator(BaseCommunicator):
 
     # clear checkpoint
     def clear_checkpoint(self, base_url, task_id, point_id):
-        tmp_log = self.make_logger("taskID={0} pointID={1}".format(task_id, point_id), method_name="clear_checkpoints")
+        tmp_log = self.make_logger(f"taskID={task_id} pointID={point_id}", method_name="clear_checkpoints")
         data = dict()
         data["task_id"] = task_id
         data["sub_id"] = point_id
@@ -848,7 +848,7 @@ class PandaCommunicator(BaseCommunicator):
         if retMap is None:
             retMap = {}
             retMap["StatusCode"] = 999
-        tmp_log.debug("done with {0}".format(str(retMap)))
+        tmp_log.debug(f"done with {str(retMap)}")
         return retMap
 
     # check event availability
@@ -866,5 +866,5 @@ class PandaCommunicator(BaseCommunicator):
                 core_utils.dump_error_message(tmpLog, retVal.text)
                 retStat = False
                 retVal = retVal.text
-        tmpLog.debug("done with {} {}".format(retStat, retVal))
+        tmpLog.debug(f"done with {retStat} {retVal}")
         return retStat, retVal

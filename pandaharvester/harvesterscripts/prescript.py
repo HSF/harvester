@@ -1,6 +1,6 @@
+import argparse
 import os
 import sys
-import argparse
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo

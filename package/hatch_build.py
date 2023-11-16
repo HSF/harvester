@@ -1,12 +1,11 @@
-from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-
+import glob
 import os
 import stat
-import glob
+
+from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 
 class CustomBuildHook(BuildHookInterface):
-
     def initialize(self, version, build_data):
         # chmod +x
         for f in glob.glob("./templates/bin/*"):

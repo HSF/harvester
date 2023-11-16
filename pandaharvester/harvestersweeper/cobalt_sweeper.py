@@ -1,14 +1,15 @@
 # === Imports ==================================================
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore import core_utils
-
 import os
+
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
 try:
     import subprocess32 as subprocess
 except BaseException:
     import subprocess
+
 import shutil
 
 # ==============================================================
@@ -54,18 +55,18 @@ class CobaltSweeper(PluginBase):
         """
 
         # Make logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="kill_worker")
 
         # Kill command
-        comStr = "qdel {0}".format(workspec.batchID)
+        comStr = f"qdel {workspec.batchID}"
         (retCode, stdOut, stdErr) = _runShell(comStr)
         if retCode != 0:
             # Command failed
-            errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+            errStr = f'command "{comStr}" failed, retCode={retCode}, error: {stdOut} {stdErr}'
             tmpLog.error(errStr)
             return False, errStr
         else:
-            tmpLog.info("Succeeded to kill workerID={0} batchID={1}".format(workspec.workerID, workspec.workerID))
+            tmpLog.info(f"Succeeded to kill workerID={workspec.workerID} batchID={workspec.workerID}")
 
         # Return
         return True, ""
@@ -81,7 +82,7 @@ class CobaltSweeper(PluginBase):
         """
 
         # Make logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="sweep_worker")
 
         # Clean up worker directory
         if os.path.exists(workspec.accessPoint):

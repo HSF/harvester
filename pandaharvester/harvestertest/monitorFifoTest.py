@@ -1,18 +1,15 @@
 import os
+import random
 import sys
 import time
-import random
 
 from future.utils import iteritems
-
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
-
 from pandaharvester.harvestercore.fifos import MonitorFIFO
-
+from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # start test
 
@@ -39,7 +36,7 @@ def single_thread_test(nObjects=3, protective=False):
         mq.put(workspec)
         # print('size', mq.size())
     time_consumed = time.time() - time_point
-    print("Time consumed: {0} sec ; Avg: {1} obj/sec ".format(time_consumed, nObjects / time_consumed))
+    print(f"Time consumed: {time_consumed} sec ; Avg: {nObjects / time_consumed} obj/sec ")
 
     print("size", mq.size())
 
@@ -53,7 +50,7 @@ def single_thread_test(nObjects=3, protective=False):
         # print(obj)
         # print('size', mq.size())
     time_consumed = time.time() - time_point
-    print("Time consumed: {0} sec ; Avg: {1} obj/sec ".format(time_consumed, nObjects / time_consumed))
+    print(f"Time consumed: {time_consumed} sec ; Avg: {nObjects / time_consumed} obj/sec ")
 
 
 print("Normal test")

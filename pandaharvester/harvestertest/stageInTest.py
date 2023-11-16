@@ -1,8 +1,9 @@
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
 import sys
 import time
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 queueName = sys.argv[1]
 
@@ -27,18 +28,18 @@ pluginFactory = PluginFactory()
 
 # get plugin
 preparatorCore = pluginFactory.get_plugin(queueConfig.preparator)
-print("plugin={0}".format(preparatorCore.__class__.__name__))
+print(f"plugin={preparatorCore.__class__.__name__}")
 
 print("testing stagein:")
-print("BasePath from preparator configuration: %s " % preparatorCore.basePath)
+print(f"BasePath from preparator configuration: {preparatorCore.basePath} ")
 preparatorCore.basePath = preparatorCore.basePath + "/testdata/"
-print("basePath redifuned for test data: %s " % preparatorCore.basePath)
+print(f"basePath redifuned for test data: {preparatorCore.basePath} ")
 
 tmpStat, tmpOut = preparatorCore.trigger_preparation(jobSpec)
 if tmpStat:
     print(" OK")
 else:
-    print(" NG {0}".format(tmpOut))
+    print(f" NG {tmpOut}")
 
 print
 
@@ -49,7 +50,7 @@ while True:
         print(" OK")
         break
     elif tmpStat is False:
-        print(" NG {0}".format(tmpOut))
+        print(f" NG {tmpOut}")
         sys.exit(1)
     else:
         print(" still running. sleep 1 min")
@@ -60,6 +61,6 @@ print
 print("checking path resolution")
 tmpStat, tmpOut = preparatorCore.resolve_input_paths(jobSpec)
 if tmpStat:
-    print(" OK {0}".format(jobSpec.jobParams["inFilePaths"]))
+    print(f" OK {jobSpec.jobParams['inFilePaths']}")
 else:
-    print(" NG {0}".format(tmpOut))
+    print(f" NG {tmpOut}")

@@ -29,20 +29,20 @@ class SlurmSweeper(BaseSweeper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="kill_worker")
         # kill command
-        comStr = "scancel {0}".format(workspec.batchID)
+        comStr = f"scancel {workspec.batchID}"
         # execute
         p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdOut, stdErr = p.communicate()
         retCode = p.returncode
         if retCode != 0:
             # failed
-            errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+            errStr = f'command "{comStr}" failed, retCode={retCode}, error: {stdOut} {stdErr}'
             tmpLog.error(errStr)
             return False, errStr
         else:
-            tmpLog.info("Succeeded to kill workerID={0} batchID={1}".format(workspec.workerID, workspec.workerID))
+            tmpLog.info(f"Succeeded to kill workerID={workspec.workerID} batchID={workspec.workerID}")
         # return
         return True, ""
 
@@ -56,11 +56,11 @@ class SlurmSweeper(BaseSweeper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="sweep_worker")
         # clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)
-            tmpLog.info("removed {0}".format(workspec.accessPoint))
+            tmpLog.info(f"removed {workspec.accessPoint}")
         else:
             tmpLog.info("access point already removed.")
         # return

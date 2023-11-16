@@ -5,9 +5,9 @@ Base class for XyzSpec
 
 import json
 import pickle
-from future.utils import iteritems
 
 import rpyc
+from future.utils import iteritems
 
 try:
     from json.decoder import JSONDecodeError
@@ -130,9 +130,9 @@ class SpecBase(object):
             if slim and attr in cls.skipAttrsToSlim:
                 continue
             if prefix is None:
-                ret += "{0},".format(attr)
+                ret += f"{attr},"
             else:
-                ret += "{0}.{1},".format(prefix, attr)
+                ret += f"{prefix}.{attr},"
         ret = ret[:-1]
         return ret
 
@@ -143,7 +143,7 @@ class SpecBase(object):
         ret = "VALUES("
         for attr in cls.attributesWithTypes:
             attr = attr.split(":")[0]
-            ret += ":%s," % attr
+            ret += f":{attr},"
         ret = ret[:-1]
         ret += ")"
         return ret
@@ -155,7 +155,7 @@ class SpecBase(object):
         ret = ""
         for attr in self.attributes:
             if attr in self.changedAttrs:
-                ret += "%s=:%s," % (attr, attr)
+                ret += f"{attr}=:{attr},"
         ret = ret[:-1]
         ret += " "
         return ret
@@ -176,7 +176,7 @@ class SpecBase(object):
                     val = None
             if attr in self.serializedAttrs:
                 val = json.dumps(val, cls=PythonObjectEncoder)
-            ret[":%s" % attr] = val
+            ret[f":{attr}"] = val
         return ret
 
     # return list of values

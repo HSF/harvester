@@ -1,8 +1,7 @@
 import arc
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc import arc_utils
 
 # logger
@@ -45,7 +44,7 @@ class ARCSweeper(PluginBase):
             userconfig.ProxyPath(str(self.certs[proxyrole]))
         except BaseException:
             # Log a warning and return True so that job can be cleaned
-            tmplog.warning("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
+            tmplog.warning(f"Job {job.JobID}: no proxy found with role {proxyrole}")
             return True, ""
 
         job_supervisor = arc.JobSupervisor(userconfig, [job])
@@ -97,7 +96,7 @@ class ARCSweeper(PluginBase):
             userconfig.ProxyPath(str(self.certs[proxyrole]))
         except BaseException:
             # Log a warning and return True so that job can be cleaned
-            tmplog.warning("Job {0}: no proxy found with role {1}".format(job.JobID, proxyrole))
+            tmplog.warning(f"Job {job.JobID}: no proxy found with role {proxyrole}")
             return True, ""
 
         job_supervisor = arc.JobSupervisor(userconfig, [job])
@@ -117,8 +116,9 @@ class ARCSweeper(PluginBase):
 
 def test(jobid):
     """Kill a job"""
-    from pandaharvester.harvestercore.work_spec import WorkSpec
     import json
+
+    from pandaharvester.harvestercore.work_spec import WorkSpec
 
     wspec = WorkSpec()
     wspec.batchID = jobid
@@ -141,8 +141,9 @@ def test(jobid):
 
 
 if __name__ == "__main__":
-    import time
     import sys
+    import time
+
     import urlparse
 
     if len(sys.argv) != 2:

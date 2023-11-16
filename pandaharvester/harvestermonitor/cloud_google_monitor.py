@@ -1,8 +1,8 @@
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercloud.googlecloud import PROJECT, ZONE, compute
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercloud.googlecloud import compute, ZONE, PROJECT
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 base_logger = core_utils.setup_logger("google_monitor")
 
@@ -55,11 +55,11 @@ class GoogleMonitor(PluginBase):
         """
 
         try:
-            base_logger.debug("Going to kill VM {0}".format(vm_name))
+            base_logger.debug(f"Going to kill VM {vm_name}")
             compute.instances().delete(project=PROJECT, zone=zone, instance=vm_name).execute()
-            base_logger.debug("Killed VM {0}".format(vm_name))
+            base_logger.debug(f"Killed VM {vm_name}")
         except Exception as e:
-            base_logger.error("Problems killing the VM: {0}".format(e))
+            base_logger.error(f"Problems killing the VM: {e}")
 
     def check_workers(self, workers):
         """
@@ -91,11 +91,11 @@ class GoogleMonitor(PluginBase):
 
         # extract the list of batch IDs
         batch_IDs = map(lambda x: str(x.batchID), workers)
-        base_logger.debug("Batch IDs: {0}".format(batch_IDs))
+        base_logger.debug(f"Batch IDs: {batch_IDs}")
 
         ret_list = []
         for batch_ID in batch_IDs:
-            tmp_log = self.make_logger(base_logger, "batch ID={0}".format(batch_ID), method_name="check_workers")
+            tmp_log = self.make_logger(base_logger, f"batch ID={batch_ID}", method_name="check_workers")
 
             if batch_ID not in vm_names:
                 new_status = WorkSpec.ST_finished
@@ -112,10 +112,10 @@ class GoogleMonitor(PluginBase):
 
                 except KeyError:
                     new_status = WorkSpec.ST_missed
-                    message = "Unknown status to Harvester: {0}".format(vm_name_to_status[batch_ID])
+                    message = f"Unknown status to Harvester: {vm_name_to_status[batch_ID]}"
 
-            tmp_log.debug("new_status={0}".format(new_status))
+            tmp_log.debug(f"new_status={new_status}")
             ret_list.append((new_status, message))
 
-        base_logger.debug("ret_list: {0}".format(ret_list))
+        base_logger.debug(f"ret_list: {ret_list}")
         return True, ret_list

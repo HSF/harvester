@@ -1,4 +1,5 @@
 from pandaharvester.harvestercore import core_utils
+
 from .base_zipper import BaseZipper
 
 # logger
@@ -13,12 +14,12 @@ class SimpleZipper(BaseZipper):
 
     # zip output files
     def zip_output(self, jobspec):
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)
 
     # asynchronous zip output
     def async_zip_output(self, jobspec):
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         # not really asynchronous as two staged zipping is not implemented in this plugin
         return self.simple_zip_output(jobspec, tmpLog)
 

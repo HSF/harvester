@@ -19,7 +19,7 @@ class SimpleThrottler(PluginBase):
 
     # check if to be throttled
     def to_be_throttled(self, queue_config):
-        tmpLog = self.make_logger(baseLogger, "computingSite={0}".format(queue_config.queueName), method_name="to_be_throttled")
+        tmpLog = self.make_logger(baseLogger, f"computingSite={queue_config.queueName}", method_name="to_be_throttled")
         tmpLog.debug("start")
         # set default return vale
         if self.logicType == "OR":
@@ -47,7 +47,7 @@ class SimpleThrottler(PluginBase):
             elif rule["level"] == "ce":
                 elmName = "computingElements"
                 if elmName not in queue_config.submitter:
-                    tmpLog.debug("skipped since {0} is undefined in submitter config".format(elmName))
+                    tmpLog.debug(f"skipped since {elmName} is undefined in submitter config")
                     continue
                 for ce in queue_config.submitter[elmName]:
                     criteria = dict()
@@ -60,14 +60,14 @@ class SimpleThrottler(PluginBase):
             nMissed = self.dbProxy.get_num_missed_workers(queue_config.queueName, criteria)
             if nMissed > maxMissed:
                 if self.logicType == "OR":
-                    tmpMsg = "logic={0} and ".format(self.logicType)
-                    tmpMsg += "nMissed={0} > maxMissed={1} for {2}".format(nMissed, maxMissed, str(criteria))
+                    tmpMsg = f"logic={self.logicType} and "
+                    tmpMsg += f"nMissed={nMissed} > maxMissed={maxMissed} for {str(criteria)}"
                     retVal = True, tmpMsg
                     break
             else:
                 if self.logicType == "AND":
-                    tmpMsg = "logic={0} and ".format(self.logicType)
-                    tmpMsg += "nMissed={0} <= maxMissed={1} for {2}".format(nMissed, maxMissed, str(criteria))
+                    tmpMsg = f"logic={self.logicType} and "
+                    tmpMsg += f"nMissed={nMissed} <= maxMissed={maxMissed} for {str(criteria)}"
                     retVal = False, tmpMsg
                     break
         tmpLog.debug("ret={0} : {1}".format(*retVal))

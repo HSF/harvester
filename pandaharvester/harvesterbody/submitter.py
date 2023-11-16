@@ -1,20 +1,20 @@
-import math
 import datetime
-import time
+import math
 import socket
-from future.utils import iteritems
+import time
 
+from future.utils import iteritems
+from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
+from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from pandaharvester.harvesterbody.agent_base import AgentBase
-from pandaharvester.harvesterbody.worker_maker import WorkerMaker
-from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
-from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.fifos import MonitorFIFO
+from pandaharvester.harvestercore.pilot_errors import PilotErrors
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
@@ -36,12 +36,12 @@ class Submitter(AgentBase):
 
     # main loop
     def run(self):
-        locked_by = "submitter-{0}".format(self.get_pid())
+        locked_by = f"submitter-{self.get_pid()}"
         monitor_fifo = self.monitor_fifo
         queue_lock_interval = getattr(harvester_config.submitter, "queueLockInterval", harvester_config.submitter.lockInterval)
         while True:
             sw_main = core_utils.get_stopwatch()
-            main_log = self.make_logger(_logger, "id={0}".format(locked_by), method_name="run")
+            main_log = self.make_logger(_logger, f"id={locked_by}", method_name="run")
             main_log.debug("getting queues to submit workers")
 
             # get queues associated to a site to submit workers
@@ -54,12 +54,12 @@ class Submitter(AgentBase):
             )
             submitted = False
             if site_name is not None:
-                main_log.debug("got {0} queues for site {1}".format(len(current_workers), site_name))
+                main_log.debug(f"got {len(current_workers)} queues for site {site_name}")
 
                 # get commands from panda server
-                com_str = "{0}:{1}".format(CommandSpec.COM_setNWorkers, site_name)
+                com_str = f"{CommandSpec.COM_setNWorkers}:{site_name}"
                 command_specs = self.dbProxy.get_commands_for_receiver("submitter", com_str)
-                main_log.debug("got {0} {1} commands".format(len(command_specs), com_str))
+                main_log.debug(f"got {len(command_specs)} {com_str} commands")
                 for command_spec in command_specs:
                     new_limits = self.dbProxy.set_queue_limit(site_name, command_spec.params)
                     for tmp_job_type, tmp_jt_vals in iteritems(new_limits):
@@ -88,11 +88,11 @@ class Submitter(AgentBase):
                             for resource_type in n_workers_per_queue_jt_rt[queue_name][job_type]:
                                 tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][resource_type]
                                 tmp_log = self.make_logger(
-                                    _logger, "id={0} queue={1} jtype={2} rtype={3}".format(locked_by, queue_name, job_type, resource_type), method_name="run"
+                                    _logger, f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type}", method_name="run"
                                 )
                                 try:
                                     tmp_log.debug("start")
-                                    tmp_log.debug("workers status: %s" % tmp_val)
+                                    tmp_log.debug(f"workers status: {tmp_val}")
                                     nWorkers = tmp_val["nNewWorkers"] + tmp_val["nReady"]
                                     nReady = tmp_val["nReady"]
 
@@ -111,17 +111,17 @@ class Submitter(AgentBase):
                                     # check if resource is ready
                                     if hasattr(workerMakerCore, "dynamicSizing") and workerMakerCore.dynamicSizing is True:
                                         numReadyResources = self.workerMaker.num_ready_resources(queue_config, job_type, resource_type, workerMakerCore)
-                                        tmp_log.debug("numReadyResources: %s" % numReadyResources)
+                                        tmp_log.debug(f"numReadyResources: {numReadyResources}")
                                         if not numReadyResources:
                                             if hasattr(workerMakerCore, "staticWorkers"):
                                                 nQRWorkers = tmp_val["nQueue"] + tmp_val["nRunning"]
-                                                tmp_log.debug("staticWorkers: %s, nQRWorkers(Queue+Running): %s" % (workerMakerCore.staticWorkers, nQRWorkers))
+                                                tmp_log.debug(f"staticWorkers: {workerMakerCore.staticWorkers}, nQRWorkers(Queue+Running): {nQRWorkers}")
                                                 if nQRWorkers >= workerMakerCore.staticWorkers:
                                                     tmp_log.debug("No left static workers, skip")
                                                     continue
                                                 else:
                                                     nWorkers = min(workerMakerCore.staticWorkers - nQRWorkers, nWorkers)
-                                                    tmp_log.debug("staticWorkers: %s, nWorkers: %s" % (workerMakerCore.staticWorkers, nWorkers))
+                                                    tmp_log.debug(f"staticWorkers: {workerMakerCore.staticWorkers}, nWorkers: {nWorkers}")
                                             else:
                                                 tmp_log.debug("skip since no resources are ready")
                                                 continue
@@ -156,7 +156,7 @@ class Submitter(AgentBase):
                                         nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(
                                             queue_config, nWorkers, job_type, resource_type, maker=workerMakerCore
                                         )
-                                        tmp_log.debug("nJobsPerWorker={0}".format(nJobsPerWorker))
+                                        tmp_log.debug(f"nJobsPerWorker={nJobsPerWorker}")
                                         jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                             queue_name,
                                             nWorkers,
@@ -180,7 +180,7 @@ class Submitter(AgentBase):
                                         maxWorkersPerJobPerCycle = self.workerMaker.get_max_workers_per_job_per_cycle(
                                             queue_config, job_type, resource_type, maker=workerMakerCore
                                         )
-                                        tmp_log.debug("nWorkersPerJob={0}".format(nWorkersPerJob))
+                                        tmp_log.debug(f"nWorkersPerJob={nWorkersPerJob}")
                                         jobChunks = self.dbProxy.get_job_chunks_for_workers(
                                             queue_name,
                                             nWorkers,
@@ -195,10 +195,10 @@ class Submitter(AgentBase):
                                             max_workers_per_job_per_cycle=maxWorkersPerJobPerCycle,
                                         )
                                     else:
-                                        tmp_log.error("unknown mapType={0}".format(queue_config.mapType))
+                                        tmp_log.error(f"unknown mapType={queue_config.mapType}")
                                         continue
 
-                                    tmp_log.debug("got {0} job chunks".format(len(jobChunks)))
+                                    tmp_log.debug(f"got {len(jobChunks)} job chunks")
                                     if len(jobChunks) == 0:
                                         continue
                                     # make workers
@@ -207,9 +207,9 @@ class Submitter(AgentBase):
                                     )
 
                                     if len(ngChunks) == 0:
-                                        tmp_log.debug("successfully made {0} workers".format(len(okChunks)))
+                                        tmp_log.debug(f"successfully made {len(okChunks)} workers")
                                     else:
-                                        tmp_log.debug("made {0} workers, while {1} workers failed".format(len(okChunks), len(ngChunks)))
+                                        tmp_log.debug(f"made {len(okChunks)} workers, while {len(ngChunks)} workers failed")
                                     timeNow = datetime.datetime.utcnow()
                                     timeNow_timestamp = time.time()
                                     pandaIDs = set()
@@ -266,13 +266,13 @@ class Submitter(AgentBase):
                                         submitterCore = self.pluginFactory.get_plugin(queue_config.submitter)
                                         if submitterCore is None:
                                             # not found
-                                            tmp_log.error("submitter plugin for {0} not found".format(job_spec.computingSite))
+                                            tmp_log.error(f"submitter plugin for {job_spec.computingSite} not found")
                                             continue
                                         # get plugin for messenger
                                         messenger = self.pluginFactory.get_plugin(queue_config.messenger)
                                         if messenger is None:
                                             # not found
-                                            tmp_log.error("messenger plugin for {0} not found".format(job_spec.computingSite))
+                                            tmp_log.error(f"messenger plugin for {job_spec.computingSite} not found")
                                             continue
                                         # setup access points
                                         messenger.setup_access_points(work_specList)
@@ -281,16 +281,16 @@ class Submitter(AgentBase):
                                             if work_spec.hasJob == 1:
                                                 tmpStat = messenger.feed_jobs(work_spec, work_spec.get_jobspec_list())
                                                 if tmpStat is False:
-                                                    tmp_log.error("failed to send jobs to workerID={0}".format(work_spec.workerID))
+                                                    tmp_log.error(f"failed to send jobs to workerID={work_spec.workerID}")
                                                 else:
-                                                    tmp_log.debug("sent jobs to workerID={0} with {1}".format(work_spec.workerID, tmpStat))
+                                                    tmp_log.debug(f"sent jobs to workerID={work_spec.workerID} with {tmpStat}")
                                         # insert workers
                                         self.dbProxy.insert_workers(work_specList, locked_by)
                                         # submit
                                         sw.reset()
-                                        tmp_log.info("submitting {0} workers".format(len(work_specList)))
+                                        tmp_log.info(f"submitting {len(work_specList)} workers")
                                         work_specList, tmpRetList, tmpStrList = self.submit_workers(submitterCore, work_specList)
-                                        tmp_log.debug("done submitting {0} workers".format(len(work_specList)) + sw.get_elapsed_time())
+                                        tmp_log.debug(f"done submitting {len(work_specList)} workers" + sw.get_elapsed_time())
                                         # collect successful jobs
                                         okPandaIDs = set()
                                         for iWorker, (tmpRet, tmpStr) in enumerate(zip(tmpRetList, tmpStrList)):
@@ -310,7 +310,7 @@ class Submitter(AgentBase):
                                             # set status
                                             if not tmpRet:
                                                 # failed submission
-                                                errStr = "failed to submit a workerID={0} with {1}".format(work_spec.workerID, tmpStr)
+                                                errStr = f"failed to submit a workerID={work_spec.workerID} with {tmpStr}"
                                                 tmp_log.error(errStr)
                                                 work_spec.set_status(WorkSpec.ST_missed)
                                                 work_spec.set_dialog_message(tmpStr)
@@ -402,7 +402,7 @@ class Submitter(AgentBase):
                 # release the site
                 self.dbProxy.release_site(site_name, locked_by)
                 if sw_main.get_elapsed_time_in_sec() > queue_lock_interval:
-                    main_log.warning("a submitter cycle was longer than queue_lock_interval {0} sec".format(queue_lock_interval) + sw_main.get_elapsed_time())
+                    main_log.warning(f"a submitter cycle was longer than queue_lock_interval {queue_lock_interval} sec" + sw_main.get_elapsed_time())
             main_log.debug("done")
             # define sleep interval
             if site_name is None or (hasattr(harvester_config.submitter, "respectSleepTime") and harvester_config.submitter.respectSleepTime):

@@ -1,7 +1,7 @@
-import sys
 import logging
-from future.utils import iteritems
+import sys
 
+from future.utils import iteritems
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
 for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):

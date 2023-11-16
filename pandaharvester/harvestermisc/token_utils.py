@@ -3,8 +3,8 @@ import hashlib
 import json
 import time
 
-import six
 import requests
+import six
 
 
 def _md5sum(data):
@@ -42,7 +42,7 @@ class IssuerBroker(object):
         self.name = name
         self.timeout = 3
         # derived attributes
-        self.token_request_url = "{0}/token".format(self.issuer)
+        self.token_request_url = f"{self.issuer}/token"
         self._base_post_data = {
             "grant_type": "client_credentials",
             "client_id": self.client_id,

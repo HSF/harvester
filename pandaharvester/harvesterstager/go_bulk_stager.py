@@ -1,33 +1,34 @@
-import time
 import datetime
-import uuid
-import os
-import sys
-import os.path
-import threading
-import tarfile
 import hashlib
+import os
+import os.path
 import string
-from future.utils import iteritems
-
-from globus_sdk import TransferClient
-from globus_sdk import TransferData
-from globus_sdk import NativeAppAuthClient
-from globus_sdk import RefreshTokenAuthorizer
+import sys
+import tarfile
+import threading
+import time
+import uuid
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
+from future.utils import iteritems
+from globus_sdk import (
+    NativeAppAuthClient,
+    RefreshTokenAuthorizer,
+    TransferClient,
+    TransferData,
+)
 
 try:
     requests.packages.urllib3.disable_warnings()
 except BaseException:
     pass
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermover import mover_utils
-from pandaharvester.harvestermisc import globus_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermisc import globus_utils
+from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvesterstager.base_stager import BaseStager
 
 # Define dummy transfer identifier
@@ -45,7 +46,7 @@ _logger = core_utils.setup_logger("go_bulk_stager")
 def dump(obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+            print(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 def validate_transferid(transferid):
@@ -62,7 +63,7 @@ class GlobusBulkStager(BaseStager):
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         # make logger
-        tmpLog = self.make_logger(_logger, "ThreadID={0}".format(threading.current_thread().ident), method_name="GlobusBulkStager __init__ ")
+        tmpLog = self.make_logger(_logger, f"ThreadID={threading.current_thread().ident}", method_name="GlobusBulkStager __init__ ")
         tmpLog.debug("start")
         self.EventServicejob = False
         self.pathConvention = None
@@ -72,7 +73,7 @@ class GlobusBulkStager(BaseStager):
         with uLock:
             global uID
             # self.dummy_transfer_id = '{0}_{1}_{2}'.format(dummy_transfer_id_base,self.id,int(round(time.time() * 1000)))
-            self.dummy_transfer_id = "{0}_{1}".format(dummy_transfer_id_base, "XXXX")
+            self.dummy_transfer_id = f"{dummy_transfer_id_base}_XXXX"
             uID += 1
             uID %= harvester_config.stager.nThreads
         # create Globus Transfer Client
@@ -125,9 +126,7 @@ class GlobusBulkStager(BaseStager):
     # check status
     def check_stage_out_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(
-            _logger, "PandaID={0} ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="check_stage_out_status"
-        )
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         # default return
         tmpRetVal = (True, "")
@@ -137,13 +136,13 @@ class GlobusBulkStager(BaseStager):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # show the dummy transfer id and set to a value with the PandaID if needed.
-        tmpLog.debug("self.dummy_transfer_id = {}".format(self.dummy_transfer_id))
-        if self.dummy_transfer_id == "{0}_{1}".format(dummy_transfer_id_base, "XXXX"):
+        tmpLog.debug(f"self.dummy_transfer_id = {self.dummy_transfer_id}")
+        if self.dummy_transfer_id == f"{dummy_transfer_id_base}_XXXX":
             old_dummy_transfer_id = self.dummy_transfer_id
-            self.dummy_transfer_id = "{0}_{1}".format(dummy_transfer_id_base, jobspec.computingSite)
-            tmpLog.debug("Change self.dummy_transfer_id  from {0} to {1}".format(old_dummy_transfer_id, self.dummy_transfer_id))
+            self.dummy_transfer_id = f"{dummy_transfer_id_base}_{jobspec.computingSite}"
+            tmpLog.debug(f"Change self.dummy_transfer_id  from {old_dummy_transfer_id} to {self.dummy_transfer_id}")
         # set flag if have db lock
         have_db_lock = False
         # get the queueConfig and corresponding objStoreID_ES
@@ -163,10 +162,10 @@ class GlobusBulkStager(BaseStager):
         self.objstoreID = int(queueConfig.stager["objStoreID_ES"])
         if self.EventServicejob:
             self.pathConvention = int(queueConfig.stager["pathConvention"])
-            tmpLog.debug("EventService Job - PandaID = {0} objstoreID = {1} pathConvention ={2}".format(jobspec.PandaID, self.objstoreID, self.pathConvention))
+            tmpLog.debug(f"EventService Job - PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID} pathConvention ={self.pathConvention}")
         else:
             self.pathConvention = None
-            tmpLog.debug("PandaID = {0} objstoreID = {1}".format(jobspec.PandaID, self.objstoreID))
+            tmpLog.debug(f"PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID}")
         # test we have a Globus Transfer Client
         if not self.tc:
             errStr = "failed to get Globus Transfer Client"
@@ -178,13 +177,13 @@ class GlobusBulkStager(BaseStager):
         outfileattrib = jobspec.get_output_file_attributes()
         # get transfer groups
         groups = jobspec.get_groups_of_output_files()
-        tmpLog.debug("jobspec.get_groups_of_output_files() = : {0}".format(groups))
+        tmpLog.debug(f"jobspec.get_groups_of_output_files() = : {groups}")
         # lock if the dummy transfer ID is used to avoid submitting duplicated transfer requests
         for dummy_transferID in groups:
             if validate_transferid(dummy_transferID):
                 continue
             # lock for 120 sec
-            tmpLog.debug("attempt to set DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+            tmpLog.debug(f"attempt to set DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
             have_db_lock = self.dbInterface.get_object_lock(dummy_transferID, lock_interval=120)
             if not have_db_lock:
                 # escape since locked by another thread
@@ -197,14 +196,14 @@ class GlobusBulkStager(BaseStager):
             # get transfer groups again with refreshed info
             tmpLog.debug("After db refresh call groups=jobspec.get_groups_of_output_files()")
             groups = jobspec.get_groups_of_output_files()
-            tmpLog.debug("jobspec.get_groups_of_output_files() = : {0}".format(groups))
+            tmpLog.debug(f"jobspec.get_groups_of_output_files() = : {groups}")
             # the dummy transfer ID is still there
             if dummy_transferID in groups:
                 groupUpdateTime = groups[dummy_transferID]["groupUpdateTime"]
                 # get files with the dummy transfer ID across jobs
                 fileSpecs = self.dbInterface.get_files_with_group_id(dummy_transferID)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
-                msgStr = "dummy_transferID = {0}  number of files = {1}".format(dummy_transferID, len(fileSpecs))
+                msgStr = f"dummy_transferID = {dummy_transferID}  number of files = {len(fileSpecs)}"
                 tmpLog.debug(msgStr)
                 if len(fileSpecs) >= 10 or groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
                     tmpLog.debug("prepare to transfer files")
@@ -231,10 +230,10 @@ class GlobusBulkStager(BaseStager):
                             if not tmpStatdst:
                                 errMsg += " destination Endpoint not activated "
                             # release process lock
-                            tmpLog.debug("attempt to release DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                            tmpLog.debug(f"attempt to release DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                             self.have_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                             if not self.have_db_lock:
-                                errMsg += " - Could not release DB lock for {}".format(dummy_transferID)
+                                errMsg += f" - Could not release DB lock for {dummy_transferID}"
                             tmpLog.error(errMsg)
                             tmpRetVal = (None, errMsg)
                             return tmpRetVal
@@ -244,10 +243,10 @@ class GlobusBulkStager(BaseStager):
                     except BaseException:
                         errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
                         # release process lock
-                        tmpLog.debug("attempt to release DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                        tmpLog.debug(f"attempt to release DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                         release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                         if not release_db_lock:
-                            errMsg += " - Could not release DB lock for {}".format(dummy_transferID)
+                            errMsg += f" - Could not release DB lock for {dummy_transferID}"
                         tmpLog.error(errMsg)
                         tmpRetVal = (errStat, errMsg)
                         return tmpRetVal
@@ -268,45 +267,43 @@ class GlobusBulkStager(BaseStager):
                             scope = "transient"
                         # only print to log file first 25 files
                         if ifile < 25:
-                            msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
+                            msgStr = f"fileSpec.lfn - {fileSpec.lfn} fileSpec.scope - {fileSpec.scope}"
                             tmpLog.debug(msgStr)
                         if ifile == 25:
                             msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                             tmpLog.debug(msgStr)
                         hash = hashlib.md5()
                         if sys.version_info.major == 2:
-                            hash.update("%s:%s" % (scope, fileSpec.lfn))
+                            hash.update(f"{scope}:{fileSpec.lfn}")
                         if sys.version_info.major == 3:
-                            hash_string = "{0}:{1}".format(scope, fileSpec.lfn)
+                            hash_string = f"{scope}:{fileSpec.lfn}"
                             hash.update(bytes(hash_string, "utf-8"))
                         hash_hex = hash.hexdigest()
                         correctedscope = "/".join(scope.split("."))
                         srcURL = fileSpec.path
-                        dstURL = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(
-                            endPoint=self.Globus_dstPath, scope=correctedscope, hash1=hash_hex[0:2], hash2=hash_hex[2:4], lfn=fileSpec.lfn
-                        )
+                        dstURL = f"{self.Globus_dstPath}/{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{fileSpec.lfn}"
                         if logfile:
-                            tmpLog.debug("src={srcURL} dst={dstURL}".format(srcURL=srcURL, dstURL=dstURL))
+                            tmpLog.debug(f"src={srcURL} dst={dstURL}")
                         if ifile < 25:
-                            tmpLog.debug("src={srcURL} dst={dstURL}".format(srcURL=srcURL, dstURL=dstURL))
+                            tmpLog.debug(f"src={srcURL} dst={dstURL}")
                         # add files to transfer object - tdata
                         if os.access(srcURL, os.R_OK):
                             if ifile < 25:
-                                tmpLog.debug("tdata.add_item({},{})".format(srcURL, dstURL))
+                                tmpLog.debug(f"tdata.add_item({srcURL},{dstURL})")
                             tdata.add_item(srcURL, dstURL)
                         else:
-                            errMsg = "source file {} does not exist".format(srcURL)
+                            errMsg = f"source file {srcURL} does not exist"
                             # release process lock
-                            tmpLog.debug("attempt to release DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                            tmpLog.debug(f"attempt to release DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                             release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                             if not release_db_lock:
-                                errMsg += " - Could not release DB lock for {}".format(dummy_transferID)
+                                errMsg += f" - Could not release DB lock for {dummy_transferID}"
                             tmpLog.error(errMsg)
                             tmpRetVal = (False, errMsg)
                             return tmpRetVal
                         ifile += 1
                     # submit transfer
-                    tmpLog.debug("Number of files to transfer - {}".format(len(tdata["DATA"])))
+                    tmpLog.debug(f"Number of files to transfer - {len(tdata['DATA'])}")
                     try:
                         transfer_result = self.tc.submit_transfer(tdata)
                         # check status code and message
@@ -315,60 +312,60 @@ class GlobusBulkStager(BaseStager):
                             # succeeded
                             # set transfer ID which are used for later lookup
                             transferID = transfer_result["task_id"]
-                            tmpLog.debug("successfully submitted id={0}".format(transferID))
+                            tmpLog.debug(f"successfully submitted id={transferID}")
                             # set status for files
                             self.dbInterface.set_file_group(fileSpecs, transferID, "running")
-                            msgStr = "submitted transfer with ID={0}".format(transferID)
+                            msgStr = f"submitted transfer with ID={transferID}"
                             tmpLog.debug(msgStr)
                         else:
                             # release process lock
-                            tmpLog.debug("attempt to release DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                            tmpLog.debug(f"attempt to release DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                             release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                             if not release_db_lock:
-                                errMsg = "Could not release DB lock for {}".format(dummy_transferID)
+                                errMsg = f"Could not release DB lock for {dummy_transferID}"
                                 tmpLog.error(errMsg)
                             tmpRetVal = (None, transfer_result["message"])
                             return tmpRetVal
                     except Exception as e:
                         errStat, errMsg = globus_utils.handle_globus_exception(tmpLog)
                         # release process lock
-                        tmpLog.debug("attempt to release DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                        tmpLog.debug(f"attempt to release DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                         release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                         if not release_db_lock:
-                            errMsg += " - Could not release DB lock for {}".format(dummy_transferID)
+                            errMsg += f" - Could not release DB lock for {dummy_transferID}"
                         tmpLog.error(errMsg)
                         return errStat, errMsg
                 else:
                     msgStr = "wait until enough files are pooled"
                     tmpLog.debug(msgStr)
                 # release the lock
-                tmpLog.debug("attempt to release DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                tmpLog.debug(f"attempt to release DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                 release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                 if release_db_lock:
-                    tmpLog.debug("released DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                    tmpLog.debug(f"released DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                     have_db_lock = False
                 else:
-                    msgStr += " - Could not release DB lock for {}".format(dummy_transferID)
+                    msgStr += f" - Could not release DB lock for {dummy_transferID}"
                     tmpLog.error(msgStr)
                 # return None to retry later
                 return None, msgStr
             # release the db lock if needed
             if have_db_lock:
-                tmpLog.debug("attempt to release DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                tmpLog.debug(f"attempt to release DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                 release_db_lock = self.dbInterface.release_object_lock(dummy_transferID)
                 if release_db_lock:
-                    tmpLog.debug("released DB lock for self.id - {0} dummy_transferID - {1}".format(self.id, dummy_transferID))
+                    tmpLog.debug(f"released DB lock for self.id - {self.id} dummy_transferID - {dummy_transferID}")
                     have_db_lock = False
                 else:
-                    msgStr += " - Could not release DB lock for {}".format(dummy_transferID)
+                    msgStr += f" - Could not release DB lock for {dummy_transferID}"
                     tmpLog.error(msgStr)
                     return None, msgStr
         # check transfer with real transfer IDs
         # get transfer groups
         tmpLog.debug("groups = jobspec.get_groups_of_output_files()")
         groups = jobspec.get_groups_of_output_files()
-        tmpLog.debug("Number of transfer groups - {0}".format(len(groups)))
-        tmpLog.debug("transfer groups any state - {0}".format(groups))
+        tmpLog.debug(f"Number of transfer groups - {len(groups)}")
+        tmpLog.debug(f"transfer groups any state - {groups}")
         if len(groups) == 0:
             tmpLog.debug("jobspec.get_groups_of_output_files(skip_done=True) returned no files ")
             tmpLog.debug("check_stage_out_status return status - True ")
@@ -381,29 +378,29 @@ class GlobusBulkStager(BaseStager):
                 tmpStat, transferTasks = globus_utils.get_transfer_task_by_id(tmpLog, self.tc, transferID)
                 # return a temporary error when failed to get task
                 if not tmpStat:
-                    errStr = "failed to get transfer task; tc = %s; transferID = %s" % (str(self.tc), str(transferID))
+                    errStr = f"failed to get transfer task; tc = {str(self.tc)}; transferID = {str(transferID)}"
                     tmpLog.error(errStr)
                     return None, errStr
                 # return a temporary error when task is missing
                 if transferID not in transferTasks:
-                    errStr = "transfer task ID - {} is missing".format(transferID)
+                    errStr = f"transfer task ID - {transferID} is missing"
                     tmpLog.error(errStr)
                     return None, errStr
                 # succeeded in finding a transfer task by tranferID
                 if transferTasks[transferID]["status"] == "SUCCEEDED":
-                    tmpLog.debug("transfer task {} succeeded".format(transferID))
+                    tmpLog.debug(f"transfer task {transferID} succeeded")
                     self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
                     if self.changeFileStatusOnSuccess:
                         self.set_FileSpec_status(jobspec, "finished")
                     return True, ""
                 # failed
                 if transferTasks[transferID]["status"] == "FAILED":
-                    errStr = "transfer task {} failed".format(transferID)
+                    errStr = f"transfer task {transferID} failed"
                     tmpLog.error(errStr)
                     self.set_FileSpec_status(jobspec, "failed")
                     return False, errStr
                 # another status
-                tmpStr = "transfer task {0} status: {1}".format(transferID, transferTasks[transferID]["status"])
+                tmpStr = f"transfer task {transferID} status: {transferTasks[transferID]['status']}"
                 tmpLog.debug(tmpStr)
                 return None, ""
         # end of loop over transfer groups
@@ -413,9 +410,7 @@ class GlobusBulkStager(BaseStager):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(
-            _logger, "PandaID={0}  ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="trigger_stage_out"
-        )
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}  ThreadID={threading.current_thread().ident}", method_name="trigger_stage_out")
         tmpLog.debug("start")
 
         # default return
@@ -426,18 +421,18 @@ class GlobusBulkStager(BaseStager):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # test we have a Globus Transfer Client
         if not self.tc:
             errStr = "failed to get Globus Transfer Client"
             tmpLog.error(errStr)
             return False, errStr
         # show the dummy transfer id and set to a value with the PandaID if needed.
-        tmpLog.debug("self.dummy_transfer_id = {}".format(self.dummy_transfer_id))
-        if self.dummy_transfer_id == "{0}_{1}".format(dummy_transfer_id_base, "XXXX"):
+        tmpLog.debug(f"self.dummy_transfer_id = {self.dummy_transfer_id}")
+        if self.dummy_transfer_id == f"{dummy_transfer_id_base}_XXXX":
             old_dummy_transfer_id = self.dummy_transfer_id
-            self.dummy_transfer_id = "{0}_{1}".format(dummy_transfer_id_base, jobspec.computingSite)
-            tmpLog.debug("Change self.dummy_transfer_id  from {0} to {1}".format(old_dummy_transfer_id, self.dummy_transfer_id))
+            self.dummy_transfer_id = f"{dummy_transfer_id_base}_{jobspec.computingSite}"
+            tmpLog.debug(f"Change self.dummy_transfer_id  from {old_dummy_transfer_id} to {self.dummy_transfer_id}")
         # set the dummy transfer ID which will be replaced with a real ID in check_stage_out_status()
         lfns = []
         for fileSpec in jobspec.get_output_file_specs(skip_done=True):
@@ -445,11 +440,11 @@ class GlobusBulkStager(BaseStager):
             if not fileSpec.lfn:
                 msgStr = "fileSpec.lfn is empty"
             else:
-                msgStr = "fileSpec.lfn is {0}".format(fileSpec.lfn)
+                msgStr = f"fileSpec.lfn is {fileSpec.lfn}"
                 lfns.append(fileSpec.lfn)
             tmpLog.debug(msgStr)
         jobspec.set_groups_to_files({self.dummy_transfer_id: {"lfns": lfns, "groupStatus": "pending"}})
-        msgStr = "jobspec.set_groups_to_files - self.dummy_tranfer_id - {0}, lfns - {1}, groupStatus - pending".format(self.dummy_transfer_id, lfns)
+        msgStr = f"jobspec.set_groups_to_files - self.dummy_tranfer_id - {self.dummy_transfer_id}, lfns - {lfns}, groupStatus - pending"
         tmpLog.debug(msgStr)
         tmpLog.debug("call self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),self.dummy_transfer_id,pending)")
         tmpStat = self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True), self.dummy_transfer_id, "pending")
@@ -459,12 +454,12 @@ class GlobusBulkStager(BaseStager):
     # use tar despite name for  output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0} ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)
 
     # make label for transfer task
     def make_label(self, jobspec):
-        return "OUT-{computingSite}-{PandaID}".format(computingSite=jobspec.computingSite, PandaID=jobspec.PandaID)
+        return f"OUT-{jobspec.computingSite}-{jobspec.PandaID}"
 
     # resolve input file paths
     def resolve_input_paths(self, jobspec):

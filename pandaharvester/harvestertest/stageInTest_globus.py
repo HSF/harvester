@@ -1,36 +1,38 @@
-import sys
+import datetime
+import hashlib
+import logging
 import os
 import os.path
-import hashlib
-import datetime
-import uuid
 import random
 import string
-import time
+import sys
 import threading
-import logging
-from future.utils import iteritems
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.file_spec import FileSpec
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from pandaharvester.harvesterbody.cacher import Cacher
-from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestermisc import globus_utils
+import time
+import uuid
 
-from globus_sdk import TransferClient
-from globus_sdk import TransferData
-from globus_sdk import NativeAppAuthClient
-from globus_sdk import RefreshTokenAuthorizer
+from future.utils import iteritems
+from globus_sdk import (
+    NativeAppAuthClient,
+    RefreshTokenAuthorizer,
+    TransferClient,
+    TransferData,
+)
+from pandaharvester.harvesterbody.cacher import Cacher
+from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermisc import globus_utils
 
 
 def dump(obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+            print(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 print(len(sys.argv))
@@ -73,11 +75,11 @@ for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
         stdoutHandler.setFormatter(loggerObj.handlers[0].formatter)
         loggerObj.addHandler(stdoutHandler)
 
-msgStr = "plugin={0}".format(preparatorCore.__class__.__name__)
+msgStr = f"plugin={preparatorCore.__class__.__name__}"
 tmpLog.debug(msgStr)
-msgStr = "Initial queueConfig.preparator = {}".format(initial_queueConfig_preparator)
+msgStr = f"Initial queueConfig.preparator = {initial_queueConfig_preparator}"
 tmpLog.debug(msgStr)
-msgStr = "Modified queueConfig.preparator = {}".format(modified_queueConfig_preparator)
+msgStr = f"Modified queueConfig.preparator = {modified_queueConfig_preparator}"
 tmpLog.debug(msgStr)
 
 scope = "panda"
@@ -182,26 +184,22 @@ for index in range(random.randint(1, 5)):
     assFileSpec.fsize = random.randint(10, 100)
     # create source file
     hash = hashlib.md5()
-    hash.update(("%s:%s" % (fileSpec.scope, fileSpec.lfn)).encode("utf-8"))
+    hash.update(f"{fileSpec.scope}:{fileSpec.lfn}".encode("utf-8"))
     hash_hex = hash.hexdigest()
     correctedscope = "/".join(scope.split("."))
-    fileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(
-        endPoint=queueConfig.preparator["Globus_dstPath"], scope=correctedscope, hash1=hash_hex[0:2], hash2=hash_hex[2:4], lfn=fileSpec.lfn
-    )
+    fileSpec.path = f"{queueConfig.preparator['Globus_dstPath']}/{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{fileSpec.lfn}"
     assFileSpec.path = fileSpec.path
     fileSpec.add_associated_file(assFileSpec)
     # now create the temporary file
-    tmpfile_path = "{mountPoint}/testdata/{lfn}".format(mountPoint=queueConfig.preparator["basePath"], lfn=assFileSpec.lfn)
+    tmpfile_path = f"{queueConfig.preparator['basePath']}/testdata/{assFileSpec.lfn}"
     if not os.path.exists(os.path.dirname(tmpfile_path)):
-        tmpLog.debug("os.makedirs({})".format(os.path.dirname(tmpfile_path)))
+        tmpLog.debug(f"os.makedirs({os.path.dirname(tmpfile_path)})")
         os.makedirs(os.path.dirname(tmpfile_path))
     oFile = open(tmpfile_path, "w")
     oFile.write("".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(assFileSpec.fsize)))
     oFile.close()
     # location of destination file
-    destfile_path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(
-        endPoint=queueConfig.preparator["Globus_srcPath"], scope=correctedscope, hash1=hash_hex[0:2], hash2=hash_hex[2:4], lfn=fileSpec.lfn
-    )
+    destfile_path = f"{queueConfig.preparator['Globus_srcPath']}/{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{fileSpec.lfn}"
 
     # add to Globus transfer list
     tdata.add_item(tmpfile_path, destfile_path)
@@ -210,8 +208,8 @@ for index in range(random.randint(1, 5)):
     # add input file to jobSpec
     jobSpec.add_in_file(fileSpec)
     #
-    tmpLog.debug("source file to transfer - {}".format(tmpfile_path))
-    tmpLog.debug("destination file to transfer - {}".format(destfile_path))
+    tmpLog.debug(f"source file to transfer - {tmpfile_path}")
+    tmpLog.debug(f"destination file to transfer - {destfile_path}")
     # print "dump(jobSpec)"
     # dump(jobSpec)
 # remove final ","
@@ -230,7 +228,7 @@ jobSpec.jobParams["fsize"] = fsize_str
 jobSpec.jobParams["checksum"] = checksum_str
 jobSpec.jobParams["scopeIn"] = scope_in_str
 jobSpec.jobParams["realDatasetsIn"] = realDatasetsIn_str
-msgStr = "jobSpec.jobParams ={}".format(jobSpec.jobParams)
+msgStr = f"jobSpec.jobParams ={jobSpec.jobParams}"
 tmpLog.debug(msgStr)
 
 # transfer dummy files to Remote site for input
@@ -246,7 +244,7 @@ else:
     tmpLog.error("Failed to send intial files")
     sys.exit(3)
 
-print("sleep {0} seconds".format(globus_sleep_time))
+print(f"sleep {globus_sleep_time} seconds")
 time.sleep(globus_sleep_time)
 
 # enter polling loop to see if the intial files have transfered
@@ -262,47 +260,47 @@ while (iloop < maxloop) and NotFound:
         tmpLog.error(errStr)
     else:
         # return a temporary error when task is missing
-        tmpLog.debug("transferTasks : {} ".format(transferTasks))
+        tmpLog.debug(f"transferTasks : {transferTasks} ")
         if transferID not in transferTasks:
-            errStr = "transfer task ID - {} is missing".format(transferID)
+            errStr = f"transfer task ID - {transferID} is missing"
             tmpLog.error(errStr)
         else:
             # succeeded in finding a transfer task by tranferID
             if transferTasks[transferID]["status"] == "SUCCEEDED":
-                tmpLog.debug("transfer task {} succeeded".format(transferID))
+                tmpLog.debug(f"transfer task {transferID} succeeded")
                 NotFound = False
             # failed
             if transferTasks[transferID]["status"] == "FAILED":
-                errStr = "transfer task {} failed".format(transferID)
+                errStr = f"transfer task {transferID} failed"
                 tmpLog.error(errStr)
         # another status
-        tmpStr = "transfer task {0} status: {1}".format(transferID, transferTasks[transferID]["status"])
+        tmpStr = f"transfer task {transferID} status: {transferTasks[transferID]['status']}"
         tmpLog.debug(tmpStr)
     if NotFound:
-        print("sleep {0} seconds".format(globus_sleep_time))
+        print(f"sleep {globus_sleep_time} seconds")
         time.sleep(globus_sleep_time)
         ++iloop
 
 if NotFound:
-    errStr = "transfer task ID - {} is missing".format(transferID)
+    errStr = f"transfer task ID - {transferID} is missing"
     tmpLog.error(errStr)
     sys.exit(1)
 
 # dump(queueConfig)
 
-print("plugin={0}".format(preparatorCore.__class__.__name__))
+print(f"plugin={preparatorCore.__class__.__name__}")
 
 print("testing stagein:")
-print("BasePath from preparator configuration: %s " % preparatorCore.basePath)
+print(f"BasePath from preparator configuration: {preparatorCore.basePath} ")
 
 
 tmpStat, tmpOut = preparatorCore.trigger_preparation(jobSpec)
 if tmpStat:
     print(" OK")
 else:
-    print(" NG {0}".format(tmpOut))
+    print(f" NG {tmpOut}")
 
-print("sleep {0} seconds".format(globus_sleep_time))
+print(f"sleep {globus_sleep_time} seconds")
 time.sleep(globus_sleep_time)
 
 print("testing status check")
@@ -312,7 +310,7 @@ while True:
         print(" OK")
         break
     elif tmpStat == False:
-        print(" NG {0}".format(tmpOut))
+        print(f" NG {tmpOut}")
         sys.exit(1)
     else:
         print(" still running. sleep 1 min")
@@ -321,6 +319,6 @@ while True:
 print("checking path resolution")
 tmpStat, tmpOut = preparatorCore.resolve_input_paths(jobSpec)
 if tmpStat:
-    print(" OK {0}".format(jobSpec.jobParams["inFilePaths"]))
+    print(f" OK {jobSpec.jobParams['inFilePaths']}")
 else:
-    print(" NG {0}".format(tmpOut))
+    print(f" NG {tmpOut}")

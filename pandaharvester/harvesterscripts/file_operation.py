@@ -4,13 +4,12 @@
 #   This script is meant to be able to run in any python environment since only builtin libraries are used
 
 
-import os
-import sys
 import argparse
-import zlib
-import tempfile
+import os
 import re
-
+import sys
+import tempfile
+import zlib
 
 # === Command functions =========================================================
 
@@ -110,7 +109,7 @@ def main():
         result = command(arguments)
         sys.exit(result)
     except Exception as e:
-        sys.stderr.write("{0}: {1}".format(e.__class__.__name__, e))
+        sys.stderr.write(f"{e.__class__.__name__}: {e}")
         sys.exit(1)
 
 

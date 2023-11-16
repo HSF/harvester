@@ -1,6 +1,12 @@
 import os
+
+from constants import (
+    script_lancium_path,
+    script_local_path,
+    voms_lancium_path,
+    voms_local_path,
+)
 from lancium.api.Data import Data
-from constants import voms_local_path, voms_lancium_path, script_local_path, script_lancium_path
 
 
 def fake_callback(total_chunks, current_chunk):

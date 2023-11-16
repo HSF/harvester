@@ -48,5 +48,5 @@ out, err = p.communicate()
 
 out = re.sub("^subject=", "", out)
 out = out.strip()
-print('DN: "{0}"'.format(out))
-print('extracted: "{0}"'.format(clean_user_id(out)))
+print(f'DN: "{out}"')
+print(f'extracted: "{clean_user_id(out)}"')

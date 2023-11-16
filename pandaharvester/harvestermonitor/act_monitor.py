@@ -1,11 +1,10 @@
+from act.atlas.aCTDBPanda import aCTDBPanda
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
-from pandaharvester.harvesterconfig import harvester_config
-
-from act.atlas.aCTDBPanda import aCTDBPanda
 
 # json for job report
 jsonJobReport = harvester_config.payload_interaction.jobReportFile
@@ -25,7 +24,7 @@ class ACTMonitor(PluginBase):
         try:
             self.actDB = aCTDBPanda(self.log)
         except Exception as e:
-            self.log.error("Could not connect to aCT database: {0}".format(str(e)))
+            self.log.error(f"Could not connect to aCT database: {str(e)}")
             self.actDB = None
 
     # check workers
@@ -33,23 +32,23 @@ class ACTMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
+            tmpLog = core_utils.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="check_workers")
 
             queueconfigmapper = QueueConfigMapper()
             queueconfig = queueconfigmapper.get_queue(workSpec.computingSite)
             try:
-                tmpLog.debug("Querying aCT for id {0}".format(workSpec.batchID))
+                tmpLog.debug(f"Querying aCT for id {workSpec.batchID}")
                 columns = ["actpandastatus", "pandastatus", "computingElement", "node", "error"]
-                actjobs = self.actDB.getJobs("id={0}".format(workSpec.batchID), columns)
+                actjobs = self.actDB.getJobs(f"id={workSpec.batchID}", columns)
             except Exception as e:
                 if self.actDB:
-                    tmpLog.error("Failed to query aCT DB: {0}".format(str(e)))
+                    tmpLog.error(f"Failed to query aCT DB: {str(e)}")
                 # send back current status
                 retList.append((workSpec.status, ""))
                 continue
 
             if not actjobs:
-                tmpLog.error("Job with id {0} not found in aCT".format(workSpec.batchID))
+                tmpLog.error(f"Job with id {workSpec.batchID} not found in aCT")
                 # send back current status
                 retList.append((WorkSpec.ST_failed, "Job not found in aCT"))
                 continue
@@ -72,15 +71,15 @@ class ACTMonitor(PluginBase):
                     error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
                     workSpec.set_supplemental_error(error_code=error_code, error_diag=errorMsg)
                     newStatus = WorkSpec.ST_failed
-                    tmpLog.info("ID {0} failed with error {1})".format(workSpec.batchID, errorMsg))
+                    tmpLog.info(f"ID {workSpec.batchID} failed with error {errorMsg})")
             elif actstatus in ["done", "donefailed", "donecancelled", "transferring", "tovalidate"]:
                 # NG mode: all post processing is now done in the stager
                 newStatus = WorkSpec.ST_finished
 
             if newStatus != workSpec.status:
-                tmpLog.info("ID {0} updated status {1} -> {2} ({3})".format(workSpec.batchID, workSpec.status, newStatus, actstatus))
+                tmpLog.info(f"ID {workSpec.batchID} updated status {workSpec.status} -> {newStatus} ({actstatus})")
             else:
-                tmpLog.debug("batchStatus {0} -> workerStatus {1}".format(actstatus, newStatus))
+                tmpLog.debug(f"batchStatus {actstatus} -> workerStatus {newStatus}")
 
             if actjobs[0]["computingElement"]:
                 workSpec.computingElement = actjobs[0]["computingElement"]
@@ -89,7 +88,7 @@ class ACTMonitor(PluginBase):
                     pandaid = workSpec.get_jobspec_list()[0].PandaID
                     workSpec.set_work_attributes({pandaid: {"node": actjobs[0]["node"]}})
                 except BaseException:
-                    tmpLog.warning("Could not extract panda ID for worker {0}".format(workSpec.batchID))
+                    tmpLog.warning(f"Could not extract panda ID for worker {workSpec.batchID}")
 
             retList.append((newStatus, errorMsg))
 

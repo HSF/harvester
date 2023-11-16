@@ -1,7 +1,6 @@
 import time
 
 import jwt
-
 from pandaharvester.harvesterconfig import harvester_config
 
 

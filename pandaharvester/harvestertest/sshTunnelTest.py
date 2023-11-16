@@ -1,6 +1,5 @@
-import sys
 import argparse
-
+import sys
 
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestermiddleware.ssh_tunnel_pool import sshTunnelPool
@@ -17,12 +16,12 @@ def main():
     qcm.load_data()
     queueConfig = qcm.get_queue(options.queueName)
     if queueConfig is None:
-        print("ERROR: queue={0} not found in panda_queueconfig.json".format(options.queueName))
+        print(f"ERROR: queue={options.queueName} not found in panda_queueconfig.json")
         sys.exit(1)
 
     # get middleware
     if not hasattr(queueConfig, options.middleware):
-        print("ERROR: middleware={0} is not defined for {1} in panda_queueconfig.json".format(options.middleware, options.queueName))
+        print(f"ERROR: middleware={options.middleware} is not defined for {options.queueName} in panda_queueconfig.json")
         sys.exit(1)
     middleware = getattr(queueConfig, options.middleware)
 
@@ -44,7 +43,7 @@ def main():
         try:
             privateKey = middleware["privateKey"]
         except Exception:
-            print("ERROR: set sshPassword or privateKey in middleware={0}".format(options.middleware))
+            print(f"ERROR: set sshPassword or privateKey in middleware={options.middleware}")
             sys.exit(1)
         try:
             passPhrase = middleware["passPhrase"]

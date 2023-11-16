@@ -4,7 +4,6 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.cloud_openstack_utils import OS_SimpleClient
 
-
 # setup base logger
 baseLogger = core_utils.setup_logger("cloud_openstack_sweeper")
 
@@ -20,7 +19,7 @@ class CloudOpenstackSweeper(PluginBase):
 
     def kill_worker(self, workspec):
         # set logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="kill_worker")
 
         # initial return values
         tmpRetVal = (None, "Nothing done")
@@ -30,11 +29,11 @@ class CloudOpenstackSweeper(PluginBase):
         try:
             self.vm_client.nova.servers.delete(vm_id)
         except Exception as _e:
-            errStr = "Failed to delete a VM with id={0} ; {1}".format(vm_id, _e)
+            errStr = f"Failed to delete a VM with id={vm_id} ; {_e}"
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)
         else:
-            tmpLog.info("Deleted a VM with id={0}".format(vm_id))
+            tmpLog.info(f"Deleted a VM with id={vm_id}")
             tmpRetVal = (True, "")
 
         return tmpRetVal
@@ -43,6 +42,6 @@ class CloudOpenstackSweeper(PluginBase):
 
     def sweep_worker(self, workspec):
         # set logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="sweep_worker")
 
         return True, ""

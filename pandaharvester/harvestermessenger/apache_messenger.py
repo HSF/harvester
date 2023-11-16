@@ -1,9 +1,9 @@
 import json
-from pandaharvester.harvestercore import core_utils
+
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermessenger import http_server_messenger
 from pandaharvester.harvestermisc.frontend_utils import HarvesterToken
-
 
 # logger
 _logger = core_utils.setup_logger("apache_messenger")
@@ -51,7 +51,7 @@ def application(environ, start_response):
         try:
             request_body_size = int(environ.get("CONTENT_LENGTH", 0))
         except Exception as e:
-            _logger.warning("Zero request body due to {0}: {1}".format(e.__class__.__name__, e))
+            _logger.warning(f"Zero request body due to {e.__class__.__name__}: {e}")
             request_body_size = 0
         # check token
         if getattr(harvester_config.frontend, "authEnable", True):
@@ -60,7 +60,7 @@ def application(environ, start_response):
                 token = HarvesterToken()
                 payload = token.get_payload(auth_str)
             except Exception as e:
-                _logger.warning("Invalid token due to {0}: {1}".format(e.__class__.__name__, e))
+                _logger.warning(f"Invalid token due to {e.__class__.__name__}: {e}")
                 errMsg = "Auth failed: Invalid token"
                 start_response("403 Forbidden", [("Content-Type", "text/plain")])
                 return [errMsg.encode("ascii")]
@@ -72,8 +72,8 @@ def application(environ, start_response):
         # execute
         handler.do_POST()
         # make response
-        _logger.debug("{0} Phrase".format(handler.responseCode))
-        start_response("{0} Phrase".format(handler.responseCode), handler.headerList)
+        _logger.debug(f"{handler.responseCode} Phrase")
+        start_response(f"{handler.responseCode} Phrase", handler.headerList)
         return [handler.message]
     except Exception:
         errMsg = core_utils.dump_error_message(_logger)

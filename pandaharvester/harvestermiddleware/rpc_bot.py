@@ -1,13 +1,11 @@
-import os
 import argparse
 import logging
+import os
 
-import rpyc
 import daemon
 import daemon.pidfile
-
+import rpyc
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
-
 
 # rpyc configuration
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
@@ -23,7 +21,7 @@ def setupLogger(logger, pid=None, to_file=None):
 
     def emit_decorator(fn):
         def func(*args):
-            formatter = logging.Formatter("%(asctime)s %(levelname)s]({0})(%(name)s.%(funcName)s) %(message)s".format(pid))
+            formatter = logging.Formatter(f"%(asctime)s %(levelname)s]({pid})(%(name)s.%(funcName)s) %(message)s")
             hdlr.setFormatter(formatter)
             return fn(*args)
 

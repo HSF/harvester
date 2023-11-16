@@ -2,12 +2,13 @@
 interface to give limited database access to plugins
 """
 
-import os
 import logging
+import os
 import threading
 
-from .db_proxy_pool import DBProxyPool
 from pandaharvester.harvesterconfig import harvester_config
+
+from .db_proxy_pool import DBProxyPool
 
 
 class DBInterface(object):
@@ -38,7 +39,7 @@ class DBInterface(object):
             thrName = currentThr.ident
         else:
             thrName = None
-        return "plugin-{0}-{1}".format(os.getpid(), thrName)
+        return f"plugin-{os.getpid()}-{thrName}"
 
     # get a lock for an object
     def get_object_lock(self, object_name, lock_interval):

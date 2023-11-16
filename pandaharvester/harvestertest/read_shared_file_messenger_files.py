@@ -1,24 +1,23 @@
 #!/bin/env python
+import fnmatch
 import json
 import os
-import re
 import os.path
-import tarfile
-import fnmatch
+import re
 import sys
+import tarfile
 from pprint import pprint
 
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
-from pandaharvester.harvestercore.job_spec import JobSpec
-
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.file_spec import FileSpec
-from pandaharvester.harvestercore.event_spec import EventSpec
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore.event_spec import EventSpec
+from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # list of shared_file_messenger files
 file_list = []
@@ -64,9 +63,9 @@ access_point = sys.argv[1]
 
 # Now loop over all of the json files "
 for description, jsonFileName in file_list:
-    print("{0} : {1}".format(description, jsonFileName))
+    print(f"{description} : {jsonFileName}")
     jsonFilePath = os.path.join(access_point, jsonFileName)
-    print("looking for attributes file {0}".format(jsonFilePath))
+    print(f"looking for attributes file {jsonFilePath}")
     if not os.path.exists(jsonFilePath):
         # not found
         print("not found")
@@ -76,5 +75,5 @@ for description, jsonFileName in file_list:
                 data = json.load(data_file)
             pprint(data)
         except BaseException:
-            print("failed to load {0}".format(jsonFilePath))
+            print(f"failed to load {jsonFilePath}")
             continue

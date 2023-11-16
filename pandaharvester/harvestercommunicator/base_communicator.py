@@ -4,8 +4,8 @@ Base class to communicate with WMS
 """
 
 import abc
-from future.utils import with_metaclass
 
+from future.utils import with_metaclass
 from pandaharvester.harvestercore import core_utils
 
 # logger

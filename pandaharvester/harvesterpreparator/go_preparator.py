@@ -1,15 +1,16 @@
-from pandaharvester.harvestermisc import globus_utils
-import sys
 import os
+import sys
+
 from future.utils import iteritems
-from globus_sdk import TransferClient
-from globus_sdk import TransferData
-from globus_sdk import NativeAppAuthClient
-from globus_sdk import RefreshTokenAuthorizer
-
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
+from globus_sdk import (
+    NativeAppAuthClient,
+    RefreshTokenAuthorizer,
+    TransferClient,
+    TransferData,
+)
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestermisc import globus_utils
 from pandaharvester.harvestermover import mover_utils
 
 # logger
@@ -19,7 +20,7 @@ _logger = core_utils.setup_logger()
 def dump(obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+            print(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 # preparator with Globus Online
@@ -56,7 +57,7 @@ class GoPreparator(PluginBase):
     # check status
     def check_stage_in_status(self, jobspec):
         # get logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="check_stage_in_status")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="check_stage_in_status")
         # get groups of input files except ones already in ready state
         transferGroups = jobspec.get_groups_of_input_files(skip_ready=True)
         # print type(transferGroups)," ",transferGroups
@@ -64,7 +65,7 @@ class GoPreparator(PluginBase):
 
         # get label
         label = self.make_label(jobspec)
-        tmpLog.debug("label={0}".format(label))
+        tmpLog.debug(f"label={label}")
         # get transfer task
         tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog, self.tc, label)
         # return a temporary error when failed to get task
@@ -89,14 +90,14 @@ class GoPreparator(PluginBase):
             tmpLog.error(errStr)
             return False, errStr
         # another status
-        tmpStr = "transfer task is in {0}".format(transferTasks[label]["status"])
+        tmpStr = f"transfer task is in {transferTasks[label]['status']}"
         tmpLog.debug(tmpStr)
         return None, ""
 
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # get logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="trigger_preparation")
         tmpLog.debug("start")
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
@@ -104,7 +105,7 @@ class GoPreparator(PluginBase):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # test we have a Globus Transfer Client
         if not self.tc:
             errStr = "failed to get Globus Transfer Client"
@@ -112,7 +113,7 @@ class GoPreparator(PluginBase):
             return False, errStr
         # get label
         label = self.make_label(jobspec)
-        tmpLog.debug("label={0}".format(label))
+        tmpLog.debug(f"label={label}")
         # get transfer tasks
         tmpStat, transferTasks = globus_utils.get_transfer_tasks(tmpLog, self.tc, label)
         if not tmpStat:
@@ -121,7 +122,7 @@ class GoPreparator(PluginBase):
             return False, errStr
         # check if already queued
         if label in transferTasks:
-            tmpLog.debug("skip since already queued with {0}".format(str(transferTasks[label])))
+            tmpLog.debug(f"skip since already queued with {str(transferTasks[label])}")
             return True, ""
         # set the Globus destination Endpoint id and path will get them from Agis eventually
         from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
@@ -149,7 +150,7 @@ class GoPreparator(PluginBase):
             Globus_dstpath = mover_utils.construct_file_path(self.Globus_dstPath, inFile["scope"], inLFN)
             files.append({"scope": inFile["scope"], "name": inLFN, "Globus_dstPath": Globus_dstpath, "Globus_srcPath": Globus_srcpath})
             lfns.append(inLFN)
-        tmpLog.debug("files[] {0}".format(files))
+        tmpLog.debug(f"files[] {files}")
         try:
             # Test endpoints for activation
             tmpStatsrc, srcStr = globus_utils.check_endpoint_activation(tmpLog, self.tc, self.srcEndpoint)
@@ -193,7 +194,7 @@ class GoPreparator(PluginBase):
     # make label for transfer task
 
     def make_label(self, jobspec):
-        return "IN-{computingSite}-{PandaID}".format(computingSite=jobspec.computingSite, PandaID=jobspec.PandaID)
+        return f"IN-{jobspec.computingSite}-{jobspec.PandaID}"
 
     # resolve input file paths
     def resolve_input_paths(self, jobspec):

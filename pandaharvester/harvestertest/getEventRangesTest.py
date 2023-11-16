@@ -3,7 +3,6 @@ import sys
 
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
-
 pandaid = int(sys.argv[1])
 jobsetid = int(sys.argv[2])
 taskid = int(sys.argv[3])

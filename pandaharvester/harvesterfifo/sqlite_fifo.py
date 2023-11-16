@@ -1,16 +1,15 @@
 import os
-import time
 import re
-
 import sqlite3
+import time
 
 try:
     from threading import get_ident
 except ImportError:
     from thread import get_ident
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
 try:
     memoryviewOrBuffer = buffer
@@ -174,9 +173,9 @@ class SqliteFifo(PluginBase):
     # dequeue list of objects with some conditions
     def getmany(self, mode="first", minscore=None, maxscore=None, count=None, protective=False, temporary=False):
         temporary_str = "temporary = 1" if temporary else "temporary = 0"
-        minscore_str = "" if minscore is None else "AND score >= {0}".format(float(minscore))
-        maxscore_str = "" if maxscore is None else "AND score <= {0}".format(float(maxscore))
-        count_str = "" if count is None else "LIMIT {0}".format(int(count))
+        minscore_str = "" if minscore is None else f"AND score >= {float(minscore)}"
+        maxscore_str = "" if maxscore is None else f"AND score <= {float(maxscore)}"
+        count_str = "" if count is None else f"LIMIT {int(count)}"
         mode_rank_map = {
             "first": "",
             "last": "DESC",

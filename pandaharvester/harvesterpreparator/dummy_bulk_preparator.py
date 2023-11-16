@@ -1,11 +1,11 @@
-import uuid
 import datetime
 import threading
-from future.utils import iteritems
+import uuid
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore import core_utils
+from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
 # dummy transfer identifier
 dummy_transfer_id_base = "dummy_id_for_in"
@@ -28,7 +28,7 @@ class DummyBulkPreparator(PluginBase):
         PluginBase.__init__(self, **kwarg)
         with uLock:
             global uID
-            self.dummy_transfer_id = "{0}_{1}".format(dummy_transfer_id_base, uID)
+            self.dummy_transfer_id = f"{dummy_transfer_id_base}_{uID}"
             uID += 1
             uID %= harvester_config.preparator.nThreads
 
@@ -71,9 +71,9 @@ class DummyBulkPreparator(PluginBase):
                     transferID = str(uuid.uuid4())
                     # set the real transfer ID
                     self.dbInterface.set_file_group(fileSpecs, transferID, "running")
-                    msgStr = "real transfer submitted with ID={0}".format(transferID)
+                    msgStr = f"real transfer submitted with ID={transferID}"
                 else:
-                    msgStr = "wait until enough files are pooled with {0}".format(self.dummy_transfer_id)
+                    msgStr = f"wait until enough files are pooled with {self.dummy_transfer_id}"
                 # release the lock
                 self.dbInterface.release_object_lock(self.dummy_transfer_id)
                 # return None to retry later
@@ -102,7 +102,7 @@ class DummyBulkPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
         for inLFN, inFile in iteritems(inFiles):
-            inFile["path"] = "dummypath/{0}".format(inLFN)
+            inFile["path"] = f"dummypath/{inLFN}"
         # set
         jobspec.set_input_file_paths(inFiles)
         return True, ""

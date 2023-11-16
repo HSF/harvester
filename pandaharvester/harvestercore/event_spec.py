@@ -3,8 +3,8 @@ Event spec class
 
 """
 
-from past.builtins import long
 from future.utils import iteritems
+from past.builtins import long
 
 from .spec_base import SpecBase
 

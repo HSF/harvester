@@ -2,8 +2,8 @@
 
 import os
 import re
-from future.utils import iteritems
 
+from future.utils import iteritems
 from pandalogger import logger_config
 
 logdir = logger_config.daemon["logdir"]
@@ -43,14 +43,14 @@ aveList = sorted(aData.keys())
 aveList.reverse()
 
 print
-print("Execution time summary : top {0}".format(nS))
+print(f"Execution time summary : top {nS}")
 print(" average      max   n_call  method")
 print("-------------------------------------------------")
 i = 0
 escape = False
 for ave in aveList:
     for method in aData[ave]:
-        print("{0:8.2f} {1:8.2f} {2:8d}  {3}".format(ave, max(data[method]), len(data[method]), method))
+        print(f"{ave:8.2f} {max(data[method]):8.2f} {len(data[method]):8d}  {method}")
         i += 1
         if i >= nS:
             escape = True
@@ -63,14 +63,14 @@ longList = sorted(lData.keys())
 longList.reverse()
 
 print
-print("Long execution method : top {0}".format(nL))
+print(f"Long execution method : top {nL}")
 print(" method                           time")
 print("-------------------------------------------------")
 i = 0
 escape = False
 for val in longList:
     for method in lData[val]:
-        print(" {0:30} {1:8.2f}".format(method, val))
+        print(f" {method:30} {val:8.2f}")
         i += 1
         if i >= nL:
             escape = True

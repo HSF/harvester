@@ -1,24 +1,25 @@
-import os
-import errno
 import datetime
-import tempfile
-import threading
-import random
+import errno
 import json
+import os
+import random
 import re
 import socket
-
+import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermisc.htcondor_utils import (
+    CondorJobSubmit,
+    get_job_id_tuple_from_batchid,
+)
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestermisc.token_utils import endpoint_to_filename
-from pandaharvester.harvestermisc.htcondor_utils import get_job_id_tuple_from_batchid
-from pandaharvester.harvestermisc.htcondor_utils import CondorJobSubmit
 from pandaharvester.harvestersubmitter import submitter_common
 
 # logger
@@ -57,7 +58,7 @@ def submit_bag_of_workers(data_list):
         to_submit = data["to_submit"]
         # no need to submit bad worker
         if not to_submit:
-            errStr = "{0} not submitted due to incomplete data of the worker".format(workerID)
+            errStr = f"{workerID} not submitted due to incomplete data of the worker"
             tmpLog.warning(errStr)
             tmpRetVal = (None, errStr)
             # return tmpRetVal, workspec.get_changed_attributes()
@@ -66,7 +67,7 @@ def submit_bag_of_workers(data_list):
         try:
             use_spool = data["use_spool"]
         except KeyError:
-            errStr = "{0} not submitted due to incomplete data of the worker".format(workerID)
+            errStr = f"{workerID} not submitted due to incomplete data of the worker"
             tmpLog.warning(errStr)
             tmpRetVal = (None, errStr)
             # return tmpRetVal, workspec.get_changed_attributes()
@@ -85,26 +86,26 @@ def submit_bag_of_workers(data_list):
         # make jdl string of workers
         jdl_list = [val[1] for val in val_list]
         # condor job submit object
-        tmpLog.debug("submitting to submissionHost={0}".format(host))
+        tmpLog.debug(f"submitting to submissionHost={host}")
         # submit
         try:
             condor_job_submit = CondorJobSubmit(id=host)
             batchIDs_list, ret_err_str = condor_job_submit.submit(jdl_list, use_spool=use_spool)
         except Exception as e:
             batchIDs_list = None
-            ret_err_str = "Exception {0}: {1}".format(e.__class__.__name__, e)
+            ret_err_str = f"Exception {e.__class__.__name__}: {e}"
         # result
         if batchIDs_list:
             # submitted
             n_workers = len(val_list)
-            tmpLog.debug("submitted {0} workers to submissionHost={1}".format(n_workers, host))
+            tmpLog.debug(f"submitted {n_workers} workers to submissionHost={host}")
             for val_i in range(n_workers):
                 val = val_list[val_i]
                 workspec = val[0]
                 placeholder_map = val[2]
                 # got batchID
                 workspec.batchID = batchIDs_list[val_i]
-                tmpLog.debug("workerID={0} submissionHost={1} batchID={2}".format(workspec.workerID, workspec.submissionHost, workspec.batchID))
+                tmpLog.debug(f"workerID={workspec.workerID} submissionHost={workspec.submissionHost} batchID={workspec.batchID}")
                 # get worker data
                 data = worker_data_map[workspec.workerID]
                 # set computingElement
@@ -117,7 +118,7 @@ def submit_bag_of_workers(data_list):
                 batch_stdout = _condor_macro_replace(batch_log_dict["batch_stdout"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
                 batch_stderr = _condor_macro_replace(batch_log_dict["batch_stderr"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
                 try:
-                    batch_jdl = "{0}.jdl".format(batch_stderr[:-4])
+                    batch_jdl = f"{batch_stderr[:-4]}.jdl"
                 except Exception:
                     batch_jdl = None
                 workspec.set_log_file("batch_log", batch_log)
@@ -125,21 +126,21 @@ def submit_bag_of_workers(data_list):
                 workspec.set_log_file("stderr", batch_stderr)
                 workspec.set_log_file("jdl", batch_jdl)
                 if not workspec.get_jobspec_list():
-                    tmpLog.debug("No jobspec associated in the worker of workerID={0}".format(workspec.workerID))
+                    tmpLog.debug(f"No jobspec associated in the worker of workerID={workspec.workerID}")
                 else:
                     for jobSpec in workspec.get_jobspec_list():
                         # using batchLog and stdOut URL as pilotID and pilotLog
                         jobSpec.set_one_attribute("pilotID", workspec.workAttributes["stdOut"])
                         jobSpec.set_one_attribute("pilotLog", workspec.workAttributes["batchLog"])
-                tmpLog.debug("Done set_log_file after submission of workerID={0}".format(workspec.workerID))
+                tmpLog.debug(f"Done set_log_file after submission of workerID={workspec.workerID}")
                 tmpRetVal = (True, "")
                 worker_retval_map[workspec.workerID] = (tmpRetVal, workspec.get_changed_attributes())
         else:
             # failed
-            tmpLog.debug("failed to submit workers to submissionHost={0} ; {1}".format(host, ret_err_str))
+            tmpLog.debug(f"failed to submit workers to submissionHost={host} ; {ret_err_str}")
             for val in val_list:
                 workspec = val[0]
-                errStr = "submission failed: {0}".format(ret_err_str)
+                errStr = f"submission failed: {ret_err_str}"
                 tmpLog.error(errStr)
                 tmpRetVal = (None, errStr)
                 worker_retval_map[workspec.workerID] = (tmpRetVal, workspec.get_changed_attributes())
@@ -173,10 +174,10 @@ def make_a_jdl(
     prod_rc_permille=0,
     token_dir=None,
     is_gpu_resource=False,
-    **kwarg
+    **kwarg,
 ):
     # make logger
-    tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="make_a_jdl")
+    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="make_a_jdl")
     # Note: In workspec, unit of minRamCount and of maxDiskCount are both MB.
     #       In HTCondor SDF, unit of request_memory is MB, and request_disk is KB.
     n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
@@ -193,7 +194,7 @@ def make_a_jdl(
             "maxWallTime",
             "xcount",
         ]
-        _match_special_par_dict = {attr: re.search("\({attr}=([^)]+)\)".format(attr=attr), special_par) for attr in special_par_attr_list}
+        _match_special_par_dict = {attr: re.search(f"\\({attr}=([^)]+)\\)", special_par) for attr in special_par_attr_list}
         for attr, _match in _match_special_par_dict.items():
             if not _match:
                 continue
@@ -203,7 +204,7 @@ def make_a_jdl(
                 request_walltime = int(_match.group(1))
             elif attr == "xcount":
                 n_core_total = int(_match.group(1))
-            tmpLog.debug("job attributes override by CRIC special_par: {0}={1}".format(attr, str(_match.group(1))))
+            tmpLog.debug(f"job attributes override by CRIC special_par: {attr}={str(_match.group(1))}")
     # derived job attributes
     n_node = ceil(n_core_total / n_core_per_node)
     request_ram_bytes = request_ram * 2**20
@@ -232,7 +233,7 @@ def make_a_jdl(
     if token_dir is not None and token_filename is not None:
         token_path = os.path.join(token_dir, token_filename)
     else:
-        tmpLog.warning("token_path is None: site={0}, token_dir={1} , token_filename={2}".format(panda_queue_name, token_dir, token_filename))
+        tmpLog.warning(f"token_path is None: site={panda_queue_name}, token_dir={token_dir} , token_filename={token_filename}")
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_submit.sdf", dir=workspec.get_access_point())
     # placeholder map
@@ -293,7 +294,7 @@ def make_a_jdl(
     # save jdl to submit description file
     tmpFile.write(jdl_str)
     tmpFile.close()
-    tmpLog.debug("saved sdf at {0}".format(tmpFile.name))
+    tmpLog.debug(f"saved sdf at {tmpFile.name}")
     tmpLog.debug("done")
     return jdl_str, placeholder_map
 
@@ -312,7 +313,7 @@ def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
         _suffix = _sanitized_list[-1] if len(_sanitized_list) > 1 else ""
 
         for _f in os.listdir(file_dir):
-            if re.match("{prefix}(.*)\.{batchID}\.(.*)\.{suffix}".format(prefix=_prefix, suffix=_suffix, batchID=batchID), _f):
+            if re.match(f"{_prefix}(.*)\\.{batchID}\\.(.*)\\.{_suffix}", _f):
                 return _f
         return None
 
@@ -351,7 +352,7 @@ class HTCondorSubmitter(PluginBase):
                     if not os.path.exists(self.logDir):
                         os.mkdir(self.logDir)
                 except Exception as ex:
-                    tmpLog.debug("Failed to create logDir(%s): %s" % (self.logDir, str(ex)))
+                    tmpLog.debug(f"Failed to create logDir({self.logDir}): {str(ex)}")
         except AttributeError:
             self.logDir = os.getenv("TMPDIR") or "/tmp"
         # log base url
@@ -444,7 +445,7 @@ class HTCondorSubmitter(PluginBase):
                         self.condorPool.append(_pool)
                         self.condorHostWeight.append(_weight)
             except Exception as e:
-                tmpLog.error("error when parsing condorHostConfig json file; {0}: {1}".format(e.__class__.__name__, e))
+                tmpLog.error(f"error when parsing condorHostConfig json file; {e.__class__.__name__}: {e}")
                 raise
         else:
             if isinstance(self.condorSchedd, list):
@@ -507,10 +508,10 @@ class HTCondorSubmitter(PluginBase):
 
     # submit workers
     def submit_workers(self, workspec_list):
-        tmpLog = self.make_logger(baseLogger, "site={0}".format(self.queueName), method_name="submit_workers")
+        tmpLog = self.make_logger(baseLogger, f"site={self.queueName}", method_name="submit_workers")
 
         nWorkers = len(workspec_list)
-        tmpLog.debug("start nWorkers={0}".format(nWorkers))
+        tmpLog.debug(f"start nWorkers={nWorkers}")
 
         # whether to submit any worker
         to_submit_any = True
@@ -539,6 +540,8 @@ class HTCondorSubmitter(PluginBase):
         # get queue info from CRIC by cacher in db
         if self.useCRIC:
             panda_queues_dict = PandaQueuesDict()
+            panda_queues_dict_last_refresh = datetime.datetime.utcfromtimestamp(panda_queues_dict.last_refresh_ts)
+            tmpLog.debug(f"PandaQueuesDict last refresh at {panda_queues_dict_last_refresh}")
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
             is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
@@ -627,7 +630,7 @@ class HTCondorSubmitter(PluginBase):
                     else:
                         # change port 2811 to 443
                         ce_endpoint_from_queue = re.sub(r":2811$", ":443", ce_endpoint_from_queue)
-                    ce_info_dict["ce_endpoint"] = "{0}{1}".format(ce_endpoint_from_queue, ":{0}".format(default_port) if default_port is not None else "")
+                    ce_info_dict["ce_endpoint"] = f"{ce_endpoint_from_queue}{f':{default_port}' if default_port is not None else ''}"
                 else:
                     if ce_info_dict["ce_hostname"] == ce_endpoint_from_queue:
                         # add default port to ce_endpoint if missing
@@ -638,10 +641,10 @@ class HTCondorSubmitter(PluginBase):
                         }
                         if ce_flavour_str in default_port_map:
                             default_port = default_port_map[ce_flavour_str]
-                            ce_info_dict["ce_endpoint"] = "{0}:{1}".format(ce_endpoint_from_queue, default_port)
+                            ce_info_dict["ce_endpoint"] = f"{ce_endpoint_from_queue}:{default_port}"
                     if ce_flavour_str == "arc-ce":
-                        ce_info_dict["ce_endpoint"] = "{0}".format(ce_endpoint_from_queue)
-                tmpLog.debug('Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(pilot_version, ce_endpoint_from_queue, ce_flavour_str))
+                        ce_info_dict["ce_endpoint"] = f"{ce_endpoint_from_queue}"
+                tmpLog.debug(f'Got pilot version: "{pilot_version}"; CE endpoint: "{ce_endpoint_from_queue}", flavour: "{ce_flavour_str}"')
                 ce_endpoint = ce_info_dict.get("ce_endpoint")
                 if ce_endpoint in ce_auxilary_dict and str(ce_info_dict.get("ce_queue_name", "")).lower() == "default":
                     pass
@@ -658,14 +661,14 @@ class HTCondorSubmitter(PluginBase):
                     ce_endpoint_list=list(ce_auxilary_dict.keys()), worker_ce_all_tuple=worker_ce_all_tuple, is_slave_queue=is_slave_queue
                 )
                 stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(ce_auxilary_dict.keys(), worker_ce_all_tuple, ce_weighting)
-                tmpLog.debug("CE stats and weighting: {0}".format(stats_weighting_display_str))
+                tmpLog.debug(f"CE stats and weighting: {stats_weighting_display_str}")
             else:
                 tmpLog.error("No valid CE endpoint found")
                 to_submit_any = False
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, "site={0} workerID={1}".format(self.queueName, workspec.workerID), method_name="_handle_one_worker")
+            tmpLog = core_utils.make_logger(baseLogger, f"site={self.queueName} workerID={workspec.workerID}", method_name="_handle_one_worker")
 
             def _choose_credential(workspec):
                 """
@@ -706,16 +709,14 @@ class HTCondorSubmitter(PluginBase):
                         tmpLog.info("Problem choosing CE with weighting. Choose an arbitrary CE endpoint")
                         ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
                     ce_flavour_str = str(ce_info_dict.get("ce_flavour", "")).lower()
-                    tmpLog.debug(
-                        'Got pilot version: "{0}"; CE endpoint: "{1}", flavour: "{2}"'.format(pilot_version, ce_info_dict["ce_endpoint"], ce_flavour_str)
-                    )
+                    tmpLog.debug(f"Got pilot version: \"{pilot_version}\"; CE endpoint: \"{ce_info_dict['ce_endpoint']}\", flavour: \"{ce_flavour_str}\"")
                     if self.templateFile:
                         sdf_template_file = self.templateFile
                     elif os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                         sdf_suffix_str = ""
                         if ce_info_dict["ce_grid_type"]:
-                            sdf_suffix_str = "_{ce_grid_type}".format(ce_grid_type=ce_info_dict["ce_grid_type"])
-                        sdf_template_filename = "{ce_flavour_str}{sdf_suffix_str}.sdf".format(ce_flavour_str=ce_flavour_str, sdf_suffix_str=sdf_suffix_str)
+                            sdf_suffix_str = f"_{ce_info_dict['ce_grid_type']}"
+                        sdf_template_filename = f"{ce_flavour_str}{sdf_suffix_str}.sdf"
                         sdf_template_file = os.path.join(self.CEtemplateDir, sdf_template_filename)
                 else:
                     if self.templateFile:
@@ -774,8 +775,8 @@ class HTCondorSubmitter(PluginBase):
                     if not condor_schedd and not condor_pool:
                         workspec.submissionHost = "LOCAL"
                     else:
-                        workspec.submissionHost = "{0},{1}".format(condor_schedd, condor_pool)
-                    tmpLog.debug("set submissionHost={0}".format(workspec.submissionHost))
+                        workspec.submissionHost = f"{condor_schedd},{condor_pool}"
+                    tmpLog.debug(f"set submissionHost={workspec.submissionHost}")
                     # Log Base URL
                     if self.logBaseURL and "[ScheddHostname]" in self.logBaseURL:
                         schedd_hostname = re.sub(
@@ -797,9 +798,9 @@ class HTCondorSubmitter(PluginBase):
                         batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
                         stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
                         stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                        batch_log = "{0}/{1}/{2}".format(log_base_url, log_subdir, batch_log_filename)
-                        batch_stdout = "{0}/{1}/{2}".format(log_base_url, log_subdir, stdout_path_file_name)
-                        batch_stderr = "{0}/{1}/{2}".format(log_base_url, log_subdir, stderr_path_filename)
+                        batch_log = f"{log_base_url}/{log_subdir}/{batch_log_filename}"
+                        batch_stdout = f"{log_base_url}/{log_subdir}/{stdout_path_file_name}"
+                        batch_stderr = f"{log_base_url}/{log_subdir}/{stderr_path_filename}"
                         workspec.set_log_file("batch_log", batch_log)
                         workspec.set_log_file("stdout", batch_stdout)
                         workspec.set_log_file("stderr", batch_stderr)
@@ -847,7 +848,7 @@ class HTCondorSubmitter(PluginBase):
 
         def _propagate_attributes(workspec, tmpVal):
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="_propagate_attributes")
+            tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_propagate_attributes")
             (retVal, tmpDict) = tmpVal
             workspec.set_attributes_with_dict(tmpDict)
             tmpLog.debug("Done workspec attributes propagation")
@@ -858,11 +859,11 @@ class HTCondorSubmitter(PluginBase):
         # map(_handle_one_worker, workspec_list)
         with ThreadPoolExecutor(self.nProcesses * 4) as thread_pool:
             dataIterator = thread_pool.map(_handle_one_worker, workspec_list)
-        tmpLog.debug("{0} workers handled".format(nWorkers))
+        tmpLog.debug(f"{nWorkers} workers handled")
 
         # submit
         retValList = submit_bag_of_workers(list(dataIterator))
-        tmpLog.debug("{0} workers submitted".format(nWorkers))
+        tmpLog.debug(f"{nWorkers} workers submitted")
 
         # propagate changed attributes
         with ThreadPoolExecutor(self.nProcesses) as thread_pool:

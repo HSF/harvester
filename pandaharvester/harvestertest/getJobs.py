@@ -1,11 +1,11 @@
 #
 # This file is used to call the dbproxy and get the list of all jobs in the database
 #
+import logging
 import os
 import sys
-import logging
-from future.utils import iteritems
 
+from future.utils import iteritems
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
@@ -28,7 +28,7 @@ proxy = DBProxy()
 # get all jobs in table
 print("try to get all jobs")
 alljobs = proxy.get_jobs()
-print("got {0} jobs".format(len(alljobs)))
+print(f"got {len(alljobs)} jobs")
 # loop over all found jobs
 if len(alljobs) > 0:
     for jobSpec in alljobs:

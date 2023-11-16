@@ -1,8 +1,8 @@
 import os
 import sys
 
-from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestermessenger import shared_file_messenger
 
 workerID = int(sys.argv[1])

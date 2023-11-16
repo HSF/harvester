@@ -3,14 +3,14 @@ import sys
 import traceback
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestersubmitter.apfgrid_submitter import APFGridSubmitter
 
 try:
     from autopyfactory import condorlib
 except ImportError:
-    logging.error("Unable to import htcondor/condorlib. sys.path=%s" % sys.path)
+    logging.error(f"Unable to import htcondor/condorlib. sys.path={sys.path}")
 
 # setup base logger
 baseLogger = core_utils.setup_logger()
@@ -53,7 +53,7 @@ class APFGridSweeper(object):
     def _updateJobInfo(self):
         self.log.debug("Getting job info from Condor...")
         out = condorlib.condor_q(APFGridSweeper.JOBQUERYATTRIBUTES)
-        self.log.debug("Got jobinfo %s" % out)
+        self.log.debug(f"Got jobinfo {out}")
         self.jobinfo = out
         for jobad in self.jobinfo:
             try:
@@ -62,7 +62,7 @@ class APFGridSweeper(object):
             except KeyError:
                 # some non-harvester jobs may not have workerids, ignore them
                 pass
-        self.log.debug("All jobs indexed by worker_id. %d entries." % len(self.allbyworkerid))
+        self.log.debug(f"All jobs indexed by worker_id. {len(self.allbyworkerid)} entries.")
 
     # kill a worker
 
@@ -80,12 +80,12 @@ class APFGridSweeper(object):
             jobad = self.allbyworkerid(workspec.workerID)
             clusterid = jobad["clusterid"]
             procid = jobad["procid"]
-            killstr = "%s.%s" % (clusterid, procid)
-            self.log.debug("Killing condor job %s ..." % killstr)
+            killstr = f"{clusterid}.{procid}"
+            self.log.debug(f"Killing condor job {killstr} ...")
             condorlib.condor_rm([killstr])
-            self.log.debug("Killed condor job %s with workerid %s" % (killstr, workspec.workerID))
+            self.log.debug(f"Killed condor job {killstr} with workerid {workspec.workerID}")
         except KeyError:
-            self.log.warning("kill_worker called on non-existent workerid: %s" % workspec.workerID)
+            self.log.warning(f"kill_worker called on non-existent workerid: {workspec.workerID}")
 
         return True, ""
 

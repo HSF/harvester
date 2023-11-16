@@ -1,5 +1,6 @@
-import uuid
 import os
+import uuid
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -36,20 +37,20 @@ class DummySubmitter(PluginBase):
         :rtype: [(bool, string),]
         """
         tmpLog = self.make_logger(baseLogger, method_name="submit_workers")
-        tmpLog.debug("start nWorkers={0}".format(len(workspec_list)))
+        tmpLog.debug(f"start nWorkers={len(workspec_list)}")
         retList = []
         for workSpec in workspec_list:
-            workSpec.batchID = "batch_ID_{0}".format(uuid.uuid4().hex)
+            workSpec.batchID = f"batch_ID_{uuid.uuid4().hex}"
             workSpec.queueName = "batch_queue_name"
             workSpec.computingElement = "CE_name"
-            workSpec.set_log_file("batch_log", "{0}/{1}.log".format(self.logBaseURL, workSpec.batchID))
-            workSpec.set_log_file("stdout", "{0}/{1}.out".format(self.logBaseURL, workSpec.batchID))
-            workSpec.set_log_file("stderr", "{0}/{1}.err".format(self.logBaseURL, workSpec.batchID))
+            workSpec.set_log_file("batch_log", f"{self.logBaseURL}/{workSpec.batchID}.log")
+            workSpec.set_log_file("stdout", f"{self.logBaseURL}/{workSpec.batchID}.out")
+            workSpec.set_log_file("stderr", f"{self.logBaseURL}/{workSpec.batchID}.err")
             if workSpec.get_jobspec_list() is not None:
-                tmpLog.debug("aggregated nCore={0} minRamCount={1} maxDiskCount={2}".format(workSpec.nCore, workSpec.minRamCount, workSpec.maxDiskCount))
-                tmpLog.debug("max maxWalltime={0}".format(workSpec.maxWalltime))
+                tmpLog.debug(f"aggregated nCore={workSpec.nCore} minRamCount={workSpec.minRamCount} maxDiskCount={workSpec.maxDiskCount}")
+                tmpLog.debug(f"max maxWalltime={workSpec.maxWalltime}")
                 for jobSpec in workSpec.get_jobspec_list():
-                    tmpLog.debug("PandaID={0} nCore={1} RAM={2}".format(jobSpec.PandaID, jobSpec.jobParams["coreCount"], jobSpec.jobParams["minRamCount"]))
+                    tmpLog.debug(f"PandaID={jobSpec.PandaID} nCore={jobSpec.jobParams['coreCount']} RAM={jobSpec.jobParams['minRamCount']}")
                     # using batchLog URL as pilot ID
                     jobSpec.set_one_attribute("pilotID", workSpec.workAttributes["batchLog"])
                 for job in workSpec.jobspec_list:

@@ -1,6 +1,6 @@
 import types
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 qcm = QueueConfigMapper(update_db=False)
 
@@ -20,13 +20,13 @@ def list_config_ids():
     print("configID : queue name")
     print("--------- ------------")
     for k in ks:
-        print("{0:8} : {1}".format(k, qs[k].queueName))
+        print(f"{k:8} : {qs[k].queueName}")
 
 
 def dump_active_queue(name, to_print=True):
     """dump configuration of an active queue with name"""
     if not qcm.has_queue(name):
-        print("ERROR : {0} is not available".format(name))
+        print(f"ERROR : {name} is not available")
         return
     q = qcm.get_queue(name)
     if to_print:
@@ -49,7 +49,7 @@ def dump_all_active_queues(to_print=True):
 def dump_queue_with_config_id(config_id, to_print=True):
     """dump configuration of a queue with configID"""
     if not qcm.has_queue(None, config_id):
-        print("ERROR : configID={0} is not available".format(config_id))
+        print(f"ERROR : configID={config_id} is not available")
         return
     q = qcm.get_queue(None, config_id)
     if to_print:

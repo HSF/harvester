@@ -2,17 +2,16 @@
 utilities routines associated with Kubernetes python client
 
 """
-import os
-import copy
 import base64
-import yaml
+import copy
+import os
 
+import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 
 base_logger = core_utils.setup_logger("k8s_utils")
 
@@ -29,7 +28,7 @@ DEF_IMAGE = "atlasadc/atlas-grid-centos7"
 class k8s_Client(object):
     def __init__(self, namespace, config_file=None, queue_name=None):
         if not os.path.isfile(config_file):
-            raise RuntimeError("Cannot find k8s config file: {0}".format(config_file))
+            raise RuntimeError(f"Cannot find k8s config file: {config_file}")
         config.load_kube_config(config_file=config_file)
         self.corev1 = client.CoreV1Api()
         self.batchv1 = client.BatchV1Api()
@@ -48,7 +47,7 @@ class k8s_Client(object):
     def create_job_from_yaml(
         self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str, pilot_python_option, pilot_version, host_image, cert, max_time=None
     ):
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="create_job_from_yaml")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="create_job_from_yaml")
 
         # consider PULL mode as default, unless specified
         submit_mode = "PULL"
@@ -237,7 +236,7 @@ class k8s_Client(object):
         # set the priority classes. Specific priority classes have precedence over general priority classes
         priority_class = None
 
-        priority_class_key = "priority_class_{0}".format(work_spec.resourceType.lower())
+        priority_class_key = f"priority_class_{work_spec.resourceType.lower()}"
         priority_class_specific = scheduling_settings.get(priority_class_key, None)
 
         priority_class_key = "priority_class"
@@ -258,7 +257,7 @@ class k8s_Client(object):
                 max_time = 4 * 24 * 23600
             yaml_content["spec"]["template"]["spec"]["activeDeadlineSeconds"] = max_time
 
-        tmp_log.debug("creating job {0}".format(yaml_content))
+        tmp_log.debug(f"creating job {yaml_content}")
 
         rsp = self.batchv1.create_namespaced_job(body=yaml_content, namespace=self.namespace)
         return rsp, yaml_content
@@ -267,14 +266,14 @@ class k8s_Client(object):
         if workspec_list:
             batch_ids_list = [workspec.batchID for workspec in workspec_list if workspec.batchID]
             batch_ids_concat = ",".join(batch_ids_list)
-            label_selector = "job-name in ({0})".format(batch_ids_concat)
+            label_selector = f"job-name in ({batch_ids_concat})"
         else:
             label_selector = ""
 
         return label_selector
 
     def get_workers_info(self, workspec_list=[]):
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="get_workers_info")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="get_workers_info")
         tmp_log.debug("start")
 
         label_selector = self.generate_ls_from_wsl(workspec_list)
@@ -307,12 +306,12 @@ class k8s_Client(object):
         # We use job information in case the pod has been deleted (e.g. in Google bulk exercises), because the job
         # should persist up the TTL.
 
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="get_pods_info")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="get_pods_info")
 
         try:
             ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         except Exception as _e:
-            tmp_log.error("Failed call to list_namespaced_pod with: {0}".format(_e))
+            tmp_log.error(f"Failed call to list_namespaced_pod with: {_e}")
             return None  # None needs to be treated differently than [] by the caller
 
         pods_dict = {}
@@ -345,7 +344,7 @@ class k8s_Client(object):
         return pods_list
 
     def get_jobs_info(self, label_selector):
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="get_jobs_info")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="get_jobs_info")
 
         jobs_dict = {}
 
@@ -375,14 +374,14 @@ class k8s_Client(object):
                 }
                 jobs_dict[name] = job_info
         except Exception as _e:
-            tmp_log.error("Failed call to list_namespaced_job with: {0}".format(_e))
+            tmp_log.error(f"Failed call to list_namespaced_job with: {_e}")
 
         return jobs_dict
 
     def delete_pods(self, pod_name_list):
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="delete_pods")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="delete_pods")
 
-        tmp_log.debug("Going to delete {0} PODs: {1}".format(len(pod_name_list), pod_name_list))
+        tmp_log.debug(f"Going to delete {len(pod_name_list)} PODs: {pod_name_list}")
 
         ret_list = list()
 
@@ -398,17 +397,17 @@ class k8s_Client(object):
                 rsp["errMsg"] = ""
             ret_list.append(rsp)
 
-        tmp_log.debug("Done with: {0}".format(ret_list))
+        tmp_log.debug(f"Done with: {ret_list}")
         return ret_list
 
     def delete_job(self, job_name):
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0} job_name={1}".format(self.queue_name, job_name), method_name="delete_job")
-        tmp_log.debug("Going to delete JOB {0}".format(job_name))
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name} job_name={job_name}", method_name="delete_job")
+        tmp_log.debug(f"Going to delete JOB {job_name}")
         try:
             self.batchv1.delete_namespaced_job(name=job_name, namespace=self.namespace, body=self.deletev1, grace_period_seconds=0)
-            tmp_log.debug("Deleted JOB {0}".format(job_name))
+            tmp_log.debug(f"Deleted JOB {job_name}")
         except Exception as _e:
-            tmp_log.error("Failed to delete JOB {0} with: {1}".format(job_name, _e))
+            tmp_log.error(f"Failed to delete JOB {job_name} with: {_e}")
 
     def delete_config_map(self, config_map_name):
         self.corev1.delete_namespaced_config_map(name=config_map_name, namespace=self.namespace, body=self.deletev1, grace_period_seconds=0)
@@ -461,7 +460,7 @@ class k8s_Client(object):
         # kind = 'Secret'
         # type='kubernetes.io/tls'
         rsp = None
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="create_or_patch_secret")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="create_or_patch_secret")
 
         metadata = {"name": secret_name, "namespace": self.namespace}
         data = {}
@@ -476,17 +475,17 @@ class k8s_Client(object):
                 rsp = self.corev1.patch_namespaced_secret(name=secret_name, body=body, namespace=self.namespace)
                 tmp_log.debug("Patched secret")
             except ApiException as e:
-                tmp_log.debug("Exception when patching secret: {0} . Try to create secret instead...".format(e))
+                tmp_log.debug(f"Exception when patching secret: {e} . Try to create secret instead...")
                 rsp = self.corev1.create_namespaced_secret(body=body, namespace=self.namespace)
                 tmp_log.debug("Created secret")
         except Exception as e:
-            tmp_log.error("Exception when patching or creating secret: {0}.".format(e))
+            tmp_log.error(f"Exception when patching or creating secret: {e}.")
         return rsp
 
     def create_configmap(self, work_spec):
         # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="create_configmap")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="create_configmap")
 
         try:
             worker_id = str(work_spec.workerID)
@@ -512,22 +511,22 @@ class k8s_Client(object):
 
             # create the configmap object in K8s
             api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
-            tmp_log.debug("Created configmap for worker id: {0}".format(worker_id))
+            tmp_log.debug(f"Created configmap for worker id: {worker_id}")
             return True
 
         except Exception as e:
-            tmp_log.error("Could not create configmap with: {0}".format(e))
+            tmp_log.error(f"Could not create configmap with: {e}")
             return False
 
     def create_or_patch_configmap_starter(self):
         # useful guide: https://matthewpalmer.net/kubernetes-app-developer/articles/ultimate-configmap-guide-kubernetes.html
 
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="create_or_patch_configmap_starter")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="create_or_patch_configmap_starter")
 
         try:
             fn = "pilots_starter.py"
             dirname = os.path.dirname(__file__)
-            pilots_starter_file = os.path.join(dirname, "../harvestercloud/{0}".format(fn))
+            pilots_starter_file = os.path.join(dirname, f"../harvestercloud/{fn}")
             with open(pilots_starter_file) as f:
                 pilots_starter_contents = f.read()
 
@@ -542,22 +541,22 @@ class k8s_Client(object):
                 api_response = self.corev1.patch_namespaced_config_map(name=name, body=config_map, namespace=self.namespace)
                 tmp_log.debug("Patched pilots-starter config_map")
             except ApiException as e:
-                tmp_log.debug("Exception when patching pilots-starter config_map: {0} . Try to create it instead...".format(e))
+                tmp_log.debug(f"Exception when patching pilots-starter config_map: {e} . Try to create it instead...")
                 api_response = self.corev1.create_namespaced_config_map(namespace=self.namespace, body=config_map)
                 tmp_log.debug("Created pilots-starter config_map")
             return True
 
         except Exception as e:
-            tmp_log.error("Could not create configmap with: {0}".format(e))
+            tmp_log.error(f"Could not create configmap with: {e}")
             return False
 
     def get_pod_logs(self, pod_name, previous=False):
-        tmp_log = core_utils.make_logger(base_logger, "queue_name={0}".format(self.queue_name), method_name="get_pod_logs")
+        tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="get_pod_logs")
         try:
             rsp = self.corev1.read_namespaced_pod_log(name=pod_name, namespace=self.namespace, previous=previous)
-            tmp_log.debug("Log file retrieved for {0}".format(pod_name))
+            tmp_log.debug(f"Log file retrieved for {pod_name}")
         except Exception as e:
-            tmp_log.debug("Exception when getting logs for pod {0} : {1}. Skipped".format(pod_name, e))
+            tmp_log.debug(f"Exception when getting logs for pod {pod_name} : {e}. Skipped")
             raise
         else:
             return rsp

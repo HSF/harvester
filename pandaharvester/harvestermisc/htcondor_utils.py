@@ -1,12 +1,12 @@
 # === Imports ===================================================
 
-import re
-import time
-import threading
-import random
-import multiprocessing
-import tempfile
 import functools
+import multiprocessing
+import random
+import re
+import tempfile
+import threading
+import time
 import traceback
 import xml.etree.ElementTree as ET
 
@@ -21,9 +21,8 @@ except ImportError:
     from thread import get_ident
 
 import six
-
-from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestercore.fifos import SpecialFIFOBase
 
@@ -103,7 +102,7 @@ def condor_job_id_from_workspec(workspec):
     # backward compatibility if workspec.batchID does not contain ProcId
     if "." not in batchid_str:
         batchid_str += ".0"
-    return "{0}#{1}".format(workspec.submissionHost, batchid_str)
+    return f"{workspec.submissionHost}#{batchid_str}"
 
 
 def get_host_batchid_map(workspec_list):
@@ -132,7 +131,7 @@ def get_batchid_from_job(job_ads_dict):
     """
     Get batchID string from condor job dict
     """
-    batchid = "{0}.{1}".format(job_ads_dict["ClusterId"], job_ads_dict["ProcId"])
+    batchid = f"{job_ads_dict['ClusterId']}.{job_ads_dict['ProcId']}"
     return batchid
 
 
@@ -172,12 +171,12 @@ def condor_submit_process(mp_queue, host, jdl_map_list):
     # parse schedd and pool name
     condor_schedd, condor_pool = None, None
     if host in ("LOCAL", "None"):
-        tmpLog.debug("submissionHost is {0}, treated as local schedd. Skipped".format(host))
+        tmpLog.debug(f"submissionHost is {host}, treated as local schedd. Skipped")
     else:
         try:
             condor_schedd, condor_pool = host.split(",")[0:2]
         except ValueError:
-            tmpLog.error("Invalid submissionHost: {0} . Skipped".format(host))
+            tmpLog.error(f"Invalid submissionHost: {host} . Skipped")
     # get schedd
     try:
         if condor_pool:
@@ -190,7 +189,7 @@ def condor_submit_process(mp_queue, host, jdl_map_list):
             scheddAd = collector.locate(htcondor.DaemonTypes.Schedd)
         schedd = htcondor.Schedd(scheddAd)
     except Exception as e:
-        errStr = "create condor collector and schedd failed; {0}: {1}".format(e.__class__.__name__, e)
+        errStr = f"create condor collector and schedd failed; {e.__class__.__name__}: {e}"
     else:
         submit_obj = htcondor.Submit()
         try:
@@ -200,9 +199,9 @@ def condor_submit_process(mp_queue, host, jdl_map_list):
                 clusterid = submit_result.cluster()
                 first_proc = submit_result.first_proc()
                 num_proc = submit_result.num_procs()
-                batchIDs_list.extend(["{0}.{1}".format(clusterid, procid) for procid in range(first_proc, first_proc + num_proc)])
+                batchIDs_list.extend([f"{clusterid}.{procid}" for procid in range(first_proc, first_proc + num_proc)])
         except RuntimeError as e:
-            errStr = "submission failed; {0}: {1}".format(e.__class__.__name__, e)
+            errStr = f"submission failed; {e.__class__.__name__}: {e}"
     mp_queue.put((batchIDs_list, errStr))
 
 
@@ -219,7 +218,7 @@ class CondorQCacheFifo(six.with_metaclass(SingletonWithID, SpecialFIFOBase)):
     def __init__(self, target, *args, **kwargs):
         name_suffix = target.split(".")[0]
         name_suffix = re.sub("-", "_", name_suffix)
-        self.titleName = "CondorQCache_{0}".format(name_suffix)
+        self.titleName = f"CondorQCache_{name_suffix}"
         SpecialFIFOBase.__init__(self)
 
     def lock(self, score=None):
@@ -255,7 +254,7 @@ class CondorClient(object):
 
         def wrapper(self, *args, **kwargs):
             # Make logger
-            tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorClient.renew_session_if_error")
+            tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorClient.renew_session_if_error")
             func_name = func.__name__
             try:
                 self.schedd
@@ -264,20 +263,20 @@ class CondorClient(object):
                     is_renewed = self.renew_session()
                     self.lock.release()
                     if not is_renewed:
-                        errStr = "failed to communicate with {0}".format(self.submissionHost)
+                        errStr = f"failed to communicate with {self.submissionHost}"
                         tmpLog.error(errStr)
-                        tmpLog.debug("got RuntimeError: {0}".format(e))
+                        tmpLog.debug(f"got RuntimeError: {e}")
                         raise Exception(errStr)
             try:
                 ret = func(self, *args, **kwargs)
             except RuntimeError as e:
-                tmpLog.debug("got RuntimeError: {0}".format(e))
+                tmpLog.debug(f"got RuntimeError: {e}")
                 if self.lock.acquire(False):
                     is_renewed = self.renew_session()
                     self.lock.release()
                     if is_renewed:
                         if to_retry:
-                            tmpLog.debug("condor session renewed. Retrying {0}".format(func_name))
+                            tmpLog.debug(f"condor session renewed. Retrying {func_name}")
                             ret = func(self, *args, **kwargs)
                         else:
                             tmpLog.debug("condor session renewed")
@@ -296,7 +295,7 @@ class CondorClient(object):
     def __init__(self, submissionHost, *args, **kwargs):
         self.submissionHost = submissionHost
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorClient.__init__")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorClient.__init__")
         # Initialize
         tmpLog.debug("Initializing client")
         self.lock = threading.Lock()
@@ -305,7 +304,7 @@ class CondorClient(object):
         self.condor_pool = None
         # Parse condor command remote options from workspec
         if self.submissionHost in ("LOCAL", "None"):
-            tmpLog.debug("submissionHost is {0}, treated as local schedd. Skipped".format(self.submissionHost))
+            tmpLog.debug(f"submissionHost is {self.submissionHost}, treated as local schedd. Skipped")
         else:
             try:
                 self.condor_schedd, self.condor_pool = self.submissionHost.split(",")[0:2]
@@ -314,21 +313,21 @@ class CondorClient(object):
                 if self.condor_pool in ["None"]:
                     self.condor_pool = None
             except ValueError:
-                tmpLog.error("Invalid submissionHost: {0} . Skipped".format(self.submissionHost))
+                tmpLog.error(f"Invalid submissionHost: {self.submissionHost} . Skipped")
         # Use Python API or fall back to command
         if self.condor_api == "python":
             try:
                 self.secman = htcondor.SecMan()
                 self.renew_session(init=True)
             except Exception as e:
-                tmpLog.error("Error when using htcondor Python API. Exception {0}: {1}".format(e.__class__.__name__, e))
+                tmpLog.error(f"Error when using htcondor Python API. Exception {e.__class__.__name__}: {e}")
                 raise
         tmpLog.debug("Initialized client")
 
     @synchronize
     def renew_session(self, retry=3, init=False):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorClient.renew_session")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorClient.renew_session")
         # Clear security session if not initialization
         if not init:
             tmpLog.info("Renew condor session")
@@ -337,7 +336,7 @@ class CondorClient(object):
         i_try = 1
         while i_try <= retry:
             try:
-                tmpLog.info("Try {0}".format(i_try))
+                tmpLog.info(f"Try {i_try}")
                 if self.condor_pool:
                     self.collector = htcondor.Collector(self.condor_pool)
                 else:
@@ -350,11 +349,11 @@ class CondorClient(object):
                 tmpLog.info("Success")
                 break
             except Exception as e:
-                tmpLog.warning("Recreate condor collector and schedd failed: {0}".format(e))
+                tmpLog.warning(f"Recreate condor collector and schedd failed: {e}")
                 if i_try < retry:
                     tmpLog.warning("Failed. Retry...")
                 else:
-                    tmpLog.warning("Retry {0} times. Still failed. Skipped".format(i_try))
+                    tmpLog.warning(f"Retry {i_try} times. Still failed. Skipped")
                     return False
                 i_try += 1
                 self.secman.invalidateAllSessions()
@@ -386,7 +385,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         self.submissionHost = str(kwargs.get("id"))
         # Make logger
         tmpLog = core_utils.make_logger(
-            baseLogger, "submissionHost={0} thrid={1} oid={2}".format(self.submissionHost, get_ident(), id(self)), method_name="CondorJobQuery.__init__"
+            baseLogger, f"submissionHost={self.submissionHost} thrid={get_ident()} oid={id(self)}", method_name="CondorJobQuery.__init__"
         )
         # Initialize
         with self.classLock:
@@ -402,7 +401,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
 
     def get_all(self, batchIDs_list=[], allJobs=False):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobQuery.get_all")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.get_all")
         # Get all
         tmpLog.debug("Start")
         job_ads_all_dict = {}
@@ -410,7 +409,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             try:
                 job_ads_all_dict = self.query_with_python(batchIDs_list, allJobs)
             except Exception as e:
-                tmpLog.error("Exception {0}: {1}".format(e.__class__.__name__, e))
+                tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
                 raise
         else:
             job_ads_all_dict = self.query_with_command(batchIDs_list)
@@ -418,7 +417,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
 
     def query_with_command(self, batchIDs_list=[]):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobQuery.query_with_command")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_command")
         # Start query
         tmpLog.debug("Start query")
         job_ads_all_dict = {}
@@ -428,14 +427,14 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             batchIDs_str = " ".join(list(batchIDs_set))
             # Command
             if "condor_q" in orig_comStr or ("condor_history" in orig_comStr and batchIDs_set):
-                name_opt = "-name {0}".format(self.condor_schedd) if self.condor_schedd else ""
-                pool_opt = "-pool {0}".format(self.condor_pool) if self.condor_pool else ""
+                name_opt = f"-name {self.condor_schedd}" if self.condor_schedd else ""
+                pool_opt = f"-pool {self.condor_pool}" if self.condor_pool else ""
                 ids = batchIDs_str
-                comStr = "{cmd} {name_opt} {pool_opt} {ids}".format(cmd=orig_comStr, name_opt=name_opt, pool_opt=pool_opt, ids=ids)
+                comStr = f"{orig_comStr} {name_opt} {pool_opt} {ids}"
             else:
                 # tmpLog.debug('No batch job left to query in this cycle by this thread')
                 continue
-            tmpLog.debug("check with {0}".format(comStr))
+            tmpLog.debug(f"check with {comStr}")
             (retCode, stdOut, stdErr) = _runShell(comStr)
             if retCode == 0:
                 # Command succeeded
@@ -459,32 +458,32 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                         attribute_iter = map(_getAttribute_tuple, _c.findall("a"))
                         job_ads_dict.update(attribute_iter)
                         batchid = get_batchid_from_job(job_ads_dict)
-                        condor_job_id = "{0}#{1}".format(self.submissionHost, batchid)
+                        condor_job_id = f"{self.submissionHost}#{batchid}"
                         job_ads_all_dict[condor_job_id] = job_ads_dict
                         # Remove batch jobs already gotten from the list
                         if batchid in batchIDs_set:
                             batchIDs_set.discard(batchid)
                 else:
                     # Job not found
-                    tmpLog.debug("job not found with {0}".format(comStr))
+                    tmpLog.debug(f"job not found with {comStr}")
                     continue
             else:
                 # Command failed
-                errStr = 'command "{0}" failed, retCode={1}, error: {2} {3}'.format(comStr, retCode, stdOut, stdErr)
+                errStr = f'command "{comStr}" failed, retCode={retCode}, error: {stdOut} {stdErr}'
                 tmpLog.error(errStr)
         if len(batchIDs_set) > 0:
             # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_set:
-                condor_job_id = "{0}#{1}".format(self.submissionHost, batchid)
+                condor_job_id = f"{self.submissionHost}#{batchid}"
                 job_ads_all_dict[condor_job_id] = dict()
-            tmpLog.info("Unfound batch jobs of submissionHost={0}: {1}".format(self.submissionHost, " ".join(list(batchIDs_set))))
+            tmpLog.info(f"Unfound batch jobs of submissionHost={self.submissionHost}: {' '.join(list(batchIDs_set))}")
         # Return
         return job_ads_all_dict
 
     @CondorClient.renew_session_and_retry
     def query_with_python(self, batchIDs_list=[], allJobs=False):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobQuery.query_with_python")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_python")
         # Start query
         tmpLog.debug("Start query")
         cache_fifo = None
@@ -510,7 +509,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                         try:
                             jobs_iter.append(dict(job))
                         except Exception as e:
-                            tmpLog.error("In updating cache schedd xquery; got exception {0}: {1} ; {2}".format(e.__class__.__name__, e, repr(job)))
+                            tmpLog.error(f"In updating cache schedd xquery; got exception {e.__class__.__name__}: {e} ; {repr(job)}")
                     timeNow = time.time()
                     cache_fifo.put(jobs_iter, timeNow)
                     self.cache = (jobs_iter, timeNow)
@@ -551,7 +550,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                         # problematic
                         tmpLog.warning("got nothing when cleanup cache, maybe problematic. Skipped")
                         break
-                tmpLog.debug("cleaned up {0} objects in cache fifo".format(n_cleanup))
+                tmpLog.debug(f"cleaned up {n_cleanup} objects in cache fifo")
 
             # start
             jobs_iter = tuple()
@@ -560,7 +559,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                 while True:
                     if time.time() > attempt_timestamp + timeout:
                         # skip cache_query if too long
-                        tmpLog.debug("cache_query got timeout ({0} seconds). Skipped ".format(timeout))
+                        tmpLog.debug(f"cache_query got timeout ({timeout} seconds). Skipped ")
                         break
                     # get latest cache
                     peeked_tuple = cache_fifo.peeklast(skip_item=True)
@@ -623,13 +622,13 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
                         continue
             except Exception as _e:
                 tb_str = traceback.format_exc()
-                tmpLog.error("Error querying from cache fifo; {0} ; {1}".format(_e, tb_str))
+                tmpLog.error(f"Error querying from cache fifo; {_e} ; {tb_str}")
             return jobs_iter
 
         # query method options
         query_method_list = [self.schedd.xquery]
         if self.cacheEnable:
-            cache_fifo = CondorQCacheFifo(target=self.submissionHost, id="{0},{1}".format(self.submissionHost, get_ident()))
+            cache_fifo = CondorQCacheFifo(target=self.submissionHost, id=f"{self.submissionHost},{get_ident()}")
             query_method_list.insert(0, cache_query)
         if self.useCondorHistory:
             query_method_list.append(self.schedd.history)
@@ -638,22 +637,22 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
             # Make constraint
             clusterids_str = ",".join(list(clusterids_set))
             if query_method is cache_query or allJobs:
-                constraint = 'harvesterID =?= "{0}"'.format(harvesterID)
+                constraint = f'harvesterID =?= "{harvesterID}"'
             else:
-                constraint = "member(ClusterID, {{{0}}})".format(clusterids_str)
+                constraint = f"member(ClusterID, {{{clusterids_str}}})"
             if allJobs:
-                tmpLog.debug("Query method: {0} ; allJobs".format(query_method.__name__))
+                tmpLog.debug(f"Query method: {query_method.__name__} ; allJobs")
             else:
-                tmpLog.debug('Query method: {0} ; clusterids: "{1}"'.format(query_method.__name__, clusterids_str))
+                tmpLog.debug(f'Query method: {query_method.__name__} ; clusterids: "{clusterids_str}"')
             # Query
             jobs_iter = query_method(constraint=constraint, projection=CONDOR_JOB_ADS_LIST)
             for job in jobs_iter:
                 try:
                     job_ads_dict = dict(job)
                 except Exception as e:
-                    tmpLog.error("In doing schedd xquery or history; got exception {0}: {1} ; {2}".format(e.__class__.__name__, e, repr(job)))
+                    tmpLog.error(f"In doing schedd xquery or history; got exception {e.__class__.__name__}: {e} ; {repr(job)}")
                 batchid = get_batchid_from_job(job_ads_dict)
-                condor_job_id = "{0}#{1}".format(self.submissionHost, batchid)
+                condor_job_id = f"{self.submissionHost}#{batchid}"
                 job_ads_all_dict[condor_job_id] = job_ads_dict
                 # Remove batch jobs already gotten from the list
                 if not allJobs:
@@ -664,9 +663,9 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
         if not allJobs and len(batchIDs_set) > 0:
             # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_set:
-                condor_job_id = "{0}#{1}".format(self.submissionHost, batchid)
+                condor_job_id = f"{self.submissionHost}#{batchid}"
                 job_ads_all_dict[condor_job_id] = dict()
-            tmpLog.info("Unfound batch jobs of submissionHost={0}: {1}".format(self.submissionHost, " ".join(list(batchIDs_set))))
+            tmpLog.info(f"Unfound batch jobs of submissionHost={self.submissionHost}: {' '.join(list(batchIDs_set))}")
         # Return
         return job_ads_all_dict
 
@@ -680,7 +679,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         self.submissionHost = str(kwargs.get("id"))
         # Make logger
         tmpLog = core_utils.make_logger(
-            baseLogger, "submissionHost={0} thrid={1} oid={2}".format(self.submissionHost, get_ident(), id(self)), method_name="CondorJobSubmit.__init__"
+            baseLogger, f"submissionHost={self.submissionHost} thrid={get_ident()} oid={id(self)}", method_name="CondorJobSubmit.__init__"
         )
         # Initialize
         tmpLog.debug("Start")
@@ -690,7 +689,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
 
     def submit(self, jdl_list, use_spool=False):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobSubmit.submit")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobSubmit.submit")
         # Get all
         tmpLog.debug("Start")
         job_ads_all_dict = {}
@@ -703,7 +702,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
                 # retVal = self.submit_with_python_proces(jdl_list, use_spool)
                 retVal = self.submit_with_command(jdl_list, use_spool)
             except Exception as e:
-                tmpLog.error("Exception {0}: {1}".format(e.__class__.__name__, e))
+                tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
                 raise
         else:
             retVal = self.submit_with_command(jdl_list, use_spool)
@@ -711,25 +710,23 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
 
     def submit_with_command(self, jdl_list, use_spool=False, tmp_str="", keep_temp_sdf=False):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobSubmit.submit_with_command")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobSubmit.submit_with_command")
         # Initialize
         errStr = ""
         batchIDs_list = []
         # make sdf temp file from jdls
-        tmpFile = tempfile.NamedTemporaryFile(mode="w", delete=(not keep_temp_sdf), suffix="_{0}_cluster_submit.sdf".format(tmp_str))
+        tmpFile = tempfile.NamedTemporaryFile(mode="w", delete=(not keep_temp_sdf), suffix=f"_{tmp_str}_cluster_submit.sdf")
         sdf_file = tmpFile.name
         tmpFile.write("\n\n".join(jdl_list))
         tmpFile.flush()
         # make condor remote options
-        name_opt = "-name {0}".format(self.condor_schedd) if self.condor_schedd else ""
-        pool_opt = "-pool {0}".format(self.condor_pool) if self.condor_pool else ""
+        name_opt = f"-name {self.condor_schedd}" if self.condor_schedd else ""
+        pool_opt = f"-pool {self.condor_pool}" if self.condor_pool else ""
         spool_opt = "-remote -spool" if use_spool and self.condor_schedd else ""
         # command
-        comStr = "condor_submit -single-cluster {spool_opt} {name_opt} {pool_opt} {sdf_file}".format(
-            sdf_file=sdf_file, name_opt=name_opt, pool_opt=pool_opt, spool_opt=spool_opt
-        )
+        comStr = f"condor_submit -single-cluster {spool_opt} {name_opt} {pool_opt} {sdf_file}"
         # submit
-        tmpLog.debug("submit with command: {0}".format(comStr))
+        tmpLog.debug(f"submit with command: {comStr}")
         try:
             p = subprocess.Popen(comStr.split(), shell=False, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # check return code
@@ -739,10 +736,10 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
             stdOut = ""
             stdErr = core_utils.dump_error_message(tmpLog, no_message=True)
             retCode = 1
-            errStr = "{0}: {1}".format(e.__class__.__name__, e)
+            errStr = f"{e.__class__.__name__}: {e}"
         finally:
             tmpFile.close()
-        tmpLog.debug("retCode={0}".format(retCode))
+        tmpLog.debug(f"retCode={retCode}")
         if retCode == 0:
             # extract clusterid and n_jobs
             job_id_match = None
@@ -753,21 +750,21 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
             if job_id_match is not None:
                 n_jobs = int(job_id_match.group(1))
                 clusterid = job_id_match.group(2)
-                batchIDs_list = ["{0}.{1}".format(clusterid, procid) for procid in range(n_jobs)]
-                tmpLog.debug("submitted {0} jobs: {1}".format(n_jobs, " ".join(batchIDs_list)))
+                batchIDs_list = [f"{clusterid}.{procid}" for procid in range(n_jobs)]
+                tmpLog.debug(f"submitted {n_jobs} jobs: {' '.join(batchIDs_list)}")
             else:
-                errStr = "no job submitted: {0}".format(errStr)
+                errStr = f"no job submitted: {errStr}"
                 tmpLog.error(errStr)
         else:
-            errStr = "{0} ; {1}".format(stdErr, errStr)
-            tmpLog.error("submission failed: {0}".format(errStr))
+            errStr = f"{stdErr} ; {errStr}"
+            tmpLog.error(f"submission failed: {errStr}")
         # Return
         return (batchIDs_list, errStr)
 
     @CondorClient.renew_session_and_retry
     def submit_with_python(self, jdl_list, use_spool=False):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobSubmit.submit_with_python")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobSubmit.submit_with_python")
         # Start
         tmpLog.debug("Start")
         # Initialize
@@ -784,14 +781,14 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
                 clusterid = submit_result.cluster()
                 first_proc = submit_result.first_proc()
                 num_proc = submit_result.num_procs()
-                batchIDs_list.extend(["{0}.{1}".format(clusterid, procid) for procid in range(first_proc, first_proc + num_proc)])
+                batchIDs_list.extend([f"{clusterid}.{procid}" for procid in range(first_proc, first_proc + num_proc)])
         except RuntimeError as e:
-            errStr = "{0}: {1}".format(e.__class__.__name__, e)
-            tmpLog.error("submission failed: {0}".format(errStr))
+            errStr = f"{e.__class__.__name__}: {e}"
+            tmpLog.error(f"submission failed: {errStr}")
             raise
         if batchIDs_list:
             n_jobs = len(batchIDs_list)
-            tmpLog.debug("submitted {0} jobs: {1}".format(n_jobs, " ".join(batchIDs_list)))
+            tmpLog.debug(f"submitted {n_jobs} jobs: {' '.join(batchIDs_list)}")
         elif not errStr:
             tmpLog.error("submitted nothing")
         tmpLog.debug("Done")
@@ -800,7 +797,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
 
     def submit_with_python_process(self, jdl_list, use_spool=False):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobSubmit.submit_with_python_process")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobSubmit.submit_with_python_process")
         # Start
         tmpLog.debug("Start")
         # Make list of jdl map with dummy submit objects
@@ -816,7 +813,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
         mp_process.join()
         if batchIDs_list:
             n_jobs = len(batchIDs_list)
-            tmpLog.debug("submitted {0} jobs: {1}".format(n_jobs, " ".join(batchIDs_list)))
+            tmpLog.debug(f"submitted {n_jobs} jobs: {' '.join(batchIDs_list)}")
         elif not errStr:
             tmpLog.error("submitted nothing")
         tmpLog.debug("Done")
@@ -833,7 +830,7 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
         self.submissionHost = str(kwargs.get("id"))
         # Make logger
         tmpLog = core_utils.make_logger(
-            baseLogger, "submissionHost={0} thrid={1} oid={2}".format(self.submissionHost, get_ident(), id(self)), method_name="CondorJobManage.__init__"
+            baseLogger, f"submissionHost={self.submissionHost} thrid={get_ident()} oid={id(self)}", method_name="CondorJobManage.__init__"
         )
         # Initialize
         tmpLog.debug("Start")
@@ -843,7 +840,7 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
 
     def remove(self, batchIDs_list=[]):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobManage.remove")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobManage.remove")
         # Get all
         tmpLog.debug("Start")
         job_ads_all_dict = {}
@@ -851,7 +848,7 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
             try:
                 retVal = self.remove_with_python(batchIDs_list)
             except Exception as e:
-                tmpLog.error("Exception {0}: {1}".format(e.__class__.__name__, e))
+                tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
                 raise
         else:
             retVal = self.remove_with_command(batchIDs_list)
@@ -859,7 +856,7 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
 
     def remove_with_command(self, batchIDs_list=[]):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobManage.remove_with_command")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobManage.remove_with_command")
         # if workspec.batchID is None:
         #     tmpLog.info('Found workerID={0} has submissionHost={1} batchID={2} . Cannot kill. Skipped '.format(
         #                     workspec.workerID, workspec.submissionHost, workspec.batchID))
@@ -912,7 +909,7 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
     @CondorClient.renew_session_and_retry
     def remove_with_python(self, batchIDs_list=[]):
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, "submissionHost={0}".format(self.submissionHost), method_name="CondorJobManage.remove_with_python")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobManage.remove_with_python")
         # Start
         tmpLog.debug("Start")
         # Acquire class lock
@@ -927,16 +924,16 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
             # Check if all jobs clear (off from schedd queue)
             is_all_clear = n_jobs == act_ret["TotalAlreadyDone"] + act_ret["TotalNotFound"] + act_ret["TotalSuccess"]
             if act_ret and is_all_clear:
-                tmpLog.debug("removed {0} jobs: {1}".format(n_jobs, ",".join(batchIDs_list)))
+                tmpLog.debug(f"removed {n_jobs} jobs: {','.join(batchIDs_list)}")
                 for batchid in batchIDs_list:
-                    condor_job_id = "{0}#{1}".format(self.submissionHost, batchid)
+                    condor_job_id = f"{self.submissionHost}#{batchid}"
                     retMap[condor_job_id] = (True, "")
             else:
-                tmpLog.error("job removal failed; batchIDs_list={0}, got: {1}".format(batchIDs_list, act_ret))
+                tmpLog.error(f"job removal failed; batchIDs_list={batchIDs_list}, got: {act_ret}")
                 # need to query queue for unterminated jobs not removed yet
                 clusterids_set = set([get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list])
                 clusterids_str = ",".join(list(clusterids_set))
-                constraint = "member(ClusterID, {{{0}}}) && JobStatus =!= 3 && JobStatus =!= 4".format(clusterids_str)
+                constraint = f"member(ClusterID, {{{clusterids_str}}}) && JobStatus =!= 3 && JobStatus =!= 4"
                 jobs_iter = self.schedd.xquery(constraint=constraint, projection=CONDOR_JOB_ADS_LIST)
                 all_batchid_map = {}
                 ok_batchid_list = []
@@ -946,10 +943,10 @@ class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
                     batchid = get_batchid_from_job(job_ads_dict)
                     all_batchid_map[batchid] = job_ads_dict
                 for batchid in batchIDs_list:
-                    condor_job_id = "{0}#{1}".format(self.submissionHost, batchid)
+                    condor_job_id = f"{self.submissionHost}#{batchid}"
                     if batchid in all_batchid_map:
                         ng_batchid_list.append(batchid)
-                        retMap[condor_job_id] = (False, "batchID={0} still unterminated in condor queue".format(batchid))
+                        retMap[condor_job_id] = (False, f"batchID={batchid} still unterminated in condor queue")
                     else:
                         ok_batchid_list.append(batchid)
                         retMap[condor_job_id] = (True, "")

@@ -1,24 +1,25 @@
-import sys
+import datetime
+import hashlib
+import logging
 import os
 import os.path
-import hashlib
-import datetime
-import uuid
 import random
 import string
-import time
+import sys
 import threading
-import logging
+import time
+import uuid
+
 from future.utils import iteritems
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.file_spec import FileSpec
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvesterbody.cacher import Cacher
-from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # initial variables
 fileTableName = "file_table"
@@ -33,7 +34,7 @@ conLock = threading.Lock()
 def dump(obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+            print(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 if len(sys.argv) > 1:
@@ -70,11 +71,11 @@ for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
         stdoutHandler.setFormatter(loggerObj.handlers[0].formatter)
         loggerObj.addHandler(stdoutHandler)
 
-msgStr = "plugin={0}".format(stagerCore.__class__.__name__)
+msgStr = f"plugin={stagerCore.__class__.__name__}"
 tmpLog.debug(msgStr)
-msgStr = "Initial queueConfig.stager = {}".format(initial_queueConfig_stager)
+msgStr = f"Initial queueConfig.stager = {initial_queueConfig_stager}"
 tmpLog.debug(msgStr)
-msgStr = "Modified queueConfig.stager = {}".format(modified_queueConfig_stager)
+msgStr = f"Modified queueConfig.stager = {modified_queueConfig_stager}"
 tmpLog.debug(msgStr)
 
 scope = "panda"
@@ -129,14 +130,12 @@ for job_id in range(begin_job_id, end_job_id + 1):
         assFileSpec.fsize = random.randint(10, 100)
         # create source file
         hash = hashlib.md5()
-        hash.update("%s:%s" % (scope, fileSpec.lfn))
+        hash.update(f"{scope}:{fileSpec.lfn}")
         hash_hex = hash.hexdigest()
         correctedscope = "/".join(scope.split("."))
-        assFileSpec.path = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(
-            endPoint=queueConfig.stager["Globus_srcPath"], scope=correctedscope, hash1=hash_hex[0:2], hash2=hash_hex[2:4], lfn=assFileSpec.lfn
-        )
+        assFileSpec.path = f"{queueConfig.stager['Globus_srcPath']}/{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{assFileSpec.lfn}"
         if not os.path.exists(os.path.dirname(assFileSpec.path)):
-            tmpLog.debug("os.makedirs({})".format(os.path.dirname(assFileSpec.path)))
+            tmpLog.debug(f"os.makedirs({os.path.dirname(assFileSpec.path)})")
             os.makedirs(os.path.dirname(assFileSpec.path))
         oFile = open(assFileSpec.path, "w")
         oFile.write("".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(assFileSpec.fsize)))
@@ -148,7 +147,7 @@ for job_id in range(begin_job_id, end_job_id + 1):
         # add output file to jobSpec
         jobSpec.add_out_file(fileSpec)
         #
-        tmpLog.debug("file to transfer - {}".format(fileSpec.path))
+        tmpLog.debug(f"file to transfer - {fileSpec.path}")
         # print "dump(jobSpec)"
         # dump(jobSpec)
     # add log file info
@@ -161,14 +160,12 @@ for job_id in range(begin_job_id, end_job_id + 1):
     jobSpec.jobParams["outFiles"] = outFiles_str
     jobSpec.jobParams["realDatasets"] = realDatasets_str
     jobSpec.jobParams["ddmEndPointOut"] = ddmEndPointOut_str
-    msgStr = "jobSpec.jobParams ={}".format(jobSpec.jobParams)
+    msgStr = f"jobSpec.jobParams ={jobSpec.jobParams}"
     tmpLog.debug(msgStr)
-    msgStr = "len(jobSpec.get_output_file_attributes()) = {0} type - {1}".format(
-        len(jobSpec.get_output_file_attributes()), type(jobSpec.get_output_file_attributes())
-    )
+    msgStr = f"len(jobSpec.get_output_file_attributes()) = {len(jobSpec.get_output_file_attributes())} type - {type(jobSpec.get_output_file_attributes())}"
     tmpLog.debug(msgStr)
     for key, value in jobSpec.get_output_file_attributes().iteritems():
-        msgStr = "output file attributes - pre DB {0} {1}".format(key, value)
+        msgStr = f"output file attributes - pre DB {key} {value}"
         tmpLog.debug(msgStr)
     jobSpec_list.append(jobSpec)
 
@@ -193,14 +190,14 @@ else:
 
 for jobSpec in jobSpec_list:
     # print out jobSpec PandID
-    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
+    msgStr = f"jobSpec PandaID - {jobSpec.PandaID}"
     msgStr = "testing zip"
     tmpStat, tmpOut = stagerCore.zip_output(jobSpec)
     if tmpStat:
         msgStr = " OK"
         tmpLog.debug(msgStr)
     else:
-        msgStr = " NG {0}".format(tmpOut)
+        msgStr = f" NG {tmpOut}"
         tmpLog.debug(msgStr)
     msgStr = "testing trigger_stage_out"
     tmpLog.debug(msgStr)
@@ -209,15 +206,15 @@ for jobSpec in jobSpec_list:
         msgStr = " OK "
         tmpLog.debug(msgStr)
     elif tmpStat is None:
-        msgStr = " Temporary failure NG {0}".format(tmpOut)
+        msgStr = f" Temporary failure NG {tmpOut}"
         tmpLog.debug(msgStr)
     elif not tmpStat:
-        msgStr = " NG {0}".format(tmpOut)
+        msgStr = f" NG {tmpOut}"
         tmpLog.debug(msgStr)
         sys.exit(1)
     print
     # get the files with the group_id and print out
-    msgStr = "dummy_transfer_id = {}".format(stagerCore.get_dummy_transfer_id())
+    msgStr = f"dummy_transfer_id = {stagerCore.get_dummy_transfer_id()}"
     files = proxy.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
     files = stagerCore.dbInterface.get_files_with_group_id(stagerCore.get_dummy_transfer_id())
     msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
@@ -227,10 +224,10 @@ for jobSpec in jobSpec_list:
         msgStr = " OK"
         tmpLog.debug(msgStr)
     elif tmpStat is None:
-        msgStr = " Temporary failure NG {0}".format(tmpOut)
+        msgStr = f" Temporary failure NG {tmpOut}"
         tmpLog.debug(msgStr)
     elif not tmpStat:
-        msgStr = " NG {0}".format(tmpOut)
+        msgStr = f" NG {tmpOut}"
         tmpLog.debug(msgStr)
 
 # sleep for 10 minutes 1 second
@@ -245,7 +242,7 @@ tmpLog.debug(msgStr)
 
 for jobSpec in jobSpec_list:
     # print out jobSpec PandID
-    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
+    msgStr = f"jobSpec PandaID - {jobSpec.PandaID}"
     tmpLog.debug(msgStr)
     msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
     tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
@@ -253,10 +250,10 @@ for jobSpec in jobSpec_list:
         msgStr = " OK"
         tmpLog.debug(msgStr)
     elif tmpStat is None:
-        msgStr = " Temporary failure NG {0}".format(tmpOut)
+        msgStr = f" Temporary failure NG {tmpOut}"
         tmpLog.debug(msgStr)
     elif not tmpStat:
-        msgStr = " NG {0}".format(tmpOut)
+        msgStr = f" NG {tmpOut}"
         tmpLog.debug(msgStr)
 
 # sleep for 3 minutes
@@ -269,7 +266,7 @@ tmpLog.debug(msgStr)
 
 for jobSpec in jobSpec_list:
     # print out jobSpec PandID
-    msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
+    msgStr = f"jobSpec PandaID - {jobSpec.PandaID}"
     tmpLog.debug(msgStr)
     msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
     tmpStat, tmpOut = stagerCore.check_stage_out_status(jobSpec)
@@ -277,8 +274,8 @@ for jobSpec in jobSpec_list:
         msgStr = " OK"
         tmpLog.debug(msgStr)
     elif tmpStat is None:
-        msgStr = " Temporary failure NG {0}".format(tmpOut)
+        msgStr = f" Temporary failure NG {tmpOut}"
         tmpLog.debug(msgStr)
     elif not tmpStat:
-        msgStr = " NG {0}".format(tmpOut)
+        msgStr = f" NG {tmpOut}"
         tmpLog.debug(msgStr)

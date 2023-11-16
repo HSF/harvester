@@ -1,6 +1,12 @@
-from lancium.api.Job import Job
 import uuid
-from constants import voms_lancium_path, voms_job_path, script_lancium_path, script_job_path
+
+from constants import (
+    script_job_path,
+    script_lancium_path,
+    voms_job_path,
+    voms_lancium_path,
+)
+from lancium.api.Job import Job
 
 # https://lancium.github.io/compute-api-docs/library/lancium/api/Job.html#Job.create
 
@@ -10,7 +16,7 @@ memory = 1
 scratch = 20
 
 params = {
-    "name": "grid-job-{0}".format(worker_id),
+    "name": f"grid-job-{worker_id}",
     "command_line": "python voms/scripts/pilots_starter.py",
     "image": "harvester/centos7-singularity",
     "resources": {"core_count": core_count, "memory": memory, "scratch": scratch},
@@ -47,8 +53,8 @@ params = {
 
 # create the job
 job = Job().create(**params)
-print("Created! name: {0}, id: {1}, status: {2}".format(job.name, job.id, job.status))
+print(f"Created! name: {job.name}, id: {job.id}, status: {job.status}")
 
 # submit the job
 job.submit()
-print("Submitted! name: {0}, id: {1}, status: {2}".format(job.name, job.id, job.status))
+print(f"Submitted! name: {job.name}, id: {job.id}, status: {job.status}")

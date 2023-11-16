@@ -2,11 +2,11 @@
 service metric spec class
 
 """
-import json
-from .spec_base import SpecBase
 import datetime
 import json
 import socket
+
+from .spec_base import SpecBase
 
 
 class ServiceMetricSpec(SpecBase):

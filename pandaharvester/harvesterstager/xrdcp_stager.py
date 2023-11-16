@@ -1,17 +1,17 @@
+import gc
 import os
 import tempfile
-import gc
 
 try:
     import subprocess32 as subprocess
 except Exception:
     import subprocess
 
-from pandaharvester.harvestermover import mover_utils
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvesterstager.base_stager import BaseStager
-
 import uuid
+
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestermover import mover_utils
+from pandaharvester.harvesterstager.base_stager import BaseStager
 
 # logger
 _logger = core_utils.setup_logger("xrdcp_stager")
@@ -89,7 +89,7 @@ class XrdcpStager(BaseStager):
         gc.collect()
 
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_stage_out")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="trigger_stage_out")
         tmpLog.debug("start")
         # get the environment
         harvester_env = os.environ.copy()
@@ -107,14 +107,14 @@ class XrdcpStager(BaseStager):
             dstPath = mover_utils.construct_file_path(self.dstBasePath, fileAttrs[fileSpec.lfn]["scope"], fileSpec.lfn)
             # local path
             localPath = mover_utils.construct_file_path(self.localBasePath, fileAttrs[fileSpec.lfn]["scope"], fileSpec.lfn)
-            tmpLog.debug("fileSpec.path - {0} fileSpec.lfn = {1}".format(fileSpec.path, fileSpec.lfn))
+            tmpLog.debug(f"fileSpec.path - {fileSpec.path} fileSpec.lfn = {fileSpec.lfn}")
             localPath = fileSpec.path
             if self.checkLocalPath:
                 # check if already exits
                 if os.path.exists(localPath):
                     # calculate checksum
                     checksum = core_utils.calc_adler32(localPath)
-                    checksum = "ad:{0}".format(checksum)
+                    checksum = f"ad:{checksum}"
                     if checksum == fileAttrs[fileSpec.lfn]["checksum"]:
                         continue
             # collect list of output files
@@ -133,7 +133,7 @@ class XrdcpStager(BaseStager):
             fileSpec.attemptNr += 1
             try:
                 xrdcp_cmd = " ".join(args)
-                tmpLog.debug("execute: {0}".format(xrdcp_cmd))
+                tmpLog.debug(f"execute: {xrdcp_cmd}")
                 process = subprocess.Popen(xrdcp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=harvester_env, shell=True)
                 try:
                     stdout, stderr = process.communicate(timeout=self.timeout)
@@ -150,26 +150,26 @@ class XrdcpStager(BaseStager):
                     if not isinstance(stderr, str):
                         stderr = stderr.decode()
                     stderr = stderr.replace("\n", " ")
-                tmpLog.debug("stdout: %s" % stdout)
-                tmpLog.debug("stderr: %s" % stderr)
+                tmpLog.debug(f"stdout: {stdout}")
+                tmpLog.debug(f"stderr: {stderr}")
             except Exception:
                 core_utils.dump_error_message(tmpLog)
                 return_code = 1
             if return_code == 0:
                 fileSpec.status = "finished"
             else:
-                overall_errMsg += "file - {0} did not transfer error code {1} ".format(localPath, return_code)
+                overall_errMsg += f"file - {localPath} did not transfer error code {return_code} "
                 allfiles_transfered = False
-                errMsg = "failed with {0}".format(return_code)
+                errMsg = f"failed with {return_code}"
                 tmpLog.error(errMsg)
                 # check attemptNr
                 if fileSpec.attemptNr >= self.maxAttempts:
-                    tmpLog.error("reached maxattempts: {0}, marked it as failed".format(self.maxAttempts))
+                    tmpLog.error(f"reached maxattempts: {self.maxAttempts}, marked it as failed")
                     fileSpec.status = "failed"
 
             # force update
             fileSpec.force_update("status")
-            tmpLog.debug("file: {0} status: {1}".format(fileSpec.lfn, fileSpec.status))
+            tmpLog.debug(f"file: {fileSpec.lfn} status: {fileSpec.status}")
             del process, stdout, stderr
 
         # end loop over output files
@@ -201,7 +201,7 @@ class XrdcpStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)
 
     # asynchronous zip output
@@ -220,7 +220,7 @@ class XrdcpStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         # set some ID which can be used for lookup in post_zip_output()
         groupID = str(uuid.uuid4())
         lfns = []
@@ -242,7 +242,7 @@ class XrdcpStager(BaseStager):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(_logger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(_logger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         # get groups for lookup
         groups = jobspec.get_groups_of_output_files()
         # do something with groupIDs

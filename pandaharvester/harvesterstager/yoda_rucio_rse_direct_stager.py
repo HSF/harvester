@@ -1,29 +1,31 @@
-import time
 import datetime
-import uuid
-import os
-import sys
-import stat
-import os.path
-import threading
-import tarfile
-import hashlib
-import string
-import shutil
 import errno
+import hashlib
+import os
+import os.path
+import shutil
+import stat
+import string
+import sys
+import tarfile
+import threading
+import time
+import uuid
 
 from future.utils import iteritems
-
-from rucio.client import Client as RucioClient
-from rucio.common.exception import DataIdentifierNotFound, DuplicateRule, DataIdentifierAlreadyExists, FileAlreadyExists
-
-
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermover import mover_utils
 from pandaharvester.harvesterstager.base_stager import BaseStager
+from rucio.client import Client as RucioClient
+from rucio.common.exception import (
+    DataIdentifierAlreadyExists,
+    DataIdentifierNotFound,
+    DuplicateRule,
+    FileAlreadyExists,
+)
 
 from .base_stager import BaseStager
 
@@ -31,7 +33,7 @@ from .base_stager import BaseStager
 def dump(tmpLog, obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            tmpLog.debug("obj.%s = %s" % (attr, getattr(obj, attr)))
+            tmpLog.debug(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 # logger
@@ -60,7 +62,7 @@ class YodaRucioRseDirectStager(BaseStager):
 
     def __init__(self, **kwarg):
         BaseStager.__init__(self, **kwarg)
-        tmpLog = self.make_logger(baseLogger, "ThreadID={0}".format(threading.current_thread().ident), method_name="YodaRucioRseDirectStager __init__ ")
+        tmpLog = self.make_logger(baseLogger, f"ThreadID={threading.current_thread().ident}", method_name="YodaRucioRseDirectStager __init__ ")
         tmpLog.debug("start")
         self.Yodajob = False
         self.pathConvention = None
@@ -85,9 +87,7 @@ class YodaRucioRseDirectStager(BaseStager):
         tmpStat = True
         tmpMsg = ""
         # make logger
-        tmpLog = self.make_logger(
-            baseLogger, "PandaID={0} ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="check_stage_out_status"
-        )
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
@@ -95,12 +95,12 @@ class YodaRucioRseDirectStager(BaseStager):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # get the queueConfig and corresponding objStoreID_ES
         queueConfigMapper = QueueConfigMapper()
         queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
         # write to debug log queueConfig.stager
-        tmpLog.debug("jobspec.computingSite - {0} queueConfig.stager {1}".format(jobspec.computingSite, queueConfig.stager))
+        tmpLog.debug(f"jobspec.computingSite - {jobspec.computingSite} queueConfig.stager {queueConfig.stager}")
         # check queueConfig stager section to see if jobtype is set
         if "jobtype" in queueConfig.stager:
             if queueConfig.stager["jobtype"] == "Yoda":
@@ -115,10 +115,10 @@ class YodaRucioRseDirectStager(BaseStager):
         self.objstoreID = ddm[dstRSE]["id"]
         if self.Yodajob:
             self.pathConvention = int(queueConfig.stager["pathConvention"])
-            tmpLog.debug("Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}".format(jobspec.PandaID, self.objstoreID, self.pathConvention))
+            tmpLog.debug(f"Yoda Job - PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID} pathConvention ={self.pathConvention}")
         else:
             self.pathConvention = None
-            tmpLog.debug("PandaID = {0} objstoreID = {1}".format(jobspec.PandaID, self.objstoreID))
+            tmpLog.debug(f"PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID}")
         # set the location of the files in fileSpec.objstoreID
         self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
         # Get the files grouped by Rucio Rule ID
@@ -126,7 +126,7 @@ class YodaRucioRseDirectStager(BaseStager):
         if len(groups) == 0:
             tmpLog.debug("No Rucio Rules")
             return None, "No Rucio Rules"
-        tmpLog.debug("#Rucio Rules - {0} - Rules - {1}".format(len(groups), groups))
+        tmpLog.debug(f"#Rucio Rules - {len(groups)} - Rules - {groups}")
 
         try:
             rucioAPI = RucioClient()
@@ -141,12 +141,12 @@ class YodaRucioRseDirectStager(BaseStager):
             # lock
             have_db_lock = self.dbInterface.get_object_lock(rucioRule, lock_interval=120)
             if not have_db_lock:
-                msgStr = "escape since {0} is locked by another thread".format(rucioRule)
+                msgStr = f"escape since {rucioRule} is locked by another thread"
                 tmpLog.debug(msgStr)
                 return None, msgStr
             # get transfer status
             groupStatus = self.dbInterface.get_file_group_status(rucioRule)
-            tmpLog.debug("rucioRule - {0} - groupStatus - {1}".format(rucioRule, groupStatus))
+            tmpLog.debug(f"rucioRule - {rucioRule} - groupStatus - {groupStatus}")
             if "transferred" in groupStatus:
                 # already succeeded - set the fileSpec status for these files
                 self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
@@ -154,14 +154,14 @@ class YodaRucioRseDirectStager(BaseStager):
             elif "failed" in groupStatus:
                 # transfer failure
                 tmpStat = False
-                tmpMsg = "rucio rule for {0}:{1} already failed".format(datasetScope, datasetName)
+                tmpMsg = f"rucio rule for {datasetScope}:{datasetName} already failed"
             elif "transferring" in groupStatus or "pending" in groupStatus:
                 # transfer started in Rucio check status
                 try:
                     result = rucioAPI.get_replication_rule(rucioRule, False)
                     if result["state"] == "OK":
                         # files transfered to nucleus
-                        tmpLog.debug("Files for Rucio Rule {0} successfully transferred".format(rucioRule))
+                        tmpLog.debug(f"Files for Rucio Rule {rucioRule} successfully transferred")
                         self.dbInterface.update_file_group_status(rucioRule, "transferred")
                         # set the fileSpec status for these files
                         self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
@@ -169,27 +169,27 @@ class YodaRucioRseDirectStager(BaseStager):
                     elif result["state"] == "FAILED":
                         # failed Rucio Transfer
                         tmpStat = False
-                        tmpMsg = "Failed Rucio Transfer - Rucio Rule - {0}".format(rucioRule)
+                        tmpMsg = f"Failed Rucio Transfer - Rucio Rule - {rucioRule}"
                         tmpLog.debug(tmpMsg)
                         self.set_FileSpec_status(jobspec, "failed")
                     elif result["state"] == "STUCK":
                         tmpStat = None
-                        tmpMsg = "Rucio Transfer Rule {0} Stuck".format(rucioRule)
+                        tmpMsg = f"Rucio Transfer Rule {rucioRule} Stuck"
                         tmpLog.debug(tmpMsg)
                 except BaseException:
                     tmpStat = None
-                    tmpMsg = "Could not get information or Rucio Rule {0}".format(rucioRule)
+                    tmpMsg = f"Could not get information or Rucio Rule {rucioRule}"
                     tmpLog.error(tmpMsg)
                     pass
             # release the lock
             if have_db_lock:
-                tmpLog.debug("attempt to release DB lock for Rucio Rule {0}".format(rucioRule))
+                tmpLog.debug(f"attempt to release DB lock for Rucio Rule {rucioRule}")
                 release_db_lock = self.dbInterface.release_object_lock(rucioRule)
                 if release_db_lock:
-                    tmpLog.debug("released DB lock for rucioRule - {0}".format(rucioRule))
+                    tmpLog.debug(f"released DB lock for rucioRule - {rucioRule}")
                     have_db_lock = False
                 else:
-                    msgStr = " Could not release DB lock for {}".format(rucioRule)
+                    msgStr = f" Could not release DB lock for {rucioRule}"
                     tmpLog.error(msgStr)
                     return None, msgStr
 
@@ -199,16 +199,14 @@ class YodaRucioRseDirectStager(BaseStager):
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(
-            baseLogger, "PandaID={0} ThreadID={1}".format(jobspec.PandaID, threading.current_thread().ident), method_name="trigger_stage_out"
-        )
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID} ThreadID={threading.current_thread().ident}", method_name="trigger_stage_out")
         tmpLog.debug("start")
         # initialize some values
         tmpStat = None
         tmpMsg = ""
         srcRSE = None
         dstRSE = None
-        datasetName = "panda.harvester.{0}.{1}".format(jobspec.PandaID, str(uuid.uuid4()))
+        datasetName = f"panda.harvester.{jobspec.PandaID}.{str(uuid.uuid4())}"
         datasetScope = "transient"
         # check that jobspec.computingSite is defined
         if jobspec.computingSite is None:
@@ -216,12 +214,12 @@ class YodaRucioRseDirectStager(BaseStager):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # get the queueConfig and corresponding objStoreID_ES
         queueConfigMapper = QueueConfigMapper()
         queueConfig = queueConfigMapper.get_queue(jobspec.computingSite)
         # write to debug log queueConfig.stager
-        tmpLog.debug("jobspec.computingSite - {0} queueConfig.stager {1}".format(jobspec.computingSite, queueConfig.stager))
+        tmpLog.debug(f"jobspec.computingSite - {jobspec.computingSite} queueConfig.stager {queueConfig.stager}")
         # check queueConfig stager section to see if jobtype is set
         if "jobtype" in queueConfig.stager:
             if queueConfig.stager["jobtype"] == "Yoda":
@@ -235,10 +233,10 @@ class YodaRucioRseDirectStager(BaseStager):
         self.objstoreID = ddm[dstRSE]["id"]
         if self.Yodajob:
             self.pathConvention = int(queueConfig.stager["pathConvention"])
-            tmpLog.debug("Yoda Job - PandaID = {0} objstoreID = {1} pathConvention ={2}".format(jobspec.PandaID, self.objstoreID, self.pathConvention))
+            tmpLog.debug(f"Yoda Job - PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID} pathConvention ={self.pathConvention}")
         else:
             self.pathConvention = None
-            tmpLog.debug("PandaID = {0} objstoreID = {1}".format(jobspec.PandaID, self.objstoreID))
+            tmpLog.debug(f"PandaID = {jobspec.PandaID} objstoreID = {self.objstoreID}")
         # set the location of the files in fileSpec.objstoreID
         self.set_FileSpec_objstoreID(jobspec, self.objstoreID, self.pathConvention)
         self.RSE_dstpath = queueConfig.stager["RSE_dstPath"]
@@ -247,7 +245,7 @@ class YodaRucioRseDirectStager(BaseStager):
             srcRSE = queueConfig.stager["srcRSE"]
         else:
             tmpLog.debug("Warning srcRSE not defined in stager portion of queue config file")
-        tmpLog.debug("srcRSE - {0} dstRSE - {1}".format(srcRSE, dstRSE))
+        tmpLog.debug(f"srcRSE - {srcRSE} dstRSE - {dstRSE}")
 
         # loop over the output files and copy the files
         ifile = 0
@@ -256,14 +254,12 @@ class YodaRucioRseDirectStager(BaseStager):
         lfns = []
         fileSpec_list = []
         fileSpec_list = jobspec.get_output_file_specs(skip_done=False)
-        msgStr = "#(jobspec.get_output_file_specs(skip_done=False)) = {0}".format(len(fileSpec_list))
+        msgStr = f"#(jobspec.get_output_file_specs(skip_done=False)) = {len(fileSpec_list)}"
         tmpLog.debug(msgStr)
         for fileSpec in fileSpec_list:
-            msgstr = "fileSpec: dataset scope - {0} file name - {1} size(Bytes) - {2} adler32 - {3}".format(
-                datasetScope, fileSpec.lfn, fileSpec.fsize, fileSpec.chksum
-            )
+            msgstr = f"fileSpec: dataset scope - {datasetScope} file name - {fileSpec.lfn} size(Bytes) - {fileSpec.fsize} adler32 - {fileSpec.chksum}"
             if fileSpec.fileAttributes is not None and "guid" in fileSpec.fileAttributes:
-                msgstr += " guid - {0}".format(fileSpec.fileAttributes["guid"])
+                msgstr += f" guid - {fileSpec.fileAttributes['guid']}"
             tmpLog.debug(msgstr)
 
         # for fileSpec in jobspec.get_output_file_specs(skip_done=True):
@@ -276,25 +272,23 @@ class YodaRucioRseDirectStager(BaseStager):
                 scope = "transient"
             # only print to log file first 25 files
             if ifile < 25:
-                msgStr = "fileSpec.lfn - {0} fileSpec.scope - {1}".format(fileSpec.lfn, fileSpec.scope)
+                msgStr = f"fileSpec.lfn - {fileSpec.lfn} fileSpec.scope - {fileSpec.scope}"
                 tmpLog.debug(msgStr)
             if ifile == 25:
                 msgStr = "printed first 25 files skipping the rest".format(fileSpec.lfn, fileSpec.scope)
                 tmpLog.debug(msgStr)
             hash = hashlib.md5()
-            hash.update("%s:%s" % (scope, fileSpec.lfn))
+            hash.update(f"{scope}:{fileSpec.lfn}")
             hash_hex = hash.hexdigest()
             correctedscope = "/".join(scope.split("."))
             srcURL = fileSpec.path
-            dstURL = "{endPoint}/{scope}/{hash1}/{hash2}/{lfn}".format(
-                endPoint=self.RSE_dstPath, scope=correctedscope, hash1=hash_hex[0:2], hash2=hash_hex[2:4], lfn=fileSpec.lfn
-            )
+            dstURL = f"{self.RSE_dstPath}/{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{fileSpec.lfn}"
             if ifile < 25:
-                tmpLog.debug("src={srcURL} dst={dstURL}".format(srcURL=srcURL, dstURL=dstURL))
+                tmpLog.debug(f"src={srcURL} dst={dstURL}")
             tmpFile = dict()
             # copy the source file from source to destination skip over if file already exists
             if os.path.exists(dstURL):
-                tmpLog.debug("Already copied file {0}".format(dstURL))
+                tmpLog.debug(f"Already copied file {dstURL}")
                 # save for adding to rucio dataset
                 tmpFile["scope"] = datasetScope
                 tmpFile["name"] = fileSpec.lfn
@@ -303,15 +297,15 @@ class YodaRucioRseDirectStager(BaseStager):
                 if fileSpec.fileAttributes is not None and "guid" in fileSpec.fileAttributes:
                     tmpFile["meta"] = {"guid": fileSpec.fileAttributes["guid"]}
                 else:
-                    tmpLog.debug("File - {0} does not have a guid value".format(fileSpec.lfn))
-                tmpLog.debug("Adding file {0} to fileList".format(fileSpec.lfn))
+                    tmpLog.debug(f"File - {fileSpec.lfn} does not have a guid value")
+                tmpLog.debug(f"Adding file {fileSpec.lfn} to fileList")
                 fileList.append(tmpFile)
                 lfns.append(fileSpec.lfn)
                 # get source RSE
                 if srcRSE is None and fileSpec.objstoreID is not None:
                     ddm = self.dbInterface.get_cache("agis_ddmendpoints.json").data
                     srcRSE = [x for x in ddm if ddm[x]["id"] == fileSpec.objstoreID][0]
-                    tmpLog.debug("srcRSE - {0} defined from agis_ddmendpoints.json".format(srcRSE))
+                    tmpLog.debug(f"srcRSE - {srcRSE} defined from agis_ddmendpoints.json")
             else:
                 if os.path.exists(srcURL):
                     # check if destination directory exists if not create it
@@ -332,15 +326,15 @@ class YodaRucioRseDirectStager(BaseStager):
                         if fileSpec.fileAttributes is not None and "guid" in fileSpec.fileAttributes:
                             tmpFile["meta"] = {"guid": fileSpec.fileAttributes["guid"]}
                         else:
-                            tmpLog.debug("File - {0} does not have a guid value".format(fileSpec.lfn))
-                        tmpLog.debug("Adding file {0} to fileList".format(fileSpec.lfn))
+                            tmpLog.debug(f"File - {fileSpec.lfn} does not have a guid value")
+                        tmpLog.debug(f"Adding file {fileSpec.lfn} to fileList")
                         fileList.append(tmpFile)
                         lfns.append(fileSpec.lfn)
                         # get source RSE if not already set
                         if srcRSE is None and fileSpec.objstoreID is not None:
                             ddm = self.dbInterface.get_cache("agis_ddmendpoints.json").data
                             srcRSE = [x for x in ddm if ddm[x]["id"] == fileSpec.objstoreID][0]
-                            tmpLog.debug("srcRSE - {0} defined from agis_ddmendpoints.json".format(srcRSE))
+                            tmpLog.debug(f"srcRSE - {srcRSE} defined from agis_ddmendpoints.json")
                     except (IOError, os.error) as why:
                         errors.append((srcURL, dstURL, str(why)))
                 else:
@@ -348,7 +342,7 @@ class YodaRucioRseDirectStager(BaseStager):
             ifile += 1
 
         # test that srcRSE and dstRSE are defined
-        tmpLog.debug("srcRSE - {0} dstRSE - {1}".format(srcRSE, dstRSE))
+        tmpLog.debug(f"srcRSE - {srcRSE} dstRSE - {dstRSE}")
         errStr = ""
         if srcRSE is None:
             errStr = "Source RSE is not defined "
@@ -364,20 +358,20 @@ class YodaRucioRseDirectStager(BaseStager):
             tmpLog.error(errStr)
             return None, errStr
         # print out the file list
-        tmpLog.debug("fileList - {0}".format(fileList))
+        tmpLog.debug(f"fileList - {fileList}")
 
         # create the dataset and add files to it and create a transfer rule
         try:
             # register dataset
             rucioAPI = RucioClient()
-            tmpLog.debug("register {0}:{1} rse = {2} meta=(hidden: True) lifetime = {3}".format(datasetScope, datasetName, srcRSE, (30 * 24 * 60 * 60)))
+            tmpLog.debug(f"register {datasetScope}:{datasetName} rse = {srcRSE} meta=(hidden: True) lifetime = {30 * 24 * 60 * 60}")
             try:
                 rucioAPI.add_dataset(datasetScope, datasetName, meta={"hidden": True}, lifetime=30 * 24 * 60 * 60, rse=srcRSE)
             except DataIdentifierAlreadyExists:
                 # ignore even if the dataset already exists
                 pass
             except Exception:
-                errMsg = "Could not create dataset {0}:{1} srcRSE - {2}".format(datasetScope, datasetName, srcRSE)
+                errMsg = f"Could not create dataset {datasetScope}:{datasetName} srcRSE - {srcRSE}"
                 core_utils.dump_error_message(tmpLog)
                 tmpLog.error(errMsg)
                 return None, errMsg
@@ -403,7 +397,7 @@ class YodaRucioRseDirectStager(BaseStager):
                     # ignore if files already exist
                     pass
                 except Exception:
-                    errMsg = "Could not add files to DS - {0}:{1}  rse - {2} files - {3}".format(datasetScope, datasetName, srcRSE, fileList)
+                    errMsg = f"Could not add files to DS - {datasetScope}:{datasetName}  rse - {srcRSE} files - {fileList}"
                     core_utils.dump_error_message(tmpLog)
                     tmpLog.error(errMsg)
                     return None, errMsg
@@ -414,10 +408,10 @@ class YodaRucioRseDirectStager(BaseStager):
                 tmpDID["name"] = datasetName
                 tmpRet = rucioAPI.add_replication_rule([tmpDID], 1, dstRSE, lifetime=30 * 24 * 60 * 60)
                 ruleIDs = tmpRet[0]
-                tmpLog.debug("registered dataset {0}:{1} with rule {2}".format(datasetScope, datasetName, str(ruleIDs)))
+                tmpLog.debug(f"registered dataset {datasetScope}:{datasetName} with rule {str(ruleIDs)}")
                 # group the output files together by the Rucio transfer rule
                 jobspec.set_groups_to_files({ruleIDs: {"lfns": lfns, "groupStatus": "pending"}})
-                msgStr = "jobspec.set_groups_to_files -Rucio rule - {0}, lfns - {1}, groupStatus - pending".format(ruleIDs, lfns)
+                msgStr = f"jobspec.set_groups_to_files -Rucio rule - {ruleIDs}, lfns - {lfns}, groupStatus - pending"
                 tmpLog.debug(msgStr)
                 tmpLog.debug("call self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True),ruleIDs,pending)")
                 tmpStat = self.dbInterface.set_file_group(jobspec.get_output_file_specs(skip_done=True), ruleIDs, "transferring")
@@ -428,7 +422,7 @@ class YodaRucioRseDirectStager(BaseStager):
                 # ignore duplicated rule
                 tmpLog.debug("rule is already available")
             except Exception:
-                errMsg = "Error creating rule for dataset {0}:{1}".format(datasetScope, datasetName)
+                errMsg = f"Error creating rule for dataset {datasetScope}:{datasetName}"
                 core_utils.dump_error_message(tmpLog)
                 tmpLog.debug(errMsg)
                 return None, errMsg
@@ -438,12 +432,12 @@ class YodaRucioRseDirectStager(BaseStager):
             core_utils.dump_error_message(tmpLog)
             # treat as a temporary error
             tmpStat = None
-            tmpMsg = "failed to add a rule for {0}:{1}".format(datasetScope, datasetName)
+            tmpMsg = f"failed to add a rule for {datasetScope}:{datasetName}"
 
         #  Now test for any errors
         if errors:
             for error in errors:
-                tmpLog.debug("copy error source {0} destination {1} Reason {2}".format(error[0], error[1], error[2]))
+                tmpLog.debug(f"copy error source {error[0]} destination {error[1]} Reason {error[2]}")
             raise Error(errors)
         # otherwise we are OK
         tmpLog.debug("stop")
@@ -452,5 +446,5 @@ class YodaRucioRseDirectStager(BaseStager):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)

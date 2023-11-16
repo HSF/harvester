@@ -6,8 +6,8 @@ except BaseException:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # logger
 baseLogger = core_utils.setup_logger("pbs_monitor")
@@ -24,22 +24,22 @@ class PBSMonitor(PluginBase):
         retList = []
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="check_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="check_workers")
             # command
-            comStr = "qstat {0}".format(workSpec.batchID)
+            comStr = f"qstat {workSpec.batchID}"
             # check
-            tmpLog.debug("check with {0}".format(comStr))
+            tmpLog.debug(f"check with {comStr}")
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             newStatus = workSpec.status
             # check return code
             stdOut, stdErr = p.communicate()
             retCode = p.returncode
-            tmpLog.debug("retCode={0}".format(retCode))
+            tmpLog.debug(f"retCode={retCode}")
             errStr = ""
             if retCode == 0:
                 # parse
                 for tmpLine in stdOut.split("\n"):
-                    tmpMatch = re.search("{0} ".format(workSpec.batchID), tmpLine)
+                    tmpMatch = re.search(f"{workSpec.batchID} ", tmpLine)
                     if tmpMatch is not None:
                         errStr = tmpLine
                         batchStatus = tmpLine.split()[-2]
@@ -53,7 +53,7 @@ class PBSMonitor(PluginBase):
                             newStatus = WorkSpec.ST_submitted
                         else:
                             newStatus = WorkSpec.ST_failed
-                        tmpLog.debug("batchStatus {0} -> workerStatus {1}".format(batchStatus, newStatus))
+                        tmpLog.debug(f"batchStatus {batchStatus} -> workerStatus {newStatus}")
                         break
                 retList.append((newStatus, errStr))
             else:

@@ -1,15 +1,15 @@
-import os.path
 import os
+import os.path
 import threading
 import time
-from future.utils import iteritems
 
+from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
 from pilot.api import data
-from pilot.info.filespec import FileSpec as PilotFileSpec
 from pilot.info import infosys
+from pilot.info.filespec import FileSpec as PilotFileSpec
 
 # logger
 baseLogger = core_utils.setup_logger("pilotmover_mt_preparator_kari")
@@ -39,7 +39,7 @@ class PilotmoverMTPreparator(PluginBase):
         return True, ""
 
     def stage_in(self, tmpLog, jobspec, files):
-        tmpLog.debug("To stagein files[] {0}".format(files))
+        tmpLog.debug(f"To stagein files[] {files}")
         # get infosys
         # infoservice = InfoService()
         # infoservice.init(jobspec.computingSite, infosys.confinfo, infosys.extinfo)
@@ -58,19 +58,19 @@ class PilotmoverMTPreparator(PluginBase):
             try:
                 result = data_client.transfer(files)
             except Exception as e:
-                tmpLog.error("error when stage_in: {0} ; {1}".format(e.__class__.__name__, e))
+                tmpLog.error(f"error when stage_in: {e.__class__.__name__} ; {e}")
                 raise
             else:
-                tmpLog.debug("pilot.api data.StageInClient.transfer(files) result: {0}".format(result))
+                tmpLog.debug(f"pilot.api data.StageInClient.transfer(files) result: {result}")
 
                 # loop over each file check result all must be true for entire result to be true
                 if result:
                     for answer in result:
                         if answer.status_code != 0:
                             allChecked = False
-                            ErrMsg = ErrMsg + (" %s " % answer.lfn)
+                            ErrMsg = ErrMsg + f" {answer.lfn} "
                 else:
-                    tmpLog.info("Looks like all files already inplace: {0}".format(files))
+                    tmpLog.info(f"Looks like all files already inplace: {files}")
         # return
         tmpLog.debug("stop thread")
         if allChecked:
@@ -81,7 +81,7 @@ class PilotmoverMTPreparator(PluginBase):
     # trigger preparation
     def trigger_preparation(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_preparation")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_preparation")
         tmpLog.debug("start")
 
         # check that jobspec.computingSite is defined
@@ -90,14 +90,14 @@ class PilotmoverMTPreparator(PluginBase):
             tmpLog.error("jobspec.computingSite is not defined")
             return False, "jobspec.computingSite is not defined"
         else:
-            tmpLog.debug("jobspec.computingSite : {0}".format(jobspec.computingSite))
+            tmpLog.debug(f"jobspec.computingSite : {jobspec.computingSite}")
         # get input files
         files = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
         for inLFN, inFile in iteritems(inFiles):
             inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
-            tmpLog.debug("To check file: %s" % inFile)
+            tmpLog.debug(f"To check file: {inFile}")
             if os.path.exists(inFile["path"]):
                 # checksum = core_utils.calc_adler32(inFile['path'])
                 # checksum = 'ad:%s' % checksum
@@ -108,9 +108,9 @@ class PilotmoverMTPreparator(PluginBase):
 
                 # lazy but unsafe check to be faster...
                 file_size = os.stat(inFile["path"]).st_size
-                tmpLog.debug("file size for file %s is %s" % (inFile["path"], file_size))
+                tmpLog.debug(f"file size for file {inFile['path']} is {file_size}")
                 if "fsize" in inFile and inFile["fsize"] and inFile["fsize"] == file_size:
-                    tmpLog.debug("File %s already exists at %s" % (inLFN, inFile["path"]))
+                    tmpLog.debug(f"File {inLFN} already exists at {inFile['path']}")
                     continue
             dstpath = os.path.dirname(inFile["path"])
             # check if path exists if not create it.
@@ -134,7 +134,7 @@ class PilotmoverMTPreparator(PluginBase):
         if files:
             threads = []
             n_files_per_thread = (len(files) + self.n_threads - 1) // self.n_threads
-            tmpLog.debug("num files per thread: %s" % n_files_per_thread)
+            tmpLog.debug(f"num files per thread: {n_files_per_thread}")
             for i in range(0, len(files), n_files_per_thread):
                 sub_files = files[i : i + n_files_per_thread]
                 thread = threading.Thread(
@@ -151,15 +151,15 @@ class PilotmoverMTPreparator(PluginBase):
                 time.sleep(1)
                 threads = [t for t in threads if t and t.isAlive()]
 
-            tmpLog.info("Checking all files: {0}".format(files))
+            tmpLog.info(f"Checking all files: {files}")
             for file in files:
                 if file.status_code != 0:
                     allChecked = False
-                    ErrMsg = ErrMsg + (" %s " % file.lfn)
+                    ErrMsg = ErrMsg + f" {file.lfn} "
             for inLFN, inFile in iteritems(inFiles):
                 if not os.path.isfile(inFile["path"]):
                     allChecked = False
-                    ErrMsg = ErrMsg + (" %s " % file.lfn)
+                    ErrMsg = ErrMsg + f" {file.lfn} "
         # return
         tmpLog.debug("stop")
         if allChecked:

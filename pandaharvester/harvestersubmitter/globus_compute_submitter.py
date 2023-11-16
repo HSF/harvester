@@ -1,19 +1,17 @@
-import ast
 import argparse
+import ast
 import json
-import shlex
 import os
+import shlex
 import tarfile
-import urllib.request as urllib
 import traceback
-
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
-
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
+import urllib.request as urllib
 
 from globus_compute_sdk import Client
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
 # logger
 baseLogger = core_utils.setup_logger("globus_compute_submitter")
@@ -34,10 +32,10 @@ def run_wrapper(base_path, data_path, func_str):
         os.environ["HARVESTER_WORKER_BASE_PATH"] = base_path
         os.environ["HARVESTER_DATA_PATH"] = data_path
         os.environ["PYTHONPATH"] = base_path + ":" + os.environ.get("PYTHONPATH", "")
-        print("hostname: %s" % socket.gethostname())
-        print("current directory: %s" % os.getcwd())
-        print("PYTHONPATH: %s" % os.environ["PYTHONPATH"])
-        print("execute programe: %s" % str(func_str))
+        print(f"hostname: {socket.gethostname()}")
+        print(f"current directory: {os.getcwd()}")
+        print(f"PYTHONPATH: {os.environ['PYTHONPATH']}")
+        print(f"execute programe: {str(func_str)}")
 
         func_json = json.loads(func_str)
         func_name = func_json["func_name"]
@@ -49,9 +47,9 @@ def run_wrapper(base_path, data_path, func_str):
             exec(pre_script)
 
         f = locals()[func_name]
-        print("function %s" % f)
+        print(f"function {f}")
         ret_value = f(**kwargs)
-        print("return value: %s" % ret_value)
+        print(f"return value: {ret_value}")
 
         os.chdir(current_dir)
         return ret_value
@@ -122,16 +120,16 @@ class GlobusComputeSubmitter(PluginBase):
 
         job_script = job_args.program
         job_script = urllib.unquote(job_script)
-        logger.debug("job_script: %s" % job_script)
+        logger.debug(f"job_script: {job_script}")
         input_files = job_args.input
         if input_files:
             input_files = ast.literal_eval(input_files)
-        logger.debug("job_input: %s" % str(input_files))
+        logger.debug(f"job_input: {str(input_files)}")
         input_files = ",".join(input_files)
-        logger.debug("job_input: %s" % str(input_files))
+        logger.debug(f"job_input: {str(input_files)}")
 
         job_script = job_script.replace("%IN", input_files)
-        logger.debug("job_script: %s" % job_script)
+        logger.debug(f"job_script: {job_script}")
 
         messenger = self.get_messenger(workSpec)
         base_path = messenger.get_access_point(workSpec, jobSpec.PandaID)
@@ -150,20 +148,20 @@ class GlobusComputeSubmitter(PluginBase):
             os.makedirs(base_dir, exist_ok=True)
         full_output_filename = os.path.join(base_dir, archive_basename)
         if os.path.exists(full_output_filename):
-            logger.info("source codes already exist: %s" % full_output_filename)
+            logger.info(f"source codes already exist: {full_output_filename}")
         else:
             os.environ["PANDACACHE_URL"] = source_url
-            logger.info("PANDACACHE_URL: %s" % (os.environ["PANDACACHE_URL"]))
+            logger.info(f"PANDACACHE_URL: {os.environ['PANDACACHE_URL']}")
             from pandaclient import Client
 
             Client.baseURLCSRVSSL = source_url
             status, output = Client.getFile(archive_basename, output_path=full_output_filename)
-            logger.info("Download archive file from pandacache status: %s, output: %s" % (status, output))
+            logger.info(f"Download archive file from pandacache status: {status}, output: {output}")
             if status != 0:
                 raise RuntimeError("Failed to download archive file from pandacache")
             with tarfile.open(full_output_filename, "r:gz") as f:
                 f.extractall(base_dir)
-            logger.info("Extract %s to %s" % (full_output_filename, base_dir))
+            logger.info(f"Extract {full_output_filename} to {base_dir}")
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -175,12 +173,12 @@ class GlobusComputeSubmitter(PluginBase):
                 self.submit_func_id = self.gc_client.register_function(run_wrapper)
         except Exception as ex:
             tmpLog = self.make_logger(baseLogger, "init_gc_client", method_name="submit_workers")
-            tmpLog.error("Failed to init gc client: %s" % str(ex))
+            tmpLog.error(f"Failed to init gc client: {str(ex)}")
             tmpLog.error(traceback.format_exc())
 
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workSpec.workerID), method_name="submit_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
             try:
                 if self.gc_client is None or self.submit_func_id is None:
                     errStr = "Globus Compute client is not initialized"
@@ -201,8 +199,8 @@ class GlobusComputeSubmitter(PluginBase):
                         batch_ids.append(batch_id)
 
                     workSpec.batchID = json.dumps(batch_ids)
-                    tmpLog.debug("PanDAID={0}".format([panda_id for panda_id in func_args]))
-                    tmpLog.debug("batchID={0}".format(workSpec.batchID))
+                    tmpLog.debug(f"PanDAID={[panda_id for panda_id in func_args]}")
+                    tmpLog.debug(f"batchID={workSpec.batchID}")
                     # batch_id = self.gc_client.run(base_path, data_path, job_script, endpoint_id=self.funcxEndpointId, function_id=self.submit_func_id)
                     # workSpec.batchID = batch_id
                     # tmpLog.debug('batchID={0}'.format(workSpec.batchID))
@@ -215,9 +213,9 @@ class GlobusComputeSubmitter(PluginBase):
                             baseDir = self.logBaseURL
                         stdOut, stdErr = self.get_log_file_names(workSpec.batchID)
                         if stdOut is not None:
-                            workSpec.set_log_file("stdout", "{0}/{1}".format(baseDir, stdOut))
+                            workSpec.set_log_file("stdout", f"{baseDir}/{stdOut}")
                         if stdErr is not None:
-                            workSpec.set_log_file("stderr", "{0}/{1}".format(baseDir, stdErr))
+                            workSpec.set_log_file("stderr", f"{baseDir}/{stdErr}")
                     tmpRetVal = (True, "")
             except Exception as ex:
                 # failed

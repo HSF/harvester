@@ -1,7 +1,8 @@
 # Detect and delete nodes that are stuck
 
+from subprocess import PIPE, Popen
+
 from kubernetes import client, config
-from subprocess import Popen, PIPE
 
 config.load_kube_config(config_file="YOUR KUBECONFIG FILE")
 apis_api = client.CoreV1Api()
@@ -30,7 +31,7 @@ for id in unhealthy_node_ids:
     output, err = p.communicate()
     print("------------------------------------")
     print(command_with_id)
-    print("return code: {0}".format(p.returncode))
-    print("output: {0}".format(output))
-    print("err: {0}".format(err))
+    print(f"return code: {p.returncode}")
+    print(f"output: {output}")
+    print(f"err: {err}")
     print("------------------------------------")

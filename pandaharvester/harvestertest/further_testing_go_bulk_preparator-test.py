@@ -1,31 +1,32 @@
-import sys
+import datetime
+import hashlib
+import logging
 import os
 import os.path
-import hashlib
-import datetime
-import uuid
 import random
 import string
-import time
+import sys
 import threading
-import logging
+import time
+import uuid
+
 from future.utils import iteritems
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.file_spec import FileSpec
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from globus_sdk import (
+    NativeAppAuthClient,
+    RefreshTokenAuthorizer,
+    TransferClient,
+    TransferData,
+)
 from pandaharvester.harvesterbody.cacher import Cacher
-from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestermisc import globus_utils
-
-from globus_sdk import TransferClient
-from globus_sdk import TransferData
-from globus_sdk import NativeAppAuthClient
-from globus_sdk import RefreshTokenAuthorizer
-
 
 # initial variables
 fileTableName = "file_table"
@@ -41,7 +42,7 @@ conLock = threading.Lock()
 def dump(obj):
     for attr in dir(obj):
         if hasattr(obj, attr):
-            print("obj.%s = %s" % (attr, getattr(obj, attr)))
+            print(f"obj.{attr} = {getattr(obj, attr)}")
 
 
 if len(sys.argv) > 1:
@@ -80,11 +81,11 @@ for loggerName, loggerObj in logging.Logger.manager.loggerDict.iteritems():
         stdoutHandler.setFormatter(loggerObj.handlers[0].formatter)
         loggerObj.addHandler(stdoutHandler)
 
-msgStr = "plugin={0}".format(preparatorCore.__class__.__name__)
+msgStr = f"plugin={preparatorCore.__class__.__name__}"
 tmpLog.debug(msgStr)
-msgStr = "Initial queueConfig.preparator = {}".format(initial_queueConfig_preparator)
+msgStr = f"Initial queueConfig.preparator = {initial_queueConfig_preparator}"
 tmpLog.debug(msgStr)
-msgStr = "Modified queueConfig.preparator = {}".format(modified_queueConfig_preparator)
+msgStr = f"Modified queueConfig.preparator = {modified_queueConfig_preparator}"
 tmpLog.debug(msgStr)
 
 scope = "panda"
@@ -94,21 +95,21 @@ communicator = CommunicatorPool()
 cacher = Cacher(communicator, single_mode=True)
 cacher.run()
 
-tmpLog.debug("plugin={0}".format(preparatorCore.__class__.__name__))
-tmpLog.debug("BasePath from preparator configuration: %s " % preparatorCore.basePath)
+tmpLog.debug(f"plugin={preparatorCore.__class__.__name__}")
+tmpLog.debug(f"BasePath from preparator configuration: {preparatorCore.basePath} ")
 
 # get all jobs in table in a preparing substate
 # tmpLog.debug('try to get all jobs in a preparing substate')
 # jobSpec_list = proxy.get_jobs_in_sub_status('preparing',2000,None,None,None,None,None,None)
 # get all jobs
 if job_id > 0:
-    tmpLog.debug("try to get job ID - {}".format(job_id))
+    tmpLog.debug(f"try to get job ID - {job_id}")
     jobSpec_list = [proxy.get_job(job_id)]
 else:
     tmpLog.debug("try to get all jobs")
     jobSpec_list = proxy.get_jobs()
 
-tmpLog.debug("got {0} jobs".format(len(jobSpec_list)))
+tmpLog.debug(f"got {len(jobSpec_list)} jobs")
 
 
 # loop over all found jobs
@@ -121,28 +122,28 @@ if len(jobSpec_list) > 0:
             tmpLog.debug(" PandaID = %d status = %s subStatus = %s lockedBy = %s" % (jobSpec.PandaID, jobSpec.status, jobSpec.subStatus, jobSpec.lockedBy))
         # get the transfer groups
         groups = jobSpec.get_groups_of_input_files(skip_ready=True)
-        tmpLog.debug("jobspec.get_groups_of_input_files(skip_ready=True) = : {0}".format(groups))
+        tmpLog.debug(f"jobspec.get_groups_of_input_files(skip_ready=True) = : {groups}")
         groups = jobSpec.get_groups_of_input_files()
-        tmpLog.debug("jobspec.get_groups_of_input_files() = : {0}".format(groups))
+        tmpLog.debug(f"jobspec.get_groups_of_input_files() = : {groups}")
 
         # get the number of input files
-        tmpLog.debug("Number of input files - {}".format(len(jobSpec.inFiles)))
+        tmpLog.debug(f"Number of input files - {len(jobSpec.inFiles)}")
 
         # loop over the groups and get the number of files per group
         for group in groups:
-            tmpLog.debug("file group id - {0} number of input files - {1}".format(group, len(jobSpec.get_input_file_specs(group))))
+            tmpLog.debug(f"file group id - {group} number of input files - {len(jobSpec.get_input_file_specs(group))}")
 
         inFiles = jobSpec.get_input_file_attributes(skip_ready=True)
-        tmpLog.debug("number of input files from get_input_file_attributes - {}".format(len(inFiles)))
+        tmpLog.debug(f"number of input files from get_input_file_attributes - {len(inFiles)}")
 
         lfns = inFiles.keys()
-        tmpLog.debug("number of input files from inFiles.keys() - {}".format(len(lfns)))
+        tmpLog.debug(f"number of input files from inFiles.keys() - {len(lfns)}")
 
-        tmpLog.debug("{}".format(lfns))
+        tmpLog.debug(f"{lfns}")
 
         for inLFN in inFiles.keys():
             lfns.append(inLFN)
-        tmpLog.debug("number of input files from append inFiles.keys() - {}".format(len(lfns)))
+        tmpLog.debug(f"number of input files from append inFiles.keys() - {len(lfns)}")
 
         sys.exit(0)
 
@@ -158,7 +159,7 @@ if len(jobSpec_list) > 0:
             else:
                 tmpLog.debug(" Could not unlock db")
         # print out jobSpec PandID
-        msgStr = "jobSpec PandaID - {}".format(jobSpec.PandaID)
+        msgStr = f"jobSpec PandaID - {jobSpec.PandaID}"
         tmpLog.debug(msgStr)
         # msgStr = "testing trigger_preparation"
         # tmpLog.debug(msgStr)
@@ -176,17 +177,17 @@ if len(jobSpec_list) > 0:
 
         # check status to actually trigger transfer
         # get the files with the group_id and print out
-        msgStr = "Original dummy_transfer_id = {}".format(preparatorCore.get_dummy_transfer_id())
+        msgStr = f"Original dummy_transfer_id = {preparatorCore.get_dummy_transfer_id()}"
         tmpLog.debug(msgStr)
         # modify dummy_transfer_id from groups of input files
         for key in groups:
             preparatorCore.set_dummy_transfer_id_testing(key)
-            msgStr = "Revised dummy_transfer_id = {}".format(preparatorCore.get_dummy_transfer_id())
+            msgStr = f"Revised dummy_transfer_id = {preparatorCore.get_dummy_transfer_id()}"
             tmpLog.debug(msgStr)
             files = proxy.get_files_with_group_id(preparatorCore.get_dummy_transfer_id())
-            tmpLog.debug("proxy.get_files_with_group_id(preparatorCore.get_dummy_transfer_id()) = {0}".format(files))
+            tmpLog.debug(f"proxy.get_files_with_group_id(preparatorCore.get_dummy_transfer_id()) = {files}")
             files = preparatorCore.dbInterface.get_files_with_group_id(preparatorCore.get_dummy_transfer_id())
-            tmpLog.debug("preparatorCore.dbInterface.get_files_with_group_id(preparatorCore.get_dummy_transfer_id()) = {0}".format(files))
+            tmpLog.debug(f"preparatorCore.dbInterface.get_files_with_group_id(preparatorCore.get_dummy_transfer_id()) = {files}")
             msgStr = "checking status for transfer and perhaps ultimately triggering the transfer"
             tmpLog.debug(msgStr)
             tmpStat, tmpOut = preparatorCore.check_stage_in_status(jobSpec)
@@ -194,8 +195,8 @@ if len(jobSpec_list) > 0:
                 msgStr = " OK"
                 tmpLog.debug(msgStr)
             elif tmpStat is None:
-                msgStr = " Temporary failure No Good {0}".format(tmpOut)
+                msgStr = f" Temporary failure No Good {tmpOut}"
                 tmpLog.debug(msgStr)
             elif not tmpStat:
-                msgStr = " No Good {0}".format(tmpOut)
+                msgStr = f" No Good {tmpOut}"
                 tmpLog.debug(msgStr)

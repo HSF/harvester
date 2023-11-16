@@ -8,17 +8,18 @@ try:
 except ImportError:
     JSONDecodeError = ValueError
 
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from queue import Queue
-from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # try:
 #     from urllib.parse import parse_qsl
 # except ImportError:
 #     from cgi import parse_qsl
 from socketserver import ThreadingMixIn
+
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermessenger import shared_file_messenger
 
 # logger
@@ -87,7 +88,7 @@ class HttpHandler(BaseHTTPRequestHandler):
                 workerID = form["workerID"]
                 workSpec = self.dbProxy.get_worker_with_id(workerID)
                 if workSpec is None:
-                    message = "workerID={0} not found in DB".format(workerID)
+                    message = f"workerID={workerID} not found in DB"
                     self.send_response(400)
                 else:
                     # chose file and operation for each action
@@ -162,7 +163,7 @@ class HttpHandler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 message = core_utils.dump_error_message(_logger)
         if harvester_config.frontend.verbose:
-            self.tmpLog.debug("ip={3} - method={0} json={1} msg={2}".format(methodName, dataStr, message, self.client_address[0]))
+            self.tmpLog.debug(f"ip={self.client_address[0]} - method={methodName} json={dataStr} msg={message}")
         # set the response
         self.do_postprocessing(message)
         return

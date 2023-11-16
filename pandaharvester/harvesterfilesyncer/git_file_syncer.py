@@ -1,8 +1,9 @@
-import subprocess
 import pathlib
+import subprocess
+
+from pandaharvester.harvestercore import core_utils
 
 from .base_file_syncer import BaseFileSyncer
-from pandaharvester.harvestercore import core_utils
 
 # logger
 _logger = core_utils.setup_logger("git_file_syncer")
@@ -47,10 +48,10 @@ class GitFileSyncer(BaseFileSyncer):
         def execute_command(command, **kwargs):
             ret_code, std_out, std_err = run_command(command, **kwargs)
             if ret_code != 0:
-                main_log.error("command: {} ; kwargs: {} ; ret_code={} ; stdout: {} ; stderr: {}".format(command, str(kwargs), ret_code, std_out, std_err))
+                main_log.error(f"command: {command} ; kwargs: {str(kwargs)} ; ret_code={ret_code} ; stdout: {std_out} ; stderr: {std_err}")
                 err_msg_list.append(std_err)
             else:
-                main_log.debug("command: {} ; kwargs: {} ; ret_code={} ; stdout: {} ; stderr: {}".format(command, str(kwargs), ret_code, std_out, std_err))
+                main_log.debug(f"command: {command} ; kwargs: {str(kwargs)} ; ret_code={ret_code} ; stdout: {std_out} ; stderr: {std_err}")
             return ret_code, std_out, std_err
 
         # run
@@ -58,32 +59,22 @@ class GitFileSyncer(BaseFileSyncer):
             # assure the local target directory
             target_dir_path = pathlib.Path(self.targetDir)
             target_dir_path.mkdir(mode=0o755, parents=True, exist_ok=True)
-            main_log.debug("assure local target directory {}".format(str(target_dir_path)))
+            main_log.debug(f"assure local target directory {str(target_dir_path)}")
             # git init
             execute_command("git init -q", cwd=target_dir_path)
             # git remote
             ret_code, std_out, std_err = execute_command(
-                "git remote set-url {name} {url}".format(
-                    name=self.sourceRemoteName,
-                    url=self.sourceURL,
-                ),
+                f"git remote set-url {self.sourceRemoteName} {self.sourceURL}",
                 cwd=target_dir_path,
             )
             if ret_code == 128:
                 execute_command(
-                    "git remote add -f -t {branch} {name} {url}".format(
-                        branch=self.sourceBranch,
-                        name=self.sourceRemoteName,
-                        url=self.sourceURL,
-                    ),
+                    f"git remote add -f -t {self.sourceBranch} {self.sourceRemoteName} {self.sourceURL}",
                     cwd=target_dir_path,
                 )
             else:
                 execute_command(
-                    "git remote set-branches {name} {branch}".format(
-                        branch=self.sourceBranch,
-                        name=self.sourceRemoteName,
-                    ),
+                    f"git remote set-branches {self.sourceRemoteName} {self.sourceBranch}",
                     cwd=target_dir_path,
                 )
             # git config
@@ -92,20 +83,15 @@ class GitFileSyncer(BaseFileSyncer):
             sparse_checkout_config_path = target_dir_path / ".git/info/sparse-checkout"
             with sparse_checkout_config_path.open("w") as f:
                 f.write(self.sourceSubdir)
-            main_log.debug("wrote {} in git sparse-checkout file".format(self.sourceSubdir))
+            main_log.debug(f"wrote {self.sourceSubdir} in git sparse-checkout file")
             # git fetch (without refspec so remote can be updated)
             execute_command(
-                "git fetch {name}".format(
-                    name=self.sourceRemoteName,
-                ),
+                f"git fetch {self.sourceRemoteName}",
                 cwd=target_dir_path,
             )
             # git reset to the branch
             execute_command(
-                "git reset --hard {name}/{branch}".format(
-                    name=self.sourceRemoteName,
-                    branch=self.sourceBranch,
-                ),
+                f"git reset --hard {self.sourceRemoteName}/{self.sourceBranch}",
                 cwd=target_dir_path,
             )
             # git clean

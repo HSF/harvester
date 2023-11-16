@@ -1,10 +1,10 @@
-import time
 import functools
+import time
 import warnings
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvesterconfig import harvester_config
 
 warnings.simplefilter("ignore")
 
@@ -18,7 +18,7 @@ class MysqlFifo(PluginBase):
         elif hasattr(harvester_config.db, "reconnectTimeout"):
             self.reconnectTimeout = harvester_config.db.reconnectTimeout
         PluginBase.__init__(self, **kwarg)
-        self.tableName = "{title}_FIFO".format(title=self.titleName)
+        self.tableName = f"{self.titleName}_FIFO"
         # get connection, cursor and error types
         self._connect_db()
         # create table for fifo
@@ -160,16 +160,16 @@ class MysqlFifo(PluginBase):
 
     # make index
     def _make_index(self):
-        sql_make_index = ("CREATE INDEX IF NOT EXISTS score_index ON {table_name} " "(score)").format(table_name=self.tableName)
+        sql_make_index = f"CREATE INDEX IF NOT EXISTS score_index ON {self.tableName} (score)"
         self.execute(sql_make_index)
 
     def _push(self, item, score):
-        sql_push = ("INSERT INTO {table_name} " "(item, score) " "VALUES (%s, %s) ").format(table_name=self.tableName)
+        sql_push = f"INSERT INTO {self.tableName} (item, score) VALUES (%s, %s) "
         params = (item, score)
         self.execute(sql_push, params)
 
     def _push_by_id(self, id, item, score):
-        sql_push = ("INSERT IGNORE INTO {table_name} " "(id, item, score) " "VALUES (%s, %s, %s) ").format(table_name=self.tableName)
+        sql_push = f"INSERT IGNORE INTO {self.tableName} (id, item, score) VALUES (%s, %s, %s) "
         params = (id, item, score)
         self.execute(sql_push, params)
         n_row = self.cur.rowcount
@@ -179,10 +179,10 @@ class MysqlFifo(PluginBase):
             return False
 
     def _pop(self, timeout=None, protective=False, mode="first"):
-        sql_pop_get_first = ("SELECT id, item, score FROM {table_name} " "WHERE temporary = 0 " "ORDER BY score LIMIT 1 ").format(table_name=self.tableName)
-        sql_pop_get_last = ("SELECT id, item, score FROM {table_name} " "WHERE temporary = 0 " "ORDER BY score DESC LIMIT 1 ").format(table_name=self.tableName)
-        sql_pop_to_temp = ("UPDATE {table_name} SET temporary = 1 " "WHERE id = %s AND temporary = 0 ").format(table_name=self.tableName)
-        sql_pop_del = ("DELETE FROM {table_name} " "WHERE id = %s AND temporary = 0 ").format(table_name=self.tableName)
+        sql_pop_get_first = f"SELECT id, item, score FROM {self.tableName} WHERE temporary = 0 ORDER BY score LIMIT 1 "
+        sql_pop_get_last = f"SELECT id, item, score FROM {self.tableName} WHERE temporary = 0 ORDER BY score DESC LIMIT 1 "
+        sql_pop_to_temp = f"UPDATE {self.tableName} SET temporary = 1 WHERE id = %s AND temporary = 0 "
+        sql_pop_del = f"DELETE FROM {self.tableName} WHERE id = %s AND temporary = 0 "
         mode_sql_map = {
             "first": sql_pop_get_first,
             "last": sql_pop_get_last,
@@ -233,14 +233,10 @@ class MysqlFifo(PluginBase):
             columns_str = "id, score"
         else:
             columns_str = "id, item, score"
-        sql_peek_first = ("SELECT {columns} FROM {table_name} " "WHERE temporary = 0 " "ORDER BY score LIMIT 1 ").format(
-            columns=columns_str, table_name=self.tableName
-        )
-        sql_peek_last = ("SELECT {columns} FROM {table_name} " "WHERE temporary = 0 " "ORDER BY score DESC LIMIT 1 ").format(
-            columns=columns_str, table_name=self.tableName
-        )
-        sql_peek_by_id = ("SELECT {columns} FROM {table_name} " "WHERE id = %s AND temporary = 0 ").format(columns=columns_str, table_name=self.tableName)
-        sql_peek_by_id_temp = ("SELECT {columns} FROM {table_name} " "WHERE id = %s AND temporary = 1 ").format(columns=columns_str, table_name=self.tableName)
+        sql_peek_first = f"SELECT {columns_str} FROM {self.tableName} WHERE temporary = 0 ORDER BY score LIMIT 1 "
+        sql_peek_last = f"SELECT {columns_str} FROM {self.tableName} WHERE temporary = 0 ORDER BY score DESC LIMIT 1 "
+        sql_peek_by_id = f"SELECT {columns_str} FROM {self.tableName} WHERE id = %s AND temporary = 0 "
+        sql_peek_by_id_temp = f"SELECT {columns_str} FROM {self.tableName} WHERE id = %s AND temporary = 1 "
         mode_sql_map = {
             "first": sql_peek_first,
             "last": sql_peek_last,
@@ -291,9 +287,7 @@ class MysqlFifo(PluginBase):
         attr_set_str = " , ".join(attr_set_list)
         if not attr_set_str:
             return False
-        sql_update = ("UPDATE IGNORE {table_name} SET " "{attr_set_str} " "WHERE id = %s " "{cond_score_str} ").format(
-            table_name=self.tableName, attr_set_str=attr_set_str, cond_score_str=cond_score_str
-        )
+        sql_update = f"UPDATE IGNORE {self.tableName} SET {attr_set_str} WHERE id = %s {cond_score_str} "
         params.append(id)
         if cond_score_str:
             params.append(score)
@@ -310,7 +304,7 @@ class MysqlFifo(PluginBase):
 
     # number of objects in queue
     def size(self):
-        sql_size = ("SELECT COUNT(id) FROM {table_name}").format(table_name=self.tableName)
+        sql_size = f"SELECT COUNT(id) FROM {self.tableName}"
         try:
             self.execute(sql_size)
             res = self.cur.fetchall()
@@ -352,9 +346,9 @@ class MysqlFifo(PluginBase):
     # dequeue list of objects with some conditions
     def getmany(self, mode="first", minscore=None, maxscore=None, count=None, protective=False, temporary=False):
         temporary_str = "temporary = 1" if temporary else "temporary = 0"
-        minscore_str = "" if minscore is None else "AND score >= {0}".format(float(minscore))
-        maxscore_str = "" if maxscore is None else "AND score <= {0}".format(float(maxscore))
-        count_str = "" if count is None else "LIMIT {0}".format(int(count))
+        minscore_str = "" if minscore is None else f"AND score >= {float(minscore)}"
+        maxscore_str = "" if maxscore is None else f"AND score <= {float(maxscore)}"
+        count_str = "" if count is None else f"LIMIT {int(count)}"
         mode_rank_map = {
             "first": "",
             "last": "DESC",
@@ -369,10 +363,8 @@ class MysqlFifo(PluginBase):
             rank=mode_rank_map[mode],
             count_str=count_str,
         )
-        sql_pop_to_temp = ("UPDATE {table_name} SET temporary = 1 " "WHERE id = %s AND temporary = 0 ").format(table_name=self.tableName)
-        sql_pop_del = ("DELETE FROM {table_name} " "WHERE id = %s AND temporary = {temporary} ").format(
-            table_name=self.tableName, temporary=(1 if temporary else 0)
-        )
+        sql_pop_to_temp = f"UPDATE {self.tableName} SET temporary = 1 WHERE id = %s AND temporary = 0 "
+        sql_pop_del = f"DELETE FROM {self.tableName} WHERE id = %s AND temporary = {1 if temporary else 0} "
         ret_list = []
         try:
             self.execute(sql_get_many)
@@ -413,9 +405,9 @@ class MysqlFifo(PluginBase):
 
     # get list of object tuples without dequeuing it
     def peekmany(self, mode="first", minscore=None, maxscore=None, count=None, skip_item=False):
-        minscore_str = "" if minscore is None else "AND score >= {0}".format(float(minscore))
-        maxscore_str = "" if maxscore is None else "AND score <= {0}".format(float(maxscore))
-        count_str = "" if count is None else "LIMIT {0}".format(int(count))
+        minscore_str = "" if minscore is None else f"AND score >= {float(minscore)}"
+        maxscore_str = "" if maxscore is None else f"AND score <= {float(maxscore)}"
+        count_str = "" if count is None else f"LIMIT {int(count)}"
         mode_rank_map = {
             "first": "",
             "last": "DESC",
@@ -448,8 +440,8 @@ class MysqlFifo(PluginBase):
 
     # drop all objects in queue and index and reset the table
     def clear(self):
-        sql_clear_index = ("DROP INDEX IF EXISTS score_index ON {table_name} ").format(table_name=self.tableName)
-        sql_clear_table = ("DROP TABLE IF EXISTS {table_name} ").format(table_name=self.tableName)
+        sql_clear_index = f"DROP INDEX IF EXISTS score_index ON {self.tableName} "
+        sql_clear_table = f"DROP TABLE IF EXISTS {self.tableName} "
         # self.execute(sql_clear_index)
         try:
             self.execute(sql_clear_table)
@@ -478,12 +470,10 @@ class MysqlFifo(PluginBase):
     # Move objects in temporary space to the queue
     def restore(self, ids):
         if ids is None:
-            sql_restore = ("UPDATE {table_name} SET temporary = 0 WHERE temporary != 0 ").format(table_name=self.tableName)
+            sql_restore = f"UPDATE {self.tableName} SET temporary = 0 WHERE temporary != 0 "
         elif isinstance(ids, (list, tuple)):
             placeholders_str = ",".join([" %s"] * len(ids))
-            sql_restore = ("UPDATE {table_name} SET temporary = 0 " "WHERE temporary != 0 AND id in ({placeholders} ) ").format(
-                table_name=self.tableName, placeholders=placeholders_str
-            )
+            sql_restore = f"UPDATE {self.tableName} SET temporary = 0 WHERE temporary != 0 AND id in ({placeholders_str} ) "
         else:
             raise TypeError("ids should be list or tuple or None")
         try:

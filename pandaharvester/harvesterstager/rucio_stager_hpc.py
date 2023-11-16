@@ -2,10 +2,12 @@ try:
     import subprocess32 as subprocess
 except ImportError:
     import subprocess
-import uuid
+
 import os
+import uuid
 
 from pandaharvester.harvestercore import core_utils
+
 from .base_stager import BaseStager
 
 # TODO: retry of failed transfers
@@ -33,24 +35,24 @@ class RucioStagerHPC(BaseStager):
     # check status
     def check_stage_out_status(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="check_stage_out_status")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="check_stage_out_status")
         tmpLog.debug("start")
         return (True, "")
 
     # trigger stage out
     def trigger_stage_out(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="trigger_stage_out")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="trigger_stage_out")
         tmpLog.debug("start")
         # loop over all files
         allChecked = True
         ErrMsg = "These files failed to upload : "
-        zip_datasetName = "harvester_stage_out.{0}".format(str(uuid.uuid4()))
+        zip_datasetName = f"harvester_stage_out.{str(uuid.uuid4())}"
         fileAttrs = jobspec.get_output_file_attributes()
         for fileSpec in jobspec.outFiles:
             # fileSpec.fileAttributes['transferID'] = None  # synchronius transfer
             # skip already done
-            tmpLog.debug("file: %s status: %s" % (fileSpec.lfn, fileSpec.status))
+            tmpLog.debug(f"file: {fileSpec.lfn} status: {fileSpec.status}")
             if fileSpec.status in ["finished", "failed"]:
                 continue
 
@@ -62,7 +64,7 @@ class RucioStagerHPC(BaseStager):
             elif fileSpec.fileType == "log":
                 dstRSE = self.dstRSE_Log
             else:
-                errMsg = "unsupported file type {0}".format(fileSpec.fileType)
+                errMsg = f"unsupported file type {fileSpec.fileType}"
                 tmpLog.error(errMsg)
                 return (False, errMsg)
             # skip if destination is None
@@ -116,13 +118,13 @@ class RucioStagerHPC(BaseStager):
             executable += ["--rse", dstRSE]
             executable += ["--scope", scope]
             if pfn_prefix:
-                executable += ["--pfn %s" % os.path.join(pfn_prefix, os.path.basename(fileSpec.path))]
+                executable += [f"--pfn {os.path.join(pfn_prefix, os.path.basename(fileSpec.path))}"]
             else:
-                executable += [("%s:%s" % (scope, datasetName))]
-            executable += [("%s" % fileSpec.path)]
+                executable += [f"{scope}:{datasetName}"]
+            executable += [f"{fileSpec.path}"]
 
-            tmpLog.debug("rucio upload command: {0} ".format(executable))
-            tmpLog.debug("rucio upload command (for human): %s " % " ".join(executable))
+            tmpLog.debug(f"rucio upload command: {executable} ")
+            tmpLog.debug(f"rucio upload command (for human): {' '.join(executable)} ")
 
             if executable_prefix:
                 cmd = executable_prefix + "; " + " ".join(executable)
@@ -132,9 +134,9 @@ class RucioStagerHPC(BaseStager):
 
             stdout, stderr = process.communicate()
             fileSpec.attemptNr += 1
-            stdout = stdout.decode() + " attemptNr: %s" % fileSpec.attemptNr
-            tmpLog.debug("stdout: %s" % stdout)
-            tmpLog.debug("stderr: %s" % stderr)
+            stdout = stdout.decode() + f" attemptNr: {fileSpec.attemptNr}"
+            tmpLog.debug(f"stdout: {stdout}")
+            tmpLog.debug(f"stderr: {stderr}")
             if process.returncode == 0:
                 fileSpec.status = "finished"
             else:
@@ -147,7 +149,7 @@ class RucioStagerHPC(BaseStager):
                         break
                     elif "File already exists on RSE" in line:
                         # can skip if file exist on RSE since no register
-                        tmpLog.warning("rucio skipped upload and returned stdout: %s" % stdout)
+                        tmpLog.warning(f"rucio skipped upload and returned stdout: {stdout}")
                         file_exists = True
                         break
                     elif "exceeded simultaneous SESSIONS_PER_USER limit" in line:
@@ -157,22 +159,22 @@ class RucioStagerHPC(BaseStager):
                     fileSpec.status = "finished"
                 elif rucio_sessions_limit_error:
                     # do nothing
-                    tmpLog.warning("rucio returned error, will retry: stdout: %s" % stdout)
+                    tmpLog.warning(f"rucio returned error, will retry: stdout: {stdout}")
                     # do not change fileSpec.status and Harvester will retry if this function returns False
                     allChecked = False
                     continue
                 else:
-                    tmpLog.error("rucio upload failed with stdout: %s" % stdout)
-                    ErrMsg += '%s failed with rucio error stdout="%s"' % (fileSpec.lfn, stdout)
+                    tmpLog.error(f"rucio upload failed with stdout: {stdout}")
+                    ErrMsg += f'{fileSpec.lfn} failed with rucio error stdout="{stdout}"'
                     allChecked = False
                     if fileSpec.attemptNr >= self.maxAttempts:
-                        tmpLog.error("reached maxattempts: %s, marked it as failed" % self.maxAttempts)
+                        tmpLog.error(f"reached maxattempts: {self.maxAttempts}, marked it as failed")
                         fileSpec.status = "failed"
 
             # force update
             fileSpec.force_update("status")
 
-            tmpLog.debug("file: %s status: %s" % (fileSpec.lfn, fileSpec.status))
+            tmpLog.debug(f"file: {fileSpec.lfn} status: {fileSpec.status}")
 
         # return
         tmpLog.debug("done")
@@ -184,5 +186,5 @@ class RucioStagerHPC(BaseStager):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)

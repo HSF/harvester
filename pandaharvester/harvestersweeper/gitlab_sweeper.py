@@ -1,5 +1,6 @@
 import os
 import shutil
+
 import requests
 
 try:
@@ -8,9 +9,8 @@ except ImportError:
     import subprocess
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 from pandaharvester.harvestermisc.gitlab_utils import get_job_params
-
+from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
 # logger
 baseLogger = core_utils.setup_logger("gitlab_sweeper")
@@ -33,14 +33,14 @@ class GitlabSweeper(BaseSweeper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="kill_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="kill_worker")
         params = get_job_params(workspec)
-        url = "{}/{}/pipelines/{}/cancel".format(params["project_api"], params["project_id"], workspec.batchID.split()[0])
+        url = f"{params['project_api']}/{params['project_id']}/pipelines/{workspec.batchID.split()[0]}/cancel"
         try:
-            tmpLog.debug("cancel pipeline at {}".format(url))
+            tmpLog.debug(f"cancel pipeline at {url}")
             r = requests.get(url, headers={"PRIVATE-TOKEN": params["secrets"][params["access_token"]]}, timeout=self.timeout)
             response = r.json()
-            tmpLog.debug("got {}".format(str(response)))
+            tmpLog.debug(f"got {str(response)}")
         except Exception:
             err_str = core_utils.dump_error_message(tmpLog)
             tmpLog.error(err_str)
@@ -58,11 +58,11 @@ class GitlabSweeper(BaseSweeper):
         :rtype: (bool, string)
         """
         # make logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="sweep_worker")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="sweep_worker")
         # clean up worker directory
         if os.path.exists(workspec.accessPoint):
             shutil.rmtree(workspec.accessPoint)
-            tmpLog.info("removed {0}".format(workspec.accessPoint))
+            tmpLog.info(f"removed {workspec.accessPoint}")
         else:
             tmpLog.info("access point already removed.")
         # return

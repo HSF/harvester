@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-import os
-import time
-import random
 import json
+import os
+import random
 import re
+import time
 
 from kubernetes import client, config, watch
 
@@ -107,7 +107,7 @@ def main():
                     pod_mcpu_req = get_mcpu(pod.spec.containers)
                     node_mcpu_free = node_info["mCpu"]
                     to_bind = pod_mcpu_req <= node_mcpu_free
-                    print("Node {0} has {1} mcpu ; pod requests {2} mcpu ; to_bind: {3}".format(node_info["name"], node_mcpu_free, pod_mcpu_req, to_bind))
+                    print(f"Node {node_info['name']} has {node_mcpu_free} mcpu ; pod requests {pod_mcpu_req} mcpu ; to_bind: {to_bind}")
                     if to_bind:
                         try:
                             print("Scheduling " + pod.metadata.name)

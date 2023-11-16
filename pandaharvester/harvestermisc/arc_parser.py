@@ -1,7 +1,7 @@
-import urllib
 import json
 import os
 import re
+import urllib
 
 
 class ARCParser:
@@ -49,7 +49,7 @@ class ARCParser:
                 esjobdesc = self.pandajob[self.pandajob.find("&") :]
             else:
                 esjobdesc = self.pandajob[: self.pandajob.find("&GUID")] + self.pandajob[self.pandajob.find("&", self.pandajob.find("&GUID") + 5) :]
-            esjobdesc += "&GUID=%s" % "%2C".join(["DUMMYGUID%i" % i for i in range(len(self.jobdesc["GUID"].split(",")))])
+            esjobdesc += f"&GUID={'%2C'.join([('DUMMYGUID%i' % i) for i in range(len(self.jobdesc['GUID'].split(',')))])}"
             self.pandajob = esjobdesc
 
     def getNCores(self):
@@ -73,7 +73,7 @@ class ARCParser:
             jobname = self.jobdesc["jobName"]
         else:
             jobname = "pandajob"
-        self.xrsl["jobname"] = '(jobname = "%s")' % jobname
+        self.xrsl["jobname"] = f'(jobname = "{jobname}")'
 
     def setDisk(self):
         if "maxDiskCount" in self.jobdesc:
@@ -98,10 +98,10 @@ class ARCParser:
                 cpucount = 24 * 3600
 
             cpucount = int(2 * cpucount)
-            self.log.info("%s: job maxCpuCount %s" % (self.pandaid, cpucount))
+            self.log.info(f"{self.pandaid}: job maxCpuCount {cpucount}")
         else:
             cpucount = 2 * 24 * 3600
-            self.log.info("%s: Using default maxCpuCount %s" % (self.pandaid, cpucount))
+            self.log.info(f"{self.pandaid}: Using default maxCpuCount {cpucount}")
 
         if cpucount == 0:
             cpucount = 2 * 24 * 3600
@@ -253,7 +253,7 @@ class ARCParser:
                 lfn = "/".join([self.osmap[int(i)], f])
             else:
                 # TODO this exception is ignored by panda2arc
-                raise Exception("No OS defined in AGIS for bucket id %s" % i)
+                raise Exception(f"No OS defined in AGIS for bucket id {i}")
             inf[f] = lfn
 
     def setInputs(self):
@@ -281,10 +281,10 @@ class ARCParser:
             tmpfile = self.inputjobdir + "/pandaJobData.out"
             with open(tmpfile, "w") as f:
                 f.write(self.pandajob)
-            x += '(pandaJobData.out "%s/pandaJobData.out")' % self.inputjobdir
+            x += f'(pandaJobData.out "{self.inputjobdir}/pandaJobData.out")'
 
         if not self.truepilot:
-            x += '(queuedata.pilot.json "http://pandaserver.cern.ch:25085;cache=check/cache/schedconfig/%s.all.json")' % self.schedconfig
+            x += f'(queuedata.pilot.json "http://pandaserver.cern.ch:25085;cache=check/cache/schedconfig/{self.schedconfig}.all.json")'
             if self.sitename.find("BEIJING") != -1:
                 x += '(agis_ddmendpoints.json "/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json")'
 
@@ -305,14 +305,14 @@ class ARCParser:
                 # Hard-coded pilot rucio account - should change based on proxy
                 # Rucio does not expose mtime, set cache=invariant so not to download too much
                 urloptions = ";rucioaccount=pilot;transferprotocol=gsiftp;cache=invariant"
-                ruciourl = "rucio://rucio-lb-prod.cern.ch%s/replicas" % urloptions
+                ruciourl = f"rucio://rucio-lb-prod.cern.ch{urloptions}/replicas"
                 lfn = "/".join([ruciourl, scope, filename])
 
                 inf[filename] = lfn
 
             # some files are double:
             for k, v in inf.items():
-                x += '(%s "%s")' % (k, v)
+                x += f'({k} "{v}")'
 
             if self.jobdesc.get("eventService") and self.eventranges:
                 # Create tmp json file to upload with job
@@ -320,13 +320,13 @@ class ARCParser:
                 jsondata = json.loads(self.eventranges)
                 with open(tmpjsonfile, "w") as f:
                     json.dump(jsondata, f)
-                x += '("eventranges.json" "%s")' % tmpjsonfile
+                x += f'("eventranges.json" "{tmpjsonfile}")'
 
-        self.xrsl["inputfiles"] = "(inputfiles =  %s )" % x
+        self.xrsl["inputfiles"] = f"(inputfiles =  {x} )"
 
     def setLog(self):
         logfile = self.jobdesc.get("logFile", "LOGFILE")
-        self.xrsl["log"] = '(stdout = "%s")(join = yes)' % logfile.replace(".tgz", "")
+        self.xrsl["log"] = f"(stdout = \"{logfile.replace('.tgz', '')}\")(join = yes)"
 
     def setGMLog(self):
         self.xrsl["gmlog"] = '(gmlog = "gmlog")'
@@ -340,7 +340,7 @@ class ARCParser:
         # needed for SCEAPI
         # generated output file list"
         output += '("output.list" "")'
-        self.xrsl["outputs"] = "(outputfiles = %s )" % output
+        self.xrsl["outputs"] = f"(outputfiles = {output} )"
 
         if self.truepilot:
             self.xrsl["outputs"] = ""

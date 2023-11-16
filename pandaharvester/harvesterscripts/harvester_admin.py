@@ -1,18 +1,17 @@
+import argparse
+import json
+import logging
 import os
+import random
 import sys
 import time
-import json
-import random
-import argparse
-import logging
-
 from concurrent.futures import ThreadPoolExecutor
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore import fifos as harvesterFifos
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
 
 # === Logger ===================================================
@@ -37,7 +36,7 @@ def setupLogger(logger):
                 color = "\033[36;1m"
             else:
                 color = "\033[0m"
-            formatter = logging.Formatter("{0}[%(asctime)s %(levelname)s] %(message)s\033[0m".format(color))
+            formatter = logging.Formatter(f"{color}[%(asctime)s %(levelname)s] %(message)s\x1b[0m")
             hdlr.setFormatter(formatter)
             return fn(*args)
 
@@ -88,7 +87,7 @@ def repopulate_fifos(*names):
         if not fifo.enabled:
             continue
         fifo.populate(clear_fifo=True)
-        print("Repopulated {0} fifo".format(fifo.titleName))
+        print(f"Repopulated {fifo.titleName} fifo")
 
 
 # TODO
@@ -109,7 +108,7 @@ def get(arguments):
     attr = arguments.attribute
     hpi = harvesterPackageInfo(None)
     if attr not in get_harvester_attributes():
-        mainLogger.error("Invalid attribute: {0}".format(attr))
+        mainLogger.error(f"Invalid attribute: {attr}")
         return
     elif attr == "version":
         print(hpi.version)
@@ -152,29 +151,29 @@ def fifo_benchmark(arguments):
         multithread_executer(_put_object, n_object, n_thread)
         sum_dict["put_time"] += sw.get_elapsed_time_in_sec(True)
         sum_dict["put_n"] += 1
-        print("Put {0} objects by {1} threads".format(n_object, n_thread) + sw.get_elapsed_time())
-        print("Now fifo size is {0}".format(mq.size()))
+        print(f"Put {n_object} objects by {n_thread} threads" + sw.get_elapsed_time())
+        print(f"Now fifo size is {mq.size()}")
 
     def get_test():
         sw.reset()
         multithread_executer(_get_object, n_object, n_thread)
         sum_dict["get_time"] = sw.get_elapsed_time_in_sec(True)
-        print("Get {0} objects by {1} threads".format(n_object, n_thread) + sw.get_elapsed_time())
-        print("Now fifo size is {0}".format(mq.size()))
+        print(f"Get {n_object} objects by {n_thread} threads" + sw.get_elapsed_time())
+        print(f"Now fifo size is {mq.size()}")
 
     def get_protective_test():
         sw.reset()
         multithread_executer(_get_object_protective, n_object, n_thread)
         sum_dict["get_protective_time"] = sw.get_elapsed_time_in_sec(True)
-        print("Get {0} objects protective dequeue by {1} threads".format(n_object, n_thread) + sw.get_elapsed_time())
-        print("Now fifo size is {0}".format(mq.size()))
+        print(f"Get {n_object} objects protective dequeue by {n_thread} threads" + sw.get_elapsed_time())
+        print(f"Now fifo size is {mq.size()}")
 
     def clear_test():
         sw.reset()
         mq.fifo.clear()
         sum_dict["clear_time"] = sw.get_elapsed_time_in_sec(True)
         print("Cleared fifo" + sw.get_elapsed_time())
-        print("Now fifo size is {0}".format(mq.size()))
+        print(f"Now fifo size is {mq.size()}")
 
     # Benchmark
     print("Start fifo benchmark ...")
@@ -189,12 +188,12 @@ def fifo_benchmark(arguments):
     print("Finished fifo benchmark")
     # summary
     print("Summary:")
-    print("FIFO plugin is: {0}".format(mq.fifo.__class__.__name__))
-    print("Benchmark with {0} objects by {1} threads".format(n_object, n_thread))
-    print("Put            : {0:.3f} ms / obj".format(1000.0 * sum_dict["put_time"] / (sum_dict["put_n"] * n_object)))
-    print("Get            : {0:.3f} ms / obj".format(1000.0 * sum_dict["get_time"] / n_object))
-    print("Get protective : {0:.3f} ms / obj".format(1000.0 * sum_dict["get_protective_time"] / n_object))
-    print("Clear          : {0:.3f} ms / obj".format(1000.0 * sum_dict["clear_time"] / n_object))
+    print(f"FIFO plugin is: {mq.fifo.__class__.__name__}")
+    print(f"Benchmark with {n_object} objects by {n_thread} threads")
+    print(f"Put            : {1000.0 * sum_dict['put_time'] / (sum_dict['put_n'] * n_object):.3f} ms / obj")
+    print(f"Get            : {1000.0 * sum_dict['get_time'] / n_object:.3f} ms / obj")
+    print(f"Get protective : {1000.0 * sum_dict['get_protective_time'] / n_object:.3f} ms / obj")
+    print(f"Clear          : {1000.0 * sum_dict['clear_time'] / n_object:.3f} ms / obj")
 
 
 def fifo_repopulate(arguments):
@@ -205,8 +204,8 @@ def fifo_repopulate(arguments):
 
 
 def cacher_refresh(arguments):
-    from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
     from pandaharvester.harvesterbody.cacher import Cacher
+    from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
     communicatorPool = CommunicatorPool()
     cacher = Cacher(communicatorPool)
@@ -261,9 +260,9 @@ def qconf_purge(arguments):
     dbProxy = DBProxy()
     retVal = dbProxy.purge_pq(queueName)
     if retVal:
-        print("Purged {0} from harvester DB".format(queueName))
+        print(f"Purged {queueName} from harvester DB")
     else:
-        mainLogger.critical("Failed to purge {0} . See panda-db_proxy.log".format(queueName))
+        mainLogger.critical(f"Failed to purge {queueName} . See panda-db_proxy.log")
 
 
 def kill_workers(arguments):
@@ -459,11 +458,11 @@ def main():
         result = command(arguments)
         end_time = time.time()
         if arguments.debug:
-            mainLogger.debug("ARGS: {arguments} ; RESULT: {result} ".format(arguments=arguments, result=result))
-            mainLogger.debug("Action completed in {0:.3f} seconds".format(end_time - start_time))
+            mainLogger.debug(f"ARGS: {arguments} ; RESULT: {result} ")
+            mainLogger.debug(f"Action completed in {end_time - start_time:.3f} seconds")
         sys.exit(result)
     except (RuntimeError, NotImplementedError) as e:
-        mainLogger.critical("ERROR: {0}".format(e))
+        mainLogger.critical(f"ERROR: {e}")
         sys.exit(1)
 
 

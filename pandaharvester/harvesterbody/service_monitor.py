@@ -1,7 +1,8 @@
-import traceback
-import psutil
-import re
 import multiprocessing
+import re
+import traceback
+
+import psutil
 
 try:
     import subprocess32 as subprocess
@@ -9,12 +10,12 @@ except Exception:
     import subprocess
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvesterbody.cred_manager import CredManager
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.service_metrics_spec import ServiceMetricSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvesterbody.cred_manager import CredManager
+from pandaharvester.harvestercore.service_metrics_spec import ServiceMetricSpec
 
 # logger
 _logger = core_utils.setup_logger("service_monitor")
@@ -58,7 +59,7 @@ class ServiceMonitor(AgentBase):
             pid = int(fh.readline())
             fh.close()
         except Exception:
-            _logger.error('Could not read pidfile "{0}"'.format(self.pid_file))
+            _logger.error(f'Could not read pidfile "{self.pid_file}"')
             pid = None
 
         return pid
@@ -106,7 +107,7 @@ class ServiceMonitor(AgentBase):
             # normalize cpu percentage by cpu count
             cpu_pc = cpu_pc * 1.0 / self.cpu_count
         except Exception:
-            _logger.error("Excepted with: {0}".format(traceback.format_exc()))
+            _logger.error(f"Excepted with: {traceback.format_exc()}")
             rss_mib = None
             memory_pc = None
             cpu_pc = None
@@ -127,7 +128,7 @@ class ServiceMonitor(AgentBase):
             used_amount_float = float(used_amount)
         except ValueError:
             used_amount_float = None
-            _logger.error("Could not convert used amount {0} to float for volume {1}".format(used_amount, volume_name))
+            _logger.error(f"Could not convert used amount {used_amount} to float for volume {volume_name}")
 
         return used_amount_float
 
@@ -151,9 +152,7 @@ class ServiceMonitor(AgentBase):
             service_metrics["rss_mib"] = round_floats(rss_mib)
             service_metrics["memory_pc"] = round_floats(memory_pc)
             service_metrics["cpu_pc"] = round_floats(cpu_pc)
-            _logger.debug(
-                "Memory usage: {0} MiB/{1}%, CPU usage: {2}".format(service_metrics["rss_mib"], service_metrics["memory_pc"], service_metrics["cpu_pc"])
-            )
+            _logger.debug(f"Memory usage: {service_metrics['rss_mib']} MiB/{service_metrics['memory_pc']}%, CPU usage: {service_metrics['cpu_pc']}")
 
             # get volume usage
             try:
@@ -162,14 +161,14 @@ class ServiceMonitor(AgentBase):
                 volumes = []
             for volume in volumes:
                 volume_use = self.volume_use(volume)
-                service_metrics["volume_{0}_pc".format(volume)] = round_floats(volume_use)
-                _logger.debug("Disk usage of {0}: {1} %".format(volume, service_metrics["volume_{0}_pc".format(volume)]))
+                service_metrics[f"volume_{volume}_pc"] = round_floats(volume_use)
+                _logger.debug(f"Disk usage of {volume}: {service_metrics[f'volume_{volume}_pc']} %")
 
             # get certificate lifetimes. Not all plugins have implemented it
             _logger.debug("Getting cert lifetimes")
             service_metrics["cert_lifetime"] = {cert: round(value) for (cert, value) in self.cert_validities().items()}
 
-            _logger.debug("Got cert validities: {0}".format(service_metrics["cert_lifetime"]))
+            _logger.debug(f"Got cert validities: {service_metrics['cert_lifetime']}")
 
             service_metrics_spec = ServiceMetricSpec(service_metrics)
             self.db_proxy.insert_service_metrics(service_metrics_spec)

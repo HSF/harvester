@@ -1,11 +1,10 @@
 import functools
 
 import rpyc
-
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
-from .ssh_tunnel_pool import sshTunnelPool
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
+from .ssh_tunnel_pool import sshTunnelPool
 
 # logger
 _logger = core_utils.setup_logger("rpc_herder")
@@ -29,7 +28,7 @@ class RpcHerder(PluginBase):
                 return rpyc.utils.classic.obtain(retVal)
             else:
                 tmpLog = core_utils.make_logger(_logger, method_name=func.__name__)
-                tmpLog.warning("instance not alive; method {0} returns None".format(func.__name__))
+                tmpLog.warning(f"instance not alive; method {func.__name__} returns None")
                 return None
 
         return wrapper
@@ -51,7 +50,7 @@ class RpcHerder(PluginBase):
         try:
             self._get_connection()
         except Exception as e:
-            tmpLog.error("failed to get connection ; {0}: {1}".format(e.__class__.__name__, e))
+            tmpLog.error(f"failed to get connection ; {e.__class__.__name__}: {e}")
         else:
             self.is_connected = True
 
@@ -73,7 +72,7 @@ class RpcHerder(PluginBase):
         )
         tunnelHost, tunnelPort, tunnelCore = sshTunnelPool.get_tunnel(self.remoteHost, self.remotePort)
         self.conn = rpyc.connect(tunnelHost, tunnelPort, config={"allow_all_attrs": True, "allow_setattr": True, "allow_delattr": True})
-        tmpLog.debug("connected successfully to {0}:{1}".format(tunnelHost, tunnelPort))
+        tmpLog.debug(f"connected successfully to {tunnelHost}:{tunnelPort}")
 
     ######################
     # submitter section
@@ -175,7 +174,7 @@ class RpcHerder(PluginBase):
     # feed jobs
     @require_alive
     def feed_jobs(self, workspec, jobspec_list):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="feed_jobs")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="feed_jobs")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.feed_jobs(self.original_config, workspec, jobspec_list)
@@ -189,7 +188,7 @@ class RpcHerder(PluginBase):
     # request job
     @require_alive
     def job_requested(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="job_requested")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="job_requested")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.job_requested(self.original_config, workspec)
@@ -203,7 +202,7 @@ class RpcHerder(PluginBase):
     # request kill
     @require_alive
     def kill_requested(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="kill_requested")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="kill_requested")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.kill_requested(self.original_config, workspec)
@@ -217,7 +216,7 @@ class RpcHerder(PluginBase):
     # is alive
     @require_alive
     def is_alive(self, workspec, worker_heartbeat_limit):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="is_alive")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="is_alive")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.is_alive(self.original_config, workspec, worker_heartbeat_limit)
@@ -231,7 +230,7 @@ class RpcHerder(PluginBase):
     # get work attributes
     @require_alive
     def get_work_attributes(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="get_work_attributes")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="get_work_attributes")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.get_work_attributes(self.original_config, workspec)
@@ -245,7 +244,7 @@ class RpcHerder(PluginBase):
     # get output files
     @require_alive
     def get_files_to_stage_out(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="get_files_to_stage_out")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="get_files_to_stage_out")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.get_files_to_stage_out(self.original_config, workspec)
@@ -259,7 +258,7 @@ class RpcHerder(PluginBase):
     # feed events
     @require_alive
     def feed_events(self, workspec, events_dict):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="feed_events")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="feed_events")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.feed_events(self.original_config, workspec, events_dict)
@@ -273,7 +272,7 @@ class RpcHerder(PluginBase):
     # get events
     @require_alive
     def events_to_update(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="events_to_update")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="events_to_update")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.events_to_update(self.original_config, workspec)
@@ -287,7 +286,7 @@ class RpcHerder(PluginBase):
     # request events
     @require_alive
     def events_requested(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="events_requested")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="events_requested")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.events_requested(self.original_config, workspec)
@@ -301,7 +300,7 @@ class RpcHerder(PluginBase):
     # get PandaIDs
     @require_alive
     def get_panda_ids(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="get_panda_ids")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="get_panda_ids")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.get_panda_ids(self.original_config, workspec)
@@ -315,7 +314,7 @@ class RpcHerder(PluginBase):
     # post processing
     @require_alive
     def post_processing(self, workspec, jobspec_list, map_type):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="post_processing")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="post_processing")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.post_processing(self.original_config, workspec, jobspec_list, map_type)
@@ -329,7 +328,7 @@ class RpcHerder(PluginBase):
     # send ACK
     @require_alive
     def acknowledge_events_files(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="acknowledge_events_files")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="acknowledge_events_files")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.acknowledge_events_files(self.original_config, workspec)
@@ -343,7 +342,7 @@ class RpcHerder(PluginBase):
     # clean up
     @require_alive
     def clean_up(self, workspec):
-        tmpLog = core_utils.make_logger(_logger, "workerID={0}".format(workspec.workerID), method_name="clean_up")
+        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="clean_up")
         tmpLog.debug("start")
         try:
             ret = self.conn.root.clean_up(self.original_config, workspec)

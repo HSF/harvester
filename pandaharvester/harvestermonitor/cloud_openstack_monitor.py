@@ -1,12 +1,10 @@
 import os
-
 from concurrent.futures import ThreadPoolExecutor
 
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.cloud_openstack_utils import OS_SimpleClient
-
 
 # setup base logger
 baseLogger = core_utils.setup_logger("cloud_openstack_monitor")
@@ -58,15 +56,15 @@ class CloudOpenstackMonitor(PluginBase):
 
     def _kill_a_vm(self, vm_id):
         # set logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="_kill_a_vm")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_kill_a_vm")
         try:
             self.vm_client.nova.delete(vm_id)
         except Exception as _e:
-            errStr = "Failed to delete a VM with id={0} ; {1}".format(vm_id, _e)
+            errStr = f"Failed to delete a VM with id={vm_id} ; {_e}"
             tmpLog.error(errStr)
             tmpRetVal = (False, errStr)
         else:
-            tmpLog.info("Deleted a VM with id={0}".format(vm_id))
+            tmpLog.info(f"Deleted a VM with id={vm_id}")
             tmpRetVal = (True, "")
         return tmpRetVal
 
@@ -74,7 +72,7 @@ class CloudOpenstackMonitor(PluginBase):
 
     def _check_a_vm(self, workspec):
         # set logger
-        tmpLog = self.make_logger(baseLogger, "workerID={0}".format(workspec.workerID), method_name="_check_a_vm")
+        tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_check_a_vm")
 
         # initialization
         vm_id = workspec.batchID
@@ -85,13 +83,13 @@ class CloudOpenstackMonitor(PluginBase):
             vm_server = self.vm_client.nova.servers.get(vm_id)
             vm_status = vm_server.status
         except Exception as _e:
-            errStr = "Failed to get VM status of id={0} ; {1}".format(vm_id, _e)
+            errStr = f"Failed to get VM status of id={vm_id} ; {_e}"
             tmpLog.error(errStr)
             tmpLog.info("Force to cancel the worker due to failure to get VM status")
             newStatus = WorkSpec.ST_cancelled
         else:
             newStatus = vm_worker_status_map_dict.get(vm_status)
-            tmpLog.info("batchID={0}: vm_status {1} -> worker_status {2}".format(workspec.batchID, vm_status, newStatus))
+            tmpLog.info(f"batchID={workspec.batchID}: vm_status {vm_status} -> worker_status {newStatus}")
 
             if _toKillVM():  # FIXME
                 self._kill_a_vm(vm_id)

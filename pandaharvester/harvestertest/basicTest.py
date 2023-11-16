@@ -1,7 +1,8 @@
+import datetime
+import logging
 import os
 import sys
-import logging
-import datetime
+
 from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 
@@ -9,10 +10,10 @@ try:
     os.remove(harvester_config.db.database_filename)
 except Exception:
     pass
+from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 
 for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
     if loggerName.startswith("panda.log"):

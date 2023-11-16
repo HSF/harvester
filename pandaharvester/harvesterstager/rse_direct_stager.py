@@ -1,4 +1,5 @@
 from pandaharvester.harvestercore import core_utils
+
 from .base_stager import BaseStager
 
 # logger
@@ -28,5 +29,5 @@ class RseDirectStager(BaseStager):
     # zip output files
     def zip_output(self, jobspec):
         # make logger
-        tmpLog = self.make_logger(baseLogger, "PandaID={0}".format(jobspec.PandaID), method_name="zip_output")
+        tmpLog = self.make_logger(baseLogger, f"PandaID={jobspec.PandaID}", method_name="zip_output")
         return self.simple_zip_output(jobspec, tmpLog)

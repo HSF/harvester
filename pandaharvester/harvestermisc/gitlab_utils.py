@@ -1,5 +1,5 @@
-import os
 import json
+import os
 
 job_params_file = "__job_params__"
 

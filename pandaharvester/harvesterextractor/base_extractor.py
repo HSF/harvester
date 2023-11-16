@@ -1,5 +1,5 @@
-from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.file_spec import FileSpec
+from pandaharvester.harvestercore.plugin_base import PluginBase
 
 
 # base extractor

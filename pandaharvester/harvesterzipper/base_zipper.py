@@ -1,9 +1,9 @@
-import os
-import uuid
-import time
-import multiprocessing
-import tempfile
 import gc
+import multiprocessing
+import os
+import tempfile
+import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 try:
@@ -70,16 +70,14 @@ class BaseZipper(PluginBase):
                         fileSpec.path = fileInfo["path"]
                         fileSpec.fsize = fileInfo["fsize"]
                         fileSpec.chksum = fileInfo["chksum"]
-                        msgStr = "fileSpec.path - {0}, fileSpec.fsize - {1}, fileSpec.chksum(adler32) - {2}".format(
-                            fileSpec.path, fileSpec.fsize, fileSpec.chksum
-                        )
+                        msgStr = f"fileSpec.path - {fileSpec.path}, fileSpec.fsize - {fileSpec.fsize}, fileSpec.chksum(adler32) - {fileSpec.chksum}"
                         tmp_log.debug(msgStr)
                     else:
-                        tmp_log.error("got {0} with {1} when zipping {2}".format(tmpRet, errMsg, fileSpec.lfn))
-                        return tmpRet, "failed to zip with {0}".format(errMsg)
+                        tmp_log.error(f"got {tmpRet} with {errMsg} when zipping {fileSpec.lfn}")
+                        return tmpRet, f"failed to zip with {errMsg}"
         except Exception:
             errMsg = core_utils.dump_error_message(tmp_log)
-            return False, "failed to zip with {0}".format(errMsg)
+            return False, f"failed to zip with {errMsg}"
         tmp_log.debug("done")
         return True, ""
 
@@ -88,7 +86,7 @@ class BaseZipper(PluginBase):
         try:
             zipPath = arg_dict["zipPath"]
             lfn = os.path.basename(zipPath)
-            self.zip_tmp_log.debug("{0} start zipPath={1} with {2} files".format(lfn, zipPath, len(arg_dict["associatedFiles"])))
+            self.zip_tmp_log.debug(f"{lfn} start zipPath={zipPath} with {len(arg_dict['associatedFiles'])} files")
             # make zip if doesn't exist
             if not os.path.exists(zipPath):
                 # tmp file names
@@ -96,20 +94,20 @@ class BaseZipper(PluginBase):
                 tmpZipPathIn = tmpZipPath + ".in"
                 with open(tmpZipPathIn, "w") as f:
                     for associatedFile in arg_dict["associatedFiles"]:
-                        f.write("{0}\n".format(associatedFile))
+                        f.write(f"{associatedFile}\n")
                 # make command
-                com = "tar -c -f {0} -T {1} ".format(tmpZipPath, tmpZipPathIn)
+                com = f"tar -c -f {tmpZipPath} -T {tmpZipPathIn} "
                 com += "--transform 's/.*\///' "
                 # execute
                 p = subprocess.Popen(com, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 stdOut, stdErr = p.communicate()
                 retCode = p.returncode
                 if retCode != 0:
-                    msgStr = "failed to make zip for {0} with {1}:{2}".format(lfn, stdOut, stdErr)
+                    msgStr = f"failed to make zip for {lfn} with {stdOut}:{stdErr}"
                     self.zip_tmp_log.error(msgStr)
                     return None, msgStr, {}
                 # avoid overwriting
-                lockName = "zip.lock.{0}".format(lfn)
+                lockName = f"zip.lock.{lfn}"
                 lockInterval = 60
                 tmpStat = False
                 # get lock
@@ -120,7 +118,7 @@ class BaseZipper(PluginBase):
                     time.sleep(1)
                 # failed to lock
                 if not tmpStat:
-                    msgStr = "failed to lock for {0}".format(lfn)
+                    msgStr = f"failed to lock for {lfn}"
                     self.zip_tmp_log.error(msgStr)
                     return None, msgStr
                 if not os.path.exists(zipPath):
@@ -136,8 +134,8 @@ class BaseZipper(PluginBase):
             fileInfo["chksum"] = core_utils.calc_adler32(zipPath)
         except Exception:
             errMsg = core_utils.dump_error_message(self.zip_tmp_log)
-            return False, "failed to zip with {0}".format(errMsg)
-        self.zip_tmp_log.debug("{0} done".format(lfn))
+            return False, f"failed to zip with {errMsg}"
+        self.zip_tmp_log.debug(f"{lfn} done")
         return True, "", fileInfo
 
     # zip output files; file operations are done on remote side with ssh
@@ -158,7 +156,7 @@ class BaseZipper(PluginBase):
             # check associate file existence
 
             def _check_assfile_existence(fileSpec):
-                in_data = "\\n".join(["{0}".format(assFileSpec.path) for assFileSpec in fileSpec.associatedFiles])
+                in_data = "\\n".join([f"{assFileSpec.path}" for assFileSpec in fileSpec.associatedFiles])
                 com1 = (
                     "ssh "
                     "-o StrictHostKeyChecking=no "
@@ -178,9 +176,9 @@ class BaseZipper(PluginBase):
                 stdOut, stdErr = p1.communicate()
                 retCode = p1.returncode
                 if retCode != 0:
-                    msgStr = "failed to make tmpargfile remotely with {0}:{1}".format(stdOut, stdErr)
+                    msgStr = f"failed to make tmpargfile remotely with {stdOut}:{stdErr}"
                     tmp_log.error(msgStr)
-                    return False, "failed to zip with {0}".format(msgStr)
+                    return False, f"failed to zip with {msgStr}"
                 stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
                 tmpargfile_name = stdOut_str.strip("\n")
                 del p1, stdOut, stdErr
@@ -203,7 +201,7 @@ class BaseZipper(PluginBase):
                 stdOut, stdErr = p2.communicate()
                 retCode = p2.returncode
                 if retCode != 0:
-                    msgStr = "failed to existence of associate files with {0}:{1}".format(stdOut, stdErr)
+                    msgStr = f"failed to existence of associate files with {stdOut}:{stdErr}"
                     tmp_log.error(msgStr)
                 else:
                     try:
@@ -220,18 +218,13 @@ class BaseZipper(PluginBase):
                         core_utils.dump_error_message(tmp_log)
                 del p2, stdOut, stdErr, com2
                 # delete tmpargfile
-                com3 = ("ssh " "-o StrictHostKeyChecking=no " "-i {sshkey} " "{userhost} " '"{fileop_script} remove_file {file_path} "').format(
-                    sshkey=self.sshkey,
-                    userhost=self.userhost,
-                    fileop_script=self.fileop_script,
-                    file_path=tmpargfile_name,
-                )
+                com3 = f'ssh -o StrictHostKeyChecking=no -i {self.sshkey} {self.userhost} "{self.fileop_script} remove_file {tmpargfile_name} "'
                 # execute
                 p3 = subprocess.Popen(com3, shell=True, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 stdOut, stdErr = p3.communicate()
                 retCode = p3.returncode
                 if retCode != 0:
-                    msgStr = "failed to delete tmpargfile remotely with {0}:{1}".format(stdOut, stdErr)
+                    msgStr = f"failed to delete tmpargfile remotely with {stdOut}:{stdErr}"
                     tmp_log.error(msgStr)
                 del p3, stdOut, stdErr
                 gc.collect()
@@ -274,16 +267,14 @@ class BaseZipper(PluginBase):
                         fileSpec.path = fileInfo["path"]
                         fileSpec.fsize = fileInfo["fsize"]
                         fileSpec.chksum = fileInfo["chksum"]
-                        msgStr = "fileSpec.path - {0}, fileSpec.fsize - {1}, fileSpec.chksum(adler32) - {2}".format(
-                            fileSpec.path, fileSpec.fsize, fileSpec.chksum
-                        )
+                        msgStr = f"fileSpec.path - {fileSpec.path}, fileSpec.fsize - {fileSpec.fsize}, fileSpec.chksum(adler32) - {fileSpec.chksum}"
                         tmp_log.debug(msgStr)
                     else:
-                        tmp_log.error("got {0} with {1} when zipping {2}".format(tmpRet, errMsg, fileSpec.lfn))
-                        return tmpRet, "failed to zip with {0}".format(errMsg)
+                        tmp_log.error(f"got {tmpRet} with {errMsg} when zipping {fileSpec.lfn}")
+                        return tmpRet, f"failed to zip with {errMsg}"
         except Exception:
             errMsg = core_utils.dump_error_message(tmp_log)
-            return False, "failed to zip with {0}".format(errMsg)
+            return False, f"failed to zip with {errMsg}"
         tmp_log.debug("done")
         return True, ""
 
@@ -292,8 +283,8 @@ class BaseZipper(PluginBase):
         try:
             zipPath = arg_dict["zipPath"]
             lfn = os.path.basename(zipPath)
-            self.zip_tmp_log.debug("{0} start zipPath={1} with {2} files".format(lfn, zipPath, len(arg_dict["associatedFiles"])))
-            in_data = "\\n".join(["{0}".format(path) for path in arg_dict["associatedFiles"]])
+            self.zip_tmp_log.debug(f"{lfn} start zipPath={zipPath} with {len(arg_dict['associatedFiles'])} files")
+            in_data = "\\n".join([f"{path}" for path in arg_dict["associatedFiles"]])
             com0 = (
                 "ssh " "-o StrictHostKeyChecking=no " "-i {sshkey} " "{userhost} " '"{fileop_script} write_tmpfile --suffix {suffix} --dir {dir} \\"{data}\\" "'
             ).format(
@@ -309,9 +300,9 @@ class BaseZipper(PluginBase):
             stdOut, stdErr = p0.communicate()
             retCode = p0.returncode
             if retCode != 0:
-                msgStr = "failed to make tmpargfile remotely with {0}:{1}".format(stdOut, stdErr)
+                msgStr = f"failed to make tmpargfile remotely with {stdOut}:{stdErr}"
                 tmp_log.error(msgStr)
-                return False, "failed to zip with {0}".format(msgStr)
+                return False, f"failed to zip with {msgStr}"
             stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
             tmpargfile_name = stdOut_str.strip("\n")
             del p0, stdOut, stdErr
@@ -334,28 +325,23 @@ class BaseZipper(PluginBase):
             stdOut, stdErr = p1.communicate()
             retCode = p1.returncode
             if retCode != 0:
-                msgStr = "failed to make zip for {0} with {1}:{2}".format(lfn, stdOut, stdErr)
+                msgStr = f"failed to make zip for {lfn} with {stdOut}:{stdErr}"
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
             del p1, stdOut, stdErr
             # delete tmpargfile
-            com1a = ("ssh " "-o StrictHostKeyChecking=no " "-i {sshkey} " "{userhost} " '"{fileop_script} remove_file {file_path} "').format(
-                sshkey=self.sshkey,
-                userhost=self.userhost,
-                fileop_script=self.fileop_script,
-                file_path=tmpargfile_name,
-            )
+            com1a = f'ssh -o StrictHostKeyChecking=no -i {self.sshkey} {self.userhost} "{self.fileop_script} remove_file {tmpargfile_name} "'
             # execute
             p1a = subprocess.Popen(com1a, shell=True, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdOut, stdErr = p1a.communicate()
             retCode = p1a.returncode
             if retCode != 0:
-                msgStr = "failed to delete tmpargfile remotely with {0}:{1}".format(stdOut, stdErr)
+                msgStr = f"failed to delete tmpargfile remotely with {stdOut}:{stdErr}"
                 tmp_log.error(msgStr)
             del p1a, stdOut, stdErr
             gc.collect()
             # avoid overwriting
-            lockName = "zip.lock.{0}".format(lfn)
+            lockName = f"zip.lock.{lfn}"
             lockInterval = 60
             tmpStat = False
             # get lock
@@ -366,7 +352,7 @@ class BaseZipper(PluginBase):
                 time.sleep(1)
             # failed to lock
             if not tmpStat:
-                msgStr = "failed to lock for {0}".format(lfn)
+                msgStr = f"failed to lock for {lfn}"
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
             # rename to be zipPath
@@ -386,16 +372,12 @@ class BaseZipper(PluginBase):
             fileInfo = dict()
             fileInfo["path"] = zipPath
             # get size
-            com3 = ("ssh " "-o StrictHostKeyChecking=no " "-i {sshkey} " "{userhost} " '"stat -c %s {zipPath}"').format(
-                sshkey=self.sshkey,
-                userhost=self.userhost,
-                zipPath=zipPath,
-            )
+            com3 = f'ssh -o StrictHostKeyChecking=no -i {self.sshkey} {self.userhost} "stat -c %s {zipPath}"'
             p3 = subprocess.Popen(com3, shell=True, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdOut, stdErr = p3.communicate()
             retCode = p3.returncode
             if retCode != 0:
-                msgStr = "failed to get file size of {0} with {1}:{2}".format(zipPath, stdOut, stdErr)
+                msgStr = f"failed to get file size of {zipPath} with {stdOut}:{stdErr}"
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
             else:
@@ -405,17 +387,12 @@ class BaseZipper(PluginBase):
             del p3, stdOut, stdErr
             gc.collect()
             # get checksum
-            com4 = ("ssh " "-o StrictHostKeyChecking=no " "-i {sshkey} " "{userhost} " '"{fileop_script} adler32 {zipPath}"').format(
-                sshkey=self.sshkey,
-                userhost=self.userhost,
-                fileop_script=self.fileop_script,
-                zipPath=zipPath,
-            )
+            com4 = f'ssh -o StrictHostKeyChecking=no -i {self.sshkey} {self.userhost} "{self.fileop_script} adler32 {zipPath}"'
             p4 = subprocess.Popen(com4, shell=True, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdOut, stdErr = p4.communicate()
             retCode = p4.returncode
             if retCode != 0:
-                msgStr = "failed to get file adler32 of {0} with {1}:{2}".format(zipPath, stdOut, stdErr)
+                msgStr = f"failed to get file adler32 of {zipPath} with {stdOut}:{stdErr}"
                 self.zip_tmp_log.error(msgStr)
                 return None, msgStr, {}
             else:
@@ -426,6 +403,6 @@ class BaseZipper(PluginBase):
             gc.collect()
         except Exception:
             errMsg = core_utils.dump_error_message(self.zip_tmp_log)
-            return False, "failed to zip with {0}".format(errMsg)
-        self.zip_tmp_log.debug("{0} done".format(lfn))
+            return False, f"failed to zip with {errMsg}"
+        self.zip_tmp_log.debug(f"{lfn} done")
         return True, "", fileInfo

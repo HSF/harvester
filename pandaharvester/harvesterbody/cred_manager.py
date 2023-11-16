@@ -1,11 +1,11 @@
-import re
 import itertools
+import re
 
+from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvestercore.plugin_factory import PluginFactory
 
 # logger
 _logger = core_utils.setup_logger("cred_manager")
@@ -80,7 +80,7 @@ class CredManager(AgentBase):
                 exe_core = self.pluginFactory.get_plugin(plugin_params)
                 self.exe_cores.append(exe_core)
             except Exception:
-                _logger.error("failed to launch credmanager with traditional attributes for {0}".format(plugin_params))
+                _logger.error(f"failed to launch credmanager with traditional attributes for {plugin_params}")
                 core_utils.dump_error_message(_logger)
         # from pluginConfigs
         for pc in pluginConfigs:
@@ -93,10 +93,10 @@ class CredManager(AgentBase):
                         exe_core = self.pluginFactory.get_plugin(plugin_params)
                         self.exe_cores.append(exe_core)
                     except Exception:
-                        _logger.error("failed to launch credmanager in pluginConfigs for {0}".format(plugin_params))
+                        _logger.error(f"failed to launch credmanager in pluginConfigs for {plugin_params}")
                         core_utils.dump_error_message(_logger)
             except Exception:
-                _logger.error("failed to parse pluginConfigs {0}".format(pc))
+                _logger.error(f"failed to parse pluginConfigs {pc}")
                 core_utils.dump_error_message(_logger)
 
     # update plugin cores from queue config
@@ -137,7 +137,7 @@ class CredManager(AgentBase):
                     exe_core = self.pluginFactory.get_plugin(plugin_params)
                     self.queue_exe_cores.append(exe_core)
                 except Exception:
-                    _logger.error("failed to launch plugin for queue={0} and {1}".format(queue_name, plugin_params))
+                    _logger.error(f"failed to launch plugin for queue={queue_name} and {plugin_params}")
                     core_utils.dump_error_message(_logger)
 
     # main loop
@@ -168,8 +168,8 @@ class CredManager(AgentBase):
             if hasattr(exe_core, "setup_name"):
                 credmanager_name = exe_core.setup_name
             else:
-                credmanager_name = "{0} {1}".format(exe_core.inCertFile, exe_core.outCertFile)
-            mainLog = self.make_logger(_logger, "{0} {1}".format(exe_core.__class__.__name__, credmanager_name), method_name="execute")
+                credmanager_name = f"{exe_core.inCertFile} {exe_core.outCertFile}"
+            mainLog = self.make_logger(_logger, f"{exe_core.__class__.__name__} {credmanager_name}", method_name="execute")
             try:
                 # check credential
                 mainLog.debug("check credential")
@@ -182,7 +182,7 @@ class CredManager(AgentBase):
                     mainLog.debug("renew credential")
                     tmpStat, tmpOut = exe_core.renew_credential()
                     if not tmpStat:
-                        mainLog.error("failed : {0}".format(tmpOut))
+                        mainLog.error(f"failed : {tmpOut}")
                         continue
             except Exception:
                 core_utils.dump_error_message(mainLog)
@@ -203,9 +203,9 @@ class CredManager(AgentBase):
             if hasattr(exe_core, "setup_name"):
                 credmanager_name = exe_core.setup_name
             else:
-                credmanager_name = "{0} {1}".format(exe_core.inCertFile, exe_core.outCertFile)
+                credmanager_name = f"{exe_core.inCertFile} {exe_core.outCertFile}"
 
-            sub_log = self.make_logger(_logger, "{0} {1}".format(exe_core.__class__.__name__, credmanager_name), method_name="execute_monit")
+            sub_log = self.make_logger(_logger, f"{exe_core.__class__.__name__} {credmanager_name}", method_name="execute_monit")
             try:
                 # check credential
                 sub_log.debug("check credential lifetime")

@@ -1,6 +1,7 @@
-import uuid
-import os
 import json
+import os
+import uuid
+
 import requests
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -20,7 +21,7 @@ class GitlabSubmitter(PluginBase):
     # trigger pipeline jobs
     def submit_workers(self, workspec_list):
         tmpLog = self.make_logger(baseLogger, method_name="submit_workers")
-        tmpLog.debug("start nWorkers={0}".format(len(workspec_list)))
+        tmpLog.debug(f"start nWorkers={len(workspec_list)}")
         retList = []
         for workSpec in workspec_list:
             try:
@@ -29,23 +30,23 @@ class GitlabSubmitter(PluginBase):
                 params = json.loads(jobSpec.jobParams["jobPars"])
                 params["secrets"] = secrets
                 store_job_params(workSpec, params)
-                url = "{}/{}/trigger/pipeline".format(params["project_api"], params["project_id"])
+                url = f"{params['project_api']}/{params['project_id']}/trigger/pipeline"
                 data = {"token": secrets[params["trigger_token"]], "ref": params["ref"]}
                 try:
-                    tmpLog.debug("trigger pipeline at {}".format(url))
+                    tmpLog.debug(f"trigger pipeline at {url}")
                     r = requests.post(url, data=data, timeout=self.timeout)
                     response = r.json()
-                    tmpLog.debug("got {}".format(str(response)))
+                    tmpLog.debug(f"got {str(response)}")
                 except Exception:
                     err_str = core_utils.dump_error_message(tmpLog)
                     retList.append((False, err_str))
                     continue
                 if response["status"] == "created":
-                    workSpec.batchID = "{} {}".format(response["id"], response["project_id"])
-                    tmpLog.debug("succeeded with {}".format(workSpec.batchID))
+                    workSpec.batchID = f"{response['id']} {response['project_id']}"
+                    tmpLog.debug(f"succeeded with {workSpec.batchID}")
                     retList.append((True, ""))
                 else:
-                    err_str = "failed to trigger with {}".format(response["status"])
+                    err_str = f"failed to trigger with {response['status']}"
                     tmpLog.error(err_str)
                     retList.append((False, err_str))
             except Exception:

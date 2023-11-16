@@ -4,10 +4,11 @@ Job spec class
 """
 
 import copy
-import json
 import datetime
-from past.builtins import long
+import json
+
 from future.utils import iteritems
+from past.builtins import long
 
 from .spec_base import SpecBase
 
@@ -273,9 +274,9 @@ class JobSpec(SpecBase):
             if zipFileID is not None:
                 zipFileSpec = eventsData["zip"]
                 if zipFileSpec.status == "finished":
-                    objstoreID = "{0}".format(zipFileSpec.objstoreID)
+                    objstoreID = f"{zipFileSpec.objstoreID}"
                     if zipFileSpec.pathConvention is not None:
-                        objstoreID += "/{0}".format(zipFileSpec.pathConvention)
+                        objstoreID += f"/{zipFileSpec.pathConvention}"
                     tmpData["zipFile"] = {"lfn": zipFileSpec.lfn, "objstoreID": objstoreID}
                     if zipFileSpec.fsize not in [None, 0]:
                         tmpData["zipFile"]["fsize"] = zipFileSpec.fsize

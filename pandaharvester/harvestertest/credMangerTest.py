@@ -1,8 +1,7 @@
-import sys
 import logging
+import sys
 
 from future.utils import iteritems
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -69,9 +68,9 @@ for exeCore in exeCores:
     if exeCore is None:
         continue
     # make logger
-    mainLog = core_utils.make_logger(_logger, "{0} {1}".format(exeCore.__class__.__name__, exeCore.outCertFile), method_name="execute")
+    mainLog = core_utils.make_logger(_logger, f"{exeCore.__class__.__name__} {exeCore.outCertFile}", method_name="execute")
     # list the plugin name
-    mainLog.debug("plugin={0}".format(exeCore.__class__.__name__))
+    mainLog.debug(f"plugin={exeCore.__class__.__name__}")
     # check credential
     mainLog.debug("check credential")
     isValid = exeCore.check_credential()
@@ -83,6 +82,6 @@ for exeCore in exeCores:
         mainLog.debug("renew credential")
         tmpStat, tmpOut = exeCore.renew_credential()
         if not tmpStat:
-            mainLog.error("failed : {0}".format(tmpOut))
+            mainLog.error(f"failed : {tmpOut}")
             continue
     mainLog.debug("done")

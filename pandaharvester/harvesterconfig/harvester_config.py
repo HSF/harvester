@@ -1,11 +1,11 @@
-import re
-import os
-import sys
-import six
 import json
+import os
+import re
 import socket
-from future.utils import iteritems
+import sys
 
+import six
+from future.utils import iteritems
 from liveconfigparser.LiveConfigParser import LiveConfigParser
 
 # get ConfigParser
@@ -31,7 +31,7 @@ def env_var_parse(val):
     if var_name.upper() == "HOSTNAME":
         return socket.gethostname().split(".")[0]
     if var_name not in os.environ:
-        raise KeyError("{0} in the cfg is an undefined environment variable.".format(var_name))
+        raise KeyError(f"{var_name} in the cfg is an undefined environment variable.")
     else:
         return os.environ[var_name]
 

@@ -4,14 +4,14 @@ import threading
 import traceback
 
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestersubmitter.apfgrid_submitter import APFGridSubmitter
 
 try:
     from autopyfactory import condorlib
 except ImportError:
-    logging.error("Unable to import htcondor/condorlib. sys.path=%s" % sys.path)
+    logging.error(f"Unable to import htcondor/condorlib. sys.path={sys.path}")
 
 # setup base logger
 baseLogger = core_utils.setup_logger()
@@ -75,10 +75,10 @@ class APFGridMonitor(object):
     def _updateJobInfo(self):
         self.log.debug("Getting job info from Condor...")
         out = condorlib.condor_q(APFGridMonitor.JOBQUERYATTRIBUTES)
-        self.log.debug("Got jobinfo %s" % out)
+        self.log.debug(f"Got jobinfo {out}")
         self.jobinfo = out
         out = condorlib.condor_history(attributes=APFGridMonitor.JOBQUERYATTRIBUTES, constraints=[])
-        self.log.debug("Got history info %s" % out)
+        self.log.debug(f"Got history info {out}")
         self.historyinfo = out
         alljobs = self.jobinfo + self.historyinfo
         for jobad in alljobs:
@@ -88,7 +88,7 @@ class APFGridMonitor(object):
             except KeyError:
                 # some non-harvester jobs may not have workerids, ignore them
                 pass
-        self.log.debug("All jobs indexed by worker_id. %d entries." % len(self.allbyworkerid))
+        self.log.debug(f"All jobs indexed by worker_id. {len(self.allbyworkerid)} entries.")
 
     # check workers
     def check_workers(self, workspec_list):
@@ -111,16 +111,15 @@ class APFGridMonitor(object):
         retlist = []
         for workSpec in workspec_list:
             self.log.debug(
-                "Worker(workerId=%s queueName=%s computingSite=%s status=%s )"
-                % (workSpec.workerID, workSpec.queueName, workSpec.computingSite, workSpec.status)
+                f"Worker(workerId={workSpec.workerID} queueName={workSpec.queueName} computingSite={workSpec.computingSite} status={workSpec.status} )"
             )
             try:
                 jobad = self.allbyworkerid[workSpec.workerID]
-                self.log.debug("Found matching job: ID %s" % jobad["workerid"])
+                self.log.debug(f"Found matching job: ID {jobad['workerid']}")
                 jobstatus = int(jobad["jobstatus"])
                 retlist.append((APFGridMonitor.STATUS_MAP[jobstatus], ""))
             except KeyError:
-                self.log.error("No corresponding job for workspec %s" % workSpec)
+                self.log.error(f"No corresponding job for workspec {workSpec}")
                 retlist.append((WorkSpec.ST_cancelled, ""))
-        self.log.debug("retlist=%s" % retlist)
+        self.log.debug(f"retlist={retlist}")
         return True, retlist

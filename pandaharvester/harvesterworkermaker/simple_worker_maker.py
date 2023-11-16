@@ -1,15 +1,16 @@
 from __future__ import division
 
+import datetime
 import math
 import random
 
-from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
+from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+
 from .base_worker_maker import BaseWorkerMaker
-import datetime
 
 # logger
 _logger = core_utils.setup_logger("simple_worker_maker")
@@ -82,9 +83,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
-        tmpLog = self.make_logger(_logger, "queue={0}:{1}:{2}".format(queue_config.queueName, job_type, resource_type), method_name="make_worker")
+        tmpLog = self.make_logger(_logger, f"queue={queue_config.queueName}:{job_type}:{resource_type}", method_name="make_worker")
 
-        tmpLog.debug("jobspec_list: {0}".format(jobspec_list))
+        tmpLog.debug(f"jobspec_list: {jobspec_list}")
 
         workSpec = WorkSpec()
         workSpec.creationTime = datetime.datetime.utcnow()
@@ -120,9 +121,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             else:
                 if not len(jobspec_list) and resource_type not in ["SCORE", "SCORE_HIMEM", "MCORE", "MCORE_HIMEM"]:
                     # some testing PQs have ucore + pure pull, need to default to SCORE
-                    tmpLog.warning(
-                        'Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to SCORE'.format(resource_type=resource_type)
-                    )
+                    tmpLog.warning(f'Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to SCORE')
                     resource_type = "SCORE"
                 workSpec.nCore, workSpec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
 
@@ -181,7 +180,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             workSpec.pilotType = fake_job.get_pilot_type()
             del fake_job
             if workSpec.pilotType in ["RC", "ALRB", "PT"]:
-                tmpLog.info("a worker has pilotType={0}".format(workSpec.pilotType))
+                tmpLog.info(f"a worker has pilotType={workSpec.pilotType}")
 
             workSpec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prodsourcelabel)
             tmpLog.debug(

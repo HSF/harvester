@@ -1,4 +1,5 @@
 import sys
+
 from lancium.api.Job import Job
 
 if len(sys.argv) == 2:
@@ -10,7 +11,7 @@ else:
 if job_id == 0:
     all_jobs = Job().all()
     for job in all_jobs:
-        print("id: {0}, status: {1}".format(job.id, job.status))
+        print(f"id: {job.id}, status: {job.status}")
 else:
     job = Job().get(job_id)
-    print("id: {0}, status: {1}".format(job.id, job.status))
+    print(f"id: {job.id}, status: {job.status}")

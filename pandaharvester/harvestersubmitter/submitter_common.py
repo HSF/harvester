@@ -1,5 +1,4 @@
 import random
-
 from math import log1p
 
 #########################
@@ -48,7 +47,7 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version="", 
     pilot_opt_dict = pt_psl_map.get(pilot_type, pt_psl_map["PR"])
     if pilot_url:
         # overwrite with specified pilot_url
-        pilot_opt_dict["pilot_url_str"] = "--piloturl {0}".format(pilot_url)
+        pilot_opt_dict["pilot_url_str"] = f"--piloturl {pilot_url}"
     elif pilot_type == "PR":
         # randomization of pilot url for PR (managed, user) pilot run some portion of RC version (not RC dev) pilot
         prod_rc_pilot_url_str = "--piloturl http://pandaserver.cern.ch:25085/cache/pilot/pilot3-rc.tar.gz"
@@ -99,7 +98,7 @@ def get_resource_type(string, is_unified_queue, is_pilot_option=False):
         ret = ""
     elif string in set(["SCORE", "MCORE", "SCORE_HIMEM", "MCORE_HIMEM"]):
         if is_pilot_option:
-            ret = "--resource-type {0}".format(string)
+            ret = f"--resource-type {string}"
         else:
             ret = string
     else:
