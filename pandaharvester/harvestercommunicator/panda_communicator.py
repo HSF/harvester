@@ -869,12 +869,11 @@ class PandaCommunicator(BaseCommunicator):
         tmpLog.debug(f"done with {retStat} {retVal}")
         return retStat, retVal
 
-    # get worker stats of a site from PanDA
-    def get_worker_stats(self, site_name):
+    # get worker stats from PanDA
+    def get_worker_stats(self):
         tmp_log = self.make_logger(method_name="get_worker_stats")
         tmp_log.debug("start")
-        data = {"site_name": site_name}
-        tmp_stat, tmp_res = self.post_ssl("getWorkerStats", data)
+        tmp_stat, tmp_res = self.post_ssl("getWorkerStats", {})
         stats = {}
         if tmp_stat is False:
             ret_msg = "FAILED"
