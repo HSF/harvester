@@ -174,6 +174,7 @@ def make_a_jdl(
     prod_rc_permille=0,
     token_dir=None,
     is_gpu_resource=False,
+    n_core_factor=1,
     **kwarg,
 ):
     # make logger
@@ -206,8 +207,9 @@ def make_a_jdl(
                 n_core_total = int(_match.group(1))
             tmpLog.debug(f"job attributes override by CRIC special_par: {attr}={str(_match.group(1))}")
     # derived job attributes
+    n_core_total = n_core_total * n_core_factor
     n_node = ceil(n_core_total / n_core_per_node)
-    request_ram_bytes = request_ram * 2**20
+    request_ram_bytes = request_ram * 2**20 * n_core_factor
     request_ram_per_core = ceil(request_ram * n_node / n_core_total)
     request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
     request_cputime = request_walltime * n_core_total
@@ -243,6 +245,7 @@ def make_a_jdl(
         "nCorePerNode": n_core_per_node,
         "nCoreTotal": n_core_total,
         "nNode": n_node,
+        "nCoreFactor": n_core_factor,
         "requestRam": request_ram,
         "requestRamBytes": request_ram_bytes,
         "requestRamPerCore": request_ram_per_core,
@@ -338,6 +341,15 @@ class HTCondorSubmitter(PluginBase):
         else:
             if (not self.nProcesses) or (self.nProcesses < 1):
                 self.nProcesses = 1
+        # ncore factor
+        try:
+            self.nCoreFactor = int(self.nCoreFactor)
+        except AttributeError:
+            self.nCoreFactor = 1
+        else:
+            self.nCoreFactor = int(self.nCoreFactor)
+            if (not self.nCoreFactor) or (self.nCoreFactor < 1):
+                self.nCoreFactor = 1
         # executable file
         try:
             self.executableFile
@@ -824,6 +836,7 @@ class HTCondorSubmitter(PluginBase):
                         "log_dir": self.logDir,
                         "log_subdir": log_subdir,
                         "n_core_per_node": n_core_per_node,
+                        "n_core_factor": self.nCoreFactor,
                         "panda_queue_name": panda_queue_name,
                         "x509_user_proxy": proxy,
                         "ce_info_dict": ce_info_dict,

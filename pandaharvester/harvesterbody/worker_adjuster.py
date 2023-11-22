@@ -24,6 +24,10 @@ class WorkerAdjuster(object):
             self.maxNewWorkers = harvester_config.submitter.maxNewWorkers
         except AttributeError:
             self.maxNewWorkers = None
+        try:
+            self.activate_worker_factor = float(harvester_config.submitter.activateWorkerFactor)
+        except AttributeError:
+            self.activate_worker_factor = 1.0
 
     # define number of workers to submit based on various information
     def define_num_workers(self, static_num_workers, site_name):
@@ -145,11 +149,11 @@ class WorkerAdjuster(object):
                                 else:
                                     # limit the queue to the number of activated jobs to avoid empty pilots
                                     try:
-                                        n_activated = max(job_stats[queue_name]["activated"], 1)  # avoid no activity queues
+                                        n_activated = max(job_stats[queue_name]["activated"] * self.activate_worker_factor, 1)  # avoid no activity queues
                                     except KeyError:
                                         # zero job in the queue
                                         tmp_log.debug("no job in queue")
-                                        n_activated = 1
+                                        n_activated = max(1 - n_queue - n_ready - n_running, 0)
                                     finally:
                                         queue_limit = max_queued_workers
                                         max_queued_workers = min(n_activated, max_queued_workers)

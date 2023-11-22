@@ -2,19 +2,17 @@
 
 ARG PYTHON_VERSION=3.11.4
 
-FROM docker.io/almalinux:9
+FROM docker.io/almalinux:9.2
 
 ARG PYTHON_VERSION
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y --allowerasing gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
-    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel passwd
+RUN yum install -y yum-utils
+RUN yum-config-manager --enable crb
 
-# install mysql-community for CC7+Python3.11
-RUN wget https://dev.mysql.com/get/mysql80-community-release-el9-4.noarch.rpm && \
-    rpm -Uvh mysql80-community-release-*.noarch.rpm && \
-    yum install -y mysql-community-devel mysql-community-client
+RUN yum install -y --allowerasing gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
+    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel passwd voms-clients-java which mysql-devel mariadb
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
@@ -89,6 +87,8 @@ RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/harvester
 RUN chmod -R 777 /data/condor
 RUN chmod -R 777 /etc/httpd
+RUN chmod -R 777 /etc/vomses
+RUN chmod -R 777 /etc/grid-security/vomsdir/lsst
 RUN chmod -R 777 /var/log/httpd
 RUN chmod -R 777 /var/lib/logrotate
 RUN mkdir -p /opt/harvester/etc/queue_config && chmod 777 /opt/harvester/etc/queue_config
