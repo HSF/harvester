@@ -870,8 +870,8 @@ class PandaCommunicator(BaseCommunicator):
         return retStat, retVal
 
     # get worker stats from PanDA
-    def get_worker_stats(self):
-        tmp_log = self.make_logger(method_name="get_worker_stats")
+    def get_worker_stats_from_panda(self):
+        tmp_log = self.make_logger(method_name="get_worker_stats_from_panda")
         tmp_log.debug("start")
         tmp_stat, tmp_res = self.post_ssl("getWorkerStats", {})
         stats = {}
@@ -886,4 +886,4 @@ class PandaCommunicator(BaseCommunicator):
                 ret_msg = "Exception"
                 core_utils.dump_error_message(tmp_log)
         tmp_log.debug(f"done with {ret_msg} {stats}")
-        return ret_msg, stats
+        return stats, ret_msg
