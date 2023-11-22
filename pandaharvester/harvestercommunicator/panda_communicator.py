@@ -868,3 +868,23 @@ class PandaCommunicator(BaseCommunicator):
                 retVal = retVal.text
         tmpLog.debug(f"done with {retStat} {retVal}")
         return retStat, retVal
+
+    # get worker stats of a site from PanDA
+    def get_worker_stats(self, site_name):
+        tmp_log = self.make_logger(method_name="get_worker_stats")
+        tmp_log.debug("start")
+        data = {"site_name": site_name}
+        tmp_stat, tmp_res = self.post_ssl("getWorkerStats", data)
+        stats = {}
+        if tmp_stat is False:
+            ret_msg = "FAILED"
+            core_utils.dump_error_message(tmp_log, tmp_res)
+        else:
+            try:
+                stats = tmp_res.json()
+                ret_msg = "OK"
+            except Exception:
+                ret_msg = "Exception"
+                core_utils.dump_error_message(tmp_log)
+        tmp_log.debug(f"done with {ret_msg} {stats}")
+        return ret_msg, stats
