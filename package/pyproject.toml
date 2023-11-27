@@ -35,7 +35,7 @@ dependencies = [
 [project.optional-dependencies]
 kubernetes = ['kubernetes', 'pyyaml']
 mysql = ['mysqlclient']
-atlasgrid = ['uWSGI >= 2.0.20', 'htcondor >= 9.2.0', 'mysqlclient >= 2.0.3']
+atlasgrid = ['uWSGI >= 2.0.20', 'htcondor >= 10.3.0', 'mysqlclient >= 2.1.1']
 
 [project.urls]
 Homepage = "https://github.com/PanDAWMS/panda-harvester/wiki"
