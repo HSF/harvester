@@ -1,0 +1,16 @@
+[Unit]
+Description=PanDA Harvester uWSGI
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=exec
+RemainAfterExit=true
+Environment="LOG_DIR=/var/log/harvester" "PIDFILE=/var/log/harvester/panda_harvester.pid"
+EnvironmentFile=/opt/harvester/etc/sysconfig/panda_harvester_env
+ExecStartPre=/bin/sh -c '${VIRTUAL_ENV}/bin/python $(${VIRTUAL_ENV}/bin/python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")/pandaharvester/harvesterscripts/prescript.py -f ${LOG_DIR}/.harvester_info'
+ExecStart=/bin/sh -c '${VIRTUAL_ENV}/bin/uwsgi ${VIRTUAL_ENV}/etc/panda/panda_harvester-uwsgi.ini >> /var/log/harvester/panda_harvester_stdout.log 2>> /var/log/harvester/panda_harvester_stderr.log'
+ExecReload=/bin/sh -c '${VIRTUAL_ENV}/bin/uwsgi --reload ${PIDFILE}'
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

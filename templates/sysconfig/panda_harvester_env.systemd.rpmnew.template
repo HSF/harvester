@@ -1,0 +1,27 @@
+# define virtual env if not using python venv
+VIRTUAL_ENV=/opt/harvester
+
+# user name
+userName=atlpan
+
+# group name
+groupName=zp
+
+# uwsgi socket
+uwsgiSocket="127.0.0.1:3334"
+
+# panda home
+PANDA_HOME=/opt/harvester
+
+# timezone
+TZ=UTC
+
+# python site packages
+SITE_PACKAGES_PATH=/opt/harvester/lib/python3.11/site-packages
+
+# import panda modules
+#PYTHONPATH=${SITE_PACKAGES_PATH}/pandacommon:${SITE_PACKAGES_PATH}
+PYTHONPATH=/opt/harvester/lib/python3.11/site-packages/pandacommon:/opt/harvester/lib/python3.11/site-packages
+
+# option for frontend
+OPTIONS="-f /opt/harvester/etc/panda/panda_harvester-httpd.conf"
