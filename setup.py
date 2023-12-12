@@ -64,6 +64,7 @@ setup(
             "etc/sysconfig",
             [
                 "templates/sysconfig/panda_harvester.rpmnew.template",
+                "templates/sysconfig/panda_harvester_env.systemd.rpmnew.template",
             ],
         ),
         # init script
@@ -73,6 +74,13 @@ setup(
                 "templates/init.d/panda_harvester.rpmnew.template",
                 "templates/init.d/panda_harvester-apachectl.rpmnew.template",
                 "templates/init.d/panda_harvester-uwsgi.rpmnew.template",
+            ],
+        ),
+        # systemd
+        (
+            "etc/systemd",
+            [
+                "templates/systemd/panda_harvester-uwsgi.service.template",
             ],
         ),
         # admin tool
