@@ -38,6 +38,16 @@ class WorkerAdjuster(object):
             tmp_log.error(err_str)
             tmp_log.warning("default activate_worker_factor = 1")
             self.activate_worker_factor = 1.0
+        try:
+            if harvester_config.submitter.noPilotsWhenNoActiveJobs:
+                self.no_pilots_when_no_active_jobs = True
+        except AttributeError:
+            self.no_pilots_when_no_active_jobs = False
+        except Exception:
+            err_str = traceback.format_exc()
+            tmp_log.error(err_str)
+            tmp_log.warning("default no_pilots_when_no_active_jobs = False")
+            self.no_pilots_when_no_active_jobs = False
 
     # get activate worker factor
     def get_activate_worker_factor(self, site_name=None):
@@ -185,13 +195,20 @@ class WorkerAdjuster(object):
                                 else:
                                     # limit the queue to the number of activated jobs to avoid empty pilots
                                     try:
+                                        n_min_pilots = 1
+                                        if self.no_pilots_when_no_active_jobs:
+                                            n_min_pilots = 0
                                         n_activated = max(
-                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)), 1
+                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)),
+                                            n_min_pilots
                                         )  # avoid no activity queues
                                     except KeyError:
                                         # zero job in the queue
                                         tmp_log.debug("no job in queue")
-                                        n_activated = max(1 - n_queue - n_ready - n_running, 0)
+                                        if self.no_pilots_when_no_active_jobs:
+                                            n_activated = 0
+                                        else:
+                                            n_activated = max(1 - n_queue - n_ready - n_running, 0)
                                     finally:
                                         queue_limit = max_queued_workers
                                         max_queued_workers = min(n_activated, max_queued_workers)
@@ -288,4 +305,5 @@ class WorkerAdjuster(object):
         except Exception:
             # dump error
             err_msg = core_utils.dump_error_message(tmp_log)
+            tmp_log.error(err_msg)
             return None
