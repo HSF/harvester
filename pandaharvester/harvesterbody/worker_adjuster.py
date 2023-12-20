@@ -49,10 +49,28 @@ class WorkerAdjuster(object):
             tmp_log.warning("default no_pilots_when_no_active_jobs = False")
             self.no_pilots_when_no_active_jobs = False
 
+    # get queue activate worker factor
+    def get_queue_activate_worker_factor(self, site_name=None, queue_stat=dict()):
+        tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_queue_activate_worker_factor")
+        ret_val = 1.0
+
+        # balance in a queue when MCore is used in a pilot wrapper
+        try:
+            if site_name and site_name in queue_stat and queue_stat[site_name]:
+                if "submitter" in queue_stat[site_name] and queue_stat[site_name]["submitter"]:
+                    if "activateWorkerFactor" in queue_stat[site_name]["submitter"] and queue_stat[site_name]["submitter"]["activateWorkerFactor"]:
+                        ret_val = 1.0 * float(queue_stat[site_name]["submitter"]["activateWorkerFactor"])
+        except:
+            pass
+        tmp_log.debug(f"ret_val={ret_val}")
+        return ret_val
+
     # get activate worker factor
-    def get_activate_worker_factor(self, site_name=None):
+    def get_activate_worker_factor(self, site_name=None, queue_stat=dict()):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_activate_worker_factor")
         ret_val = 1.0
+
+        # balance between multiple harvesters
         if self.activate_worker_factor == "auto":
             # dynamic factor
             worker_stats_from_panda = self.dbProxy.get_cache("worker_statistics.json", None)
@@ -72,6 +90,10 @@ class WorkerAdjuster(object):
         else:
             # static factor
             ret_val = self.activate_worker_factor
+
+        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name, queue_stat=queue_stat)
+        ret_val = ret_val * queue_factor
+
         tmp_log.debug(f"ret_val={ret_val}")
         return ret_val
 
@@ -198,10 +220,10 @@ class WorkerAdjuster(object):
                                         n_min_pilots = 1
                                         if self.no_pilots_when_no_active_jobs:
                                             n_min_pilots = 0
-                                        if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name) > 0:
+                                        if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name, queue_stat) > 0:
                                             n_min_pilots = 1
                                         n_activated = max(
-                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)),
+                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name, queue_stat)),
                                             n_min_pilots
                                         )  # avoid no activity queues
                                     except KeyError:
