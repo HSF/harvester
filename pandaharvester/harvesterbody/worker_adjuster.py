@@ -82,8 +82,9 @@ class WorkerAdjuster(object):
                 try:
                     # return 1/n_harvester_instances for the site
                     val_dict = worker_stats_from_panda[site_name]
-                    n_harvester_instances = len(val_dict)
-                    ret_val = 1.0 / min(n_harvester_instances, 1)
+                    n_harvester_instances = len(list(val_dict.keys()))
+                    tmp_log.debug("number of harvesters: %s" % n_harvester_instances)
+                    ret_val = 1.0 / max(n_harvester_instances, 1)
                 except KeyError:
                     # no data for this site, return default
                     pass
