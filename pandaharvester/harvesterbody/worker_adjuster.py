@@ -50,23 +50,23 @@ class WorkerAdjuster(object):
             self.no_pilots_when_no_active_jobs = False
 
     # get queue activate worker factor
-    def get_queue_activate_worker_factor(self, site_name=None, queue_stat=dict()):
+    def get_queue_activate_worker_factor(self, site_name=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_queue_activate_worker_factor")
         ret_val = 1.0
 
         # balance in a queue when MCore is used in a pilot wrapper
         try:
-            if site_name and site_name in queue_stat and queue_stat[site_name]:
-                if "submitter" in queue_stat[site_name] and queue_stat[site_name]["submitter"]:
-                    if "activateWorkerFactor" in queue_stat[site_name]["submitter"] and queue_stat[site_name]["submitter"]["activateWorkerFactor"]:
-                        ret_val = 1.0 * float(queue_stat[site_name]["submitter"]["activateWorkerFactor"])
-        except:
+            if self.queue_configMapper.has_queue(site_name):
+                queue_config = self.queue_configMapper.get_queue(site_name)
+                # tmp_log.debug("queue_config.submitter:%s" % str(queue_config.submitter))
+                ret_val = 1.0 * float(queue_config.submitter.get("activateWorkerFactor", 1.0))
+        except Exception:
             pass
         tmp_log.debug(f"ret_val={ret_val}")
         return ret_val
 
     # get activate worker factor
-    def get_activate_worker_factor(self, site_name=None, queue_stat=dict()):
+    def get_activate_worker_factor(self, site_name=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_activate_worker_factor")
         ret_val = 1.0
 
@@ -91,7 +91,7 @@ class WorkerAdjuster(object):
             # static factor
             ret_val = self.activate_worker_factor
 
-        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name, queue_stat=queue_stat)
+        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name)
         ret_val = ret_val * queue_factor
 
         tmp_log.debug(f"ret_val={ret_val}")
