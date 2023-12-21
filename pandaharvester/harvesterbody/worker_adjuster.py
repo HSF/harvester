@@ -220,10 +220,10 @@ class WorkerAdjuster(object):
                                         n_min_pilots = 1
                                         if self.no_pilots_when_no_active_jobs:
                                             n_min_pilots = 0
-                                        if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name, queue_stat) > 0:
+                                        if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name) > 0:
                                             n_min_pilots = 1
                                         n_activated = max(
-                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name, queue_stat)),
+                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)),
                                             n_min_pilots
                                         )  # avoid no activity queues
                                     except KeyError:
