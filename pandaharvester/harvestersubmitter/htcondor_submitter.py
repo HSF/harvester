@@ -207,9 +207,11 @@ def make_a_jdl(
                 n_core_total = int(_match.group(1))
             tmpLog.debug(f"job attributes override by CRIC special_par: {attr}={str(_match.group(1))}")
     # derived job attributes
-    n_core_total = n_core_total * n_core_factor
+    n_core_total_factor = n_core_total * n_core_factor
     n_node = ceil(n_core_total / n_core_per_node)
-    request_ram_bytes = request_ram * 2**20 * n_core_factor
+    request_ram_factor = request_ram * n_core_factor
+    request_ram_bytes = request_ram * 2**20
+    request_ram_bytes_factor = request_ram * 2**20 * n_core_factor
     request_ram_per_core = ceil(request_ram * n_node / n_core_total)
     request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
     request_cputime = request_walltime * n_core_total
@@ -243,11 +245,11 @@ def make_a_jdl(
         "sdfPath": tmpFile.name,
         "executableFile": executable_file,
         "nCorePerNode": n_core_per_node,
-        "nCoreTotal": n_core_total,
+        "nCoreTotal": n_core_total_factor,
         "nNode": n_node,
         "nCoreFactor": n_core_factor,
-        "requestRam": request_ram,
-        "requestRamBytes": request_ram_bytes,
+        "requestRam": request_ram_factor,
+        "requestRamBytes": request_ram_bytes_factor,
         "requestRamPerCore": request_ram_per_core,
         "requestRamBytesPerCore": request_ram_bytes_per_core,
         "requestDisk": request_disk,
