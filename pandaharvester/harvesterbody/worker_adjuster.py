@@ -38,11 +38,39 @@ class WorkerAdjuster(object):
             tmp_log.error(err_str)
             tmp_log.warning("default activate_worker_factor = 1")
             self.activate_worker_factor = 1.0
+        try:
+            if harvester_config.submitter.noPilotsWhenNoActiveJobs:
+                self.no_pilots_when_no_active_jobs = True
+        except AttributeError:
+            self.no_pilots_when_no_active_jobs = False
+        except Exception:
+            err_str = traceback.format_exc()
+            tmp_log.error(err_str)
+            tmp_log.warning("default no_pilots_when_no_active_jobs = False")
+            self.no_pilots_when_no_active_jobs = False
+
+    # get queue activate worker factor
+    def get_queue_activate_worker_factor(self, site_name=None):
+        tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_queue_activate_worker_factor")
+        ret_val = 1.0
+
+        # balance in a queue when MCore is used in a pilot wrapper
+        try:
+            if self.queue_configMapper.has_queue(site_name):
+                queue_config = self.queue_configMapper.get_queue(site_name)
+                # tmp_log.debug("queue_config.submitter:%s" % str(queue_config.submitter))
+                ret_val = 1.0 * float(queue_config.submitter.get("activateWorkerFactor", 1.0))
+        except Exception:
+            pass
+        tmp_log.debug(f"ret_val={ret_val}")
+        return ret_val
 
     # get activate worker factor
     def get_activate_worker_factor(self, site_name=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_activate_worker_factor")
         ret_val = 1.0
+
+        # balance between multiple harvesters
         if self.activate_worker_factor == "auto":
             # dynamic factor
             worker_stats_from_panda = self.dbProxy.get_cache("worker_statistics.json", None)
@@ -54,14 +82,19 @@ class WorkerAdjuster(object):
                 try:
                     # return 1/n_harvester_instances for the site
                     val_dict = worker_stats_from_panda[site_name]
-                    n_harvester_instances = len(val_dict)
-                    ret_val = 1.0 / min(n_harvester_instances, 1)
+                    n_harvester_instances = len(list(val_dict.keys()))
+                    tmp_log.debug("number of harvesters: %s" % n_harvester_instances)
+                    ret_val = 1.0 / max(n_harvester_instances, 1)
                 except KeyError:
                     # no data for this site, return default
                     pass
         else:
             # static factor
             ret_val = self.activate_worker_factor
+
+        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name)
+        ret_val = ret_val * queue_factor
+
         tmp_log.debug(f"ret_val={ret_val}")
         return ret_val
 
@@ -185,13 +218,22 @@ class WorkerAdjuster(object):
                                 else:
                                     # limit the queue to the number of activated jobs to avoid empty pilots
                                     try:
+                                        n_min_pilots = 1
+                                        if self.no_pilots_when_no_active_jobs:
+                                            n_min_pilots = 0
+                                        if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name) > 0:
+                                            n_min_pilots = 1
                                         n_activated = max(
-                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)), 1
+                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)),
+                                            n_min_pilots
                                         )  # avoid no activity queues
                                     except KeyError:
                                         # zero job in the queue
                                         tmp_log.debug("no job in queue")
-                                        n_activated = max(1 - n_queue - n_ready - n_running, 0)
+                                        if self.no_pilots_when_no_active_jobs:
+                                            n_activated = 0
+                                        else:
+                                            n_activated = max(1 - n_queue - n_ready - n_running, 0)
                                     finally:
                                         queue_limit = max_queued_workers
                                         max_queued_workers = min(n_activated, max_queued_workers)
@@ -288,4 +330,5 @@ class WorkerAdjuster(object):
         except Exception:
             # dump error
             err_msg = core_utils.dump_error_message(tmp_log)
+            tmp_log.error(err_msg)
             return None
