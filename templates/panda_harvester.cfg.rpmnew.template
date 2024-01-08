@@ -648,6 +648,7 @@ data =
  proxy_production||file://path_to/FIXME_proxy_production
  resource_types.json||panda_server:get_resource_types
  job_statistics.json||panda_server:get_job_stats
+ worker_statistics.json||panda_server:get_worker_stats_from_panda
 # BNL_key||panda_cache:BNL_ObjectStoreKey.pub&BNL_ObjectStoreKey
 # globus_secret||panda_cache:GlobusClientID_1&GlobusRefreshToken_1
 

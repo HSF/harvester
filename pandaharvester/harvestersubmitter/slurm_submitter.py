@@ -100,13 +100,15 @@ class SlurmSubmitter(PluginBase):
             n_core_per_node = n_core_per_node_from_queue
 
         n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
-        n_core_total = n_core_total * self.nCoreFactor
+        n_core_total_factor = n_core_total * self.nCoreFactor
         request_ram = max(workspec.minRamCount, 1 * n_core_total) if workspec.minRamCount else 1 * n_core_total
         request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
         request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
 
         n_node = ceil(n_core_total / n_core_per_node)
-        request_ram_bytes = request_ram * 2**20 * self.nCoreFactor
+        request_ram_factor = request_ram * self.nCoreFactor
+        request_ram_bytes = request_ram * 2**20
+        request_ram_bytes_factor = request_ram * 2**20 * self.nCoreFactor
         request_ram_per_core = ceil(request_ram * n_node / n_core_total)
         request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
         request_cputime = request_walltime * n_core_total
@@ -115,11 +117,11 @@ class SlurmSubmitter(PluginBase):
 
         placeholder_map = {
             "nCorePerNode": n_core_per_node,
-            "nCoreTotal": n_core_total,
+            "nCoreTotal": n_core_total_factor,
             "nCoreFactor": self.nCoreFactor,
             "nNode": n_node,
-            "requestRam": request_ram,
-            "requestRamBytes": request_ram_bytes,
+            "requestRam": request_ram_factor,
+            "requestRamBytes": request_ram_bytes_factor,
             "requestRamPerCore": request_ram_per_core,
             "requestRamBytesPerCore": request_ram_bytes_per_core,
             "requestDisk": request_disk,
