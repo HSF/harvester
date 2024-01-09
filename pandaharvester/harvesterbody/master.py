@@ -8,6 +8,7 @@ import signal
 import socket
 import sys
 import threading
+import time
 
 import daemon.pidfile
 from future.utils import iteritems
@@ -47,8 +48,21 @@ class Master(object):
         self.queueConfigMapper = QueueConfigMapper()
         from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
+        make_tables_lock_sec = 3
+        make_tables_retry = 10
+        tmp_pid = os.getpid()
         dbProxy = DBProxy()
-        dbProxy.make_tables(self.queueConfigMapper, self.communicatorPool)
+        for i_try in range(1, make_tables_retry + 1):
+            locked = dbProxy.get_process_lock("master", tmp_pid, make_tables_lock_sec)
+            if locked:
+                # got lock to make tables
+                dbProxy.make_tables(self.queueConfigMapper, self.communicatorPool)
+                break
+            else:
+                time.sleep(0.5)
+            if i_try == make_tables_retry:
+                # make tables no matther what in the last retry
+                dbProxy.make_tables(self.queueConfigMapper, self.communicatorPool)
 
     # main loop
     def start(self):

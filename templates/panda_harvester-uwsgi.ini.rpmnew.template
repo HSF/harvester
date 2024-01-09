@@ -25,3 +25,5 @@ worker-reload-mercy = 1
 
 buffer = 32768
 post-buffering = 32768
+
+log-date = [%%y-%%m-%%d %%H:%%M:%%S]
