@@ -59,7 +59,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
 
         def wrapped_func(self, *args, **kwargs):
             self._refresh()
-            func(self, *args, **kwargs)
+            return func(self, *args, **kwargs)
 
         return wrapped_func
 
