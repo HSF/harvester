@@ -52,16 +52,27 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
                         self[panda_resource] = v
                 self.last_refresh_ts = time.time()
 
+    def to_refresh(func):
+        """
+        Decorator to refresh
+        """
+
+        def wrapped_func(self, *args, **kwargs):
+            self._refresh()
+            func(self, *args, **kwargs)
+
+        return wrapped_func
+
+    @to_refresh
     def __getitem__(self, panda_resource):
-        self._refresh()
         if panda_resource in self:
             return dict.__getitem__(self, panda_resource)
         else:
             panda_queue = self.get_panda_queue_name(panda_resource)
             return dict.__getitem__(self, panda_queue)
 
+    @to_refresh
     def get(self, panda_resource, default=None):
-        self._refresh()
         if panda_resource in self:
             return dict.get(self, panda_resource, default)
         else:
@@ -89,6 +100,7 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         return panda_queue_dict["status"]
 
     # get all queue names of this harvester instance
+    @to_refresh
     def get_all_queue_names(self):
         names = set()
         for queue_name, queue_dict in iteritems(self):
@@ -110,11 +122,9 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
         panda_queue_dict = self.get(panda_resource)
         if panda_queue_dict is None:
             return False
-
         # initial, temporary nomenclature
         if "grandly_unified" in panda_queue_dict.get("catchall") or panda_queue_dict.get("type") == "unified":
             return True
-
         return False
 
     # get harvester params
