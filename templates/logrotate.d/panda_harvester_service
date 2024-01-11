@@ -1,0 +1,13 @@
+/var/log/panda/*log {
+    rotate 10
+    daily
+    compress
+    delaycompress
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+        /usr/bin/systemctl restart panda_harvester-uwsgi.service > /tmp/harvester_logrotate.log 2>&1 || true
+    endscript
+}
+
