@@ -104,8 +104,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # case of unified queue: look at the job & resource type and queue configuration
         else:
             catchall = queue_dict.get("catchall", "")
-            if "useMaxRam" in catchall or queue_config.queueName in ("Taiwan-LCG2-HPC2_Unified", "Taiwan-LCG2-HPC_Unified", "DESY-ZN_UCORE"):
-                # temporary hack to debug killed workers in Taiwan queues
+            if "useMaxRam" in catchall:
+                # temporary workaround to debug killed workers
                 site_corecount = queue_dict.get("corecount", 1) or 1
                 site_maxrss = queue_dict.get("maxrss", 1) or 1
 
@@ -128,7 +128,6 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # parameters that are independent on traditional vs unified
         workSpec.maxWalltime = queue_dict.get("maxtime", 1)
         workSpec.maxDiskCount = queue_dict.get("maxwdir", 1)
-        walltimeLimit_default = getattr(queue_config, "walltimeLimit", 0)
 
         if len(jobspec_list) > 0:
             # get info from jobs
