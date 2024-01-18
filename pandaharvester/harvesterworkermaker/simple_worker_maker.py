@@ -119,7 +119,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     workSpec.nCore = site_corecount
                     workSpec.minRamCount = site_maxrss
             else:
-                if not len(jobspec_list) and resource_type not in ["SCORE", "SCORE_HIMEM", "MCORE", "MCORE_HIMEM"]:
+                if not len(jobspec_list) and self.rt_mapper.is_valid_resource_type(resource_type):
                     # some testing PQs have ucore + pure pull, need to default to SCORE
                     tmpLog.warning(f'Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to SCORE')
                     resource_type = "SCORE"
@@ -174,8 +174,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             choice_list = core_utils.make_choice_list(pdpm=pdpm, default="managed")
             tmp_prodsourcelabel = random.choice(choice_list)
             fake_job = JobSpec()
-            fake_job.jobParams = {}
-            fake_job.jobParams["prodSourceLabel"] = tmp_prodsourcelabel
+            fake_job.jobParams = {"prodSourceLabel": tmp_prodsourcelabel}
             workSpec.pilotType = fake_job.get_pilot_type()
             del fake_job
             if workSpec.pilotType in ["RC", "ALRB", "PT"]:
