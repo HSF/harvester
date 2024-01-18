@@ -53,6 +53,16 @@ class ResourceTypeMapper(object):
             self.last_update = datetime.datetime.utcnow()
             return
 
+    def is_valid_resource_type(self, resource_name):
+        """
+        Checks if the resource type is valid (exists in the dictionary of resource types)
+        :param resource_name: string with the resource type name (e.g. SCORE, SCORE_HIMEM,...)
+        :return: boolean
+        """
+        if resource_name in self.resource_types:
+            return True
+        return False
+
     def calculate_worker_requirements(self, resource_name, queue_config):
         """
         Calculates worker requirements (cores and memory) to request in pilot streaming mode/unified pull queue
@@ -66,23 +76,23 @@ class ResourceTypeMapper(object):
             resource_type = self.resource_types[resource_name]
 
             # retrieve the queue configuration
-            site_maxrss = queue_config.get("maxrss", 0) or 0
-            site_corecount = queue_config.get("corecount", 1) or 1
+            site_max_rss = queue_config.get("maxrss", 0) or 0
+            site_core_count = queue_config.get("corecount", 1) or 1
 
             unified_queue = queue_config.get("capability", "") == "ucore"
             if not unified_queue:
                 # site is not unified, just request whatever is configured in AGIS
-                return site_maxrss, site_corecount
+                return site_max_rss, site_core_count
 
             if resource_type.max_core:
-                worker_cores = min(resource_type.max_core, site_corecount)
+                worker_cores = min(resource_type.max_core, site_core_count)
             else:
-                worker_cores = site_corecount
+                worker_cores = site_core_count
 
             if resource_type.max_ram_per_core:
-                worker_memory = min(resource_type.max_ram_per_core * worker_cores, (site_maxrss / site_corecount) * worker_cores)
+                worker_memory = min(resource_type.max_ram_per_core * worker_cores, (site_max_rss / site_core_count) * worker_cores)
             else:
-                worker_memory = (site_maxrss / site_corecount) * worker_cores
+                worker_memory = (site_max_rss / site_core_count) * worker_cores
             worker_memory = int(math.ceil(worker_memory))
 
         except KeyError:
