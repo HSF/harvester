@@ -11,7 +11,7 @@ import sysconfig
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 
-class CustomBuildHook(BuildHookInterface):
+class CustomHook(BuildHookInterface):
     def initialize(self, version, build_data):
         # chmod +x
         for f in glob.glob("./templates/bin/*"):
