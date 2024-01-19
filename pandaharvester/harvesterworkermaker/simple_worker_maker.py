@@ -6,7 +6,7 @@ import random
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper, BASIC_RESOURCE_TYPE_SINGLE_CORE, BASIC_RESOURCE_TYPE_MULTI_CORE
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
@@ -109,7 +109,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 if not len(jobspec_list) and self.rt_mapper.is_valid_resource_type(resource_type):
                     # some testing PQs have ucore + pure pull, need to default to the basic 1-core resource type
                     tmp_log.warning(f'Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to the basic 1-core resource type')
-                    resource_type = self.rt_mapper.basic_resource_type_single_core
+                    resource_type = BASIC_RESOURCE_TYPE_SINGLE_CORE
                 work_spec.nCore, work_spec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
 
         # parameters that are independent on traditional vs unified
@@ -182,8 +182,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         elif queue_rtype:
             work_spec.resourceType = queue_rtype
         elif work_spec.nCore == 1:
-            work_spec.resourceType = self.rt_mapper.basic_resource_type_single_core
+            work_spec.resourceType = BASIC_RESOURCE_TYPE_SINGLE_CORE
         else:
-            work_spec.resourceType = self.rt_mapper.basic_resource_type_multi_core
+            work_spec.resourceType = BASIC_RESOURCE_TYPE_MULTI_CORE
 
         return work_spec

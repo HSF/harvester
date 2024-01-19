@@ -5,10 +5,16 @@ import math
 import threading
 
 from .db_proxy_pool import DBProxyPool as DBProxy
+from .core_utils import SingletonWithID
 
 CRIC_RAM_TAG = 'maxrss'
 CRIC_CORE_TAG = 'corecount'
 UNIFIED_QUEUE_TAG = 'ucore'
+CAPABILITY_TAG = 'capability'
+
+# basic resource types
+BASIC_RESOURCE_TYPE_SINGLE_CORE = "SCORE"
+BASIC_RESOURCE_TYPE_MULTI_CORE = "MCORE"
 
 class ResourceType(object):
     def __init__(self, resource_type_dict):
@@ -23,10 +29,6 @@ class ResourceType(object):
         # memory
         self.min_ram_per_core = resource_type_dict["minrampercore"]
         self.max_ram_per_core = resource_type_dict["maxrampercore"]
-
-        # basic resource_type
-        self.basic_resource_type_single_core = "SCORE"
-        self.basic_resource_type_multi_core = "MCORE"
 
     def match(self, core_count, ram_count):
         """
@@ -53,7 +55,7 @@ class ResourceType(object):
         return True
 
 
-class ResourceTypeMapper(object):
+class ResourceTypeMapper(object, metaclass=SingletonWithID):
     def __init__(self):
         self.lock = threading.Lock()
         self.resource_types = {}
@@ -148,6 +150,34 @@ class ResourceTypeMapper(object):
 
         return False
 
+    def get_single_core_resource_types(self):
+        """
+        Returns a list of resource types that are single core
+        :return: list of strings with the resource type names
+        """
+        self.load_data()
+        # iterate over the resource types and find the ones that are single core
+        single_core_resource_types = [resource_name for resource_name in self.resource_types if self.is_single_core_resource_type(resource_name)]
+        return single_core_resource_types
+
+    def get_multi_core_resource_types(self):
+        """
+        Returns a list of resource types that are multi core
+        :return: list of strings with the resource type names
+        """
+        self.load_data()
+        # iterate over the resource types and find the ones that are multi core (not single core)
+        single_core_resource_types = [resource_name for resource_name in self.resource_types if not self.is_single_core_resource_type(resource_name)]
+        return single_core_resource_types
+
+    def get_all_resource_types(self):
+        """
+        Returns a list with all resource types
+        :return: list of strings with the resource type names
+        """
+        self.load_data()
+        return self.resource_types.keys()
+
     def get_rtype_for_queue(self, queue_config):
         """
         Returns the resource type name for a given queue configuration
@@ -159,7 +189,7 @@ class ResourceTypeMapper(object):
         # retrieve the queue configuration
         site_max_rss = queue_config.get(CRIC_RAM_TAG, 0) or 0
         site_core_count = queue_config.get(CRIC_CORE_TAG, 1) or 1
-        capability = queue_dict.get("capability", "")
+        capability = queue_config.get(CAPABILITY_TAG, "")
 
         # unified queues are not mapped to any particular resource type
         if capability == UNIFIED_QUEUE_TAG:

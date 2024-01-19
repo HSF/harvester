@@ -14,6 +14,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestermisc.htcondor_utils import (
     CondorJobSubmit,
     get_job_id_tuple_from_batchid,
@@ -240,6 +241,11 @@ def make_a_jdl(
         tmpLog.warning(f"token_path is None: site={panda_queue_name}, token_dir={token_dir} , token_filename={token_filename}")
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_submit.sdf", dir=workspec.get_access_point())
+
+    # instance of resource type mapper
+    rt_mapper = ResourceTypeMapper()
+    all_resource_types = rt_mapper.get_all_resource_types()
+
     # placeholder map
     placeholder_map = {
         "sdfPath": tmpFile.name,
@@ -274,8 +280,8 @@ def make_a_jdl(
         "gtag": batch_log_dict.get("gtag", "fake_GTAG_string"),
         "prodSourceLabel": prod_source_label,
         "jobType": workspec.jobType,
-        "resourceType": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue),
-        "pilotResourceTypeOption": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, True),
+        "resourceType": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types),
+        "pilotResourceTypeOption": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types, is_pilot_option=True),
         "ioIntensity": io_intensity,
         "pilotType": pilot_type_opt,
         "pilotUrlOption": pilot_url_str,
@@ -335,6 +341,7 @@ class HTCondorSubmitter(PluginBase):
         else:
             self.hostname = socket.gethostname().split(".")[0]
         PluginBase.__init__(self, **kwarg)
+
         # number of processes
         try:
             self.nProcesses

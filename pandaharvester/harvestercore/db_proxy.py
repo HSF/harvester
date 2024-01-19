@@ -30,6 +30,7 @@ from .queue_config_dump_spec import QueueConfigDumpSpec
 from .seq_number_spec import SeqNumberSpec
 from .service_metrics_spec import ServiceMetricSpec
 from .work_spec import WorkSpec
+from .resource_type_mapper import BASIC_RESOURCE_TYPE_SINGLE_CORE
 
 # logger
 _logger = core_utils.setup_logger("db_proxy")
@@ -3510,7 +3511,7 @@ class DBProxy(object):
             if active_ups_queues:
                 for ups_queue in active_ups_queues:
                     if ups_queue not in retMap or not retMap[ups_queue] or retMap[ups_queue] == {"ANY": {}}:
-                        retMap[ups_queue] = {"managed": {"SCORE": {"running": 0, "submitted": 0, "finished": 0, "to_submit": 0}}}
+                        retMap[ups_queue] = {"managed": {BASIC_RESOURCE_TYPE_SINGLE_CORE: {"running": 0, "submitted": 0, "finished": 0, "to_submit": 0}}}
 
             # commit
             self.commit()

@@ -12,6 +12,7 @@ from kubernetes.client.rest import ApiException
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 
 base_logger = core_utils.setup_logger("k8s_utils")
 
@@ -37,6 +38,8 @@ class k8s_Client(object):
         self.panda_queues_dict = PandaQueuesDictK8s()
         self.namespace = namespace
         self.queue_name = queue_name
+
+        self.rt_mapper = ResourceTypeMapper()
 
     def read_yaml_file(self, yaml_file):
         with open(yaml_file) as f:
@@ -420,18 +423,25 @@ class k8s_Client(object):
         yaml_content["spec"]["template"]["spec"]["affinity"] = {}
         yaml_affinity = yaml_content["spec"]["template"]["spec"]["affinity"]
 
-        scores = ["SCORE", "SCORE_HIMEM"]
-        mcores = ["MCORE", "MCORE_HIMEM"]
+        single_core_resource_types = self.rt_mapper.get_single_core_resource_types()
+        multi_core_resource_types = self.rt_mapper.get_multi_core_resource_types()
+        all_resource_types = self.rt_mapper.get_all_resource_types()
 
-        anti_affinity_matrix = {"SCORE": mcores, "SCORE_HIMEM": mcores, "MCORE": scores, "MCORE_HIMEM": scores}
+        # create the anti-affinity matrix for higher single and multi core separation
+        anti_affinity_matrix = {}
+        for tmp_type in single_core_resource_types:
+            anti_affinity_matrix[tmp_type] = multi_core_resource_types
+        for tmp_type in multi_core_resource_types:
+            anti_affinity_matrix[tmp_type] = single_core_resource_types
 
+        # create the affinity spec
         affinity_spec = {
             "preferredDuringSchedulingIgnoredDuringExecution": [
                 {
                     "weight": 100,
                     "podAffinityTerm": {
                         "labelSelector": {
-                            "matchExpressions": [{"key": "resourceType", "operator": "In", "values": ["SCORE", "SCORE_HIMEM", "MCORE", "MCORE_HIMEM"]}]
+                            "matchExpressions": [{"key": "resourceType", "operator": "In", "values": all_resource_types}]
                         },
                         "topologyKey": "kubernetes.io/hostname",
                     },
@@ -441,7 +451,7 @@ class k8s_Client(object):
 
         resource_type = yaml_content["spec"]["template"]["metadata"]["labels"]["resourceType"]
 
-        if use_affinity and resource_type in scores:
+        if use_affinity and resource_type in single_core_resource_types:
             # resource type SCORE* should attract each other instead of spreading across the nodes
             yaml_affinity["podAffinity"] = copy.deepcopy(affinity_spec)
 

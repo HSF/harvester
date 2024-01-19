@@ -294,9 +294,9 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 return
         # start
         with self.lock:
-            # update timesatmp of last reload, lock with check interval
-            got_timesatmp_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
-            if got_timesatmp_update_lock:
+            # update timestamp of last reload, lock with check interval
+            got_timestamp_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
+            if got_timestamp_update_lock:
                 now_ts = time.time()
                 retVal = self._update_last_reload_time(now_ts)
                 self.lastReload = datetime.datetime.utcfromtimestamp(now_ts)
