@@ -17,6 +17,7 @@ socket = $(uwsgiSocket)
 
 chdir = $(VIRTUAL_ENV)
 safe-pidfile = $(PIDFILE)
+master-fifo = $(UWSGI_FIFO)
 
 processes = 2
 threads = 4

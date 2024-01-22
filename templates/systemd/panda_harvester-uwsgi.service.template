@@ -5,12 +5,12 @@ After=network.target remote-fs.target nss-lookup.target
 [Service]
 Type=exec
 RemainAfterExit=true
-Environment="LOG_DIR=/var/log/harvester" "PIDFILE=/var/log/harvester/panda_harvester.pid"
+Environment="LOG_DIR=/var/log/harvester" "PIDFILE=/var/log/harvester/panda_harvester.pid" "UWSGI_FIFO=/var/log/harvester/uwsgi-panda_harvester.fifo"
 EnvironmentFile=@@virtual_env@@/etc/sysconfig/panda_harvester_env
 ExecStartPre=/bin/sh -c '${VIRTUAL_ENV}/bin/python @@install_purelib@@/pandaharvester/harvesterscripts/prescript.py -f ${LOG_DIR}/.harvester_info'
 ExecStart=/bin/sh -c '${VIRTUAL_ENV}/bin/uwsgi ${VIRTUAL_ENV}/etc/panda/panda_harvester-uwsgi.ini >> ${LOG_DIR}/panda_harvester_stdout.log 2>> ${LOG_DIR}/panda_harvester_stderr.log'
-ExecReload=/bin/sh -c '${VIRTUAL_ENV}/bin/uwsgi --reload ${PIDFILE}'
-ExecStop=/bin/sh -c '${VIRTUAL_ENV}/bin/uwsgi --stop ${PIDFILE}'
+ExecReload=/bin/sh -c '/bin/echo "c" > ${UWSGI_FIFO}'
+ExecStop=/bin/sh -c '/bin/echo "Q" > ${UWSGI_FIFO}'
 Restart=on-failure
 
 [Install]
