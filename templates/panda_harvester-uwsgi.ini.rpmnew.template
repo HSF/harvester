@@ -17,6 +17,7 @@ socket = $(uwsgiSocket)
 
 chdir = $(VIRTUAL_ENV)
 safe-pidfile = $(PIDFILE)
+master-fifo = $(UWSGI_FIFO)
 
 processes = 2
 threads = 4
@@ -25,3 +26,5 @@ worker-reload-mercy = 1
 
 buffer = 32768
 post-buffering = 32768
+
+log-date = [%%y-%%m-%%d %%H:%%M:%%S]

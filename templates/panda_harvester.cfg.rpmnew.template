@@ -366,6 +366,8 @@ maxNewWorkers = 1000
 # respect sleep time
 respectSleepTime = False
 
+# factor to adjust workers
+#activateWorkerFactor = auto
 
 ##########################
 #

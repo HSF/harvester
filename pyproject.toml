@@ -5,7 +5,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "panda-harvester"
+name = "pandaharvester"
 dynamic = ["version"]
 description = "Havester Package"
 readme = "README.md"
