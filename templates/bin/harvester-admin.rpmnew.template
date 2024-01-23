@@ -3,10 +3,10 @@
 #======= START CONFIGURATION SECTION ==========================
 
 # user to run harvester-admin
-userName="#FIXME"
+userName="@@panda_user@@"
 
 # setup python and virtual env
-VIRTUAL_ENV="/#FIXME"
+VIRTUAL_ENV="@@virtual_env@@"
 
 #======= END CONFIGURATION SECTION ============================
 
@@ -31,7 +31,7 @@ fi
 HARVESTER_ADMIN_PY="${SITE_PACKAGES_PATH}/pandaharvester/harvesterscripts/harvester_admin.py"
 
 # vars
-if [ "x${userName}y" == "xy" -o "x${userName}y" == "x#FIXMEy" ]; then
+if [ "x${userName}y" == "xy" ]; then
     userName=`whoami`
 fi
 
