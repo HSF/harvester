@@ -20,6 +20,13 @@ if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester ]; then
     . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester
 fi
 
+# source harvester env variables (new)
+if [ -r ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester_env ]; then
+    set -a
+    . ${VIRTUAL_ENV}/etc/sysconfig/panda_harvester_env
+    set +a
+fi
+
 # path
 HARVESTER_ADMIN_PY="${SITE_PACKAGES_PATH}/pandaharvester/harvesterscripts/harvester_admin.py"
 
