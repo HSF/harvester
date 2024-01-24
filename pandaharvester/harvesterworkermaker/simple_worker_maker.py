@@ -175,8 +175,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 )
             )
 
-        # retrieve queue resource type
-        queue_rtype = self.get_rtype_for_queue(queue_config)
+        # retrieve queue resource types
+        queue_rtype = self.rt_mapper.get_rtype_for_queue(queue_config)
 
         if resource_type and resource_type != "ANY":
             work_spec.resourceType = resource_type
