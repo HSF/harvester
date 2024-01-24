@@ -67,12 +67,11 @@ class GitFileSyncer(BaseFileSyncer):
                 f"git remote set-url {self.sourceRemoteName} {self.sourceURL}",
                 cwd=target_dir_path,
             )
-            if ret_code == 128:
+            if ret_code != 0:
                 execute_command(
                     f"git remote add -f -t {self.sourceBranch} {self.sourceRemoteName} {self.sourceURL}",
                     cwd=target_dir_path,
                 )
-            else:
                 execute_command(
                     f"git remote set-branches {self.sourceRemoteName} {self.sourceBranch}",
                     cwd=target_dir_path,

@@ -10,14 +10,14 @@ repos:
     hooks:
     -   id: black
         types: [python]
-        args: ["--config", "package/pyproject.toml"]
+        args: ["--config", "pyproject.toml"]
 
 -   repo: https://github.com/pycqa/isort
     rev: 5.12.0
     hooks:
     -   id: isort
         name: isort (python)
-        args: ["--settings-path", "package/pyproject.toml"]
+        args: ["--settings-path", "pyproject.toml"]
 
 # exclude python 2 code which cannot be dealt with black
 exclude: |
