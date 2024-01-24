@@ -30,7 +30,7 @@ from .queue_config_dump_spec import QueueConfigDumpSpec
 from .seq_number_spec import SeqNumberSpec
 from .service_metrics_spec import ServiceMetricSpec
 from .work_spec import WorkSpec
-from .resource_type_mapper import BASIC_RESOURCE_TYPE_SINGLE_CORE
+from .resource_type_constants import BASIC_RESOURCE_TYPE_SINGLE_CORE
 
 # logger
 _logger = core_utils.setup_logger("db_proxy")

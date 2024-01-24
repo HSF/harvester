@@ -7,14 +7,7 @@ import threading
 from .db_proxy_pool import DBProxyPool as DBProxy
 from .core_utils import SingletonWithID
 
-CRIC_RAM_TAG = 'maxrss'
-CRIC_CORE_TAG = 'corecount'
-UNIFIED_QUEUE_TAG = 'ucore'
-CAPABILITY_TAG = 'capability'
-
-# basic resource types
-BASIC_RESOURCE_TYPE_SINGLE_CORE = "SCORE"
-BASIC_RESOURCE_TYPE_MULTI_CORE = "MCORE"
+from .resource_type_constants import CRIC_RAM_TAG, CRIC_CORE_TAG, UNIFIED_QUEUE_TAG, CAPABILITY_TAG
 
 class ResourceType(object):
     def __init__(self, resource_type_dict):

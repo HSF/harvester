@@ -6,7 +6,8 @@ import random
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.job_spec import JobSpec
-from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper, BASIC_RESOURCE_TYPE_SINGLE_CORE, BASIC_RESOURCE_TYPE_MULTI_CORE
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
+from pandaharvester.harvestercore.resource_type_constants import BASIC_RESOURCE_TYPE_SINGLE_CORE, BASIC_RESOURCE_TYPE_MULTI_CORE
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
