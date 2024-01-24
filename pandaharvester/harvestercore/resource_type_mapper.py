@@ -171,18 +171,15 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
         self.load_data()
         return self.resource_types.keys()
 
-    def get_rtype_for_queue(self, queue_config):
+    def calculate_rtype(self, capability, site_core_count, site_max_rss):
         """
         Returns the resource type name for a given queue configuration
-        :param queue_config: queue configuration
+        :param capability: string with the queue capability (e.g. "ucore")
+        :param site_core_count: number of cores
+        :param site_max_rss: amount of memory, NOT normalized by number of cores
         :return: string with the resource type name
         """
         self.load_data()
-
-        # retrieve the queue configuration
-        site_max_rss = queue_config.get(CRIC_RAM_TAG, 0) or 0
-        site_core_count = queue_config.get(CRIC_CORE_TAG, 1) or 1
-        capability = queue_config.get(CAPABILITY_TAG, "")
 
         # unified queues are not mapped to any particular resource type
         if capability == UNIFIED_QUEUE_TAG:

@@ -175,8 +175,11 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 )
             )
 
-        # retrieve queue resource types
-        queue_rtype = self.rt_mapper.get_rtype_for_queue(queue_config)
+        # retrieve resource types based on queue configuration
+        capability = queue_dict.get(CAPABILITY_TAG, "")
+        site_core_count = queue_dict.get(CRIC_CORE_TAG, 1) or 1
+        site_max_rss = queue_dict.get(CRIC_RAM_TAG, 0) or 0
+        queue_rtype = self.rt_mapper.calculate_rtype(capability, site_core_count, site_max_rss)
 
         if resource_type and resource_type != "ANY":
             work_spec.resourceType = resource_type
