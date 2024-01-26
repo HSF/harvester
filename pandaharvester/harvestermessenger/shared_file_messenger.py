@@ -21,7 +21,12 @@ try:
 except ImportError:
     from scandir import scandir, walk
 
-import distutils.spawn
+try:
+    from shutil import which
+except ImportError:
+    # before python 3.3
+    from distutils.spawn import find_executable as which
+
 import fnmatch
 import multiprocessing
 import os.path
@@ -30,10 +35,11 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 from future.utils import iteritems
+from past.builtins import long
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from past.builtins import long
 
 from .base_messenger import BaseMessenger
 
@@ -141,7 +147,7 @@ def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None, sub
         com += r"-type f \( " + filter_log_tgz(extra_files) + r"\) "
         com += r'| grep -v {0} | tr "\n" "\0" | '.format(jobSpecFileName)
         com += "tar "
-        if distutils.spawn.find_executable("pigz") is None:
+        if which("pigz") is None:
             com += "-z "
         else:
             com += "-I pigz "

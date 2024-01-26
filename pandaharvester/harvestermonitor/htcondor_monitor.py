@@ -3,6 +3,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor as Pool
 
 import six
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
@@ -15,6 +16,7 @@ from pandaharvester.harvestermisc.htcondor_utils import (
     condor_job_id_from_workspec,
     get_host_batchid_map,
 )
+from pandaharvester.harvestermonitor.monitor_common import get_payload_errstr_from_ec
 
 # logger
 baseLogger = core_utils.setup_logger("htcondor_monitor")
@@ -44,7 +46,7 @@ PILOT_ERRORS = PilotErrors()
 
 
 # Check one worker
-def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_timeout=3600):
+def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_timeout=3600, payload_type=None):
     # Make logger for one single worker
     tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_check_one_worker")
     # Initialize newStatus
@@ -160,7 +162,11 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                     else:
                         # Other return codes are considered failed
                         newStatus = WorkSpec.ST_failed
-                        errStr = f"Payload execution error: returned non-zero {payloadExitCode}"
+                        errStr = ""
+                        if payload_type:
+                            errStr = get_payload_errstr_from_ec(payload_type, payloadExitCode)
+                        if not errStr:
+                            errStr = f"Payload execution error: returned non-zero {payloadExitCode}"
                         tmpLog.debug(errStr)
                         # Map return code to Pilot error code
                         reduced_exit_code = payloadExitCode // 256 if (payloadExitCode % 256 == 0) else payloadExitCode
@@ -233,6 +239,10 @@ class HTCondorMonitor(PluginBase):
             self.condorHostConfig_list
         except AttributeError:
             self.condorHostConfig_list = []
+        try:
+            self.payloadType
+        except AttributeError:
+            self.payloadType = None
 
     # check workers
     def check_workers(self, workspec_list):
@@ -256,7 +266,10 @@ class HTCondorMonitor(PluginBase):
         # Check for all workers
         with Pool(self.nProcesses) as _pool:
             retIterator = _pool.map(
-                lambda _x: _check_one_worker(_x, job_ads_all_dict, cancel_unknown=self.cancelUnknown, held_timeout=self.heldTimeout), workspec_list
+                lambda _x: _check_one_worker(
+                    _x, job_ads_all_dict, cancel_unknown=self.cancelUnknown, held_timeout=self.heldTimeout, payload_type=self.payloadType
+                ),
+                workspec_list,
             )
         retList = list(retIterator)
         tmpLog.debug("done")
