@@ -18,7 +18,7 @@ class SimpleThrottler(PluginBase):
         self.dbProxy = DBProxy()
 
     # check if to be throttled
-    def to_be_throttled(self, queue_config):
+    def to_be_throttled(self, queue_config, queue_config_mapper=None):
         tmpLog = self.make_logger(baseLogger, f"computingSite={queue_config.queueName}", method_name="to_be_throttled")
         tmpLog.debug("start")
         # set default return vale
