@@ -136,7 +136,7 @@ class TinyThrottler(PluginBase):
             return retVal
 
         if self.rulesForSiteSubmitted or self.rulesForSiteRunning or self.rulesForSiteSubmittedRunning:
-            site_name = queue_config.siteName
+            site_name = queue_config.site
             queues = {}
 
             job_stats = self.dbProxy.get_worker_stats_bulk(None)
@@ -146,7 +146,7 @@ class TinyThrottler(PluginBase):
             all_queue_config = queue_config_mapper.get_all_queues()
             for queue_name in all_queue_config:
                 q_config = all_queue_config[queue_name]
-                if q_config.siteName == site_name:
+                if q_config.site == site_name:
                     queues[queue_name] = {'queue_config': q_config, 'stats': {}}
                     if queue_name in job_stats:
                         queues[queue_name]['stats'] = job_stats[queue_name]
