@@ -4,7 +4,6 @@ import importlib
 import json
 import os
 import threading
-import time
 
 import six
 from future.utils import iteritems
@@ -255,11 +254,21 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         return resolver
 
     # update last reload time
-    def _update_last_reload_time(self, ts=None):
-        if ts is None:
-            ts = time.time()
-        new_info = f"{ts:.3f}"
-        return self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_info)
+    def _update_last_reload_time(self, the_time=None):
+        # update timestamp of last reload, lock with check interval
+        got_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
+        if got_update_lock:
+            if the_time is None:
+                the_time = datetime.datetime.utcnow()
+            ts = the_time.timestamp()
+            new_ts_info = f"{ts:.3f}"
+            ret_val = self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_ts_info)
+            if ret_val:
+                return True
+            else:
+                return False
+        else:
+            return None
 
     # get last reload time
     def _get_last_reload_time(self):
@@ -270,11 +279,24 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         return datetime.datetime.utcfromtimestamp(timestamp)
 
     # update last pq_table fill time
-    def _update_last_pq_table_fill_time(self, ts=None):
-        if ts is None:
-            ts = time.time()
-        new_info = f"{ts:.3f}"
-        return self.dbProxy.refresh_cache("_pq_table_last_fill", "_universal", new_info)
+    def _update_pq_table(self, the_time=None, refill_table=False):
+        # update timestamp of last reload, lock with check interval
+        got_update_lock = self.dbProxy.get_process_lock("pq_table_fill", "qconf_universal", 120)
+        if got_update_lock:
+            if the_time is None:
+                the_time = datetime.datetime.utcnow()
+            ts = the_time.timestamp()
+            new_ts_info = f"{ts:.3f}"
+            fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
+            if fill_ret_val:
+                self.dbProxy.refresh_cache("_pq_table_last_fill", "_universal", new_ts_info)
+            self.dbProxy.release_process_lock("pq_table_fill", "qconf_universal")
+            if fill_ret_val:
+                return True
+            else:
+                return False
+        else:
+            return None
 
     # get last pq_table fill time
     def _get_last_pq_table_fill_time(self):
@@ -289,13 +311,13 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         mainLog = _make_logger(method_name="QueueConfigMapper.load_data")
         # check if to update
         with self.lock:
-            time_now = datetime.datetime.utcnow()
+            now_time = datetime.datetime.utcnow()
             updateInterval_td = datetime.timedelta(seconds=self.updateInterval)
             checkInterval_td = datetime.timedelta(seconds=self.checkInterval)
             # skip if lastCheck is fresh (within checkInterval)
-            if self.lastCheck is not None and time_now - self.lastCheck < checkInterval_td:
+            if self.lastCheck is not None and now_time - self.lastCheck < checkInterval_td:
                 return
-            self.lastCheck = time_now
+            self.lastCheck = now_time
             # get last_reload_timestamp from DB
             self.lastReload = self._get_last_reload_time()
             # get _get_last_pq_table_fill_time from DB
@@ -305,23 +327,21 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 self.lastReload is not None
                 and self.lastUpdate is not None
                 and self.lastReload < self.lastUpdate
-                and time_now - self.lastReload < updateInterval_td
+                and now_time - self.lastReload < updateInterval_td
             ):
                 return
         # start
         with self.lock:
             # update timestamp of last reload, lock with check interval
-            got_timesatmp_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
-            if got_timesatmp_update_lock:
-                now_ts = time.time()
-                retVal = self._update_last_reload_time(now_ts)
-                self.lastReload = datetime.datetime.utcfromtimestamp(now_ts)
-                if retVal:
-                    mainLog.debug("updated last reload timestamp")
-                else:
-                    mainLog.warning("failed to update last reload timestamp. Skipped")
-            else:
+            now_time = datetime.datetime.utcnow()
+            retVal = self._update_last_reload_time(now_time)
+            if retVal:
+                self.lastReload = now_time
+                mainLog.debug("updated last reload timestamp")
+            elif retVal is None:
                 mainLog.debug("did not get qconf_reload timestamp lock. Skipped to update last reload timestamp")
+            else:
+                mainLog.warning("failed to update last reload timestamp. Skipped")
             # init
             newQueueConfig = dict()
             localTemplatesDict = dict()
@@ -627,9 +647,16 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             self.lastCheck = self.lastUpdate
         # update database
         if self.toUpdateDB:
-            self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
-            self._update_last_pq_table_fill_time()
-            mainLog.debug("updated to DB")
+            self._update_pq_table(self.lastUpdate, refill_table=refill_table)
+            retVal = self._update_last_pq_table_fill_time(self.lastUpdate)
+            if retVal:
+                self.lastReload = now_time
+                mainLog.debug("updated pq_table")
+            elif retVal is None:
+                mainLog.debug("did not get pq_table_fill lock. Skipped to update pq_table")
+            else:
+                mainLog.warning("failed to update pq_table. Skipped")
+            mainLog.debug("updated to DB pq_table")
         # done
         mainLog.debug("done")
 
