@@ -647,8 +647,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             self.lastCheck = self.lastUpdate
         # update database
         if self.toUpdateDB:
-            self._update_pq_table(self.lastUpdate, refill_table=refill_table)
-            retVal = self._update_last_pq_table_fill_time(self.lastUpdate)
+            retVal = self._update_pq_table(self.lastUpdate, refill_table=refill_table)
             if retVal:
                 self.lastReload = now_time
                 mainLog.debug("updated pq_table")
