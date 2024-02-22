@@ -360,7 +360,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 mainLog.debug("No resolver is configured")
             # load config json from cacher (RT & RQ)
             queueConfigJson_cacher, queueConfig_cacher_ts = self._load_config_from_cache()
-            if queueConfig_cacher_ts and self.last_pq_table_fill_time and (queueConfig_cacher_ts + self.checkInterval < self.last_pq_table_fill_time):
+            if queueConfig_cacher_ts and self.last_pq_table_fill_time and (queueConfig_cacher_ts < self.last_pq_table_fill_time):
                 # cacher data outdated compared with pq_table fill time; warn
                 mainLog.warning(
                     f"Found cacher data outdated (lastUpdate = {str(queueConfig_cacher_ts)} < last_pq_table_fill_time = {str(self.last_pq_table_fill_time)})"
