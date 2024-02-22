@@ -645,7 +645,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             # update lastUpdate and lastCheck
             self.lastUpdate = datetime.datetime.utcnow()
             self.lastCheck = self.lastUpdate
-        # update database
+        # update database pq_table
         if self.toUpdateDB:
             retVal = self._update_pq_table(self.lastUpdate, refill_table=refill_table)
             if retVal:
@@ -655,7 +655,6 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 mainLog.debug("did not get pq_table_fill lock. Skipped to update pq_table")
             else:
                 mainLog.warning("failed to update pq_table. Skipped")
-            mainLog.debug("updated to DB pq_table")
         # done
         mainLog.debug("done")
 
