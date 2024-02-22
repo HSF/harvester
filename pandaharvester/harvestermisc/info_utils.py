@@ -53,8 +53,8 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
                         self[panda_resource] = v
                 self.last_refresh_ts = time.time()
             else:
-                # not getting cache sleep a bit
-                time.sleep(0.01)
+                # not getting cache; shorten next period into 5 sec
+                self.last_refresh_ts = time.time() - self.refresh_period + 5
 
     def to_refresh(func):
         """
