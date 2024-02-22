@@ -200,7 +200,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         mainLog = _make_logger(method_name="QueueConfigMapper._load_config_from_cache")
         # load config json on URL
         if self.configFromCacher:
-            queueConfig_cacheSpec = self.dbProxy.get_cache("queues_config_file")
+            queueConfig_cacheSpec = self.dbProxy.get_cache("queues_config_file", from_local_cache=False)
             if queueConfig_cacheSpec is not None:
                 queueConfigJson = queueConfig_cacheSpec.data
                 if isinstance(queueConfigJson, dict):
@@ -360,12 +360,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 mainLog.debug("No resolver is configured")
             # load config json from cacher (RT & RQ)
             queueConfigJson_cacher, queueConfig_cacher_ts = self._load_config_from_cache()
-            if queueConfig_cacher_ts is not None and self.last_pq_table_fill_time is not None and queueConfig_cacher_ts < self.last_pq_table_fill_time:
-                # cacher data outdated compared with pq_table fill time, not using cacher data
-                mainLog.debug(
-                    f"Found cacher data outdated ({str(queueConfig_cacher_ts)} < last_pq_table_fill_time = {str(self.last_pq_table_fill_time)}); skipped"
+            if queueConfig_cacher_ts and self.last_pq_table_fill_time and (queueConfig_cacher_ts + self.checkInterval < self.last_pq_table_fill_time):
+                # cacher data outdated compared with pq_table fill time; warn
+                mainLog.warning(
+                    f"Found cacher data outdated (lastUpdate = {str(queueConfig_cacher_ts)} < last_pq_table_fill_time = {str(self.last_pq_table_fill_time)})"
                 )
-            elif queueConfigJson_cacher is not None:
+            if queueConfigJson_cacher is not None:
                 mainLog.debug("Applying cacher data")
                 for queueName, queueDict in iteritems(queueConfigJson_cacher):
                     if queueDict.get("isTemplateQueue") is True or queueName.endswith("_TEMPLATE"):
