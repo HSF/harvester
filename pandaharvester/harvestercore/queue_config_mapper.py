@@ -284,11 +284,9 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         # update timestamp of last reload, lock with check interval
         got_update_lock = self.dbProxy.get_process_lock("pq_table_fill", "qconf_universal", 120)
         if got_update_lock:
-            if the_time is None:
-                the_time = datetime.datetime.utcnow()
             fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
+            now_time = datetime.datetime.utcnow()
             if fill_ret_val:
-                now_time = datetime.datetime.utcnow()
                 now_ts = now_time.timestamp()
                 now_ts_info = f"{now_ts:.3f}"
                 self.dbProxy.refresh_cache("_pq_table_last_fill", "_universal", now_ts_info)
