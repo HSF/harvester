@@ -663,6 +663,8 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             if retVal:
                 self.lastReload = now_time
                 mainLog.debug("updated pq_table")
+                if self.last_cache_ts:
+                    mainLog.debug(f"updated pq_table (las cache updated at {str(self.last_cache_ts)})")
             elif retVal is None:
                 mainLog.debug("did not get pq_table_fill lock. Skipped to update pq_table")
             else:
