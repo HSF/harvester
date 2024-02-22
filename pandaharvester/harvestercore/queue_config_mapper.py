@@ -198,7 +198,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
 
     # load config from DB cache of URL with validation
     def _load_config_from_cache(self):
-        mainLog = _make_logger(f"id={core_utils.get_pid()}", method_name="_load_config_from_cache")
+        mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="_load_config_from_cache")
         # load config json on URL
         if self.configFromCacher:
             queueConfig_cacheSpec = self.dbProxy.get_cache("queues_config_file", from_local_cache=False)
@@ -217,7 +217,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
     # load config from local json file with syntax validation
     @staticmethod
     def _load_config_from_file():
-        mainLog = _make_logger(f"id={core_utils.get_pid()}", method_name="_load_config_from_file")
+        mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="_load_config_from_file")
         # define config file path
         if os.path.isabs(harvester_config.qconf.configFile):
             confFilePath = harvester_config.qconf.configFile
@@ -320,7 +320,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
 
     # load data
     def load_data(self, refill_table=False):
-        mainLog = _make_logger(f"id={core_utils.get_pid()}", method_name="load_data")
+        mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="load_data")
         # check if to update
         with self.lock:
             now_time = datetime.datetime.utcnow()
