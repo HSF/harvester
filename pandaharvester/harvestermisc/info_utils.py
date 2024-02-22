@@ -3,6 +3,7 @@ import time
 
 import six
 from future.utils import iteritems
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestercore.db_interface import DBInterface
@@ -51,6 +52,9 @@ class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
                     else:
                         self[panda_resource] = v
                 self.last_refresh_ts = time.time()
+            else:
+                # not getting cache sleep a bit
+                time.sleep(0.01)
 
     def to_refresh(func):
         """
