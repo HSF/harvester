@@ -340,7 +340,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             if self.lastReload and self.lastUpdate:
                 min_last_reload = self.lastReload
                 if self.last_cache_ts:
-                    min_last_reload = min(min_last_reload, self.last_cache_ts + updateInterval_td * 1.25)
+                    min_last_reload = min(min_last_reload, self.last_cache_ts + updateInterval_td * 0.25)
                 if self.lastReload < self.lastUpdate and now_time - min_last_reload < updateInterval_td:
                     return
         # start
