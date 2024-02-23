@@ -336,12 +336,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             self.last_pq_table_fill_time = self._get_last_pq_table_fill_time()
             # get time of last cache used to fill pq_table from DB
             self.cache_to_fill_pq_table_time = self._get_cache_to_fill_pq_table_time()
-            # skip if lastReload is fresh and min_last_update fresher than lastReload (within updateInterval)
+            # skip if min_last_reload is fresh and lastUpdate fresher than lastReload (within updateInterval)
             if self.lastReload and self.lastUpdate:
-                min_last_update = self.lastUpdate
+                min_last_reload = self.lastReload
                 if self.last_cache_ts:
-                    min_last_update = min(min_last_update, self.last_cache_ts + updateInterval_td)
-                if self.lastReload < min_last_update and now_time - self.lastReload < updateInterval_td:
+                    min_last_reload = min(min_last_reload, self.last_cache_ts + updateInterval_td * 1.25)
+                if self.lastReload < self.lastUpdate and now_time - min_last_reload < updateInterval_td:
                     return
         # start
         with self.lock:
