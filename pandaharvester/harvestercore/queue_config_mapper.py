@@ -340,18 +340,18 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             if self.lastReload and self.lastUpdate:
                 min_last_update = self.lastUpdate
                 if self.last_cache_ts:
-                    min_last_update = min(min_last_update, self.last_cache_ts)
+                    min_last_update = min(min_last_update, self.last_cache_ts + updateInterval_td)
                 if self.lastReload < min_last_update and now_time - self.lastReload < updateInterval_td:
                     return
         # start
         with self.lock:
             # update timestamp of last reload, lock with check interval
             now_time = datetime.datetime.utcnow()
-            retVal = self._update_last_reload_time(now_time)
-            if retVal:
+            update_last_reload_ret_val = self._update_last_reload_time(now_time)
+            if update_last_reload_ret_val:
                 self.lastReload = now_time
                 mainLog.debug("updated last reload timestamp")
-            elif retVal is None:
+            elif update_last_reload_ret_val is None:
                 mainLog.debug("did not get qconf_reload timestamp lock. Skipped to update last reload timestamp")
             else:
                 mainLog.warning("failed to update last reload timestamp. Skipped")
@@ -660,7 +660,6 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         if self.toUpdateDB:
             retVal = self._update_pq_table(cache_time=self.last_cache_ts, refill_table=refill_table)
             if retVal:
-                self.lastReload = now_time
                 if self.last_cache_ts:
                     mainLog.debug(f"updated pq_table (last cache updated at {str(self.last_cache_ts)})")
                 else:
