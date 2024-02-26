@@ -22,7 +22,8 @@ master-fifo = $(UWSGI_FIFO)
 processes = 2
 threads = 4
 
-worker-reload-mercy = 1
+worker-reload-mercy = 2
+reload-on-exception = true
 
 buffer = 32768
 post-buffering = 32768

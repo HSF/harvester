@@ -22,7 +22,6 @@ GiB_TO_GB = 2**30 / 10.0**9
 
 # command and image defaults
 DEF_COMMAND = ["/usr/bin/bash"]
-DEF_ARGS = ["-c", "cd; python $EXEC_DIR/pilots_starter.py || true"]
 DEF_ARGS = ["-c", "cd; command -v python3 >/dev/null && python3 $EXEC_DIR/pilots_starter.py || python $EXEC_DIR/pilots_starter.py || true"]
 DEF_IMAGE = "atlasadc/atlas-grid-centos7"
 

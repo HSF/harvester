@@ -14,6 +14,7 @@ import threading
 import time
 
 from future.utils import iteritems
+
 from pandaharvester.harvesterconfig import harvester_config
 
 from . import core_utils
@@ -3190,18 +3191,20 @@ class DBProxy(object):
                     sql += "AND subKey=:subKey "
                     varMap[":subKey"] = sub_key
                 self.execute(sql, varMap)
-                resJ = self.cur.fetchone()
+                resJ = self.cur.fetchall()
                 # commit
                 self.commit()
-                if resJ is None:
+                if not resJ:
                     # release dict
                     globalDict.release()
                     return None
-                # make spec
-                cacheSpec = CacheSpec()
-                cacheSpec.pack(resJ)
-                # put into global dict
-                globalDict[cacheKey] = cacheSpec.data
+                else:
+                    res_one = resJ[0]
+                    # make spec
+                    cacheSpec = CacheSpec()
+                    cacheSpec.pack(res_one)
+                    # put into global dict
+                    globalDict[cacheKey] = cacheSpec.data
                 # release dict
                 globalDict.release()
             tmpLog.debug("done")

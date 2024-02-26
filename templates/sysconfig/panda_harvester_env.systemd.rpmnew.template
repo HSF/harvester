@@ -24,3 +24,12 @@ PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@
 
 # option for frontend
 OPTIONS="-f @@virtual_env@@/etc/panda/panda_harvester-httpd.conf"
+
+# log dir
+LOG_DIR="/var/log/harvester"
+
+# pid file
+PIDFILE="/var/log/harvester/panda_harvester.pid"
+
+# uWSGI master fifo
+UWSGI_FIFO="/var/log/harvester/uwsgi-panda_harvester.fifo"

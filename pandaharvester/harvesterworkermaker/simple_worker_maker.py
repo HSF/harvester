@@ -141,10 +141,10 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 except Exception:
                     pass
             # fill in worker attributes
-            if (nCore > 0 and "nCore" in self.jobAttributesToUse) or is_ucore:
-                work_spec.nCore = nCore
-            if (minRamCount > 0 and "minRamCount" in self.jobAttributesToUse) or is_ucore:
-                work_spec.minRamCount = minRamCount
+            if is_ucore or (nCore > 0 and "nCore" in self.jobAttributesToUse):
+                workSpec.nCore = nCore
+            if is_ucore or (minRamCount > 0 and ("minRamCount" in self.jobAttributesToUse or associated_params_dict.get("job_minramcount") is True)):
+                workSpec.minRamCount = minRamCount
             if maxDiskCount > 0 and ("maxDiskCount" in self.jobAttributesToUse or associated_params_dict.get("job_maxdiskcount") is True):
                 work_spec.maxDiskCount = maxDiskCount
             if maxWalltime > 0 and ("maxWalltime" in self.jobAttributesToUse or associated_params_dict.get("job_maxwalltime") is True):

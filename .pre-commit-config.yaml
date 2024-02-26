@@ -18,21 +18,3 @@ repos:
     -   id: isort
         name: isort (python)
         args: ["--settings-path", "pyproject.toml"]
-
-# exclude python 2 code which cannot be dealt with black
-exclude: |
-    (?x)(
-        ^pandaharvester/harvestermonitor/arc_monitor.py|
-        ^pandaharvester/harvestermisc/arc_utils.py|
-        ^pandaharvester/harvesterpayload/simple_wrapper_mpi.py|
-        ^pandaharvester/harvestersubmitter/apfgrid_submitter.py|
-        ^pandaharvester/harvestertest/dumpTable.py|
-        ^pandaharvester/harvestertest/getQueuedata.py|
-        ^pandaharvester/harvestermessenger/arc_messenger.py|
-        ^pandaharvester/harvestersubmitter/arc_submitter.py|
-        ^pandaharvester/harvestertest/stageOutTest_globus.py|
-        ^pandaharvester/harvestertest/stageInTest_go_bulk_preparator.py|
-        ^pandaharvester/harvesterpayload/ATLAS_simple_wrapper_mpi.py|
-        ^pandaharvester/harvestercloud/google_startup_script.py|
-        ^&
-    )

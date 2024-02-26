@@ -283,11 +283,11 @@ if __name__ == "__main__":
     if pilot_version:
         pilot_version_option = "--pilotversion {0}".format(pilot_version)
 
-    wrapper_params = "-a {0} -s {1} -r {2} -q {3} {4} {5} {6} {7} {8} {9} {10} {11}".format(
-        WORK_DIR,
+    wrapper_params = "-q {0} -r {1} -s {2} -a {3} {4} {5} {6} {7} {8} {9} {10} {11}".format(
+        panda_queue,
+        panda_queue,
         panda_site,
-        panda_queue,
-        panda_queue,
+        WORK_DIR,
         resource_type_option,
         psl_option,
         pilot_type_option,

@@ -53,11 +53,10 @@ setup(
         (
             "etc/panda",
             [
-                "templates/panda_harvester.cfg.rpmnew.template",
-                "templates/logrotate.d/panda_harvester",
-                "templates/panda_harvester-httpd.conf.rpmnew.template",
-                "templates/panda_supervisord.cfg.rpmnew.template",
-                "templates/panda_harvester-uwsgi.ini.rpmnew.template",
+                "templates/panda/panda_harvester.cfg.rpmnew.template",
+                "templates/panda/panda_harvester-httpd.conf.rpmnew.template",
+                "templates/panda/panda_supervisord.cfg.rpmnew.template",
+                "templates/panda/panda_harvester-uwsgi.ini.rpmnew.template",
             ],
         ),
         # sysconfig
@@ -80,6 +79,14 @@ setup(
         # systemd
         (
             "etc/systemd",
+            [
+                "templates/logrotate.d/panda_harvester",
+                "templates/logrotate.d/panda_harvester_service",
+            ],
+        ),
+        # logrotate
+        (
+            "etc/logrotate.d",
             [
                 "templates/systemd/panda_harvester-uwsgi.service.template",
             ],

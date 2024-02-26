@@ -12,6 +12,7 @@ import inspect
 import math
 import os
 import random
+import socket
 import sys
 import threading
 import time
@@ -35,9 +36,10 @@ try:
 except ImportError:
     import pickle
 
-from pandaharvester.harvesterconfig import harvester_config
 from pandalogger.LogWrapper import LogWrapper
 from pandalogger.PandaLogger import PandaLogger
+
+from pandaharvester.harvesterconfig import harvester_config
 
 from .event_spec import EventSpec
 from .file_spec import FileSpec
@@ -666,6 +668,16 @@ def retry_period_sec(nth_retry, increment=1, max_retries=None, max_seconds=None,
         if max_seconds:
             ret_period = min(ret_period, max_seconds)
         return ret_period
+
+
+# get process identifier on the fly
+def get_pid():
+    hostname = socket.gethostname()
+    os_pid = os.getpid()
+    thread_id = get_ident()
+    if thread_id is None:
+        thread_id = 0
+    return f"{hostname}_{os_pid}-{format(get_ident(), 'x')}"
 
 
 # safe dictionary to retrun original strings for missing keys
