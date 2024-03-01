@@ -9,7 +9,8 @@ from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 
-# logger
+from pandaharvester.harvestermonitor.monitor_common import get_payload_errstr_from_ec
+
 base_logger = core_utils.setup_logger("k8s_monitor")
 
 BAD_CONTAINER_STATES = ["CreateContainerError", "CrashLoopBackOff", "FailedMount"]
@@ -207,7 +208,11 @@ class K8sMonitor(PluginBase):
                 tmp_log.debug(f"Deleted pods queuing too long: {','.join(deleted_pods_list)}")
             # supplemental diag messages
             sup_error_code = WorkerErrors.error_codes.get("GENERAL_ERROR") if err_str else WorkerErrors.error_codes.get("SUCCEEDED")
-            sup_error_diag = "PODs=" + ",".join(pods_sup_diag_list) + " ; " + err_str
+            if pods_sup_diag_list:
+                pods_sup_str = ",".join(pods_sup_diag_list)
+                sup_error_diag = f"PODs={pods_sup_str} ; {err_str}"
+            else:
+                sup_error_diag = err_str
             workspec.set_supplemental_error(error_code=sup_error_code, error_diag=sup_error_diag)
 
         return new_status, err_str
