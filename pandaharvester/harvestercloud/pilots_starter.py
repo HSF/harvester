@@ -314,7 +314,7 @@ if __name__ == "__main__":
         logging.error(traceback.format_exc())
         return_code = 1
 
-    logging.debug("[main] pilot wrapper done...")
+    logging.debug("[main] pilot wrapper done with return code {0} ...".format(return_code))
 
     # upload logs to e.g. panda cache or similar
     upload_logs(logs_frontend_w, "/tmp/wrapper-wid.log", destination_name, proxy_path)
