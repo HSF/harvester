@@ -629,6 +629,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 queueConfig.configID = dumpSpec.configID
                 # ignore offline
                 if queueConfig.queueStatus == "offline":
+                    mainLog.debug(f"{queueName} inactive due to offline")
                     continue
                 # filter for pilot version
                 if (
@@ -636,16 +637,20 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     and pandaQueueDict.get(queueConfig.siteName) is not None
                     and pandaQueueDict.get(queueConfig.siteName).get("pilot_version") != str(harvester_config.qconf.pilotVersion)
                 ):
+                    mainLog.debug(f"{queueName} inactive due to unmatched pilot version")
                     continue
+                # filter if static queue list
                 if (
                     "ALL" not in harvester_config.qconf.queueList
                     and "DYNAMIC" not in harvester_config.qconf.queueList
                     and queueName not in harvester_config.qconf.queueList
                 ):
+                    mainLog.debug(f"{queueName} inactive due to not in static queue list")
                     continue
+                # added to active queues
                 activeQueues[queueName] = queueConfig
-            self.queueConfig = newQueueConfig
-            self.activeQueues = activeQueues
+            self.queueConfig = newQueueConfig.copy()
+            self.activeQueues = activeQueues.copy()
             newQueueConfigWithID = dict()
             for dumpSpec in queueConfigDumps.values():
                 queueConfig = QueueConfig(dumpSpec.queueName)
