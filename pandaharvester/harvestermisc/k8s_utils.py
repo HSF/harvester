@@ -309,30 +309,35 @@ class k8s_Client(object):
         tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="get_pods_info")
 
         try:
-            ret = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
+            pods = self.corev1.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         except Exception as _e:
             tmp_log.error(f"Failed call to list_namespaced_pod with: {_e}")
             return None  # None needs to be treated differently than [] by the caller
 
         pods_dict = {}
-        for i in ret.items:
-            job_name = i.metadata.labels["job-name"] if i.metadata.labels and "job-name" in i.metadata.labels else None
+        for pod in pods.items:
+            job_name = pod.metadata.labels["job-name"] if pod.metadata.labels and "job-name" in pod.metadata.labels else None
 
             # pod information
             pod_info = {
-                "pod_name": i.metadata.name,
-                "pod_start_time": i.status.start_time.replace(tzinfo=None) if i.status.start_time else i.status.start_time,
-                "pod_status": i.status.phase,
-                "pod_status_conditions": i.status.conditions,
-                "pod_status_message": i.status.message,
+                "pod_name": pod.metadata.name,
+                "pod_start_time": pod.status.start_time.replace(tzinfo=None) if pod.status.start_time else pod.status.start_time,
+                "pod_status": pod.status.phase,
+                "pod_status_conditions": pod.status.conditions,
+                "pod_status_message": pod.status.message,
                 "containers_state": [],
+                "containers_exit_code": []
             }
 
             # sub-container information
-            if i.status.container_statuses:
-                for cs in i.status.container_statuses:
-                    if cs.state:
-                        pod_info["containers_state"].append(cs.state)
+            if pod.status.container_statuses:
+                for container_status in pod.status.container_statuses:
+                    if container_status.state:
+                        pod_info["containers_state"].append(container_status.state)
+                        exit_code = 0
+                        if container_status.state.terminated:
+                            exit_code = container_status.state.terminated.exit_code
+                        pod_info["containers_exit_code"].append(exit_code)
 
             pods_dict[job_name] = pod_info
 
@@ -340,7 +345,7 @@ class k8s_Client(object):
 
     def filter_pods_info(self, pods_list, job_name=None):
         if job_name:
-            pods_list = [i for i in pods_list if i["job_name"] == job_name]
+            pods_list = [pod for pod in pods_list if pod["job_name"] == job_name]
         return pods_list
 
     def get_jobs_info(self, label_selector):
@@ -349,21 +354,21 @@ class k8s_Client(object):
         jobs_dict = {}
 
         try:
-            ret = self.batchv1.list_namespaced_job(namespace=self.namespace, label_selector=label_selector)
+            jobs = self.batchv1.list_namespaced_job(namespace=self.namespace, label_selector=label_selector)
 
-            for i in ret.items:
-                name = i.metadata.name
+            for job in jobs.items:
+                name = job.metadata.name
                 status = None
                 status_reason = None
                 status_message = None
                 n_pods_succeeded = 0
                 n_pods_failed = 0
-                if i.status.conditions:  # is only set when a pod started running
-                    status = i.status.conditions[0].type
-                    status_reason = i.status.conditions[0].reason
-                    status_message = i.status.conditions[0].message
-                    n_pods_succeeded = i.status.succeeded
-                    n_pods_failed = i.status.failed
+                if job.status.conditions:  # is only set when a pod started running
+                    status = job.status.conditions[0].type
+                    status_reason = job.status.conditions[0].reason
+                    status_message = job.status.conditions[0].message
+                    n_pods_succeeded = job.status.succeeded
+                    n_pods_failed = job.status.failed
 
                 job_info = {
                     "job_status": status,

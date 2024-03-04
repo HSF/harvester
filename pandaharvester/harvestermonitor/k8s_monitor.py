@@ -44,11 +44,16 @@ class K8sMonitor(PluginBase):
             self.podQueueTimeLimit
         except AttributeError:
             self.podQueueTimeLimit = 172800
+        try:
+            self.payloadType
+        except AttributeError:
+            self.payloadType = None
 
         self._all_workers_dict = []
 
-    def check_pods_status(self, pods_status_list, containers_state_list, pod_status_message_list):
+    def check_pods_status(self, pods_status_list, pods_status_message_list, containers_state_list, containers_exit_code_list):
         sub_msg = ""
+        exit_code = 0
 
         if "Unknown" in pods_status_list:
             if all(item == "Unknown" for item in pods_status_list):
@@ -71,7 +76,7 @@ class K8sMonitor(PluginBase):
                 if all((item.terminated is not None and item.terminated.reason == "Completed") for item in containers_state_list):
                     new_status = WorkSpec.ST_finished
                 else:
-                    sub_mesg_list = []
+                    sub_message_list = []
                     for item in containers_state_list:
                         msg_str = ""
                         if item.terminated is None:
@@ -83,8 +88,8 @@ class K8sMonitor(PluginBase):
                             msg_str = f"container not terminated yet ({state}) while pod Succeeded"
                         elif item.terminated.reason != "Completed":
                             msg_str = f"container terminated by k8s for reason {item.terminated.reason}"
-                        sub_mesg_list.append(msg_str)
-                    sub_msg = ";".join(sub_mesg_list)
+                        sub_message_list.append(msg_str)
+                    sub_msg = ";".join(sub_message_list)
                     new_status = WorkSpec.ST_cancelled
 
             # Pod in Running status
@@ -94,14 +99,19 @@ class K8sMonitor(PluginBase):
             # Pod in Failed status
             elif "Failed" in pods_status_list:
                 new_status = WorkSpec.ST_failed
+
+                for tmp_code in containers_exit_code_list:
+                    if tmp_code != 0:
+                        exit_code = tmp_code
+
                 try:
-                    sub_msg = ";".join(pod_status_message_list)
+                    sub_msg = ";".join(pods_status_message_list)
                 except BaseException:
                     sub_msg = ""
             else:
                 new_status = WorkSpec.ST_idle
 
-        return new_status, sub_msg
+        return new_status, exit_code, sub_msg
 
     def check_job_status(self, job_status, job_status_reason, job_status_message, n_pods_succeeded, n_pods_failed):
         new_status = None
@@ -124,8 +134,8 @@ class K8sMonitor(PluginBase):
 
         # initialization
         job_id = workspec.batchID
-        err_str = ""
-        time_now = datetime.datetime.utcnow()
+        error_message = ""
+        time_now = datetime.datetime.now(datetime.timezone.utc)
         pods_status_list = []
         pods_status_message_list = []
         pods_name_to_delete_list = []
@@ -136,6 +146,7 @@ class K8sMonitor(PluginBase):
         n_pods_failed = 0
         try:
             containers_state_list = []
+            containers_exit_code_list = []
             pods_sup_diag_list = []
             if job_id in self._all_workers_dict:
                 worker_info = self._all_workers_dict[job_id]
@@ -145,6 +156,7 @@ class K8sMonitor(PluginBase):
                     pods_status_list.append(worker_info["pod_status"])
                     pods_status_message_list.append(worker_info["pod_status_message"])
                     containers_state_list.extend(worker_info["containers_state"])
+                    containers_exit_code_list.extend(worker_info["containers_exit_code"])
                     pods_sup_diag_list.append(worker_info["pod_name"])
 
                 # get backup info about the job
@@ -171,30 +183,30 @@ class K8sMonitor(PluginBase):
                             pods_name_to_delete_list.append(worker_info["pod_name"])
 
         except Exception as _e:
-            err_str = f"Failed to get status for id={job_id} ; {traceback.format_exc()}"
-            tmp_log.error(err_str)
+            error_message = f"Failed to get status for id={job_id} ; {traceback.format_exc()}"
+            tmp_log.error(error_message)
             new_status = None
         else:
             # we didn't find neither the pod nor the job for the worker
             if not pods_status_list and not job_status:
                 # there were no pods found belonging to our job
-                err_str = f"JOB id={job_id} not found"
-                tmp_log.error(err_str)
+                error_message = f"JOB id={job_id} not found"
+                tmp_log.error(error_message)
                 tmp_log.info("Force to cancel the worker due to JOB not found")
                 new_status = WorkSpec.ST_cancelled
             # we found a pod for the worker, it has precedence over the job information
             elif pods_status_list:
                 # we found pods belonging to our job. Obtain the final status
                 tmp_log.debug(f"pods_status_list={pods_status_list}")
-                new_status, sub_msg = self.check_pods_status(pods_status_list, containers_state_list, pods_status_message_list)
+                new_status, exit_code, sub_msg = self.check_pods_status(pods_status_list, pods_status_message_list, containers_state_list, containers_exit_code_list)
                 if sub_msg:
-                    err_str += sub_msg
+                    error_message += sub_msg
                 tmp_log.debug(f"new_status={new_status}")
             # we didn't find the pod, but there was still a job for the worker
             else:
                 new_status, sub_msg = self.check_job_status(job_status, job_status_reason, job_status_message, n_pods_succeeded, n_pods_failed)
                 if sub_msg:
-                    err_str += sub_msg
+                    error_message += sub_msg
                 tmp_log.debug(f"new_status={new_status}")
 
             # delete pods that have been queueing too long
@@ -206,26 +218,34 @@ class K8sMonitor(PluginBase):
                     if item["errMsg"] == "":
                         deleted_pods_list.append(item["name"])
                 tmp_log.debug(f"Deleted pods queuing too long: {','.join(deleted_pods_list)}")
-            # supplemental diag messages
-            sup_error_code = WorkerErrors.error_codes.get("GENERAL_ERROR") if err_str else WorkerErrors.error_codes.get("SUCCEEDED")
-            if pods_sup_diag_list:
-                pods_sup_str = ",".join(pods_sup_diag_list)
-                sup_error_diag = f"PODs={pods_sup_str} ; {err_str}"
+
+            # exit code and diag message
+            if exit_code != 0:
+                sup_error_code = exit_code
+                sup_error_diag = get_payload_errstr_from_ec(self.payloadType, exit_code)
             else:
-                sup_error_diag = err_str
+                sup_error_code = WorkerErrors.error_codes.get("GENERAL_ERROR") if error_message else WorkerErrors.error_codes.get("SUCCEEDED")
+
+                # supplemental diag messages
+                if pods_sup_diag_list:
+                    pods_sup_str = ",".join(pods_sup_diag_list)
+                    sup_error_diag = f"PODs={pods_sup_str} ; {error_message}"
+                else:
+                    sup_error_diag = error_message
+
             workspec.set_supplemental_error(error_code=sup_error_code, error_diag=sup_error_diag)
 
-        return new_status, err_str
+        return new_status, error_message
 
     def check_workers(self, workspec_list):
         tmp_log = self.make_logger(base_logger, f"queueName={self.queueName}", method_name="check_workers")
         tmp_log.debug("start")
 
-        ret_list = list()
+        ret_list = []
         if not workspec_list:
-            err_str = "empty workspec_list"
-            tmp_log.debug(err_str)
-            ret_list.append(("", err_str))
+            error_message = "empty workspec_list"
+            tmp_log.debug(error_message)
+            ret_list.append(("", error_message))
             return False, ret_list
 
         workers_info = self.k8s_client.get_workers_info(workspec_list=workspec_list)
