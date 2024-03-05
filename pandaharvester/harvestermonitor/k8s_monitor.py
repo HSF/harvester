@@ -219,23 +219,20 @@ class K8sMonitor(PluginBase):
                         deleted_pods_list.append(item["name"])
                 tmp_log.debug(f"Deleted pods queuing too long: {','.join(deleted_pods_list)}")
 
-            # exit code and diag message
+            # If there was an exit code and we have predefined message from e.g. the pilot wrapper
+            sup_error_diag = ""
             if exit_code != 0:
                 sup_error_code = exit_code
-                sup_error_diag = get_payload_errstr_from_ec(self.payloadType, exit_code)
+                sup_error_diag += get_payload_errstr_from_ec(self.payloadType, exit_code)
             else:
                 sup_error_code = WorkerErrors.error_codes.get("GENERAL_ERROR") if error_message else WorkerErrors.error_codes.get("SUCCEEDED")
 
-                # supplemental diag messages
-                if pods_sup_diag_list:
-                    pods_sup_str = ",".join(pods_sup_diag_list)
-                    sup_error_diag = f"PODs={pods_sup_str} ; {error_message}"
-                else:
-                    sup_error_diag = error_message
+            # Extend the base error message with the information found querying the job and pods
+            sup_error_diag += error_message
 
             workspec.set_supplemental_error(error_code=sup_error_code, error_diag=sup_error_diag)
 
-        return new_status, error_message
+        return new_status, sup_error_diag
 
     def check_workers(self, workspec_list):
         tmp_log = self.make_logger(base_logger, f"queueName={self.queueName}", method_name="check_workers")
