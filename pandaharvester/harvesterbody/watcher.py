@@ -3,19 +3,15 @@ import os
 import signal
 import smtplib
 import socket
+import subprocess
 import time
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
-
 from email.mime.text import MIMEText
+
+from pandalogger import logger_config
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandalogger import logger_config
 
 logDir = logger_config.daemon["logdir"]
 if "PANDA_LOCK_DIR" in os.environ:

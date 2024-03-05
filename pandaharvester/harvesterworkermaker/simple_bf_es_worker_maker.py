@@ -1,11 +1,7 @@
 import datetime
 import math
+import subprocess
 import traceback
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec

@@ -1,12 +1,8 @@
 import os
 import shutil
+import subprocess
 
 import requests
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.gitlab_utils import get_job_params

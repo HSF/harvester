@@ -1,10 +1,6 @@
 import re
+import subprocess
 import sys
-
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
 
 
 def clean_user_id(id):

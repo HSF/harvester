@@ -33,7 +33,6 @@ setup(
         "pycryptodomex",
         "panda-common",
         "pyjwt",
-        'subprocess32; python_version == "2.*"',
         "rpyc",
         "paramiko",
         "pexpect",

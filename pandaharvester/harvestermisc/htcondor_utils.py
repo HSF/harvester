@@ -4,16 +4,12 @@ import functools
 import multiprocessing
 import random
 import re
+import subprocess
 import tempfile
 import threading
 import time
 import traceback
 import xml.etree.ElementTree as ET
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
 
 try:
     from threading import get_ident

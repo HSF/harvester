@@ -2,13 +2,9 @@ import datetime
 import os
 import re
 import stat
+import subprocess
 import tempfile
 from math import ceil
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils

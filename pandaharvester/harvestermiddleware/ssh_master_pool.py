@@ -1,16 +1,12 @@
 import os
 import random
+import subprocess
 import tempfile
 import threading
 import time
 import uuid
 
 import pexpect
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 

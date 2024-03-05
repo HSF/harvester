@@ -11,10 +11,7 @@ try:
 except ImportError:
     from urllib import urlencode
 
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
+import subprocess
 
 try:
     from os import scandir, walk

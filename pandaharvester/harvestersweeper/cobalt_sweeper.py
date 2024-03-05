@@ -1,16 +1,11 @@
 # === Imports ==================================================
 
 import os
+import shutil
+import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
-
-import shutil
 
 # ==============================================================
 

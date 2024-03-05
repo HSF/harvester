@@ -1,11 +1,6 @@
 import os
+import subprocess
 import uuid
-
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
-
 from concurrent.futures import ProcessPoolExecutor as Pool
 
 from pandaharvester.harvestercore import core_utils

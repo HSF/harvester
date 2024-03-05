@@ -1,12 +1,8 @@
 import re
+import subprocess
 import tempfile
 
 import jinja2
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase

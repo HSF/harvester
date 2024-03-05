@@ -1,12 +1,7 @@
 import gc
 import os
+import subprocess
 import tempfile
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
-
 import uuid
 
 from pandaharvester.harvestercore import core_utils
