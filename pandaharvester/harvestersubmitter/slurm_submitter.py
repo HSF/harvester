@@ -5,8 +5,6 @@ import stat
 import tempfile
 from math import ceil
 
-import six
-
 try:
     import subprocess32 as subprocess
 except ImportError:
@@ -154,7 +152,7 @@ class SlurmSubmitter(PluginBase):
             template = f.read()
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix="_submit.sh", dir=workspec.get_access_point())
         placeholder = self.make_placeholder_map(workspec)
-        tmpFile.write(six.b(template.format_map(core_utils.SafeDict(placeholder))))
+        tmpFile.write(str(template.format_map(core_utils.SafeDict(placeholder))).encode("latin_1"))
         tmpFile.close()
 
         # set execution bit and group permissions on the temp file

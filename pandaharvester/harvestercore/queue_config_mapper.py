@@ -5,7 +5,6 @@ import json
 import os
 import threading
 
-import six
 from future.utils import iteritems
 
 try:
@@ -128,7 +127,7 @@ class QueueConfig(object):
 
 
 # mapper
-class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
+class QueueConfigMapper(metaclass=SingletonWithID):
     """
     Using some acronyms here:
     LT = local template, written in local queueconfig file

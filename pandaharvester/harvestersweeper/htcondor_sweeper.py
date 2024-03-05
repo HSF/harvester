@@ -1,8 +1,6 @@
 import os
 import shutil
 
-import six
-
 try:
     import subprocess32 as subprocess
 except Exception:
@@ -94,7 +92,7 @@ class HTCondorSweeper(BaseSweeper):
         all_job_ret_map = {}
         retList = []
         # Kill
-        for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map(workspec_list)):
+        for submissionHost, batchIDs_list in get_host_batchid_map(workspec_list).items():
             try:
                 condor_job_manage = CondorJobManage(id=submissionHost)
                 ret_map = condor_job_manage.remove(batchIDs_list)

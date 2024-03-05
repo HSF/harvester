@@ -20,7 +20,6 @@ try:
 except ImportError:
     from thread import get_ident
 
-import six
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.core_utils import SingletonWithID
@@ -212,7 +211,7 @@ def condor_submit_process(mp_queue, host, jdl_map_list):
 # Condor queue cache fifo
 
 
-class CondorQCacheFifo(six.with_metaclass(SingletonWithID, SpecialFIFOBase)):
+class CondorQCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
     global_lock_id = -1
 
     def __init__(self, target, *args, **kwargs):
@@ -364,7 +363,7 @@ class CondorClient(object):
 
 
 # Condor job query
-class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
+class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
     # class lock
     classLock = threading.Lock()
     # Query commands
@@ -671,7 +670,7 @@ class CondorJobQuery(six.with_metaclass(SingletonWithID, CondorClient)):
 
 
 # Condor job submit
-class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
+class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
     # class lock
     classLock = threading.Lock()
 
@@ -822,7 +821,7 @@ class CondorJobSubmit(six.with_metaclass(SingletonWithID, CondorClient)):
 
 
 # Condor job remove
-class CondorJobManage(six.with_metaclass(SingletonWithID, CondorClient)):
+class CondorJobManage(CondorClient, metaclass=SingletonWithID):
     # class lock
     classLock = threading.Lock()
 

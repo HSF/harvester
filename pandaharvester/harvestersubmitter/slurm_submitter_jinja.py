@@ -2,7 +2,6 @@ import re
 import tempfile
 
 import jinja2
-import six
 
 try:
     import subprocess32 as subprocess
@@ -79,11 +78,11 @@ class SlurmSubmitterJinja(PluginBase):
         del tmpFile
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix="_submit.sh", dir=workspec.get_access_point())
         tmpFile.write(
-            six.b(
+            str(
                 self.template.format(
                     nCorePerNode=self.nCorePerNode, nNode=workspec.nCore // self.nCorePerNode, accessPoint=workspec.accessPoint, workerID=workspec.workerID
                 )
-            )
+            ).encode("latin_1")
         )
         tmpFile.close()
         return tmpFile.name
@@ -99,7 +98,7 @@ class SlurmSubmitterJinja(PluginBase):
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix="_submit.sh", dir=workspec.get_access_point())
         tm = jinja2.Template(self.template)
         tmpFile.write(
-            six.b(
+            str(
                 tm.render(
                     nCorePerNode=self.nCorePerNode,
                     nNode=workspec.nCore // self.nCorePerNode,
@@ -107,18 +106,18 @@ class SlurmSubmitterJinja(PluginBase):
                     workerID=workspec.workerID,
                     workspec=workspec,
                 )
-            )
+            ).encode("latin_1")
         )
 
-        # tmpFile.write(six.b(self.template.format(nCorePerNode=self.nCorePerNode,
+        # tmpFile.write(str(self.template.format(nCorePerNode=self.nCorePerNode,
         #                                   nNode=workspec.nCore // self.nCorePerNode,
         #                                   accessPoint=workspec.accessPoint,
-        #                                   workerID=workspec.workerID))
+        #                                   workerID=workspec.workerID)).encode("latin_1")
         #              )
-        # tmpFile.write(six.b(self.template.format(nCorePerNode=self.nCorePerNode,
+        # tmpFile.write(str(self.template.format(nCorePerNode=self.nCorePerNode,
         #                                   nNode=workspec.nCore // self.nCorePerNode,
         #                                   worker=workSpec,
-        #                                   submitter=self))
+        #                                   submitter=self)).encode("latin_1")
         #              )
         tmpFile.close()
         return tmpFile.name

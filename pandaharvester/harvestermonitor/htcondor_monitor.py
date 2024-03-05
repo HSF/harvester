@@ -2,8 +2,6 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor as Pool
 
-import six
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
@@ -114,7 +112,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                         tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to HoldReason: {hold_reason}")
                     else:
                         tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to held too long")
-                    for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map([workspec])):
+                    for submissionHost, batchIDs_list in get_host_batchid_map([workspec]).items():
                         condor_job_manage = CondorJobManage(id=workspec.submissionHost)
                         try:
                             ret_map = condor_job_manage.remove(batchIDs_list)
@@ -251,7 +249,7 @@ class HTCondorMonitor(PluginBase):
         tmpLog.debug("start")
         # Loop over submissionHost
         job_ads_all_dict = {}
-        for submissionHost, batchIDs_list in six.iteritems(get_host_batchid_map(workspec_list)):
+        for submissionHost, batchIDs_list in get_host_batchid_map(workspec_list).items():
             # Record batch job query result to this dict, with key = batchID
             try:
                 job_query = CondorJobQuery(
@@ -312,7 +310,7 @@ class HTCondorMonitor(PluginBase):
                 tmpLog.error(ret_err_str)
         # Choose workers updated within a time window
         workers_to_check_list = []
-        for condor_job_id, job_ads in six.iteritems(job_ads_all_dict):
+        for condor_job_id, job_ads in job_ads_all_dict.items():
             # put in worker cache fifo, with lock mechanism
             job_EnteredCurrentStatus = job_ads.get("EnteredCurrentStatus")
             if not (job_EnteredCurrentStatus > timeNow - time_window):

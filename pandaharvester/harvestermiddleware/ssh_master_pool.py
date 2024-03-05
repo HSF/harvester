@@ -6,7 +6,6 @@ import time
 import uuid
 
 import pexpect
-import six
 
 try:
     import subprocess32 as subprocess
@@ -15,10 +14,7 @@ except Exception:
 
 from pandaharvester.harvestercore import core_utils
 
-if six.PY2:
-    pexpect_spawn = pexpect.spawn
-else:
-    pexpect_spawn = pexpect.spawnu
+pexpect_spawn = pexpect.spawnu
 
 # logger
 baseLogger = core_utils.setup_logger("ssh_master_pool")

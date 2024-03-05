@@ -4,7 +4,6 @@ import re
 import socket
 import sys
 
-import six
 from future.utils import iteritems
 from liveconfigparser.LiveConfigParser import LiveConfigParser
 
@@ -90,7 +89,7 @@ for tmpSection in tmpConf.sections():
         if isinstance(tmpVal, str) and tmpVal.startswith("$"):
             tmpVal = env_var_parse(tmpVal)
         # convert string to bool/int
-        if not isinstance(tmpVal, six.string_types):
+        if not isinstance(tmpVal, str):
             pass
         elif tmpVal == "True":
             tmpVal = True

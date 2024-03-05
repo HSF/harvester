@@ -1,7 +1,6 @@
 import threading
 import time
 
-import six
 from future.utils import iteritems
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -13,7 +12,7 @@ harvesterID = harvester_config.master.harvester_id
 resolver_config = getattr(harvester_config.qconf, "resolverConfig", {})
 
 
-class PandaQueuesDict(six.with_metaclass(SingletonWithID, dict, PluginBase)):
+class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
     """
     Dictionary of PanDA queue info from DB by cacher
     Key is PanDA Resource name (rather than PanDA Queue name)
