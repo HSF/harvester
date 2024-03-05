@@ -29,7 +29,6 @@ setup(
         "requests",
         "python-daemon",
         "future",
-        'futures; python_version == "2.*"',
         "pycryptodomex",
         "panda-common",
         "pyjwt",
