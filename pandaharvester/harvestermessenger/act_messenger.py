@@ -3,6 +3,7 @@ import json
 import os
 
 from act.atlas.aCTDBPanda import aCTDBPanda
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -118,7 +119,7 @@ class ACTMessenger(BaseMessenger):
                     newDict = dict()
                     # change the key from str to int
                     for tmpPandaID, tmpDict in tmpOrigDict.items():
-                        tmpPandaID = long(tmpPandaID)
+                        tmpPandaID = int(tmpPandaID)
                         retDict[tmpPandaID] = tmpDict
                         nData += len(tmpDict)
             except Exception as x:

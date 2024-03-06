@@ -12,13 +12,6 @@ import threading
 import time
 import uuid
 
-from future.utils import iteritems
-from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
-from pandaharvester.harvestermover import mover_utils
-from pandaharvester.harvesterstager.base_stager import BaseStager
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
     DataIdentifierAlreadyExists,
@@ -26,6 +19,13 @@ from rucio.common.exception import (
     DuplicateRule,
     FileAlreadyExists,
 )
+
+from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestermover import mover_utils
+from pandaharvester.harvesterstager.base_stager import BaseStager
 
 from .base_stager import BaseStager
 

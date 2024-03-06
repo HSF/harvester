@@ -7,9 +7,6 @@ import copy
 import datetime
 import json
 
-from future.utils import iteritems
-from past.builtins import long
-
 from .spec_base import SpecBase
 
 
@@ -187,7 +184,7 @@ class JobSpec(SpecBase):
         if self.jobAttributes is None:
             self.jobAttributes = attrs
         else:
-            for key, val in iteritems(attrs):
+            for key, val in attrs.items():
                 if key not in self.jobAttributes or self.jobAttributes[key] != val:
                     self.jobAttributes[key] = val
                     self.force_update("jobAttributes")
@@ -259,7 +256,7 @@ class JobSpec(SpecBase):
         data = []
         eventSpecs = []
         iEvents = 0
-        for zipFileID, eventsData in iteritems(self.zipEventMap):
+        for zipFileID, eventsData in self.zipEventMap.items():
             if max_events is not None and iEvents > max_events:
                 break
             eventRanges = []
@@ -310,7 +307,7 @@ class JobSpec(SpecBase):
         endpoints = self.jobParams["ddmEndPointIn"].split(",")
         for lfn, guid, fsize, chksum, scope, dataset, endpoint in zip(lfns, guids, fsizes, chksums, scopes, datasets, endpoints):
             try:
-                fsize = long(fsize)
+                fsize = int(fsize)
             except Exception:
                 fsize = None
             if lfn in lfnToSkip:
@@ -460,9 +457,9 @@ class JobSpec(SpecBase):
             "rateWBYTES",
         ]
         panda_attributes = set(panda_attributes)
-        for aName, aValue in iteritems(self.jobAttributes):
+        for aName, aValue in self.jobAttributes.items():
             if aName in panda_attributes:
-                if type(aValue) in (int, long):
+                if type(aValue) in (int,):
                     aValue = str(aValue)
                 data[aName] = aValue
         return data
@@ -480,7 +477,7 @@ class JobSpec(SpecBase):
         timeNow = datetime.datetime.utcnow()
         # reverse mapping
         revMap = dict()
-        for gID, items in iteritems(id_map):
+        for gID, items in id_map.items():
             for lfn in items["lfns"]:
                 revMap[lfn] = gID
         # update file specs
@@ -563,7 +560,7 @@ class JobSpec(SpecBase):
             return self.jobParams
         else:
             newParams = dict()
-            for k, v in iteritems(self.jobParams):
+            for k, v in self.jobParams.items():
                 if k in ["prodDBlocks", "realDatasetsIn", "dispatchDblock", "ddmEndPointIn", "scopeIn", "dispatchDBlockToken", "prodDBlockToken"]:
                     continue
                 newParams[k] = v
@@ -590,14 +587,14 @@ class JobSpec(SpecBase):
     def manipulate_job_params_for_container(self):
         updated = False
         for fileSpec in self.inFiles:
-            for k, v in iteritems(self.jobParams):
+            for k, v in self.jobParams.items():
                 # only container image
                 if k == "container_name":
                     if v == fileSpec.url:
                         self.jobParams[k] = fileSpec.path
                         updated = True
                 elif k == "containerOptions":
-                    for kk, vv in iteritems(v):
+                    for kk, vv in v.items():
                         if kk == "containerImage":
                             if vv == fileSpec.url:
                                 self.jobParams[k][kk] = fileSpec.path

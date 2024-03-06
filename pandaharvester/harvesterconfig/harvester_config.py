@@ -4,7 +4,6 @@ import re
 import socket
 import sys
 
-from future.utils import iteritems
 from liveconfigparser.LiveConfigParser import LiveConfigParser
 
 # get ConfigParser
@@ -84,7 +83,7 @@ for tmpSection in tmpConf.sections():
     # initialize config dict
     config_dict[tmpSection] = {}
     # expand all values
-    for tmpKey, tmpVal in iteritems(tmpDict):
+    for tmpKey, tmpVal in tmpDict.items():
         # use env vars
         if isinstance(tmpVal, str) and tmpVal.startswith("$"):
             tmpVal = env_var_parse(tmpVal)

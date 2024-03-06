@@ -2,7 +2,6 @@ import datetime
 import random
 import socket
 
-from future.utils import iteritems
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -40,7 +39,7 @@ class JobFetcher(AgentBase):
             pandaQueueDict = PandaQueuesDict()
 
             # loop over all queues
-            for queueName, nJobs in iteritems(nJobsPerQueue):
+            for queueName, nJobs in nJobsPerQueue.items():
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     continue
@@ -94,7 +93,7 @@ class JobFetcher(AgentBase):
                         if extractorCore is not None:
                             fileGroupDictList.append(extractorCore.get_aux_inputs(jobSpec))
                         for fileGroupDict in fileGroupDictList:
-                            for tmpLFN, fileAttrs in iteritems(fileGroupDict):
+                            for tmpLFN, fileAttrs in fileGroupDict.items():
                                 # make file spec
                                 fileSpec = FileSpec()
                                 fileSpec.PandaID = jobSpec.PandaID

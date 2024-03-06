@@ -3,7 +3,6 @@ import math
 import socket
 import time
 
-from future.utils import iteritems
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
@@ -62,9 +61,9 @@ class Submitter(AgentBase):
                 main_log.debug(f"got {len(command_specs)} {com_str} commands")
                 for command_spec in command_specs:
                     new_limits = self.dbProxy.set_queue_limit(site_name, command_spec.params)
-                    for tmp_job_type, tmp_jt_vals in iteritems(new_limits):
+                    for tmp_job_type, tmp_jt_vals in new_limits.items():
                         res_map.setdefault(tmp_job_type, {})
-                        for tmp_resource_type, tmp_new_val in iteritems(tmp_jt_vals):
+                        for tmp_resource_type, tmp_new_val in tmp_jt_vals.items():
                             # if available, overwrite new worker value with the command from panda server
                             if tmp_resource_type in res_map[tmp_job_type]:
                                 tmp_queue_name = res_map[tmp_job_type][tmp_resource_type]

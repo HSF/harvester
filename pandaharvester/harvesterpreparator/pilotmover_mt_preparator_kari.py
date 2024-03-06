@@ -3,13 +3,13 @@ import os.path
 import threading
 import time
 
-from future.utils import iteritems
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermover import mover_utils
 from pilot.api import data
 from pilot.info import infosys
 from pilot.info.filespec import FileSpec as PilotFileSpec
+
+from pandaharvester.harvestercore import core_utils
+from pandaharvester.harvestercore.plugin_base import PluginBase
+from pandaharvester.harvestermover import mover_utils
 
 # logger
 baseLogger = core_utils.setup_logger("pilotmover_mt_preparator_kari")
@@ -95,7 +95,7 @@ class PilotmoverMTPreparator(PluginBase):
         files = []
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
             tmpLog.debug(f"To check file: {inFile}")
             if os.path.exists(inFile["path"]):
@@ -156,7 +156,7 @@ class PilotmoverMTPreparator(PluginBase):
                 if file.status_code != 0:
                     allChecked = False
                     ErrMsg = ErrMsg + f" {file.lfn} "
-            for inLFN, inFile in iteritems(inFiles):
+            for inLFN, inFile in inFiles.items():
                 if not os.path.isfile(inFile["path"]):
                     allChecked = False
                     ErrMsg = ErrMsg + f" {file.lfn} "
@@ -175,7 +175,7 @@ class PilotmoverMTPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

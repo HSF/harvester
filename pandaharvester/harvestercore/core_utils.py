@@ -24,7 +24,6 @@ from contextlib import contextmanager
 import Cryptodome.Cipher.AES
 import Cryptodome.Hash.HMAC
 import Cryptodome.Random
-from future.utils import iteritems
 
 try:
     from threading import get_ident
@@ -112,7 +111,7 @@ class MapWithLock(object):
         self.lock.release()
 
     def iteritems(self):
-        return iteritems(self.dataMap)
+        return self.dataMap.items()
 
 
 # singleton distinguishable with id
@@ -224,7 +223,7 @@ def make_pool_file_catalog(jobspec_list):
     doneLFNs = set()
     for jobSpec in jobspec_list:
         inFiles = jobSpec.get_input_file_attributes()
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             if inLFN in doneLFNs:
                 continue
             doneLFNs.add(inLFN)
@@ -356,9 +355,9 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
                     jobSpec.set_one_attribute("batchID", workSpec.batchID)
             # add files
             outFileAttrs = jobSpec.get_output_file_attributes()
-            for tmpWorkerID, files_to_stage_out in iteritems(files_to_stage_out_list):
+            for tmpWorkerID, files_to_stage_out in files_to_stage_out_list.items():
                 if jobSpec.PandaID in files_to_stage_out:
-                    for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
+                    for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].items():
                         for fileAtters in fileAttersList:
                             fileSpec = FileSpec()
                             fileSpec.lfn = lfn
@@ -446,9 +445,9 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         # jobSpec.set_attributes(workAttributes)
         # add files
         outFileAttrs = jobSpec.get_output_file_attributes()
-        for tmpWorkerID, files_to_stage_out in iteritems(files_to_stage_out_list):
+        for tmpWorkerID, files_to_stage_out in files_to_stage_out_list.items():
             if jobSpec.PandaID in files_to_stage_out:
-                for lfn, fileAttersList in iteritems(files_to_stage_out[jobSpec.PandaID]):
+                for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].items():
                     for fileAtters in fileAttersList:
                         fileSpec = FileSpec()
                         fileSpec.lfn = lfn
@@ -636,7 +635,7 @@ def make_choice_list(pdpm={}, default=None):
     weight_sum = sum(pdpm.values())
     weight_default = 1000
     ret_list = []
-    for candidate, weight in iteritems(pdpm):
+    for candidate, weight in pdpm.items():
         if weight_sum > 1000:
             real_weight = int(weight * 1000 / weight_sum)
         else:

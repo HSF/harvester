@@ -11,7 +11,6 @@ import uuid
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
-from future.utils import iteritems
 from globus_sdk import (
     NativeAppAuthClient,
     RefreshTokenAuthorizer,
@@ -466,7 +465,7 @@ class GlobusBulkStager(BaseStager):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

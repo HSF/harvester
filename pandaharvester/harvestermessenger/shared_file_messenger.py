@@ -31,9 +31,6 @@ import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor as Pool
 
-from future.utils import iteritems
-from past.builtins import long
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -347,8 +344,8 @@ class SharedFileMessenger(BaseMessenger):
                 sizeMap = dict()
                 chksumMap = dict()
                 eventsList = dict()
-                for tmpPandaID, tmpEventMapList in iteritems(loadDict):
-                    tmpPandaID = long(tmpPandaID)
+                for tmpPandaID, tmpEventMapList in loadDict.items():
+                    tmpPandaID = int(tmpPandaID)
                     # test if tmpEventMapList is a list
                     if not isinstance(tmpEventMapList, list):
                         tmpLog.error("loaded data item is not a list")
@@ -588,8 +585,8 @@ class SharedFileMessenger(BaseMessenger):
                     tmpOrigDict = json.load(jsonFile)
                     newDict = dict()
                     # change the key from str to int
-                    for tmpPandaID, tmpDict in iteritems(tmpOrigDict):
-                        tmpPandaID = long(tmpPandaID)
+                    for tmpPandaID, tmpDict in tmpOrigDict.items():
+                        tmpPandaID = int(tmpPandaID)
                         retDict[tmpPandaID] = tmpDict
                         nData += len(tmpDict)
             except Exception:
@@ -762,8 +759,8 @@ class SharedFileMessenger(BaseMessenger):
                                 if "merged" in tmpData:
                                     output_lfns = set()
                                     fileDict.setdefault(jobSpec.PandaID, [])
-                                    for tmpIn, tmpOuts in iteritems(tmpData["merged"]):
-                                        for tmpLFN, tmpFileDict in iteritems(tmpOuts):
+                                    for tmpIn, tmpOuts in tmpData["merged"].items():
+                                        for tmpLFN, tmpFileDict in tmpOuts.items():
                                             if tmpLFN in output_lfns:
                                                 continue
                                             output_lfns.add(tmpLFN)

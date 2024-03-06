@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 
-from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 
 try:
@@ -15,7 +14,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
-for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
+for loggerName, loggerObj in logging.Logger.manager.loggerDict.items():
     if loggerName.startswith("panda.log"):
         if len(loggerObj.handlers) == 0:
             continue

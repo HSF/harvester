@@ -8,7 +8,7 @@ from pandaharvester.harvestercore.job_spec import JobSpec
 
 rID = sys.argv[1]
 taskid = rID.split("-")[0]
-pandaid = long(rID.split("-")[1])
+pandaid = int(rID.split("-")[1])
 
 job = JobSpec()
 job.PandaID = pandaid

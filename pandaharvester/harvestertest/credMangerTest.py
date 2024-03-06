@@ -1,7 +1,6 @@
 import logging
 import sys
 
-from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -52,7 +51,7 @@ for moduleName, className, inCertFile, outCertFile, voms in zip(moduleNames, cla
     exeCores.append(exeCore)
 
 # setup logger to write to screen also
-for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
+for loggerName, loggerObj in logging.Logger.manager.loggerDict.items():
     if loggerName.startswith("panda.log"):
         if len(loggerObj.handlers) == 0:
             continue

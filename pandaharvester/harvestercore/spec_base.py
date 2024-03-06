@@ -7,7 +7,6 @@ import json
 import pickle
 
 import rpyc
-from future.utils import iteritems
 
 try:
     from json.decoder import JSONDecodeError
@@ -207,5 +206,5 @@ class SpecBase(object):
 
     # set attributes
     def set_attributes_with_dict(self, attr_dict):
-        for attr, val in iteritems(attr_dict):
+        for attr, val in attr_dict.items():
             setattr(self, attr, val)

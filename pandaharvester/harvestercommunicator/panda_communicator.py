@@ -21,13 +21,13 @@ import zlib
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
-from future.utils import iteritems
 
 try:
     requests.packages.urllib3.disable_warnings()
 except Exception:
     pass
 from pandacommon.pandautils.net_utils import get_http_adapter_with_random_dns_resolution
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc import idds_utils
@@ -197,7 +197,7 @@ class PandaCommunicator(BaseCommunicator):
         data["nJobs"] = n_jobs
         data["schedulerID"] = f"harvester-{harvester_config.master.harvester_id}"
         if additional_criteria is not None:
-            for tmpKey, tmpVal in iteritems(additional_criteria):
+            for tmpKey, tmpVal in additional_criteria.items():
                 data[tmpKey] = tmpVal
         sw = core_utils.get_stopwatch()
         tmpStat, tmpRes = self.post_ssl("getJob", data)
@@ -324,7 +324,7 @@ class PandaCommunicator(BaseCommunicator):
             getEventsChunkSize = harvester_config.pandacon.getEventsChunkSize
         except Exception:
             getEventsChunkSize = 5120
-        for pandaID, data in iteritems(data_map):
+        for pandaID, data in data_map.items():
             # get logger
             tmpLog = self.make_logger(f"PandaID={data['pandaID']}", method_name="get_event_ranges")
             if "nRanges" in data:
@@ -583,7 +583,7 @@ class PandaCommunicator(BaseCommunicator):
         tmpLog = self.make_logger(method_name="is_alive")
         tmpLog.debug("start")
         # convert datetime
-        for tmpKey, tmpVal in iteritems(key_values):
+        for tmpKey, tmpVal in key_values.items():
             if isinstance(tmpVal, datetime.datetime):
                 tmpVal = "datetime/" + tmpVal.strftime("%Y-%m-%d %H:%M:%S.%f")
                 key_values[tmpKey] = tmpVal

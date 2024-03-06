@@ -2,7 +2,6 @@ import datetime
 import threading
 import uuid
 
-from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -83,7 +82,7 @@ class DummyBulkPreparator(PluginBase):
         # check transfer with real transfer IDs
         # ...
         # then update transfer status if successful
-        for transferID, transferInfo in iteritems(groups):
+        for transferID, transferInfo in groups.items():
             jobspec.update_group_status_in_files(transferID, "done")
         return True, ""
 
@@ -101,7 +100,7 @@ class DummyBulkPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = f"dummypath/{inLFN}"
         # set
         jobspec.set_input_file_paths(inFiles)

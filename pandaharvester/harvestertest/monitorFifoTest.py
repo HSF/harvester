@@ -3,7 +3,6 @@ import random
 import sys
 import time
 
-from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.fifos import MonitorFIFO
 from pandaharvester.harvestercore.job_spec import JobSpec

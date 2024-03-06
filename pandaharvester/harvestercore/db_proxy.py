@@ -13,8 +13,6 @@ import sys
 import threading
 import time
 
-from future.utils import iteritems
-
 from pandaharvester.harvesterconfig import harvester_config
 
 from . import core_utils
@@ -742,7 +740,7 @@ class DBProxy(object):
             sql += "WHERE PandaID=:PandaID "
             # update job
             varMap = jobspec.values_map(only_changed=True)
-            for tmpKey, tmpVal in iteritems(criteria):
+            for tmpKey, tmpVal in criteria.items():
                 mapKey = f":{tmpKey}_cr"
                 sql += f"AND {tmpKey}={mapKey} "
                 varMap[mapKey] = tmpVal
@@ -851,7 +849,7 @@ class DBProxy(object):
             # update worker
             varMap = workspec.values_map(only_changed=True)
             if len(varMap) > 0:
-                for tmpKey, tmpVal in iteritems(criteria):
+                for tmpKey, tmpVal in criteria.items():
                     mapKey = f":{tmpKey}_cr"
                     sql += f"AND {tmpKey}={mapKey} "
                     varMap[mapKey] = tmpVal
@@ -2094,7 +2092,7 @@ class DBProxy(object):
             for tmpWorkerID, tmpWorkStatus in resW:
                 tmpWorkers[tmpWorkerID] = tmpWorkStatus
             retVal = {}
-            for workerID, workStatus in iteritems(tmpWorkers):
+            for workerID, workStatus in tmpWorkers.items():
                 # lock worker
                 varMap = dict()
                 varMap[":workerID"] = workerID
@@ -3691,7 +3689,7 @@ class DBProxy(object):
             varMap[":timeLimit"] = modTimeLimit
             sqlW = f"SELECT workerID, configID FROM {workTableName} "
             sqlW += "WHERE lastUpdate IS NULL AND ("
-            for tmpStatus, tmpTimeout in iteritems(status_timeout_map):
+            for tmpStatus, tmpTimeout in status_timeout_map.items():
                 tmpStatusKey = f":status_{tmpStatus}"
                 tmpTimeoutKey = f":timeLimit_{tmpStatus}"
                 sqlW += f"(status={tmpStatusKey} AND endTime<={tmpTimeoutKey}) OR "
@@ -3993,9 +3991,9 @@ class DBProxy(object):
             ret_map = dict()
             queue_name = site_name
 
-            for job_type, job_values in iteritems(params):
+            for job_type, job_values in params.items():
                 ret_map.setdefault(job_type, {})
-                for resource_type, value in iteritems(job_values):
+                for resource_type, value in job_values.items():
                     tmpLog.debug(f"Processing rt {resource_type} -> {value}")
 
                     # get num of submitted workers
@@ -4057,7 +4055,7 @@ class DBProxy(object):
             sqlW += "WHERE wt.computingSite=pq.queueName AND wt.status=:status "
             # get worker stats
             varMap = dict()
-            for attr, val in iteritems(criteria):
+            for attr, val in criteria.items():
                 if attr == "timeLimit":
                     sqlW += "AND wt.submitTime>:timeLimit "
                     varMap[":timeLimit"] = val
@@ -4995,7 +4993,7 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, method_name="lock_worker")
             tmpLog.debug("start")
             # loop
-            for worker_id, attrs in iteritems(worker_id_list):
+            for worker_id, attrs in worker_id_list.items():
                 varMap = dict()
                 varMap[":workerID"] = worker_id
                 varMap[":timeNow"] = timeNow
@@ -5010,7 +5008,7 @@ class DBProxy(object):
                     del attrs["lockedBy"]
                 # sql to lock worker
                 sqlL = f"UPDATE {workTableName} SET modificationTime=:timeNow"
-                for attrKey, attrVal in iteritems(attrs):
+                for attrKey, attrVal in attrs.items():
                     sqlL += ",{0}=:{0}".format(attrKey)
                     varMap[f":{attrKey}"] = attrVal
                 sqlL += " WHERE workerID=:workerID AND (lockedBy IS NULL "
@@ -5595,7 +5593,7 @@ class DBProxy(object):
                 "submissionHost": params.get("submissionHost", []),
             }
             tmpLog.debug(f"query {constraint_map}")
-            for attribute, match_list in iteritems(constraint_map):
+            for attribute, match_list in constraint_map.items():
                 if match_list == "ALL":
                     pass
                 elif not match_list:

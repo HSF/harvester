@@ -7,7 +7,6 @@ import datetime
 import os
 import re
 
-from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 
 from .spec_base import SpecBase
@@ -275,7 +274,7 @@ class WorkSpec(SpecBase):
             return
         if self.workParams is None and data is not None:
             self.workParams = dict()
-        for key, val in iteritems(data):
+        for key, val in data.items():
             if key not in self.workParams or self.workParams[key] != val:
                 self.workParams[key] = val
                 self.force_update("workParams")
@@ -298,7 +297,7 @@ class WorkSpec(SpecBase):
             return
         if self.workAttributes is None and data is not None:
             self.workAttributes = dict()
-        for key, val in iteritems(data):
+        for key, val in data.items():
             if key not in self.workAttributes or self.workAttributes[key] != val:
                 self.workAttributes[key] = val
                 self.force_update("workAttributes")
@@ -321,7 +320,7 @@ class WorkSpec(SpecBase):
             self.logFilesToUpload = dict()
         if stream_type is not None:
             # delete existing stream
-            for tmp_file_path, tmpDict in iteritems(self.logFilesToUpload.copy()):
+            for tmp_file_path, tmpDict in self.logFilesToUpload.copy().items():
                 if tmpDict["stream_type"] == stream_type:
                     del self.logFilesToUpload[tmp_file_path]
         if file_path not in self.logFilesToUpload:
@@ -354,7 +353,7 @@ class WorkSpec(SpecBase):
     def get_log_files_to_upload(self):
         retList = []
         if self.logFilesToUpload is not None:
-            for filePath, fileInfo in iteritems(self.logFilesToUpload):
+            for filePath, fileInfo in self.logFilesToUpload.items():
                 if not os.path.exists(filePath):
                     continue
                 fileSize = os.stat(filePath).st_size

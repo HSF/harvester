@@ -17,7 +17,6 @@ authors = [
 dependencies = [
     'requests',
     'python-daemon',
-    'future',
     'pycryptodomex',
     'panda-common',
     'pyjwt',

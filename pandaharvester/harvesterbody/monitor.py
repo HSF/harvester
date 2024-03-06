@@ -4,7 +4,6 @@ import itertools
 import random
 import time
 
-from future.utils import iteritems
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -98,8 +97,8 @@ class Monitor(AgentBase):
                 )
                 mainLog.debug(f"got {len(workSpecsPerQueue)} queues")
                 # loop over all workers
-                for queueName, configIdWorkSpecs in iteritems(workSpecsPerQueue):
-                    for configID, workSpecsList in iteritems(configIdWorkSpecs):
+                for queueName, configIdWorkSpecs in workSpecsPerQueue.items():
+                    for configID, workSpecsList in configIdWorkSpecs.items():
                         try:
                             retVal = self.monitor_agent_core(lockedBy, queueName, workSpecsList, config_id=configID, check_source="DB")
                         except Exception as e:
@@ -162,7 +161,7 @@ class Monitor(AgentBase):
                         # digest events of worker update
                         to_run_fifo_check = False
                         retMap = self.monitor_event_digester(locked_by=lockedBy, max_events=eventBasedCheckMaxEvents)
-                        for qc_key, retVal in iteritems(retMap):
+                        for qc_key, retVal in retMap.items():
                             workSpecsToEnqueue, workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = retVal
                             # only enqueue postprocessing workers to FIFO
                             obj_to_enqueue_to_head_dict[qc_key][0].extend(workSpecsToEnqueueToHead)
@@ -280,7 +279,7 @@ class Monitor(AgentBase):
                 n_chunk_put = 0
                 mainLog.debug("putting worker chunks to FIFO")
                 for _dct in (obj_to_enqueue_dict, remaining_obj_to_enqueue_dict):
-                    for (queueName, configID), obj_to_enqueue in iteritems(_dct):
+                    for (queueName, configID), obj_to_enqueue in _dct.items():
                         try:
                             workSpecsToEnqueue, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue
                             if workSpecsToEnqueue:
@@ -292,7 +291,7 @@ class Monitor(AgentBase):
                             mainLog.error(f"failed to put object from FIFO: {errStr}")
                 mainLog.debug("putting worker chunks to FIFO head")
                 for _dct in (obj_to_enqueue_to_head_dict, remaining_obj_to_enqueue_to_head_dict):
-                    for (queueName, configID), obj_to_enqueue_to_head in iteritems(_dct):
+                    for (queueName, configID), obj_to_enqueue_to_head in _dct.items():
                         try:
                             workSpecsToEnqueueToHead, timeNow_timestamp, fifoCheckInterval = obj_to_enqueue_to_head
                             if workSpecsToEnqueueToHead:
@@ -794,8 +793,8 @@ class Monitor(AgentBase):
         if len(workerID_list) > 0:
             updated_workers_dict = self.dbProxy.get_workers_from_ids(workerID_list)
             tmpLog.debug("got workspecs for worker events")
-            for queueName, _val in iteritems(updated_workers_dict):
-                for configID, workSpecsList in iteritems(_val):
+            for queueName, _val in updated_workers_dict.items():
+                for configID, workSpecsList in _val.items():
                     qc_key = (queueName, configID)
                     tmpLog.debug("checking workers of queueName={0} configID={1}".format(*qc_key))
                     try:

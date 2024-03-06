@@ -1,8 +1,6 @@
 import threading
 import time
 
-from future.utils import iteritems
-
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.core_utils import SingletonWithID
 from pandaharvester.harvestercore.db_interface import DBInterface
@@ -42,7 +40,7 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
             panda_queues_cache = self.dbInterface.get_cache(self.cacher_key)
             if panda_queues_cache and isinstance(panda_queues_cache.data, dict):
                 panda_queues_dict = panda_queues_cache.data
-                for k, v in iteritems(panda_queues_dict):
+                for k, v in panda_queues_dict.items():
                     try:
                         panda_resource = v["panda_resource"]
                         assert k == v["nickname"]
@@ -106,7 +104,7 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
     @to_refresh
     def get_all_queue_names(self):
         names = set()
-        for queue_name, queue_dict in iteritems(self):
+        for queue_name, queue_dict in self.items():
             if queue_dict.get("pilot_manager") in ["Harvester"] and queue_dict.get("harvester") == harvesterID:
                 names.add(queue_name)
         return names

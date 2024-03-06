@@ -5,7 +5,6 @@ try:
 except ImportError:
     from scandir import walk
 
-from future.utils import iteritems
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -75,8 +74,8 @@ class Sweeper(AgentBase):
             main_log.debug(f"got {len(workers_to_kill)} queues to kill workers")
             # loop over all workers
             sw = core_utils.get_stopwatch()
-            for queue_name, configIdWorkSpecList in iteritems(workers_to_kill):
-                for configID, workspec_list in iteritems(configIdWorkSpecList):
+            for queue_name, configIdWorkSpecList in workers_to_kill.items():
+                for configID, workspec_list in configIdWorkSpecList.items():
                     # get sweeper
                     if not self.queueConfigMapper.has_queue(queue_name, configID):
                         main_log.error(f"queue config for {queue_name}/{configID} not found")
@@ -140,8 +139,8 @@ class Sweeper(AgentBase):
             workersForCleanup = self.dbProxy.get_workers_for_cleanup(harvester_config.sweeper.maxWorkers, statusTimeoutMap)
             main_log.debug(f"got {len(workersForCleanup)} queues for workers cleanup")
             sw = core_utils.get_stopwatch()
-            for queue_name, configIdWorkSpecList in iteritems(workersForCleanup):
-                for configID, workspec_list in iteritems(configIdWorkSpecList):
+            for queue_name, configIdWorkSpecList in workersForCleanup.items():
+                for configID, workspec_list in configIdWorkSpecList.items():
                     # get sweeper
                     if not self.queueConfigMapper.has_queue(queue_name, configID):
                         main_log.error(f"queue config for {queue_name}/{configID} not found")

@@ -1,7 +1,6 @@
 import datetime
 import socket
 
-from future.utils import iteritems
 from pandaharvester import commit_timestamp, panda_pkg_info
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
@@ -36,7 +35,7 @@ class CommandManager(AgentBase):
         for command in commands:
             command_spec = CommandSpec()
             command_spec.convert_command_json(command)
-            for comStr, receiver in iteritems(CommandSpec.receiver_map):
+            for comStr, receiver in CommandSpec.receiver_map.items():
                 if command_spec.command.startswith(comStr):
                     command_spec.receiver = receiver
                     break
@@ -55,7 +54,7 @@ class CommandManager(AgentBase):
             # send command list to be received
             siteNames = set()
             commandList = []
-            for queueName, queueConfig in iteritems(self.queueConfigMapper.get_active_queues()):
+            for queueName, queueConfig in self.queueConfigMapper.get_active_queues().items():
                 if queueConfig is None or queueConfig.runMode != "slave":
                     continue
                 # one command for all queues in one site

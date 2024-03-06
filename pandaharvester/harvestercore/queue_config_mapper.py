@@ -5,8 +5,6 @@ import json
 import os
 import threading
 
-from future.utils import iteritems
-
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -98,7 +96,7 @@ class QueueConfig(object):
 
     # update attributes
     def update_attributes(self, data):
-        for k, v in iteritems(data):
+        for k, v in data.items():
             setattr(self, k, v)
 
     # get synchronization level between job and worker
@@ -377,7 +375,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 mainLog.warning(f"Found cacher data outdated ({str(self.last_cache_ts)} < {str(self.cache_to_fill_pq_table_time)})")
             if queueConfigJson_cacher is not None:
                 mainLog.debug("Applying cacher data")
-                for queueName, queueDict in iteritems(queueConfigJson_cacher):
+                for queueName, queueDict in queueConfigJson_cacher.items():
                     if queueDict.get("isTemplateQueue") is True or queueName.endswith("_TEMPLATE"):
                         # is RT
                         queueDict["isTemplateQueue"] = True
@@ -391,7 +389,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             queueConfigJson_local = self._load_config_from_file()
             if queueConfigJson_local is not None:
                 mainLog.debug("Applying local config")
-                for queueName, queueDict in iteritems(queueConfigJson_local):
+                for queueName, queueDict in queueConfigJson_local.items():
                     if queueDict.get("isTemplateQueue") is True or queueName.endswith("_TEMPLATE"):
                         # is LT
                         queueDict["isTemplateQueue"] = True
@@ -409,7 +407,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             finalTemplatesDict.pop(None, None)
             # remove queues with invalid templateQueueName
             for acr, queuesDict in [("RQ", remoteQueuesDict), ("LQ", localQueuesDict)]:
-                for queueName, queueDict in iteritems(queuesDict.copy()):
+                for queueName, queueDict in queuesDict.copy().items():
                     templateQueueName = queueDict.get("templateQueueName")
                     if templateQueueName is not None and templateQueueName not in finalTemplatesDict:
                         del queuesDict[queueName]
@@ -439,7 +437,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                         continue
                     # parameters
                     resolver_harvester_params = resolver.get_harvester_params(queueName)
-                    for key, val in iteritems(resolver_harvester_params):
+                    for key, val in resolver_harvester_params.items():
                         if key in self.dynamic_queue_generic_attrs:
                             queueDict[key] = val
                     # fill in dynamic queue configs
@@ -478,7 +476,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                         continue
                     queueSourceList.append(acr)
                     tmp_queueDict = queuesDict[queueName]
-                    for key, val in iteritems(tmp_queueDict):
+                    for key, val in tmp_queueDict.items():
                         val = copy.deepcopy(val)
                         if key in self.updatable_plugin_attrs and isinstance(queueDict.get(key), dict) and isinstance(val, dict):
                             # update plugin parameters instead of overwriting whole plugin section
@@ -506,12 +504,12 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 if isinstance(queueDict.get("common"), dict):
                     commonAttrDict = queueDict.get("common")
                 # according to queueDict
-                for key, val in iteritems(queueDict):
+                for key, val in queueDict.items():
                     if isinstance(val, dict) and "module" in val and "name" in val:
                         # plugin attributes
                         val = copy.deepcopy(val)
                         # fill in common attributes for all plugins
-                        for c_key, c_val in iteritems(commonAttrDict):
+                        for c_key, c_val in commonAttrDict.items():
                             if c_key not in val and c_key not in ("module", "name"):
                                 val[c_key] = c_val
                         # check module and class name
@@ -535,7 +533,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                             # keep original config
                             val["original_config"] = copy.deepcopy(val)
                             # overwrite with middleware config
-                            for m_key, m_val in iteritems(queueDict[val["middleware"]]):
+                            for m_key, m_val in queueDict[val["middleware"]].items():
                                 val[m_key] = m_val
                     setattr(queueConfig, key, val)
                 # delete isTemplateQueue attribute
@@ -594,7 +592,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             queueConfigDumps = self.dbProxy.get_queue_config_dumps()
             # get active queues
             activeQueues = dict()
-            for queueName, queueConfig in iteritems(newQueueConfig):
+            for queueName, queueConfig in newQueueConfig.items():
                 # get status
                 if queueConfig.queueStatus is None and autoBlacklist:
                     queueConfig.queueStatus = resolver.get_queue_status(queueName)
@@ -708,7 +706,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         """
         active_ups_queues = []
         active_queues = self.get_active_queues()
-        for queue_name, queue_attribs in iteritems(active_queues):
+        for queue_name, queue_attribs in active_queues.items():
             try:
                 if queue_attribs.runMode == "slave" and queue_attribs.mapType == "NoJob":
                     active_ups_queues.append(queue_name)
