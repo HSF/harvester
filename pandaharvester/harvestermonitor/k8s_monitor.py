@@ -150,7 +150,7 @@ class K8sMonitor(PluginBase):
             pods_sup_diag_list = []
             if job_id in self._all_workers_dict:
                 worker_info = self._all_workers_dict[job_id]
-                tmp_log.debug("worker info: {worker_info}")
+                tmp_log.debug(f"worker info: {worker_info}")
 
                 # make list of status of the pods belonging to our job
                 if "pod_status" in worker_info and "containers_state" in worker_info and "pod_name" in worker_info:
