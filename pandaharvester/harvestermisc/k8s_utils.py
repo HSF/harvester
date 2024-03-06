@@ -263,14 +263,21 @@ class k8s_Client(object):
         return rsp, yaml_content
 
     def generate_ls_from_wsl(self, workspec_list=[]):
+        """
+        Generate the label selector string from a workspec list.
+
+        Args:
+            workspec_list (list): A list of WorkSpec objects.
+
+        Returns:
+            str: The generated label selector string.
+        """
         if workspec_list:
             batch_ids_list = [workspec.batchID for workspec in workspec_list if workspec.batchID]
             batch_ids_concat = ",".join(batch_ids_list)
-            label_selector = f"job-name in ({batch_ids_concat})"
-        else:
-            label_selector = ""
+            return f"job-name in ({batch_ids_concat})"
 
-        return label_selector
+        return ""
 
     def get_workers_info(self, workspec_list=[]):
         tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="get_workers_info")
