@@ -201,7 +201,7 @@ class K8sMonitor(PluginBase):
                 new_status, exit_code, sub_msg = self.check_pods_status(pods_status_list, pods_status_message_list, containers_state_list, containers_exit_code_list)
                 if sub_msg:
                     error_message += sub_msg
-                tmp_log.debug(f"new_status={new_status} -> {error_message}")
+                tmp_log.debug(f"new_status={new_status}, error_message={error_message}")
 
                 # Double check the job is not in failed or completed state and override the pod status
                 if new_status == WorkSpec.ST_running:
@@ -215,7 +215,7 @@ class K8sMonitor(PluginBase):
                 new_status, sub_msg = self.check_job_status(job_status, job_status_reason, job_status_message, n_pods_succeeded, n_pods_failed)
                 if sub_msg:
                     error_message += sub_msg
-                tmp_log.debug(f"new_status={new_status} -> {error_message}")
+                tmp_log.debug(f"new_status={new_status}, error_message={error_message}")
 
             # delete pods that have been queueing too long
             if pods_name_to_delete_list:
@@ -238,8 +238,10 @@ class K8sMonitor(PluginBase):
             # Extend the base error message with the information found querying the job and pods
             sup_error_diag += error_message
 
+            tmp_log.debug(f"setting sup_error_code={sup_error_code}, sup_error_diag={sup_error_diag}")
             workspec.set_supplemental_error(error_code=sup_error_code, error_diag=sup_error_diag)
 
+        tmp_log.debug(f"returning new_status={new_status}, sup_error_diag={sup_error_diag}")
         return new_status, sup_error_diag
 
     def check_workers(self, workspec_list):
