@@ -203,6 +203,14 @@ class K8sMonitor(PluginBase):
                 if sub_msg:
                     error_message += sub_msg
                 tmp_log.debug(f"new_status={new_status}")
+
+                # Double check the job is not in failed or completed state and override the pod status
+                if new_status == WorkSpec.ST_running:
+                    job_status, job_msg = self.check_job_status(job_status, job_status_reason, job_status_message, n_pods_succeeded, n_pods_failed)
+                    if job_status:
+                        new_status = job_status
+                        error_message += job_msg
+
             # we didn't find the pod, but there was still a job for the worker
             else:
                 new_status, sub_msg = self.check_job_status(job_status, job_status_reason, job_status_message, n_pods_succeeded, n_pods_failed)
