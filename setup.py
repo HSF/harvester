@@ -28,7 +28,6 @@ setup(
     install_requires=[
         "requests",
         "python-daemon",
-        "future",
         "pycryptodomex",
         "panda-common",
         "pyjwt",
