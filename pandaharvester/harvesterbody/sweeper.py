@@ -1,9 +1,5 @@
 import os
-
-try:
-    from os import walk
-except ImportError:
-    from scandir import walk
+from os import walk
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config

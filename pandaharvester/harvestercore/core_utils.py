@@ -11,6 +11,7 @@ import functools
 import inspect
 import math
 import os
+import pickle
 import random
 import socket
 import sys
@@ -20,21 +21,11 @@ import traceback
 import uuid
 import zlib
 from contextlib import contextmanager
+from threading import get_ident
 
 import Cryptodome.Cipher.AES
 import Cryptodome.Hash.HMAC
 import Cryptodome.Random
-
-try:
-    from threading import get_ident
-except ImportError:
-    from thread import get_ident
-
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
 from pandalogger.LogWrapper import LogWrapper
 from pandalogger.PandaLogger import PandaLogger
 

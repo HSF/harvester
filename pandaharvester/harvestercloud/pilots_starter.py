@@ -9,25 +9,16 @@ This script will be executed at container startup
 post-multipart code was taken from: https://github.com/haiwen/webapi-examples/blob/master/python/upload-file.py
 """
 
-import subprocess
-
-try:
-    import http.client as httplib  # for python 3
-except Exception:
-    import httplib  # for python 2
-
-try:
-    import urllib.parse as urlparse  # for python 3
-except ImportError:
-    import urlparse  # for python 2
-
+import http.client as httplib  # for python 3
 import logging
 import mimetypes
 import os
 import shutil
 import ssl
+import subprocess
 import sys
 import traceback
+import urllib.parse as urlparse  # for python 3
 
 WORK_DIR = "/scratch"
 CONFIG_DIR = "/scratch/jobconfig"

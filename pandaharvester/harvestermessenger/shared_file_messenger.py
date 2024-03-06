@@ -1,35 +1,20 @@
 import copy
 import datetime
+import fnmatch
 import itertools
 import json
-import os
-import shutil
-import tarfile
-
-try:
-    from urllib.parse import urlencode
-except ImportError:
-    from urllib import urlencode
-
-import subprocess
-
-try:
-    from os import scandir, walk
-except ImportError:
-    from scandir import scandir, walk
-
-try:
-    from shutil import which
-except ImportError:
-    # before python 3.3
-    from distutils.spawn import find_executable as which
-
-import fnmatch
 import multiprocessing
+import os
 import os.path
 import re
+import shutil
+import subprocess
+import tarfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor as Pool
+from os import scandir, walk
+from shutil import which
+from urllib.parse import urlencode
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils

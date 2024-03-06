@@ -2,11 +2,7 @@ import os
 import re
 import sqlite3
 import time
-
-try:
-    from threading import get_ident
-except ImportError:
-    from thread import get_ident
+from threading import get_ident
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore.plugin_base import PluginBase

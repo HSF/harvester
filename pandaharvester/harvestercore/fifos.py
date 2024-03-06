@@ -2,19 +2,11 @@ import collections
 import datetime
 import json
 import os
+import pickle
 import socket
 import time
 from calendar import timegm
-
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
-try:
-    from threading import get_ident
-except ImportError:
-    from thread import get_ident
+from threading import get_ident
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils

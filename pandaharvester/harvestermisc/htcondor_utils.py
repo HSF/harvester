@@ -10,11 +10,7 @@ import threading
 import time
 import traceback
 import xml.etree.ElementTree as ET
-
-try:
-    from threading import get_ident
-except ImportError:
-    from thread import get_ident
+from threading import get_ident
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils

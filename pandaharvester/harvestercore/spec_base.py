@@ -5,13 +5,9 @@ Base class for XyzSpec
 
 import json
 import pickle
+from json.decoder import JSONDecodeError
 
 import rpyc
-
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    JSONDecodeError = ValueError
 
 
 # encoder for non-native json objects
