@@ -187,6 +187,7 @@ class K8sMonitor(PluginBase):
             tmp_log.error(error_message)
             new_status = None
         else:
+            exit_code = 0
             # we didn't find neither the pod nor the job for the worker
             if not pods_status_list and not job_status:
                 # there were no pods found belonging to our job
