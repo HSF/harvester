@@ -29,7 +29,7 @@ class SimpleThrottler(PluginBase):
         # loop over all rules
         criteriaList = []
         maxMissedList = []
-        timeNow = datetime.datetime.utcnow()
+        timeNow = core_utils.naive_utcnow()
         for rule in self.rulesForMissed:
             # convert rule to criteria
             if rule["level"] == "site":

@@ -400,7 +400,7 @@ class Monitor(AgentBase):
                     workSpec.set_work_attributes(workAttributes)
                     workSpec.set_dialog_message(diagMessage)
                     if isChecked:
-                        workSpec.checkTime = datetime.datetime.utcnow()
+                        workSpec.checkTime = core_utils.naive_utcnow()
                     isCheckedList.append(isChecked)
                     if monStatus == WorkSpec.ST_failed:
                         if not workSpec.has_pilot_error() and workSpec.errorCode is None:
@@ -493,7 +493,7 @@ class Monitor(AgentBase):
                         and workSpec.mapType != WorkSpec.MT_MultiWorkers
                         and workSpec.workAttributes is not None
                     ):
-                        timeNow = datetime.datetime.utcnow()
+                        timeNow = core_utils.naive_utcnow()
                         timeNow_timestamp = time.time()
                         # get lastCheckAt
                         _bool, lastCheckAt = workSpec.get_work_params("lastCheckAt")
@@ -644,7 +644,7 @@ class Monitor(AgentBase):
             else:
                 tmp_log.debug("Nothing to be checked with plugin")
                 tmpOut = []
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             for workSpec, (newStatus, diagMessage) in itertools.chain(zip(workersToCheck, tmpOut), thingsToPostProcess):
                 workerID = workSpec.workerID
                 tmp_log.debug(f"Going to check workerID={workerID}")
@@ -736,7 +736,7 @@ class Monitor(AgentBase):
                                     # retry
                                     ppTimeOut = getattr(harvester_config.monitor, "postProcessTimeout", 0)
                                     if ppTimeOut > 0:
-                                        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=ppTimeOut)
+                                        timeLimit = core_utils.naive_utcnow() - datetime.timedelta(minutes=ppTimeOut)
                                         if workSpec.endTime is None or workSpec.endTime > timeLimit:
                                             isOK = False
                                             # set end time just in case for timeout

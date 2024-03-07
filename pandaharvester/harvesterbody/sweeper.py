@@ -36,7 +36,7 @@ class Sweeper(AgentBase):
         for command_spec in command_specs:
             n_to_kill = self.dbProxy.mark_workers_to_kill_by_query(command_spec.params)
             tmp_log.debug(f"will kill {n_to_kill} workers with {command_spec.params}")
-        tmp_log.debug(f"done handling {command_string} commands took {stopwatch.get_elapsed_time()}s")
+        tmp_log.debug(f"done handling {command_string} commands took {stopwatch.get_elapsed_time()}")
 
         # 2. SYNC_WORKERS_KILL commands from comparing worker status provided by pilot and harvester
         stopwatch = core_utils.get_stopwatch()
@@ -47,7 +47,7 @@ class Sweeper(AgentBase):
         for command_spec in command_specs:
             n_to_kill = self.dbProxy.mark_workers_to_kill_by_workerids(command_spec.params)
             tmp_log.debug(f"will kill {n_to_kill} workers with {command_spec.params}")
-        tmp_log.debug(f"done handling {command_string} commands took {stopwatch.get_elapsed_time()}s")
+        tmp_log.debug(f"done handling {command_string} commands took {stopwatch.get_elapsed_time()}")
 
     # main loop
     def run(self):

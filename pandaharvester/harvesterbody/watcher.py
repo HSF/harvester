@@ -28,7 +28,7 @@ class Watcher(AgentBase):
     # constructor
     def __init__(self, single_mode=False):
         AgentBase.__init__(self, single_mode)
-        self.startTime = datetime.datetime.utcnow()
+        self.startTime = core_utils.naive_utcnow()
 
     # main loop
     def run(self):
@@ -42,7 +42,7 @@ class Watcher(AgentBase):
     # main
     def execute(self):
         # avoid too early check
-        if not self.singleMode and datetime.datetime.utcnow() - self.startTime < datetime.timedelta(seconds=harvester_config.watcher.checkInterval):
+        if not self.singleMode and core_utils.naive_utcnow() - self.startTime < datetime.timedelta(seconds=harvester_config.watcher.checkInterval):
             return
         mainLog = core_utils.make_logger(_logger, f"id={self.get_pid()}", method_name="execute")
         mainLog.debug("start")
@@ -60,7 +60,7 @@ class Watcher(AgentBase):
                 actionsList = harvester_config.watcher.actions.split(",")
                 for logFileName in logFileNameList:
                     logFilePath = os.path.join(logDir, logFileName)
-                    timeNow = datetime.datetime.utcnow()
+                    timeNow = core_utils.naive_utcnow()
                     if os.path.exists(logFilePath):
                         # get latest timestamp
                         tmpLogDuration = None
@@ -132,7 +132,7 @@ class Watcher(AgentBase):
                                 # message
                                 msgBody = f"harvester {harvester_config.master.harvester_id} "
                                 msgBody += f"is having a problem on {socket.getfqdn()} "
-                                msgBody += f"at {datetime.datetime.utcnow()} (UTC)"
+                                msgBody += f"at {core_utils.naive_utcnow()} (UTC)"
                                 message = MIMEText(msgBody)
                                 message["Subject"] = "Harvester Alarm"
                                 message["From"] = harvester_config.watcher.mailFrom

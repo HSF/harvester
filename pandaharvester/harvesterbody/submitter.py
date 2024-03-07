@@ -209,7 +209,7 @@ class Submitter(AgentBase):
                                         tmp_log.debug(f"successfully made {len(okChunks)} workers")
                                     else:
                                         tmp_log.debug(f"made {len(okChunks)} workers, while {len(ngChunks)} workers failed")
-                                    timeNow = datetime.datetime.utcnow()
+                                    timeNow = core_utils.naive_utcnow()
                                     timeNow_timestamp = time.time()
                                     pandaIDs = set()
                                     # NG (=not good)
@@ -411,7 +411,7 @@ class Submitter(AgentBase):
                 if submitted and hasattr(harvester_config.submitter, "minSubmissionInterval"):
                     interval = harvester_config.submitter.minSubmissionInterval
                     if interval > 0:
-                        newTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=interval)
+                        newTime = core_utils.naive_utcnow() + datetime.timedelta(seconds=interval)
                         self.dbProxy.update_panda_queue_attribute("submitTime", newTime, site_name=site_name)
 
             # time the cycle

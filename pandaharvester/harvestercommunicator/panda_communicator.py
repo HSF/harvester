@@ -58,15 +58,15 @@ class PandaCommunicator(BaseCommunicator):
     def renew_token(self):
         if hasattr(harvester_config.pandacon, "auth_token"):
             if harvester_config.pandacon.auth_token.startswith("file:"):
-                if self.auth_token_last_update is not None and datetime.datetime.utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=60):
+                if self.auth_token_last_update is not None and core_utils.naive_utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=60):
                     return
                 with open(harvester_config.pandacon.auth_token.split(":")[-1]) as f:
                     self.auth_token = f.read()
-                    self.auth_token_last_update = datetime.datetime.utcnow()
+                    self.auth_token_last_update = core_utils.naive_utcnow()
             else:
                 if self.auth_token_last_update is None:
                     self.auth_token = harvester_config.pandacon.auth_token
-                    self.auth_token_last_update = datetime.datetime.utcnow()
+                    self.auth_token_last_update = core_utils.naive_utcnow()
 
     # POST with http
     def post(self, path, data):

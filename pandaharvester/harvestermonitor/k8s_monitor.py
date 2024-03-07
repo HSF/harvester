@@ -124,7 +124,7 @@ class K8sMonitor(PluginBase):
         # initialization
         job_id = workspec.batchID
         err_str = ""
-        time_now = datetime.datetime.utcnow()
+        time_now = core_utils.naive_utcnow()
         pods_status_list = []
         pods_status_message_list = []
         pods_name_to_delete_list = []

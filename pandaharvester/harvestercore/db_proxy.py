@@ -986,7 +986,7 @@ class DBProxy(object):
             sqlU += "WHERE queueName=:queueName "
             sqlU += "AND (jobFetchTime IS NULL OR jobFetchTime<:timeLimit) "
             # get queues
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             varMap = dict()
             varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=interval)
             self.execute(sqlQ, varMap)
@@ -1085,7 +1085,7 @@ class DBProxy(object):
             sqlC = f"SELECT {FileSpec.column_names()} FROM {fileTableName} "
             sqlC += "WHERE PandaID=:PandaID AND fileType=:type AND status=:status "
             # get jobs
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
             updateTimeLimit = timeNow - datetime.timedelta(seconds=update_interval)
             varMap = dict()
@@ -1216,7 +1216,7 @@ class DBProxy(object):
                 msgPfx = f"id={locked_by}"
             tmpLog = core_utils.make_logger(_logger, msgPfx, method_name="get_jobs_in_sub_status")
             tmpLog.debug(f"start subStatus={sub_status} timeColumn={time_column}")
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             # sql to count jobs being processed
             sqlC = f"SELECT COUNT(*) cnt FROM {jobTableName} "
             sqlC += f"WHERE ({lock_column} IS NOT NULL AND subStatus=:subStatus "
@@ -1480,7 +1480,7 @@ class DBProxy(object):
         tmpLog = core_utils.make_logger(_logger, f"locked_by={locked_by}", method_name="insert_workers")
         try:
             tmpLog.debug("start")
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             # sql to insert a worker
             sqlI = f"INSERT INTO {workTableName} ({WorkSpec.column_names()}) "
             sqlI += WorkSpec.bind_values_expression()
@@ -1542,7 +1542,7 @@ class DBProxy(object):
             sqlU += "WHERE siteName=:siteName "
             sqlU += "AND (submitTime IS NULL OR submitTime<:timeLimit) "
             # get sites
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             varMap = dict()
             varMap[":lockTimeLimit"] = timeNow - datetime.timedelta(seconds=queue_lock_interval)
             varMap[":lookupTimeLimit"] = timeNow - datetime.timedelta(seconds=lookup_interval)
@@ -1695,7 +1695,7 @@ class DBProxy(object):
             sqlL = f"UPDATE {jobTableName} SET submitterTime=:timeNow,lockedBy=:lockedBy "
             sqlL += sqlCore
             sqlL += "AND PandaID=:PandaID "
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
             checkTimeLimit = timeNow - datetime.timedelta(seconds=check_interval)
             # sql to get file
@@ -1870,7 +1870,7 @@ class DBProxy(object):
             sqlP = f"SELECT PandaID FROM {jobWorkerTableName} "
             sqlP += "WHERE workerID=:workerID "
             # get workerIDs
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
             checkTimeLimit = timeNow - datetime.timedelta(seconds=check_interval)
             varMap = dict()
@@ -2005,7 +2005,7 @@ class DBProxy(object):
             # sql to get workers
             sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} "
             sqlG += "WHERE workerID=:workerID "
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             timeLimit = timeNow - datetime.timedelta(seconds=check_interval)
             # get workerIDs
             varMap = dict()
@@ -2079,7 +2079,7 @@ class DBProxy(object):
             sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} "
             sqlG += "WHERE workerID=:workerID "
             # get workerIDs
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
             varMap = dict()
             varMap[":status1"] = WorkSpec.ST_running
@@ -2131,7 +2131,7 @@ class DBProxy(object):
     # update jobs and workers
     def update_jobs_workers(self, jobspec_list, workspec_list, locked_by, panda_ids_list=None):
         try:
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             # sql to check job
             sqlCJ = f"SELECT status FROM {jobTableName} WHERE PandaID=:PandaID FOR UPDATE "
             # sql to check file
@@ -2528,7 +2528,7 @@ class DBProxy(object):
             sqlF += "WHERE PandaID=:PandaID AND zipFileID IS NULL "
             # get jobs
             jobChunkList = []
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             varMap = dict()
             varMap[":workerID"] = worker_id
             self.execute(sqlP, varMap)
@@ -2725,7 +2725,7 @@ class DBProxy(object):
             # sql to increment attempt number
             sqlFU = f"UPDATE {fileTableName} SET attemptNr=attemptNr+1 WHERE fileID=:fileID "
             # get jobs
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=interval_with_lock)
             updateTimeLimit = timeNow - datetime.timedelta(seconds=interval_without_lock)
             varMap = dict()
@@ -2865,7 +2865,7 @@ class DBProxy(object):
             varMap = dict()
             varMap[":PandaID"] = jobspec.PandaID
             varMap[":lockedBy"] = locked_by
-            varMap[":timeNow"] = datetime.datetime.utcnow()
+            varMap[":timeNow"] = core_utils.naive_utcnow()
             self.execute(sqlLJ, varMap)
             nRow = self.cur.rowcount
             # check just in case since nRow can be 0 if two lock actions are too close in time
@@ -2928,7 +2928,7 @@ class DBProxy(object):
                     varMap = dict()
                     varMap[":PandaID"] = jobspec.PandaID
                     varMap[":lockedBy"] = locked_by
-                    varMap[":timeNow"] = datetime.datetime.utcnow()
+                    varMap[":timeNow"] = core_utils.naive_utcnow()
                     self.execute(sqlLJ, varMap)
                     # commit
                     self.commit()
@@ -3112,7 +3112,7 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, f"mainKey={main_key} subKey={sub_key}", method_name="refresh_cache")
             # make spec
             cacheSpec = CacheSpec()
-            cacheSpec.lastUpdate = datetime.datetime.utcnow()
+            cacheSpec.lastUpdate = core_utils.naive_utcnow()
             cacheSpec.data = new_info
             # check if already there
             varMap = dict()
@@ -3370,7 +3370,7 @@ class DBProxy(object):
             # sql to get workers
             sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} "
             sqlG += "WHERE workerID=:workerID "
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             timeLimit = timeNow - datetime.timedelta(seconds=check_interval)
             # get workerIDs
             varMap = dict()
@@ -3605,10 +3605,10 @@ class DBProxy(object):
             # set time to trigger sweeper
             if delay_seconds is None:
                 # set a past time to trigger sweeper immediately
-                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+                setTime = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
             else:
                 # set a future time to delay trigger
-                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
+                setTime = core_utils.naive_utcnow() + datetime.timedelta(seconds=delay_seconds)
             # get workers
             varMap = dict()
             varMap[":pandaID"] = panda_id
@@ -3649,10 +3649,10 @@ class DBProxy(object):
             # set time to trigger sweeper
             if delay_seconds is None:
                 # set a past time to trigger sweeper immediately
-                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+                setTime = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
             else:
                 # set a future time to delay trigger
-                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
+                setTime = core_utils.naive_utcnow() + datetime.timedelta(seconds=delay_seconds)
             varMaps = []
             for worker_id in worker_ids:
                 varMap = dict()
@@ -3683,7 +3683,7 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, method_name="get_workers_for_cleanup")
             tmpLog.debug("start")
             # sql to get worker IDs
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             modTimeLimit = timeNow - datetime.timedelta(minutes=60)
             varMap = dict()
             varMap[":timeLimit"] = modTimeLimit
@@ -3722,7 +3722,7 @@ class DBProxy(object):
             sqlD = "SELECT b.lfn,b.todelete  FROM {0} a, {0} b ".format(fileTableName)
             sqlD += "WHERE a.PandaID=:PandaID AND a.fileType IN (:fileType1,:fileType2) AND b.lfn=a.lfn "
             # get workerIDs
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             self.execute(sqlW, varMap)
             resW = self.cur.fetchall()
             retVal = dict()
@@ -4156,7 +4156,7 @@ class DBProxy(object):
             sqlD = f"DELETE FROM {processLockTableName} "
             sqlD += "WHERE lockTime<:timeLimit "
             varMap = dict()
-            varMap[":timeLimit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            varMap[":timeLimit"] = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
             self.execute(sqlD, varMap)
             # commit
             self.commit()
@@ -4168,7 +4168,7 @@ class DBProxy(object):
             self.execute(sqlC, varMap)
             resC = self.cur.fetchone()
             retVal = False
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             if resC is None:
                 # insert lock if missing
                 sqlI = f"INSERT INTO {processLockTableName} ({ProcessLockSpec.column_names()}) "
@@ -4466,7 +4466,7 @@ class DBProxy(object):
                     sqlU = f"UPDATE {jobTableName} SET {time_column}=:timeNow WHERE pandaID=:pandaID "
                     varMap = dict()
                     varMap[":pandaID"] = panda_id
-                    varMap[":timeNow"] = datetime.datetime.utcnow()
+                    varMap[":timeNow"] = core_utils.naive_utcnow()
                     self.execute(sqlU, varMap)
                     retVal = True
             # commit
@@ -4488,7 +4488,7 @@ class DBProxy(object):
             # get logger
             tmpLog = core_utils.make_logger(_logger, f"groupID={group_id}", method_name="set_file_group")
             tmpLog.debug("start")
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             # sql to update files
             sqlF = f"UPDATE {fileTableName} "
             sqlF += "SET groupID=:groupID,groupStatus=:groupStatus,groupUpdateTime=:groupUpdateTime "
@@ -4712,7 +4712,7 @@ class DBProxy(object):
             sqlW += "(wt.starttime >= :timeWindowStart AND wt.starttime < :timeWindowEnd) ) "
             sqlW += "GROUP BY wt.status,wt.computingElement "
             # time window start and end
-            timeWindowEnd = datetime.datetime.utcnow()
+            timeWindowEnd = core_utils.naive_utcnow()
             timeWindowStart = timeWindowEnd - datetime.timedelta(seconds=time_window)
             timeWindowMiddle = timeWindowEnd - datetime.timedelta(seconds=time_window / 2)
             # get worker CE throughput
@@ -4757,7 +4757,7 @@ class DBProxy(object):
             sqlS = f"SELECT diagID FROM {diagTableName} "
             sqlS += "WHERE creationTime<:timeLimit "
             varMap = dict()
-            varMap[":timeLimit"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+            varMap[":timeLimit"] = core_utils.naive_utcnow() - datetime.timedelta(minutes=60)
             self.execute(sqlS, varMap)
             resS = self.cur.fetchall()
             sqlD = f"DELETE FROM {diagTableName} "
@@ -4771,7 +4771,7 @@ class DBProxy(object):
             # make spec
             diagSpec = DiagSpec()
             diagSpec.moduleName = module_name
-            diagSpec.creationTime = datetime.datetime.utcnow()
+            diagSpec.creationTime = core_utils.naive_utcnow()
             diagSpec.messageLevel = level
             try:
                 diagSpec.identifier = identifier[:100]
@@ -4813,7 +4813,7 @@ class DBProxy(object):
             sqlM = f"SELECT {DiagSpec.column_names()} FROM {diagTableName} "
             sqlM += "WHERE diagID=:diagID "
             # select messages
-            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(seconds=lock_interval)
+            timeLimit = core_utils.naive_utcnow() - datetime.timedelta(seconds=lock_interval)
             varMap = dict()
             varMap[":timeLimit"] = timeLimit
             self.execute(sqlD, varMap)
@@ -4824,7 +4824,7 @@ class DBProxy(object):
                 varMap = dict()
                 varMap[":diagID"] = diagID
                 varMap[":timeLimit"] = timeLimit
-                varMap[":timeNow"] = datetime.datetime.utcnow()
+                varMap[":timeNow"] = core_utils.naive_utcnow()
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
                 if nRow == 1:
@@ -4901,8 +4901,8 @@ class DBProxy(object):
             # get jobs
             varMap = dict()
             varMap[":subStatus"] = "done"
-            varMap[":timeLimit1"] = datetime.datetime.utcnow() - datetime.timedelta(hours=timeout)
-            varMap[":timeLimit2"] = datetime.datetime.utcnow() - datetime.timedelta(hours=timeout * 2)
+            varMap[":timeLimit1"] = core_utils.naive_utcnow() - datetime.timedelta(hours=timeout)
+            varMap[":timeLimit2"] = core_utils.naive_utcnow() - datetime.timedelta(hours=timeout * 2)
             self.execute(sqlGJ, varMap)
             resGJ = self.cur.fetchall()
             nDel = 0
@@ -4948,7 +4948,7 @@ class DBProxy(object):
             sqlJ += "WHERE j.PandaID=jw.PandaID AND jw.workerID=:workerID "
             # parameter map
             varMap = dict()
-            varMap[":timeLimit"] = datetime.datetime.utcnow() - datetime.timedelta(seconds=seconds_ago)
+            varMap[":timeLimit"] = core_utils.naive_utcnow() - datetime.timedelta(seconds=seconds_ago)
             varMap[":st_submitted"] = WorkSpec.ST_submitted
             varMap[":st_running"] = WorkSpec.ST_running
             varMap[":st_idle"] = WorkSpec.ST_idle
@@ -4986,7 +4986,7 @@ class DBProxy(object):
     # lock workers for specific thread
     def lock_workers(self, worker_id_list, lock_interval):
         try:
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
             retVal = True
             # get logger
@@ -5039,7 +5039,7 @@ class DBProxy(object):
             retVal = dict()
             configIDs = set()
             # time limit
-            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+            timeLimit = core_utils.naive_utcnow() - datetime.timedelta(hours=24)
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name="get_queue_config_dumps")
             tmpLog.debug("start")
@@ -5373,7 +5373,7 @@ class DBProxy(object):
                     sqlU = f"UPDATE {workTableName} SET eventFeedTime=:timeNow WHERE workerID=:workerID "
                     varMap = dict()
                     varMap[":workerID"] = worker_id
-                    varMap[":timeNow"] = datetime.datetime.utcnow()
+                    varMap[":timeNow"] = core_utils.naive_utcnow()
                     self.execute(sqlU, varMap)
                     retVal = True
             # commit
@@ -5496,7 +5496,7 @@ class DBProxy(object):
             # sql to get associated PandaIDs
             sqlP = f"SELECT PandaID FROM {jobWorkerTableName} WHERE workerID=:workerID "
             # get workerIDs
-            timeNow = datetime.datetime.utcnow()
+            timeNow = core_utils.naive_utcnow()
             varMap = dict()
             varMap[":st_submitted"] = WorkSpec.ST_submitted
             varMap[":st_running"] = WorkSpec.ST_running
@@ -5610,10 +5610,10 @@ class DBProxy(object):
             # set time to trigger sweeper
             if delay_seconds is None:
                 # set a past time to trigger sweeper immediately
-                setTime = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+                setTime = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
             else:
                 # set a future time to delay trigger
-                setTime = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
+                setTime = core_utils.naive_utcnow() + datetime.timedelta(seconds=delay_seconds)
             # get workers
             varMap = dict()
             varMap.update(tmp_varMap)

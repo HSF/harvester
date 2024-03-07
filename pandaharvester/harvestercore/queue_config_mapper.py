@@ -253,7 +253,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         got_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
         if got_update_lock:
             if the_time is None:
-                the_time = datetime.datetime.utcnow()
+                the_time = core_utils.naive_utcnow()
             ts = the_time.timestamp()
             new_ts_info = f"{ts:.3f}"
             ret_val = self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_ts_info)
@@ -270,7 +270,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         if cacheSpec is None:
             return None
         timestamp = float(cacheSpec.data)
-        return datetime.datetime.utcfromtimestamp(timestamp)
+        return core_utils.naive_utcfromtimestamp(timestamp)
 
     # update last pq_table fill time
     def _update_pq_table(self, cache_time=None, refill_table=False):
@@ -278,7 +278,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         got_update_lock = self.dbProxy.get_process_lock("pq_table_fill", "qconf_universal", 120)
         if got_update_lock:
             fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
-            now_time = datetime.datetime.utcnow()
+            now_time = core_utils.naive_utcnow()
             if fill_ret_val:
                 now_ts = now_time.timestamp()
                 now_ts_info = f"{now_ts:.3f}"
@@ -301,7 +301,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         if cacheSpec is None:
             return None
         timestamp = float(cacheSpec.data)
-        return datetime.datetime.utcfromtimestamp(timestamp)
+        return core_utils.naive_utcfromtimestamp(timestamp)
 
     # get time of last cache used to fill pq_table
     def _get_cache_to_fill_pq_table_time(self):
@@ -309,14 +309,14 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         if cacheSpec is None:
             return None
         timestamp = float(cacheSpec.data)
-        return datetime.datetime.utcfromtimestamp(timestamp)
+        return core_utils.naive_utcfromtimestamp(timestamp)
 
     # load data
     def load_data(self, refill_table=False):
         mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="load_data")
         # check if to update
         with self.lock:
-            now_time = datetime.datetime.utcnow()
+            now_time = core_utils.naive_utcnow()
             updateInterval_td = datetime.timedelta(seconds=self.updateInterval)
             checkInterval_td = datetime.timedelta(seconds=self.checkInterval)
             # skip if lastCheck is fresh (within checkInterval)
@@ -339,7 +339,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         # start
         with self.lock:
             # update timestamp of last reload, lock with check interval
-            now_time = datetime.datetime.utcnow()
+            now_time = core_utils.naive_utcnow()
             update_last_reload_ret_val = self._update_last_reload_time(now_time)
             if update_last_reload_ret_val:
                 self.lastReload = now_time
@@ -610,7 +610,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     dumpSpec = queueConfigDumps[dumpSpec.dumpUniqueName]
                 else:
                     # add dump
-                    dumpSpec.creationTime = datetime.datetime.utcnow()
+                    dumpSpec.creationTime = core_utils.naive_utcnow()
                     dumpSpec.configID = self.dbProxy.get_next_seq_number("SEQ_configID")
                     tmpStat = self.dbProxy.add_queue_config_dump(dumpSpec)
                     if not tmpStat:
@@ -652,7 +652,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 newQueueConfigWithID[dumpSpec.configID] = queueConfig
             self.queueConfigWithID = newQueueConfigWithID
             # update lastUpdate and lastCheck
-            self.lastUpdate = datetime.datetime.utcnow()
+            self.lastUpdate = core_utils.naive_utcnow()
             self.lastCheck = self.lastUpdate
         # update database pq_table
         if self.toUpdateDB:

@@ -204,7 +204,7 @@ class GlobusBulkStager(BaseStager):
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
                 msgStr = f"dummy_transferID = {dummy_transferID}  number of files = {len(fileSpecs)}"
                 tmpLog.debug(msgStr)
-                if len(fileSpecs) >= 10 or groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                if len(fileSpecs) >= 10 or groupUpdateTime < core_utils.naive_utcnow() - datetime.timedelta(minutes=10):
                     tmpLog.debug("prepare to transfer files")
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually

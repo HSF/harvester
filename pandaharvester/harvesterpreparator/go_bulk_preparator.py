@@ -190,7 +190,7 @@ class GlobusBulkPreparator(PluginBase):
                 )
                 tmpLog.debug(msgStr)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
-                if len(fileSpecs) >= 10 or groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                if len(fileSpecs) >= 10 or groupUpdateTime < core_utils.naive_utcnow() - datetime.timedelta(minutes=10):
                     tmpLog.debug("prepare to transfer files")
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually

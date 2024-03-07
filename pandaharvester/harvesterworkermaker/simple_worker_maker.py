@@ -86,7 +86,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         tmpLog.debug(f"jobspec_list: {jobspec_list}")
 
         workSpec = WorkSpec()
-        workSpec.creationTime = datetime.datetime.utcnow()
+        workSpec.creationTime = core_utils.naive_utcnow()
 
         # get the queue configuration from CRIC
         panda_queues_dict = PandaQueuesDict()

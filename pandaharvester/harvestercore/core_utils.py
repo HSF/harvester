@@ -5,7 +5,6 @@ utilities
 
 import base64
 import codecs
-import datetime
 import fcntl
 import functools
 import inspect
@@ -21,6 +20,7 @@ import traceback
 import uuid
 import zlib
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from threading import get_ident
 
 import Cryptodome.Cipher.AES
@@ -41,6 +41,10 @@ with_memory_profile = False
 # lock for synchronization
 sync_lock = threading.Lock()
 
+##############
+# Decorators #
+##############
+
 
 # synchronize decorator
 def synchronize(func):
@@ -54,28 +58,29 @@ def synchronize(func):
     return wrapper
 
 
+###########
+# Classes #
+###########
+
+
 # stopwatch class
 class StopWatch(object):
     # constructor
     def __init__(self):
-        self.startTime = datetime.datetime.utcnow()
+        self.start_time = time.monotonic()
 
-    # get elapsed time
+    # get string message about elapsed time
     def get_elapsed_time(self):
-        diff = datetime.datetime.utcnow() - self.startTime
-        return f" : took {diff.seconds + diff.days * 24 * 3600}.{diff.microseconds // 1000:03} sec"
+        time_diff = self.get_elapsed_time_in_sec()
+        return f" : took {time_diff:.3f} sec"
 
     # get elapsed time in seconds
-    def get_elapsed_time_in_sec(self, precise=False):
-        diff = datetime.datetime.utcnow() - self.startTime
-        if precise:
-            return diff.seconds + diff.days * 24 * 3600 + diff.microseconds * 1e-6
-        else:
-            return diff.seconds + diff.days * 24 * 3600
+    def get_elapsed_time_in_sec(self):
+        return time.monotonic() - self.start_time
 
     # reset
     def reset(self):
-        self.startTime = datetime.datetime.utcnow()
+        self.start_time = time.monotonic()
 
 
 # map with lock
@@ -105,6 +110,10 @@ class MapWithLock(object):
         return self.dataMap.items()
 
 
+# global dict for all threads
+global_dict = MapWithLock()
+
+
 # singleton distinguishable with id
 class SingletonWithID(type):
     def __init__(cls, *args, **kwargs):
@@ -132,6 +141,26 @@ class SingletonWithThreadAndID(type):
         if obj_id not in cls.__instance:
             cls.__instance[obj_id] = super(SingletonWithThreadAndID, cls).__call__(*args, **kwargs)
         return cls.__instance.get(obj_id)
+
+
+# replacement for slow namedtuple in python 2
+class DictTupleHybrid(tuple):
+    def set_attributes(self, attributes):
+        self.attributes = attributes
+
+    def _asdict(self):
+        return dict(zip(self.attributes, self))
+
+
+# safe dictionary to retrun original strings for missing keys
+class SafeDict(dict):
+    def __missing__(self, key):
+        return "{" + key + "}"
+
+
+#############
+# Functions #
+#############
 
 
 # enable memory profiling
@@ -498,10 +527,6 @@ def get_stopwatch():
     return StopWatch()
 
 
-# global dict for all threads
-global_dict = MapWithLock()
-
-
 # get global dict
 def get_global_dict():
     return global_dict
@@ -521,12 +546,12 @@ def get_file_lock(file_name, lock_interval):
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             locked = True
             # read timestamp
-            timeNow = datetime.datetime.utcnow()
+            timeNow = naive_utcnow()
             toSkip = False
             try:
                 s = f.read()
-                pTime = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S.%f")
-                if timeNow - pTime < datetime.timedelta(seconds=lock_interval):
+                pTime = datetime.strptime(s, "%Y-%m-%d %H:%M:%S.%f")
+                if timeNow - pTime < timedelta(seconds=lock_interval):
                     toSkip = True
             except Exception:
                 pass
@@ -612,15 +637,6 @@ def dynamic_plugin_change():
         return True
 
 
-# replacement for slow namedtuple in python 2
-class DictTupleHybrid(tuple):
-    def set_attributes(self, attributes):
-        self.attributes = attributes
-
-    def _asdict(self):
-        return dict(zip(self.attributes, self))
-
-
 # Make a list of choice candidates according to permille weight
 def make_choice_list(pdpm={}, default=None):
     weight_sum = sum(pdpm.values())
@@ -670,7 +686,47 @@ def get_pid():
     return f"{hostname}_{os_pid}-{format(get_ident(), 'x')}"
 
 
-# safe dictionary to retrun original strings for missing keys
-class SafeDict(dict):
-    def __missing__(self, key):
-        return "{" + key + "}"
+def aware_utcnow() -> datetime:
+    """
+    Return the current UTC date and time, with tzinfo timezone.utc
+
+    Returns:
+        datetime: current UTC date and time, with tzinfo timezone.utc
+    """
+    return datetime.now(timezone.utc)
+
+
+def aware_utcfromtimestamp(timestamp: float) -> datetime:
+    """
+    Return the local date and time, with tzinfo timezone.utc, corresponding to the POSIX timestamp
+
+    Args:
+        timestamp (float): POSIX timestamp
+
+    Returns:
+        datetime: current UTC date and time, with tzinfo timezone.utc
+    """
+    return datetime.fromtimestamp(timestamp, timezone.utc)
+
+
+def naive_utcnow() -> datetime:
+    """
+    Return the current UTC date and time, without tzinfo
+
+    Returns:
+        datetime: current UTC date and time, without tzinfo
+    """
+    return aware_utcnow().replace(tzinfo=None)
+
+
+def naive_utcfromtimestamp(timestamp: float) -> datetime:
+    """
+    Return the local date and time, without tzinfo, corresponding to the POSIX timestamp
+
+    Args:
+        timestamp (float): POSIX timestamp
+
+    Returns:
+        datetime: current UTC date and time, without tzinfo
+    """
+    return aware_utcfromtimestamp(timestamp).replace(tzinfo=None)

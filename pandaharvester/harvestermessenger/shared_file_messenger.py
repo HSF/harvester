@@ -596,14 +596,14 @@ class SharedFileMessenger(BaseMessenger):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + "." + datetime.datetime.utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
+                jsonFilePath_rename = jsonFilePath + "." + core_utils.naive_utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + "." + datetime.datetime.utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
+                jsonFilePath_rename = jsonFilePath + "." + core_utils.naive_utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
@@ -825,12 +825,12 @@ class SharedFileMessenger(BaseMessenger):
         jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
         tmpLog.debug(f"looking for heartbeat file {jsonFilePath}")
         if not os.path.exists(jsonFilePath):  # no heartbeat file was found
-            tmpLog.debug(f"startTime: {workspec.startTime}, now: {datetime.datetime.utcnow()}")
+            tmpLog.debug(f"startTime: {workspec.startTime}, now: {core_utils.naive_utcnow()}")
             if not workspec.startTime:
                 # the worker didn't even have time to start
                 tmpLog.debug("heartbeat not found, but no startTime yet for worker")
                 return True
-            elif datetime.datetime.utcnow() - workspec.startTime < datetime.timedelta(minutes=time_limit):
+            elif core_utils.naive_utcnow() - workspec.startTime < datetime.timedelta(minutes=time_limit):
                 # the worker is too young and maybe didn't have time to generate the heartbeat
                 tmpLog.debug("heartbeat not found, but worker too young")
                 return True
@@ -839,9 +839,9 @@ class SharedFileMessenger(BaseMessenger):
                 tmpLog.debug("not found")
                 return None
         try:
-            mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(jsonFilePath))
+            mtime = core_utils.naive_utcfromtimestamp(os.path.getmtime(jsonFilePath))
             tmpLog.debug(f"last modification time : {mtime}")
-            if datetime.datetime.utcnow() - mtime > datetime.timedelta(minutes=time_limit):
+            if core_utils.naive_utcnow() - mtime > datetime.timedelta(minutes=time_limit):
                 tmpLog.debug("too old")
                 return False
             tmpLog.debug("OK")

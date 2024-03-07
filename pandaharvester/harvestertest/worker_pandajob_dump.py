@@ -91,7 +91,7 @@ def main():
     cursor = conn.cursor()
 
     if options.hours:
-        utcnow = datetime.datetime.utcnow() - datetime.timedelta(hours=options.hours)
+        utcnow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=options.hours)
         utcnow_str = utcnow.strftime("%Y-%d-%m %H:%M:%S")
         work_cmd = f'SELECT workerID,batchID,status FROM work_table WHERE modificationTime > "{utcnow_str}"'
     elif options.workers:

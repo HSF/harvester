@@ -7,6 +7,8 @@ import copy
 import datetime
 import json
 
+from pandaharvester.harvestercore import core_utils
+
 from .spec_base import SpecBase
 
 
@@ -149,15 +151,15 @@ class JobSpec(SpecBase):
 
     # trigger propagation
     def trigger_propagation(self):
-        self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        self.propagatorTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
 
     # trigger preparation
     def trigger_preparation(self):
-        self.preparatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        self.preparatorTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
 
     # trigger stage out
     def trigger_stage_out(self):
-        self.stagerTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        self.stagerTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
 
     # set attributes
     def set_attributes(self, attrs):
@@ -382,16 +384,16 @@ class JobSpec(SpecBase):
     # set start time
     def set_start_time(self, force=False):
         if self.startTime is None or force is True:
-            self.startTime = datetime.datetime.utcnow()
+            self.startTime = core_utils.naive_utcnow()
 
     # set end time
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
-            self.endTime = datetime.datetime.utcnow()
+            self.endTime = core_utils.naive_utcnow()
 
     # reset start and end time
     def reset_start_end_time(self):
-        self.startTime = datetime.datetime.utcnow()
+        self.startTime = core_utils.naive_utcnow()
         self.endTime = self.startTime
 
     # add work spec list
@@ -474,7 +476,7 @@ class JobSpec(SpecBase):
 
     # set group to files
     def set_groups_to_files(self, id_map):
-        timeNow = datetime.datetime.utcnow()
+        timeNow = core_utils.naive_utcnow()
         # reverse mapping
         revMap = dict()
         for gID, items in id_map.items():
@@ -489,7 +491,7 @@ class JobSpec(SpecBase):
 
     # update group status in files
     def update_group_status_in_files(self, group_id, group_status):
-        timeNow = datetime.datetime.utcnow()
+        timeNow = core_utils.naive_utcnow()
         # update file specs
         for fileSpec in self.inFiles.union(self.outFiles):
             if fileSpec.groupID == group_id:

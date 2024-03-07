@@ -531,7 +531,7 @@ class HTCondorSubmitter(PluginBase):
         to_submit_any = True
 
         # get log subdirectory name from timestamp
-        timeNow = datetime.datetime.utcnow()
+        timeNow = core_utils.naive_utcnow()
         log_subdir = timeNow.strftime("%y-%m-%d_%H")
         log_subdir_path = os.path.join(self.logDir, log_subdir)
         if self.condorSchedd is None or not self.useSpool:
@@ -554,7 +554,7 @@ class HTCondorSubmitter(PluginBase):
         # get queue info from CRIC by cacher in db
         if self.useCRIC:
             panda_queues_dict = PandaQueuesDict()
-            panda_queues_dict_last_refresh = datetime.datetime.utcfromtimestamp(panda_queues_dict.last_refresh_ts)
+            panda_queues_dict_last_refresh = core_utils.naive_utcfromtimestamp(panda_queues_dict.last_refresh_ts)
             tmpLog.debug(f"PandaQueuesDict last refresh at {panda_queues_dict_last_refresh}")
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())

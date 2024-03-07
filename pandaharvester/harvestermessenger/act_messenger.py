@@ -144,14 +144,14 @@ class ACTMessenger(BaseMessenger):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + "." + str(datetime.datetime.utcnow())
+                jsonFilePath_rename = jsonFilePath + "." + str(core_utils.naive_utcnow())
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + "." + str(datetime.datetime.utcnow())
+                jsonFilePath_rename = jsonFilePath + "." + str(core_utils.naive_utcnow())
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass

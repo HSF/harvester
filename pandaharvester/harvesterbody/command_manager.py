@@ -69,7 +69,7 @@ class CommandManager(AgentBase):
                 # one command for each queue
                 commandItem = {"command": CommandSpec.COM_setNWorkers, "computingSite": queueConfig.siteName, "resourceType": queueConfig.resourceType}
                 commandList.append(commandItem)
-            data = {"startTime": datetime.datetime.utcnow(), "sw_version": panda_pkg_info.release_version, "commit_stamp": commit_timestamp.timestamp}
+            data = {"startTime": core_utils.naive_utcnow(), "sw_version": panda_pkg_info.release_version, "commit_stamp": commit_timestamp.timestamp}
             if len(commandList) > 0:
                 main_log.debug("sending command list to receive")
                 data["commands"] = commandList
@@ -83,8 +83,8 @@ class CommandManager(AgentBase):
                 main_log.debug("polling commands loop")
 
                 # send heartbeat
-                if self.lastHeartbeat is None or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
-                    self.lastHeartbeat = datetime.datetime.utcnow()
+                if self.lastHeartbeat is None or self.lastHeartbeat < core_utils.naive_utcnow() - datetime.timedelta(minutes=10):
+                    self.lastHeartbeat = core_utils.naive_utcnow()
                     self.communicator.is_alive({})
 
                 continuous_loop = True  # as long as there are commands, retrieve them

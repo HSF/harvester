@@ -6,6 +6,8 @@ import datetime
 import json
 import socket
 
+from pandaharvester.harvestercore import core_utils
+
 from .spec_base import SpecBase
 
 
@@ -21,6 +23,6 @@ class ServiceMetricSpec(SpecBase):
     def __init__(self, service_metrics):
         SpecBase.__init__(self)
 
-        self.creationTime = datetime.datetime.utcnow()
+        self.creationTime = core_utils.naive_utcnow()
         self.hostName = socket.getfqdn()
         self.metrics = service_metrics  # blobs are automatically translated to json

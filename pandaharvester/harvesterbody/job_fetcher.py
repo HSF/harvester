@@ -77,7 +77,7 @@ class JobFetcher(AgentBase):
                     fileStatMap = dict()
                     sw_startconvert = core_utils.get_stopwatch()
                     for job in jobs:
-                        timeNow = datetime.datetime.utcnow()
+                        timeNow = core_utils.naive_utcnow()
                         jobSpec = JobSpec()
                         jobSpec.convert_job_json(job)
                         jobSpec.computingSite = queueName

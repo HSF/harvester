@@ -79,7 +79,7 @@ class SlurmSubmitter(PluginBase):
         return retList
 
     def make_placeholder_map(self, workspec):
-        timeNow = datetime.datetime.utcnow()
+        timeNow = core_utils.naive_utcnow()
 
         panda_queue_name = self.queueName
         this_panda_queue_dict = dict()
