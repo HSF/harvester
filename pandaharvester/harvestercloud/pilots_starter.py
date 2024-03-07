@@ -297,11 +297,16 @@ if __name__ == "__main__":
     )
 
     try:
-        subprocess.call(command, shell=True)
+        return_code = subprocess.call(command, shell=True)
     except BaseException:
         logging.error(traceback.format_exc())
-    logging.debug("[main] pilot wrapper done...")
+        return_code = 1
+
+    logging.debug(f"[main] pilot wrapper done with return code {return_code} ...")
 
     # upload logs to e.g. panda cache or similar
     upload_logs(logs_frontend_w, "/tmp/wrapper-wid.log", destination_name, proxy_path)
     logging.debug("[main] FINISHED")
+
+    # Exit with the same exit code as the pilot wrapper
+    sys.exit(return_code)
