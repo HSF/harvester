@@ -7,6 +7,8 @@ This script will be executed at container startup
 - It will upload the pilot logs to panda cache at the end
 
 post-multipart code was taken from: https://github.com/haiwen/webapi-examples/blob/master/python/upload-file.py
+
+This script needs to be kept python2 compatible until all K8S sites are migrated to ALMA9
 """
 
 try:
@@ -24,12 +26,12 @@ try:
 except ImportError:
     import urlparse  # for python 2
 
-import os
-import sys
-import shutil
 import logging
 import mimetypes
+import os
+import shutil
 import ssl
+import sys
 import traceback
 
 WORK_DIR = "/scratch"

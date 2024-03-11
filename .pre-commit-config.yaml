@@ -3,7 +3,8 @@ repos:
     rev: '1.0.1'  # Specify a specific version if desired
     hooks:
     -   id: flynt
-        args: [ "--line-length", "160"]  # Flynt does not support pyproject.toml in special locations
+        exclude: ^pandaharvester/harvestercloud/pilots_starter\.py$
+
 
 -   repo: https://github.com/psf/black
     rev: 24.2.0
