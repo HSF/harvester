@@ -37,7 +37,7 @@ RUN python3 -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
 RUN /opt/harvester/bin/pip install -U setuptools
 # uWSGI>=2.0.24 requires gcc5
-RUN /opt/harvester/bin/pip install -U mysqlclient uWSGIuWSGI==2.0.23 pyyaml
+RUN /opt/harvester/bin/pip install -U mysqlclient uWSGI==2.0.23 pyyaml
 RUN /opt/harvester/bin/pip install -U kubernetes
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
