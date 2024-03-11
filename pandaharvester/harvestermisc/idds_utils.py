@@ -1,11 +1,7 @@
 import os
+import subprocess
 
 import requests
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
 
 
 # get HP point

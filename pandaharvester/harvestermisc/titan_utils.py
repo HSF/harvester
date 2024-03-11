@@ -1,13 +1,9 @@
+import datetime
+import subprocess
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec as ws
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
-
-import datetime
 
 # logger
 baseLogger = core_utils.setup_logger("titan_utils")

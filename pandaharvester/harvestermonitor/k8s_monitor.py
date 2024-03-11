@@ -8,7 +8,6 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_errors import WorkerErrors
 from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
-
 from pandaharvester.harvestermonitor.monitor_common import get_payload_errstr_from_ec
 
 base_logger = core_utils.setup_logger("k8s_monitor")
@@ -135,7 +134,7 @@ class K8sMonitor(PluginBase):
         # initialization
         job_id = workspec.batchID
         error_message = ""
-        time_now = datetime.datetime.utcnow()
+        time_now = core_utils.naive_utcnow()
         pods_status_list = []
         pods_status_message_list = []
         pods_name_to_delete_list = []
@@ -199,7 +198,9 @@ class K8sMonitor(PluginBase):
             elif pods_status_list:
                 # we found pods belonging to our job. Obtain the final status
                 tmp_log.debug(f"pods_status_list={pods_status_list}")
-                new_status, exit_code, sub_msg = self.check_pods_status(pods_status_list, pods_status_message_list, containers_state_list, containers_exit_code_list)
+                new_status, exit_code, sub_msg = self.check_pods_status(
+                    pods_status_list, pods_status_message_list, containers_state_list, containers_exit_code_list
+                )
                 if sub_msg:
                     error_message += sub_msg
                 tmp_log.debug(f"new_status={new_status}, error_message={error_message}")

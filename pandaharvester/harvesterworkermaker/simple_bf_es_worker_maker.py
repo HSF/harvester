@@ -1,11 +1,7 @@
 import datetime
 import math
+import subprocess
 import traceback
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -35,7 +31,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
         tmpLog.debug(f"jobspec_list: {jobspec_list}")
 
         workSpec = WorkSpec()
-        workSpec.creationTime = datetime.datetime.utcnow()
+        workSpec.creationTime = core_utils.naive_utcnow()
 
         # get the queue configuration from the DB
         panda_queues_dict = PandaQueuesDict()

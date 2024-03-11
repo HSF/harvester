@@ -5,7 +5,6 @@ Base class to communicate with WMS
 
 import abc
 
-from future.utils import with_metaclass
 from pandaharvester.harvestercore import core_utils
 
 # logger
@@ -13,7 +12,7 @@ _logger = core_utils.setup_logger("communicator")
 
 
 # base class for communication with WMS
-class BaseCommunicator(with_metaclass(abc.ABCMeta, object)):
+class BaseCommunicator(metaclass=abc.ABCMeta):
     # constructor
     def __init__(self):
         pass

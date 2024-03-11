@@ -1,10 +1,6 @@
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
-
 import gc
 import os
+import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor as Pool
 

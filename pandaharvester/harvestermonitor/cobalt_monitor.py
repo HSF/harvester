@@ -1,12 +1,7 @@
-import re
-
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
-
 import json
 import os.path
+import re
+import subprocess
 from pprint import pprint
 
 from pandaharvester.harvestercore import core_utils

@@ -4,7 +4,6 @@ import json
 import time
 
 import requests
-import six
 
 
 def _md5sum(data):
@@ -12,7 +11,7 @@ def _md5sum(data):
     get md5sum hexadecimal string of data
     """
     hash = hashlib.md5()
-    hash.update(six.b(data))
+    hash.update(str(data).encode("latin_1"))
     hash_hex = hash.hexdigest()
     return hash_hex
 

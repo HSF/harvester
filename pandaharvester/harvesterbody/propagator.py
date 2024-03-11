@@ -86,7 +86,7 @@ class Propagator(AgentBase):
                             # unset to disable further updating
                             tmpJobSpec.propagatorTime = None
                             tmpJobSpec.subStatus = "done"
-                            tmpJobSpec.modificationTime = datetime.datetime.utcnow()
+                            tmpJobSpec.modificationTime = core_utils.naive_utcnow()
                         elif tmpJobSpec.is_final_status() and not tmpJobSpec.all_events_done():
                             # trigger next propagation to update remaining events
                             tmpJobSpec.trigger_propagation()
@@ -108,7 +108,7 @@ class Propagator(AgentBase):
                                     tmpJobSpec.status = "cancelled"
                                     tmpJobSpec.subStatus = "killed"
                                     tmpJobSpec.set_pilot_error(PilotErrors.PANDAKILL, PilotErrors.pilot_error_msg[PilotErrors.PANDAKILL])
-                                    tmpJobSpec.stateChangeTime = datetime.datetime.utcnow()
+                                    tmpJobSpec.stateChangeTime = core_utils.naive_utcnow()
                                     tmpJobSpec.trigger_propagation()
                         self.dbProxy.update_job(tmpJobSpec, {"propagatorLock": self.get_pid()}, update_out_file=True)
                     else:
@@ -181,18 +181,18 @@ class Propagator(AgentBase):
                         else:
                             mainLog.error(f"failed to update worker stats (bulk) for {site_name} err={tmp_str}")
 
-            if not self._last_metrics_update or datetime.datetime.utcnow() - self._last_metrics_update > datetime.timedelta(seconds=METRICS_PERIOD):
+            if not self._last_metrics_update or core_utils.naive_utcnow() - self._last_metrics_update > datetime.timedelta(seconds=METRICS_PERIOD):
                 # get latest metrics from DB
                 service_metrics_list = self.dbProxy.get_service_metrics(self._last_metrics_update)
                 if not service_metrics_list:
                     if self._last_metrics_update:
                         mainLog.error("failed to get service metrics")
-                    self._last_metrics_update = datetime.datetime.utcnow()
+                    self._last_metrics_update = core_utils.naive_utcnow()
                 else:
                     tmp_ret, tmp_str = self.communicator.update_service_metrics(service_metrics_list)
                     if tmp_ret:
                         mainLog.debug("update of service metrics OK")
-                        self._last_metrics_update = datetime.datetime.utcnow()
+                        self._last_metrics_update = core_utils.naive_utcnow()
                     else:
                         mainLog.error(f"failed to update service metrics err={tmp_str}")
 

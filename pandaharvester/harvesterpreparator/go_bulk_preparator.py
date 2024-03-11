@@ -11,13 +11,13 @@ import zipfile
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
-from future.utils import iteritems
 from globus_sdk import (
     NativeAppAuthClient,
     RefreshTokenAuthorizer,
     TransferClient,
     TransferData,
 )
+
 from pandaharvester.harvestermisc import globus_utils
 
 try:
@@ -190,7 +190,7 @@ class GlobusBulkPreparator(PluginBase):
                 )
                 tmpLog.debug(msgStr)
                 # submit transfer if there are more than 10 files or the group was made before more than 10 min
-                if len(fileSpecs) >= 10 or groupUpdateTime < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
+                if len(fileSpecs) >= 10 or groupUpdateTime < core_utils.naive_utcnow() - datetime.timedelta(minutes=10):
                     tmpLog.debug("prepare to transfer files")
                     # submit transfer and get a real transfer ID
                     # set the Globus destination Endpoint id and path will get them from Agis eventually
@@ -451,7 +451,7 @@ class GlobusBulkPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

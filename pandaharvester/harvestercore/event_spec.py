@@ -3,9 +3,6 @@ Event spec class
 
 """
 
-from future.utils import iteritems
-from past.builtins import long
-
 from .spec_base import SpecBase
 
 
@@ -44,12 +41,12 @@ class EventSpec(SpecBase):
 
     # convert from data
     def from_data(self, data, panda_id):
-        for attr, val in iteritems(data):
+        for attr, val in data.items():
             # skip non attributes
             if attr not in self.attributes:
                 continue
             setattr(self, attr, val)
-        self.PandaID = long(panda_id)
+        self.PandaID = int(panda_id)
 
     # final status
     def is_final_status(self):

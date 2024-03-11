@@ -4,14 +4,7 @@ import importlib
 import json
 import os
 import threading
-
-import six
-from future.utils import iteritems
-
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    JSONDecodeError = ValueError
+from json.decoder import JSONDecodeError
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
@@ -99,7 +92,7 @@ class QueueConfig(object):
 
     # update attributes
     def update_attributes(self, data):
-        for k, v in iteritems(data):
+        for k, v in data.items():
             setattr(self, k, v)
 
     # get synchronization level between job and worker
@@ -128,7 +121,7 @@ class QueueConfig(object):
 
 
 # mapper
-class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
+class QueueConfigMapper(metaclass=SingletonWithID):
     """
     Using some acronyms here:
     LT = local template, written in local queueconfig file
@@ -260,7 +253,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         got_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
         if got_update_lock:
             if the_time is None:
-                the_time = datetime.datetime.utcnow()
+                the_time = core_utils.naive_utcnow()
             ts = the_time.timestamp()
             new_ts_info = f"{ts:.3f}"
             ret_val = self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_ts_info)
@@ -277,7 +270,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         if cacheSpec is None:
             return None
         timestamp = float(cacheSpec.data)
-        return datetime.datetime.utcfromtimestamp(timestamp)
+        return core_utils.naive_utcfromtimestamp(timestamp)
 
     # update last pq_table fill time
     def _update_pq_table(self, cache_time=None, refill_table=False):
@@ -285,7 +278,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         got_update_lock = self.dbProxy.get_process_lock("pq_table_fill", "qconf_universal", 120)
         if got_update_lock:
             fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
-            now_time = datetime.datetime.utcnow()
+            now_time = core_utils.naive_utcnow()
             if fill_ret_val:
                 now_ts = now_time.timestamp()
                 now_ts_info = f"{now_ts:.3f}"
@@ -308,7 +301,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         if cacheSpec is None:
             return None
         timestamp = float(cacheSpec.data)
-        return datetime.datetime.utcfromtimestamp(timestamp)
+        return core_utils.naive_utcfromtimestamp(timestamp)
 
     # get time of last cache used to fill pq_table
     def _get_cache_to_fill_pq_table_time(self):
@@ -316,14 +309,14 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         if cacheSpec is None:
             return None
         timestamp = float(cacheSpec.data)
-        return datetime.datetime.utcfromtimestamp(timestamp)
+        return core_utils.naive_utcfromtimestamp(timestamp)
 
     # load data
     def load_data(self, refill_table=False):
         mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="load_data")
         # check if to update
         with self.lock:
-            now_time = datetime.datetime.utcnow()
+            now_time = core_utils.naive_utcnow()
             updateInterval_td = datetime.timedelta(seconds=self.updateInterval)
             checkInterval_td = datetime.timedelta(seconds=self.checkInterval)
             # skip if lastCheck is fresh (within checkInterval)
@@ -346,7 +339,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         # start
         with self.lock:
             # update timestamp of last reload, lock with check interval
-            now_time = datetime.datetime.utcnow()
+            now_time = core_utils.naive_utcnow()
             update_last_reload_ret_val = self._update_last_reload_time(now_time)
             if update_last_reload_ret_val:
                 self.lastReload = now_time
@@ -378,7 +371,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 mainLog.warning(f"Found cacher data outdated ({str(self.last_cache_ts)} < {str(self.cache_to_fill_pq_table_time)})")
             if queueConfigJson_cacher is not None:
                 mainLog.debug("Applying cacher data")
-                for queueName, queueDict in iteritems(queueConfigJson_cacher):
+                for queueName, queueDict in queueConfigJson_cacher.items():
                     if queueDict.get("isTemplateQueue") is True or queueName.endswith("_TEMPLATE"):
                         # is RT
                         queueDict["isTemplateQueue"] = True
@@ -392,7 +385,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             queueConfigJson_local = self._load_config_from_file()
             if queueConfigJson_local is not None:
                 mainLog.debug("Applying local config")
-                for queueName, queueDict in iteritems(queueConfigJson_local):
+                for queueName, queueDict in queueConfigJson_local.items():
                     if queueDict.get("isTemplateQueue") is True or queueName.endswith("_TEMPLATE"):
                         # is LT
                         queueDict["isTemplateQueue"] = True
@@ -410,7 +403,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             finalTemplatesDict.pop(None, None)
             # remove queues with invalid templateQueueName
             for acr, queuesDict in [("RQ", remoteQueuesDict), ("LQ", localQueuesDict)]:
-                for queueName, queueDict in iteritems(queuesDict.copy()):
+                for queueName, queueDict in queuesDict.copy().items():
                     templateQueueName = queueDict.get("templateQueueName")
                     if templateQueueName is not None and templateQueueName not in finalTemplatesDict:
                         del queuesDict[queueName]
@@ -440,7 +433,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         continue
                     # parameters
                     resolver_harvester_params = resolver.get_harvester_params(queueName)
-                    for key, val in iteritems(resolver_harvester_params):
+                    for key, val in resolver_harvester_params.items():
                         if key in self.dynamic_queue_generic_attrs:
                             queueDict[key] = val
                     # fill in dynamic queue configs
@@ -479,7 +472,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                         continue
                     queueSourceList.append(acr)
                     tmp_queueDict = queuesDict[queueName]
-                    for key, val in iteritems(tmp_queueDict):
+                    for key, val in tmp_queueDict.items():
                         val = copy.deepcopy(val)
                         if key in self.updatable_plugin_attrs and isinstance(queueDict.get(key), dict) and isinstance(val, dict):
                             # update plugin parameters instead of overwriting whole plugin section
@@ -507,12 +500,12 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 if isinstance(queueDict.get("common"), dict):
                     commonAttrDict = queueDict.get("common")
                 # according to queueDict
-                for key, val in iteritems(queueDict):
+                for key, val in queueDict.items():
                     if isinstance(val, dict) and "module" in val and "name" in val:
                         # plugin attributes
                         val = copy.deepcopy(val)
                         # fill in common attributes for all plugins
-                        for c_key, c_val in iteritems(commonAttrDict):
+                        for c_key, c_val in commonAttrDict.items():
                             if c_key not in val and c_key not in ("module", "name"):
                                 val[c_key] = c_val
                         # check module and class name
@@ -536,7 +529,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                             # keep original config
                             val["original_config"] = copy.deepcopy(val)
                             # overwrite with middleware config
-                            for m_key, m_val in iteritems(queueDict[val["middleware"]]):
+                            for m_key, m_val in queueDict[val["middleware"]].items():
                                 val[m_key] = m_val
                     setattr(queueConfig, key, val)
                 # delete isTemplateQueue attribute
@@ -595,7 +588,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
             queueConfigDumps = self.dbProxy.get_queue_config_dumps()
             # get active queues
             activeQueues = dict()
-            for queueName, queueConfig in iteritems(newQueueConfig):
+            for queueName, queueConfig in newQueueConfig.items():
                 # get status
                 if queueConfig.queueStatus is None and autoBlacklist:
                     queueConfig.queueStatus = resolver.get_queue_status(queueName)
@@ -617,7 +610,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                     dumpSpec = queueConfigDumps[dumpSpec.dumpUniqueName]
                 else:
                     # add dump
-                    dumpSpec.creationTime = datetime.datetime.utcnow()
+                    dumpSpec.creationTime = core_utils.naive_utcnow()
                     dumpSpec.configID = self.dbProxy.get_next_seq_number("SEQ_configID")
                     tmpStat = self.dbProxy.add_queue_config_dump(dumpSpec)
                     if not tmpStat:
@@ -659,7 +652,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
                 newQueueConfigWithID[dumpSpec.configID] = queueConfig
             self.queueConfigWithID = newQueueConfigWithID
             # update lastUpdate and lastCheck
-            self.lastUpdate = datetime.datetime.utcnow()
+            self.lastUpdate = core_utils.naive_utcnow()
             self.lastCheck = self.lastUpdate
         # update database pq_table
         if self.toUpdateDB:
@@ -709,7 +702,7 @@ class QueueConfigMapper(six.with_metaclass(SingletonWithID, object)):
         """
         active_ups_queues = []
         active_queues = self.get_active_queues()
-        for queue_name, queue_attribs in iteritems(active_queues):
+        for queue_name, queue_attribs in active_queues.items():
             try:
                 if queue_attribs.runMode == "slave" and queue_attribs.mapType == "NoJob":
                     active_ups_queues.append(queue_name)

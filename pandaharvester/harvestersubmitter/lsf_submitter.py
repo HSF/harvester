@@ -1,11 +1,7 @@
 import datetime
 import re
+import subprocess
 import tempfile
-
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase

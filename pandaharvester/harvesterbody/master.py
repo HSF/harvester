@@ -11,18 +11,18 @@ import threading
 import time
 
 import daemon.pidfile
-from future.utils import iteritems
 
 try:
     import pprofile
 except Exception:
     pass
 
+from pandalogger import logger_config
+
 from pandaharvester import commit_timestamp, panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.apfmon import Apfmon
-from pandalogger import logger_config
 
 # logger
 _logger = core_utils.setup_logger("master")
@@ -299,7 +299,7 @@ def main(daemon_mode=True):
         _logger.addHandler(stdoutHandler)
         # collect streams not to be closed by daemon
         files_preserve = []
-        for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
+        for loggerName, loggerObj in logging.Logger.manager.loggerDict.items():
             if loggerName.startswith("panda"):
                 for handler in loggerObj.handlers:
                     if hasattr(handler, "stream"):

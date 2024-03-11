@@ -3,7 +3,6 @@ import os
 import subprocess
 import traceback
 
-from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
@@ -164,7 +163,7 @@ class RucioPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = mover_utils.construct_file_path(base_dir, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

@@ -1,11 +1,7 @@
 import os
 import re
+import subprocess
 import tempfile
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermover import mover_utils

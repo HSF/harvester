@@ -7,8 +7,7 @@ import copy
 import datetime
 import json
 
-from future.utils import iteritems
-from past.builtins import long
+from pandaharvester.harvestercore import core_utils
 
 from .spec_base import SpecBase
 
@@ -152,15 +151,15 @@ class JobSpec(SpecBase):
 
     # trigger propagation
     def trigger_propagation(self):
-        self.propagatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        self.propagatorTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
 
     # trigger preparation
     def trigger_preparation(self):
-        self.preparatorTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        self.preparatorTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
 
     # trigger stage out
     def trigger_stage_out(self):
-        self.stagerTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        self.stagerTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
 
     # set attributes
     def set_attributes(self, attrs):
@@ -187,7 +186,7 @@ class JobSpec(SpecBase):
         if self.jobAttributes is None:
             self.jobAttributes = attrs
         else:
-            for key, val in iteritems(attrs):
+            for key, val in attrs.items():
                 if key not in self.jobAttributes or self.jobAttributes[key] != val:
                     self.jobAttributes[key] = val
                     self.force_update("jobAttributes")
@@ -259,7 +258,7 @@ class JobSpec(SpecBase):
         data = []
         eventSpecs = []
         iEvents = 0
-        for zipFileID, eventsData in iteritems(self.zipEventMap):
+        for zipFileID, eventsData in self.zipEventMap.items():
             if max_events is not None and iEvents > max_events:
                 break
             eventRanges = []
@@ -310,7 +309,7 @@ class JobSpec(SpecBase):
         endpoints = self.jobParams["ddmEndPointIn"].split(",")
         for lfn, guid, fsize, chksum, scope, dataset, endpoint in zip(lfns, guids, fsizes, chksums, scopes, datasets, endpoints):
             try:
-                fsize = long(fsize)
+                fsize = int(fsize)
             except Exception:
                 fsize = None
             if lfn in lfnToSkip:
@@ -385,16 +384,16 @@ class JobSpec(SpecBase):
     # set start time
     def set_start_time(self, force=False):
         if self.startTime is None or force is True:
-            self.startTime = datetime.datetime.utcnow()
+            self.startTime = core_utils.naive_utcnow()
 
     # set end time
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
-            self.endTime = datetime.datetime.utcnow()
+            self.endTime = core_utils.naive_utcnow()
 
     # reset start and end time
     def reset_start_end_time(self):
-        self.startTime = datetime.datetime.utcnow()
+        self.startTime = core_utils.naive_utcnow()
         self.endTime = self.startTime
 
     # add work spec list
@@ -460,9 +459,9 @@ class JobSpec(SpecBase):
             "rateWBYTES",
         ]
         panda_attributes = set(panda_attributes)
-        for aName, aValue in iteritems(self.jobAttributes):
+        for aName, aValue in self.jobAttributes.items():
             if aName in panda_attributes:
-                if type(aValue) in (int, long):
+                if type(aValue) in (int,):
                     aValue = str(aValue)
                 data[aName] = aValue
         return data
@@ -477,10 +476,10 @@ class JobSpec(SpecBase):
 
     # set group to files
     def set_groups_to_files(self, id_map):
-        timeNow = datetime.datetime.utcnow()
+        timeNow = core_utils.naive_utcnow()
         # reverse mapping
         revMap = dict()
-        for gID, items in iteritems(id_map):
+        for gID, items in id_map.items():
             for lfn in items["lfns"]:
                 revMap[lfn] = gID
         # update file specs
@@ -492,7 +491,7 @@ class JobSpec(SpecBase):
 
     # update group status in files
     def update_group_status_in_files(self, group_id, group_status):
-        timeNow = datetime.datetime.utcnow()
+        timeNow = core_utils.naive_utcnow()
         # update file specs
         for fileSpec in self.inFiles.union(self.outFiles):
             if fileSpec.groupID == group_id:
@@ -563,7 +562,7 @@ class JobSpec(SpecBase):
             return self.jobParams
         else:
             newParams = dict()
-            for k, v in iteritems(self.jobParams):
+            for k, v in self.jobParams.items():
                 if k in ["prodDBlocks", "realDatasetsIn", "dispatchDblock", "ddmEndPointIn", "scopeIn", "dispatchDBlockToken", "prodDBlockToken"]:
                     continue
                 newParams[k] = v
@@ -590,14 +589,14 @@ class JobSpec(SpecBase):
     def manipulate_job_params_for_container(self):
         updated = False
         for fileSpec in self.inFiles:
-            for k, v in iteritems(self.jobParams):
+            for k, v in self.jobParams.items():
                 # only container image
                 if k == "container_name":
                     if v == fileSpec.url:
                         self.jobParams[k] = fileSpec.path
                         updated = True
                 elif k == "containerOptions":
-                    for kk, vv in iteritems(v):
+                    for kk, vv in v.items():
                         if kk == "containerImage":
                             if vv == fileSpec.url:
                                 self.jobParams[k][kk] = fileSpec.path

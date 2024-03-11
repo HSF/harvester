@@ -9,28 +9,16 @@ This script will be executed at container startup
 post-multipart code was taken from: https://github.com/haiwen/webapi-examples/blob/master/python/upload-file.py
 """
 
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
-
-try:
-    import http.client as httplib  # for python 3
-except Exception:
-    import httplib  # for python 2
-
-try:
-    import urllib.parse as urlparse  # for python 3
-except ImportError:
-    import urlparse  # for python 2
-
-import os
-import sys
-import shutil
+import http.client as httplib  # for python 3
 import logging
 import mimetypes
+import os
+import shutil
 import ssl
+import subprocess
+import sys
 import traceback
+import urllib.parse as urlparse  # for python 3
 
 WORK_DIR = "/scratch"
 CONFIG_DIR = "/scratch/jobconfig"
@@ -77,14 +65,14 @@ def encode_multipart_formdata(files):
     L = []
     for key, filename, value in files:
         L.append("--" + BOUNDARY)
-        L.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, filename))
-        L.append("Content-Type: %s" % get_content_type(filename))
+        L.append(f'Content-Disposition: form-data; name="{key}"; filename="{filename}"')
+        L.append(f"Content-Type: {get_content_type(filename)}")
         L.append("")
         L.append(value)
     L.append("--" + BOUNDARY + "--")
     L.append("")
     body = CRLF.join(L)
-    content_type = "multipart/form-data; boundary=%s" % BOUNDARY
+    content_type = f"multipart/form-data; boundary={BOUNDARY}"
     return content_type, body
 
 
@@ -100,14 +88,14 @@ def upload_logs(url, log_file_name, destination_name, proxy_cert):
         logging.debug("[upload_logs] start")
         files = [("file", destination_name, open(log_file_name).read())]
         status, reason = post_multipart(urlparts.hostname, urlparts.port, urlparts.path, files, proxy_cert)
-        logging.debug("[upload_logs] finished with code={0} msg={1}".format(status, reason))
+        logging.debug(f"[upload_logs] finished with code={status} msg={reason}")
         if status == 200:
             return True
     except Exception:
         err_type, err_value = sys.exc_info()[:2]
-        err_messsage = "failed to put with {0}:{1} ".format(err_type, err_value)
+        err_messsage = f"failed to put with {err_type}:{err_value} "
         err_messsage += traceback.format_exc()
-        logging.debug("[upload_logs] excepted with:\n {0}".format(err_messsage))
+        logging.debug(f"[upload_logs] excepted with:\n {err_messsage}")
 
     return False
 
@@ -143,45 +131,45 @@ def get_configuration():
 
     # get the panda site name
     panda_site = os.environ.get("computingSite")
-    logging.debug("[main] got panda site: {0}".format(panda_site))
+    logging.debug(f"[main] got panda site: {panda_site}")
 
     # get the panda queue name
     panda_queue = os.environ.get("pandaQueueName")
-    logging.debug("[main] got panda queue: {0}".format(panda_queue))
+    logging.debug(f"[main] got panda queue: {panda_queue}")
 
     # get the resource type of the worker
     resource_type = os.environ.get("resourceType")
-    logging.debug("[main] got resource type: {0}".format(resource_type))
+    logging.debug(f"[main] got resource type: {resource_type}")
 
     prodSourceLabel = os.environ.get("prodSourceLabel")
-    logging.debug("[main] got prodSourceLabel: {0}".format(prodSourceLabel))
+    logging.debug(f"[main] got prodSourceLabel: {prodSourceLabel}")
 
     job_type = os.environ.get("jobType")
-    logging.debug("[main] got job type: {0}".format(job_type))
+    logging.debug(f"[main] got job type: {job_type}")
 
     pilot_type = os.environ.get("pilotType", "")
-    logging.debug("[main] got pilotType: {0}".format(pilot_type))
+    logging.debug(f"[main] got pilotType: {pilot_type}")
 
     pilot_url_option = os.environ.get("pilotUrlOpt", "")
-    logging.debug("[main] got pilotUrlOpt: {0}".format(pilot_url_option))
+    logging.debug(f"[main] got pilotUrlOpt: {pilot_url_option}")
 
     python_option = os.environ.get("pythonOption", "")
-    logging.debug("[main] got pythonOption: {0}".format(python_option))
+    logging.debug(f"[main] got pythonOption: {python_option}")
 
     pilot_version = os.environ.get("pilotVersion", "")
-    logging.debug("[main] got pilotVersion: {0}".format(pilot_version))
+    logging.debug(f"[main] got pilotVersion: {pilot_version}")
 
     pilot_proxy_check_tmp = os.environ.get("pilotProxyCheck", "False")
     pilot_proxy_check = str_to_bool(pilot_proxy_check_tmp)
-    logging.debug("[main] got pilotProxyCheck: {0}".format(pilot_proxy_check))
+    logging.debug(f"[main] got pilotProxyCheck: {pilot_proxy_check}")
 
     # get the Harvester ID
     harvester_id = os.environ.get("HARVESTER_ID")
-    logging.debug("[main] got Harvester ID: {0}".format(harvester_id))
+    logging.debug(f"[main] got Harvester ID: {harvester_id}")
 
     # get the worker id
     worker_id = os.environ.get("workerID")
-    logging.debug("[main] got worker ID: {0}".format(worker_id))
+    logging.debug(f"[main] got worker ID: {worker_id}")
 
     # get the URL (e.g. panda cache) to upload logs
     logs_frontend_w = os.environ.get("logs_frontend_w")
@@ -194,7 +182,7 @@ def get_configuration():
     # get the filename to use for the stdout log
     stdout_name = os.environ.get("stdout_name")
     if not stdout_name:
-        stdout_name = "{0}_{1}.out".format(harvester_id, worker_id)
+        stdout_name = f"{harvester_id}_{worker_id}.out"
 
     logging.debug("[main] got filename for the stdout log")
 
@@ -253,27 +241,27 @@ if __name__ == "__main__":
     ) = get_configuration()
 
     # the pilot should propagate the download link via the pilotId field in the job table
-    log_download_url = "{0}/{1}".format(logs_frontend_r, destination_name)
+    log_download_url = f"{logs_frontend_r}/{destination_name}"
     os.environ["GTAG"] = log_download_url  # GTAG env variable is read by pilot
 
     # execute the pilot wrapper
     logging.debug("[main] starting pilot wrapper...")
     resource_type_option = ""
     if resource_type:
-        resource_type_option = "--resource-type {0}".format(resource_type)
+        resource_type_option = f"--resource-type {resource_type}"
 
     if prodSourceLabel:
-        psl_option = "-j {0}".format(prodSourceLabel)
+        psl_option = f"-j {prodSourceLabel}"
     else:
         psl_option = "-j managed"
 
     job_type_option = ""
     if job_type:
-        job_type_option = "--job-type {0}".format(job_type)
+        job_type_option = f"--job-type {job_type}"
 
     pilot_type_option = "-i PR"
     if pilot_type:
-        pilot_type_option = "-i {0}".format(pilot_type)
+        pilot_type_option = f"-i {pilot_type}"
 
     pilot_proxy_check_option = "-t"  # This disables the proxy check
     if pilot_proxy_check:
@@ -281,7 +269,7 @@ if __name__ == "__main__":
 
     pilot_version_option = "--pilotversion 2"
     if pilot_version:
-        pilot_version_option = "--pilotversion {0}".format(pilot_version)
+        pilot_version_option = f"--pilotversion {pilot_version}"
 
     wrapper_params = "-q {0} -r {1} -s {2} -a {3} {4} {5} {6} {7} {8} {9} {10} {11}".format(
         panda_queue,
@@ -314,7 +302,7 @@ if __name__ == "__main__":
         logging.error(traceback.format_exc())
         return_code = 1
 
-    logging.debug("[main] pilot wrapper done with return code {0} ...".format(return_code))
+    logging.debug(f"[main] pilot wrapper done with return code {return_code} ...")
 
     # upload logs to e.g. panda cache or similar
     upload_logs(logs_frontend_w, "/tmp/wrapper-wid.log", destination_name, proxy_path)

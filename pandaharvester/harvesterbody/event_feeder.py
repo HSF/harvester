@@ -1,4 +1,3 @@
-from future.utils import iteritems
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -31,7 +30,7 @@ class EventFeeder(AgentBase):
             )
             mainLog.debug(f"got {len(workSpecsPerQueue)} queues")
             # loop over all workers
-            for queueName, workSpecList in iteritems(workSpecsPerQueue):
+            for queueName, workSpecList in workSpecsPerQueue.items():
                 tmpQueLog = self.make_logger(_logger, f"queue={queueName}", method_name="run")
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
@@ -71,7 +70,7 @@ class EventFeeder(AgentBase):
                         tmpLog.error("failed to feed events")
                         continue
                     # dump
-                    for pandaID, eventList in iteritems(events):
+                    for pandaID, eventList in events.items():
                         try:
                             nRanges = workSpec.eventsRequestParams[pandaID]["nRanges"]
                         except Exception:

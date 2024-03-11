@@ -1,10 +1,6 @@
 import re
+import subprocess
 from shlex import quote, split
-
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase

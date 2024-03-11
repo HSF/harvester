@@ -10,13 +10,13 @@ import threading
 import time
 import uuid
 
-from future.utils import iteritems
 from globus_sdk import (
     NativeAppAuthClient,
     RefreshTokenAuthorizer,
     TransferClient,
     TransferData,
 )
+
 from pandaharvester.harvesterbody.cacher import Cacher
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -64,7 +64,7 @@ _logger = core_utils.setup_logger("stageInTest_go_preparator")
 tmpLog = core_utils.make_logger(_logger, method_name="stageInTest_go_preparator")
 tmpLog.debug("start")
 
-for loggerName, loggerObj in iteritems(logging.Logger.manager.loggerDict):
+for loggerName, loggerObj in logging.Logger.manager.loggerDict.items():
     # print "loggerName - {}".format(loggerName)
     if loggerName.startswith("panda.log"):
         if len(loggerObj.handlers) == 0:

@@ -12,7 +12,6 @@ import threading
 import time
 import uuid
 
-from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase

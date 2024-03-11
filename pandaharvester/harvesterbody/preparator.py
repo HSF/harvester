@@ -129,7 +129,7 @@ class Preparator(AgentBase):
                         jobSpec.subStatus = "failed_to_prepare"
                         jobSpec.lockedBy = None
                         jobSpec.preparatorTime = None
-                        jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                        jobSpec.stateChangeTime = core_utils.naive_utcnow()
                         errStr = f"stage-in failed with {tmpStr}"
                         jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()
@@ -287,7 +287,7 @@ class Preparator(AgentBase):
                         jobSpec.subStatus = "failed_to_prepare"
                         jobSpec.lockedBy = None
                         jobSpec.preparatorTime = None
-                        jobSpec.stateChangeTime = datetime.datetime.utcnow()
+                        jobSpec.stateChangeTime = core_utils.naive_utcnow()
                         errStr = f"stage-in failed with {tmpStr}"
                         jobSpec.set_pilot_error(PilotErrors.STAGEINFAILED, errStr)
                         jobSpec.trigger_propagation()

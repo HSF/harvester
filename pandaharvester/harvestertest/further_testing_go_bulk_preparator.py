@@ -10,13 +10,13 @@ import threading
 import time
 import uuid
 
-from future.utils import iteritems
 from globus_sdk import (
     NativeAppAuthClient,
     RefreshTokenAuthorizer,
     TransferClient,
     TransferData,
 )
+
 from pandaharvester.harvesterbody.cacher import Cacher
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
