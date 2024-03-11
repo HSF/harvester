@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
 """
+This script needs to be kept python2 compatible until all K8S sites are migrated to ALMA9
 This script will be executed at container startup
 - It will retrieve the proxy and panda queue from the environment
 - It will download the pilot wrapper from github and execute it
 - It will upload the pilot logs to panda cache at the end
 
 post-multipart code was taken from: https://github.com/haiwen/webapi-examples/blob/master/python/upload-file.py
-
-This script needs to be kept python2 compatible until all K8S sites are migrated to ALMA9
 """
 
 try:

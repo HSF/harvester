@@ -5,7 +5,6 @@ repos:
     -   id: flynt
         exclude: ^pandaharvester/harvestercloud/pilots_starter\.py$
 
-
 -   repo: https://github.com/psf/black
     rev: 24.2.0
     hooks:
