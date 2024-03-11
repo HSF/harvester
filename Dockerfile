@@ -19,7 +19,7 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
     cd Python-* && \
-    ./configure --enable-shared  && \
+    ./configure --enable-shared && \
     make altinstall && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
     cd / && rm -rf /tmp/pyton
@@ -63,7 +63,7 @@ RUN /opt/harvester/bin/pip install -U kubernetes
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
 COPY . .
-RUN /opt/harvester/bin/python setup.py sdist; /opt/harvester/bin/pip install `ls dist/*.tar.gz`
+RUN /opt/harvester/bin/pip install -U .
 WORKDIR /
 RUN rm -rf /tmp/src
 
