@@ -292,15 +292,16 @@ if __name__ == "__main__":
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
     wrapper_executable = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
-    command = "/bin/bash {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False | tee /tmp/wrapper-wid.log".format(
+    command = "/bin/bash {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False".format(
         wrapper_executable, wrapper_params, submit_mode
     )
 
-    try:
-        return_code = subprocess.call(command, shell=True)
-    except BaseException:
-        logging.error(traceback.format_exc())
-        return_code = 1
+    with open('/tmp/wrapper-wid.log', 'w') as logfile:
+        try:
+            return_code = subprocess.call(command, stdout=logfile, stderr=subprocess.STDOUT, shell=True)
+        except BaseException:
+            logging.error(traceback.format_exc())
+            return_code = 1
 
     logging.debug(f"[main] pilot wrapper done with return code {return_code} ...")
 
