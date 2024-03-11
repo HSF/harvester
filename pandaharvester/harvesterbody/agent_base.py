@@ -21,7 +21,7 @@ class AgentBase(threading.Thread):
     def set_stop_event(self, stop_event):
         self.stopEvent = stop_event
 
-    # check if going to be terminated
+    # check if the agent is going to be terminated
     def terminated(self, wait_interval, randomize=True):
         if self.singleMode:
             return True
