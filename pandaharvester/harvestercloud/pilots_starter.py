@@ -296,12 +296,14 @@ if __name__ == "__main__":
         wrapper_executable, wrapper_params, submit_mode
     )
 
-    with open('/tmp/wrapper-wid.log', 'w') as logfile:
-        try:
-            return_code = subprocess.call(command, stdout=logfile, stderr=subprocess.STDOUT, shell=True)
-        except BaseException:
-            logging.error(traceback.format_exc())
-            return_code = 1
+    # extend command to tee the stdout and stderr to a file. We need to return the wrapper exit code, not the tee exit code
+    command += " 2>&1 | tee /tmp/wrapper-wid.log; exit ${PIPESTATUS[0]}"
+
+    try:
+        return_code = subprocess.call(command, shell=True)
+    except BaseException:
+        logging.error(traceback.format_exc())
+        return_code = 1
 
     logging.debug(f"[main] pilot wrapper done with return code {return_code} ...")
 
