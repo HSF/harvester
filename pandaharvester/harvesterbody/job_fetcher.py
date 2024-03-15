@@ -153,6 +153,7 @@ class JobFetcher(AgentBase):
                             jobSpec.creationTime = timeNow
                             jobSpec.stateChangeTime = timeNow
                             jobSpec.configID = queueConfig.configID
+                            jobSpec.resourceType = resource_type
                             jobSpec.set_one_attribute("schedulerID", f"harvester-{harvester_config.master.harvester_id}")
                             if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                                 jobSpec.zipPerMB = queueConfig.zipPerMB
