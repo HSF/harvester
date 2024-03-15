@@ -5714,4 +5714,4 @@ class DBProxy(object):
             # dump error
             core_utils.dump_error_message(_logger)
             # return
-            return {}
+            return None

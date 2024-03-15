@@ -40,7 +40,7 @@ class JobFetcher(AgentBase):
             pandaQueueDict = PandaQueuesDict(filter_site_list=nJobsPerQueue.keys())
             # get job statistics
             job_stats_dict = self.dbProxy.get_job_stats_full()
-            if not job_stats_dict:
+            if job_stats_dict is None:
                 mainLog.warning(f"cannot get job stats")
             # loop over all queues
             for queueName, nJobs in nJobsPerQueue.items():
