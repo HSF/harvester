@@ -5701,6 +5701,8 @@ class DBProxy(object):
                     resourceType = str(resourceType)
                 else:
                     resourceType = "MCORE" if nCore and nCore > 1 else "SCORE"
+                if not nCore:
+                    nCore = 1
                 retMap.setdefault(computingSite, {})
                 retMap[computingSite].setdefault(
                     resourceType,
