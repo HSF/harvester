@@ -122,7 +122,10 @@ class JobFetcher(AgentBase):
                     # get jobs
                     tmpLog.debug(f"getting {rt_n_jobs} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type}")
                     sw = core_utils.get_stopwatch()
-                    jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName, prodSourceLabel, self.nodeName, rt_n_jobs, additional_criteria)
+                    if rt_n_jobs > 0:
+                        jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName, prodSourceLabel, self.nodeName, rt_n_jobs, additional_criteria)
+                    else:
+                        jobs, errStr = [], "no need to get job"
                     n_jobs_rem -= len(jobs)
                     tmpLog.info(f"got {len(jobs)} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type} with {errStr} {sw.get_elapsed_time()}")
                     # convert to JobSpec
