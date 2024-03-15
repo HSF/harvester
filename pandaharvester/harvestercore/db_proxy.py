@@ -5679,7 +5679,7 @@ class DBProxy(object):
             tmpLog.debug("start")
             # get job stats
             varMap = dict()
-            sqlJ = "SELECT jt.status, jt.computingSite, jt.resourceType, jt.nCore, COUNT(*) cnt "
+            sqlJ = "SELECT jt.status, jt.computingSite, jt.resourceType, jt.nCore, COUNT(*) cnt  "
             sqlJ += f"FROM {jobTableName} jt "
             if filter_site_list is not None:
                 site_var_name_list = []
@@ -5689,7 +5689,7 @@ class DBProxy(object):
                     varMap[site_var_name] = site
                 filter_queue_str = ",".join(site_var_name_list)
                 sqlJ += f"WHERE jt.computingSite IN ({filter_queue_str}) "
-            sqlJ += "GROUP BY jt.status,jt.computingSite, jt.resourceType "
+            sqlJ += "GROUP BY jt.status,jt.computingSite, jt.resourceType, jt.nCore "
             self.execute(sqlJ, varMap)
             resJ = self.cur.fetchall()
             # fill return map
@@ -5702,8 +5702,21 @@ class DBProxy(object):
                 else:
                     resourceType = "MCORE" if nCore and nCore > 1 else "SCORE"
                 retMap.setdefault(computingSite, {})
-                retMap[computingSite].setdefault(resourceType, {"running": 0, "starting": 0})
-                retMap[computingSite][resourceType][jobStatus] = cnt
+                retMap[computingSite].setdefault(
+                    resourceType,
+                    {
+                        "jobs": {
+                            "running": 0,
+                            "starting": 0,
+                        },
+                        "cores": {
+                            "running": 0,
+                            "starting": 0,
+                        },
+                    },
+                )
+                retMap[computingSite][resourceType]["jobs"][jobStatus] += cnt
+                retMap[computingSite][resourceType]["cores"][jobStatus] += nCore
             # commit
             self.commit()
             tmpLog.debug(f"got {str(retMap)}")

@@ -92,9 +92,7 @@ class JobFetcher(AgentBase):
                 if job_stats_dict and queueName in job_stats_dict:
                     for tmp_rt, val_dict in job_stats_dict[queueName]:
                         for tmp_status in ["starting", "running"]:
-                            increment = val_dict[tmp_status]
-                            if tmp_rt.startswith("MCORE"):
-                                increment = val_dict[tmp_status] * pq_mcore_corecount
+                            increment = val_dict["cores"][tmp_status]
                             if tmp_rt.endswith("_HIMEM"):
                                 rt_n_cores_dict["HIMEM"][tmp_status] += increment
                             else:
@@ -104,7 +102,7 @@ class JobFetcher(AgentBase):
                     # compute n jobs to get for this resource type
                     rt_n_jobs = int(n_jobs_rem / (len(ALL_RESOURCE_TYPES) - j))
                     if job_stats_dict and queueName in job_stats_dict:
-                        pq_rt_job_stats_dict = job_stats_dict[queueName].get(resource_type, {})
+                        pq_rt_job_stats_dict = job_stats_dict[queueName].get(resource_type, {}).get("jobs", {})
                         rt_n_active_jobs = pq_rt_job_stats_dict.get("starting", 0) + pq_rt_job_stats_dict.get("running", 0)
                         if resource_type in resource_type_limits_dict:
                             # capped by limit of specific resource type
