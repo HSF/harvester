@@ -5712,7 +5712,7 @@ class DBProxy(object):
                 retMap[computingSite][resourceType]["jobs"].setdefault(jobStatus, 0)
                 retMap[computingSite][resourceType]["cores"].setdefault(jobStatus, 0)
                 retMap[computingSite][resourceType]["jobs"][jobStatus] += cnt
-                retMap[computingSite][resourceType]["cores"][jobStatus] += nCore
+                retMap[computingSite][resourceType]["cores"][jobStatus] += nCore * cnt
             # commit
             self.commit()
             tmpLog.debug(f"got {str(retMap)}")
