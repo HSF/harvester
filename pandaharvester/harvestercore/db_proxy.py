@@ -5708,7 +5708,19 @@ class DBProxy(object):
                     else:
                         nCore = 1
                 retMap.setdefault(computingSite, {})
-                retMap[computingSite].setdefault(resourceType, {"jobs": {}, "cores": {}})
+                retMap[computingSite].setdefault(
+                    resourceType,
+                    {
+                        "jobs": {
+                            "starting": 0,
+                            "running": 0,
+                        },
+                        "cores": {
+                            "starting": 0,
+                            "running": 0,
+                        },
+                    },
+                )
                 retMap[computingSite][resourceType]["jobs"].setdefault(jobStatus, 0)
                 retMap[computingSite][resourceType]["cores"].setdefault(jobStatus, 0)
                 retMap[computingSite][resourceType]["jobs"][jobStatus] += cnt
