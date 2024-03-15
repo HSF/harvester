@@ -90,7 +90,7 @@ class JobFetcher(AgentBase):
                     },
                 }
                 if job_stats_dict and queueName in job_stats_dict:
-                    for tmp_rt, val_dict in job_stats_dict[queueName]:
+                    for tmp_rt, val_dict in job_stats_dict[queueName].items():
                         for tmp_status in ["starting", "running"]:
                             increment = val_dict["cores"][tmp_status]
                             if tmp_rt.endswith("_HIMEM"):
