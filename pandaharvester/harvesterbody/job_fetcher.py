@@ -76,7 +76,6 @@ class JobFetcher(AgentBase):
                         if isinstance(val, int):
                             resource_type_limits_dict[new_key] = val
                 # compute cores of active (submitted and running) jobs
-                rt_n_jobs_dict = dict()
                 n_jobs_rem = nJobs
                 pq_mcore_corecount = pandaQueueDict.get("corecount", 8) or 8
                 rt_n_cores_dict = {
@@ -97,7 +96,7 @@ class JobFetcher(AgentBase):
                                 rt_n_cores_dict["HIMEM"][tmp_status] += increment
                             else:
                                 rt_n_cores_dict["normal"][tmp_status] += increment
-                # compute n jobs to get for each resource types
+                # loop over resource types
                 for j, resource_type in enumerate(random.sample(list(ALL_RESOURCE_TYPES), k=len(ALL_RESOURCE_TYPES))):
                     # compute n jobs to get for this resource type
                     rt_n_jobs = int(n_jobs_rem / (len(ALL_RESOURCE_TYPES) - j))
@@ -115,10 +114,6 @@ class JobFetcher(AgentBase):
                                 rt_corecount = pq_mcore_corecount
                             rt_n_jobs = min(rt_n_jobs, (resource_type_limits_dict["HIMEM"] - rt_n_active_himem_cores) / rt_corecount)
                     rt_n_jobs = max(rt_n_jobs, 0)
-                    rt_n_jobs_dict[resource_type] = rt_n_jobs
-                    n_jobs_rem -= rt_n_jobs
-                # loop over resource types
-                for resource_type in ALL_RESOURCE_TYPES:
                     # addition criteria for getJob
                     additional_criteria = {"resourceType": resource_type}
                     # custom criteria from queueconfig
@@ -127,9 +122,8 @@ class JobFetcher(AgentBase):
                     # get jobs
                     tmpLog.debug(f"getting {rt_n_jobs} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type}")
                     sw = core_utils.get_stopwatch()
-                    jobs, errStr = self.communicator.get_jobs(
-                        siteName, self.nodeName, prodSourceLabel, self.nodeName, rt_n_jobs_dict[resource_type], additional_criteria
-                    )
+                    jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName, prodSourceLabel, self.nodeName, rt_n_jobs, additional_criteria)
+                    n_jobs_rem -= len(jobs)
                     tmpLog.info(f"got {len(jobs)} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type} with {errStr} {sw.get_elapsed_time()}")
                     # convert to JobSpec
                     if len(jobs) > 0:
