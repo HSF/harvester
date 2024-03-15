@@ -5702,21 +5702,15 @@ class DBProxy(object):
                 else:
                     resourceType = "MCORE" if nCore and nCore > 1 else "SCORE"
                 if not nCore:
-                    nCore = 1
+                    if resourceType.startswith("MCORE"):
+                        # a guess
+                        nCore = 8
+                    else:
+                        nCore = 1
                 retMap.setdefault(computingSite, {})
-                retMap[computingSite].setdefault(
-                    resourceType,
-                    {
-                        "jobs": {
-                            "running": 0,
-                            "starting": 0,
-                        },
-                        "cores": {
-                            "running": 0,
-                            "starting": 0,
-                        },
-                    },
-                )
+                retMap[computingSite].setdefault(resourceType, {"jobs": {}, "cores": {}})
+                retMap[computingSite][resourceType]["jobs"].setdefault(jobStatus, 0)
+                retMap[computingSite][resourceType]["cores"].setdefault(jobStatus, 0)
                 retMap[computingSite][resourceType]["jobs"][jobStatus] += cnt
                 retMap[computingSite][resourceType]["cores"][jobStatus] += nCore
             # commit
