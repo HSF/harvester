@@ -150,6 +150,10 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     ioIntensity += jobSpec.jobParams["ioIntensity"]
                 except Exception:
                     pass
+            # update resource type
+            job_resource_type = getattr(jobspec_list[0], "resourceType", None)
+            if job_resource_type:
+                resource_type = job_resource_type
             # fill in worker attributes
             if is_ucore or (nCore > 0 and "nCore" in self.jobAttributesToUse):
                 workSpec.nCore = nCore
