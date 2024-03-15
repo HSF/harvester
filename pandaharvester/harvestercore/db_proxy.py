@@ -5670,3 +5670,45 @@ class DBProxy(object):
             core_utils.dump_error_message(_logger)
             # return
             return set()
+
+    # get full job stats
+    def get_job_stats_full(self, filter_site_list=None):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name="get_job_stats_full")
+            tmpLog.debug("start")
+            # get job stats
+            varMap = dict()
+            sqlJ = "SELECT jt.status, jt.computingSite, jt.resourceType, COUNT(*) cnt "
+            sqlJ += f"FROM {jobTableName} jt "
+            if filter_site_list is not None:
+                site_var_name_list = []
+                for j, site in enumerate(filter_site_list):
+                    site_var_name = f":site{j}"
+                    site_var_name_list.append(site_var_name)
+                    varMap[site_var_name] = site
+                filter_queue_str = ",".join(site_var_name_list)
+                sqlJ += f"WHERE jt.computingSite IN ({filter_queue_str}) "
+            sqlJ += "GROUP BY jt.status,jt.computingSite, jt.resourceType "
+            self.execute(sqlJ, varMap)
+            resJ = self.cur.fetchall()
+            # fill return map
+            retMap = dict()
+            for jobStatus, computingSite, resourceType, cnt in resJ:
+                jobStatus = str(jobStatus)
+                computingSite = str(computingSite)
+                resourceType = str(resourceType)
+                retMap.setdefault(computingSite, {})
+                retMap[computingSite].setdefault(resourceType, {"running": 0, "starting": 0})
+                retMap[computingSite][resourceType][jobStatus] = cnt
+            # commit
+            self.commit()
+            tmpLog.debug(f"got {str(retMap)}")
+            return retMap
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}

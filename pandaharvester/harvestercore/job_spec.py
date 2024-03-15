@@ -68,6 +68,7 @@ class JobSpec(SpecBase):
         "jobParamsExtForOutput:blob",
         "jobParamsExtForLog:blob",
         "auxInput:integer",
+        "resourceType:text",
     )
 
     # attributes initialized with 0
@@ -457,6 +458,7 @@ class JobSpec(SpecBase):
             "rateWCHAR",
             "rateRBYTES",
             "rateWBYTES",
+            "resourceType",
         ]
         panda_attributes = set(panda_attributes)
         for aName, aValue in self.jobAttributes.items():
