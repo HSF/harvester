@@ -5679,7 +5679,7 @@ class DBProxy(object):
             tmpLog.debug("start")
             # get job stats
             varMap = dict()
-            sqlJ = "SELECT jt.status, jt.computingSite, jt.resourceType, COUNT(*) cnt "
+            sqlJ = "SELECT jt.status, jt.computingSite, jt.resourceType, jt.coreCount, COUNT(*) cnt "
             sqlJ += f"FROM {jobTableName} jt "
             if filter_site_list is not None:
                 site_var_name_list = []
@@ -5694,10 +5694,13 @@ class DBProxy(object):
             resJ = self.cur.fetchall()
             # fill return map
             retMap = dict()
-            for jobStatus, computingSite, resourceType, cnt in resJ:
+            for jobStatus, computingSite, resourceType, coreCount, cnt in resJ:
                 jobStatus = str(jobStatus)
                 computingSite = str(computingSite)
-                resourceType = str(resourceType)
+                if resourceType:
+                    resourceType = str(resourceType)
+                else:
+                    resourceType = "MCORE" if coreCount and coreCount > 1 else "SCORE"
                 retMap.setdefault(computingSite, {})
                 retMap[computingSite].setdefault(resourceType, {"running": 0, "starting": 0})
                 retMap[computingSite][resourceType][jobStatus] = cnt
