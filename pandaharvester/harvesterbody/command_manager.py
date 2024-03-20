@@ -1,7 +1,6 @@
 import datetime
 import socket
 
-from future.utils import iteritems
 from pandaharvester import commit_timestamp, panda_pkg_info
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
@@ -36,7 +35,7 @@ class CommandManager(AgentBase):
         for command in commands:
             command_spec = CommandSpec()
             command_spec.convert_command_json(command)
-            for comStr, receiver in iteritems(CommandSpec.receiver_map):
+            for comStr, receiver in CommandSpec.receiver_map.items():
                 if command_spec.command.startswith(comStr):
                     command_spec.receiver = receiver
                     break
@@ -55,7 +54,7 @@ class CommandManager(AgentBase):
             # send command list to be received
             siteNames = set()
             commandList = []
-            for queueName, queueConfig in iteritems(self.queueConfigMapper.get_active_queues()):
+            for queueName, queueConfig in self.queueConfigMapper.get_active_queues().items():
                 if queueConfig is None or queueConfig.runMode != "slave":
                     continue
                 # one command for all queues in one site
@@ -70,7 +69,7 @@ class CommandManager(AgentBase):
                 # one command for each queue
                 commandItem = {"command": CommandSpec.COM_setNWorkers, "computingSite": queueConfig.siteName, "resourceType": queueConfig.resourceType}
                 commandList.append(commandItem)
-            data = {"startTime": datetime.datetime.utcnow(), "sw_version": panda_pkg_info.release_version, "commit_stamp": commit_timestamp.timestamp}
+            data = {"startTime": core_utils.naive_utcnow(), "sw_version": panda_pkg_info.release_version, "commit_stamp": commit_timestamp.timestamp}
             if len(commandList) > 0:
                 main_log.debug("sending command list to receive")
                 data["commands"] = commandList
@@ -84,8 +83,8 @@ class CommandManager(AgentBase):
                 main_log.debug("polling commands loop")
 
                 # send heartbeat
-                if self.lastHeartbeat is None or self.lastHeartbeat < datetime.datetime.utcnow() - datetime.timedelta(minutes=10):
-                    self.lastHeartbeat = datetime.datetime.utcnow()
+                if self.lastHeartbeat is None or self.lastHeartbeat < core_utils.naive_utcnow() - datetime.timedelta(minutes=10):
+                    self.lastHeartbeat = core_utils.naive_utcnow()
                     self.communicator.is_alive({})
 
                 continuous_loop = True  # as long as there are commands, retrieve them

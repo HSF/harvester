@@ -1,13 +1,10 @@
 import os
 import shutil
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
+import subprocess
 
 import requests
 import requests.exceptions
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils

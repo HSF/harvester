@@ -6,6 +6,7 @@ ec_em_map = {
     "atlas_pilot_wrapper": {
         1: "wrapper fault",
         2: "wrapper killed stuck pilot",
+        64: "wrapper got cvmfs repos issue",
     },
 }
 

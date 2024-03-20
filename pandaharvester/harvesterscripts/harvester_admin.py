@@ -149,7 +149,7 @@ def fifo_benchmark(arguments):
     def put_test():
         sw.reset()
         multithread_executer(_put_object, n_object, n_thread)
-        sum_dict["put_time"] += sw.get_elapsed_time_in_sec(True)
+        sum_dict["put_time"] += sw.get_elapsed_time_in_sec()
         sum_dict["put_n"] += 1
         print(f"Put {n_object} objects by {n_thread} threads" + sw.get_elapsed_time())
         print(f"Now fifo size is {mq.size()}")
@@ -157,21 +157,21 @@ def fifo_benchmark(arguments):
     def get_test():
         sw.reset()
         multithread_executer(_get_object, n_object, n_thread)
-        sum_dict["get_time"] = sw.get_elapsed_time_in_sec(True)
+        sum_dict["get_time"] = sw.get_elapsed_time_in_sec()
         print(f"Get {n_object} objects by {n_thread} threads" + sw.get_elapsed_time())
         print(f"Now fifo size is {mq.size()}")
 
     def get_protective_test():
         sw.reset()
         multithread_executer(_get_object_protective, n_object, n_thread)
-        sum_dict["get_protective_time"] = sw.get_elapsed_time_in_sec(True)
+        sum_dict["get_protective_time"] = sw.get_elapsed_time_in_sec()
         print(f"Get {n_object} objects protective dequeue by {n_thread} threads" + sw.get_elapsed_time())
         print(f"Now fifo size is {mq.size()}")
 
     def clear_test():
         sw.reset()
         mq.fifo.clear()
-        sum_dict["clear_time"] = sw.get_elapsed_time_in_sec(True)
+        sum_dict["clear_time"] = sw.get_elapsed_time_in_sec()
         print("Cleared fifo" + sw.get_elapsed_time())
         print(f"Now fifo size is {mq.size()}")
 

@@ -1,5 +1,3 @@
-from future.utils import iteritems
-
 from . import core_utils
 from .db_interface import DBInterface
 
@@ -45,7 +43,7 @@ class PluginFactory(object):
             self.classMap[pluginKey] = cls
         # make args
         args = {}
-        for tmpKey, tmpVal in iteritems(plugin_conf):
+        for tmpKey, tmpVal in plugin_conf.items():
             if tmpKey in ["module", "name"]:
                 continue
             args[tmpKey] = tmpVal

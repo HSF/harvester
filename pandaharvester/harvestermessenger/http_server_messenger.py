@@ -2,13 +2,8 @@ import json
 import os
 import os.path
 import threading
-
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    JSONDecodeError = ValueError
-
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from json.decoder import JSONDecodeError
 from queue import Queue
 
 # try:

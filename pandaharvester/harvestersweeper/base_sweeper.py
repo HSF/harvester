@@ -1,11 +1,10 @@
 import abc
 
-import six
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
 
 # dummy plugin for sweeper
-class BaseSweeper(six.with_metaclass(abc.ABCMeta, PluginBase)):
+class BaseSweeper(PluginBase, metaclass=abc.ABCMeta):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)

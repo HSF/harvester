@@ -1,11 +1,7 @@
-import tempfile
-
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
 import os
 import stat
+import subprocess
+import tempfile
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase

@@ -1,7 +1,6 @@
 import os
 import sys
 
-from future.utils import iteritems
 from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
@@ -63,7 +62,7 @@ else:
 
         # set input file paths
         inFiles = jobSpec.get_input_file_attributes()
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = f"{os.getcwd()}/{inLFN}"
         jobSpec.set_input_file_paths(inFiles)
         jobSpecList.append(jobSpec)

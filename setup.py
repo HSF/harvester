@@ -28,19 +28,14 @@ setup(
     install_requires=[
         "requests",
         "python-daemon",
-        "future",
-        'futures; python_version == "2.*"',
         "pycryptodomex",
         "panda-common",
         "pyjwt",
-        'subprocess32; python_version == "2.*"',
         "rpyc",
         "paramiko",
         "pexpect",
         "psutil >= 5.4.8",
-        'scandir; python_version < "3.5"',
         "panda-pilot >= 2.7.2.1",
-        "six",
     ],
     # optional pip dependencies
     extras_require={

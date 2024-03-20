@@ -1,7 +1,6 @@
 import copy
 import traceback
 
-from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -83,7 +82,7 @@ class WorkerAdjuster(object):
                     # return 1/n_harvester_instances for the site
                     val_dict = worker_stats_from_panda[site_name]
                     n_harvester_instances = len(list(val_dict.keys()))
-                    tmp_log.debug("number of harvesters: %s" % n_harvester_instances)
+                    tmp_log.debug(f"number of harvesters: {n_harvester_instances}")
                     ret_val = 1.0 / max(n_harvester_instances, 1)
                 except KeyError:
                     # no data for this site, return default
@@ -128,8 +127,8 @@ class WorkerAdjuster(object):
                 n_queue_total, n_ready_total, n_running_total = 0, 0, 0
                 apf_msg = None
                 apf_data = None
-                for job_type, jt_values in iteritems(static_num_workers[queue_name]):
-                    for resource_type, tmp_val in iteritems(jt_values):
+                for job_type, jt_values in static_num_workers[queue_name].items():
+                    for resource_type, tmp_val in jt_values.items():
                         tmp_log.debug(f"Processing queue {queue_name} job_type {job_type} resource_type {resource_type} with static_num_workers {tmp_val}")
 
                         # set 0 to num of new workers when the queue is disabled
@@ -224,8 +223,7 @@ class WorkerAdjuster(object):
                                         if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name) > 0:
                                             n_min_pilots = 1
                                         n_activated = max(
-                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)),
-                                            n_min_pilots
+                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)), n_min_pilots
                                         )  # avoid no activity queues
                                     except KeyError:
                                         # zero job in the queue

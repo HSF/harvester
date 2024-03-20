@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 import requests.exceptions
+
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -40,7 +41,7 @@ class Cacher(AgentBase):
         locked = self.dbProxy.get_process_lock("cacher", self.get_pid(), harvester_config.cacher.sleepTime)
         if locked or skip_lock:
             mainLog.debug("getting information")
-            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
+            timeLimit = core_utils.naive_utcnow() - datetime.timedelta(minutes=harvester_config.cacher.refreshInterval)
             itemsList = []
             nItems = 4
             for tmpStr in harvester_config.cacher.data:

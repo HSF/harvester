@@ -7,8 +7,8 @@ import datetime
 import os
 import re
 
-from future.utils import iteritems
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore import core_utils
 
 from .spec_base import SpecBase
 
@@ -203,11 +203,11 @@ class WorkSpec(SpecBase):
     # trigger next lookup
     def trigger_next_lookup(self):
         self.nextLookup = True
-        self.modificationTime = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        self.modificationTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
 
     # trigger propagation
     def trigger_propagation(self):
-        self.lastUpdate = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+        self.lastUpdate = core_utils.naive_utcnow() - datetime.timedelta(hours=24)
 
     # disable propagation
     def disable_propagation(self):
@@ -262,12 +262,12 @@ class WorkSpec(SpecBase):
     # set start time
     def set_start_time(self, force=False):
         if self.startTime is None or force is True:
-            self.startTime = datetime.datetime.utcnow()
+            self.startTime = core_utils.naive_utcnow()
 
     # set end time
     def set_end_time(self, force=False):
         if self.endTime is None or force is True:
-            self.endTime = datetime.datetime.utcnow()
+            self.endTime = core_utils.naive_utcnow()
 
     # set work params
     def set_work_params(self, data):
@@ -275,7 +275,7 @@ class WorkSpec(SpecBase):
             return
         if self.workParams is None and data is not None:
             self.workParams = dict()
-        for key, val in iteritems(data):
+        for key, val in data.items():
             if key not in self.workParams or self.workParams[key] != val:
                 self.workParams[key] = val
                 self.force_update("workParams")
@@ -298,7 +298,7 @@ class WorkSpec(SpecBase):
             return
         if self.workAttributes is None and data is not None:
             self.workAttributes = dict()
-        for key, val in iteritems(data):
+        for key, val in data.items():
             if key not in self.workAttributes or self.workAttributes[key] != val:
                 self.workAttributes[key] = val
                 self.force_update("workAttributes")
@@ -321,7 +321,7 @@ class WorkSpec(SpecBase):
             self.logFilesToUpload = dict()
         if stream_type is not None:
             # delete existing stream
-            for tmp_file_path, tmpDict in iteritems(self.logFilesToUpload.copy()):
+            for tmp_file_path, tmpDict in self.logFilesToUpload.copy().items():
                 if tmpDict["stream_type"] == stream_type:
                     del self.logFilesToUpload[tmp_file_path]
         if file_path not in self.logFilesToUpload:
@@ -354,7 +354,7 @@ class WorkSpec(SpecBase):
     def get_log_files_to_upload(self):
         retList = []
         if self.logFilesToUpload is not None:
-            for filePath, fileInfo in iteritems(self.logFilesToUpload):
+            for filePath, fileInfo in self.logFilesToUpload.items():
                 if not os.path.exists(filePath):
                     continue
                 fileSize = os.stat(filePath).st_size

@@ -3,7 +3,6 @@
 import os
 import re
 
-from future.utils import iteritems
 from pandalogger import logger_config
 
 logdir = logger_config.daemon["logdir"]
@@ -26,7 +25,7 @@ nL = 20
 # get average and longest
 lData = dict()
 aData = dict()
-for method, exeTimes in iteritems(data):
+for method, exeTimes in data.items():
     exeTimes.sort()
     exeTimes.reverse()
     for exeTime in exeTimes[:nL]:

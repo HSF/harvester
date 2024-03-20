@@ -1,8 +1,8 @@
-from __future__ import division
-
 import datetime
 import math
 import threading
+
+from pandaharvester.harvestercore import core_utils
 
 from .db_proxy_pool import DBProxyPool as DBProxy
 from .core_utils import SingletonWithID
@@ -58,7 +58,7 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
     def load_data(self):
         with self.lock:
             # check interval
-            time_now = datetime.datetime.utcnow()
+            time_now = core_utils.naive_utcnow()
             if self.last_update is not None and time_now - self.last_update < datetime.timedelta(minutes=10):
                 return
 
@@ -77,7 +77,7 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
                 except KeyError:
                     continue
 
-            self.last_update = datetime.datetime.utcnow()
+            self.last_update = core_utils.naive_utcnow()
             return
 
     def is_valid_resource_type(self, resource_name):

@@ -1,11 +1,11 @@
 import os
 import os.path
 
-from future.utils import iteritems
+from pilot.api import data
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermover import mover_utils
-from pilot.api import data
 
 # logger
 baseLogger = core_utils.setup_logger("pilotmover_preparator")
@@ -47,7 +47,7 @@ class PilotmoverPreparator(PluginBase):
         inFiles = jobspec.get_input_file_attributes(skip_ready=True)
         # set path to each file
         tmpLog.info("Prepare files to download (construct path and verifiy existing files)")
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
             # check if file exist. Skip alrady downoladed files
             if os.path.exists(inFile["path"]):
@@ -96,7 +96,7 @@ class PilotmoverPreparator(PluginBase):
         # get input files
         inFiles = jobspec.get_input_file_attributes()
         # set path to each file
-        for inLFN, inFile in iteritems(inFiles):
+        for inLFN, inFile in inFiles.items():
             inFile["path"] = mover_utils.construct_file_path(self.basePath, inFile["scope"], inLFN)
         # set
         jobspec.set_input_file_paths(inFiles)

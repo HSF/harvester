@@ -1,12 +1,7 @@
 import os
 import traceback
-
-try:
-    from urllib import unquote  # Python 2.X
-except ImportError:
-    from urllib.parse import unquote  # Python 3+
-
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import unquote  # Python 3+
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils

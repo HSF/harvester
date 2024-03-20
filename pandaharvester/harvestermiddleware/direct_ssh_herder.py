@@ -1,7 +1,6 @@
 import json
 import types
 
-import six
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
@@ -77,7 +76,7 @@ class Method(object):
             "args": core_utils.pickle_to_text(args),
             "kwargs": core_utils.pickle_to_text(kwargs),
         }
-        stdout, stderr = self.conn.communicate(input=six.b(json.dumps(params)))
+        stdout, stderr = self.conn.communicate(input=json.dumps(params).encode("latin_1"))
         if self.conn.returncode == 0:
             return_dict = json.loads(stdout)
             if "exception" in return_dict:

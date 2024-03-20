@@ -1,13 +1,9 @@
 import multiprocessing
 import re
+import subprocess
 import traceback
 
 import psutil
-
-try:
-    import subprocess32 as subprocess
-except Exception:
-    import subprocess
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.cred_manager import CredManager

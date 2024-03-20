@@ -1,15 +1,11 @@
 import gc
 import multiprocessing
 import os
+import subprocess
 import tempfile
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor as Pool
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils

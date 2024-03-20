@@ -1,41 +1,20 @@
 import copy
 import datetime
+import fnmatch
 import itertools
 import json
-import os
-import shutil
-import tarfile
-
-try:
-    from urllib.parse import urlencode
-except ImportError:
-    from urllib import urlencode
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
-
-try:
-    from os import scandir, walk
-except ImportError:
-    from scandir import scandir, walk
-
-try:
-    from shutil import which
-except ImportError:
-    # before python 3.3
-    from distutils.spawn import find_executable as which
-
-import fnmatch
 import multiprocessing
+import os
 import os.path
 import re
+import shutil
+import subprocess
+import tarfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor as Pool
-
-from future.utils import iteritems
-from past.builtins import long
+from os import scandir, walk
+from shutil import which
+from urllib.parse import urlencode
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -350,8 +329,8 @@ class SharedFileMessenger(BaseMessenger):
                 sizeMap = dict()
                 chksumMap = dict()
                 eventsList = dict()
-                for tmpPandaID, tmpEventMapList in iteritems(loadDict):
-                    tmpPandaID = long(tmpPandaID)
+                for tmpPandaID, tmpEventMapList in loadDict.items():
+                    tmpPandaID = int(tmpPandaID)
                     # test if tmpEventMapList is a list
                     if not isinstance(tmpEventMapList, list):
                         tmpLog.error("loaded data item is not a list")
@@ -591,8 +570,8 @@ class SharedFileMessenger(BaseMessenger):
                     tmpOrigDict = json.load(jsonFile)
                     newDict = dict()
                     # change the key from str to int
-                    for tmpPandaID, tmpDict in iteritems(tmpOrigDict):
-                        tmpPandaID = long(tmpPandaID)
+                    for tmpPandaID, tmpDict in tmpOrigDict.items():
+                        tmpPandaID = int(tmpPandaID)
                         retDict[tmpPandaID] = tmpDict
                         nData += len(tmpDict)
             except Exception:
@@ -617,14 +596,14 @@ class SharedFileMessenger(BaseMessenger):
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + "." + datetime.datetime.utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
+                jsonFilePath_rename = jsonFilePath + "." + core_utils.naive_utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
                 jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
-                jsonFilePath_rename = jsonFilePath + "." + datetime.datetime.utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
+                jsonFilePath_rename = jsonFilePath + "." + core_utils.naive_utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
@@ -765,8 +744,8 @@ class SharedFileMessenger(BaseMessenger):
                                 if "merged" in tmpData:
                                     output_lfns = set()
                                     fileDict.setdefault(jobSpec.PandaID, [])
-                                    for tmpIn, tmpOuts in iteritems(tmpData["merged"]):
-                                        for tmpLFN, tmpFileDict in iteritems(tmpOuts):
+                                    for tmpIn, tmpOuts in tmpData["merged"].items():
+                                        for tmpLFN, tmpFileDict in tmpOuts.items():
                                             if tmpLFN in output_lfns:
                                                 continue
                                             output_lfns.add(tmpLFN)
@@ -846,12 +825,12 @@ class SharedFileMessenger(BaseMessenger):
         jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
         tmpLog.debug(f"looking for heartbeat file {jsonFilePath}")
         if not os.path.exists(jsonFilePath):  # no heartbeat file was found
-            tmpLog.debug(f"startTime: {workspec.startTime}, now: {datetime.datetime.utcnow()}")
+            tmpLog.debug(f"startTime: {workspec.startTime}, now: {core_utils.naive_utcnow()}")
             if not workspec.startTime:
                 # the worker didn't even have time to start
                 tmpLog.debug("heartbeat not found, but no startTime yet for worker")
                 return True
-            elif datetime.datetime.utcnow() - workspec.startTime < datetime.timedelta(minutes=time_limit):
+            elif core_utils.naive_utcnow() - workspec.startTime < datetime.timedelta(minutes=time_limit):
                 # the worker is too young and maybe didn't have time to generate the heartbeat
                 tmpLog.debug("heartbeat not found, but worker too young")
                 return True
@@ -860,9 +839,9 @@ class SharedFileMessenger(BaseMessenger):
                 tmpLog.debug("not found")
                 return None
         try:
-            mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(jsonFilePath))
+            mtime = core_utils.naive_utcfromtimestamp(os.path.getmtime(jsonFilePath))
             tmpLog.debug(f"last modification time : {mtime}")
-            if datetime.datetime.utcnow() - mtime > datetime.timedelta(minutes=time_limit):
+            if core_utils.naive_utcnow() - mtime > datetime.timedelta(minutes=time_limit):
                 tmpLog.debug("too old")
                 return False
             tmpLog.debug("OK")

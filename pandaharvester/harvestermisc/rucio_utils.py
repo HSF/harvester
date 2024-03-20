@@ -2,10 +2,7 @@
 utilities routines associated with Rucio CLI access
 
 """
-try:
-    import subprocess32 as subprocess
-except BaseException:
-    import subprocess
+import subprocess
 
 from pandaharvester.harvestercore import core_utils
 

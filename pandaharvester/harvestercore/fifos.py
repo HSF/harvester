@@ -2,21 +2,11 @@ import collections
 import datetime
 import json
 import os
+import pickle
 import socket
 import time
 from calendar import timegm
-
-from future.utils import iteritems
-
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
-try:
-    from threading import get_ident
-except ImportError:
-    from thread import get_ident
+from threading import get_ident
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -39,7 +29,7 @@ _logger = core_utils.setup_logger("fifos")
 class FIFOBase(object):
     # constructor
     def __init__(self, **kwarg):
-        for tmpKey, tmpVal in iteritems(kwarg):
+        for tmpKey, tmpVal in kwarg.items():
             setattr(self, tmpKey, tmpVal)
         self.hostname = socket.gethostname()
         self.os_pid = os.getpid()

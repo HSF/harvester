@@ -1,5 +1,3 @@
-from __future__ import division
-
 import datetime
 import math
 import random
@@ -76,8 +74,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         tmp_log.debug(f"jobspec_list: {jobspec_list}")
 
-        work_spec = WorkSpec()
-        work_spec.creationTime = datetime.datetime.utcnow()
+        workSpec = WorkSpec()
+        workSpec.creationTime = core_utils.naive_utcnow()
 
         # get the queue configuration from CRIC
         panda_queues_dict = PandaQueuesDict()

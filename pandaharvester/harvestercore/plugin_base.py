@@ -1,10 +1,9 @@
-from future.utils import iteritems
 from pandaharvester.harvestercore import core_utils
 
 
 class PluginBase(object):
     def __init__(self, **kwarg):
-        for tmpKey, tmpVal in iteritems(kwarg):
+        for tmpKey, tmpVal in kwarg.items():
             setattr(self, tmpKey, tmpVal)
 
     # make logger

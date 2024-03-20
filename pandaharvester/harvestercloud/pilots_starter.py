@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """
+This script needs to be kept python2 compatible until all K8S sites are migrated to ALMA9
 This script will be executed at container startup
 - It will retrieve the proxy and panda queue from the environment
 - It will download the pilot wrapper from github and execute it
@@ -24,12 +25,12 @@ try:
 except ImportError:
     import urlparse  # for python 2
 
-import os
-import sys
-import shutil
 import logging
 import mimetypes
+import os
+import shutil
 import ssl
+import sys
 import traceback
 
 WORK_DIR = "/scratch"
@@ -304,16 +305,24 @@ if __name__ == "__main__":
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
     wrapper_executable = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
-    command = "/bin/bash {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False | tee /tmp/wrapper-wid.log".format(
+    command = "/bin/bash {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False".format(
         wrapper_executable, wrapper_params, submit_mode
     )
 
+    # extend command to tee the stdout and stderr to a file. We need to return the wrapper exit code, not the tee exit code
+    command += " 2>&1 | tee /tmp/wrapper-wid.log; exit ${PIPESTATUS[0]}"
+
     try:
-        subprocess.call(command, shell=True)
+        return_code = subprocess.call(command, shell=True)
     except BaseException:
         logging.error(traceback.format_exc())
-    logging.debug("[main] pilot wrapper done...")
+        return_code = 1
+
+    logging.debug("[main] pilot wrapper done with return code {0} ...".format(return_code))
 
     # upload logs to e.g. panda cache or similar
     upload_logs(logs_frontend_w, "/tmp/wrapper-wid.log", destination_name, proxy_path)
     logging.debug("[main] FINISHED")
+
+    # Exit with the same exit code as the pilot wrapper
+    sys.exit(return_code)

@@ -1,9 +1,5 @@
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    import subprocess
-
 import os
+import subprocess
 import uuid
 
 from pandaharvester.harvestercore import core_utils
