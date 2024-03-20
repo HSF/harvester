@@ -4,8 +4,11 @@ import random
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.resource_type_constants import (
+    BASIC_RESOURCE_TYPE_MULTI_CORE,
+    BASIC_RESOURCE_TYPE_SINGLE_CORE,
+)
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
-from pandaharvester.harvestercore.resource_type_constants import BASIC_RESOURCE_TYPE_SINGLE_CORE, BASIC_RESOURCE_TYPE_MULTI_CORE
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
@@ -74,8 +77,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         tmp_log.debug(f"jobspec_list: {jobspec_list}")
 
-        workSpec = WorkSpec()
-        workSpec.creationTime = core_utils.naive_utcnow()
+        work_spec = WorkSpec()
+        work_spec.creationTime = core_utils.naive_utcnow()
 
         # get the queue configuration from CRIC
         panda_queues_dict = PandaQueuesDict()
@@ -140,9 +143,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     pass
             # fill in worker attributes
             if is_ucore or (nCore > 0 and "nCore" in self.jobAttributesToUse):
-                workSpec.nCore = nCore
+                work_spec.nCore = nCore
             if is_ucore or (minRamCount > 0 and ("minRamCount" in self.jobAttributesToUse or associated_params_dict.get("job_minramcount") is True)):
-                workSpec.minRamCount = minRamCount
+                work_spec.minRamCount = minRamCount
             if maxDiskCount > 0 and ("maxDiskCount" in self.jobAttributesToUse or associated_params_dict.get("job_maxdiskcount") is True):
                 work_spec.maxDiskCount = maxDiskCount
             if maxWalltime > 0 and ("maxWalltime" in self.jobAttributesToUse or associated_params_dict.get("job_maxwalltime") is True):
