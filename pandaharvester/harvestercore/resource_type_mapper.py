@@ -4,10 +4,14 @@ import threading
 
 from pandaharvester.harvestercore import core_utils
 
-from .db_proxy_pool import DBProxyPool as DBProxy
 from .core_utils import SingletonWithID
-
-from .resource_type_constants import CRIC_RAM_TAG, CRIC_CORE_TAG, UNIFIED_QUEUE_TAG, CAPABILITY_TAG
+from .db_proxy_pool import DBProxyPool as DBProxy
+from .resource_type_constants import (
+    CAPABILITY_TAG,
+    CRIC_CORE_TAG,
+    CRIC_RAM_TAG,
+    UNIFIED_QUEUE_TAG,
+)
 
 
 class ResourceType(object):
@@ -40,10 +44,12 @@ class ResourceType(object):
         ram_per_core = ram_count / core_count
 
         # check if the resource type matches the core count and ram count
-        if (self.max_core and core_count > self.max_core) or \
-                (self.min_core and core_count < self.min_core) or \
-                (self.max_ram_per_core and ram_per_core > self.max_ram_per_core) or \
-                (self.min_ram_per_core and ram_per_core < self.min_ram_per_core):
+        if (
+            (self.max_core and core_count > self.max_core)
+            or (self.min_core and core_count < self.min_core)
+            or (self.max_ram_per_core and ram_per_core > self.max_ram_per_core)
+            or (self.min_ram_per_core and ram_per_core < self.min_ram_per_core)
+        ):
             return False
 
         return True
@@ -170,7 +176,7 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
         :return: list of strings with the resource type names
         """
         self.load_data()
-        return self.resource_types.keys()
+        return list(self.resource_types.keys())
 
     def get_rtype_for_queue(self, queue_dict):
         """
@@ -187,7 +193,7 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
 
         # unified queues are not mapped to any particular resource type
         if capability == UNIFIED_QUEUE_TAG:
-            return ''
+            return ""
 
         # loop over the resource types and find the one that matches the queue configuration
         for resource_name, resource_type in self.resource_types.items():
@@ -195,4 +201,4 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
                 return resource_name
 
         # no match found
-        return ''
+        return ""
