@@ -107,11 +107,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     work_spec.nCore = site_corecount
                     work_spec.minRamCount = site_maxrss
             else:
-                if not len(jobspec_list) and self.rt_mapper.is_valid_resource_type(resource_type):
+                if not len(jobspec_list) and not self.rt_mapper.is_valid_resource_type(resource_type):
                     # some testing PQs have ucore + pure pull, need to default to the basic 1-core resource type
-                    tmp_log.warning(
-                        f"{resource_type} -> {type(resource_type)}, {self.rt_mapper.resource_types}, {resource_type in self.rt_mapper.resource_types}"
-                    )
                     tmp_log.warning(f'Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to the basic 1-core resource type')
                     resource_type = BASIC_RESOURCE_TYPE_SINGLE_CORE
                 work_spec.nCore, work_spec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
