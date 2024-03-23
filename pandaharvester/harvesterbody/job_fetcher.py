@@ -78,6 +78,7 @@ class JobFetcher(AgentBase):
                 # compute cores of active (submitted and running) jobs
                 n_jobs_rem = nJobs
                 pq_mcore_corecount = pandaQueueDict.get("corecount", 8) or 8
+                rt_n_jobs_dict = {}
                 rt_n_cores_dict = {
                     "normal": {
                         "starting": 0,
@@ -96,10 +97,10 @@ class JobFetcher(AgentBase):
                                 rt_n_cores_dict["HIMEM"][tmp_status] += increment
                             else:
                                 rt_n_cores_dict["normal"][tmp_status] += increment
-                # loop over resource types
+                # compute n_jobs to fetch for resource types
                 for j, resource_type in enumerate(random.sample(list(ALL_RESOURCE_TYPES), k=len(ALL_RESOURCE_TYPES))):
                     # compute n jobs to get for this resource type
-                    rt_n_jobs = int(n_jobs_rem / (len(ALL_RESOURCE_TYPES) - j))
+                    rt_n_jobs = n_jobs_rem / (len(ALL_RESOURCE_TYPES) - j)
                     if job_stats_dict and queueName in job_stats_dict:
                         pq_rt_job_stats_dict = job_stats_dict[queueName].get(resource_type, {}).get("jobs", {})
                         rt_n_active_jobs = pq_rt_job_stats_dict.get("starting", 0) + pq_rt_job_stats_dict.get("running", 0)
@@ -114,19 +115,23 @@ class JobFetcher(AgentBase):
                                 rt_corecount = pq_mcore_corecount
                             rt_n_jobs = min(rt_n_jobs, (resource_type_limits_dict["HIMEM"] - rt_n_active_himem_cores) / rt_corecount)
                     rt_n_jobs = max(rt_n_jobs, 0)
-                    # addition criteria for getJob
-                    additional_criteria = {"resourceType": resource_type}
+                    rt_n_jobs_dict[resource_type] = rt_n_jobs
+                    n_jobs_rem -= rt_n_jobs
+
+                # fucntion to call get jobs
+                def _get_jobs(resource_type=None, n_jobs=0):
                     # custom criteria from queueconfig
-                    if queueConfig.getJobCriteria:
-                        additional_criteria.udpate(queueConfig.getJobCriteria)
-                    # get jobs
-                    tmpLog.debug(f"getting {rt_n_jobs} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type}")
+                    additional_criteria = queueConfig.getJobCriteria
+                    if resource_type:
+                        # addition criteria for getJob on resourcetype
+                        additional_criteria = {"resourceType": resource_type}
+                    # call get jobs
+                    tmpLog.debug(f"getting {n_jobs} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type}")
                     sw = core_utils.get_stopwatch()
-                    if rt_n_jobs > 0:
-                        jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName, prodSourceLabel, self.nodeName, rt_n_jobs, additional_criteria)
+                    if n_jobs > 0:
+                        jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName, prodSourceLabel, self.nodeName, n_jobs, additional_criteria)
                     else:
                         jobs, errStr = [], "no need to get job"
-                    n_jobs_rem -= len(jobs)
                     tmpLog.info(f"got {len(jobs)} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type} with {errStr} {sw.get_elapsed_time()}")
                     # convert to JobSpec
                     if len(jobs) > 0:
@@ -148,7 +153,6 @@ class JobFetcher(AgentBase):
                             jobSpec.creationTime = timeNow
                             jobSpec.stateChangeTime = timeNow
                             jobSpec.configID = queueConfig.configID
-                            jobSpec.resourceType = resource_type
                             jobSpec.set_one_attribute("schedulerID", f"harvester-{harvester_config.master.harvester_id}")
                             if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
                                 jobSpec.zipPerMB = queueConfig.zipPerMB
@@ -188,6 +192,20 @@ class JobFetcher(AgentBase):
                         sw_insertdb = core_utils.get_stopwatch()
                         self.dbProxy.insert_jobs(jobSpecs)
                         tmpLog.debug(f"Insert of {len(jobSpecs)} jobs {sw_insertdb.get_elapsed_time()}")
+                    # return len jobs
+                    return len(jobs)
+
+                # call get jobs
+                if all([val > 0 for val in rt_n_jobs_dict.values()]):
+                    # no n_jobs limit on any resourcetypes, call get_jobs without constraint
+                    _get_jobs(resource_type=None, n_jobs=nJobs)
+                else:
+                    # call get_jobs for each resourcetype with calculated rt_n_jobs
+                    n_jobs_rem = nJobs
+                    for resource_type, rt_n_jobs in rt_n_jobs_dict.items():
+                        n_jobs_to_get = max(min(round(rt_n_jobs), n_jobs_rem), 0)
+                        got_n_jobs = _get_jobs(resource_type=resource_type, n_jobs=n_jobs_to_get)
+                        n_jobs_rem -= got_n_jobs
             mainLog.debug("done")
             # check if being terminated
             if self.terminated(harvester_config.jobfetcher.sleepTime):

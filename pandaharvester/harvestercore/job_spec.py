@@ -144,6 +144,8 @@ class JobSpec(SpecBase):
         else:
             self.jobsetID = data["jobsetID"]
         self.currentPriority = data["currentPriority"]
+        self.nCore = data.get("coreCount")
+        self.resourceType = data.get("resource_type")
         self.jobParams = data
         self.jobParamsExtForOutput = self.get_output_file_attributes()
         self.jobParamsExtForLog = self.get_logfile_info()
