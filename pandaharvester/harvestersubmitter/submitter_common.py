@@ -90,17 +90,15 @@ def get_pilot_job_type(job_type, is_unified_dispatch=False):
 
 
 # Parse resource type from string for Unified PanDA Queue
-
-
-def get_resource_type(string, is_unified_queue, is_pilot_option=False):
-    string = str(string)
+def get_resource_type(resource_type_name, is_unified_queue, all_resource_types, is_pilot_option=False):
+    resource_type_name = str(resource_type_name)
     if not is_unified_queue:
         ret = ""
-    elif string in set(["SCORE", "MCORE", "SCORE_HIMEM", "MCORE_HIMEM"]):
+    elif resource_type_name in set(all_resource_types):
         if is_pilot_option:
-            ret = f"--resource-type {string}"
+            ret = f"--resource-type {resource_type_name}"
         else:
-            ret = string
+            ret = resource_type_name
     else:
         ret = ""
     return ret

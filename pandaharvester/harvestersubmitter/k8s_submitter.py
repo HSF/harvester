@@ -98,9 +98,7 @@ class K8sSubmitter(PluginBase):
             cert = self._choose_proxy(work_spec, is_grandly_unified_queue)
             if not cert:
                 err_str = "No proxy specified in proxySecretPath. Not submitted"
-                tmp_return_value = (False, err_str)
-                return tmp_return_value
-
+                return False, err_str
             # get the walltime limit
             try:
                 max_time = this_panda_queue_dict["maxtime"]
@@ -153,7 +151,7 @@ class K8sSubmitter(PluginBase):
         n_workers = len(workspec_list)
         tmp_log.debug(f"start, n_workers={n_workers}")
 
-        ret_list = list()
+        ret_list = []
         if not workspec_list:
             tmp_log.debug("empty workspec_list")
             return ret_list

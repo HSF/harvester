@@ -4,7 +4,14 @@ import threading
 
 from pandaharvester.harvestercore import core_utils
 
+from .core_utils import SingletonWithID
 from .db_proxy_pool import DBProxyPool as DBProxy
+from .resource_type_constants import (
+    CAPABILITY_TAG,
+    CRIC_CORE_TAG,
+    CRIC_RAM_TAG,
+    UNIFIED_QUEUE_TAG,
+)
 
 
 class ResourceType(object):
@@ -21,8 +28,34 @@ class ResourceType(object):
         self.min_ram_per_core = resource_type_dict["minrampercore"]
         self.max_ram_per_core = resource_type_dict["maxrampercore"]
 
+    def match(self, core_count, ram_count):
+        """
+        Checks if the resource type matches the core count and ram count
+        :param core_count: number of cores
+        :param ram_count: amount of memory
+        :return: boolean
+        """
 
-class ResourceTypeMapper(object):
+        # basic validation that the values are not None or 0
+        if not core_count or not ram_count:
+            return False
+
+        # normalize ram count
+        ram_per_core = ram_count / core_count
+
+        # check if the resource type matches the core count and ram count
+        if (
+            (self.max_core and core_count > self.max_core)
+            or (self.min_core and core_count < self.min_core)
+            or (self.max_ram_per_core and ram_per_core > self.max_ram_per_core)
+            or (self.min_ram_per_core and ram_per_core < self.min_ram_per_core)
+        ):
+            return False
+
+        return True
+
+
+class ResourceTypeMapper(object, metaclass=SingletonWithID):
     def __init__(self):
         self.lock = threading.Lock()
         self.resource_types = {}
@@ -56,14 +89,15 @@ class ResourceTypeMapper(object):
     def is_valid_resource_type(self, resource_name):
         """
         Checks if the resource type is valid (exists in the dictionary of resource types)
-        :param resource_name: string with the resource type name (e.g. SCORE, SCORE_HIMEM,...)
+        :param resource_name: string with the resource type name
         :return: boolean
         """
+        self.load_data()
         if resource_name in self.resource_types:
             return True
         return False
 
-    def calculate_worker_requirements(self, resource_name, queue_config):
+    def calculate_worker_requirements(self, resource_name, queue_dict):
         """
         Calculates worker requirements (cores and memory) to request in pilot streaming mode/unified pull queue
         """
@@ -76,10 +110,10 @@ class ResourceTypeMapper(object):
             resource_type = self.resource_types[resource_name]
 
             # retrieve the queue configuration
-            site_max_rss = queue_config.get("maxrss", 0) or 0
-            site_core_count = queue_config.get("corecount", 1) or 1
+            site_max_rss = queue_dict.get(CRIC_RAM_TAG, 0) or 0
+            site_core_count = queue_dict.get(CRIC_CORE_TAG, 1) or 1
 
-            unified_queue = queue_config.get("capability", "") == "ucore"
+            unified_queue = queue_dict.get(CAPABILITY_TAG, "") == UNIFIED_QUEUE_TAG
             if not unified_queue:
                 # site is not unified, just request whatever is configured in AGIS
                 return site_max_rss, site_core_count
@@ -99,3 +133,72 @@ class ResourceTypeMapper(object):
             pass
 
         return worker_cores, worker_memory
+
+    def is_single_core_resource_type(self, resource_name):
+        """
+        Validates whether the resource type is single core by looking at the min and max core definitions
+        :param resource_name: string with the resource type name
+        :return: boolean
+        """
+        self.load_data()
+        if resource_name in self.resource_types:
+            min_core = self.resource_types[resource_name].min_core
+            max_core = self.resource_types[resource_name].max_core
+
+            if min_core == max_core == 1:
+                return True
+
+        return False
+
+    def get_single_core_resource_types(self):
+        """
+        Returns a list of resource types that are single core
+        :return: list of strings with the resource type names
+        """
+        self.load_data()
+        # iterate over the resource types and find the ones that are single core
+        single_core_resource_types = [resource_name for resource_name in self.resource_types if self.is_single_core_resource_type(resource_name)]
+        return single_core_resource_types
+
+    def get_multi_core_resource_types(self):
+        """
+        Returns a list of resource types that are multi core
+        :return: list of strings with the resource type names
+        """
+        self.load_data()
+        # iterate over the resource types and find the ones that are multi core (not single core)
+        single_core_resource_types = [resource_name for resource_name in self.resource_types if not self.is_single_core_resource_type(resource_name)]
+        return single_core_resource_types
+
+    def get_all_resource_types(self):
+        """
+        Returns a list with all resource types
+        :return: list of strings with the resource type names
+        """
+        self.load_data()
+        return list(self.resource_types.keys())
+
+    def get_rtype_for_queue(self, queue_dict):
+        """
+        Returns the resource type name for a given queue configuration
+        :param queue_dict: queue configuration
+        :return: string with the resource type name
+        """
+        self.load_data()
+
+        # retrieve the queue configuration
+        site_max_rss = queue_dict.get(CRIC_RAM_TAG, 0) or 0
+        site_core_count = queue_dict.get(CRIC_CORE_TAG, 1) or 1
+        capability = queue_dict.get(CAPABILITY_TAG, "")
+
+        # unified queues are not mapped to any particular resource type
+        if capability == UNIFIED_QUEUE_TAG:
+            return ""
+
+        # loop over the resource types and find the one that matches the queue configuration
+        for resource_name, resource_type in self.resource_types.items():
+            if resource_type.match(site_core_count, site_max_rss):
+                return resource_name
+
+        # no match found
+        return ""

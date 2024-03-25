@@ -1,9 +1,12 @@
-import datetime
 import math
 import random
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.job_spec import JobSpec
+from pandaharvester.harvestercore.resource_type_constants import (
+    BASIC_RESOURCE_TYPE_MULTI_CORE,
+    BASIC_RESOURCE_TYPE_SINGLE_CORE,
+)
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
@@ -24,7 +27,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
     def get_job_core_and_memory(self, queue_dict, job_spec):
         job_memory = job_spec.jobParams.get("minRamCount", 0) or 0
-        job_corecount = job_spec.jobParams.get("coreCount", 1) or 1
+        job_core_count = job_spec.jobParams.get("coreCount", 1) or 1
 
         is_ucore = queue_dict.get("capability", "") == "ucore"
 
@@ -32,12 +35,12 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             site_maxrss = queue_dict.get("maxrss", 0) or 0
             site_corecount = queue_dict.get("corecount", 1) or 1
 
-            if job_corecount == 1:
+            if job_core_count == 1:
                 job_memory = int(math.ceil(site_maxrss / site_corecount))
             else:
                 job_memory = site_maxrss
 
-        return job_corecount, job_memory
+        return job_core_count, job_memory
 
     def get_job_type(self, job_spec, job_type, queue_dict, tmp_prodsourcelabel=None):
         queue_type = queue_dict.get("type", None)
@@ -67,26 +70,14 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         return job_type_final
 
-    def capability_to_rtype(self, capability):
-        if capability == "score":
-            return "SCORE"
-        elif capability == "himem":
-            return "SCORE_HIMEM"
-        elif capability == "mcore":
-            return "MCORE"
-        elif capability == "mcorehimem":
-            return "MCORE_HIMEM"
-        else:
-            return None
-
     # make a worker from jobs
     def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
-        tmpLog = self.make_logger(_logger, f"queue={queue_config.queueName}:{job_type}:{resource_type}", method_name="make_worker")
+        tmp_log = self.make_logger(_logger, f"queue={queue_config.queueName}:{job_type}:{resource_type}", method_name="make_worker")
 
-        tmpLog.debug(f"jobspec_list: {jobspec_list}")
+        tmp_log.debug(f"jobspec_list: {jobspec_list}")
 
-        workSpec = WorkSpec()
-        workSpec.creationTime = core_utils.naive_utcnow()
+        work_spec = WorkSpec()
+        work_spec.creationTime = core_utils.naive_utcnow()
 
         # get the queue configuration from CRIC
         panda_queues_dict = PandaQueuesDict()
@@ -96,36 +87,35 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         is_ucore = queue_dict.get("capability", "") == "ucore"
         # case of traditional (non-ucore) queue: look at the queue configuration
         if not is_ucore:
-            workSpec.nCore = queue_dict.get("corecount", 1) or 1
-            workSpec.minRamCount = queue_dict.get("maxrss", 1) or 1
+            work_spec.nCore = queue_dict.get("corecount", 1) or 1
+            work_spec.minRamCount = queue_dict.get("maxrss", 1) or 1
 
         # case of unified queue: look at the job & resource type and queue configuration
         else:
             catchall = queue_dict.get("catchall", "")
             if "useMaxRam" in catchall:
-                # temporary workaround to debug killed workers
+                # some sites require to always set the maximum memory due to memory killing jobs
                 site_corecount = queue_dict.get("corecount", 1) or 1
                 site_maxrss = queue_dict.get("maxrss", 1) or 1
 
                 # some cases need to overwrite those values
-                if "SCORE" in resource_type:
-                    # the usual pilot streaming use case
-                    workSpec.nCore = 1
-                    workSpec.minRamCount = int(math.ceil(site_maxrss / site_corecount))
+                if self.rt_mapper.is_single_core_resource_type(resource_type):
+                    work_spec.nCore = 1
+                    work_spec.minRamCount = int(math.ceil(site_maxrss / site_corecount))
                 else:
                     # default values
-                    workSpec.nCore = site_corecount
-                    workSpec.minRamCount = site_maxrss
+                    work_spec.nCore = site_corecount
+                    work_spec.minRamCount = site_maxrss
             else:
-                if not len(jobspec_list) and resource_type not in ["SCORE", "SCORE_HIMEM", "MCORE", "MCORE_HIMEM"]:
-                    # some testing PQs have ucore + pure pull, need to default to SCORE
-                    tmpLog.warning(f'Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to SCORE')
-                    resource_type = "SCORE"
-                workSpec.nCore, workSpec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
+                if not len(jobspec_list) and not self.rt_mapper.is_valid_resource_type(resource_type):
+                    # some testing PQs have ucore + pure pull, need to default to the basic 1-core resource type
+                    tmp_log.warning(f'Invalid resource type "{resource_type}" (perhaps due to ucore with pure pull); default to the basic 1-core resource type')
+                    resource_type = BASIC_RESOURCE_TYPE_SINGLE_CORE
+                work_spec.nCore, work_spec.minRamCount = self.rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
 
         # parameters that are independent on traditional vs unified
-        workSpec.maxWalltime = queue_dict.get("maxtime", 1)
-        workSpec.maxDiskCount = queue_dict.get("maxwdir", 1)
+        work_spec.maxWalltime = queue_dict.get("maxtime", 1)
+        work_spec.maxDiskCount = queue_dict.get("maxwdir", 1)
 
         if len(jobspec_list) > 0:
             # get info from jobs
@@ -135,8 +125,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             maxWalltime = 0
             ioIntensity = 0
             for jobSpec in jobspec_list:
-                job_corecount, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
-                nCore += job_corecount
+                job_core_count, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
+                nCore += job_core_count
                 minRamCount += job_memory
                 try:
                     maxDiskCount += jobSpec.jobParams["maxDiskCount"]
@@ -152,18 +142,18 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                     pass
             # fill in worker attributes
             if is_ucore or (nCore > 0 and "nCore" in self.jobAttributesToUse):
-                workSpec.nCore = nCore
+                work_spec.nCore = nCore
             if is_ucore or (minRamCount > 0 and ("minRamCount" in self.jobAttributesToUse or associated_params_dict.get("job_minramcount") is True)):
-                workSpec.minRamCount = minRamCount
+                work_spec.minRamCount = minRamCount
             if maxDiskCount > 0 and ("maxDiskCount" in self.jobAttributesToUse or associated_params_dict.get("job_maxdiskcount") is True):
-                workSpec.maxDiskCount = maxDiskCount
+                work_spec.maxDiskCount = maxDiskCount
             if maxWalltime > 0 and ("maxWalltime" in self.jobAttributesToUse or associated_params_dict.get("job_maxwalltime") is True):
-                workSpec.maxWalltime = maxWalltime
+                work_spec.maxWalltime = maxWalltime
             if ioIntensity > 0 and ("ioIntensity" in self.jobAttributesToUse or associated_params_dict.get("job_iointensity") is True):
-                workSpec.ioIntensity = ioIntensity
+                work_spec.ioIntensity = ioIntensity
 
-            workSpec.pilotType = jobspec_list[0].get_pilot_type()
-            workSpec.jobType = self.get_job_type(jobspec_list[0], job_type, queue_dict)
+            work_spec.pilotType = jobspec_list[0].get_pilot_type()
+            work_spec.jobType = self.get_job_type(jobspec_list[0], job_type, queue_dict)
 
         else:
             # when no job
@@ -172,31 +162,29 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             choice_list = core_utils.make_choice_list(pdpm=pdpm, default="managed")
             tmp_prodsourcelabel = random.choice(choice_list)
             fake_job = JobSpec()
-            fake_job.jobParams = {}
-            fake_job.jobParams["prodSourceLabel"] = tmp_prodsourcelabel
-            workSpec.pilotType = fake_job.get_pilot_type()
+            fake_job.jobParams = {"prodSourceLabel": tmp_prodsourcelabel}
+            work_spec.pilotType = fake_job.get_pilot_type()
             del fake_job
-            if workSpec.pilotType in ["RC", "ALRB", "PT"]:
-                tmpLog.info(f"a worker has pilotType={workSpec.pilotType}")
+            if work_spec.pilotType in ["RC", "ALRB", "PT"]:
+                tmp_log.info(f"a worker has pilotType={work_spec.pilotType}")
 
-            workSpec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prodsourcelabel)
-            tmpLog.debug(
+            work_spec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prodsourcelabel)
+            tmp_log.debug(
                 "get_job_type decided for job_type: {0} (input job_type: {1}, queue_type: {2}, tmp_prodsourcelabel: {3})".format(
-                    workSpec.jobType, job_type, queue_dict.get("type", None), tmp_prodsourcelabel
+                    work_spec.jobType, job_type, queue_dict.get("type", None), tmp_prodsourcelabel
                 )
             )
 
-        # retrieve queue resource type
-        capability = queue_dict.get("capability", "")
-        queue_rtype = self.capability_to_rtype(capability)
+        # retrieve queue resource types
+        queue_rtype = self.rt_mapper.get_rtype_for_queue(queue_dict)
 
         if resource_type and resource_type != "ANY":
-            workSpec.resourceType = resource_type
+            work_spec.resourceType = resource_type
         elif queue_rtype:
-            workSpec.resourceType = queue_rtype
-        elif workSpec.nCore == 1:
-            workSpec.resourceType = "SCORE"
+            work_spec.resourceType = queue_rtype
+        elif work_spec.nCore == 1:
+            work_spec.resourceType = BASIC_RESOURCE_TYPE_SINGLE_CORE
         else:
-            workSpec.resourceType = "MCORE"
+            work_spec.resourceType = BASIC_RESOURCE_TYPE_MULTI_CORE
 
-        return workSpec
+        return work_spec
