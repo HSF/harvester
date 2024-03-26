@@ -5,6 +5,10 @@ from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
+from pandaharvester.harvestercore.resource_type_constants import (
+    BASIC_RESOURCE_TYPE_SINGLE_CORE,
+)
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc import signal_utils
 
@@ -16,19 +20,21 @@ else:
     if len(sys.argv) not in (2, 4):
         print("Wrong number of parameters. You can either:")
         print("  - specify the queue name")
-        print("  - specify the queue name, jobType (managed, user) and resourceType (SCORE, SCORE_HIMEM, MCORE, MCORE_HIMEM)")
+        print("  - specify the queue name, jobType (managed, user) and resourceType (e.g. SCORE, SCORE_HIMEM, MCORE, MCORE_HIMEM)")
         sys.exit(0)
 
     queueName = sys.argv[1]
     queueConfigMapper = QueueConfigMapper()
     queueConfig = queueConfigMapper.get_queue(queueName)
 
+    resource_type_mapper = ResourceTypeMapper()
+
     if queueConfig.prodSourceLabel in ("user", "managed"):
         jobType = queueConfig.prodSourceLabel
     else:
         jobType = "managed"  # default, can be overwritten by parameters
 
-    resourceType = "SCORE"  # default, can be overwritten by parameters
+    resourceType = BASIC_RESOURCE_TYPE_SINGLE_CORE  # default, can be overwritten by parameters
 
     if len(sys.argv) == 4:
         # jobType should be 'managed' or 'user'. If not specified will default to a production job
@@ -37,8 +43,8 @@ else:
         else:
             print(f"value for jobType not valid, defaulted to {jobType}")
 
-        # resourceType should be 'SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM'. If not specified defaults to single core
-        if sys.argv[3] in ("SCORE", "SCORE_HIMEM", "MCORE", "MCORE_HIMEM"):
+        # resourceType should be a valid resource type, e.g. 'SCORE', 'SCORE_HIMEM', 'MCORE', 'MCORE_HIMEM'. If not specified defaults to single core
+        if resource_type_mapper.is_valid_resource_type(sys.argv[3]):
             resourceType = sys.argv[3]
         else:
             print(f"value for resourceType not valid, defaulted to {resourceType}")
