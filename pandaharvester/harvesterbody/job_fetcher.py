@@ -9,12 +9,19 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.resource_type_constants import (
+    BASIC_RESOURCE_TYPE_MULTI_CORE,
+    BASIC_RESOURCE_TYPE_SINGLE_CORE,
+)
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 _logger = core_utils.setup_logger("job_fetcher")
 
-ALL_RESOURCE_TYPES = ("SCORE", "SCORE_HIMEM", "MCORE", "MCORE_HIMEM")
+# resource type mapper
+rt_mapper = ResourceTypeMapper()
+all_resource_types = rt_mapper.get_all_resource_types()
 
 
 # class to fetch jobs
@@ -75,6 +82,7 @@ class JobFetcher(AgentBase):
                         new_key = str(key).lstrip("resource_type_limits.")
                         if isinstance(val, int):
                             resource_type_limits_dict[new_key] = val
+                # FIXME: all parts about HIMEM are temporary as HIMEM rtypes and parameters will be replaced or reimplemented
                 # compute cores of active (submitted and running) jobs
                 n_jobs_rem = nJobs
                 pq_mcore_corecount = pandaQueueDict.get("corecount", 8) or 8
@@ -93,25 +101,25 @@ class JobFetcher(AgentBase):
                     for tmp_rt, val_dict in job_stats_dict[queueName].items():
                         for tmp_status in ["starting", "running"]:
                             increment = val_dict["cores"][tmp_status]
-                            if tmp_rt.endswith("_HIMEM"):
+                            if rt_mapper.is_high_memory_resource_type(tmp_rt):
                                 rt_n_cores_dict["HIMEM"][tmp_status] += increment
                             else:
                                 rt_n_cores_dict["normal"][tmp_status] += increment
                 # compute n_jobs to fetch for resource types
-                for j, resource_type in enumerate(random.sample(list(ALL_RESOURCE_TYPES), k=len(ALL_RESOURCE_TYPES))):
+                for j, resource_type in enumerate(random.sample(list(all_resource_types), k=len(all_resource_types))):
                     # compute n jobs to get for this resource type
-                    rt_n_jobs = n_jobs_rem / (len(ALL_RESOURCE_TYPES) - j)
+                    rt_n_jobs = n_jobs_rem / (len(all_resource_types) - j)
                     if job_stats_dict and queueName in job_stats_dict:
                         pq_rt_job_stats_dict = job_stats_dict[queueName].get(resource_type, {}).get("jobs", {})
                         rt_n_active_jobs = pq_rt_job_stats_dict.get("starting", 0) + pq_rt_job_stats_dict.get("running", 0)
                         if resource_type in resource_type_limits_dict:
                             # capped by limit of specific resource type
                             rt_n_jobs = min(rt_n_jobs, resource_type_limits_dict[resource_type] - rt_n_active_jobs)
-                        if "HIMEM" in resource_type_limits_dict and resource_type.endswith("_HIMEM"):
+                        if "HIMEM" in resource_type_limits_dict and rt_mapper.is_high_memory_resource_type(resource_type):
                             # capped by total cores of HIMEM
                             rt_n_active_himem_cores = rt_n_cores_dict["HIMEM"]["starting"] + rt_n_cores_dict["HIMEM"]["running"]
                             rt_corecount = 1
-                            if resource_type.startswith("MCORE"):
+                            if not rt_mapper.get_single_core_resource_types(resource_type):
                                 rt_corecount = pq_mcore_corecount
                             rt_n_jobs = min(rt_n_jobs, (resource_type_limits_dict["HIMEM"] - rt_n_active_himem_cores) / rt_corecount)
                     rt_n_jobs = max(rt_n_jobs, 0)
