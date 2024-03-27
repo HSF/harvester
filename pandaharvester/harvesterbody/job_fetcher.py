@@ -119,7 +119,7 @@ class JobFetcher(AgentBase):
                             # capped by total cores of HIMEM
                             rt_n_active_himem_cores = rt_n_cores_dict["HIMEM"]["starting"] + rt_n_cores_dict["HIMEM"]["running"]
                             rt_corecount = 1
-                            if not rt_mapper.get_single_core_resource_types(resource_type):
+                            if not rt_mapper.is_single_core_resource_type(resource_type):
                                 rt_corecount = pq_mcore_corecount
                             rt_n_jobs = min(rt_n_jobs, (resource_type_limits_dict["HIMEM"] - rt_n_active_himem_cores) / rt_corecount)
                     rt_n_jobs = max(rt_n_jobs, 0)
