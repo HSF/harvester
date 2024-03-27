@@ -213,6 +213,6 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
         self.load_data()
         if resource_name in self.resource_types:
             min_ram_per_core = self.resource_types[resource_name].min_ram_per_core
-            if resource_name.endswith("_HIMEM") or min_ram_per_core > 2000:
+            if resource_name.endswith("_HIMEM") or (min_ram_per_core and min_ram_per_core > 2000):
                 return True
         return False
