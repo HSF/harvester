@@ -172,10 +172,6 @@ def get_configuration():
     pilot_version = os.environ.get("pilotVersion", "")
     logging.debug("[main] got pilotVersion: {0}".format(pilot_version))
 
-    pilot_proxy_check_tmp = os.environ.get("pilotProxyCheck", "False")
-    pilot_proxy_check = str_to_bool(pilot_proxy_check_tmp)
-    logging.debug("[main] got pilotProxyCheck: {0}".format(pilot_proxy_check))
-
     # get the Harvester ID
     harvester_id = os.environ.get("HARVESTER_ID")
     logging.debug("[main] got Harvester ID: {0}".format(harvester_id))
@@ -220,7 +216,6 @@ def get_configuration():
         pilot_type,
         pilot_url_option,
         python_option,
-        pilot_proxy_check,
         pilot_version,
         harvester_id,
         worker_id,
@@ -243,7 +238,6 @@ if __name__ == "__main__":
         pilot_type,
         pilot_url_opt,
         python_option,
-        pilot_proxy_check,
         pilot_version,
         harvester_id,
         worker_id,
@@ -276,15 +270,11 @@ if __name__ == "__main__":
     if pilot_type:
         pilot_type_option = "-i {0}".format(pilot_type)
 
-    pilot_proxy_check_option = "-t"  # This disables the proxy check
-    if pilot_proxy_check:
-        pilot_proxy_check_option = ""  # Empty enables the proxy check (default pilot behaviour)
-
     pilot_version_option = "--pilotversion 2"
     if pilot_version:
         pilot_version_option = "--pilotversion {0}".format(pilot_version)
 
-    wrapper_params = "-q {0} -r {1} -s {2} -a {3} {4} {5} {6} {7} {8} {9} {10} {11}".format(
+    wrapper_params = "-q {0} -r {1} -s {2} -a {3} {4} {5} {6} {7} {8} {9} {10}".format(
         panda_queue,
         panda_queue,
         panda_site,
@@ -296,7 +286,6 @@ if __name__ == "__main__":
         pilot_url_opt,
         python_option,
         pilot_version_option,
-        pilot_proxy_check_option,
     )
 
     if submit_mode == "PUSH":
