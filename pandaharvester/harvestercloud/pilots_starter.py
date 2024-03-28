@@ -128,26 +128,22 @@ def str_to_bool(input_str, default=False):
     return output_str
 
 
-def copy_proxy_dir(source_dir, destination_dir):
+def copy_proxy(source_file, destination_dir):
     """
-    Copy the proxy files and change their permissions
+    Copy the proxy file and change the permission to user read only
     """
-    # Copy the directory
-    if source_dir and destination_dir:
-        shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)
+    # Extract the filename from the source path
+    filename = os.path.basename(source_file)
+    # Construct the file name with the full destination path
+    destination_file = os.path.join(destination_dir, filename)
 
-        # Walk through the destination directory and permissions to read-only for user
-        for root, dirs, files in os.walk(destination_dir):
-            for name in files:
-                file_path = os.path.join(root, name)
-                os.chmod(file_path, 0o400)
-            for name in dirs:
-                dir_path = os.path.join(root, name)
-                os.chmod(dir_path, 0o400)
+    # Copy the proxy file and change the permission to user read only
+    if source_file and destination_file:
+        shutil.copy(source_file, destination_file)
+        os.chmod(destination_file, 0o400)
+        return destination_file
 
-        return True
-    else:
-        return False
+    return ""
 
 
 def get_configuration():
@@ -160,9 +156,8 @@ def get_configuration():
 
     # get the proxy certificate and save it
     if os.environ.get("proxySecretPath"):
-        proxy_path_secrets = os.environ.get("proxySecretPath")
-        proxy_path = WORK_DIR
-        copied = copy_proxy_dir(proxy_path_secrets, proxy_path)
+        proxy_path_secret = os.environ.get("proxySecretPath")
+        proxy_path = copy_proxy_dir(proxy_path_secret, WORK_DIR)
         if not copied:
             logging.debug("[main] failed to copy proxies")
             raise Exception("Failed to copy proxies")
