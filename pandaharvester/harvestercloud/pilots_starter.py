@@ -157,7 +157,7 @@ def get_configuration():
     # get the proxy certificate and save it
     if os.environ.get("proxySecretPath"):
         proxy_path_secret = os.environ.get("proxySecretPath")
-        proxy_path = copy_proxy_dir(proxy_path_secret, WORK_DIR)
+        proxy_path = copy_proxy(proxy_path_secret, WORK_DIR)
         if not copied:
             logging.debug("[main] failed to copy proxies")
             raise Exception("Failed to copy proxies")
