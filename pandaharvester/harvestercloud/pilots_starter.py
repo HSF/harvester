@@ -41,10 +41,6 @@ CONFIG_FILES = [PJD, PFC]
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 
-# This is necessary in Lancium, otherwise the wrapper breaks
-os.unsetenv("SINGULARITY_ENVIRONMENT")
-os.unsetenv("SINGULARITY_BIND")
-
 
 def post_multipart(host, port, selector, files, proxy_cert):
     """
@@ -132,13 +128,48 @@ def str_to_bool(input_str, default=False):
     return output_str
 
 
+def copy_proxy_dir(source_dir, destination_dir):
+    """
+    Copy the proxy files and change their permissions
+    """
+    # Copy the directory
+    if source_dir and destination_dir:
+        shutil.copytree(source_dir, destination_dir, dirs_exist_ok=True)
+
+        # Walk through the destination directory and permissions to read-only for user
+        for root, dirs, files in os.walk(destination_dir):
+            for name in files:
+                file_path = os.path.join(root, name)
+                os.chmod(file_path, 0o400)
+            for name in dirs:
+                dir_path = os.path.join(root, name)
+                os.chmod(dir_path, 0o400)
+
+        return True
+    else:
+        return False
+
+
 def get_configuration():
+
+    # see if there is a work directory specified
+    tmpdir = os.environ.get("TMPDIR")
+    if tmpdir:
+        global WORK_DIR
+        WORK_DIR = tmpdir
+
     # get the proxy certificate and save it
     if os.environ.get("proxySecretPath"):
-        proxy_path = os.environ.get("proxySecretPath")
+        proxy_path_secrets = os.environ.get("proxySecretPath")
+        proxy_path = WORK_DIR
+        copied = copy_proxy_dir(proxy_path_secrets, proxy_path)
+        if not copied:
+            logging.debug("[main] failed to copy proxies")
+            raise Exception("Failed to copy proxies")
     else:
         logging.debug("[main] no proxy specified in env var $proxySecretPath")
         raise Exception("Found no voms proxy specified")
+
     os.environ["X509_USER_PROXY"] = proxy_path
     logging.debug("[main] initialized proxy")
 
@@ -199,12 +230,6 @@ def get_configuration():
     submit_mode = os.environ.get("submit_mode")
     if not submit_mode:
         submit_mode = "PULL"
-
-    # see if there is a work directory specified
-    tmpdir = os.environ.get("TMPDIR")
-    if tmpdir:
-        global WORK_DIR
-        WORK_DIR = tmpdir
 
     return (
         proxy_path,
