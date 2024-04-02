@@ -68,6 +68,7 @@ class JobSpec(SpecBase):
         "jobParamsExtForOutput:blob",
         "jobParamsExtForLog:blob",
         "auxInput:integer",
+        "resourceType:text",
     )
 
     # attributes initialized with 0
@@ -143,6 +144,8 @@ class JobSpec(SpecBase):
         else:
             self.jobsetID = data["jobsetID"]
         self.currentPriority = data["currentPriority"]
+        self.nCore = data.get("coreCount")
+        self.resourceType = data.get("resource_type")
         self.jobParams = data
         self.jobParamsExtForOutput = self.get_output_file_attributes()
         self.jobParamsExtForLog = self.get_logfile_info()
@@ -457,6 +460,7 @@ class JobSpec(SpecBase):
             "rateWCHAR",
             "rateRBYTES",
             "rateWBYTES",
+            "resourceType",
         ]
         panda_attributes = set(panda_attributes)
         for aName, aValue in self.jobAttributes.items():

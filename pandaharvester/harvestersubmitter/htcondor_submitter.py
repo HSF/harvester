@@ -176,6 +176,7 @@ def make_a_jdl(
     token_dir=None,
     is_gpu_resource=False,
     n_core_factor=1,
+    custom_submit_attr_dict=None,
     **kwarg,
 ):
     # make logger
@@ -189,6 +190,7 @@ def make_a_jdl(
     io_intensity = workspec.ioIntensity if workspec.ioIntensity else 0
     ce_info_dict = ce_info_dict.copy()
     batch_log_dict = batch_log_dict.copy()
+    custom_submit_attr_dict = dict() if custom_submit_attr_dict is None else custom_submit_attr_dict.copy()
     # possible override by CRIC special_par
     if special_par:
         special_par_attr_list = [
@@ -239,6 +241,11 @@ def make_a_jdl(
         token_path = os.path.join(token_dir, token_filename)
     else:
         tmpLog.warning(f"token_path is None: site={panda_queue_name}, token_dir={token_dir} , token_filename={token_filename}")
+    # custom submit attributes (+key1 = value1 ; +key2 = value2 in JDL)
+    custom_submit_attr_str_list = []
+    for attr_key, attr_value in custom_submit_attr_dict.items():
+        custom_submit_attr_str_list.append(f"+{attr_key} = {attr_value}")
+    custom_submit_attr_str = "\n".join(custom_submit_attr_str_list)
     # open tmpfile as submit description file
     tmpFile = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_submit.sdf", dir=workspec.get_access_point())
 
@@ -299,6 +306,7 @@ def make_a_jdl(
         "pilotJobType": submitter_common.get_pilot_job_type(workspec.jobType, is_unified_dispatch),
         "requestGpus": 1 if is_gpu_resource else 0,
         "requireGpus": is_gpu_resource,
+        "customSubmitAttributes": custom_submit_attr_str,
     }
     # fill in template string
     jdl_str = template.format(**placeholder_map)

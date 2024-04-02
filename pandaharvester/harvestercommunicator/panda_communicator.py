@@ -2,6 +2,7 @@
 Connection to the PanDA server
 
 """
+
 import ssl
 
 try:
@@ -196,7 +197,7 @@ class PandaCommunicator(BaseCommunicator):
         data["computingElement"] = computing_element
         data["nJobs"] = n_jobs
         data["schedulerID"] = f"harvester-{harvester_config.master.harvester_id}"
-        if additional_criteria is not None:
+        if additional_criteria:
             for tmpKey, tmpVal in additional_criteria.items():
                 data[tmpKey] = tmpVal
         sw = core_utils.get_stopwatch()
