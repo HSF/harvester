@@ -41,10 +41,6 @@ CONFIG_FILES = [PJD, PFC]
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 
-# This is necessary in Lancium, otherwise the wrapper breaks
-os.unsetenv("SINGULARITY_ENVIRONMENT")
-os.unsetenv("SINGULARITY_BIND")
-
 
 def post_multipart(host, port, selector, files, proxy_cert):
     """
@@ -132,13 +128,43 @@ def str_to_bool(input_str, default=False):
     return output_str
 
 
+def copy_proxy(source_file, destination_dir):
+    """
+    Copy the proxy file and change the permission to user read only
+    """
+    # Extract the filename from the source path
+    filename = os.path.basename(source_file)
+    # Construct the file name with the full destination path
+    destination_file = os.path.join(destination_dir, filename)
+
+    # Copy the proxy file and change the permission to user read only
+    if source_file and destination_file:
+        shutil.copy(source_file, destination_file)
+        os.chmod(destination_file, 0o400)
+        return destination_file
+
+    return ""
+
+
 def get_configuration():
+
+    # see if there is a work directory specified
+    tmpdir = os.environ.get("TMPDIR")
+    if tmpdir:
+        global WORK_DIR
+        WORK_DIR = tmpdir
+
     # get the proxy certificate and save it
     if os.environ.get("proxySecretPath"):
-        proxy_path = os.environ.get("proxySecretPath")
+        proxy_path_secret = os.environ.get("proxySecretPath")
+        proxy_path = copy_proxy(proxy_path_secret, WORK_DIR)
+        if not proxy_path:
+            logging.debug("[main] failed to copy proxies")
+            raise Exception("Failed to copy proxies")
     else:
         logging.debug("[main] no proxy specified in env var $proxySecretPath")
         raise Exception("Found no voms proxy specified")
+
     os.environ["X509_USER_PROXY"] = proxy_path
     logging.debug("[main] initialized proxy")
 
@@ -172,10 +198,6 @@ def get_configuration():
     pilot_version = os.environ.get("pilotVersion", "")
     logging.debug("[main] got pilotVersion: {0}".format(pilot_version))
 
-    pilot_proxy_check_tmp = os.environ.get("pilotProxyCheck", "False")
-    pilot_proxy_check = str_to_bool(pilot_proxy_check_tmp)
-    logging.debug("[main] got pilotProxyCheck: {0}".format(pilot_proxy_check))
-
     # get the Harvester ID
     harvester_id = os.environ.get("HARVESTER_ID")
     logging.debug("[main] got Harvester ID: {0}".format(harvester_id))
@@ -204,12 +226,6 @@ def get_configuration():
     if not submit_mode:
         submit_mode = "PULL"
 
-    # see if there is a work directory specified
-    tmpdir = os.environ.get("TMPDIR")
-    if tmpdir:
-        global WORK_DIR
-        WORK_DIR = tmpdir
-
     return (
         proxy_path,
         panda_site,
@@ -220,7 +236,6 @@ def get_configuration():
         pilot_type,
         pilot_url_option,
         python_option,
-        pilot_proxy_check,
         pilot_version,
         harvester_id,
         worker_id,
@@ -243,7 +258,6 @@ if __name__ == "__main__":
         pilot_type,
         pilot_url_opt,
         python_option,
-        pilot_proxy_check,
         pilot_version,
         harvester_id,
         worker_id,
@@ -276,15 +290,11 @@ if __name__ == "__main__":
     if pilot_type:
         pilot_type_option = "-i {0}".format(pilot_type)
 
-    pilot_proxy_check_option = "-t"  # This disables the proxy check
-    if pilot_proxy_check:
-        pilot_proxy_check_option = ""  # Empty enables the proxy check (default pilot behaviour)
-
     pilot_version_option = "--pilotversion 2"
     if pilot_version:
         pilot_version_option = "--pilotversion {0}".format(pilot_version)
 
-    wrapper_params = "-q {0} -r {1} -s {2} -a {3} {4} {5} {6} {7} {8} {9} {10} {11}".format(
+    wrapper_params = "-q {0} -r {1} -s {2} -a {3} {4} {5} {6} {7} {8} {9} {10}".format(
         panda_queue,
         panda_queue,
         panda_site,
@@ -296,7 +306,6 @@ if __name__ == "__main__":
         pilot_url_opt,
         python_option,
         pilot_version_option,
-        pilot_proxy_check_option,
     )
 
     if submit_mode == "PUSH":

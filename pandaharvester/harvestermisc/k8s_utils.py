@@ -2,6 +2,7 @@
 utilities routines associated with Kubernetes python client
 
 """
+
 import base64
 import copy
 import os
@@ -9,10 +10,11 @@ import os
 import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
+from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 
 base_logger = core_utils.setup_logger("k8s_utils")
 
@@ -179,9 +181,6 @@ class k8s_Client(object):
             tmp_log.debug("work_spec does not have stdout workAttribute, using default")
             log_file_name = ""
 
-        # get the option to activate the pilot proxy check
-        pilot_proxy_check = self.panda_queues_dict.get_k8s_pilot_proxy_check(work_spec.computingSite)
-
         container_env["env"].extend(
             [
                 {"name": "computingSite", "value": work_spec.computingSite},
@@ -195,7 +194,6 @@ class k8s_Client(object):
                 {"name": "jobType", "value": work_spec.jobType},
                 {"name": "proxySecretPath", "value": cert},
                 {"name": "workerID", "value": str(work_spec.workerID)},
-                {"name": "pilotProxyCheck", "value": str(pilot_proxy_check)},
                 {"name": "logs_frontend_w", "value": harvester_config.pandacon.pandaCacheURL_W},
                 {"name": "logs_frontend_r", "value": harvester_config.pandacon.pandaCacheURL_R},
                 {"name": "stdout_name", "value": log_file_name},
@@ -336,7 +334,7 @@ class k8s_Client(object):
                 "pod_status_conditions": pod.status.conditions,
                 "pod_status_message": pod.status.message,
                 "containers_state": [],
-                "containers_exit_code": []
+                "containers_exit_code": [],
             }
 
             # sub-container information
@@ -452,9 +450,7 @@ class k8s_Client(object):
                 {
                     "weight": 100,
                     "podAffinityTerm": {
-                        "labelSelector": {
-                            "matchExpressions": [{"key": "resourceType", "operator": "In", "values": all_resource_types}]
-                        },
+                        "labelSelector": {"matchExpressions": [{"key": "resourceType", "operator": "In", "values": all_resource_types}]},
                         "topologyKey": "kubernetes.io/hostname",
                     },
                 }
