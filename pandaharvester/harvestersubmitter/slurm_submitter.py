@@ -59,16 +59,14 @@ class SlurmSubmitter(PluginBase):
                 workSpec.batchID = re.search("[^0-9]*([0-9]+)[^0-9]*$", f"{stdOut_str}").group(1)
                 tmpLog.debug(f"batchID={workSpec.batchID}")
                 # set log files
-                if self.uploadLog:
-                    if self.logBaseURL is None:
-                        baseDir = workSpec.get_access_point()
-                    else:
-                        baseDir = self.logBaseURL
-                    stdOut, stdErr = self.get_log_file_names(batchFile, workSpec.batchID)
-                    if stdOut is not None:
-                        workSpec.set_log_file("stdout", f"{baseDir}/{stdOut}")
-                    if stdErr is not None:
-                        workSpec.set_log_file("stderr", f"{baseDir}/{stdErr}")
+                if self.logBaseURL and self.logDir:
+                    stdOut, stdErr = self.get_log_file_names(workSpec.accessPoint, workSpec.workerID)
+                    rel_stdOut = os.path.relpath(stdOut, self.logDir)
+                    rel_stdErr = os.path.relpath(stdErr, self.logDir)
+                    log_stdOut = os.path.join(self.logBaseURL, rel_stdOut)
+                    log_stdErr = os.path.join(self.logBaseURL, rel_stdErr)
+                    workSpec.set_log_file("stdout", log_stdOut)
+                    workSpec.set_log_file("stderr", log_stdErr)
                 tmpRetVal = (True, "")
             else:
                 # failed
@@ -158,7 +156,7 @@ class SlurmSubmitter(PluginBase):
         return tmpFile.name
 
     # get log file names
-    def get_log_file_names(self, batch_script, batch_id):
+    def get_log_file_names_old(self, batch_script, batch_id):
         stdOut = None
         stdErr = None
         with open(batch_script) as f:
@@ -170,4 +168,9 @@ class SlurmSubmitter(PluginBase):
                     stdOut = items[-1].replace("$SLURM_JOB_ID", batch_id)
                 elif "-e" in items:
                     stdErr = items[-1].replace("$SLURM_JOB_ID", batch_id)
+        return stdOut, stdErr
+
+    def get_log_file_names(self, access_point, worker_id):
+        stdOut = os.path.join(access_point, '%s.out' % worker_id)
+        stdErr = os.path.join(access_point, '%s.err' % worker_id)
         return stdOut, stdErr
