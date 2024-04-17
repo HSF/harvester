@@ -42,6 +42,12 @@ com = "openssl x509 -noout -subject -in"
 p = subprocess.Popen(com.split() + [certFile], stdout=subprocess.PIPE)
 out, err = p.communicate()
 
+# Convert bytes object to string object if needed
+try:
+    out =  out.decode("utf-8")
+except (UnicodeDecodeError, AttributeError):
+    pass
+
 out = re.sub("^subject=", "", out)
 out = out.strip()
 print(f'DN: "{out}"')
