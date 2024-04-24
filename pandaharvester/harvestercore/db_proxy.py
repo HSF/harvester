@@ -26,10 +26,10 @@ from .job_worker_relation_spec import JobWorkerRelationSpec
 from .panda_queue_spec import PandaQueueSpec
 from .process_lock_spec import ProcessLockSpec
 from .queue_config_dump_spec import QueueConfigDumpSpec
+from .resource_type_constants import BASIC_RESOURCE_TYPE_SINGLE_CORE
 from .seq_number_spec import SeqNumberSpec
 from .service_metrics_spec import ServiceMetricSpec
 from .work_spec import WorkSpec
-from .resource_type_constants import BASIC_RESOURCE_TYPE_SINGLE_CORE
 
 # logger
 _logger = core_utils.setup_logger("db_proxy")
@@ -3577,8 +3577,18 @@ class DBProxy(object):
                 resourceType = str(resourceType)
                 retMap.setdefault(computingSite, {})
                 retMap[computingSite].setdefault(jobType, {})
+                retMap[computingSite].setdefault("_total", {})
                 retMap[computingSite][jobType].setdefault(resourceType, {"running": 0, "submitted": 0, "to_submit": 0})
+                retMap[computingSite][jobType].setdefault("_total", {"running": 0, "submitted": 0, "to_submit": 0})
+                retMap[computingSite]["_total"].setdefault(resourceType, {"running": 0, "submitted": 0, "to_submit": 0})
+                retMap[computingSite]["_total"].setdefault("_total", {"running": 0, "submitted": 0, "to_submit": 0})
                 retMap[computingSite][jobType][resourceType][workerStatus] = cnt
+                retMap[computingSite][jobType]["_total"].setdefault(workerStatus, 0)
+                retMap[computingSite][jobType]["_total"][workerStatus] += cnt
+                retMap[computingSite]["_total"][resourceType].setdefault(workerStatus, 0)
+                retMap[computingSite]["_total"][resourceType][workerStatus] += cnt
+                retMap[computingSite]["_total"]["_total"].setdefault(workerStatus, 0)
+                retMap[computingSite]["_total"]["_total"][workerStatus] += cnt
             # commit
             self.commit()
             tmpLog.debug(f"got {str(retMap)}")
