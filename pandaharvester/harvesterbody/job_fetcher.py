@@ -99,6 +99,8 @@ class JobFetcher(AgentBase):
                 }
                 if job_stats_dict and queueName in job_stats_dict:
                     for tmp_rt, val_dict in job_stats_dict[queueName].items():
+                        if tmp_rt == "_total":
+                            continue
                         for tmp_status in ["starting", "running"]:
                             increment = val_dict["cores"][tmp_status]
                             if rt_mapper.is_high_memory_resource_type(tmp_rt):
