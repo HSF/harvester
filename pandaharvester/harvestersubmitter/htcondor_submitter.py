@@ -232,6 +232,7 @@ def make_a_jdl(
     pilot_type_opt = pilot_opt_dict["pilot_type_opt"]
     pilot_url_str = pilot_opt_dict["pilot_url_str"]
     pilot_debug_str = pilot_opt_dict["pilot_debug_str"]
+    tmpLog.debug(f"pilot options: {pilot_opt_dict}")
     # get token filename according to CE
     token_filename = None
     if token_dir is not None and ce_info_dict.get("ce_endpoint"):
@@ -343,7 +344,6 @@ class HTCondorSubmitter(PluginBase):
     def __init__(self, **kwarg):
         tmpLog = core_utils.make_logger(baseLogger, method_name="__init__")
         self.logBaseURL = None
-        self.templateFile = None
         if hasattr(self, "useFQDN") and self.useFQDN:
             self.hostname = socket.getfqdn()
         else:
@@ -437,6 +437,11 @@ class HTCondorSubmitter(PluginBase):
                 self.useCRICGridCE = False
         finally:
             self.useCRIC = self.useCRIC or self.useCRICGridCE
+        # sdf template
+        try:
+            self.templateFile
+        except AttributeError:
+            self.templateFile = None
         # sdf template directories of CEs; ignored if templateFile is set
         try:
             self.CEtemplateDir
@@ -594,7 +599,7 @@ class HTCondorSubmitter(PluginBase):
         pilot_url = associated_params_dict.get("pilot_url")
         pilot_args = associated_params_dict.get("pilot_args", "")
         pilot_version = str(this_panda_queue_dict.get("pilot_version", "current"))
-        python_version = str(this_panda_queue_dict.get("python_version", "2"))
+        python_version = str(this_panda_queue_dict.get("python_version", "3"))
         is_gpu_resource = this_panda_queue_dict.get("resource_type", "") == "gpu"
 
         # get override requirements from queue configured
@@ -763,6 +768,7 @@ class HTCondorSubmitter(PluginBase):
                             ce_info_dict["ce_endpoint"] = self.ceEndpoint
                     except AttributeError:
                         pass
+                    tmpLog.debug(f"Got pilot version: \"{pilot_version}\"; CE endpoint: \"{ce_info_dict.get('ce_endpoint')}\"")
                     try:
                         # Manually define ceQueueName
                         if self.ceQueueName:
