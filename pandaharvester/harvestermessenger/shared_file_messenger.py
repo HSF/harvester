@@ -457,6 +457,8 @@ class SharedFileMessenger(BaseMessenger):
                     pfcFile.write(pfc)
                 # make symlink
                 for fileSpec in jobSpec.inFiles:
+                    if fileSpec.path is None:
+                        continue
                     dstPath = os.path.join(accessPoint, fileSpec.lfn)
                     if fileSpec.path != dstPath:
                         # test if symlink exists if so remove it

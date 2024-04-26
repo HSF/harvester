@@ -307,6 +307,18 @@ def query_workers(arguments):
         raise
 
 
+def query_jobs(arguments):
+    dbProxy = DBProxy()
+    try:
+        if arguments.all:
+            res_obj = dbProxy.get_job_stats_full()
+        else:
+            res_obj = dbProxy.get_job_stats_full(filter_site_list=arguments.queue_list)
+        json_print(res_obj)
+    except TypeError as e:
+        raise
+
+
 # === Command map =======================================================
 
 
@@ -329,6 +341,7 @@ commandMap = {
     "kill_workers": kill_workers,
     # query commands
     "query_workers": query_workers,
+    "query_jobs": query_jobs,
 }
 
 # === Main ======================================================
@@ -383,7 +396,7 @@ def main():
     qconf_dump_parser.set_defaults(which="qconf_dump")
     qconf_dump_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Dump configuration in JSON format")
     qconf_dump_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Dump configuration of all active queues")
-    qconf_dump_parser.add_argument("queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    qconf_dump_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
     qconf_dump_parser.add_argument(
         "-i", "--id", dest="id_list", nargs="+", type=int, action="store", metavar="<configID>", help="Dump configuration of queue with configID"
     )
@@ -434,7 +447,12 @@ def main():
     query_workers_parser = query_subparsers.add_parser("workers", help="Query statistiscs of workers in queues")
     query_workers_parser.set_defaults(which="query_workers")
     query_workers_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Show results of all queues")
-    query_workers_parser.add_argument("queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    query_workers_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    # query job_stats command
+    query_jobs_parser = query_subparsers.add_parser("jobs", help="Query statistiscs of jobs in queues")
+    query_jobs_parser.set_defaults(which="query_jobs")
+    query_jobs_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Show results of all queues")
+    query_jobs_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
 
     # start parsing
     if len(sys.argv) == 1:
