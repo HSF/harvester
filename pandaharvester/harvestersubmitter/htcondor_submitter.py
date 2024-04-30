@@ -601,6 +601,24 @@ class HTCondorSubmitter(PluginBase):
         pilot_version = str(this_panda_queue_dict.get("pilot_version", "current"))
         python_version = str(this_panda_queue_dict.get("python_version", "3"))
         is_gpu_resource = this_panda_queue_dict.get("resource_type", "") == "gpu"
+        custom_submit_attr_dict = {}
+        for k, v in associated_params_dict.items():
+            # fill custom submit attributes for adding to JDL
+            try:
+                the_prefix = "jdl.plusattr."
+                if k.startswith(the_prefix):
+                    attr_key = "+" + k.lstrip(the_prefix)
+                    attr_value = str(v)
+                    if not re.fullmatch(r"[a-zA-Z_0-9][a-zA-Z_0-9.\-]*", attr_key):
+                        # skip invalid key
+                        continue
+                    if not re.fullmatch(r"[a-zA-Z_0-9.\-,]+", attr_value):
+                        # skip invalid value
+                        continue
+                    custom_submit_attr_dict[attr_key] = attr_value
+            except Exception as e:
+                tmpLog.warning(f'Got {e} with custom submit attributes "{k}: {v}"; skipped')
+                continue
 
         # get override requirements from queue configured
         try:
@@ -878,6 +896,7 @@ class HTCondorSubmitter(PluginBase):
                         "is_unified_dispatch": is_unified_dispatch,
                         "prod_rc_permille": self.rcPilotRandomWeightPermille,
                         "is_gpu_resource": is_gpu_resource,
+                        "custom_submit_attr_dict": custom_submit_attr_dict,
                     }
                 )
             return data
