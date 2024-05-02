@@ -585,7 +585,7 @@ class HTCondorSubmitter(PluginBase):
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
             # associated params on CRIC
             for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
-                if isinstance(key, str):
+                if not isinstance(key, str):
                     continue
                 if key in self._allowed_cric_attrs or any([key.startswith(the_prefix) for the_prefix in self._allowed_cric_attr_prefixes]):
                     if isinstance(val, str):
