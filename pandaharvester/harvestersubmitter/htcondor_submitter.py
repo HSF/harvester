@@ -520,12 +520,15 @@ class HTCondorSubmitter(PluginBase):
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
-        # allowed associated parameters from CRIC
-        self._allowed_cric_attrs = (
+        # allowed associated parameters and paramester prefixes from CRIC
+        self._allowed_cric_attrs = [
             "pilot_url",
             "pilot_args",
             "unified_dispatch",
-        )
+        ]
+        self._allowed_cric_attr_prefixes = [
+            "jdl.plusattr.",
+        ]
 
     # get CE statistics of a site
     def get_ce_statistics(self, site_name, n_new_workers, time_window=21600):
@@ -582,7 +585,9 @@ class HTCondorSubmitter(PluginBase):
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
             # associated params on CRIC
             for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
-                if key in self._allowed_cric_attrs:
+                if isinstance(key, str):
+                    continue
+                if key in self._allowed_cric_attrs or any([key.startswith(the_prefix) for the_prefix in self._allowed_cric_attr_prefixes]):
                     if isinstance(val, str):
                         # sanitized list the value
                         val = re.sub(r"[;$~`]*", "", val)
