@@ -612,7 +612,7 @@ class HTCondorSubmitter(PluginBase):
             try:
                 the_prefix = "jdl.plusattr."
                 if k.startswith(the_prefix):
-                    attr_key = "+" + k.lstrip(the_prefix)
+                    attr_key = k.lstrip(the_prefix)
                     attr_value = str(v)
                     if not re.fullmatch(r"[a-zA-Z_0-9][a-zA-Z_0-9.\-]*", attr_key):
                         # skip invalid key
