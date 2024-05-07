@@ -232,6 +232,7 @@ def make_a_jdl(
     pilot_type_opt = pilot_opt_dict["pilot_type_opt"]
     pilot_url_str = pilot_opt_dict["pilot_url_str"]
     pilot_debug_str = pilot_opt_dict["pilot_debug_str"]
+    tmpLog.debug(f"pilot options: {pilot_opt_dict}")
     # get token filename according to CE
     token_filename = None
     if token_dir is not None and ce_info_dict.get("ce_endpoint"):
@@ -343,13 +344,19 @@ class HTCondorSubmitter(PluginBase):
     def __init__(self, **kwarg):
         tmpLog = core_utils.make_logger(baseLogger, method_name="__init__")
         self.logBaseURL = None
-        self.templateFile = None
         if hasattr(self, "useFQDN") and self.useFQDN:
             self.hostname = socket.getfqdn()
         else:
             self.hostname = socket.gethostname().split(".")[0]
         PluginBase.__init__(self, **kwarg)
-
+        # extra plugin configs
+        extra_plugin_configs = {}
+        try:
+            extra_plugin_configs = harvester_config.master.extraPluginConfigs["HTCondorSubmitter"]
+        except AttributeError:
+            pass
+        except KeyError:
+            pass
         # number of processes
         try:
             self.nProcesses
@@ -437,6 +444,11 @@ class HTCondorSubmitter(PluginBase):
                 self.useCRICGridCE = False
         finally:
             self.useCRIC = self.useCRIC or self.useCRICGridCE
+        # sdf template
+        try:
+            self.templateFile
+        except AttributeError:
+            self.templateFile = None
         # sdf template directories of CEs; ignored if templateFile is set
         try:
             self.CEtemplateDir
@@ -503,24 +515,20 @@ class HTCondorSubmitter(PluginBase):
             self.rcPilotRandomWeightPermille = 0
         # submission to ARC CE's with nordugrid (gridftp) or arc (REST) grid type
         self.submit_arc_grid_type = "arc"
-        try:
-            extra_plugin_configs = harvester_config.master.extraPluginConfigs["HTCondorSubmitter"]
-        except AttributeError:
-            pass
-        except KeyError:
-            pass
-        else:
-            if extra_plugin_configs.get("submit_arc_grid_type") == "nordugrid":
-                self.submit_arc_grid_type = "nordugrid"
+        if extra_plugin_configs.get("submit_arc_grid_type") == "nordugrid":
+            self.submit_arc_grid_type = "nordugrid"
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
-        # allowed associated parameters from CRIC
-        self._allowed_cric_attrs = (
+        # allowed associated parameters and paramester prefixes from CRIC
+        self._allowed_cric_attrs = [
             "pilot_url",
             "pilot_args",
             "unified_dispatch",
-        )
+        ]
+        self._allowed_cric_attr_prefixes = [
+            "jdl.plusattr.",
+        ]
 
     # get CE statistics of a site
     def get_ce_statistics(self, site_name, n_new_workers, time_window=21600):
@@ -577,7 +585,9 @@ class HTCondorSubmitter(PluginBase):
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
             # associated params on CRIC
             for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
-                if key in self._allowed_cric_attrs:
+                if not isinstance(key, str):
+                    continue
+                if key in self._allowed_cric_attrs or any([key.startswith(the_prefix) for the_prefix in self._allowed_cric_attr_prefixes]):
                     if isinstance(val, str):
                         # sanitized list the value
                         val = re.sub(r"[;$~`]*", "", val)
@@ -594,8 +604,26 @@ class HTCondorSubmitter(PluginBase):
         pilot_url = associated_params_dict.get("pilot_url")
         pilot_args = associated_params_dict.get("pilot_args", "")
         pilot_version = str(this_panda_queue_dict.get("pilot_version", "current"))
-        python_version = str(this_panda_queue_dict.get("python_version", "2"))
+        python_version = str(this_panda_queue_dict.get("python_version", "3"))
         is_gpu_resource = this_panda_queue_dict.get("resource_type", "") == "gpu"
+        custom_submit_attr_dict = {}
+        for k, v in associated_params_dict.items():
+            # fill custom submit attributes for adding to JDL
+            try:
+                the_prefix = "jdl.plusattr."
+                if k.startswith(the_prefix):
+                    attr_key = k[len(the_prefix) :]
+                    attr_value = str(v)
+                    if not re.fullmatch(r"[a-zA-Z_0-9][a-zA-Z_0-9.\-]*", attr_key):
+                        # skip invalid key
+                        continue
+                    if not re.fullmatch(r"[a-zA-Z_0-9.\-,]+", attr_value):
+                        # skip invalid value
+                        continue
+                    custom_submit_attr_dict[attr_key] = attr_value
+            except Exception as e:
+                tmpLog.warning(f'Got {e} with custom submit attributes "{k}: {v}"; skipped')
+                continue
 
         # get override requirements from queue configured
         try:
@@ -763,6 +791,7 @@ class HTCondorSubmitter(PluginBase):
                             ce_info_dict["ce_endpoint"] = self.ceEndpoint
                     except AttributeError:
                         pass
+                    tmpLog.debug(f"Got pilot version: \"{pilot_version}\"; CE endpoint: \"{ce_info_dict.get('ce_endpoint')}\"")
                     try:
                         # Manually define ceQueueName
                         if self.ceQueueName:
@@ -872,6 +901,7 @@ class HTCondorSubmitter(PluginBase):
                         "is_unified_dispatch": is_unified_dispatch,
                         "prod_rc_permille": self.rcPilotRandomWeightPermille,
                         "is_gpu_resource": is_gpu_resource,
+                        "custom_submit_attr_dict": custom_submit_attr_dict,
                     }
                 )
             return data
