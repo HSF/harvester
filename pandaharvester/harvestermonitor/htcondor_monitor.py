@@ -203,6 +203,13 @@ class HTCondorMonitor(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
+        extra_plugin_configs = {}
+        try:
+            extra_plugin_configs = harvester_config.master.extraPluginConfigs["HTCondorMonitor"]
+        except AttributeError:
+            pass
+        except KeyError:
+            pass
         try:
             self.nProcesses
         except AttributeError:
@@ -228,7 +235,10 @@ class HTCondorMonitor(PluginBase):
         try:
             self.useCondorHistory
         except AttributeError:
-            self.useCondorHistory = True
+            if extra_plugin_configs.get("use_condor_history") is False:
+                self.useCondorHistory = False
+            else:
+                self.useCondorHistory = True
         try:
             self.submissionHost_list
         except AttributeError:

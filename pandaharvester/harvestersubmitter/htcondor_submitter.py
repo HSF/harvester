@@ -349,7 +349,14 @@ class HTCondorSubmitter(PluginBase):
         else:
             self.hostname = socket.gethostname().split(".")[0]
         PluginBase.__init__(self, **kwarg)
-
+        # extra plugin configs
+        extra_plugin_configs = {}
+        try:
+            extra_plugin_configs = harvester_config.master.extraPluginConfigs["HTCondorSubmitter"]
+        except AttributeError:
+            pass
+        except KeyError:
+            pass
         # number of processes
         try:
             self.nProcesses
@@ -508,15 +515,8 @@ class HTCondorSubmitter(PluginBase):
             self.rcPilotRandomWeightPermille = 0
         # submission to ARC CE's with nordugrid (gridftp) or arc (REST) grid type
         self.submit_arc_grid_type = "arc"
-        try:
-            extra_plugin_configs = harvester_config.master.extraPluginConfigs["HTCondorSubmitter"]
-        except AttributeError:
-            pass
-        except KeyError:
-            pass
-        else:
-            if extra_plugin_configs.get("submit_arc_grid_type") == "nordugrid":
-                self.submit_arc_grid_type = "nordugrid"
+        if extra_plugin_configs.get("submit_arc_grid_type") == "nordugrid":
+            self.submit_arc_grid_type = "nordugrid"
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
