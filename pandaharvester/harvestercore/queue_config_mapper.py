@@ -43,6 +43,7 @@ class QueueConfig(object):
         self.useJobLateBinding = False
         self.zipPerMB = None
         self.siteName = ""
+        self.siteFamily = ""
         self.maxWorkers = 0
         self.nNewWorkers = 0
         self.maxNewWorkersPerCycle = 0
@@ -495,6 +496,8 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 queueConfig.siteName = queueConfig.queueName.split("/")[0]
                 if queueConfig.siteName != queueConfig.queueName:
                     queueConfig.resourceType = queueConfig.queueName.split("/")[-1]
+                if not queueConfig.siteFamily:
+                    queueConfig.siteFamily = queueConfig.siteName
                 # get common attributes
                 commonAttrDict = dict()
                 if isinstance(queueDict.get("common"), dict):

@@ -158,7 +158,7 @@ class WorkerAdjuster(object):
                         # check throttler
                         throttler = self.throttlerMap[queue_name]
                         if throttler is not None:
-                            to_throttle, tmp_msg = throttler.to_be_throttled(queue_config)
+                            to_throttle, tmp_msg = throttler.to_be_throttled(queue_config, queue_config_mapper=self.queue_configMapper)
                             if to_throttle:
                                 dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
                                 ret_msg = f"set n_new_workers=0 by {throttler.__class__.__name__}:{tmp_msg}"
@@ -220,6 +220,10 @@ class WorkerAdjuster(object):
                                         n_min_pilots = 1
                                         if self.no_pilots_when_no_active_jobs:
                                             n_min_pilots = 0
+
+                                        queue_activated = job_stats[queue_name]["activated"]
+                                        tmp_log.debug(f"available activated panda jobs {queue_activated}")
+
                                         if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name) > 0:
                                             n_min_pilots = 1
                                         n_activated = max(
