@@ -17,12 +17,12 @@ class TinyThrottler(PluginBase):
         PluginBase.__init__(self, **kwarg)
         self.dbProxy = DBProxy()
 
-        if not hasattr(self, "rulesForSiteSubmitted"):
-            self.rulesForSiteSubmitted = {}
-        if not hasattr(self, "rulesForSiteRunning"):
-            self.rulesForSiteRunning = {}
-        if not hasattr(self, "rulesForSiteSubmittedRunning"):
-            self.rulesForSiteSubmittedRunning = {}
+        if not hasattr(self, "rulesForSiteFamilySubmitted"):
+            self.rulesForSiteFamilySubmitted = {}
+        if not hasattr(self, "rulesForSiteFamilyRunning"):
+            self.rulesForSiteFamilyRunning = {}
+        if not hasattr(self, "rulesForSiteFamilySubmittedRunning"):
+            self.rulesForSiteFamilySubmittedRunning = {}
 
     def get_num_workers(self, worker_stats, status):
         num_workers = 0
@@ -135,37 +135,37 @@ class TinyThrottler(PluginBase):
         if retVal[0]:
             return retVal
 
-        if self.rulesForSiteSubmitted or self.rulesForSiteRunning or self.rulesForSiteSubmittedRunning:
-            site_name = queue_config.site
+        if self.rulesForSiteFamilySubmitted or self.rulesForSiteFamilyRunning or self.rulesForSiteFamilySubmittedRunning:
+            site_name = queue_config.siteFamily
             queues = {}
 
             job_stats = self.dbProxy.get_worker_stats_bulk(None)
 
-            tmpLog.debug("site_name: %s" % site_name)
+            tmpLog.debug("site family name: %s" % site_name)
 
             all_queue_config = queue_config_mapper.get_all_queues()
             for queue_name in all_queue_config:
                 q_config = all_queue_config[queue_name]
-                if q_config.site == site_name:
+                if q_config.siteFamily == site_name:
                     queues[queue_name] = {'queue_config': q_config, 'stats': {}}
                     if queue_name in job_stats:
                         queues[queue_name]['stats'] = job_stats[queue_name]
 
             tmpLog.debug("queues: %s" % queues)
 
-            if self.rulesForSiteSubmitted:
-                retVal = self.evaluate_rule(self.rulesForSiteSubmitted, queues, retVal, status=['submitted'])
-                tmpLog.debug("rulesForSiteSubmitted ret={0} : {1}".format(*retVal))
+            if self.rulesForSiteFamilySubmitted:
+                retVal = self.evaluate_rule(self.rulesForSiteFamilySubmitted, queues, retVal, status=['submitted'])
+                tmpLog.debug("rulesForSiteFamilySubmitted ret={0} : {1}".format(*retVal))
                 if retVal[0]:
                     return retVal
-            if self.rulesForSiteRunning:
-                retVal = self.evaluate_rule(self.rulesForSiteRunning, queues, retVal, status=['running'])
-                tmpLog.debug("rulesForSiteRunning ret={0} : {1}".format(*retVal))
+            if self.rulesForSiteFamilyRunning:
+                retVal = self.evaluate_rule(self.rulesForSiteFamilyRunning, queues, retVal, status=['running'])
+                tmpLog.debug("rulesForSiteFamilyRunning ret={0} : {1}".format(*retVal))
                 if retVal[0]:
                     return retVal
-            if self.rulesForSiteSubmittedRunning:
-                retVal = self.evaluate_rule(self.rulesForSiteSubmittedRunning, queues, retVal, status=['submitted', 'running'])
-                tmpLog.debug("rulesForSiteSubmittedRunning ret={0} : {1}".format(*retVal))
+            if self.rulesForSiteFamilySubmittedRunning:
+                retVal = self.evaluate_rule(self.rulesForSiteFamilySubmittedRunning, queues, retVal, status=['submitted', 'running'])
+                tmpLog.debug("rulesForSiteFamilySubmittedRunning ret={0} : {1}".format(*retVal))
                 if retVal[0]:
                     return retVal
         return retVal
