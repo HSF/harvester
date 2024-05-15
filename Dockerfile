@@ -2,17 +2,18 @@
 
 ARG PYTHON_VERSION=3.11.4
 
-FROM docker.io/almalinux:9.2
+FROM docker.io/almalinux:9.4
 
 ARG PYTHON_VERSION
 
-RUN yum update -y
-RUN yum install -y epel-release
-RUN yum install -y yum-utils
+RUN dnf update -y
+RUN dnf install -y epel-release
+RUN dnf install -y yum-utils
 RUN yum-config-manager --enable crb
 
-RUN yum install -y --allowerasing gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
-    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel passwd voms-clients-java which mysql-devel mariadb
+RUN dnf install -y --allowerasing gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
+    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel passwd voms-clients-java which mysql-devel mariadb \
+    sudo vim htop
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
@@ -44,14 +45,14 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg \n\
 
 # download and install google rpms avoiding conflicts between google-cloud-sdk and google-cloud-cli
 RUN mkdir /tmp/gtemp &&  \
-    yum install -y --downloadonly --downloaddir=/tmp/gtemp google-cloud-sdk-gke-gcloud-auth-plugin && \
-    yum install -y --downloadonly --downloaddir=/tmp/gtemp kubectl && \
+    dnf install -y --downloadonly --downloaddir=/tmp/gtemp google-cloud-sdk-gke-gcloud-auth-plugin && \
+    dnf install -y --downloadonly --downloaddir=/tmp/gtemp kubectl && \
     rpm -Uvh --force --nodeps /tmp/gtemp/*.rpm && \
     rm -rf /tmp/gtemp
 
 # install voms
-RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/osg-ca-certs-1.114-2.osg36.el9.noarch.rpm
-RUN yum install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/vo-client-131-1.osg36.el9.noarch.rpm
+RUN dnf install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/osg-ca-certs-1.114-2.osg36.el9.noarch.rpm
+RUN dnf install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/vo-client-131-1.osg36.el9.noarch.rpm
 
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/harvester
@@ -63,15 +64,18 @@ RUN /opt/harvester/bin/pip install -U kubernetes
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
 COPY . .
-RUN /opt/harvester/bin/pip install -U .
+RUN /opt/harvester/bin/pip install -U pandaharvester[atlasgrid]@git+https://github.com/HSF/harvester
 WORKDIR /
 RUN rm -rf /tmp/src
 
-RUN mv /opt/harvester/etc/sysconfig/panda_harvester.rpmnew.template  /opt/harvester/etc/sysconfig/panda_harvester
+RUN mv /opt/harvester/etc/sysconfig/panda_harvester.rpmnew.template /opt/harvester/etc/sysconfig/panda_harvester
 RUN mv /opt/harvester/etc/panda/panda_common.cfg.rpmnew /opt/harvester/etc/panda/panda_common.cfg
 RUN mv /opt/harvester/etc/panda/panda_harvester.cfg.rpmnew.template /opt/harvester/etc/panda/panda_harvester.cfg
 RUN mv /opt/harvester/etc/panda/panda_harvester-uwsgi.ini.rpmnew.template /opt/harvester/etc/panda/panda_harvester-uwsgi.ini
 RUN mv /opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi.rpmnew.template /opt/harvester/etc/rc.d/init.d/panda_harvester-uwsgi
+
+RUN cp /opt/harvester/local/bin/harvester-admin.rpmnew /opt/harvester/local/bin/harvester-admin && \
+    chmod a+x /opt/harvester/local/bin/harvester-admin
 
 RUN ln -fs /opt/harvester/etc/queue_config/panda_queueconfig.json /opt/harvester/etc/panda/panda_queueconfig.json
 
@@ -112,7 +116,7 @@ RUN openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/pki/tls/private/local
 RUN chmod 644 /etc/pki/tls/private/localhost.key
 RUN chmod 644 /etc/pki/tls/certs/localhost.crt
 
-RUN yum clean all && rm -rf /var/cache/yum
+RUN dnf clean all && rm -rf /var/cache/yum
 
 # make lock dir
 ENV PANDA_LOCK_DIR /var/run/panda
