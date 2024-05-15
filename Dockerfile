@@ -64,7 +64,7 @@ RUN /opt/harvester/bin/pip install -U kubernetes
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
 COPY . .
-RUN /opt/harvester/bin/pip install -U pandaharvester[atlasgrid]@git+https://github.com/HSF/harvester
+RUN /opt/harvester/bin/pip install -U .
 WORKDIR /
 RUN rm -rf /tmp/src
 
