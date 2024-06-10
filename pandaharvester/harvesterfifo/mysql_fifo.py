@@ -502,9 +502,9 @@ class MysqlFifo(PluginBase):
         sql_query_inactive_tables = (
             "SELECT table_name FROM information_schema.tables "
             "WHERE table_schema = %s "
-            "    AND table_name LIKE '%_FIFO' "
-            "    AND create_time < (NOW() - %d) "
-            "    AND (update_time IS NULL OR update_time < (NOW() - %d)) "
+            "    AND table_name LIKE '%%_FIFO' "
+            "    AND create_time < (NOW() - INTERVAL %s SECOND) "
+            "    AND (update_time IS NULL OR update_time < (NOW() - INTERVAL %s SECOND)) "
         )
         params = (db_schema, age_sec, age_sec)
         self.execute(sql_query_inactive_tables, params)
