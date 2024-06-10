@@ -22,13 +22,14 @@ class MysqlFifo(PluginBase):
         # get connection, cursor and error types
         self._connect_db()
         # create table for fifo
-        try:
-            self._make_table()
-            # self._make_index()
-            self.commit()
-        except Exception as _e:
-            self.rollback()
-            raise _e
+        if self.titleName != "management":
+            try:
+                self._make_table()
+                # self._make_index()
+                self.commit()
+            except Exception as _e:
+                self.rollback()
+                raise _e
 
     # get connection, cursor and error types
     def _connect_db(self):
