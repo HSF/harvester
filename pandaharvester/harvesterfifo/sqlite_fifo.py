@@ -281,3 +281,8 @@ class SqliteFifo(PluginBase):
             if n_row >= 1:
                 retVal = True
         return retVal
+
+    # clean up inactive tables from fifo database
+    def cleanup_tables(self, age_sec=1209600):
+        # not implemeted for sqlite
+        pass

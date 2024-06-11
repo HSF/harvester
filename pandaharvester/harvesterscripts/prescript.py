@@ -3,6 +3,7 @@ import os
 import sys
 
 from pandaharvester.harvesterconfig import harvester_config
+from pandaharvester.harvestercore.fifos import ManagementFIFO
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
 
 
@@ -15,8 +16,8 @@ def main():
         sys.exit(0)
     args = oparser.parse_args(sys.argv[1:])
 
+    # check package info
     local_info_file = os.path.normpath(args.local_info_file)
-
     hpi = harvesterPackageInfo(local_info_file=local_info_file)
     if hpi.package_changed:
         print("Harvester package changed")
@@ -25,6 +26,13 @@ def main():
         hpi.renew_local_info()
     else:
         print("Harvester package unchanged. Skipped")
+
+    # clean up inactive fifo tables
+    mfifo = ManagementFIFO()
+    mfifo.cleanup_tables()
+
+    # done
+    pass
 
 
 if __name__ == "__main__":

@@ -22,13 +22,14 @@ class MysqlFifo(PluginBase):
         # get connection, cursor and error types
         self._connect_db()
         # create table for fifo
-        try:
-            self._make_table()
-            # self._make_index()
-            self.commit()
-        except Exception as _e:
-            self.rollback()
-            raise _e
+        if self.titleName != "management":
+            try:
+                self._make_table()
+                # self._make_index()
+                self.commit()
+            except Exception as _e:
+                self.rollback()
+                raise _e
 
     # get connection, cursor and error types
     def _connect_db(self):
@@ -440,7 +441,7 @@ class MysqlFifo(PluginBase):
 
     # drop all objects in queue and index and reset the table
     def clear(self):
-        sql_clear_index = f"DROP INDEX IF EXISTS score_index ON {self.tableName} "
+        # sql_clear_index = f"DROP INDEX IF EXISTS score_index ON {self.tableName} "
         sql_clear_table = f"DROP TABLE IF EXISTS {self.tableName} "
         # self.execute(sql_clear_index)
         try:
@@ -493,3 +494,26 @@ class MysqlFifo(PluginBase):
             raise _e
         else:
             return retVal
+
+    # clean up inactive tables from fifo database
+    def cleanup_tables(self, age_sec=1209600):
+        db_schema = harvester_config.fifo.db_schema
+        if hasattr(self, "db_schema"):
+            db_schema = self.db_schema
+        sql_query_inactive_tables = (
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = %s "
+            "    AND table_name LIKE '%%_FIFO' "
+            "    AND create_time < (NOW() - INTERVAL %s SECOND) "
+            "    AND (update_time IS NULL OR update_time < (NOW() - INTERVAL %s SECOND)) "
+        )
+        params = (db_schema, age_sec, age_sec)
+        self.execute(sql_query_inactive_tables, params)
+        res = self.cur.fetchall()
+        try:
+            for (inactive_table_name,) in res:
+                sql_drop_inactive_table = f"DROP TABLE IF EXISTS {inactive_table_name} "
+                self.execute(sql_drop_inactive_table)
+        except Exception as _e:
+            self.rollback()
+            raise _e

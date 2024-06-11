@@ -303,6 +303,16 @@ class SpecialFIFOBase(FIFOBase):
         self.fifo = pluginFactory.get_plugin(pluginConf)
 
 
+# Management fifo class, for managning fifo database
+class ManagementFIFO(SpecialFIFOBase):
+    titleName = "management"
+
+    # clean up inactive tables from fifo database
+    def cleanup_tables(self, age_sec=1209600):
+        retVal = self.fifo.cleanup_tables(age_sec)
+        return retVal
+
+
 # Benchmark fifo
 class BenchmarkFIFO(SpecialFIFOBase):
     titleName = "benchmark"
