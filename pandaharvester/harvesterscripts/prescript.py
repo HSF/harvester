@@ -3,7 +3,6 @@ import os
 import sys
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.fifos import ManagementFIFO
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
 
 
@@ -27,9 +26,12 @@ def main():
     else:
         print("Harvester package unchanged. Skipped")
 
-    # clean up inactive fifo tables
-    mfifo = ManagementFIFO()
-    mfifo.cleanup_tables()
+    # if enabled, clean up inactive fifo tables
+    if hasattr(harvester_config, "fifoEnable") and harvester_config.fifoEnable:
+        from pandaharvester.harvestercore.fifos import ManagementFIFO
+
+        mfifo = ManagementFIFO()
+        mfifo.cleanup_tables()
 
     # done
     pass
