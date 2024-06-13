@@ -27,7 +27,7 @@ def main():
         print("Harvester package unchanged. Skipped")
 
     # if enabled, clean up inactive fifo tables
-    if hasattr(harvester_config, "fifoEnable") and harvester_config.fifoEnable:
+    if hasattr(harvester_config.monitor, "fifoEnable") and harvester_config.monitor.fifoEnable:
         from pandaharvester.harvestercore.fifos import ManagementFIFO
 
         mfifo = ManagementFIFO()
