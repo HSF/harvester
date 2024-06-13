@@ -2,7 +2,13 @@ import argparse
 import os
 import sys
 
-from pandaharvester.harvesterconfig import harvester_config
+try:
+    from pandaharvester.harvestercore.fifos import ManagementFIFO
+
+    fifo_available = True
+except ImportError:
+    fifo_available = False
+
 from pandaharvester.harvestercore.fifos import ManagementFIFO
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
 
@@ -27,9 +33,10 @@ def main():
     else:
         print("Harvester package unchanged. Skipped")
 
-    # clean up inactive fifo tables
-    mfifo = ManagementFIFO()
-    mfifo.cleanup_tables()
+    # if available, clean up inactive fifo tables
+    if fifo_available:
+        mfifo = ManagementFIFO()
+        mfifo.cleanup_tables()
 
     # done
     pass
