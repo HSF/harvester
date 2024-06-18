@@ -60,7 +60,7 @@ RUN mkdir -p /etc/grid-security/vomsdir/vo.darkside.org && \
     echo "/C=NL/O=GEANT Vereniging/CN=GEANT eScience SSL CA 4" >> /etc/grid-security/vomsdir/vo.darkside.org/vomsmania.cnaf.infn.it.lsc
 
 # vomses file to refer to the darkside VOMS server
-RUN echo "\"vo.darkside.org\" \"vomsmania.cnaf.infn.it\" \"15008\" \"/DC=org/DC=terena/DC=tcs/C=IT/ST=Roma/O=Istituto Nazionale di Fisica Nucleare/CN=vomsmania.cnaf.infn.it\" \"vo.darkside.org\"" > /etc/vomses/darkside-vomsmania.cnaf.infn.it
+RUN echo "\"vo.darkside.org\" \"vomsmania.cnaf.infn.it\" \"15008\" \"/DC=org/DC=terena/DC=tcs/C=IT/ST=Roma/O=Istituto Nazionale di Fisica Nucleare/CN=vomsmania.cnaf.infn.it\" \"vo.darkside.org\"" >> /etc/vomses
 
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/harvester
