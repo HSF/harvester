@@ -54,6 +54,14 @@ RUN mkdir /tmp/gtemp &&  \
 RUN dnf install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/osg-ca-certs-1.114-2.osg36.el9.noarch.rpm
 RUN dnf install -y https://repo.opensciencegrid.org/osg/3.6/el9/release/x86_64/vo-client-131-1.osg36.el9.noarch.rpm
 
+# LSC file for the darkside VOMS server
+RUN mkdir -p /etc/grid-security/vomsdir/vo.darkside.org && \
+    echo "/DC=org/DC=terena/DC=tcs/C=IT/ST=Roma/O=Istituto Nazionale di Fisica Nucleare/CN=vomsmania.cnaf.infn.it" > /etc/grid-security/vomsdir/vo.darkside.org/vomsmania.cnaf.infn.it.lsc && \
+    echo "/C=NL/O=GEANT Vereniging/CN=GEANT eScience SSL CA 4" >> /etc/grid-security/vomsdir/vo.darkside.org/vomsmania.cnaf.infn.it.lsc
+
+# vomses file to refer to the darkside VOMS server
+RUN echo "\"vo.darkside.org\" \"vomsmania.cnaf.infn.it\" \"15008\" \"/DC=org/DC=terena/DC=tcs/C=IT/ST=Roma/O=Istituto Nazionale di Fisica Nucleare/CN=vomsmania.cnaf.infn.it\" \"vo.darkside.org\"" > /etc/grid-security/vomses/darkside-vomsmania.cnaf.infn.it
+
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/harvester
 RUN /opt/harvester/bin/pip install -U pip
