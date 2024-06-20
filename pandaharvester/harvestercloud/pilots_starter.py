@@ -319,7 +319,7 @@ if __name__ == "__main__":
     )
 
     # extend command to tee the stdout and stderr to a file. We need to return the wrapper exit code, not the tee exit code
-    command += " 2>&1 | tee /tmp/wrapper-wid.log; exit ${PIPESTATUS[0]}"
+    command += " 2>&1 | tee ${TMPDIR:-/tmp}/wrapper-wid.log; exit ${PIPESTATUS[0]}"
 
     try:
         return_code = subprocess.call(command, shell=True)
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     logging.debug("[main] pilot wrapper done with return code {0} ...".format(return_code))
 
     # upload logs to e.g. panda cache or similar
-    upload_logs(logs_frontend_w, "/tmp/wrapper-wid.log", destination_name, proxy_path)
+    upload_logs(logs_frontend_w, WORK_DIR + "/wrapper-wid.log", destination_name, proxy_path)
     logging.debug("[main] FINISHED")
 
     # Exit with the same exit code as the pilot wrapper
