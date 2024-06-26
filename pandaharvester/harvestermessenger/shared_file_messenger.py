@@ -22,63 +22,6 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 
 from .base_messenger import BaseMessenger
 
-# json for worker attributes
-jsonAttrsFileName = harvester_config.payload_interaction.workerAttributesFile
-
-# json for job report
-jsonJobReport = harvester_config.payload_interaction.jobReportFile
-
-# json for outputs
-jsonOutputsFileName = harvester_config.payload_interaction.eventStatusDumpJsonFile
-
-# xml for outputs
-xmlOutputsBaseFileName = harvester_config.payload_interaction.eventStatusDumpXmlFile
-
-# json for job request
-jsonJobRequestFileName = harvester_config.payload_interaction.jobRequestFile
-
-# json for job spec
-jobSpecFileName = harvester_config.payload_interaction.jobSpecFile
-
-# json for event request
-jsonEventsRequestFileName = harvester_config.payload_interaction.eventRequestFile
-
-# json to feed events
-jsonEventsFeedFileName = harvester_config.payload_interaction.eventRangesFile
-
-# json to update events
-jsonEventsUpdateFileName = harvester_config.payload_interaction.updateEventsFile
-
-# PFC for input files
-xmlPoolCatalogFileName = harvester_config.payload_interaction.xmlPoolCatalogFile
-
-# json to get PandaIDs
-pandaIDsFile = harvester_config.payload_interaction.pandaIDsFile
-
-# json to kill worker itself
-try:
-    killWorkerFile = harvester_config.payload_interaction.killWorkerFile
-except Exception:
-    killWorkerFile = "kill_worker.json"
-
-# json for heartbeats from the worker
-try:
-    heartbeatFile = harvester_config.payload_interaction.heartbeatFile
-except Exception:
-    heartbeatFile = "worker_heartbeat.json"
-
-# task specific persistent dir
-try:
-    taskWorkBaseDir = harvester_config.payload_interaction.taskWorkBaseDir
-except Exception:
-    taskWorkBaseDir = "/tmp/workdir"
-
-# task-level work state file
-try:
-    taskWorkStateFile = harvester_config.payload_interaction.taskWorkStateFile
-except Exception:
-    taskWorkStateFile = "state.json"
-
 # task-level work dir
 taskWorkDirPathFile = "task_workdir_path.txt"
 
@@ -106,7 +49,7 @@ def filter_log_tgz(extra=None):
 
 
 # tar a single directory
-def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None, sub_tarball_name=None):
+def tar_directory(dir_name, jobspec_filename, tar_name=None, max_depth=None, extra_files=None, sub_tarball_name=None):
     if tar_name is None:
         tarFilePath = os.path.join(os.path.dirname(dir_name), f"{os.path.basename(dir_name)}.subdir.tar.gz")
     else:
@@ -124,7 +67,7 @@ def tar_directory(dir_name, tar_name=None, max_depth=None, extra_files=None, sub
         if max_depth is not None:
             com += f"-maxdepth {max_depth} "
         com += r"-type f \( " + filter_log_tgz(extra_files) + r"\) "
-        com += r'| grep -v {0} | tr "\n" "\0" | '.format(jobSpecFileName)
+        com += r'| grep -v {0} | tr "\n" "\0" | '.format(jobspec_filename)
         com += "tar "
         if which("pigz") is None:
             com += "-z "
@@ -218,7 +161,7 @@ class SharedFileMessenger(BaseMessenger):
             with open(tmp_file) as f:
                 return f.read()
         if jobspec.jobParams and "onSiteMerging" in jobspec.jobParams:
-            return os.path.join(taskWorkBaseDir, str(jobspec.taskID))
+            return os.path.join(self.taskWorkBaseDir, str(jobspec.taskID))
         return None
 
     # get attributes of a worker which should be propagated to job(s).
@@ -232,7 +175,7 @@ class SharedFileMessenger(BaseMessenger):
         for pandaID in workspec.pandaid_list:
             # look for the json just under the access point
             accessPoint = self.get_access_point(workspec, pandaID)
-            jsonFilePath = os.path.join(accessPoint, jsonAttrsFileName)
+            jsonFilePath = os.path.join(accessPoint, self.jsonAttrsFileName)
             tmpLog.debug(f"looking for attributes file {jsonFilePath}")
             retDict = dict()
             if not os.path.exists(jsonFilePath):
@@ -245,7 +188,7 @@ class SharedFileMessenger(BaseMessenger):
                 except Exception:
                     tmpLog.debug(f"failed to load {jsonFilePath}")
             # look for job report
-            jsonFilePath = os.path.join(accessPoint, jsonJobReport)
+            jsonFilePath = os.path.join(accessPoint, self.jsonJobReport)
             tmpLog.debug(f"looking for job report file {jsonFilePath}")
             sw_checkjobrep = core_utils.get_stopwatch()
             if not os.path.exists(jsonFilePath):
@@ -290,7 +233,7 @@ class SharedFileMessenger(BaseMessenger):
         for pandaID in workspec.pandaid_list:
             # look for the json just under the access point
             accessPoint = self.get_access_point(workspec, pandaID)
-            jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
+            jsonFilePath = os.path.join(accessPoint, self.jsonOutputsFileName)
             readJsonPath = jsonFilePath + suffixReadJson
             # first look for json.read which is not yet acknowledged
             tmpLog.debug(f"looking for output file {readJsonPath}")
@@ -392,7 +335,7 @@ class SharedFileMessenger(BaseMessenger):
                 # dump events
                 if not toSkip:
                     if len(eventsList) > 0:
-                        curName = os.path.join(accessPoint, jsonEventsUpdateFileName)
+                        curName = os.path.join(accessPoint, self.jsonEventsUpdateFileName)
                         newName = curName + ".new"
                         f = open(newName, "w")
                         json.dump(eventsList, f)
@@ -413,7 +356,7 @@ class SharedFileMessenger(BaseMessenger):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="job_requested")
         # look for the json just under the access point
-        jsonFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
+        jsonFilePath = os.path.join(workspec.get_access_point(), self.jsonJobRequestFileName)
         tmpLog.debug(f"looking for job request file {jsonFilePath}")
         if not os.path.exists(jsonFilePath):
             # not found
@@ -441,8 +384,8 @@ class SharedFileMessenger(BaseMessenger):
         pandaIDs = []
         for jobSpec in jobspec_list:
             accessPoint = self.get_access_point(workspec, jobSpec.PandaID)
-            jobSpecFilePath = os.path.join(accessPoint, jobSpecFileName)
-            xmlFilePath = os.path.join(accessPoint, xmlPoolCatalogFileName)
+            jobSpecFilePath = os.path.join(accessPoint, self.jobSpecFileName)
+            xmlFilePath = os.path.join(accessPoint, self.xmlPoolCatalogFileName)
             tmpLog.debug(f"feeding jobs to {jobSpecFilePath}")
             try:
                 # put job spec file
@@ -472,7 +415,7 @@ class SharedFileMessenger(BaseMessenger):
                 retVal = False
         # put PandaIDs file
         try:
-            jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
+            jsonFilePath = os.path.join(workspec.get_access_point(), self.pandaIDsFile)
             with open(jsonFilePath, "w") as jsonPandaIDsFile:
                 json.dump(pandaIDs, jsonPandaIDsFile)
         except Exception:
@@ -480,7 +423,7 @@ class SharedFileMessenger(BaseMessenger):
             retVal = False
         # remove request file
         try:
-            reqFilePath = os.path.join(workspec.get_access_point(), jsonJobRequestFileName)
+            reqFilePath = os.path.join(workspec.get_access_point(), self.jsonJobRequestFileName)
             os.remove(reqFilePath)
         except Exception:
             pass
@@ -493,7 +436,7 @@ class SharedFileMessenger(BaseMessenger):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="events_requested")
         # look for the json just under the access point
-        jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsRequestFileName)
+        jsonFilePath = os.path.join(workspec.get_access_point(), self.jsonEventsRequestFileName)
         tmpLog.debug(f"looking for event request file {jsonFilePath}")
         if not os.path.exists(jsonFilePath):
             # not found
@@ -516,7 +459,7 @@ class SharedFileMessenger(BaseMessenger):
         retVal = True
         if workspec.mapType in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiWorkers]:
             # put the json just under the access point
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsFeedFileName)
+            jsonFilePath = os.path.join(workspec.get_access_point(), self.jsonEventsFeedFileName)
             tmpLog.debug(f"feeding events to {jsonFilePath}")
             try:
                 with open(jsonFilePath, "w") as jsonFile:
@@ -529,7 +472,7 @@ class SharedFileMessenger(BaseMessenger):
             pass
         # remove request file
         try:
-            jsonFilePath = os.path.join(workspec.get_access_point(), jsonEventsRequestFileName)
+            jsonFilePath = os.path.join(workspec.get_access_point(), self.jsonEventsRequestFileName)
             os.remove(jsonFilePath)
         except Exception:
             pass
@@ -547,7 +490,7 @@ class SharedFileMessenger(BaseMessenger):
             # look for the json just under the access point
             accessPoint = self.get_access_point(workspec, pandaID)
 
-            jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
+            jsonFilePath = os.path.join(accessPoint, self.jsonEventsUpdateFileName)
             readJsonPath = jsonFilePath + suffixReadJson
             # first look for json.read which is not yet acknowledged
             tmpLog.debug(f"looking for event update file {readJsonPath}")
@@ -596,14 +539,14 @@ class SharedFileMessenger(BaseMessenger):
         for pandaID in workspec.pandaid_list:
             accessPoint = self.get_access_point(workspec, pandaID)
             try:
-                jsonFilePath = os.path.join(accessPoint, jsonEventsUpdateFileName)
+                jsonFilePath = os.path.join(accessPoint, self.jsonEventsUpdateFileName)
                 jsonFilePath += suffixReadJson
                 jsonFilePath_rename = jsonFilePath + "." + core_utils.naive_utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
                 os.rename(jsonFilePath, jsonFilePath_rename)
             except Exception:
                 pass
             try:
-                jsonFilePath = os.path.join(accessPoint, jsonOutputsFileName)
+                jsonFilePath = os.path.join(accessPoint, self.jsonOutputsFileName)
                 jsonFilePath += suffixReadJson
                 jsonFilePath_rename = jsonFilePath + "." + core_utils.naive_utcnow().strftime("%Y-%m-%d_%H_%M_%S.%f")
                 os.rename(jsonFilePath, jsonFilePath_rename)
@@ -681,13 +624,15 @@ class SharedFileMessenger(BaseMessenger):
                     # tar sub dirs
                     tmpLog.debug(f"tar for {len(dirs)} sub dirs")
                     with Pool(max_workers=self.maxWorkersForZip if self.maxWorkersForZip else multiprocessing.cpu_count()) as pool:
-                        retValList = pool.map(lambda x, y: tar_directory(x, sub_tarball_name=y), dirs, itertools.repeat(self.subTarballName))
+                        retValList = pool.map(
+                            lambda x, y: tar_directory(x, self.jobSpecFileName, sub_tarball_name=y), dirs, itertools.repeat(self.subTarballName)
+                        )
                         for dirName, (comStr, retCode, stdOut, stdErr) in zip(dirs, retValList):
                             if retCode != 0:
                                 tmpLog.warning(f"failed to sub-tar {dirName} with {comStr} -> {stdOut}:{stdErr}")
                     # tar main dir
                     tmpLog.debug("tar for main dir")
-                    comStr, retCode, stdOut, stdErr = tar_directory(accessPoint, logFilePath, 1, ["*.subdir.tar.gz"])
+                    comStr, retCode, stdOut, stdErr = tar_directory(accessPoint, self.jobSpecFileName, logFilePath, 1, ["*.subdir.tar.gz"])
                     tmpLog.debug("used command : " + comStr)
                     if retCode != 0:
                         tmpLog.warning(f"failed to tar {accessPoint} with {comStr} -> {stdOut}:{stdErr}")
@@ -737,7 +682,7 @@ class SharedFileMessenger(BaseMessenger):
                 taskAccessDir = self.get_task_access_point(workspec, jobSpec)
                 if taskAccessDir:
                     doneInputs = set()
-                    taskWorkStatePath = os.path.join(taskAccessDir, taskWorkStateFile)
+                    taskWorkStatePath = os.path.join(taskAccessDir, self.taskWorkStateFile)
                     if os.path.exists(taskWorkStatePath):
                         nInTaskState = 0
                         with open(taskWorkStatePath) as f:
@@ -775,7 +720,7 @@ class SharedFileMessenger(BaseMessenger):
                     tmpLog.debug(f"set {len(skippedInputs)} input files to skip")
                 # make json to stage-out
                 if len(fileDict) > 0:
-                    jsonFilePath = os.path.join(origAccessPoint, jsonOutputsFileName)
+                    jsonFilePath = os.path.join(origAccessPoint, self.jsonOutputsFileName)
                     with open(jsonFilePath, "w") as jsonFile:
                         json.dump(fileDict, jsonFile)
                 tmpLog.debug("done")
@@ -789,7 +734,7 @@ class SharedFileMessenger(BaseMessenger):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="get_panda_ids")
         # look for the json just under the access point
-        jsonFilePath = os.path.join(workspec.get_access_point(), pandaIDsFile)
+        jsonFilePath = os.path.join(workspec.get_access_point(), self.pandaIDsFile)
         tmpLog.debug(f"looking for PandaID file {jsonFilePath}")
         retVal = []
         if not os.path.exists(jsonFilePath):
@@ -810,7 +755,7 @@ class SharedFileMessenger(BaseMessenger):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="kill_requested")
         # look for the json just under the access point
-        jsonFilePath = os.path.join(workspec.get_access_point(), killWorkerFile)
+        jsonFilePath = os.path.join(workspec.get_access_point(), self.killWorkerFile)
         tmpLog.debug(f"looking for kill request file {jsonFilePath}")
         if not os.path.exists(jsonFilePath):
             # not found
@@ -824,7 +769,7 @@ class SharedFileMessenger(BaseMessenger):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="is_alive")
         # json file
-        jsonFilePath = os.path.join(workspec.get_access_point(), heartbeatFile)
+        jsonFilePath = os.path.join(workspec.get_access_point(), self.heartbeatFile)
         tmpLog.debug(f"looking for heartbeat file {jsonFilePath}")
         if not os.path.exists(jsonFilePath):  # no heartbeat file was found
             tmpLog.debug(f"startTime: {workspec.startTime}, now: {core_utils.naive_utcnow()}")
