@@ -15,6 +15,7 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
+from pandaharvester.harvestermessenger.base_messenger import BaseMessenger
 from pandaharvester.harvestermisc.htcondor_utils import (
     CondorJobSubmit,
     get_job_id_tuple_from_batchid,
@@ -26,9 +27,14 @@ from pandaharvester.harvestersubmitter import submitter_common
 # logger
 baseLogger = core_utils.setup_logger("htcondor_submitter")
 
+# base messenger instance
+base_messenger = BaseMessenger()
 
-# Replace condor Macro from SDF file, return string
+
 def _condor_macro_replace(string, **kwarg):
+    """
+    Replace condor Macro from SDF file, return string
+    """
     new_string = string
     macro_map = {
         "\$\(Cluster\)": str(kwarg["ClusterId"]),
@@ -39,10 +45,10 @@ def _condor_macro_replace(string, **kwarg):
     return new_string
 
 
-# submit a bag of workers
-
-
 def submit_bag_of_workers(data_list):
+    """
+    submit a bag of workers
+    """
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, method_name="submit_bag_of_workers")
     # keep order of workers in data_list
@@ -150,9 +156,6 @@ def submit_bag_of_workers(data_list):
     return retValList
 
 
-# make a condor jdl for a worker
-
-
 def make_a_jdl(
     workspec,
     template,
@@ -179,6 +182,9 @@ def make_a_jdl(
     custom_submit_attr_dict=None,
     **kwarg,
 ):
+    """
+    make a condor jdl for a worker
+    """
     # make logger
     tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="make_a_jdl")
     # Note: In workspec, unit of minRamCount and of maxDiskCount are both MB.
@@ -254,10 +260,14 @@ def make_a_jdl(
     rt_mapper = ResourceTypeMapper()
     all_resource_types = rt_mapper.get_all_resource_types()
 
+    # jobspec filename
+    jobspec_filename = harvester_queue_config.messenger.get("jobSpecFileName", base_messenger.jobSpecFileName)
+
     # placeholder map
     placeholder_map = {
         "sdfPath": tmpFile.name,
         "executableFile": executable_file,
+        "jobSpecFileName": jobspec_filename,
         "nCorePerNode": n_core_per_node,
         "nCoreTotal": n_core_total_factor,
         "nNode": n_node,
@@ -319,10 +329,10 @@ def make_a_jdl(
     return jdl_str, placeholder_map
 
 
-# parse log, stdout, stderr filename
-
-
 def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
+    """
+    parse log, stdout, stderr filename
+    """
     _filename = os.path.basename(value_str)
     if guess:
         # guess file name before files really created; possibly containing condor macros
@@ -338,7 +348,7 @@ def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
         return None
 
 
-# submitter for HTCONDOR batch system
+# submitter for HTCondor batch system
 class HTCondorSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
@@ -500,9 +510,9 @@ class HTCondorSubmitter(PluginBase):
             self.useSpool = False
         # number of workers less than this number will be bulkily submitted in only one schedd
         try:
-            self.minBulkToRamdomizedSchedd
+            self.minBulkToRandomizedSchedd
         except AttributeError:
-            self.minBulkToRamdomizedSchedd = 20
+            self.minBulkToRandomizedSchedd = 20
         # try to use analysis credentials first
         try:
             self.useAnalysisCredentials
@@ -520,7 +530,7 @@ class HTCondorSubmitter(PluginBase):
         # record of information of CE statistics
         self.ceStatsLock = threading.Lock()
         self.ceStats = dict()
-        # allowed associated parameters and paramester prefixes from CRIC
+        # allowed associated parameters and parameter prefixes from CRIC
         self._allowed_cric_attrs = [
             "pilot_url",
             "pilot_args",
@@ -632,7 +642,7 @@ class HTCondorSubmitter(PluginBase):
             n_core_per_node = n_core_per_node_from_queue
 
         # deal with Condor schedd and central managers; make a random list the choose
-        n_bulks = ceil(nWorkers / self.minBulkToRamdomizedSchedd)
+        n_bulks = ceil(nWorkers / self.minBulkToRandomizedSchedd)
         if isinstance(self.condorSchedd, list) and len(self.condorSchedd) > 0:
             orig_list = []
             if isinstance(self.condorPool, list) and len(self.condorPool) > 0:

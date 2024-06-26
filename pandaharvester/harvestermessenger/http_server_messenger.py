@@ -28,6 +28,9 @@ def set_logger(master_logger):
     shared_file_messenger.set_logger(master_logger)
 
 
+messenger_inst = shared_file_messenger.SharedFileMessenger()
+
+
 # handler for http front-end
 class HttpHandler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -91,34 +94,34 @@ class HttpHandler(BaseHTTPRequestHandler):
                     opType = None
                     filePath = ""
                     if methodName == "requestJobs":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonJobRequestFileName)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.jsonJobRequestFileName)
                         opType = "w"
                     elif methodName == "getJobs":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jobSpecFileName)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.jobSpecFileName)
                         opType = "r"
                     elif methodName == "requestEventRanges":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonEventsRequestFileName)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.jsonEventsRequestFileName)
                         opType = "w"
                     elif methodName == "getEventRanges":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonEventsFeedFileName)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.jsonEventsFeedFileName)
                         opType = "r"
                     elif methodName == "updateJobs":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonAttrsFileName)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.jsonAttrsFileName)
                         opType = "w"
                     elif methodName == "uploadJobReport":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonJobReport)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.jsonJobReport)
                         opType = "w"
                     elif methodName == "uploadEventOutputDump":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.jsonOutputsFileName)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.jsonOutputsFileName)
                         opType = "w"
                     elif methodName == "setPandaIDs":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.pandaIDsFile)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.pandaIDsFile)
                         opType = "w"
                     elif methodName == "killWorker":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.killWorkerFile)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.killWorkerFile)
                         opType = "w"
                     elif methodName == "heartbeat":
-                        filePath = os.path.join(workSpec.get_access_point(), shared_file_messenger.heartbeatFile)
+                        filePath = os.path.join(workSpec.get_access_point(), messenger_inst.heartbeatFile)
                         opType = "w"
                     else:
                         self.send_response(501)
