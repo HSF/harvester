@@ -366,7 +366,8 @@ class JobSpec(SpecBase):
         scopes = self.jobParams["scopeOut"].split(",")
         scopeLog = self.jobParams["scopeLog"]
         logLFN = self.jobParams["logFile"]
-        scopes.insert(lfns.index(logLFN), scopeLog)
+        if scopeLog and logLFN:
+            scopes.insert(lfns.index(logLFN), scopeLog)
         datasets = self.jobParams["realDatasets"].split(",")
         endpoints = self.jobParams["ddmEndPointOut"].split(",")
         for lfn, scope, dataset, endpoint in zip(lfns, scopes, datasets, endpoints):
