@@ -1,4 +1,4 @@
-# placed in a sub directory since the top directory is problematic for old setuptoos and legacy python
+# placed in a sub directory since the top directory is problematic for old setuptools and legacy python
 
 [build-system]
 requires = ["hatchling"]
@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pandaharvester"
 dynamic = ["version"]
-description = "Havester Package"
+description = "Harvester Package"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
