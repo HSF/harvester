@@ -3,6 +3,8 @@ Description=PanDA Harvester uWSGI
 After=network.target remote-fs.target nss-lookup.target
 
 [Service]
+User=@@panda_user@@
+Group=@@panda_group@@
 Type=exec
 RemainAfterExit=true
 EnvironmentFile=@@virtual_env@@/etc/sysconfig/panda_harvester_env
