@@ -19,6 +19,7 @@ import sys
 import traceback
 import uuid
 import zlib
+from urllib.parse import urlparse
 
 # TO BE REMOVED for python2.7
 import requests.packages.urllib3
@@ -54,20 +55,77 @@ class PandaCommunicator(BaseCommunicator):
             self.auth_type = "x509"
         self.auth_token = None
         self.auth_token_last_update = None
+        if hasattr(harvester_config.pandacon, "cert_file"):
+            self.cert_file = harvester_config.pandacon.cert_file
+        else:
+            self.cert_file = None
+        if hasattr(harvester_config.pandacon, "key_file"):
+            self.key_file = harvester_config.pandacon.key_file
+        else:
+            self.key_file = None
+        if hasattr(harvester_config.pandacon, "ca_cert"):
+            self.ca_cert = harvester_config.pandacon.ca_cert
+        else:
+            self.ca_cert = False
+        # multihost auth configuration
+        self.multihost_auth_config = {}
+        if hasattr(harvester_config.pandacon, "multihost_auth_config") and harvester_config.pandacon.multihost_auth_config:
+            try:
+                with open(harvester_config.pandacon.multihost_auth_config) as f:
+                    self.multihost_auth_config = json.load(f)
+            except Exception:
+                pass
+        # mapping between base URL and host
+        self.base_url_host_map = {}
+        # renew token
+        self.renew_token()
 
     # renew token
     def renew_token(self):
+        if self.auth_token_last_update is not None and core_utils.naive_utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=60):
+            return
+        self.auth_token_last_update = core_utils.naive_utcnow()
         if hasattr(harvester_config.pandacon, "auth_token"):
             if harvester_config.pandacon.auth_token.startswith("file:"):
-                if self.auth_token_last_update is not None and core_utils.naive_utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=60):
-                    return
                 with open(harvester_config.pandacon.auth_token.split(":")[-1]) as f:
                     self.auth_token = f.read()
-                    self.auth_token_last_update = core_utils.naive_utcnow()
             else:
                 if self.auth_token_last_update is None:
                     self.auth_token = harvester_config.pandacon.auth_token
-                    self.auth_token_last_update = core_utils.naive_utcnow()
+        for config_map in self.multihost_auth_config.values():
+            if "auth_token" in config_map:
+                if config_map["auth_token"].startswith("file:"):
+                    with open(config_map["auth_token"].split(":")[-1]) as f:
+                        config_map["auth_token_str"] = f.read()
+                else:
+                    config_map["auth_token_str"] = config_map["auth_token"]
+
+    # def get host-specific auth config for a base URL
+    def get_host_specific_auth_config(self, base_url: str) -> tuple:
+        """
+        Get host-specific auth configuration for a base URL
+
+        Args:
+            base_url: base URL
+
+        Returns:
+            list: host-specific configuration: auth_type, cert_file, key_file, ca_cert, auth_token. Return the default configuration if the host is not in the multihost configuration.
+        """
+        # check if the base URL is already in the cache
+        if base_url not in self.base_url_host_map:
+            parsed_uri = urlparse(base_url)
+            self.base_url_host_map[base_url] = parsed_uri.netloc
+        host = self.base_url_host_map[base_url]
+        if host in self.multihost_auth_config:
+            return (
+                self.multihost_auth_config[host].get("auth_type", self.auth_type),
+                self.multihost_auth_config[host].get("cert_file", self.cert_file),
+                self.multihost_auth_config[host].get("key_file", self.key_file),
+                self.multihost_auth_config[host].get("ca_cert", self.ca_cert),
+                self.multihost_auth_config[host].get("auth_token_str", self.auth_token),
+            )
+        else:
+            return self.auth_type, self.cert_file, self.key_file, self.ca_cert, self.auth_token
 
     # POST with http
     def post(self, path, data):
@@ -109,20 +167,22 @@ class PandaCommunicator(BaseCommunicator):
             if base_url is None:
                 base_url = harvester_config.pandacon.pandaURLSSL
             url = f"{base_url}/{path}"
+            # get auth config
+            auth_type, cert_file, key_file, ca_cert, auth_token = self.get_host_specific_auth_config(base_url)
             if self.verbose:
                 tmpLog.debug(f"exec={tmpExec} URL={url} data={str(data)}")
             headers = {"Accept": "application/json", "Connection": "close"}
-            if self.auth_type == "oidc":
+            if auth_type == "oidc":
                 self.renew_token()
                 cert = None
                 headers["Authorization"] = f"Bearer {self.auth_token}"
                 headers["Origin"] = harvester_config.pandacon.auth_origin
             else:
                 if cert is None:
-                    cert = (harvester_config.pandacon.cert_file, harvester_config.pandacon.key_file)
+                    cert = (cert_file, key_file)
             session = get_http_adapter_with_random_dns_resolution()
             sw = core_utils.get_stopwatch()
-            res = session.post(url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=harvester_config.pandacon.ca_cert, cert=cert)
+            res = session.post(url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
             if self.verbose:
                 tmpLog.debug(f"exec={tmpExec} code={res.status_code} {sw.get_elapsed_time()}. return={res.text}")
             if res.status_code == 200:
@@ -149,6 +209,8 @@ class PandaCommunicator(BaseCommunicator):
             if base_url is None:
                 base_url = harvester_config.pandacon.pandaCacheURL_W
             url = f"{base_url}/{path}"
+            # get auth config
+            auth_type, cert_file, key_file, ca_cert, auth_token = self.get_host_specific_auth_config(base_url)
             if self.verbose:
                 tmpLog.debug(f"exec={tmpExec} URL={url} files={files['file'][0]}")
             if self.auth_type == "oidc":
@@ -160,11 +222,9 @@ class PandaCommunicator(BaseCommunicator):
             else:
                 headers = None
                 if cert is None:
-                    cert = (harvester_config.pandacon.cert_file, harvester_config.pandacon.key_file)
+                    cert = (cert_file, key_file)
             session = get_http_adapter_with_random_dns_resolution()
-            res = session.post(
-                url, files=files, headers=headers, timeout=harvester_config.pandacon.timeout, verify=harvester_config.pandacon.ca_cert, cert=cert
-            )
+            res = session.post(url, files=files, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
             if self.verbose:
                 tmpLog.debug(f"exec={tmpExec} code={res.status_code} return={res.text}")
             if res.status_code == 200:
