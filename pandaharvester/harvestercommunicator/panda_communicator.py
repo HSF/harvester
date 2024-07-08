@@ -77,6 +77,8 @@ class PandaCommunicator(BaseCommunicator):
                 pass
         # mapping between base URL and host
         self.base_url_host_map = {}
+        # renew token
+        self.renew_token()
 
     # renew token
     def renew_token(self):
