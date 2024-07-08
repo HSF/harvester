@@ -168,7 +168,13 @@ useInspect = False
 # event size when getting events
 getEventsChunkSize = 5120
 
+# configuration file to support multiple auth types with various hosts: a json dump of
+# {"host:port": {"auth_type": "x509 or oidc", "cert_file": /path/to/cert, "key_file": /path/to/key,
+#                "ca_cert": /path/to/ca_cert, "auth_token": "token or file:/path/to/token"},
+#  ...}
+# the default values specified in cfg are used if the host:port or keys are not found in the json
 
+#multihost_auth_config = /path/to/multihost_auth_config.json
 
 
 ##########################
