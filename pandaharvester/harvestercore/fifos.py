@@ -51,7 +51,7 @@ class FIFOBase(object):
             hook = None
         return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
 
-    # intialize fifo from harvester configuration
+    # initialize fifo from harvester configuration
     def _initialize_fifo(self, force_enable=False):
         self.fifoName = f"{self.titleName}_fifo"
         self.config = getattr(harvester_config, self.titleName)
@@ -285,7 +285,7 @@ class FIFOBase(object):
         return retVal
 
 
-# Special fifo base for non havester-agent
+# Special fifo base for non harvester-agent
 class SpecialFIFOBase(FIFOBase):
     # constructor
     def __init__(self, **kwarg):
@@ -303,7 +303,7 @@ class SpecialFIFOBase(FIFOBase):
         self.fifo = pluginFactory.get_plugin(pluginConf)
 
 
-# Management fifo class, for managning fifo database
+# Management fifo class, for managing fifo database
 class ManagementFIFO(SpecialFIFOBase):
     titleName = "management"
 
