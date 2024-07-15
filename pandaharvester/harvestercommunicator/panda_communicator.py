@@ -155,7 +155,18 @@ class PandaCommunicator(BaseCommunicator):
         return False, errMsg
 
     # POST with https
-    def post_ssl(self, path, data, cert=None, base_url=None):
+    def post_ssl(self, path: str, data: dict, cert: tuple[str, str] = None, base_url: str = None, raw_mode: bool = False):
+        """
+        POST with https
+
+        :param path: URL path
+        :param data: query data
+        :param cert: a tuple of (certificate, key) for SSL. If None, use the default certificate and key.
+        :param base_url: base URL. If None, use the default base URL.
+        :param raw_mode: return the raw response if True
+
+        :return: a tuple of (status, response or message) if raw_mode is False. Otherwise, return the raw response.
+        """
         try:
             tmpLog = None
             if self.verbose:
@@ -185,11 +196,15 @@ class PandaCommunicator(BaseCommunicator):
             res = session.post(url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
             if self.verbose:
                 tmpLog.debug(f"exec={tmpExec} code={res.status_code} {sw.get_elapsed_time()}. return={res.text}")
+            if raw_mode:
+                return res
             if res.status_code == 200:
                 return True, res
             else:
                 errMsg = f"StatusCode={res.status_code} {res.text}"
         except Exception:
+            if raw_mode:
+                raise
             errType, errValue = sys.exc_info()[:2]
             errMsg = f"failed to post with {errType}:{errValue} "
             errMsg += traceback.format_exc()
@@ -563,6 +578,40 @@ class PandaCommunicator(BaseCommunicator):
         if tmpStat:
             tmpLog.debug(f"done with {str(retVal)}")
         return retVal, retMsg
+
+    # get token key
+    def get_token_key(self, client_name: str) -> tuple[bool, str]:
+        """
+        Get a token key
+
+        :param client_name: client name
+
+        :return: a tuple of (status, token key or error message)
+        """
+        ret_val = None
+        ret_msg = ""
+        # get logger
+        tmp_log = self.make_logger(method_name="get_token_key")
+        tmp_log.debug("start")
+        data = {"client_name": client_name}
+        tmp_stat, tmp_res = self.post_ssl("get_token_key", data)
+        if tmp_stat is False:
+            core_utils.dump_error_message(tmp_log, tmp_res)
+        else:
+            try:
+                tmpDict = tmp_res.json()
+                if tmpDict["StatusCode"] == 0:
+                    ret_val = tmpDict["tokenKey"]
+                else:
+                    ret_msg = tmpDict["errorDialog"]
+                    core_utils.dump_error_message(tmp_log, ret_msg)
+                    tmp_stat = False
+            except Exception:
+                ret_msg = core_utils.dump_error_message(tmp_log, tmp_res)
+                tmp_stat = False
+        if tmp_stat:
+            tmp_log.debug(f"done with {str(ret_val)}")
+        return ret_val, ret_msg
 
     # get resource types
     def get_resource_types(self):

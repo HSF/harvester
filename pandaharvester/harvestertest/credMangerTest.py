@@ -35,12 +35,20 @@ else:
 # VOMS
 vomses = get_list(harvester_config.credmanager.voms)
 
+# direct and merged plugin configuration in json
+if hasattr(harvester_config.credmanager, "pluginConfigs"):
+    pluginConfigs = harvester_config.credmanager.pluginConfigs
+else:
+    pluginConfigs = []
+
 # logger
 _logger = core_utils.setup_logger("credManagerTest")
 
 # get plugin(s)
 exeCores = []
 for moduleName, className, inCertFile, outCertFile, voms in zip(moduleNames, classNames, inCertFiles, outCertFiles, vomses):
+    if not moduleName:
+        continue
     pluginPar = {}
     pluginPar["module"] = moduleName
     pluginPar["name"] = className
@@ -49,6 +57,24 @@ for moduleName, className, inCertFile, outCertFile, voms in zip(moduleNames, cla
     pluginPar["voms"] = voms
     exeCore = pluginFactory.get_plugin(pluginPar)
     exeCores.append(exeCore)
+
+# from pluginConfigs
+for pc in pluginConfigs:
+    try:
+        setup_maps = pc["configs"]
+        for setup_name, setup_map in setup_maps.items():
+            try:
+                plugin_params = {"module": pc["module"], "name": pc["name"], "setup_name": setup_name}
+                plugin_params.update(setup_map)
+                exe_core = pluginFactory.get_plugin(plugin_params)
+                exeCores.append(exe_core)
+            except Exception:
+                _logger.error(f"failed to launch credmanager in pluginConfigs for {plugin_params}")
+                core_utils.dump_error_message(_logger)
+    except Exception:
+        _logger.error(f"failed to parse pluginConfigs {pc}")
+        core_utils.dump_error_message(_logger)
+
 
 # setup logger to write to screen also
 for loggerName, loggerObj in logging.Logger.manager.loggerDict.items():
@@ -67,7 +93,7 @@ for exeCore in exeCores:
     if exeCore is None:
         continue
     # make logger
-    mainLog = core_utils.make_logger(_logger, f"{exeCore.__class__.__name__} {exeCore.outCertFile}", method_name="execute")
+    mainLog = core_utils.make_logger(_logger, f"{exeCore.__class__.__name__}", method_name="execute")
     # list the plugin name
     mainLog.debug(f"plugin={exeCore.__class__.__name__}")
     # check credential
