@@ -243,6 +243,7 @@ class WorkSpec(SpecBase):
             "submissionHost",
             "harvesterHost",
             "errorCode",
+            "minRamCount",
         ]:
             val = getattr(self, attr)
             if val is not None:
