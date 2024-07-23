@@ -35,7 +35,7 @@ class Cacher(AgentBase):
                 return
 
     # main
-    def execute(self, force_update=False, skip_lock=False, n_thread=0):
+    def execute(self, force_update=False, skip_lock=False, n_threads=0):
         mainLog = self.make_logger(_logger, f"id={self.get_pid()}", method_name="execute")
         # get lock
         locked = self.dbProxy.get_process_lock("cacher", self.get_pid(), harvester_config.cacher.sleepTime)
@@ -82,9 +82,9 @@ class Cacher(AgentBase):
                     mainLog.error(f"failed to refresh key={mainKey} subKey={subKey} due to a DB error")
 
             # loop over all items
-            if n_thread:
-                mainLog.debug(f"refresh cache with {n_thread} threads")
-                with ThreadPoolExecutor(n_thread) as thread_pool:
+            if n_threads:
+                mainLog.debug(f"refresh cache with {n_threads} threads")
+                with ThreadPoolExecutor(n_threads) as thread_pool:
                     thread_pool.map(_refresh_cache, itemsList)
             else:
                 mainLog.debug("refresh cache")
