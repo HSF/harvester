@@ -561,13 +561,11 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 # nullify all job limit attributes if NoJob mapType (PULL)
                 if queueConfig.mapType == WorkSpec.MT_NoJob:
                     for attName in ["nQueueLimitJob", "nQueueLimitJobRatio", "nQueueLimitJobMax", "nQueueLimitJobMin"]:
-                        if hasattr(queueConfig, attName):
-                            setattr(queueConfig, attName, None)
+                        setattr(queueConfig, attName, None)
                 # nullify worker ratio limit attributes if jobful mapTypes (PUSH)
                 if queueConfig.mapType != WorkSpec.MT_NoJob:
                     for attName in ["nQueueLimitWorkerRatio", "nQueueLimitWorkerMin"]:
-                        if hasattr(queueConfig, attName):
-                            setattr(queueConfig, attName, None)
+                        setattr(queueConfig, attName, None)
                 # heartbeat suppression
                 if queueConfig.truePilot and queueConfig.noHeartbeat == "":
                     queueConfig.noHeartbeat = "running,transferring,finished,failed"

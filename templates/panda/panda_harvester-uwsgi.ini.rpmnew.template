@@ -2,7 +2,7 @@
 ; Comment with semicolon like this line
 
 ; These options are necessary to run harvester with uwsgi and control with
-; the uwsgi servie script. Better not change them :)
+; the uwsgi service script. Better not change them :)
 master = true
 lazy-apps = true
 wsgi-file = $(SITE_PACKAGES_PATH)/pandaharvester/harvesterbody/master.py

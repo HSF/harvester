@@ -33,9 +33,6 @@ dynamic_plugin_change = False
 
 [db]
 
-# database filename for sqlite. Better to use local disk if possible since sqlite doesn't like NAS
-database_filename = FIXME
-
 # verbose
 verbose = False
 
@@ -47,6 +44,9 @@ nConnections = 10
 
 # database engine : sqlite or mariadb
 engine = sqlite
+
+# database filename for sqlite. Better to use local disk if possible since sqlite doesn't like NAS
+database_filename = FIXME
 
 # use MySQLdb for mariadb access
 useMySQLdb = False
