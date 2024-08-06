@@ -541,14 +541,14 @@ class HTCondorSubmitter(PluginBase):
         ]
 
     # get CE statistics of a site
-    def get_ce_statistics(self, site_name, n_new_workers, time_window=21600):
+    def get_ce_statistics(self, site_name, queue_config, n_new_workers, time_window=21600):
         if site_name in self.ceStats:
             return self.ceStats[site_name]
         with self.ceStatsLock:
             if site_name in self.ceStats:
                 return self.ceStats[site_name]
             else:
-                worker_limits_dict = self.dbInterface.get_worker_limits(self.queueName)
+                worker_limits_dict = self.dbInterface.get_worker_limits(self.queueName, queue_config)
                 worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
                 worker_ce_backend_throughput_dict = self.dbInterface.get_worker_ce_backend_throughput(self.queueName, time_window=time_window)
                 return (worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers)
@@ -666,7 +666,7 @@ class HTCondorSubmitter(PluginBase):
             tmpLog.debug("Using CRIC Grid CE mode...")
             queues_from_queue_list = this_panda_queue_dict.get("queues", [])
             special_par = this_panda_queue_dict.get("special_par", "")
-            ce_auxilary_dict = {}
+            ce_auxiliary_dict = {}
             for _queue_dict in queues_from_queue_list:
                 if not (
                     _queue_dict.get("ce_endpoint")
@@ -713,21 +713,21 @@ class HTCondorSubmitter(PluginBase):
                         ce_info_dict["ce_endpoint"] = f"{ce_endpoint_from_queue}"
                 tmpLog.debug(f'Got pilot version: "{pilot_version}"; CE endpoint: "{ce_endpoint_from_queue}", flavour: "{ce_flavour_str}"')
                 ce_endpoint = ce_info_dict.get("ce_endpoint")
-                if ce_endpoint in ce_auxilary_dict and str(ce_info_dict.get("ce_queue_name", "")).lower() == "default":
+                if ce_endpoint in ce_auxiliary_dict and str(ce_info_dict.get("ce_queue_name", "")).lower() == "default":
                     pass
                 else:
-                    ce_auxilary_dict[ce_endpoint] = ce_info_dict
+                    ce_auxiliary_dict[ce_endpoint] = ce_info_dict
             # qualified CEs from CRIC info
-            n_qualified_ce = len(ce_auxilary_dict)
+            n_qualified_ce = len(ce_auxiliary_dict)
             if n_qualified_ce > 0:
                 # Get CE weighting
                 tmpLog.debug("Get CE weighting")
-                worker_ce_all_tuple = self.get_ce_statistics(self.queueName, nWorkers)
+                worker_ce_all_tuple = self.get_ce_statistics(self.queueName, harvester_queue_config, nWorkers)
                 is_slave_queue = harvester_queue_config.runMode == "slave"
                 ce_weighting = submitter_common.get_ce_weighting(
-                    ce_endpoint_list=list(ce_auxilary_dict.keys()), worker_ce_all_tuple=worker_ce_all_tuple, is_slave_queue=is_slave_queue
+                    ce_endpoint_list=list(ce_auxiliary_dict.keys()), worker_ce_all_tuple=worker_ce_all_tuple, is_slave_queue=is_slave_queue
                 )
-                stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(ce_auxilary_dict.keys(), worker_ce_all_tuple, ce_weighting)
+                stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(ce_auxiliary_dict.keys(), worker_ce_all_tuple, ce_weighting)
                 tmpLog.debug(f"CE stats and weighting: {stats_weighting_display_str}")
             else:
                 tmpLog.error("No valid CE endpoint found")
@@ -771,10 +771,10 @@ class HTCondorSubmitter(PluginBase):
                     tmpLog.info("choose a CE...")
                     ce_chosen = submitter_common.choose_ce(ce_weighting)
                     try:
-                        ce_info_dict = ce_auxilary_dict[ce_chosen].copy()
+                        ce_info_dict = ce_auxiliary_dict[ce_chosen].copy()
                     except KeyError:
                         tmpLog.info("Problem choosing CE with weighting. Choose an arbitrary CE endpoint")
-                        ce_info_dict = random.choice(list(ce_auxilary_dict.values())).copy()
+                        ce_info_dict = random.choice(list(ce_auxiliary_dict.values())).copy()
                     ce_flavour_str = str(ce_info_dict.get("ce_flavour", "")).lower()
                     tmpLog.debug(f"Got pilot version: \"{pilot_version}\"; CE endpoint: \"{ce_info_dict['ce_endpoint']}\", flavour: \"{ce_flavour_str}\"")
                     if self.templateFile:
@@ -818,7 +818,7 @@ class HTCondorSubmitter(PluginBase):
                     to_submit = False
                     return data
                 else:
-                    # get batch_log, stdout, stderr filename, and remobe commented liness
+                    # get batch_log, stdout, stderr filename, and remove commented lines
                     sdf_template_str_list = []
                     for _line in sdf_template_raw.split("\n"):
                         if _line.startswith("#"):

@@ -120,7 +120,7 @@ class WorkerAdjuster(object):
             for queue_name in static_num_workers:
                 # get queue
                 queue_config = self.queue_configMapper.get_queue(queue_name)
-                worker_limits_dict = self.dbProxy.get_worker_limits(queue_name)
+                worker_limits_dict = self.dbProxy.get_worker_limits(queue_name, queue_config)
                 max_workers = worker_limits_dict.get("maxWorkers", 0)
                 n_queue_limit = worker_limits_dict.get("nQueueLimitWorker", 0)
                 n_queue_limit_per_rt = worker_limits_dict["nQueueLimitWorkerPerRT"]
