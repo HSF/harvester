@@ -4671,11 +4671,12 @@ class DBProxy(object):
             return {}
 
     # get worker limits of a queue
-    def get_worker_limits(self, queue_config: QueueConfig) -> dict:
+    def get_worker_limits(self, site_name: str, queue_config) -> dict:
         """
         Return the local date and time, without tzinfo, corresponding to the POSIX timestamp
 
         Args:
+            site_name (str): name of the site (PanDA queue)
             queue_config (QueueConfig): queue config object of the site
 
         Returns:
