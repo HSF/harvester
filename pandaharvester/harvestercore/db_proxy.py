@@ -4671,7 +4671,7 @@ class DBProxy(object):
             return {}
 
     # get worker limits of a queue
-    def get_worker_limits(self, site_name: str, queue_config) -> dict:
+    def get_worker_limits(self, site_name: str, queue_config) -> tuple[dict, dict]:
         """
         Return the local date and time, without tzinfo, corresponding to the POSIX timestamp
 
@@ -4680,7 +4680,7 @@ class DBProxy(object):
             queue_config (QueueConfig): queue config object of the site
 
         Returns:
-            dict: evaluated values of worker limits and per-resource-type limits
+            tuple[dict, dict]: First dict for evaluated values of worker limits and per-resource-type limits, second dict for worker stats queried
         """
         try:
             # get logger
@@ -4691,7 +4691,7 @@ class DBProxy(object):
             # sql to count workers group by status
             sqlNW = (
                 f"SELECT status,COUNT(*),SUM(nCore),SUM(minRamCount) cnt FROM {workTableName} "
-                "WHERE computingSite=:computingSite AND status IN (:status1, :status2, :status3) "
+                "WHERE computingSite=:computingSite AND status IN (:status1, :status2, :status3, :status4, :status5) "
                 "GROUP BY status "
             )
             # count resource types
@@ -4703,9 +4703,11 @@ class DBProxy(object):
             # count workers by status
             varMap = dict()
             varMap[":computingSite"] = site_name
-            varMap[":status1"] = "running"
-            varMap[":status2"] = "submitted"
-            varMap[":status3"] = "idle"
+            varMap[":status1"] = WorkSpec.ST_running
+            varMap[":status2"] = WorkSpec.ST_submitted
+            varMap[":status3"] = WorkSpec.ST_idle
+            varMap[":status4"] = WorkSpec.ST_pending
+            varMap[":status5"] = WorkSpec.ST_ready
             self.execute(sqlNW, varMap)
             resNW = self.cur.fetchall()
             # n resource types and worker stats
@@ -4713,7 +4715,7 @@ class DBProxy(object):
             for (cnt,) in resNT:
                 nRT = max(nRT, cnt)
             worker_stats_map = {}
-            for status in ["running", "submitted", "idle"]:
+            for status in [WorkSpec.ST_running, WorkSpec.ST_submitted, WorkSpec.ST_idle, WorkSpec.ST_pending, WorkSpec.ST_ready]:
                 worker_stats_map.setdefault(status, {"n": 0, "core": 0, "mem": 0})
             worker_stats_map.setdefault("queue", {"n": 0, "core": 0, "mem": 0})
             for status, cnt, corecount, ramcount in resNW:
@@ -4722,7 +4724,7 @@ class DBProxy(object):
                     "core": corecount,
                     "mem": ramcount,
                 }
-                if status != "running":
+                if status in [WorkSpec.ST_submitted, WorkSpec.ST_idle, WorkSpec.ST_pending]:
                     worker_stats_map["queue"]["n"] += cnt
                     worker_stats_map["queue"]["core"] += corecount
                     worker_stats_map["queue"]["mem"] += ramcount
@@ -4738,7 +4740,7 @@ class DBProxy(object):
             nQueueLimitWorkerMemoryMin = getattr(queue_config, "nQueueLimitWorkerMemoryMin", None)
             nQueueLimitWorkerMemoryRatio = getattr(queue_config, "nQueueLimitWorkerMemoryRatio", None)
             # initialize
-            ret_map = dict()
+            worker_limits_dict = dict()
             n_queue_limit_worker_eval = nQueueLimitWorker
             n_queue_limit_worker_per_rt_eval = n_queue_limit_worker_eval
             n_queue_limit_worker_cores_eval = nQueueLimitWorkerCores
@@ -4765,7 +4767,7 @@ class DBProxy(object):
                 else:
                     n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_mem_by_ratio)
             # update map
-            ret_map.update(
+            worker_limits_dict.update(
                 {
                     "maxWorkers": maxWorkers,
                     "nQueueLimitWorker": n_queue_limit_worker_eval,
@@ -4776,8 +4778,8 @@ class DBProxy(object):
             )
             # commit
             self.commit()
-            tmpLog.debug(f"got {str(ret_map)}")
-            return ret_map
+            tmpLog.debug(f"got {str(worker_limits_dict)}")
+            return worker_limits_dict, worker_stats_map
         except Exception:
             # roll back
             self.rollback()

@@ -548,7 +548,7 @@ class HTCondorSubmitter(PluginBase):
             if site_name in self.ceStats:
                 return self.ceStats[site_name]
             else:
-                worker_limits_dict = self.dbInterface.get_worker_limits(self.queueName, queue_config)
+                worker_limits_dict, _ = self.dbInterface.get_worker_limits(self.queueName, queue_config)
                 worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
                 worker_ce_backend_throughput_dict = self.dbInterface.get_worker_ce_backend_throughput(self.queueName, time_window=time_window)
                 return (worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers)

@@ -1,11 +1,14 @@
 import copy
+import math
 import traceback
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestermisc.apfmon import Apfmon
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 _logger = core_utils.setup_logger("worker_adjuster")
@@ -98,7 +101,7 @@ class WorkerAdjuster(object):
         return ret_val
 
     # define number of workers to submit based on various information
-    def define_num_workers(self, static_num_workers, site_name):
+    def define_num_workers(self, static_num_workers, site_name, queue_dict):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="define_num_workers")
         tmp_log.debug("start")
         tmp_log.debug(f"static_num_workers: {static_num_workers}")
@@ -116,20 +119,34 @@ class WorkerAdjuster(object):
             if job_stats is not None:
                 job_stats = job_stats.data
 
+            # get panda queues dict from CRIC
+            panda_queues_dict = PandaQueuesDict()
+
+            # get resource type mapper
+            rt_mapper = ResourceTypeMapper()
+
             # define num of new workers
             for queue_name in static_num_workers:
                 # get queue
                 queue_config = self.queue_configMapper.get_queue(queue_name)
-                worker_limits_dict = self.dbProxy.get_worker_limits(queue_name, queue_config)
+                worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
                 max_workers = worker_limits_dict.get("maxWorkers", 0)
                 n_queue_limit = worker_limits_dict.get("nQueueLimitWorker", 0)
                 n_queue_limit_per_rt = worker_limits_dict["nQueueLimitWorkerPerRT"]
+                queue_limit_cores = worker_limits_dict["nQueueWorkerCores"]
+                queue_limit_memory = worker_limits_dict["nQueueWorkerMemory"]
+                cores_queue = worker_stats_map["queue"]["core"]
+                memory_queue = worker_stats_map["queue"]["mem"]
                 n_queue_total, n_ready_total, n_running_total = 0, 0, 0
                 apf_msg = None
                 apf_data = None
                 for job_type, jt_values in static_num_workers[queue_name].items():
                     for resource_type, tmp_val in jt_values.items():
                         tmp_log.debug(f"Processing queue {queue_name} job_type {job_type} resource_type {resource_type} with static_num_workers {tmp_val}")
+
+                        # get cores and memory request per worker of this resource_type
+                        queue_dict = panda_queues_dict.get(queue_name, {})
+                        rtype_request_cores, rtype_request_memory = rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
 
                         # set 0 to num of new workers when the queue is disabled
                         if queue_name in queue_stat and queue_stat[queue_name]["status"] in ["offline", "standby", "maintenance"]:
@@ -192,8 +209,19 @@ class WorkerAdjuster(object):
                             pass
                         elif (n_queue + n_ready + n_running) >= max_workers > 0:
                             # enough workers in the system
-                            ret_msg = f"No n_new_workers since n_queue({n_queue}) + n_ready({n_ready}) + n_running({n_running}) "
-                            ret_msg += f">= max_workers({max_workers})"
+                            ret_msg = (
+                                f"No n_new_workers since n_queue({n_queue}) + n_ready({n_ready}) + n_running({n_running}) " f">= max_workers({max_workers})"
+                            )
+                            tmp_log.debug(ret_msg)
+                            pass
+                        elif queue_limit_cores is not None and cores_queue >= queue_limit_cores:
+                            # enough queuing cores
+                            ret_msg = f"No n_new_workers since cores_queue({cores_queue}) >= " f"queue_limit_cores({queue_limit_cores})"
+                            tmp_log.debug(ret_msg)
+                            pass
+                        elif queue_limit_memory is not None and memory_queue >= queue_limit_memory:
+                            # enough queuing cores
+                            ret_msg = f"No n_new_workers since memory_queue({memory_queue} MB) >= " f"queue_limit_memory({queue_limit_memory} MB)"
                             tmp_log.debug(ret_msg)
                             pass
                         else:
@@ -250,6 +278,14 @@ class WorkerAdjuster(object):
                             if max_workers > 0:
                                 n_new_workers = min(n_new_workers, max(max_workers - n_queue - n_ready - n_running, 0))
                                 tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect max_workers")
+                            if queue_limit_cores:
+                                new_worker_cores_max = max(queue_limit_cores - cores_queue, 0)
+                                n_new_workers = min(n_new_workers, math.ceil(new_worker_cores_max / rtype_request_cores))
+                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_cores")
+                            if queue_limit_memory:
+                                new_worker_memory_max = max(queue_limit_memory - memory_queue_queue, 0)
+                                n_new_workers = min(n_new_workers, math.ceil(new_worker_memory_max / rtype_request_memory))
+                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_memory")
                         if queue_config.maxNewWorkersPerCycle > 0:
                             n_new_workers = min(n_new_workers, queue_config.maxNewWorkersPerCycle)
                             tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect maxNewWorkersPerCycle")
