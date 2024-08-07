@@ -4731,14 +4731,14 @@ class DBProxy(object):
             # read worker limit attributes from queue config
             maxWorkers = queue_config.maxWorkers
             nQueueLimitWorker = getattr(queue_config, "nQueueLimitWorker", None)
-            nQueueLimitWorkerMin = getattr(queue_config, "nQueueLimitWorkerMin", None)
             nQueueLimitWorkerRatio = getattr(queue_config, "nQueueLimitWorkerRatio", None)
+            nQueueLimitWorkerMin = getattr(queue_config, "nQueueLimitWorkerMin", None)
             nQueueLimitWorkerCores = getattr(queue_config, "nQueueLimitWorkerCores", None)
-            nQueueLimitWorkerCoresMin = getattr(queue_config, "nQueueLimitWorkerCoresMin", None)
             nQueueLimitWorkerCoresRatio = getattr(queue_config, "nQueueLimitWorkerCoresRatio", None)
+            nQueueLimitWorkerCoresMin = getattr(queue_config, "nQueueLimitWorkerCoresMin", None)
             nQueueLimitWorkerMemory = getattr(queue_config, "nQueueLimitWorkerMemory", None)
-            nQueueLimitWorkerMemoryMin = getattr(queue_config, "nQueueLimitWorkerMemoryMin", None)
             nQueueLimitWorkerMemoryRatio = getattr(queue_config, "nQueueLimitWorkerMemoryRatio", None)
+            nQueueLimitWorkerMemoryMin = getattr(queue_config, "nQueueLimitWorkerMemoryMin", None)
             # initialize
             worker_limits_dict = dict()
             n_queue_limit_worker_eval = nQueueLimitWorker

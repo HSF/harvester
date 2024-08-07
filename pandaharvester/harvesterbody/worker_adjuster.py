@@ -101,7 +101,7 @@ class WorkerAdjuster(object):
         return ret_val
 
     # define number of workers to submit based on various information
-    def define_num_workers(self, static_num_workers, site_name, queue_dict):
+    def define_num_workers(self, static_num_workers, site_name):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="define_num_workers")
         tmp_log.debug("start")
         tmp_log.debug(f"static_num_workers: {static_num_workers}")

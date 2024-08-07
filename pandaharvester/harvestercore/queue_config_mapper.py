@@ -150,16 +150,22 @@ class QueueConfigMapper(metaclass=SingletonWithID):
     )
     queue_limit_attrs = set(
         [
-            "nQueueLimitWorker",
             "maxWorkers",
             "maxNewWorkersPerCycle",
-            "nQueueLimitJob",
-            "nQueueLimitJobRatio",
-            "nQueueLimitJobMax",
-            "nQueueLimitJobMin",
-            "nQueueLimitWorkerRatio",
+            "nQueueLimitWorker",
             "nQueueLimitWorkerMax",
+            "nQueueLimitWorkerRatio",
             "nQueueLimitWorkerMin",
+            "nQueueLimitWorkerCores",
+            "nQueueLimitWorkerCoresRatio",
+            "nQueueLimitWorkerCoresMin",
+            "nQueueLimitWorkerMemory",
+            "nQueueLimitWorkerMemoryRatio",
+            "nQueueLimitWorkerMemoryMin",
+            "nQueueLimitJob",
+            "nQueueLimitJobMax",
+            "nQueueLimitJobRatio",
+            "nQueueLimitJobMin",
         ]
     )
     updatable_plugin_attrs = set(
@@ -587,6 +593,10 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     queueConfig.nQueueLimitWorker = queueConfig.nQueueLimitWorkerMax
                 if getattr(queueConfig, "nQueueLimitWorkerMin", None) is not None and getattr(queueConfig, "nQueueLimitWorker", None) is not None:
                     queueConfig.nQueueLimitWorkerMin = min(queueConfig.nQueueLimitWorkerMin, queueConfig.nQueueLimitWorker, queueConfig.maxWorkers)
+                if getattr(queueConfig, "nQueueLimitWorkerCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitWorkerCores", None) is not None:
+                    queueConfig.nQueueLimitWorkerCoresMin = min(queueConfig.nQueueLimitWorkerCoresMin, queueConfig.nQueueLimitWorkerCores)
+                if getattr(queueConfig, "nQueueLimitWorkerMemoryMin", None) is not None and getattr(queueConfig, "nQueueLimitWorkerMemory", None) is not None:
+                    queueConfig.nQueueLimitWorkerMemoryMin = min(queueConfig.nQueueLimitWorkerMemoryMin, queueConfig.nQueueLimitWorkerMemory)
                 if getattr(queueConfig, "nQueueLimitJob", None) is not None and getattr(queueConfig, "nQueueLimitJobMax", None) is not None:
                     max_queue_jobs = min(queueConfig.nQueueLimitJob, queueConfig.nQueueLimitJobMax)
                     queueConfig.nQueueLimitJob = max_queue_jobs
