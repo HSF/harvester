@@ -166,6 +166,9 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             "nQueueLimitJobMax",
             "nQueueLimitJobRatio",
             "nQueueLimitJobMin",
+            "nQueueLimitJobCores",
+            "nQueueLimitJobCoresRatio",
+            "nQueueLimitJobCoresMin",
         ]
     )
     updatable_plugin_attrs = set(
@@ -605,6 +608,8 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     queueConfig.nQueueLimitJob = queueConfig.nQueueLimitJobMax
                 if getattr(queueConfig, "nQueueLimitJobMin", None) is not None and getattr(queueConfig, "nQueueLimitJob", None) is not None:
                     queueConfig.nQueueLimitJobMin = min(queueConfig.nQueueLimitJobMin, queueConfig.nQueueLimitJob)
+                if getattr(queueConfig, "nQueueLimitJobCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitJobCores", None) is not None:
+                    queueConfig.nQueueLimitJobCoresMin = min(queueConfig.nQueueLimitJobCoresMin, queueConfig.nQueueLimitJobCores)
                 # heartbeat suppression
                 if queueConfig.truePilot and queueConfig.noHeartbeat == "":
                     queueConfig.noHeartbeat = "running,transferring,finished,failed"
