@@ -1,4 +1,5 @@
 import datetime
+import math
 import random
 import socket
 
@@ -41,16 +42,22 @@ class JobFetcher(AgentBase):
             mainLog = self.make_logger(_logger, f"id={self.get_pid()}", method_name="run")
             mainLog.debug("getting number of jobs to be fetched")
             # get number of jobs to be fetched
-            nJobsPerQueue = self.dbProxy.get_num_jobs_to_fetch(harvester_config.jobfetcher.nQueues, harvester_config.jobfetcher.lookupTime)
-            mainLog.debug(f"got {len(nJobsPerQueue)} queues")
+            job_limit_to_fetch_dict = self.dbProxy.get_num_jobs_to_fetch(
+                harvester_config.jobfetcher.nQueues, harvester_config.jobfetcher.lookupTime, self.queueConfigMapper
+            )
+            mainLog.debug(f"got {len(job_limit_to_fetch_dict)} queues")
             # get up to date queue configuration
-            pandaQueueDict = PandaQueuesDict(filter_site_list=nJobsPerQueue.keys())
+            pandaQueueDict = PandaQueuesDict(filter_site_list=job_limit_to_fetch_dict.keys())
             # get job statistics
             job_stats_dict = self.dbProxy.get_job_stats_full()
             if job_stats_dict is None:
                 mainLog.warning(f"cannot get job stats")
             # loop over all queues
-            for queueName, nJobs in nJobsPerQueue.items():
+            for queueName, value_dict in job_limit_to_fetch_dict.items():
+                n_jobs = value_dict["jobs"]
+                n_cores = value_dict["cores"]
+                if n_cores is None:
+                    n_cores = math.inf
                 # check queue
                 if not self.queueConfigMapper.has_queue(queueName):
                     continue
@@ -59,9 +66,9 @@ class JobFetcher(AgentBase):
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
                 siteName = queueConfig.siteName
                 # upper limit
-                if nJobs > harvester_config.jobfetcher.maxJobs:
-                    nJobs = harvester_config.jobfetcher.maxJobs
-                if nJobs == 0:
+                if n_jobs > harvester_config.jobfetcher.maxJobs:
+                    n_jobs = harvester_config.jobfetcher.maxJobs
+                if n_jobs == 0:
                     tmpLog.debug("no job to fetch; skip")
                     continue
                 # get jobs
@@ -84,7 +91,8 @@ class JobFetcher(AgentBase):
                             resource_type_limits_dict[new_key] = val
                 # FIXME: all parts about HIMEM are temporary as HIMEM rtypes and parameters will be replaced or reimplemented
                 # compute cores of active (submitted and running) jobs
-                n_jobs_rem = nJobs
+                n_jobs_rem = n_jobs
+                n_cores_rem = n_cores
                 pq_mcore_corecount = pandaQueueDict.get("corecount", 8) or 8
                 rt_n_jobs_dict = {}
                 rt_n_cores_dict = {
@@ -109,8 +117,12 @@ class JobFetcher(AgentBase):
                                 rt_n_cores_dict["normal"][tmp_status] += increment
                 # compute n_jobs to fetch for resource types
                 for j, resource_type in enumerate(random.sample(list(all_resource_types), k=len(all_resource_types))):
+                    # corecount
+                    rt_corecount = 1
+                    if not rt_mapper.is_single_core_resource_type(resource_type):
+                        rt_corecount = pq_mcore_corecount
                     # compute n jobs to get for this resource type
-                    rt_n_jobs = n_jobs_rem / (len(all_resource_types) - j)
+                    rt_n_jobs = min(n_jobs_rem / (len(all_resource_types) - j), n_cores_rem // rt_corecount)
                     if job_stats_dict and queueName in job_stats_dict:
                         pq_rt_job_stats_dict = job_stats_dict[queueName].get(resource_type, {}).get("jobs", {})
                         rt_n_active_jobs = pq_rt_job_stats_dict.get("starting", 0) + pq_rt_job_stats_dict.get("running", 0)
@@ -120,15 +132,13 @@ class JobFetcher(AgentBase):
                         if "HIMEM" in resource_type_limits_dict and rt_mapper.is_high_memory_resource_type(resource_type):
                             # capped by total cores of HIMEM
                             rt_n_active_himem_cores = rt_n_cores_dict["HIMEM"]["starting"] + rt_n_cores_dict["HIMEM"]["running"]
-                            rt_corecount = 1
-                            if not rt_mapper.is_single_core_resource_type(resource_type):
-                                rt_corecount = pq_mcore_corecount
                             rt_n_jobs = min(rt_n_jobs, (resource_type_limits_dict["HIMEM"] - rt_n_active_himem_cores) / rt_corecount)
                     rt_n_jobs = max(rt_n_jobs, 0)
                     rt_n_jobs_dict[resource_type] = rt_n_jobs
                     n_jobs_rem -= rt_n_jobs
+                    n_cores_rem -= rt_n_jobs * rt_corecount
 
-                # fucntion to call get jobs
+                # function to call get jobs
                 def _get_jobs(resource_type=None, n_jobs=0):
                     # custom criteria from queueconfig
                     additional_criteria = queueConfig.getJobCriteria
@@ -208,10 +218,10 @@ class JobFetcher(AgentBase):
                 # call get jobs
                 if all([val > 0 for val in rt_n_jobs_dict.values()]):
                     # no n_jobs limit on any resourcetypes, call get_jobs without constraint
-                    _get_jobs(resource_type=None, n_jobs=nJobs)
+                    _get_jobs(resource_type=None, n_jobs=n_jobs)
                 else:
                     # call get_jobs for each resourcetype with calculated rt_n_jobs
-                    n_jobs_rem = nJobs
+                    n_jobs_rem = n_jobs
                     for resource_type, rt_n_jobs in rt_n_jobs_dict.items():
                         n_jobs_to_get = max(min(round(rt_n_jobs), n_jobs_rem), 0)
                         got_n_jobs = _get_jobs(resource_type=resource_type, n_jobs=n_jobs_to_get)

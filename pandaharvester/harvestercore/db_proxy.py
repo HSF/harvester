@@ -6,6 +6,7 @@ database connection
 import copy
 import datetime
 import inspect
+import math
 import os
 import random
 import re
@@ -966,10 +967,10 @@ class DBProxy(object):
             # return
             return False
 
-    # get number of jobs to fetch
-    def get_num_jobs_to_fetch(self, n_queues, interval):
+    # get number of jobs to fetch (deprecated)
+    def get_num_jobs_to_fetch_old(self, n_queues, interval):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_num_jobs_to_fetch")
+        tmpLog = core_utils.make_logger(_logger, method_name="get_num_jobs_to_fetch_old")
         try:
             tmpLog.debug("start")
             retMap = {}
@@ -1042,6 +1043,132 @@ class DBProxy(object):
                     break
             tmpLog.debug(f"got {str(retMap)}")
             return retMap
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(tmpLog)
+            # return
+            return {}
+
+    # get number of jobs to fetch
+    def get_num_jobs_to_fetch(self, n_queues: int, interval: int, queue_config_mapper) -> dict:
+        """
+        Evaluate and return the map of n jobs to fetch of all queues queried
+
+        Args:
+            n_queues (int): max number of queues to query
+            interval (int): check interval in seconds; only pick up queues with jobFetchTime before than interval seconds ago
+            queue_config_mapper (QueueConfigMapper): queue config mapper object for all panda queues
+
+        Returns:
+            dict: map in the form {"queue1": N1_jobs_to_fetch, ...} for all queues queried
+        """
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name="get_num_jobs_to_fetch")
+        try:
+            tmpLog.debug("start")
+            ret_map = {}
+            # sql to get queues
+            sqlQ = "SELECT queueName "
+            sqlQ += f"FROM {pandaQueueTableName} "
+            sqlQ += "WHERE jobFetchTime IS NULL OR jobFetchTime<:timeLimit "
+            sqlQ += "ORDER BY jobFetchTime "
+            # sql to count jobs group by status
+            sqlN = f"SELECT status, COUNT(*) cnt, SUM(nCore) corecount FROM {jobTableName} "
+            sqlN += "WHERE computingSite=:computingSite AND status IN (:status1,:status2) "
+            sqlN += "GROUP BY status "
+            # sql to update timestamp
+            sqlU = f"UPDATE {pandaQueueTableName} SET jobFetchTime=:jobFetchTime "
+            sqlU += "WHERE queueName=:queueName "
+            sqlU += "AND (jobFetchTime IS NULL OR jobFetchTime<:timeLimit) "
+            # get queues
+            timeNow = core_utils.naive_utcnow()
+            varMap = dict()
+            varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=interval)
+            self.execute(sqlQ, varMap)
+            resQ = self.cur.fetchall()
+            i_queues = 0
+            for (queue_name,) in resQ:
+                # update timestamp to lock the queue
+                varMap = dict()
+                varMap[":queueName"] = queue_name
+                varMap[":jobFetchTime"] = timeNow
+                varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=interval)
+                self.execute(sqlU, varMap)
+                nRow = self.cur.rowcount
+                # commit
+                self.commit()
+                # skip if not locked
+                if nRow == 0:
+                    continue
+                # count nQueue
+                varMap = dict()
+                varMap[":computingSite"] = queue_name
+                varMap[":status1"] = "starting"
+                varMap[":status2"] = "running"
+                self.execute(sqlN, varMap)
+                resN = self.cur.fetchall()
+                job_stats_map = dict()
+                for status in ["starting", "running"]:
+                    job_stats_map.setdefault(status, {"n": 0, "core": 0})
+                for status, cnt, corecount in resN:
+                    job_stats_map[status]["n"] = cnt
+                    job_stats_map[status]["core"] = corecount
+                # get job limit attributes from queue config
+                queue_config = queue_config_mapper.get_queue(queue_name)
+                nQueueLimitJob = getattr(queue_config, "nQueueLimitJob", None)
+                nQueueLimitJobRatio = getattr(queue_config, "nQueueLimitJobRatio", None)
+                nQueueLimitJobMin = getattr(queue_config, "nQueueLimitJobMin", None)
+                nQueueLimitJobCores = getattr(queue_config, "nQueueLimitJobCores", None)
+                nQueueLimitJobCoresRatio = getattr(queue_config, "nQueueLimitJobCoresRatio", None)
+                nQueueLimitJobCoresMin = getattr(queue_config, "nQueueLimitJobCoresMin", None)
+                # skip the queue if nQueueLimitJob is None (not PUSH)
+                if nQueueLimitJob is None:
+                    continue
+                # initialize
+                n_queue_limit_job_eval = nQueueLimitJob
+                n_queue_limit_job_cores_eval = nQueueLimitJobCores
+                # dynamic nQueueLimitJob
+                if nQueueLimitJobRatio is not None:
+                    n_queue_limit_job_by_ratio = int(job_stats_map["running"]["n"] * nQueueLimitJobRatio / 100)
+                    nQueueLimitJobMin_default = nQueueLimitJobMin if nQueueLimitJobMin is not None else min(1, nQueueLimitJob)
+                    if n_queue_limit_job_by_ratio < nQueueLimitJobMin_default:
+                        n_queue_limit_job_eval = min(n_queue_limit_job_eval, nQueueLimitJobMin_default)
+                    else:
+                        n_queue_limit_job_eval = min(n_queue_limit_job_eval, n_queue_limit_job_by_ratio)
+                if nQueueLimitJobCoresRatio is not None:
+                    n_queue_limit_cores_by_ratio = int(job_stats_map["running"]["core"] * nQueueLimitJobCoresRatio / 100)
+                    if nQueueLimitJobCoresMin is not None and n_queue_limit_cores_by_ratio < nQueueLimitJobCoresMin:
+                        if n_queue_limit_job_cores_eval is not None:
+                            n_queue_limit_job_cores_eval = min(n_queue_limit_job_cores_eval, nQueueLimitJobCoresMin)
+                        else:
+                            n_queue_limit_job_cores_eval = nQueueLimitJobCoresMin
+                    else:
+                        if n_queue_limit_job_cores_eval is not None:
+                            n_queue_limit_job_cores_eval = min(n_queue_limit_job_cores_eval, n_queue_limit_cores_by_ratio)
+                        else:
+                            n_queue_limit_job_cores_eval = n_queue_limit_cores_by_ratio
+                # more jobs need to be queued
+                n_queue = job_stats_map["starting"]["n"]
+                corecount_queue = job_stats_map["starting"]["core"]
+                if n_queue >= n_queue_limit_job_eval:
+                    tmpLog.debug(f"{queue_name} has n_queue({n_queue}) >= n_queue_limit_job({n_queue_limit_job_eval}) ; skipped ")
+                    continue
+                elif n_queue_limit_job_cores_eval is not None and corecount_queue >= n_queue_limit_job_cores_eval:
+                    tmpLog.debug(f"{queue_name} has corecount_queue({corecount_queue}) >= n_queue_limit_job_cores({n_queue_limit_job_cores_eval}) ; skipped ")
+                    continue
+                else:
+                    ret_map[queue_name] = {
+                        "jobs": n_queue_limit_job_eval,
+                        "cores": n_queue_limit_job_cores_eval,
+                    }
+                # enough queues
+                i_queues += 1
+                if i_queues >= n_queues:
+                    break
+            tmpLog.debug(f"got {str(ret_map)}")
+            return ret_map
         except Exception:
             # roll back
             self.rollback()
@@ -4582,11 +4709,11 @@ class DBProxy(object):
             # return
             return False
 
-    # get queue status
-    def get_worker_limits(self, site_name):
+    # get queue status (deprecated)
+    def get_worker_limits_old(self, site_name):
         try:
             # get logger
-            tmpLog = core_utils.make_logger(_logger, token=f"site_name={site_name}", method_name="get_worker_limits")
+            tmpLog = core_utils.make_logger(_logger, token=f"site_name={site_name}", method_name="get_worker_limits_old")
             tmpLog.debug("start")
 
             # sql to get queue limits
@@ -4661,6 +4788,124 @@ class DBProxy(object):
             self.commit()
             tmpLog.debug(f"got {str(retMap)}")
             return retMap
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return {}
+
+    # get worker limits of a queue
+    def get_worker_limits(self, site_name: str, queue_config) -> tuple[dict, dict]:
+        """
+        Evaluate and return the worker limits and worker status of the site, both in dict
+
+        Args:
+            site_name (str): name of the site (PanDA queue)
+            queue_config (QueueConfig): queue config object of the site
+
+        Returns:
+            tuple[dict, dict]: First dict for evaluated values of worker limits and per-resource-type limits, second dict for worker stats queried
+        """
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, token=f"site_name={site_name}", method_name="get_worker_limits")
+            tmpLog.debug("start")
+            # sql to count resource types
+            sqlNRT = f"SELECT COUNT(*) cnt FROM {pandaQueueTableName} WHERE siteName=:siteName AND resourceType!='ANY' "
+            # sql to count workers group by status
+            sqlNW = (
+                f"SELECT status, COUNT(*) cnt, SUM(nCore) corecount, SUM(minRamCount) ramcount FROM {workTableName} "
+                "WHERE computingSite=:computingSite AND status IN (:status1, :status2, :status3, :status4, :status5) "
+                "GROUP BY status "
+            )
+            # count resource types
+            varMap = dict()
+            varMap[":computingSite"] = site_name
+            varMap[":siteName"] = site_name
+            self.execute(sqlNRT, varMap)
+            resNT = self.cur.fetchall()
+            # count workers by status
+            varMap = dict()
+            varMap[":computingSite"] = site_name
+            varMap[":status1"] = WorkSpec.ST_running
+            varMap[":status2"] = WorkSpec.ST_submitted
+            varMap[":status3"] = WorkSpec.ST_idle
+            varMap[":status4"] = WorkSpec.ST_pending
+            varMap[":status5"] = WorkSpec.ST_ready
+            self.execute(sqlNW, varMap)
+            resNW = self.cur.fetchall()
+            # n resource types and worker stats
+            nRT = 1
+            for (cnt,) in resNT:
+                nRT = max(nRT, cnt)
+            worker_stats_map = {}
+            for status in [WorkSpec.ST_running, WorkSpec.ST_submitted, WorkSpec.ST_idle, WorkSpec.ST_pending, WorkSpec.ST_ready]:
+                worker_stats_map.setdefault(status, {"n": 0, "core": 0, "mem": 0})
+            worker_stats_map.setdefault("queue", {"n": 0, "core": 0, "mem": 0})
+            for status, cnt, corecount, ramcount in resNW:
+                worker_stats_map[status] = {
+                    "n": cnt,
+                    "core": corecount,
+                    "mem": ramcount,
+                }
+                if status in [WorkSpec.ST_submitted, WorkSpec.ST_idle, WorkSpec.ST_pending]:
+                    worker_stats_map["queue"]["n"] += cnt
+                    worker_stats_map["queue"]["core"] += corecount
+                    worker_stats_map["queue"]["mem"] += ramcount
+            # read worker limit attributes from queue config
+            maxWorkers = queue_config.maxWorkers
+            nQueueLimitWorker = getattr(queue_config, "nQueueLimitWorker", None)
+            nQueueLimitWorkerRatio = getattr(queue_config, "nQueueLimitWorkerRatio", None)
+            nQueueLimitWorkerMin = getattr(queue_config, "nQueueLimitWorkerMin", None)
+            nQueueLimitWorkerCores = getattr(queue_config, "nQueueLimitWorkerCores", None)
+            nQueueLimitWorkerCoresRatio = getattr(queue_config, "nQueueLimitWorkerCoresRatio", None)
+            nQueueLimitWorkerCoresMin = getattr(queue_config, "nQueueLimitWorkerCoresMin", None)
+            nQueueLimitWorkerMemory = getattr(queue_config, "nQueueLimitWorkerMemory", None)
+            nQueueLimitWorkerMemoryRatio = getattr(queue_config, "nQueueLimitWorkerMemoryRatio", None)
+            nQueueLimitWorkerMemoryMin = getattr(queue_config, "nQueueLimitWorkerMemoryMin", None)
+            # initialize
+            worker_limits_dict = dict()
+            n_queue_limit_worker_eval = nQueueLimitWorker if nQueueLimitWorker is not None else maxWorkers
+            n_queue_limit_worker_per_rt_eval = n_queue_limit_worker_eval
+            n_queue_limit_worker_cores_eval = nQueueLimitWorkerCores
+            n_queue_limit_worker_mem_eval = nQueueLimitWorkerMemory
+            # dynamic n_queue_limit_worker_eval
+            if nQueueLimitWorkerRatio is not None:
+                n_queue_limit_worker_by_ratio = int(worker_stats_map["running"]["n"] * nQueueLimitWorkerRatio / 100)
+                if nQueueLimitWorkerMin is not None and n_queue_limit_worker_by_ratio < nQueueLimitWorkerMin:
+                    n_queue_limit_worker_eval = min(n_queue_limit_worker_eval, nQueueLimitWorkerMin)
+                    n_queue_limit_worker_per_rt_eval = min(n_queue_limit_worker_per_rt_eval, math.ceil(nQueueLimitWorkerMin / nRT))
+                else:
+                    n_queue_limit_worker_eval = min(n_queue_limit_worker_eval, n_queue_limit_worker_by_ratio)
+                    n_queue_limit_worker_per_rt_eval = n_queue_limit_worker_eval
+            if nQueueLimitWorkerCoresRatio is not None:
+                n_queue_limit_cores_by_ratio = int(worker_stats_map["running"]["core"] * nQueueLimitWorkerCoresRatio / 100)
+                if nQueueLimitWorkerCoresMin is not None and n_queue_limit_cores_by_ratio < nQueueLimitWorkerCoresMin:
+                    n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, nQueueLimitWorkerCoresMin)
+                else:
+                    n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, n_queue_limit_cores_by_ratio)
+            if nQueueLimitWorkerMemoryRatio is not None:
+                n_queue_limit_mem_by_ratio = int(worker_stats_map["running"]["mem"] * nQueueLimitWorkerMemoryRatio / 100)
+                if nQueueLimitWorkerMemoryMin is not None and n_queue_limit_mem_by_ratio < nQueueLimitWorkerMemoryMin:
+                    n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, nQueueLimitWorkerMemoryMin)
+                else:
+                    n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_mem_by_ratio)
+            # update map
+            worker_limits_dict.update(
+                {
+                    "maxWorkers": maxWorkers,
+                    "nQueueLimitWorker": n_queue_limit_worker_eval,
+                    "nQueueLimitWorkerPerRT": n_queue_limit_worker_per_rt_eval,
+                    "nQueueWorkerCores": n_queue_limit_worker_cores_eval,
+                    "nQueueWorkerMemory": n_queue_limit_worker_mem_eval,
+                }
+            )
+            # commit
+            self.commit()
+            tmpLog.debug(f"got {str(worker_limits_dict)}")
+            return worker_limits_dict, worker_stats_map
         except Exception:
             # roll back
             self.rollback()

@@ -17,9 +17,11 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version="", 
         "RC": {
             "prod_source_label": "rc_test2",
             "pilot_type_opt": "RC",
-            "pilot_url_str": "--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev.tar.gz"
-            if is_pilot3
-            else "--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz",
+            "pilot_url_str": (
+                "--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev.tar.gz"
+                if is_pilot3
+                else "--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev.tar.gz"
+            ),
             "pilot_debug_str": "-d",
         },
         "ALRB": {
@@ -31,9 +33,11 @@ def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version="", 
         "PT": {
             "prod_source_label": "ptest",
             "pilot_type_opt": "PR",
-            "pilot_url_str": "--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev2.tar.gz"
-            if is_pilot3
-            else "--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev2.tar.gz",
+            "pilot_url_str": (
+                "--piloturl http://cern.ch/atlas-panda-pilot/pilot3-dev2.tar.gz"
+                if is_pilot3
+                else "--piloturl http://cern.ch/atlas-panda-pilot/pilot2-dev2.tar.gz"
+            ),
             "pilot_debug_str": "-d",
         },
         "PR": {
@@ -187,7 +191,7 @@ def get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None, is_slave_que
     return total_score, ce_weight_dict, ce_thruput_dict, target_Q
 
 
-# Choose a CE accroding to weighting
+# Choose a CE according to weighting
 def choose_ce(weighting):
     total_score, ce_weight_dict, ce_thruput_dict, target_Q = weighting
     lucky_number = random.random() * total_score
@@ -206,7 +210,7 @@ def choose_ce(weighting):
         return None
 
 
-# Get better string to display the statistics and weightng of CEs
+# Get better string to display the statistics and weighting of CEs
 
 
 def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
