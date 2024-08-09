@@ -569,7 +569,15 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                         queueConfig.getJobCriteria = tmpCriteria
                 # nullify all job limit attributes if NoJob mapType (PULL)
                 if queueConfig.mapType == WorkSpec.MT_NoJob:
-                    for attName in ["nQueueLimitJob", "nQueueLimitJobRatio", "nQueueLimitJobMax", "nQueueLimitJobMin"]:
+                    for attName in [
+                        "nQueueLimitJob",
+                        "nQueueLimitJobRatio",
+                        "nQueueLimitJobMax",
+                        "nQueueLimitJobMin",
+                        "nQueueLimitJobCores",
+                        "nQueueLimitJobCoresRatio",
+                        "nQueueLimitJobCoresMin",
+                    ]:
                         setattr(queueConfig, attName, None)
                 # nullify worker ratio limit attributes if jobful mapTypes (PUSH)
                 if queueConfig.mapType != WorkSpec.MT_NoJob:

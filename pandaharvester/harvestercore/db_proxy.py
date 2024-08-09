@@ -1088,7 +1088,7 @@ class DBProxy(object):
             varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=interval)
             self.execute(sqlQ, varMap)
             resQ = self.cur.fetchall()
-            iQueues = 0
+            i_queues = 0
             for (queue_name,) in resQ:
                 # update timestamp to lock the queue
                 varMap = dict()
@@ -1123,9 +1123,8 @@ class DBProxy(object):
                 nQueueLimitJobCores = getattr(queue_config, "nQueueLimitJobCores", None)
                 nQueueLimitJobCoresRatio = getattr(queue_config, "nQueueLimitJobCoresRatio", None)
                 nQueueLimitJobCoresMin = getattr(queue_config, "nQueueLimitJobCoresMin", None)
-                # skip the queue if nQueueLimitJob is None
+                # skip the queue if nQueueLimitJob is None (not PUSH)
                 if nQueueLimitJob is None:
-                    tmpLog.debug(f"{queue_name} misses nQueueLimitJob; skipped ")
                     continue
                 # initialize
                 n_queue_limit_job_eval = nQueueLimitJob
@@ -1140,16 +1139,16 @@ class DBProxy(object):
                         n_queue_limit_job_eval = min(n_queue_limit_job_eval, n_queue_limit_job_by_ratio)
                 if nQueueLimitJobCoresRatio is not None:
                     n_queue_limit_cores_by_ratio = int(job_stats_map["running"]["core"] * nQueueLimitJobCoresRatio / 100)
-                if nQueueLimitJobCoresMin is not None and n_queue_limit_cores_by_ratio < nQueueLimitJobCoresMin:
-                    if n_queue_limit_job_cores_eval is not None:
-                        n_queue_limit_job_cores_eval = min(n_queue_limit_job_cores_eval, nQueueLimitJobCoresMin)
+                    if nQueueLimitJobCoresMin is not None and n_queue_limit_cores_by_ratio < nQueueLimitJobCoresMin:
+                        if n_queue_limit_job_cores_eval is not None:
+                            n_queue_limit_job_cores_eval = min(n_queue_limit_job_cores_eval, nQueueLimitJobCoresMin)
+                        else:
+                            n_queue_limit_job_cores_eval = nQueueLimitJobCoresMin
                     else:
-                        n_queue_limit_job_cores_eval = nQueueLimitJobCoresMin
-                else:
-                    if n_queue_limit_job_cores_eval is not None:
-                        n_queue_limit_job_cores_eval = min(n_queue_limit_job_cores_eval, n_queue_limit_cores_by_ratio)
-                    else:
-                        n_queue_limit_job_cores_eval = n_queue_limit_cores_by_ratio
+                        if n_queue_limit_job_cores_eval is not None:
+                            n_queue_limit_job_cores_eval = min(n_queue_limit_job_cores_eval, n_queue_limit_cores_by_ratio)
+                        else:
+                            n_queue_limit_job_cores_eval = n_queue_limit_cores_by_ratio
                 # more jobs need to be queued
                 n_queue = job_stats_map["starting"]["n"]
                 corecount_queue = job_stats_map["starting"]["core"]
@@ -1165,8 +1164,8 @@ class DBProxy(object):
                         "cores": n_queue_limit_job_cores_eval,
                     }
                 # enough queues
-                iQueues += 1
-                if iQueues >= n_queues:
+                i_queues += 1
+                if i_queues >= n_queues:
                     break
             tmpLog.debug(f"got {str(ret_map)}")
             return ret_map

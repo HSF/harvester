@@ -43,7 +43,7 @@ class JobFetcher(AgentBase):
             mainLog.debug("getting number of jobs to be fetched")
             # get number of jobs to be fetched
             job_limit_to_fetch_dict = self.dbProxy.get_num_jobs_to_fetch(
-                harvester_config.jobfetcher.nQueues, harvester_config.jobfetcher.lookupTime, PandaQueuesDict()
+                harvester_config.jobfetcher.nQueues, harvester_config.jobfetcher.lookupTime, self.queueConfigMapper
             )
             mainLog.debug(f"got {len(job_limit_to_fetch_dict)} queues")
             # get up to date queue configuration
