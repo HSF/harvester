@@ -132,7 +132,7 @@ class WorkerAdjuster(object):
                 worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
                 max_workers = worker_limits_dict.get("maxWorkers", 0)
                 n_queue_limit = worker_limits_dict.get("nQueueLimitWorker", 0)
-                n_queue_limit_per_rt = worker_limits_dict["nQueueLimitWorkerPerRT"]
+                n_queue_limit_per_rt = n_queue_limit
                 queue_limit_cores = worker_limits_dict["nQueueWorkerCores"]
                 queue_limit_memory = worker_limits_dict["nQueueWorkerMemory"]
                 cores_queue = worker_stats_map["queue"]["core"]
