@@ -4883,15 +4883,27 @@ class DBProxy(object):
             if nQueueLimitWorkerCoresRatio is not None:
                 n_queue_limit_cores_by_ratio = int(worker_stats_map["running"]["core"] * nQueueLimitWorkerCoresRatio / 100)
                 if nQueueLimitWorkerCoresMin is not None and n_queue_limit_cores_by_ratio < nQueueLimitWorkerCoresMin:
-                    n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, nQueueLimitWorkerCoresMin)
+                    if n_queue_limit_worker_cores_eval is not None:
+                        n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, nQueueLimitWorkerCoresMin)
+                    else:
+                        n_queue_limit_worker_cores_eval = nQueueLimitWorkerCoresMin
                 else:
-                    n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, n_queue_limit_cores_by_ratio)
+                    if n_queue_limit_worker_cores_eval is not None:
+                        n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, n_queue_limit_cores_by_ratio)
+                    else:
+                        n_queue_limit_worker_cores_eval = n_queue_limit_cores_by_ratio
             if nQueueLimitWorkerMemoryRatio is not None:
                 n_queue_limit_mem_by_ratio = int(worker_stats_map["running"]["mem"] * nQueueLimitWorkerMemoryRatio / 100)
                 if nQueueLimitWorkerMemoryMin is not None and n_queue_limit_mem_by_ratio < nQueueLimitWorkerMemoryMin:
-                    n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, nQueueLimitWorkerMemoryMin)
+                    if n_queue_limit_worker_mem_eval is not None:
+                        n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, nQueueLimitWorkerMemoryMin)
+                    else:
+                        n_queue_limit_worker_mem_eval = nQueueLimitWorkerMemoryMin
                 else:
-                    n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_mem_by_ratio)
+                    if n_queue_limit_worker_mem_eval is not None:
+                        n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_mem_by_ratio)
+                    else:
+                        n_queue_limit_worker_mem_eval = n_queue_limit_mem_by_ratio
             # update map
             worker_limits_dict.update(
                 {
@@ -4912,7 +4924,7 @@ class DBProxy(object):
             # dump error
             core_utils.dump_error_message(_logger)
             # return
-            return {}
+            return {}, {}
 
     # get worker CE stats
     def get_worker_ce_stats(self, site_name):
