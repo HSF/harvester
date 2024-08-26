@@ -148,18 +148,27 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             "workerMaker",
         ]
     )
-    dynamic_queue_generic_attrs = set(
+    queue_limit_attrs = set(
         [
-            "nQueueLimitWorker",
             "maxWorkers",
             "maxNewWorkersPerCycle",
-            "nQueueLimitJob",
-            "nQueueLimitJobRatio",
-            "nQueueLimitJobMax",
-            "nQueueLimitJobMin",
-            "nQueueLimitWorkerRatio",
+            "nQueueLimitWorker",
             "nQueueLimitWorkerMax",
+            "nQueueLimitWorkerRatio",
             "nQueueLimitWorkerMin",
+            "nQueueLimitWorkerCores",
+            "nQueueLimitWorkerCoresRatio",
+            "nQueueLimitWorkerCoresMin",
+            "nQueueLimitWorkerMemory",
+            "nQueueLimitWorkerMemoryRatio",
+            "nQueueLimitWorkerMemoryMin",
+            "nQueueLimitJob",
+            "nQueueLimitJobMax",
+            "nQueueLimitJobRatio",
+            "nQueueLimitJobMin",
+            "nQueueLimitJobCores",
+            "nQueueLimitJobCoresRatio",
+            "nQueueLimitJobCoresMin",
         ]
     )
     updatable_plugin_attrs = set(
@@ -435,7 +444,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     # parameters
                     resolver_harvester_params = resolver.get_harvester_params(queueName)
                     for key, val in resolver_harvester_params.items():
-                        if key in self.dynamic_queue_generic_attrs:
+                        if key in self.queue_limit_attrs:
                             queueDict[key] = val
                     # fill in dynamic queue configs
                     queueDict["templateQueueName"] = templateQueueName
@@ -560,12 +569,55 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                         queueConfig.getJobCriteria = tmpCriteria
                 # nullify all job limit attributes if NoJob mapType (PULL)
                 if queueConfig.mapType == WorkSpec.MT_NoJob:
-                    for attName in ["nQueueLimitJob", "nQueueLimitJobRatio", "nQueueLimitJobMax", "nQueueLimitJobMin"]:
+                    for attName in [
+                        "nQueueLimitJob",
+                        "nQueueLimitJobRatio",
+                        "nQueueLimitJobMax",
+                        "nQueueLimitJobMin",
+                        "nQueueLimitJobCores",
+                        "nQueueLimitJobCoresRatio",
+                        "nQueueLimitJobCoresMin",
+                    ]:
                         setattr(queueConfig, attName, None)
                 # nullify worker ratio limit attributes if jobful mapTypes (PUSH)
                 if queueConfig.mapType != WorkSpec.MT_NoJob:
                     for attName in ["nQueueLimitWorkerRatio", "nQueueLimitWorkerMin"]:
                         setattr(queueConfig, attName, None)
+                # sanity for worker and job limit attributes
+                for key in self.queue_limit_attrs:
+                    val = getattr(queueConfig, key, None)
+                    if val is not None:
+                        if not isinstance(val, int):
+                            setattr(queueConfig, key, None)
+                        elif val < 0:
+                            setattr(queueConfig, key, 0)
+                if getattr(queueConfig, "maxWorkers", None) is None:
+                    queueConfig.maxWorkers = 0
+                if getattr(queueConfig, "nQueueLimitWorker", None) is not None and getattr(queueConfig, "nQueueLimitWorkerMax", None) is not None:
+                    max_queue_workers = min(queueConfig.nQueueLimitWorker, queueConfig.nQueueLimitWorkerMax, queueConfig.maxWorkers)
+                    queueConfig.nQueueLimitWorker = max_queue_workers
+                    queueConfig.nQueueLimitWorkerMax = max_queue_workers
+                elif getattr(queueConfig, "nQueueLimitWorker", None) is not None:
+                    queueConfig.nQueueLimitWorker = min(queueConfig.nQueueLimitWorker, queueConfig.maxWorkers)
+                elif getattr(queueConfig, "nQueueLimitWorkerMax", None) is not None:
+                    queueConfig.nQueueLimitWorkerMax = min(queueConfig.nQueueLimitWorkerMax, queueConfig.maxWorkers)
+                    queueConfig.nQueueLimitWorker = queueConfig.nQueueLimitWorkerMax
+                if getattr(queueConfig, "nQueueLimitWorkerMin", None) is not None and getattr(queueConfig, "nQueueLimitWorker", None) is not None:
+                    queueConfig.nQueueLimitWorkerMin = min(queueConfig.nQueueLimitWorkerMin, queueConfig.nQueueLimitWorker, queueConfig.maxWorkers)
+                if getattr(queueConfig, "nQueueLimitWorkerCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitWorkerCores", None) is not None:
+                    queueConfig.nQueueLimitWorkerCoresMin = min(queueConfig.nQueueLimitWorkerCoresMin, queueConfig.nQueueLimitWorkerCores)
+                if getattr(queueConfig, "nQueueLimitWorkerMemoryMin", None) is not None and getattr(queueConfig, "nQueueLimitWorkerMemory", None) is not None:
+                    queueConfig.nQueueLimitWorkerMemoryMin = min(queueConfig.nQueueLimitWorkerMemoryMin, queueConfig.nQueueLimitWorkerMemory)
+                if getattr(queueConfig, "nQueueLimitJob", None) is not None and getattr(queueConfig, "nQueueLimitJobMax", None) is not None:
+                    max_queue_jobs = min(queueConfig.nQueueLimitJob, queueConfig.nQueueLimitJobMax)
+                    queueConfig.nQueueLimitJob = max_queue_jobs
+                    queueConfig.nQueueLimitJobMax = max_queue_jobs
+                elif getattr(queueConfig, "nQueueLimitJobMax", None) is not None:
+                    queueConfig.nQueueLimitJob = queueConfig.nQueueLimitJobMax
+                if getattr(queueConfig, "nQueueLimitJobMin", None) is not None and getattr(queueConfig, "nQueueLimitJob", None) is not None:
+                    queueConfig.nQueueLimitJobMin = min(queueConfig.nQueueLimitJobMin, queueConfig.nQueueLimitJob)
+                if getattr(queueConfig, "nQueueLimitJobCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitJobCores", None) is not None:
+                    queueConfig.nQueueLimitJobCoresMin = min(queueConfig.nQueueLimitJobCoresMin, queueConfig.nQueueLimitJobCores)
                 # heartbeat suppression
                 if queueConfig.truePilot and queueConfig.noHeartbeat == "":
                     queueConfig.noHeartbeat = "running,transferring,finished,failed"

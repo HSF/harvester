@@ -115,7 +115,7 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
 
             unified_queue = queue_dict.get(CAPABILITY_TAG, "") == UNIFIED_QUEUE_TAG
             if not unified_queue:
-                # site is not unified, just request whatever is configured in AGIS
+                # site is not unified, just request whatever is configured in CRIC
                 return site_max_rss, site_core_count
 
             if resource_type.max_core:
