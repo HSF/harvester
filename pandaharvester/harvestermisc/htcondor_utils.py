@@ -390,7 +390,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             self.useCondorHistory = useCondorHistory
             tmpLog.debug("Initialize done")
 
-    def get_all(self, batchIDs_list=[], allJobs=False):
+    def get_all(self, batchIDs_list=[], allJobs=False, to_update_cache=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.get_all")
         # Get all
@@ -398,7 +398,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         job_ads_all_dict = {}
         if self.condor_api == "python":
             try:
-                job_ads_all_dict = self.query_with_python(batchIDs_list, allJobs)
+                job_ads_all_dict = self.query_with_python(batchIDs_list, allJobs, to_update_cache)
             except Exception as e:
                 tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
                 raise
@@ -472,7 +472,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         return job_ads_all_dict
 
     @CondorClient.renew_session_and_retry
-    def query_with_python(self, batchIDs_list=[], allJobs=False):
+    def query_with_python(self, batchIDs_list=[], allJobs=False, to_update_cache=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_python")
         # Start query
@@ -516,7 +516,6 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                     return None
 
             # remove invalid or outdated caches from fifo
-
             def cleanup_cache(timeout=60):
                 tmpLog.debug("cleanup_cache")
                 id_list = list()
@@ -567,7 +566,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                                 tmpLog.debug("got lock expired. Clean up and retry...")
                                 cleanup_cache()
                                 continue
-                        elif time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
+                        elif not to_update_cache and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
                             # got valid cache
                             _obj, _last_update = self.cache
                             if _last_update >= peeked_tuple.score:
@@ -590,7 +589,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                                     time.sleep(random.uniform(1, 5))
                                     continue
                         else:
-                            # cache expired
+                            # cache expired or force to_update_cache
                             tmpLog.debug("update cache in fifo")
                             retVal = update_cache()
                             if retVal is not None:

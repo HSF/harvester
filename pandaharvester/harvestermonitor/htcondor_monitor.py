@@ -313,7 +313,7 @@ class HTCondorMonitor(PluginBase):
                 job_query = CondorJobQuery(
                     cacheEnable=self.cacheEnable, cacheRefreshInterval=self.cacheRefreshInterval, useCondorHistory=self.useCondorHistory, id=submissionHost
                 )
-                job_ads_all_dict.update(job_query.get_all(allJobs=True))
+                job_ads_all_dict.update(job_query.get_all(allJobs=True, to_update_cache=True))
                 tmpLog.debug(f"got information of condor jobs on {submissionHost}")
             except Exception as e:
                 ret_err_str = f"Exception {e.__class__.__name__}: {e}"
@@ -326,11 +326,13 @@ class HTCondorMonitor(PluginBase):
             if not (job_EnteredCurrentStatus > timeNow - time_window):
                 continue
             workerid = job_ads.get("harvesterWorkerID")
+            native_status = job_ads.get("JobStatus")
             if workerid is None:
                 continue
             else:
                 workerid = int(workerid)
             workers_to_check_list.append((workerid, job_EnteredCurrentStatus))
+            tmpLog.debug(f"workerID={workerid} got native_status={native_status} at ts={job_EnteredCurrentStatus}")
         tmpLog.debug(f"got {len(workers_to_check_list)} workers")
         tmpLog.debug("done")
         return workers_to_check_list
