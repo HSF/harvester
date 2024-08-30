@@ -179,7 +179,7 @@ def make_a_jdl(
     token_dir=None,
     panda_token_filename=None,
     panda_token_dir=None,
-    panda_token_key_file=None,
+    panda_token_key_path=None,
     is_gpu_resource=False,
     n_core_factor=1,
     custom_submit_attr_dict=None,
@@ -258,8 +258,8 @@ def make_a_jdl(
     else:
         # tmpLog.warning(f"panda_token_path is None: panda_token_dir={panda_token_dir} , panda_token_filename={panda_token_filename}")
         pass
-    # get pilot token-key
-    panda_token_key_file
+    # get panda token key
+    panda_token_key_filename = os.path.basename(panda_token_key_path)
     # custom submit attributes (+key1 = value1 ; +key2 = value2 in JDL)
     custom_submit_attr_str_list = []
     for attr_key, attr_value in custom_submit_attr_dict.items():
@@ -327,6 +327,7 @@ def make_a_jdl(
         "tokenPath": token_path,
         "pandaTokenFilename": panda_token_filename,
         "pandaTokenPath": panda_token_path,
+        "pandaTokenKeyFilename": panda_token_key_filename,
         "pandaTokenKeyPath": panda_token_key_path,
         "pilotJobLabel": submitter_common.get_joblabel(prod_source_label, is_unified_dispatch),
         "pilotJobType": submitter_common.get_pilot_job_type(workspec.jobType, is_unified_dispatch),

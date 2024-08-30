@@ -19,7 +19,7 @@ from .base_cred_manager import BaseCredManager
 _logger = core_utils.setup_logger("iam_token_cred_manager")
 
 # allowed target types
-ALL_TARGET_TYPES = ["common", "ce"]
+ALL_TARGET_TYPES = ["common", "ce", "panda"]
 
 # default port for CEs
 default_port_map = {
