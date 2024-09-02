@@ -259,7 +259,9 @@ def make_a_jdl(
         # tmpLog.warning(f"panda_token_path is None: panda_token_dir={panda_token_dir} , panda_token_filename={panda_token_filename}")
         pass
     # get panda token key
-    panda_token_key_filename = os.path.basename(panda_token_key_path)
+    panda_token_key_filename = None
+    if panda_token_key_path is not None:
+        panda_token_key_filename = os.path.basename(panda_token_key_path)
     # custom submit attributes (+key1 = value1 ; +key2 = value2 in JDL)
     custom_submit_attr_str_list = []
     for attr_key, attr_value in custom_submit_attr_dict.items():
