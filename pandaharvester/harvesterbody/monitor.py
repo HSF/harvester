@@ -523,7 +523,7 @@ class Monitor(AgentBase):
                                 tmpQueLog.warning(
                                     f"last check period of workerID={workSpec.workerID} is {last_check_period} sec, longer than monitor checkInterval"
                                 )
-                        # prepartion to enqueue fifo
+                        # preparation to enqueue fifo
                         if (from_fifo) or (
                             not from_fifo
                             and timeNow_timestamp - harvester_config.monitor.sleepTime > self.startTimestamp

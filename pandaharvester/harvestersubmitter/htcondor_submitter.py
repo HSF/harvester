@@ -177,6 +177,9 @@ def make_a_jdl(
     python_version="unknown",
     prod_rc_permille=0,
     token_dir=None,
+    panda_token_filename=None,
+    panda_token_dir=None,
+    panda_token_key_path=None,
     is_gpu_resource=False,
     n_core_factor=1,
     custom_submit_attr_dict=None,
@@ -248,6 +251,17 @@ def make_a_jdl(
         token_path = os.path.join(token_dir, token_filename)
     else:
         tmpLog.warning(f"token_path is None: site={panda_queue_name}, token_dir={token_dir} , token_filename={token_filename}")
+    # get pilot-pandaserver token
+    panda_token_path = None
+    if panda_token_dir is not None and panda_token_filename is not None:
+        panda_token_path = os.path.join(panda_token_dir, panda_token_filename)
+    else:
+        # tmpLog.warning(f"panda_token_path is None: panda_token_dir={panda_token_dir} , panda_token_filename={panda_token_filename}")
+        pass
+    # get panda token key
+    panda_token_key_filename = None
+    if panda_token_key_path is not None:
+        panda_token_key_filename = os.path.basename(panda_token_key_path)
     # custom submit attributes (+key1 = value1 ; +key2 = value2 in JDL)
     custom_submit_attr_str_list = []
     for attr_key, attr_value in custom_submit_attr_dict.items():
@@ -313,6 +327,10 @@ def make_a_jdl(
         "tokenDir": token_dir,
         "tokenFilename": token_filename,
         "tokenPath": token_path,
+        "pandaTokenFilename": panda_token_filename,
+        "pandaTokenPath": panda_token_path,
+        "pandaTokenKeyFilename": panda_token_key_filename,
+        "pandaTokenKeyPath": panda_token_key_path,
         "pilotJobLabel": submitter_common.get_joblabel(prod_source_label, is_unified_dispatch),
         "pilotJobType": submitter_common.get_pilot_job_type(workspec.jobType, is_unified_dispatch),
         "requestGpus": 1 if is_gpu_resource else 0,
@@ -430,6 +448,10 @@ class HTCondorSubmitter(PluginBase):
             self.tokenDirAnalysis
         except AttributeError:
             self.tokenDirAnalysis = None
+        # pilot-pandaserver token
+        self.pandaTokenFilename = getattr(self, "pandaTokenFilename", None)
+        self.pandaTokenDir = getattr(self, "pandaTokenDir", None)
+        self.pandaTokenKeyPath = getattr(self, "pandaTokenKeyPath", None)
         # CRIC
         try:
             self.useCRIC = bool(self.useCRIC)
@@ -692,7 +714,7 @@ class HTCondorSubmitter(PluginBase):
                 if ce_info_dict["ce_grid_type"] == "arc":
                     default_port = None
                     if ce_info_dict["ce_hostname"] == ce_endpoint_from_queue:
-                        # defaut port
+                        # default port
                         default_port = 443
                     else:
                         # change port 2811 to 443
@@ -908,6 +930,9 @@ class HTCondorSubmitter(PluginBase):
                         "pilot_version": pilot_version,
                         "python_version": python_version,
                         "token_dir": token_dir,
+                        "panda_token_filename": self.pandaTokenFilename,
+                        "panda_token_dir": self.pandaTokenDir,
+                        "panda_token_key_path": self.pandaTokenKeyPath,
                         "is_unified_dispatch": is_unified_dispatch,
                         "prod_rc_permille": self.rcPilotRandomWeightPermille,
                         "is_gpu_resource": is_gpu_resource,

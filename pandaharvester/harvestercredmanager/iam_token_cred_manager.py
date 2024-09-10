@@ -4,6 +4,7 @@ import re
 import time
 import traceback
 
+from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestermisc.token_utils import (
@@ -18,7 +19,7 @@ from .base_cred_manager import BaseCredManager
 _logger = core_utils.setup_logger("iam_token_cred_manager")
 
 # allowed target types
-ALL_TARGET_TYPES = ["common", "ce"]
+ALL_TARGET_TYPES = ["common", "ce", "panda"]
 
 # default port for CEs
 default_port_map = {
@@ -57,6 +58,7 @@ class IamTokenCredManager(BaseCredManager):
                 self.client_secret = client_cred_dict["client_secret"]
             self.target_type = self.setupMap["target_type"]
             self.out_dir = self.setupMap["out_dir"]
+            self.panda_token_filename = self.setupMap.get("panda_token_filename", "panda_token")
             self.lifetime = self.setupMap.get("lifetime", 14 * 24 * 60 * 60)
             self.target_list = self.setupMap.get("target_list")
             self.target_list_file = self.setupMap.get("target_list_file")
@@ -122,6 +124,20 @@ class IamTokenCredManager(BaseCredManager):
                 for target in self.target_list:
                     self.targets_dict[target] = {}
                 # scope
+                self.scope = ""
+        elif self.target_type == "panda":
+            # panda server
+            panda_server_target = None
+            try:
+                panda_server_url = harvester_config.pandacon.pandaURLSSL
+                panda_server_target_match = re.match(r"https://[^:/]+", panda_server_url)
+                if panda_server_target_match:
+                    panda_server_target = panda_server_target_match[0]
+            except AttributeError:
+                pass
+            self.target_list = [panda_server_target]
+            for target in self.target_list:
+                self.targets_dict[target] = {}
                 self.scope = ""
         elif self.target_type == "ce":
             try:
@@ -200,7 +216,10 @@ class IamTokenCredManager(BaseCredManager):
         for target in self.targets_dict:
             try:
                 # write to file
-                token_filename = endpoint_to_filename(target)
+                if self.target_type == "panda":
+                    token_filename = self.panda_token_filename
+                else:
+                    token_filename = endpoint_to_filename(target)
                 token_path = os.path.join(self.out_dir, token_filename)
                 # check token freshness
                 if self._is_fresh(token_path):
