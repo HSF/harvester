@@ -803,7 +803,7 @@ class HTCondorSubmitter(PluginBase):
                         sdf_template_file = self.templateFile
                     elif os.path.isdir(self.CEtemplateDir) and ce_flavour_str:
                         sdf_suffix_str = ""
-                        if ce_info_dict["ce_grid_type"]:
+                        if ce_info_dict["ce_grid_type"] and ce_info_dict["ce_grid_type"] != "arc":
                             sdf_suffix_str = f"_{ce_info_dict['ce_grid_type']}"
                         sdf_template_filename = f"{ce_flavour_str}{sdf_suffix_str}.sdf"
                         sdf_template_file = os.path.join(self.CEtemplateDir, sdf_template_filename)
