@@ -158,7 +158,7 @@ def get_configuration():
     # copy the pilot-panda token and token key to the work directory
     token_path = os.environ.get("PANDA_AUTH_DIR")
     token_filename = os.environ.get("PANDA_AUTH_TOKEN")
-    token_key_filename = os.environ.get("PANDA_AUTH_KEY_TOKEN")
+    token_key_filename = os.environ.get("PANDA_AUTH_TOKEN_KEY")
 
     if token_path and token_filename and token_key_filename:
         full_token_path = os.path.join(token_path, token_filename)
