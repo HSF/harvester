@@ -21,8 +21,6 @@ import sys
 import traceback
 import urllib.parse as urlparse
 
-from pycparser.ply.yacc import token
-
 WORK_DIR = "/scratch"
 CONFIG_DIR = "/scratch/jobconfig"
 PJD = "pandaJobData.out"
