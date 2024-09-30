@@ -98,7 +98,6 @@ def upload_logs(url, log_file_name, destination_name, proxy_cert):
 
 
 def copy_files_in_dir(src_dir, dst_dir):
-    # src_files = os.listdir(src_dir)
     for file_name in CONFIG_FILES:
         full_file_name = os.path.join(src_dir, file_name)
         shutil.copy(full_file_name, dst_dir)
