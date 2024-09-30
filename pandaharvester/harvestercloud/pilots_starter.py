@@ -21,6 +21,8 @@ import sys
 import traceback
 import urllib.parse as urlparse
 
+from pycparser.ply.yacc import token
+
 WORK_DIR = "/scratch"
 CONFIG_DIR = "/scratch/jobconfig"
 PJD = "pandaJobData.out"
@@ -159,7 +161,7 @@ def get_configuration():
     token_path = os.environ.get("PANDA_AUTH_DIR")
     token_filename = os.environ.get("PANDA_AUTH_TOKEN")
     token_key_filename = os.environ.get("PANDA_AUTH_TOKEN_KEY")
-
+    logging.debug(f"[main] token info {token_path} {token_filename} {token_key_filename}")
     if token_path and token_filename and token_key_filename:
         full_token_path = os.path.join(token_path, token_filename)
         copy_proxy(full_token_path, WORK_DIR)
