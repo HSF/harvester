@@ -155,6 +155,18 @@ def get_configuration():
     os.environ["X509_USER_PROXY"] = proxy_path
     logging.debug("[main] initialized proxy")
 
+    # copy the pilot-panda token and token key to the work directory
+    token_path = os.environ.get("PANDA_AUTH_DIR")
+
+    token_filename = os.environ.get("PANDA_AUTH_TOKEN")
+    full_token_path = os.path.join(token_path, token_filename)
+    copy_proxy(full_token_path, WORK_DIR)
+
+    token_key_filename = os.environ.get("PANDA_AUTH_KEY_TOKEN")
+    full_token_key_path = os.path.join(token_path, token_key_filename)
+    copy_proxy(full_token_key_path, WORK_DIR)
+    logging.debug("[main] initialized pilot-panda tokens")
+
     # get the panda site name
     panda_site = os.environ.get("computingSite")
     logging.debug(f"[main] got panda site: {panda_site}")

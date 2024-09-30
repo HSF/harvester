@@ -1,7 +1,6 @@
 import os
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import unquote  # Python 3+
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -11,14 +10,11 @@ from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
 from pandaharvester.harvestermisc.k8s_utils import k8s_Client
 from pandaharvester.harvestersubmitter import submitter_common
 
-# logger
 base_logger = core_utils.setup_logger("k8s_submitter")
 
+
 # submitter for K8S
-
-
 class K8sSubmitter(PluginBase):
-    # constructor
     def __init__(self, **kwarg):
         self.logBaseURL = None
         PluginBase.__init__(self, **kwarg)
@@ -34,7 +30,7 @@ class K8sSubmitter(PluginBase):
         self.k8s_client.create_or_patch_configmap_starter()
 
         # allowed associated parameters from CRIC
-        self._allowed_agis_attrs = ("pilot_url",)
+        self.allowed_cric_attrs = ("pilot_url",)
 
         # number of processes
         try:
@@ -58,6 +54,11 @@ class K8sSubmitter(PluginBase):
         except AttributeError:
             if os.getenv("PROXY_SECRET_PATH_ANAL"):
                 self.proxySecretPath = os.getenv("PROXY_SECRET_PATH_ANAL")
+
+        # token for pilot-pandaserver communications
+        self.pandaTokenPath = getattr(self, "tokenDir", None)
+        self.pandaTokenFilename = getattr(self, "pandaTokenFilename", None)
+        self.pandaTokenKeyFilename = getattr(self, "pandaTokenKeyFilename", None)
 
     def _choose_proxy(self, workspec, is_grandly_unified_queue):
         """
@@ -108,7 +109,7 @@ class K8sSubmitter(PluginBase):
 
             associated_params_dict = {}
             for key, val in self.panda_queues_dict.get_harvester_params(self.queueName).items():
-                if key in self._allowed_agis_attrs:
+                if key in self.allowed_cric_attrs:
                     associated_params_dict[key] = val
 
             pilot_url = associated_params_dict.get("pilot_url")
@@ -131,8 +132,21 @@ class K8sSubmitter(PluginBase):
 
             # submit the worker
             rsp, yaml_content_final = self.k8s_client.create_job_from_yaml(
-                yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str, pilot_python_option, pilot_version, host_image, cert, max_time=max_time
+                yaml_content,
+                work_spec,
+                prod_source_label,
+                pilot_type,
+                pilot_url_str,
+                pilot_python_option,
+                pilot_version,
+                host_image,
+                cert,
+                self.pandaTokenPath,
+                self.pandaTokenFilename,
+                self.pandaTokenKeyFilename,
+                max_time=max_time,
             )
+
         except Exception as _e:
             tmp_log.error(traceback.format_exc())
             err_str = f"Failed to create a JOB; {_e}"
