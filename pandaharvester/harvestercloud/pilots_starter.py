@@ -157,15 +157,18 @@ def get_configuration():
 
     # copy the pilot-panda token and token key to the work directory
     token_path = os.environ.get("PANDA_AUTH_DIR")
-
     token_filename = os.environ.get("PANDA_AUTH_TOKEN")
-    full_token_path = os.path.join(token_path, token_filename)
-    copy_proxy(full_token_path, WORK_DIR)
-
     token_key_filename = os.environ.get("PANDA_AUTH_KEY_TOKEN")
-    full_token_key_path = os.path.join(token_path, token_key_filename)
-    copy_proxy(full_token_key_path, WORK_DIR)
-    logging.debug("[main] initialized pilot-panda tokens")
+
+    if token_path and token_filename and token_key_filename:
+        full_token_path = os.path.join(token_path, token_filename)
+        copy_proxy(full_token_path, WORK_DIR)
+
+        full_token_key_path = os.path.join(token_path, token_key_filename)
+        copy_proxy(full_token_key_path, WORK_DIR)
+        logging.debug("[main] initialized pilot-panda tokens")
+    else:
+        os.unsetenv("PANDA_AUTH_TOKEN")
 
     # get the panda site name
     panda_site = os.environ.get("computingSite")
