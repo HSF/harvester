@@ -50,7 +50,20 @@ class k8s_Client(object):
         return yaml_content
 
     def create_job_from_yaml(
-        self, yaml_content, work_spec, prod_source_label, pilot_type, pilot_url_str, pilot_python_option, pilot_version, host_image, cert, max_time=None
+        self,
+        yaml_content,
+        work_spec,
+        prod_source_label,
+        pilot_type,
+        pilot_url_str,
+        pilot_python_option,
+        pilot_version,
+        host_image,
+        cert,
+        panda_token_path,
+        panda_token_filename,
+        panda_token_key_filename,
+        max_time=None,
     ):
         tmp_log = core_utils.make_logger(base_logger, f"queue_name={self.queue_name}", method_name="create_job_from_yaml")
 
@@ -193,6 +206,10 @@ class k8s_Client(object):
                 {"name": "pilotVersion", "value": pilot_version},
                 {"name": "jobType", "value": work_spec.jobType},
                 {"name": "proxySecretPath", "value": cert},
+                {"name": "PANDA_AUTH_ORIGIN", "value": "atlas.pilot"},
+                {"name": "PANDA_AUTH_DIR", "value": panda_token_path},
+                {"name": "PANDA_AUTH_TOKEN", "value": panda_token_filename},
+                {"name": "PANDA_AUTH_TOKEN_KEY", "value": panda_token_key_filename},
                 {"name": "workerID", "value": str(work_spec.workerID)},
                 {"name": "logs_frontend_w", "value": harvester_config.pandacon.pandaCacheURL_W},
                 {"name": "logs_frontend_r", "value": harvester_config.pandacon.pandaCacheURL_R},
