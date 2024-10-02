@@ -8,6 +8,7 @@ import codecs
 import fcntl
 import functools
 import inspect
+import json
 import math
 import os
 import pickle
@@ -277,12 +278,7 @@ def calc_adler32(file_name):
 def get_output_file_report(jobspec):
     if jobspec.outputFilesToReport is not None:
         return jobspec.outputFilesToReport
-    # header
-    xml = """<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
-    <!-- ATLAS file meta-data catalog -->
-    <!DOCTYPE POOLFILECATALOG SYSTEM "InMemory">
-    <POOLFILECATALOG>
-    """
+    report = {}
     # body
     for fileSpec in jobspec.outFiles:
         # only successful files
@@ -300,31 +296,8 @@ def get_output_file_report(jobspec):
             chksum = fileSpec.chksum.split(":")[-1]
         else:
             chksum = fileSpec.chksum
-        xml += f"""<File ID="{guid}">
-        <logical>
-        <lfn name="{fileSpec.lfn}"/>
-        </logical>
-        <metadata att_name="fsize" att_value = "{fileSpec.fsize}"/>
-        <metadata att_name="adler32" att_value="{chksum}"/>
-        </File>
-        """
-    # skipped files
-    skippedLFNs = jobspec.get_one_attribute("skippedInputs")
-    if skippedLFNs:
-        for tmpLFN in skippedLFNs:
-            xml += f"""<File ID="">
-            <logical>
-            <lfn name="{tmpLFN}"/>
-            </logical>
-            <metadata att_name="fsize" att_value = "0"/>
-            <metadata att_name="adler32" att_value=""/>
-            </File>
-            """
-    # tailor
-    xml += """
-    </POOLFILECATALOG>
-    """
-    return xml
+        report[fileSpec.lfn] = {"guid": guid, "fsize": fileSpec.fsize, "adler32": chksum}
+    return json.dumps(report)
 
 
 def create_shards(input_list, size):
