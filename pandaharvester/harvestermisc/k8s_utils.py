@@ -195,6 +195,11 @@ class k8s_Client(object):
             tmp_log.debug("work_spec does not have stdout workAttribute, using default")
             log_file_name = ""
 
+        # setting up the paths for writing and reading logs using a random server of the PanDA cache
+        log_server = replace_hostname_in_url_randomly(harvester_config.pandacon.pandaCacheURL)
+        logs_frontend_w = log_server + harvester_config.pandacon.pandaCacheURL_W_path
+        logs_frontend_r = log_server + harvester_config.pandacon.pandaCacheURL_R_path
+
         container_env["env"].extend(
             [
                 {"name": "computingSite", "value": work_spec.computingSite},
@@ -212,8 +217,8 @@ class k8s_Client(object):
                 {"name": "PANDA_AUTH_TOKEN", "value": panda_token_filename},
                 {"name": "PANDA_AUTH_TOKEN_KEY", "value": panda_token_key_filename},
                 {"name": "workerID", "value": str(work_spec.workerID)},
-                {"name": "logs_frontend_w", "value": replace_hostname_in_url_randomly(harvester_config.pandacon.pandaCacheURL_W)},
-                {"name": "logs_frontend_r", "value": harvester_config.pandacon.pandaCacheURL_R},
+                {"name": "logs_frontend_w", "value": logs_frontend_w},
+                {"name": "logs_frontend_r", "value": logs_frontend_r},
                 {"name": "stdout_name", "value": log_file_name},
                 {"name": "PANDA_JSID", "value": "harvester-" + harvester_config.master.harvester_id},
                 {"name": "HARVESTER_WORKER_ID", "value": str(work_spec.workerID)},
