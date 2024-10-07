@@ -10,6 +10,7 @@ import os
 import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -211,7 +212,7 @@ class k8s_Client(object):
                 {"name": "PANDA_AUTH_TOKEN", "value": panda_token_filename},
                 {"name": "PANDA_AUTH_TOKEN_KEY", "value": panda_token_key_filename},
                 {"name": "workerID", "value": str(work_spec.workerID)},
-                {"name": "logs_frontend_w", "value": harvester_config.pandacon.pandaCacheURL_W},
+                {"name": "logs_frontend_w", "value": replace_hostname_in_url_randomly(harvester_config.pandacon.pandaCacheURL_W)},
                 {"name": "logs_frontend_r", "value": harvester_config.pandacon.pandaCacheURL_R},
                 {"name": "stdout_name", "value": log_file_name},
                 {"name": "PANDA_JSID", "value": "harvester-" + harvester_config.master.harvester_id},

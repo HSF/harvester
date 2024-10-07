@@ -10,9 +10,9 @@ This script will be executed at container startup
 post-multipart code was taken from: https://github.com/haiwen/webapi-examples/blob/master/python/upload-file.py
 """
 
+import gzip
 import http.client as httplib
 import logging
-import mimetypes
 import os
 import shutil
 import ssl
@@ -47,7 +47,7 @@ def post_multipart(host, port, selector, files, proxy_cert):
     h.putheader("content-type", content_type)
     h.putheader("content-length", str(len(body)))
     h.endheaders()
-    h.send(body.encode())
+    h.send(body)
     response = h.getresponse()
     return response.status, response.reason
 
@@ -58,23 +58,19 @@ def encode_multipart_formdata(files):
     Return (content_type, body) ready for httplib.HTTP instance
     """
     BOUNDARY = "----------ThIs_Is_tHe_bouNdaRY_$"
-    CRLF = "\r\n"
+    CRLF = b"\r\n"
     L = []
     for key, filename, value in files:
         L.append("--" + BOUNDARY)
         L.append(f'Content-Disposition: form-data; name="{key}"; filename="{filename}"')
-        L.append(f"Content-Type: {get_content_type(filename)}")
+        L.append("Content-Type: application/octet-stream")
         L.append("")
         L.append(value)
     L.append("--" + BOUNDARY + "--")
     L.append("")
-    body = CRLF.join(L)
+    body = CRLF.join([x.encode() if isinstance(x, str) else x for x in L])
     content_type = f"multipart/form-data; boundary={BOUNDARY}"
     return content_type, body
-
-
-def get_content_type(filename):
-    return mimetypes.guess_type(filename)[0] or "application/octet-stream"
 
 
 def upload_logs(url, log_file_name, destination_name, proxy_cert):
@@ -83,7 +79,7 @@ def upload_logs(url, log_file_name, destination_name, proxy_cert):
         url_parts = urlparse.urlsplit(full_url)
 
         logging.debug("[upload_logs] start")
-        files = [("file", destination_name, open(log_file_name).read())]
+        files = [("file", destination_name, gzip.compress(open(log_file_name).read().encode()))]
         status, reason = post_multipart(url_parts.hostname, url_parts.port, url_parts.path, files, proxy_cert)
         logging.debug(f"[upload_logs] finished with code={status} msg={reason}")
         if status == 200:
@@ -219,7 +215,7 @@ def get_configuration():
     # get the filename to use for the stdout log
     stdout_name = os.environ.get("stdout_name")
     if not stdout_name:
-        stdout_name = f"{harvester_id}_{worker_id}.out"
+        stdout_name = f"{harvester_id}_{worker_id}_gz.out"
 
     logging.debug("[main] got filename for the stdout log")
 
