@@ -6,11 +6,11 @@ utilities routines associated with Kubernetes python client
 import base64
 import copy
 import os
+from urllib.parse import urlparse
 
 import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -188,15 +188,11 @@ class k8s_Client(object):
                 container_env["volumeMounts"].append({"name": "pilot-dir", "mountPath": pilot_dir})
 
         container_env.setdefault("env", [])
-        # try to retrieve the stdout log file name
-        try:
-            log_file_name = work_spec.workAttributes["stdout"]
-        except (KeyError, AttributeError):
-            tmp_log.debug("work_spec does not have stdout workAttribute, using default")
-            log_file_name = ""
 
-        # setting up the paths for writing and reading logs using a random server of the PanDA cache
-        log_server = replace_hostname_in_url_randomly(harvester_config.pandacon.pandaCacheURL)
+        # setting up the paths for writing and reading logs
+        parsed_url = urlparse(work_spec.workAttributes["stdOut"])
+        log_server = f"{parsed_url.hostname}:{parsed_url.port}"
+
         logs_frontend_w = log_server + harvester_config.pandacon.pandaCacheURL_W_path
         logs_frontend_r = log_server + harvester_config.pandacon.pandaCacheURL_R_path
 

@@ -2,6 +2,8 @@ import os
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
+from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -86,9 +88,10 @@ class K8sSubmitter(PluginBase):
         harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
 
         # set the stdout log file
-        log_file_name = f"{harvester_config.master.harvester_id}_{work_spec.workerID}.out"
-        work_spec.set_log_file("stdout", f"{self.logBaseURL}/{log_file_name}")
-        # TODO: consider if we want to upload the yaml file to PanDA cache
+        log_file_name = f"{harvester_config.master.harvester_id}_{work_spec.workerID}_gz.out"
+        log_server = replace_hostname_in_url_randomly(harvester_config.pandacon.pandaCacheURL)
+        logs_frontend_r = log_server + harvester_config.pandacon.pandaCacheURL_R_path
+        work_spec.set_log_file("stdout", f"{logs_frontend_r}/{log_file_name}")
 
         yaml_content = self.k8s_client.read_yaml_file(self.k8s_yaml_file)
         try:

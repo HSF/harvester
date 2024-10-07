@@ -212,10 +212,8 @@ def get_configuration():
     logs_frontend_r = os.environ.get("logs_frontend_r")
     logging.debug("[main] got url to download logs")
 
-    # get the filename to use for the stdout log
-    stdout_name = os.environ.get("stdout_name")
-    if not stdout_name:
-        stdout_name = f"{harvester_id}_{worker_id}_gz.out"
+    # build the filename to use for the stdout log
+    stdout_name = f"{harvester_id}_{worker_id}_gz.out"
 
     logging.debug("[main] got filename for the stdout log")
 
