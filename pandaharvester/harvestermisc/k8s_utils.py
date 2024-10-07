@@ -6,6 +6,7 @@ utilities routines associated with Kubernetes python client
 import base64
 import copy
 import os
+from urllib.parse import urlparse
 
 import yaml
 from kubernetes import client, config
@@ -187,12 +188,13 @@ class k8s_Client(object):
                 container_env["volumeMounts"].append({"name": "pilot-dir", "mountPath": pilot_dir})
 
         container_env.setdefault("env", [])
-        # try to retrieve the stdout log file name
-        try:
-            log_file_name = work_spec.workAttributes["stdout"]
-        except (KeyError, AttributeError):
-            tmp_log.debug("work_spec does not have stdout workAttribute, using default")
-            log_file_name = ""
+
+        # setting up the paths for writing and reading logs
+        parsed_url = urlparse(work_spec.workAttributes["stdOut"])
+        log_server = f"{parsed_url.scheme}://{parsed_url.hostname}:{parsed_url.port}"
+
+        logs_frontend_w = log_server + harvester_config.pandacon.pandaCacheURL_W_path
+        logs_frontend_r = log_server + harvester_config.pandacon.pandaCacheURL_R_path
 
         container_env["env"].extend(
             [
@@ -211,9 +213,8 @@ class k8s_Client(object):
                 {"name": "PANDA_AUTH_TOKEN", "value": panda_token_filename},
                 {"name": "PANDA_AUTH_TOKEN_KEY", "value": panda_token_key_filename},
                 {"name": "workerID", "value": str(work_spec.workerID)},
-                {"name": "logs_frontend_w", "value": harvester_config.pandacon.pandaCacheURL_W},
-                {"name": "logs_frontend_r", "value": harvester_config.pandacon.pandaCacheURL_R},
-                {"name": "stdout_name", "value": log_file_name},
+                {"name": "logs_frontend_w", "value": logs_frontend_w},
+                {"name": "logs_frontend_r", "value": logs_frontend_r},
                 {"name": "PANDA_JSID", "value": "harvester-" + harvester_config.master.harvester_id},
                 {"name": "HARVESTER_WORKER_ID", "value": str(work_spec.workerID)},
                 {"name": "HARVESTER_ID", "value": harvester_config.master.harvester_id},
