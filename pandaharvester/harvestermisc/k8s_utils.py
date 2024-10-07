@@ -191,7 +191,7 @@ class k8s_Client(object):
 
         # setting up the paths for writing and reading logs
         parsed_url = urlparse(work_spec.workAttributes["stdOut"])
-        log_server = f"{parsed_url.hostname}:{parsed_url.port}"
+        log_server = f"{parsed_url.scheme}://{parsed_url.hostname}:{parsed_url.port}"
 
         logs_frontend_w = log_server + harvester_config.pandacon.pandaCacheURL_W_path
         logs_frontend_r = log_server + harvester_config.pandacon.pandaCacheURL_R_path
