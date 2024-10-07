@@ -215,7 +215,6 @@ class k8s_Client(object):
                 {"name": "workerID", "value": str(work_spec.workerID)},
                 {"name": "logs_frontend_w", "value": logs_frontend_w},
                 {"name": "logs_frontend_r", "value": logs_frontend_r},
-                {"name": "stdout_name", "value": log_file_name},
                 {"name": "PANDA_JSID", "value": "harvester-" + harvester_config.master.harvester_id},
                 {"name": "HARVESTER_WORKER_ID", "value": str(work_spec.workerID)},
                 {"name": "HARVESTER_ID", "value": harvester_config.master.harvester_id},
