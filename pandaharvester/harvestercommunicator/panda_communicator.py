@@ -90,8 +90,7 @@ class PandaCommunicator(BaseCommunicator):
                 with open(harvester_config.pandacon.auth_token.split(":")[-1]) as f:
                     self.auth_token = f.read()
             else:
-                if self.auth_token_last_update is None:
-                    self.auth_token = harvester_config.pandacon.auth_token
+                self.auth_token = harvester_config.pandacon.auth_token
         for config_map in self.multihost_auth_config.values():
             if "auth_token" in config_map:
                 if config_map["auth_token"].startswith("file:"):
