@@ -20,7 +20,7 @@ class PandaQueueSpec(SpecBase):
         "jobType:text",
         "resourceType:text",
         "nNewWorkers:integer",
-        "uniqueName:text / unique",
+        "uniqueName:text primary key",
         "nQueueLimitJobRatio:integer",
         "nQueueLimitJobMax:integer",
         "nQueueLimitJobMin:integer",
