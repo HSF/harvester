@@ -5717,7 +5717,7 @@ class DBProxy(object):
         try:
             tmp_logger = core_utils.make_logger(_logger, method_name="clean_service_metrics")
             tmp_logger.debug(f"start")
-            sql = f"DELETE FROM {serviceMetricsTableName} WHERE creationTime < NOW() - INTERVAL 1 MONTH"
+            sql = f"DELETE FROM {serviceMetricsTableName} WHERE creationTime < NOW() - INTERVAL 1 WEEK"
             self.execute(sql)
             self.commit()
             tmp_logger.debug(f"done")
