@@ -5712,6 +5712,24 @@ class DBProxy(object):
             # return
             return {}
 
+    # clean service metrics older than a month
+    def clean_service_metrics(self):
+        try:
+            tmp_logger = core_utils.make_logger(_logger, method_name="clean_service_metrics")
+            tmp_logger.debug(f"start")
+            sql = f"DELETE FROM {serviceMetricsTableName} WHERE creationTime < NOW() - INTERVAL 1 WEEK"
+            self.execute(sql)
+            self.commit()
+            tmp_logger.debug(f"done")
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
     # release a site
     def release_site(self, site_name, locked_by):
         try:

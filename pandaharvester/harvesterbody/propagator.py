@@ -27,8 +27,12 @@ class Propagator(AgentBase):
         self._last_stats_update = None
         self._last_metrics_update = None
 
+        # clean old service metrics at start up of the agent
+        self.dbProxy.clean_service_metrics()
+
     # main loop
     def run(self):
+
         while True:
             sw_main = core_utils.get_stopwatch()
             mainLog = self.make_logger(_logger, f"id={self.get_pid()}", method_name="run")
