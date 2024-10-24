@@ -2,8 +2,7 @@
 service metric spec class
 
 """
-import datetime
-import json
+
 import socket
 
 from pandaharvester.harvestercore import core_utils
