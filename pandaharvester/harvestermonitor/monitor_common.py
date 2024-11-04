@@ -7,6 +7,7 @@ ec_em_map = {
         1: "wrapper fault",
         2: "wrapper killed stuck pilot",
         64: "wrapper got cvmfs repos issue",
+        80: "pilot proxy invalid or with insufficient timeleft",
     },
 }
 
