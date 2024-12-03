@@ -62,9 +62,7 @@ class WorkerAdjuster(object):
         try:
             if self.queue_configMapper.has_queue(site_name):
                 queue_config = self.queue_configMapper.get_queue(site_name)
-                ret = str(queue_config.submitter.get("noPilotsWhenNoActiveJobs", "false"))
-                if ret.lower() == 'true':
-                    ret_val = True
+                ret_val = bool(queue_config.submitter.get("noPilotsWhenNoActiveJobs", False))
         except Exception:
             pass
         tmp_log.debug(f"ret_val={ret_val}")
