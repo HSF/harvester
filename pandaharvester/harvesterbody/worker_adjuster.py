@@ -51,6 +51,25 @@ class WorkerAdjuster(object):
             tmp_log.warning("default no_pilots_when_no_active_jobs = False")
             self.no_pilots_when_no_active_jobs = False
 
+    # get queue noPilotsWhenNoActiveJobs
+    def get_queue_no_pilots_when_no_active_jobs(self, site_name=None):
+        tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_queue_no_pilots_when_no_active_jobs")
+        ret_val = False
+
+        if self.no_pilots_when_no_active_jobs:
+            return True
+
+        try:
+            if self.queue_configMapper.has_queue(site_name):
+                queue_config = self.queue_configMapper.get_queue(site_name)
+                ret = str(queue_config.submitter.get("noPilotsWhenNoActiveJobs", "false"))
+                if ret.lower() == 'true':
+                    ret_val = True
+        except Exception:
+            pass
+        tmp_log.debug(f"ret_val={ret_val}")
+        return ret_val
+
     # get queue activate worker factor
     def get_queue_activate_worker_factor(self, site_name=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_queue_activate_worker_factor")
@@ -246,7 +265,7 @@ class WorkerAdjuster(object):
                                     # limit the queue to the number of activated jobs to avoid empty pilots
                                     try:
                                         n_min_pilots = 1
-                                        if self.no_pilots_when_no_active_jobs:
+                                        if self.get_queue_no_pilots_when_no_active_jobs(queue_name):
                                             n_min_pilots = 0
 
                                         queue_activated = job_stats[queue_name]["activated"]
@@ -260,7 +279,7 @@ class WorkerAdjuster(object):
                                     except KeyError:
                                         # zero job in the queue
                                         tmp_log.debug("no job in queue")
-                                        if self.no_pilots_when_no_active_jobs:
+                                        if self.get_queue_no_pilots_when_no_active_jobs(queue_name):
                                             n_activated = 0
                                         else:
                                             n_activated = max(1 - n_queue - n_ready - n_running, 0)
@@ -283,7 +302,7 @@ class WorkerAdjuster(object):
                                 n_new_workers = min(n_new_workers, math.ceil(new_worker_cores_max / rtype_request_cores))
                                 tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_cores")
                             if queue_limit_memory:
-                                new_worker_memory_max = max(queue_limit_memory - memory_queue_queue, 0)
+                                new_worker_memory_max = max(queue_limit_memory - memory_queue, 0)
                                 n_new_workers = min(n_new_workers, math.ceil(new_worker_memory_max / rtype_request_memory))
                                 tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_memory")
                         if queue_config.maxNewWorkersPerCycle > 0:
