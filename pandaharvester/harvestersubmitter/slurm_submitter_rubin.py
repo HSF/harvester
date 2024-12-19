@@ -105,7 +105,8 @@ class SlurmSubmitter(PluginBase):
             # make logger
             tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
             # set nCore
-            workSpec.nCore = self.nCore
+            if self.nCore > 0:
+                workSpec.nCore = self.nCore
             if num_workSpec % self.nWorkersToCheckPartition == 0:
                 partition = self.get_partition(tmpLog)
                 num_workSpec += 1
