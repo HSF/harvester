@@ -394,7 +394,12 @@ class HTCondorSubmitter(PluginBase):
                 self.nProcesses = 1
         # ncore factor
         try:
-            self.nCoreFactor = int(self.nCoreFactor)
+            if type(self.nCoreFactor) in [dict]:
+                # self.nCoreFactor is a dict for ucore
+                # self.nCoreFactor = self.nCoreFactor
+                pass
+            else:
+                self.nCoreFactor = int(self.nCoreFactor)
         except AttributeError:
             self.nCoreFactor = 1
         else:
@@ -778,6 +783,16 @@ class HTCondorSubmitter(PluginBase):
                         tmpLog.debug("Taking default token_dir")
                 return proxy, token_dir
 
+            def get_core_factor(workspec):
+                try:
+                    if type(self.nCoreFactor) in [dict]:
+                        n_core_factor = self.nCoreFactor.get(workspec.resourceType, 1)
+                        return int(n_core_factor)
+                    return int(self.nCoreFactor)
+                except Exception as ex:
+                    tmpLog.warn(f"Failed to get core factor: {ex}")
+                return 1
+
             # initialize
             ce_info_dict = dict()
             batch_log_dict = dict()
@@ -913,7 +928,7 @@ class HTCondorSubmitter(PluginBase):
                         "log_dir": self.logDir,
                         "log_subdir": log_subdir,
                         "n_core_per_node": n_core_per_node,
-                        "n_core_factor": self.nCoreFactor,
+                        "n_core_factor": get_core_factor(workspec),
                         "panda_queue_name": panda_queue_name,
                         "x509_user_proxy": proxy,
                         "ce_info_dict": ce_info_dict,
