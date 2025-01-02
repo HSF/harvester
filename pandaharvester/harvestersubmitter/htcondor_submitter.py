@@ -648,7 +648,7 @@ class HTCondorSubmitter(PluginBase):
             try:
                 the_prefix = "jdl.plusattr."
                 if k.startswith(the_prefix):
-                    attr_key = k[len(the_prefix) :]
+                    attr_key = k[len(the_prefix):]
                     attr_value = str(v)
                     if not re.fullmatch(r"[a-zA-Z_0-9][a-zA-Z_0-9.\-]*", attr_key):
                         # skip invalid key
@@ -786,7 +786,7 @@ class HTCondorSubmitter(PluginBase):
             def get_core_factor(workspec):
                 try:
                     if type(self.nCoreFactor) in [dict]:
-                        n_core_factor = self.nCoreFactor.get(workspec.resourceType, 1)
+                        n_core_factor = self.nCoreFactor.get(workspec.jobType, {}).get(workspec.resourceType, 1)
                         return int(n_core_factor)
                     return int(self.nCoreFactor)
                 except Exception as ex:

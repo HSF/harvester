@@ -1,4 +1,3 @@
-import datetime
 import os
 import re
 import stat
@@ -105,7 +104,7 @@ class SlurmSubmitter(PluginBase):
     def get_core_factor(self, workspec, logger):
         try:
             if type(self.nCoreFactor) in [dict]:
-                n_core_factor = self.nCoreFactor.get(workspec.resourceType, 1)
+                n_core_factor = self.nCoreFactor.get(workspec.jobType, {}).get(workspec.resourceType, 1)
                 return int(n_core_factor)
             return int(self.nCoreFactor)
         except Exception as ex:
