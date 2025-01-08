@@ -24,18 +24,18 @@ class SlurmSubmitter(PluginBase):
             self.localQueueName = "grid"
         # ncore factor
         try:
-            if type(self.nCoreFactor) in [dict]:
-                # self.nCoreFactor is a dict for ucore
-                # self.nCoreFactor = self.nCoreFactor
-                pass
-            else:
-                self.nCoreFactor = int(self.nCoreFactor)
+            if hasattr(self, "nCoreFactor"):
+                if type(self.nCoreFactor) in [dict]:
+                    # self.nCoreFactor is a dict for ucore
+                    # self.nCoreFactor = self.nCoreFactor
+                    pass
+                else:
+                    self.nCoreFactor = int(self.nCoreFactor)
+                    if (not self.nCoreFactor) or (self.nCoreFactor < 1):
+                        self.nCoreFactor = 1
         except AttributeError:
             self.nCoreFactor = 1
-        else:
-            self.nCoreFactor = int(self.nCoreFactor)
-            if (not self.nCoreFactor) or (self.nCoreFactor < 1):
-                self.nCoreFactor = 1
+
         # num workers to check the partition
         try:
             self.nWorkersToCheckPartition = int(self.nWorkersToCheckPartition)

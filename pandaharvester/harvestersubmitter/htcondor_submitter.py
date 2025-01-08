@@ -394,18 +394,19 @@ class HTCondorSubmitter(PluginBase):
                 self.nProcesses = 1
         # ncore factor
         try:
-            if type(self.nCoreFactor) in [dict]:
-                # self.nCoreFactor is a dict for ucore
-                # self.nCoreFactor = self.nCoreFactor
-                pass
+            if hasattr(self, "nCoreFactor"):
+                if type(self.nCoreFactor) in [dict]:
+                    # self.nCoreFactor is a dict for ucore
+                    # self.nCoreFactor = self.nCoreFactor
+                    pass
+                else:
+                    self.nCoreFactor = int(self.nCoreFactor)
+                    if (not self.nCoreFactor) or (self.nCoreFactor < 1):
+                        self.nCoreFactor = 1
             else:
-                self.nCoreFactor = int(self.nCoreFactor)
+                self.nCoreFactor = 1
         except AttributeError:
             self.nCoreFactor = 1
-        else:
-            self.nCoreFactor = int(self.nCoreFactor)
-            if (not self.nCoreFactor) or (self.nCoreFactor < 1):
-                self.nCoreFactor = 1
         # executable file
         try:
             self.executableFile

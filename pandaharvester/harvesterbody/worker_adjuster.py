@@ -81,7 +81,7 @@ class WorkerAdjuster(object):
                 if "activateWorkerFactor" in queue_config.submitter:
                     ret_val = 1.0 * float(queue_config.submitter.get("activateWorkerFactor", 1.0))
                 elif "nCoreFactor" in queue_config.submitter:
-                    nCoreFactor = queue_config.submitter.get("nCoreFactor")
+                    nCoreFactor = queue_config.submitter.get("nCoreFactor", 1)
                     if type(nCoreFactor) in [dict]:
                         ret_val = 1.0 / nCoreFactor.get(job_type, {}).get(resource_type, 1)
                     else:
