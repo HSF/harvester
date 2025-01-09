@@ -88,7 +88,8 @@ class HTCondorSweeper(BaseSweeper):
         all_job_ret_map = {}
         retList = []
         # Kill
-        for submissionHost, batchIDs_list in get_host_batchid_map(workspec_list).items():
+        for submissionHost, batchIDs_dict in get_host_batchid_map(workspec_list).items():
+            batchIDs_list = list(batchIDs_dict.keys())
             try:
                 condor_job_manage = CondorJobManage(id=submissionHost)
                 ret_map = condor_job_manage.remove(batchIDs_list)

@@ -1,5 +1,6 @@
 # === Imports ===================================================
 
+import datetime
 import functools
 import multiprocessing
 import random
@@ -111,10 +112,8 @@ def get_host_batchid_map(workspec_list):
         # backward compatibility if workspec.batchID does not contain ProcId
         if "." not in batchid_str:
             batchid_str += ".0"
-        try:
-            host_batchid_map[host].append(batchid_str)
-        except KeyError:
-            host_batchid_map[host] = [batchid_str]
+        host_batchid_map.setdefault(host, {})
+        host_batchid_map[host][batchid_str] = workspec
     return host_batchid_map
 
 
@@ -372,7 +371,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
 <classads>
 """
 
-    def __init__(self, cacheEnable=False, cacheRefreshInterval=None, useCondorHistory=True, *args, **kwargs):
+    def __init__(self, cacheEnable=False, cacheRefreshInterval=None, useCondorHistory=True, useCondorHistoryMaxAge=7200, *args, **kwargs):
         self.submissionHost = str(kwargs.get("id"))
         # Make logger
         tmpLog = core_utils.make_logger(
@@ -388,9 +387,10 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                 self.cache = ([], 0)
                 self.cacheRefreshInterval = cacheRefreshInterval
             self.useCondorHistory = useCondorHistory
+            self.useCondorHistoryMaxAge = useCondorHistoryMaxAge
             tmpLog.debug("Initialize done")
 
-    def get_all(self, batchIDs_list=[], allJobs=False, to_update_cache=False):
+    def get_all(self, batchIDs_dict, allJobs=False, to_update_cache=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.get_all")
         # Get all
@@ -398,21 +398,21 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         job_ads_all_dict = {}
         if self.condor_api == "python":
             try:
-                job_ads_all_dict = self.query_with_python(batchIDs_list, allJobs, to_update_cache)
+                job_ads_all_dict = self.query_with_python(batchIDs_dict, allJobs, to_update_cache)
             except Exception as e:
                 tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
                 raise
         else:
-            job_ads_all_dict = self.query_with_command(batchIDs_list)
+            job_ads_all_dict = self.query_with_command(batchIDs_dict)
         return job_ads_all_dict
 
-    def query_with_command(self, batchIDs_list=[]):
+    def query_with_command(self, batchIDs_dict):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_command")
         # Start query
         tmpLog.debug("Start query")
         job_ads_all_dict = {}
-        batchIDs_set = set(batchIDs_list)
+        batchIDs_set = set(batchIDs_dict.keys())
         for orig_comStr in self.orig_comStr_list:
             # String of batchIDs
             batchIDs_str = " ".join(list(batchIDs_set))
@@ -472,7 +472,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         return job_ads_all_dict
 
     @CondorClient.renew_session_and_retry
-    def query_with_python(self, batchIDs_list=[], allJobs=False, to_update_cache=False):
+    def query_with_python(self, batchIDs_dict, allJobs=False, to_update_cache=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_python")
         # Start query
@@ -480,8 +480,8 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         cache_fifo = None
         job_ads_all_dict = {}
         # make id sets
-        batchIDs_set = set(batchIDs_list)
-        clusterids_set = set([get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list])
+        batchIDs_set = set(batchIDs_dict.keys())
+        clusterids_set = set([get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_dict])
         # query from cache
 
         def cache_query(constraint=None, projection=CONDOR_JOB_ADS_LIST, timeout=60):
@@ -624,6 +624,18 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             query_method_list.append(self.schedd.history)
         # Go
         for query_method in query_method_list:
+            # exclude already checked and outdated jobs before querying with condor history
+            if query_method is self.schedd.history:
+                now_time = core_utils.naive_utcnow()
+                update_time_threshold = now_time - datetime.timedelta(seconds=self.useCondorHistoryMaxAge)
+                clusterids_set = set()
+                for batchid, workspec in batchIDs_dict:
+                    if batchid in batchIDs_set and (
+                        (workspec.submitTime and workspec.submitTime >= update_time_threshold)
+                        or (workspec.startTime and workspec.startTime >= update_time_threshold)
+                    ):
+                        clusterid = get_job_id_tuple_from_batchid(batchid)[0]
+                        clusterids_set.add(clusterid)
             # Make constraint
             clusterids_str = ",".join(list(clusterids_set))
             if query_method is cache_query or allJobs:

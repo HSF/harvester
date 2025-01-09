@@ -112,7 +112,8 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                         tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to HoldReason: {hold_reason}")
                     else:
                         tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to held too long")
-                    for submissionHost, batchIDs_list in get_host_batchid_map([workspec]).items():
+                    for submissionHost, batchIDs_dict in get_host_batchid_map([workspec]).items():
+                        batchIDs_list = list(batchIDs_dict.keys())
                         condor_job_manage = CondorJobManage(id=workspec.submissionHost)
                         try:
                             ret_map = condor_job_manage.remove(batchIDs_list)
@@ -251,6 +252,8 @@ class HTCondorMonitor(PluginBase):
             self.payloadType
         except AttributeError:
             self.payloadType = None
+        # max age of workers in seconds (since last status update) that are allowed to queyr with condor history
+        self.useCondorHistoryMaxAge = getattr(self, "useCondorHistoryMaxAge", 7200)
 
     # check workers
     def check_workers(self, workspec_list):
@@ -259,13 +262,17 @@ class HTCondorMonitor(PluginBase):
         tmpLog.debug("start")
         # Loop over submissionHost
         job_ads_all_dict = {}
-        for submissionHost, batchIDs_list in get_host_batchid_map(workspec_list).items():
+        for submissionHost, batchIDs_dict in get_host_batchid_map(workspec_list).items():
             # Record batch job query result to this dict, with key = batchID
             try:
                 job_query = CondorJobQuery(
-                    cacheEnable=self.cacheEnable, cacheRefreshInterval=self.cacheRefreshInterval, useCondorHistory=self.useCondorHistory, id=submissionHost
+                    cacheEnable=self.cacheEnable,
+                    cacheRefreshInterval=self.cacheRefreshInterval,
+                    useCondorHistory=self.useCondorHistory,
+                    id=submissionHost,
+                    useCondorHistoryMaxAge=self.useCondorHistoryMaxAge,
                 )
-                host_job_ads_dict = job_query.get_all(batchIDs_list=batchIDs_list)
+                host_job_ads_dict = job_query.get_all(batchIDs_dict=batchIDs_dict)
             except Exception as e:
                 host_job_ads_dict = {}
                 ret_err_str = f"Exception {e.__class__.__name__}: {e}"
