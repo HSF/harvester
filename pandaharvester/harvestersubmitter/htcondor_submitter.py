@@ -394,13 +394,19 @@ class HTCondorSubmitter(PluginBase):
                 self.nProcesses = 1
         # ncore factor
         try:
-            self.nCoreFactor = int(self.nCoreFactor)
+            if hasattr(self, "nCoreFactor"):
+                if type(self.nCoreFactor) in [dict]:
+                    # self.nCoreFactor is a dict for ucore
+                    # self.nCoreFactor = self.nCoreFactor
+                    pass
+                else:
+                    self.nCoreFactor = int(self.nCoreFactor)
+                    if (not self.nCoreFactor) or (self.nCoreFactor < 1):
+                        self.nCoreFactor = 1
+            else:
+                self.nCoreFactor = 1
         except AttributeError:
             self.nCoreFactor = 1
-        else:
-            self.nCoreFactor = int(self.nCoreFactor)
-            if (not self.nCoreFactor) or (self.nCoreFactor < 1):
-                self.nCoreFactor = 1
         # executable file
         try:
             self.executableFile
@@ -643,7 +649,7 @@ class HTCondorSubmitter(PluginBase):
             try:
                 the_prefix = "jdl.plusattr."
                 if k.startswith(the_prefix):
-                    attr_key = k[len(the_prefix) :]
+                    attr_key = k[len(the_prefix):]
                     attr_value = str(v)
                     if not re.fullmatch(r"[a-zA-Z_0-9][a-zA-Z_0-9.\-]*", attr_key):
                         # skip invalid key
@@ -777,6 +783,16 @@ class HTCondorSubmitter(PluginBase):
                     if self.tokenDir:
                         tmpLog.debug("Taking default token_dir")
                 return proxy, token_dir
+
+            def get_core_factor(workspec):
+                try:
+                    if type(self.nCoreFactor) in [dict]:
+                        n_core_factor = self.nCoreFactor.get(workspec.jobType, {}).get(workspec.resourceType, 1)
+                        return int(n_core_factor)
+                    return int(self.nCoreFactor)
+                except Exception as ex:
+                    tmpLog.warn(f"Failed to get core factor: {ex}")
+                return 1
 
             # initialize
             ce_info_dict = dict()
@@ -913,7 +929,7 @@ class HTCondorSubmitter(PluginBase):
                         "log_dir": self.logDir,
                         "log_subdir": log_subdir,
                         "n_core_per_node": n_core_per_node,
-                        "n_core_factor": self.nCoreFactor,
+                        "n_core_factor": get_core_factor(workspec),
                         "panda_queue_name": panda_queue_name,
                         "x509_user_proxy": proxy,
                         "ce_info_dict": ce_info_dict,

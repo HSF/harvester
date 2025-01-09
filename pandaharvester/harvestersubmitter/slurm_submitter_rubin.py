@@ -1,4 +1,3 @@
-import datetime
 import os
 import re
 import stat
@@ -25,13 +24,18 @@ class SlurmSubmitter(PluginBase):
             self.localQueueName = "grid"
         # ncore factor
         try:
-            self.nCoreFactor = int(self.nCoreFactor)
+            if hasattr(self, "nCoreFactor"):
+                if type(self.nCoreFactor) in [dict]:
+                    # self.nCoreFactor is a dict for ucore
+                    # self.nCoreFactor = self.nCoreFactor
+                    pass
+                else:
+                    self.nCoreFactor = int(self.nCoreFactor)
+                    if (not self.nCoreFactor) or (self.nCoreFactor < 1):
+                        self.nCoreFactor = 1
         except AttributeError:
             self.nCoreFactor = 1
-        else:
-            self.nCoreFactor = int(self.nCoreFactor)
-            if (not self.nCoreFactor) or (self.nCoreFactor < 1):
-                self.nCoreFactor = 1
+
         # num workers to check the partition
         try:
             self.nWorkersToCheckPartition = int(self.nWorkersToCheckPartition)
@@ -97,6 +101,16 @@ class SlurmSubmitter(PluginBase):
             return selected_partition
         return None
 
+    def get_core_factor(self, workspec, logger):
+        try:
+            if type(self.nCoreFactor) in [dict]:
+                n_core_factor = self.nCoreFactor.get(workspec.jobType, {}).get(workspec.resourceType, 1)
+                return int(n_core_factor)
+            return int(self.nCoreFactor)
+        except Exception as ex:
+            logger.warn(f"Failed to get core factor: {ex}")
+        return 1
+
     # submit workers
     def submit_workers(self, workspec_list):
         retList = []
@@ -105,12 +119,13 @@ class SlurmSubmitter(PluginBase):
             # make logger
             tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
             # set nCore
-            workSpec.nCore = self.nCore
+            if self.nCore > 0:
+                workSpec.nCore = self.nCore
             if num_workSpec % self.nWorkersToCheckPartition == 0:
                 partition = self.get_partition(tmpLog)
                 num_workSpec += 1
             # make batch script
-            batchFile = self.make_batch_script(workSpec, partition)
+            batchFile = self.make_batch_script(workSpec, partition, tmpLog)
             # command
             comStr = f"sbatch -D {workSpec.get_access_point()} {batchFile}"
             # submit
@@ -144,7 +159,7 @@ class SlurmSubmitter(PluginBase):
             retList.append(tmpRetVal)
         return retList
 
-    def make_placeholder_map(self, workspec, partition):
+    def make_placeholder_map(self, workspec, partition, logger):
         timeNow = core_utils.naive_utcnow()
 
         panda_queue_name = self.queueName
@@ -161,16 +176,18 @@ class SlurmSubmitter(PluginBase):
         if not n_core_per_node:
             n_core_per_node = self.nCore
 
+        n_core_factor = self.get_core_factor(workspec, logger)
+
         n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
-        n_core_total_factor = n_core_total * self.nCoreFactor
+        n_core_total_factor = n_core_total * n_core_factor
         request_ram = max(workspec.minRamCount, 1 * n_core_total) if workspec.minRamCount else 1 * n_core_total
         request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
         request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
 
         n_node = ceil(n_core_total / n_core_per_node)
-        request_ram_factor = request_ram * self.nCoreFactor
+        request_ram_factor = request_ram * n_core_factor
         request_ram_bytes = request_ram * 2**20
-        request_ram_bytes_factor = request_ram * 2**20 * self.nCoreFactor
+        request_ram_bytes_factor = request_ram * 2**20 * n_core_factor
         request_ram_per_core = ceil(request_ram * n_node / n_core_total)
         request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
         request_cputime = request_walltime * n_core_total
@@ -180,7 +197,7 @@ class SlurmSubmitter(PluginBase):
         placeholder_map = {
             "nCorePerNode": n_core_per_node,
             "nCoreTotal": n_core_total_factor,
-            "nCoreFactor": self.nCoreFactor,
+            "nCoreFactor": n_core_factor,
             "nNode": n_node,
             "requestRam": request_ram_factor,
             "requestRamBytes": request_ram_bytes_factor,
@@ -211,12 +228,12 @@ class SlurmSubmitter(PluginBase):
         return placeholder_map
 
     # make batch script
-    def make_batch_script(self, workspec, partition):
+    def make_batch_script(self, workspec, partition, logger):
         # template for batch script
         with open(self.templateFile) as f:
             template = f.read()
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix="_submit.sh", dir=workspec.get_access_point())
-        placeholder = self.make_placeholder_map(workspec, partition)
+        placeholder = self.make_placeholder_map(workspec, partition, logger)
         tmpFile.write(str(template.format_map(core_utils.SafeDict(placeholder))).encode("latin_1"))
         tmpFile.close()
 

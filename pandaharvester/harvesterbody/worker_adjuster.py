@@ -69,7 +69,7 @@ class WorkerAdjuster(object):
         return ret_val
 
     # get queue activate worker factor
-    def get_queue_activate_worker_factor(self, site_name=None):
+    def get_queue_activate_worker_factor(self, site_name=None, job_type=None, resource_type=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_queue_activate_worker_factor")
         ret_val = 1.0
 
@@ -78,14 +78,21 @@ class WorkerAdjuster(object):
             if self.queue_configMapper.has_queue(site_name):
                 queue_config = self.queue_configMapper.get_queue(site_name)
                 # tmp_log.debug("queue_config.submitter:%s" % str(queue_config.submitter))
-                ret_val = 1.0 * float(queue_config.submitter.get("activateWorkerFactor", 1.0))
+                if "activateWorkerFactor" in queue_config.submitter:
+                    ret_val = 1.0 * float(queue_config.submitter.get("activateWorkerFactor", 1.0))
+                elif "nCoreFactor" in queue_config.submitter:
+                    nCoreFactor = queue_config.submitter.get("nCoreFactor", 1)
+                    if type(nCoreFactor) in [dict]:
+                        ret_val = 1.0 / nCoreFactor.get(job_type, {}).get(resource_type, 1)
+                    else:
+                        ret_val = 1.0 / nCoreFactor     # nCoreFactor is number
         except Exception:
             pass
         tmp_log.debug(f"ret_val={ret_val}")
         return ret_val
 
     # get activate worker factor
-    def get_activate_worker_factor(self, site_name=None):
+    def get_activate_worker_factor(self, site_name=None, job_type=None, resource_type=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_activate_worker_factor")
         ret_val = 1.0
 
@@ -111,7 +118,7 @@ class WorkerAdjuster(object):
             # static factor
             ret_val = self.activate_worker_factor
 
-        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name)
+        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name, job_type=job_type, resource_type=resource_type)
         ret_val = ret_val * queue_factor
 
         tmp_log.debug(f"ret_val={ret_val}")
@@ -269,10 +276,11 @@ class WorkerAdjuster(object):
                                         queue_activated = job_stats[queue_name]["activated"]
                                         tmp_log.debug(f"available activated panda jobs {queue_activated}")
 
-                                        if job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name) > 0:
+                                        activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type)
+                                        if job_stats[queue_name]["activated"] * activate_worker_factor > 0:
                                             n_min_pilots = 1
                                         n_activated = max(
-                                            int(job_stats[queue_name]["activated"] * self.get_activate_worker_factor(queue_name)), n_min_pilots
+                                            int(job_stats[queue_name]["activated"] * activate_worker_factor), n_min_pilots
                                         )  # avoid no activity queues
                                     except KeyError:
                                         # zero job in the queue
