@@ -643,7 +643,7 @@ sleepTime = 60
 
 [cacher]
 
-# one data (main_key_name|sub_key_name|URL) following a white space per line
+# one data ( main_key_name|sub_key_name|URL|dump_file(optional) ) following a white space per line
 #
 # Notes: This example is for five data. ddm_endpoints and panda_queues json files are retrieved using http.
 #        It also caches proxy files which are renewed by Credential Manager. Access key for BNL object store
