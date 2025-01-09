@@ -9,7 +9,7 @@ from .spec_base import SpecBase
 class SeqNumberSpec(SpecBase):
     # attributes
     attributesWithTypes = (
-        "numberName:text / unique",
+        "numberName:text primary key",
         "curVal:integer",
     )
 
