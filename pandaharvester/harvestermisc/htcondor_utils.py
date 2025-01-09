@@ -400,7 +400,8 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             try:
                 job_ads_all_dict = self.query_with_python(batchIDs_dict, allJobs, to_update_cache)
             except Exception as e:
-                tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
+                tb_str = traceback.format_exc()
+                tmpLog.error(f"Exception {e.__class__.__name__}: {e} ; {tb_str}")
                 raise
         else:
             job_ads_all_dict = self.query_with_command(batchIDs_dict)
@@ -625,17 +626,20 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         # Go
         for query_method in query_method_list:
             # exclude already checked and outdated jobs before querying with condor history
-            if query_method is self.schedd.history:
+            if query_method.__name__ == self.schedd.history.__name__:
                 now_time = core_utils.naive_utcnow()
                 update_time_threshold = now_time - datetime.timedelta(seconds=self.useCondorHistoryMaxAge)
                 clusterids_set = set()
-                for batchid, workspec in batchIDs_dict:
+                for batchid, workspec in batchIDs_dict.items():
                     if batchid in batchIDs_set and (
                         (workspec.submitTime and workspec.submitTime >= update_time_threshold)
                         or (workspec.startTime and workspec.startTime >= update_time_threshold)
                     ):
                         clusterid = get_job_id_tuple_from_batchid(batchid)[0]
                         clusterids_set.add(clusterid)
+                # skip if no clusterid to check
+                if not clusterids_set:
+                    break
             # Make constraint
             clusterids_str = ",".join(list(clusterids_set))
             if query_method is cache_query or allJobs:
