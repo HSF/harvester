@@ -34,16 +34,37 @@ class TinyThrottler(PluginBase):
                         num_workers += n_workers
         return num_workers
 
+    def get_core_factor(self, q_config, job_type, resource_type):
+        try:
+            nCoreFactor = q_config.submitter.get("nCoreFactor", 1)
+            if type(nCoreFactor) in [dict]:
+                n_core_factor = nCoreFactor.get(job_type, {}).get(resource_type, 1)
+                return int(n_core_factor)
+            return int(nCoreFactor)
+        except Exception as ex:
+            logger.warn(f"Failed to get core factor: {ex}")
+        return 1
+
+    def get_num_cores(self, worker_stats, status, q_config):
+        num_cores = 0
+        for job_type in worker_stats:
+            for resource_type in worker_stats[job_type]:
+                for st in worker_stats[job_type][resource_type]:
+                    if st in status:
+                        n_workers = worker_stats[job_type][resource_type][st]
+                        n_core_factor = self.get_core_factor(q_config, job_type, resource_type)
+                        num_cores += n_workers * n_core_factor
+        return num_cores
+
     def evaluate_rule(self, rules, queues, retVal, status=['submitted']):
         for rule in rules:
             if rule['level'] == 'cores':
                 total_cores = 0
                 for queue_name in queues:
                     worker_stats = queues[queue_name]['stats']
-                    num_workers = self.get_num_workers(worker_stats, status)
                     q_config = queues[queue_name]['queue_config']
-                    n_cores = int(q_config.submitter.get("nCoreFactor", 1))
-                    total_cores += num_workers * n_cores
+                    n_cores = self.get_num_cores(worker_stats, status, q_config)
+                    total_cores += n_cores
                 maxCores = rule['maxCores']
                 if total_cores > maxCores:
                     if self.logicType == "OR":
