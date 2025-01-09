@@ -82,7 +82,7 @@ class PandaCommunicator(BaseCommunicator):
 
     # renew token
     def renew_token(self):
-        if self.auth_token_last_update is not None and core_utils.naive_utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=60):
+        if self.auth_token_last_update is not None and core_utils.naive_utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=10):
             return
         self.auth_token_last_update = core_utils.naive_utcnow()
         if hasattr(harvester_config.pandacon, "auth_token"):
