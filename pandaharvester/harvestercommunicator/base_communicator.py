@@ -71,3 +71,7 @@ class BaseCommunicator(metaclass=abc.ABCMeta):
     # update service metrics
     def update_service_metrics(self, service_metrics_list):
         return True, ""
+
+    # force credential renewal
+    def force_credential_renewal(self):
+        return True

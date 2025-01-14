@@ -76,6 +76,10 @@ class Master(object):
         thr.execute()
         thr.start()
         thrList.append(thr)
+
+        # trigger credential renewal in communicator
+        self.communicatorPool.force_credential_renewal()
+
         # Command manager
         from pandaharvester.harvesterbody.command_manager import CommandManager
 
