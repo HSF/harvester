@@ -83,6 +83,13 @@ class PandaCommunicator(BaseCommunicator):
         except Exception:
             pass
 
+    # force token renewal
+    def force_credential_renewal(self):
+        """
+        Unset timestamp to trigger token renewal
+        """
+        self.auth_token_last_update = None
+
     # renew token
     def renew_token(self):
         if self.auth_token_last_update is not None and core_utils.naive_utcnow() - self.auth_token_last_update < datetime.timedelta(minutes=10):

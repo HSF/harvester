@@ -66,3 +66,8 @@ class CommunicatorPool(object):
         tmpO = CommunicatorMethod(name, self.pool)
         object.__setattr__(self, name, tmpO)
         return tmpO
+
+    # force credential renewal
+    def force_credential_renewal(self):
+        for con in list(self.pool.queue):
+            con.force_credential_renewal()
