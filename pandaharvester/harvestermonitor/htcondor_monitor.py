@@ -320,7 +320,7 @@ class HTCondorMonitor(PluginBase):
                 job_query = CondorJobQuery(
                     cacheEnable=self.cacheEnable, cacheRefreshInterval=self.cacheRefreshInterval, useCondorHistory=self.useCondorHistory, id=submissionHost
                 )
-                job_ads_all_dict.update(job_query.get_all(allJobs=True, to_update_cache=True))
+                job_ads_all_dict.update(job_query.get_all(batchIDs_dict=None, allJobs=True, to_update_cache=True))
                 tmpLog.debug(f"got information of condor jobs on {submissionHost}")
             except Exception as e:
                 ret_err_str = f"Exception {e.__class__.__name__}: {e}"

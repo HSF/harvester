@@ -390,7 +390,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             self.useCondorHistoryMaxAge = useCondorHistoryMaxAge
             tmpLog.debug("Initialize done")
 
-    def get_all(self, batchIDs_dict, allJobs=False, to_update_cache=False):
+    def get_all(self, batchIDs_dict=None, allJobs=False, to_update_cache=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.get_all")
         # Get all
@@ -407,11 +407,13 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             job_ads_all_dict = self.query_with_command(batchIDs_dict)
         return job_ads_all_dict
 
-    def query_with_command(self, batchIDs_dict):
+    def query_with_command(self, batchIDs_dict=None):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_command")
         # Start query
         tmpLog.debug("Start query")
+        if batchIDs_dict is None:
+            batchIDs_dict = {}
         job_ads_all_dict = {}
         batchIDs_set = set(batchIDs_dict.keys())
         for orig_comStr in self.orig_comStr_list:
@@ -473,7 +475,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         return job_ads_all_dict
 
     @CondorClient.renew_session_and_retry
-    def query_with_python(self, batchIDs_dict, allJobs=False, to_update_cache=False):
+    def query_with_python(self, batchIDs_dict=None, allJobs=False, to_update_cache=False):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_python")
         # Start query
@@ -481,6 +483,8 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         cache_fifo = None
         job_ads_all_dict = {}
         # make id sets
+        if batchIDs_dict is None:
+            batchIDs_dict = {}
         batchIDs_set = set(batchIDs_dict.keys())
         clusterids_set = set([get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_dict])
         # query from cache
