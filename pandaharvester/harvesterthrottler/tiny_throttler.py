@@ -42,7 +42,8 @@ class TinyThrottler(PluginBase):
                 return int(n_core_factor)
             return int(nCoreFactor)
         except Exception as ex:
-            logger.warn(f"Failed to get core factor: {ex}")
+            # logger.warning(f"Failed to get core factor: {ex}")
+            pass
         return 1
 
     def get_num_cores(self, worker_stats, status, q_config):
