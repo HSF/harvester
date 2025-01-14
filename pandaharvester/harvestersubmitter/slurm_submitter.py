@@ -33,6 +33,8 @@ class SlurmSubmitter(PluginBase):
                     self.nCoreFactor = int(self.nCoreFactor)
                     if (not self.nCoreFactor) or (self.nCoreFactor < 1):
                         self.nCoreFactor = 1
+            else:
+                self.nCoreFactor = 1
         except AttributeError:
             self.nCoreFactor = 1
 
@@ -87,7 +89,7 @@ class SlurmSubmitter(PluginBase):
                 return int(n_core_factor)
             return int(self.nCoreFactor)
         except Exception as ex:
-            logger.warn(f"Failed to get core factor: {ex}")
+            logger.warning(f"Failed to get core factor: {ex}")
         return 1
 
     def make_placeholder_map(self, workspec, logger):

@@ -791,7 +791,7 @@ class HTCondorSubmitter(PluginBase):
                         return int(n_core_factor)
                     return int(self.nCoreFactor)
                 except Exception as ex:
-                    tmpLog.warn(f"Failed to get core factor: {ex}")
+                    tmpLog.warning(f"Failed to get core factor: {ex}")
                 return 1
 
             # initialize

@@ -240,7 +240,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
     def calculate_worker_requirements(self, nRemainingEvents):
         tmpLog = self.make_logger(_logger, "simple_bf_es_maker", method_name="calculate_worker_requirements")
         if not hasattr(self, "nSecondsPerEvent") or self.nSecondsPerEvent < 100:
-            tmpLog.warn("nSecondsPerEvent is not set, will use default value 480 seconds(8 minutes)")
+            tmpLog.warning("nSecondsPerEvent is not set, will use default value 480 seconds(8 minutes)")
             nSecondsPerEvent = 480
         else:
             nSecondsPerEvent = self.nSecondsPerEvent
@@ -255,7 +255,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
                 if resource["nodes"] < self.defaultNodes:
                     nCore = resource["nodes"] * self.nCorePerNode
                 else:
-                    tmpLog.warn("nRemainingEvents is not correctly propagated or delayed, will not submit big jobs, shrink number of nodes to default")
+                    tmpLog.warning("nRemainingEvents is not correctly propagated or delayed, will not submit big jobs, shrink number of nodes to default")
                     nCore = self.defaultNodes * self.nCorePerNode
             else:
                 neededCapacity = nRemainingEvents * nSecondsPerEvent * 1.0 / self.nCorePerNode
