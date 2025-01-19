@@ -263,7 +263,7 @@ class GlobusBulkStager(BaseStager):
                             scope = fileSpec.scope
                         # for EventService job set the scope to transient for non log files
                         if self.EventServicejob:
-                            pass
+                            scope = scope
                         # only print to log file first 25 files
                         if ifile < 25:
                             msgStr = f"fileSpec.lfn - {fileSpec.lfn} fileSpec.scope - {fileSpec.scope}"
