@@ -9,6 +9,10 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
+from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
+from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestersubmitter import submitter_common
+
 # logger
 baseLogger = core_utils.setup_logger("slurm_submitter_rubin")
 
@@ -38,6 +42,10 @@ class SlurmSubmitter(PluginBase):
         except AttributeError:
             self.nCoreFactor = 1
 
+        try:
+            self.checkPartition = bool(self.checkPartition)
+        except AttributeError:
+            self.checkPartition = False
         # num workers to check the partition
         try:
             self.nWorkersToCheckPartition = int(self.nWorkersToCheckPartition)
@@ -90,6 +98,9 @@ class SlurmSubmitter(PluginBase):
             return None
 
         logger.debug(f"partitions: {self.partitions}")
+        if not self.checkPartition:
+            return self.partitions[0]
+
         num_pending_by_partition = {}
         for partition in self.partitions:
             status, num_pending_jobs = self.get_queued_jobs(partition, logger)
@@ -103,18 +114,38 @@ class SlurmSubmitter(PluginBase):
             return selected_partition
         return None
 
-    def get_core_factor(self, workspec, logger):
+    def get_core_factor(self, workspec, is_unified_queue, logger):
         try:
             if type(self.nCoreFactor) in [dict]:
-                n_core_factor = self.nCoreFactor.get(workspec.jobType, {}).get(workspec.resourceType, 1)
+                if workspec.jobType in self.nCoreFactor:
+                    job_type = workspec.jobType
+                else:
+                    job_type = 'Any'
+                if is_unified_queue:
+                    resource_type = workspec.resourceType
+                else:
+                    resource_type = 'Undefined'
+                n_core_factor = self.nCoreFactor.get(job_type, {}).get(resource_type, 1)
                 return int(n_core_factor)
-            return int(self.nCoreFactor)
+            else:
+                return int(self.nCoreFactor)
         except Exception as ex:
             logger.warning(f"Failed to get core factor: {ex}")
         return 1
 
     # submit workers
     def submit_workers(self, workspec_list):
+        tmpLog = self.make_logger(baseLogger, f"site={self.queueName}", method_name="submit_workers")
+
+        # get info from harvester queue config
+        # _queueConfigMapper = QueueConfigMapper()
+        # harvester_queue_config = _queueConfigMapper.get_queue(self.queueName)
+
+        # get the queue configuration from CRIC
+        panda_queues_dict = PandaQueuesDict()
+        this_panda_queue_dict = panda_queues_dict.get(self.queueName, {})
+        # associated_params_dict = panda_queues_dict.get_harvester_params(self.queueName)
+
         retList = []
         num_workSpec = 0
         for workSpec in workspec_list:
@@ -123,11 +154,15 @@ class SlurmSubmitter(PluginBase):
             # set nCore
             if self.nCore > 0:
                 workSpec.nCore = self.nCore
-            if num_workSpec % self.nWorkersToCheckPartition == 0:
+            if self.checkPartition:
+                if num_workSpec % self.nWorkersToCheckPartition == 0:
+                    partition = self.get_partition(tmpLog)
+                    num_workSpec += 1
+            else:
                 partition = self.get_partition(tmpLog)
-                num_workSpec += 1
+
             # make batch script
-            batchFile = self.make_batch_script(workSpec, partition, tmpLog)
+            batchFile = self.make_batch_script(workSpec, partition, this_panda_queue_dict, tmpLog)
             # command
             comStr = f"sbatch -D {workSpec.get_access_point()} {batchFile}"
             # submit
@@ -161,32 +196,53 @@ class SlurmSubmitter(PluginBase):
             retList.append(tmpRetVal)
         return retList
 
-    def make_placeholder_map(self, workspec, partition, logger):
+    def make_placeholder_map(self, workspec, partition, this_panda_queue_dict, logger):
         timeNow = core_utils.naive_utcnow()
-
-        panda_queue_name = self.queueName
-        this_panda_queue_dict = dict()
 
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1) if this_panda_queue_dict.get("corecount", 1) else 1
+
+        is_unified_queue = this_panda_queue_dict.get("capability", "") == "ucore"
+        special_par = this_panda_queue_dict.get("special_par", "")
 
         # get override requirements from queue configured
         try:
             n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
         except AttributeError:
             n_core_per_node = n_core_per_node_from_queue
-        if not n_core_per_node:
+        if n_core_per_node > 0:
             n_core_per_node = self.nCore
 
-        n_core_factor = self.get_core_factor(workspec, logger)
+        n_core_factor = self.get_core_factor(workspec, is_unified_queue, logger)
 
         n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
-        n_core_total_factor = n_core_total * n_core_factor
         request_ram = max(workspec.minRamCount, 1 * n_core_total) if workspec.minRamCount else 1 * n_core_total
         request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
         request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
 
+        ce_queue_name = None
+
+        # possible override by CRIC special_par
+        if special_par:
+            special_par_attr_list = [
+                "queue",
+                "maxWallTime",
+                "xcount",
+            ]
+            _match_special_par_dict = {attr: re.search(f"\\({attr}=([^)]+)\\)", special_par) for attr in special_par_attr_list}
+            for attr, _match in _match_special_par_dict.items():
+                if not _match:
+                    continue
+                elif attr == "queue":
+                    ce_queue_name = str(_match.group(1))
+                elif attr == "maxWallTime":
+                    request_walltime = int(_match.group(1))
+                elif attr == "xcount":
+                    n_core_total = int(_match.group(1))
+                logger.debug(f"job attributes override by CRIC special_par: {attr}={str(_match.group(1))}")
+
         n_node = ceil(n_core_total / n_core_per_node)
+        n_core_total_factor = n_core_total * n_core_factor
         request_ram_factor = request_ram * n_core_factor
         request_ram_bytes = request_ram * 2**20
         request_ram_bytes_factor = request_ram * 2**20 * n_core_factor
@@ -194,7 +250,12 @@ class SlurmSubmitter(PluginBase):
         request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
         request_cputime = request_walltime * n_core_total
         request_walltime_minute = ceil(request_walltime / 60)
+        request_walltime_hour = ceil(request_walltime / 3600)
         request_cputime_minute = ceil(request_cputime / 60)
+
+        # instance of resource type mapper
+        rt_mapper = ResourceTypeMapper()
+        all_resource_types = rt_mapper.get_all_resource_types()
 
         placeholder_map = {
             "nCorePerNode": n_core_per_node,
@@ -208,19 +269,23 @@ class SlurmSubmitter(PluginBase):
             "requestDisk": request_disk,
             "requestWalltime": request_walltime,
             "requestWalltimeMinute": request_walltime_minute,
+            'requestWalltimeHour': request_walltime_hour,
             "requestCputime": request_cputime,
             "requestCputimeMinute": request_cputime_minute,
             "accessPoint": workspec.accessPoint,
             "harvesterID": harvester_config.master.harvester_id,
             "workerID": workspec.workerID,
             "computingSite": workspec.computingSite,
-            "pandaQueueName": panda_queue_name,
+            "pandaQueueName": self.queueName,
             "localQueueName": self.localQueueName,
+            "ceQueueName": ce_queue_name,
             # 'x509UserProxy': x509_user_proxy,
             "logDir": self.logDir,
             "logSubDir": os.path.join(self.logDir, timeNow.strftime("%y-%m-%d_%H")),
             "jobType": workspec.jobType,
             "partition": partition,
+            "resourceType": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types),
+            "pilotResourceTypeOption": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types, is_pilot_option=True)
         }
         for k in ["tokenDir", "tokenName", "tokenOrigin", "submitMode"]:
             try:
