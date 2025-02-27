@@ -261,6 +261,6 @@ class SlurmSubmitter(PluginBase):
         return stdOut, stdErr
 
     def get_log_file_names(self, access_point, worker_id):
-        stdOut = os.path.join(access_point, '%s.out' % worker_id)
-        stdErr = os.path.join(access_point, '%s.err' % worker_id)
+        stdOut = os.path.join(access_point, f"{worker_id}.out")
+        stdErr = os.path.join(access_point, f"{worker_id}.err")
         return stdOut, stdErr

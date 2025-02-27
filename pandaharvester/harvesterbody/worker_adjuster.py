@@ -85,7 +85,7 @@ class WorkerAdjuster(object):
                     if type(nCoreFactor) in [dict]:
                         ret_val = 1.0 / nCoreFactor.get(job_type, {}).get(resource_type, 1)
                     else:
-                        ret_val = 1.0 / nCoreFactor     # nCoreFactor is number
+                        ret_val = 1.0 / nCoreFactor  # nCoreFactor is number
         except Exception:
             pass
         tmp_log.debug(f"ret_val={ret_val}")
