@@ -787,9 +787,18 @@ class HTCondorSubmitter(PluginBase):
             def get_core_factor(workspec):
                 try:
                     if type(self.nCoreFactor) in [dict]:
-                        n_core_factor = self.nCoreFactor.get(workspec.jobType, {}).get(workspec.resourceType, 1)
+                        if workspec.jobType in self.nCoreFactor:
+                            job_type = workspec.jobType
+                        else:
+                            job_type = 'Any'
+                        if is_unified_queue:
+                            resource_type = workspec.resourceType
+                        else:
+                            resource_type = 'Undefined'
+                        n_core_factor = self.nCoreFactor.get(job_type, {}).get(resource_type, 1)
                         return int(n_core_factor)
-                    return int(self.nCoreFactor)
+                    else:
+                        return int(self.nCoreFactor)
                 except Exception as ex:
                     tmpLog.warning(f"Failed to get core factor: {ex}")
                 return 1
