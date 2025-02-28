@@ -90,15 +90,13 @@ class WorkerAdjuster(object):
         return 1
 
     # get queue activate worker factor
-    def get_queue_activate_worker_factor(self, site_name=None, job_type=None, resource_type=None, queue_dict=None):
+    def get_queue_activate_worker_factor(self, site_name=None, job_type=None, resource_type=None, queue_dict=None, queue_config=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_queue_activate_worker_factor")
         ret_val = 1.0
 
         # balance in a queue when MCore is used in a pilot wrapper
         try:
-            if self.queue_configMapper.has_queue(site_name):
-                queue_config = self.queue_configMapper.get_queue(site_name)
-
+            if queue_config:
                 # tmp_log.debug("queue_config.submitter:%s" % str(queue_config.submitter))
                 nCoreFactor = self.get_core_factor(queue_config, queue_dict, job_type, resource_type, tmp_log)
 
@@ -109,31 +107,34 @@ class WorkerAdjuster(object):
         return ret_val
 
     # get activate worker factor
-    def get_activate_worker_factor(self, site_name=None, job_type=None, resource_type=None, queue_dict=None):
+    def get_activate_worker_factor(self, site_name=None, job_type=None, resource_type=None, queue_dict=None, queue_config=None):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="get_activate_worker_factor")
         ret_val = 1.0
 
-        # balance between multiple harvesters
-        if self.activate_worker_factor == "auto":
-            # dynamic factor
-            worker_stats_from_panda = self.dbProxy.get_cache("worker_statistics.json", None)
-            if not worker_stats_from_panda:
-                # got empty, return default
-                pass
-            else:
-                worker_stats_from_panda = worker_stats_from_panda.data
-                try:
-                    # return 1/n_harvester_instances for the site
-                    val_dict = worker_stats_from_panda[site_name]
-                    n_harvester_instances = len(list(val_dict.keys()))
-                    tmp_log.debug(f"number of harvesters: {n_harvester_instances}")
-                    ret_val = 1.0 / max(n_harvester_instances, 1)
-                except KeyError:
-                    # no data for this site, return default
-                    pass
+        if queue_config.runMode == "slave":
+            ret_val = 1.0
         else:
-            # static factor
-            ret_val = self.activate_worker_factor
+            # balance between multiple harvesters
+            if self.activate_worker_factor == "auto":
+                # dynamic factor
+                worker_stats_from_panda = self.dbProxy.get_cache("worker_statistics.json", None)
+                if not worker_stats_from_panda:
+                    # got empty, return default
+                    pass
+                else:
+                    worker_stats_from_panda = worker_stats_from_panda.data
+                    try:
+                        # return 1/n_harvester_instances for the site
+                        val_dict = worker_stats_from_panda[site_name]
+                        n_harvester_instances = len(list(val_dict.keys()))
+                        tmp_log.debug(f"number of harvesters: {n_harvester_instances}")
+                        ret_val = 1.0 / max(n_harvester_instances, 1)
+                    except KeyError:
+                        # no data for this site, return default
+                        pass
+            else:
+                # static factor
+                ret_val = self.activate_worker_factor
 
         queue_factor = self.get_queue_activate_worker_factor(site_name=site_name, job_type=job_type, resource_type=resource_type, queue_dict=queue_dict)
         ret_val = ret_val * queue_factor
@@ -279,6 +280,24 @@ class WorkerAdjuster(object):
                                 else:
                                     max_queued_workers = maxQueuedWorkers_slave
 
+                                # in slave mode
+                                if queue_config.mapType == "NoJob":
+                                    try:
+                                        if max_queued_workers > 0:
+                                            activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
+                                            tmp_log.debug(f"max_queued_workers: {max_queued_workers}, activate_worker_factor: {activate_worker_factor}")
+                                            max_queued_workers = math.ceil(max_queued_workers * activate_worker_factor)
+                                            tmp_log.debug(f"after applying activate_worker_factor, max_queued_workers: {max_queued_workers}")
+                                            if job_stats is not None:
+                                                # if job_stats is None, maybe job statistics is not fetched from panda, do nothing
+                                                queue_activated = job_stats.get(queue_name, {}).get("activated", 0)
+                                                n_queue_ready_running = n_queue + n_ready + n_running
+                                                tmp_log.debug(f"available activated panda jobs {queue_activated}, n_queue + n_ready + n_running: {n_queue_ready_running}")
+                                                if queue_activated < 1 and n_queue_ready_running > 0:
+                                                    tmp_log.info("No activated jobs and there are jobs in (queue, ready, running) status, set max_queued_workers to 0")
+                                                    max_queued_workers = 0
+                                    except Exception as ex:
+                                        tmp_log.warning(f"Failed to apply activate_worker_factor: {ex}")
                             elif queue_config.mapType == "NoJob":  # for pull mode, limit to activated jobs
                                 if job_stats is None:
                                     tmp_log.warning("n_activated not defined, defaulting to configured queue limits")
@@ -293,7 +312,7 @@ class WorkerAdjuster(object):
                                         queue_activated = job_stats[queue_name]["activated"]
                                         tmp_log.debug(f"available activated panda jobs {queue_activated}")
 
-                                        activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict)
+                                        activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
                                         if job_stats[queue_name]["activated"] * activate_worker_factor > 0:
                                             n_min_pilots = 1
                                         n_activated = max(
