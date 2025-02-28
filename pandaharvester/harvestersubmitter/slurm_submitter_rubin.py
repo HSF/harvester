@@ -150,7 +150,7 @@ class SlurmSubmitter(PluginBase):
         num_workSpec = 0
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
+            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}, resourceType={workSpec.resourceType}", method_name="submit_workers")
             # set nCore
             if self.nCore > 0:
                 workSpec.nCore = self.nCore
