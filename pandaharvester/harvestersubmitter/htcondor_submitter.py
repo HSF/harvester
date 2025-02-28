@@ -188,7 +188,7 @@ def make_a_jdl(
     make a condor jdl for a worker
     """
     # make logger
-    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="make_a_jdl")
+    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID} resourceType={workspec.resourceType}", method_name="make_a_jdl")
     # Note: In workspec, unit of minRamCount and of maxDiskCount are both MB.
     #       In HTCondor SDF, unit of request_memory is MB, and request_disk is KB.
     n_core_total = workspec.nCore if workspec.nCore else n_core_per_node

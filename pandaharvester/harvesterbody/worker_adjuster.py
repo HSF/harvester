@@ -274,30 +274,32 @@ class WorkerAdjuster(object):
 
                             # Reset the maxQueueWorkers according to particular
                             if n_new_workers_def is not None:  # don't surpass limits given centrally
-                                maxQueuedWorkers_slave = n_new_workers_def + n_queue
-                                if max_queued_workers is not None:
-                                    max_queued_workers = min(maxQueuedWorkers_slave, max_queued_workers)
-                                else:
-                                    max_queued_workers = maxQueuedWorkers_slave
 
                                 # in slave mode
                                 if queue_config.mapType == "NoJob":
                                     try:
-                                        if max_queued_workers > 0:
+                                        if n_new_workers_def > 0:
                                             activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
-                                            tmp_log.debug(f"max_queued_workers: {max_queued_workers}, activate_worker_factor: {activate_worker_factor}")
-                                            max_queued_workers = math.ceil(max_queued_workers * activate_worker_factor)
-                                            tmp_log.debug(f"after applying activate_worker_factor, max_queued_workers: {max_queued_workers}")
+                                            tmp_log.debug(f"n_new_workers_def: {n_new_workers_def}, activate_worker_factor: {activate_worker_factor}")
+                                            n_new_workers_def = math.ceil(n_new_workers_def * activate_worker_factor)
+                                            tmp_log.debug(f"after applying activate_worker_factor, n_new_workers_def: {n_new_workers_def}")
                                             if job_stats is not None:
                                                 # if job_stats is None, maybe job statistics is not fetched from panda, do nothing
                                                 queue_activated = job_stats.get(queue_name, {}).get("activated", 0)
                                                 n_queue_ready_running = n_queue + n_ready + n_running
                                                 tmp_log.debug(f"available activated panda jobs {queue_activated}, n_queue + n_ready + n_running: {n_queue_ready_running}")
                                                 if queue_activated < 1 and n_queue_ready_running > 0:
-                                                    tmp_log.info("No activated jobs and there are jobs in (queue, ready, running) status, set max_queued_workers to 0")
-                                                    max_queued_workers = 0
+                                                    tmp_log.info("No activated jobs and there are jobs in (queue, ready, running) status, set n_new_workers_def to 0")
+                                                    n_new_workers_def = 0
                                     except Exception as ex:
                                         tmp_log.warning(f"Failed to apply activate_worker_factor: {ex}")
+
+                                maxQueuedWorkers_slave = n_new_workers_def + n_queue
+                                if max_queued_workers is not None:
+                                    max_queued_workers = min(maxQueuedWorkers_slave, max_queued_workers)
+                                else:
+                                    max_queued_workers = maxQueuedWorkers_slave
+
                             elif queue_config.mapType == "NoJob":  # for pull mode, limit to activated jobs
                                 if job_stats is None:
                                     tmp_log.warning("n_activated not defined, defaulting to configured queue limits")
