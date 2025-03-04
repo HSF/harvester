@@ -150,7 +150,7 @@ class SlurmSubmitter(PluginBase):
         num_workSpec = 0
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}, resourceType={workSpec.resourceType}", method_name="submit_workers")
+            tmpLog = self.make_logger(baseLogger, f"site={self.queueName} workerID={workSpec.workerID} resourceType={workSpec.resourceType}", method_name="submit_workers")
             # set nCore
             if self.nCore > 0:
                 workSpec.nCore = self.nCore
@@ -210,13 +210,18 @@ class SlurmSubmitter(PluginBase):
             n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
         except AttributeError:
             n_core_per_node = n_core_per_node_from_queue
-        if n_core_per_node > 0:
+        if n_core_per_node < 1 and self.nCore > 0:
             n_core_per_node = self.nCore
 
         n_core_factor = self.get_core_factor(workspec, is_unified_queue, logger)
 
+        logger.debug(f"workspec.nCore: {workspec.nCore}, n_core_per_node: {n_core_per_node}")
+        logger.debug(f"workspec.minRamCount: {workspec.minRamCount}")
+
         n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
         request_ram = max(workspec.minRamCount, 1 * n_core_total) if workspec.minRamCount else 1 * n_core_total
+        logger.debug(f"n_core_total: {n_core_total}, request_ram: {request_ram}")
+
         request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
         request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
 
@@ -295,12 +300,12 @@ class SlurmSubmitter(PluginBase):
         return placeholder_map
 
     # make batch script
-    def make_batch_script(self, workspec, partition, logger):
+    def make_batch_script(self, workspec, partition, this_panda_queue_dict, logger):
         # template for batch script
         with open(self.templateFile) as f:
             template = f.read()
         tmpFile = tempfile.NamedTemporaryFile(delete=False, suffix="_submit.sh", dir=workspec.get_access_point())
-        placeholder = self.make_placeholder_map(workspec, partition, logger)
+        placeholder = self.make_placeholder_map(workspec, partition, this_panda_queue_dict, logger)
         tmpFile.write(str(template.format_map(core_utils.SafeDict(placeholder))).encode("latin_1"))
         tmpFile.close()
 

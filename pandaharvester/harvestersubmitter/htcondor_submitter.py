@@ -762,7 +762,7 @@ class HTCondorSubmitter(PluginBase):
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, f"site={self.queueName} workerID={workspec.workerID}", method_name="_handle_one_worker")
+            tmpLog = core_utils.make_logger(baseLogger, f"site={self.queueName} workerID={workspec.workerID}, resourceType={workspec.resourceType}", method_name="_handle_one_worker")
 
             def _choose_credential(workspec):
                 """
