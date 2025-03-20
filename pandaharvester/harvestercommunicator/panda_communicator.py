@@ -11,7 +11,6 @@ try:
 except Exception:
     pass
 import datetime
-import inspect
 import json
 import os
 import pickle
@@ -28,6 +27,7 @@ try:
     requests.packages.urllib3.disable_warnings()
 except Exception:
     pass
+
 from pandacommon.pandautils.net_utils import get_http_adapter_with_random_dns_resolution
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -67,6 +67,7 @@ class PandaCommunicator(BaseCommunicator):
             self.ca_cert = harvester_config.pandacon.ca_cert
         else:
             self.ca_cert = False
+
         # multihost auth configuration
         self.multihost_auth_config = {}
         if hasattr(harvester_config.pandacon, "multihost_auth_config") and harvester_config.pandacon.multihost_auth_config:
@@ -75,6 +76,7 @@ class PandaCommunicator(BaseCommunicator):
                     self.multihost_auth_config = json.load(f)
             except Exception:
                 pass
+
         # mapping between base URL and host
         self.base_url_host_map = {}
         # renew token
@@ -136,64 +138,42 @@ class PandaCommunicator(BaseCommunicator):
         else:
             return self.auth_type, self.cert_file, self.key_file, self.ca_cert, self.auth_token
 
-    # POST with http
-    def post(self, path, data):
-        try:
-            tmp_log = None
-            url = f"{harvester_config.pandacon.pandaURL}/{path}"
-
-            if self.verbose:
-                tmp_log = self.make_logger(method_name="post")
-                if self.useInspect:
-                    tmp_exec = inspect.stack()[1][3]
-                    tmp_exec += "/"
-                tmp_exec = str(uuid.uuid4())
-                tmp_log.debug(f"exec={tmp_exec} URL={url} data={str(data)}")
-
-            session = get_http_adapter_with_random_dns_resolution()
-            res = session.post(url, data=data, headers={"Accept": "application/json", "Connection": "close"}, timeout=harvester_config.pandacon.timeout)
-
-            if self.verbose:
-                tmp_log.debug(f"exec={tmp_exec} code={res.status_code} return={res.text}")
-
-            if res.status_code == 200:
-                return True, res
-            else:
-                err_msg = f"StatusCode={res.status_code} {res.text}"
-        except Exception:
-            err_type, err_value = sys.exc_info()[:2]
-            err_msg = f"failed to post with {err_type}:{err_value} "
-            err_msg += traceback.format_exc()
-        return False, err_msg
-
-    # POST with https
-    def post_ssl(self, path: str, data: dict, cert: tuple[str, str] = None, base_url: str = None, raw_mode: bool = False):
+    def request_ssl(
+        self, method: str, path: str, data: dict = None, files: dict = None, cert: tuple[str, str] = None, base_url: str = None, raw_mode: bool = False
+    ):
         """
-        POST with https
+        Generic HTTPS request function for GET, POST, and file uploads.
 
+        :param method: HTTP method ("GET", "POST", or "UPLOAD"). The method defines how the data is sent.
         :param path: URL path
-        :param data: query data
-        :param cert: a tuple of (certificate, key) for SSL. If None, use the default certificate and key.
-        :param base_url: base URL. If None, use the default base URL.
-        :param raw_mode: return the raw response if True
+        :param data: Query data for GET/POST.
+        :param files: Files to upload (for "UPLOAD" method).
+        :param cert: SSL certificate tuple (cert_file, key_file). Defaults to None (use system default).
+        :param base_url: Base URL. Defaults to None (use the default base URL).
+        :param raw_mode: If True, return the raw response.
 
-        :return: a tuple of (status, response or message) if raw_mode is False. Otherwise, return the raw response.
+        :return: Tuple (status, response or message) if raw_mode is False, otherwise raw response.
         """
+
+        if method not in ("GET", "POST", "UPLOAD"):
+            raise ValueError(f"Unsupported method: {method}")
+
         try:
             tmp_log = None
             if self.verbose:
-                tmp_log = self.make_logger(method_name="post_ssl")
-                if self.useInspect:
-                    tmp_exec = inspect.stack()[1][3]
-                    tmp_exec += "/"
+                tmp_log = self.make_logger(method_name=f"{method.lower()}_ssl")
                 tmp_exec = str(uuid.uuid4())
+
             if base_url is None:
-                base_url = harvester_config.pandacon.pandaURLSSL
+                base_url = harvester_config.pandacon.pandaURLSSL if method != "UPLOAD" else harvester_config.pandacon.pandaCacheURL_W
             url = f"{base_url}/{path}"
-            # get auth config
+
+            # Get authentication config
             auth_type, cert_file, key_file, ca_cert, auth_token = self.get_host_specific_auth_config(base_url)
+
             if self.verbose:
-                tmp_log.debug(f"exec={tmp_exec} URL={url} data={str(data)}")
+                tmp_log.debug(f"exec={tmp_exec} URL={url} data={str(data)} files={str(files)}")
+
             headers = {"Accept": "application/json", "Connection": "close"}
             if auth_type == "oidc":
                 self.renew_token()
@@ -203,70 +183,44 @@ class PandaCommunicator(BaseCommunicator):
             else:
                 if cert is None:
                     cert = (cert_file, key_file)
+
             session = get_http_adapter_with_random_dns_resolution()
             sw = core_utils.get_stopwatch()
-            res = session.post(url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
+
+            # Determine request type
+            if method == "GET":
+                # URL encoding
+                res = session.request(method, url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
+            elif method == "POST":
+                # JSON encoding in body
+                res = session.request(method, url, json=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
+            if method == "UPLOAD":
+                # Upload files
+                res = session.post(url, files=files, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
+
             if self.verbose:
                 tmp_log.debug(f"exec={tmp_exec} code={res.status_code} {sw.get_elapsed_time()}. return={res.text}")
+
             if raw_mode:
                 return res
+
             if res.status_code == 200:
                 return True, res
             else:
                 err_msg = f"StatusCode={res.status_code} {res.text}"
+
         except Exception:
             if raw_mode:
                 raise
             err_type, err_value = sys.exc_info()[:2]
-            err_msg = f"failed to post with {err_type}:{err_value} "
+            err_msg = f"failed to {method} with {err_type}:{err_value} "
             err_msg += traceback.format_exc()
+
         return False, err_msg
 
-    # POST a file with https
-    def post_file_ssl(self, path, files, cert=None, base_url=None):
-        try:
-            tmp_log = None
-            tmp_exec = None
-            if self.verbose:
-                tmp_log = self.make_logger(method_name="post_file_ssl")
-                if self.useInspect:
-                    tmp_exec = inspect.stack()[1][3]
-                    tmp_exec += "/"
-                tmp_exec = str(uuid.uuid4())
-            if base_url is None:
-                base_url = harvester_config.pandacon.pandaCacheURL_W
-            url = f"{base_url}/{path}"
-            # get auth config
-            auth_type, cert_file, key_file, ca_cert, auth_token = self.get_host_specific_auth_config(base_url)
-            if self.verbose:
-                tmp_log.debug(f"exec={tmp_exec} URL={url} files={files['file'][0]}")
-            if self.auth_type == "oidc":
-                self.renew_token()
-                cert = None
-                headers = dict()
-                headers["Authorization"] = f"Bearer {self.auth_token}"
-                headers["Origin"] = harvester_config.pandacon.auth_origin
-            else:
-                headers = None
-                if cert is None:
-                    cert = (cert_file, key_file)
-            session = get_http_adapter_with_random_dns_resolution()
-            res = session.post(url, files=files, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
-            if self.verbose:
-                tmp_log.debug(f"exec={tmp_exec} code={res.status_code} return={res.text}")
-            if res.status_code == 200:
-                return True, res
-            else:
-                err_msg = f"StatusCode={res.status_code} {res.text}"
-        except Exception:
-            err_type, err_value = sys.exc_info()[:2]
-            err_msg = f"failed to put with {err_type}:{err_value} "
-            err_msg += traceback.format_exc()
-        return False, err_msg
-
-    # check server
+    # check server, this method is only used for testing the connectivity
     def check_panda(self):
-        tmp_status, tmp_response = self.post_ssl("isAlive", {})
+        tmp_status, tmp_response = self.request_ssl("POST", "system/is_alive", {})
         if tmp_status:
             return tmp_status, tmp_response.status_code, tmp_response.text
         else:
@@ -274,7 +228,6 @@ class PandaCommunicator(BaseCommunicator):
 
     # get jobs
     def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs, additional_criteria):
-        # get logger
         tmp_log = self.make_logger(f"siteName={site_name}", method_name="get_jobs")
         tmp_log.debug(f"try to get {n_jobs} jobs")
         data = {
@@ -289,8 +242,8 @@ class PandaCommunicator(BaseCommunicator):
             for tmp_key, tmp_val in additional_criteria.items():
                 data[tmp_key] = tmp_val
         sw = core_utils.get_stopwatch()
-        tmp_status, tmp_response = self.post_ssl("getJob", data)
-        tmp_log.debug(f"getJob for {n_jobs} jobs {sw.get_elapsed_time()}")
+        tmp_status, tmp_response = self.request_ssl("POST", "pilot/acquire_jobs", data)
+        tmp_log.debug(f"get_jobs for {n_jobs} jobs {sw.get_elapsed_time()}")
         err_string = "OK"
         if tmp_status is False:
             err_string = core_utils.dump_error_message(tmp_log, tmp_response)
@@ -326,6 +279,7 @@ class PandaCommunicator(BaseCommunicator):
                     tmp_status = self.upload_checkpoint(jobSpec.jobParams["sourceURL"], jobSpec.taskID, jobSpec.PandaID, fileSpec.lfn, fileSpec.path)
                     if tmp_status:
                         fileSpec.status = "done"
+
         # update events
         for jobSpec in jobspec_list:
             event_ranges, event_specs = jobSpec.to_event_data(max_events=10000)
@@ -336,6 +290,7 @@ class PandaCommunicator(BaseCommunicator):
                     for event_spec, ret_value in zip(event_specs, tmp_ret["Returns"]):
                         if ret_value in [True, False] and event_spec.is_final_status():
                             event_spec.subStatus = "done"
+
         # update jobs in bulk
         n_lookup = 100
         i_lookup = 0
@@ -370,7 +325,8 @@ class PandaCommunicator(BaseCommunicator):
                 data_list.append(data)
             harvester_id = harvester_config.master.harvester_id
             tmp_data = {"jobList": json.dumps(data_list), "harvester_id": harvester_id}
-            tmp_status, tmp_response = self.post_ssl("updateJobsInBulk", tmp_data)
+
+            tmp_status, tmp_response = self.request_ssl("POST", "pilot/update_jobs_bulk", tmp_data)
             ret_maps = None
             err_string = ""
             if tmp_status is False:
@@ -388,6 +344,7 @@ class PandaCommunicator(BaseCommunicator):
                 ret_map["content"]["StatusCode"] = 999
                 ret_map["content"]["ErrorDiag"] = err_string
                 ret_maps = [json.dumps(ret_map)] * len(jobSpecSubList)
+
             for jobSpec, ret_map, data in zip(jobSpecSubList, ret_maps, data_list):
                 tmp_log = self.make_logger(f"id={id} PandaID={jobSpec.PandaID}", method_name="update_jobs")
                 try:
@@ -399,6 +356,7 @@ class PandaCommunicator(BaseCommunicator):
                 tmp_log.debug(f"done with {str(ret_map)}")
                 ret_list.append(ret_map)
             i_lookup += n_lookup
+
         tmp_log_g.debug("done" + sw.get_elapsed_time())
         return ret_list
 
@@ -411,7 +369,7 @@ class PandaCommunicator(BaseCommunicator):
         except Exception:
             getEventsChunkSize = 5120
         for pandaID, data in data_map.items():
-            # get logger
+
             tmp_log = self.make_logger(f"PandaID={data['pandaID']}", method_name="get_event_ranges")
             if "nRanges" in data:
                 n_ranges = data["nRanges"]
@@ -434,7 +392,7 @@ class PandaCommunicator(BaseCommunicator):
                 # use a small chunk size to avoid timeout
                 chunk_size = min(getEventsChunkSize, n_ranges)
                 data["nRanges"] = chunk_size
-                tmp_status, tmp_response = self.post_ssl("getEventRanges", data)
+                tmp_status, tmp_response = self.request_ssl("POST", "event/acquire_event_ranges", data)
                 if tmp_status is False:
                     core_utils.dump_error_message(tmp_log, tmp_response)
                 else:
@@ -502,7 +460,7 @@ class PandaCommunicator(BaseCommunicator):
         # update in panda
         data = {"eventRanges": json.dumps(event_ranges), "version": 1}
         tmp_log.debug(f"data={str(data)}")
-        tmp_status, tmp_response = self.post_ssl("updateEventRanges", data)
+        tmp_status, tmp_response = self.request_ssl("POST", "event/update_event_ranges", data)
         ret_map = None
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
@@ -519,10 +477,12 @@ class PandaCommunicator(BaseCommunicator):
     # get commands
     def get_commands(self, n_commands):
         harvester_id = harvester_config.master.harvester_id
+
         tmp_log = self.make_logger(f"harvesterID={harvester_id}", method_name="get_commands")
         tmp_log.debug(f"Start retrieving {n_commands} commands")
+
         data = {"harvester_id": harvester_id, "n_commands": n_commands}
-        tmp_stat, tmp_res = self.post_ssl("getCommands", data)
+        tmp_stat, tmp_res = self.request_ssl("POST", "harvester/get_commands", data)
         if tmp_stat is False:
             core_utils.dump_error_message(tmp_log, tmp_res)
         else:
@@ -539,10 +499,12 @@ class PandaCommunicator(BaseCommunicator):
     # send ACKs
     def ack_commands(self, command_ids):
         harvester_id = harvester_config.master.harvester_id
+
         tmp_log = self.make_logger(f"harvesterID={harvester_id}", method_name="ack_commands")
         tmp_log.debug(f"Start acknowledging {len(command_ids)} commands (command_ids={command_ids})")
+
         data = {"command_ids": json.dumps(command_ids)}
-        tmp_stat, tmp_res = self.post_ssl("ackCommands", data)
+        tmp_stat, tmp_res = self.request_ssl("POST", "harvester/acknowledge_commands", data)
         if tmp_stat is False:
             core_utils.dump_error_message(tmp_log, tmp_res)
         else:
@@ -560,11 +522,12 @@ class PandaCommunicator(BaseCommunicator):
     def get_proxy(self, voms_role, cert=None):
         ret_value = None
         ret_msg = ""
-        # get logger
+
         tmp_log = self.make_logger(method_name="get_proxy")
         tmp_log.debug("start")
+
         data = {"role": voms_role}
-        tmp_status, tmp_response = self.post_ssl("getProxy", data, cert)
+        tmp_status, tmp_response = self.request_ssl("POST", "credential/get_proxy", data, cert)
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
         else:
@@ -594,11 +557,11 @@ class PandaCommunicator(BaseCommunicator):
         """
         ret_val = None
         ret_msg = ""
-        # get logger
+
         tmp_log = self.make_logger(method_name="get_token_key")
         tmp_log.debug("start")
         data = {"client_name": client_name}
-        tmp_stat, tmp_res = self.post_ssl("get_token_key", data)
+        tmp_stat, tmp_res = self.request_ssl("POST", "credential/get_token_key", data)
         if tmp_stat is False:
             core_utils.dump_error_message(tmp_log, tmp_res)
         else:
@@ -621,10 +584,11 @@ class PandaCommunicator(BaseCommunicator):
     def get_resource_types(self):
         tmp_log = self.make_logger(method_name="get_resource_types")
         tmp_log.debug("Start retrieving resource types")
+
         data = {}
         ret_msg = ""
         ret_val = None
-        tmp_stat, tmp_res = self.post_ssl("getResourceTypes", data)
+        tmp_stat, tmp_res = self.request_ssl("POST", "metaconfig/get_resource_types", data)
         if tmp_stat is False:
             core_utils.dump_error_message(tmp_log, tmp_res)
         else:
@@ -646,7 +610,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log = self.make_logger(method_name="get_job_stats")
         tmp_log.debug("start")
 
-        tmp_stat, tmp_res = self.post_ssl("getJobStatisticsPerSite", {})
+        tmp_stat, tmp_res = self.request_ssl("POST", "statistics/active_job_stats_by_site", {})
         stats = {}
         if tmp_stat is False:
             ret_msg = "FAILED"
@@ -672,7 +636,7 @@ class PandaCommunicator(BaseCommunicator):
         data["harvesterID"] = harvester_config.master.harvester_id
         data["workers"] = json.dumps(data_list)
         tmp_log.debug(f"update {len(data_list)} workers")
-        tmp_status, tmp_response = self.post_ssl("updateWorkers", data)
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/update_workers", data)
         ret_list = None
         err_string = "OK"
         if tmp_status is False:
@@ -696,16 +660,18 @@ class PandaCommunicator(BaseCommunicator):
     def is_alive(self, key_values):
         tmp_log = self.make_logger(method_name="is_alive")
         tmp_log.debug("start")
+
         # convert datetime
         for tmp_key, tmp_val in key_values.items():
             if isinstance(tmp_val, datetime.datetime):
                 tmp_val = "datetime/" + tmp_val.strftime("%Y-%m-%d %H:%M:%S.%f")
                 key_values[tmp_key] = tmp_val
+
         # send data
         data = dict()
         data["harvesterID"] = harvester_config.master.harvester_id
         data["data"] = json.dumps(key_values)
-        tmp_status, tmp_response = self.post_ssl("harvesterIsAlive", data)
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/harvester_heartbeat", data)
         ret_code = False
         if tmp_status is False:
             tmp_str = core_utils.dump_error_message(tmp_log, tmp_response)
@@ -729,7 +695,7 @@ class PandaCommunicator(BaseCommunicator):
         data["siteName"] = site_name
         data["paramsList"] = json.dumps(stats)
         tmp_log.debug(f"update stats for {site_name}, stats: {stats}")
-        tmp_status, tmp_response = self.post_ssl("reportWorkerStats_jobtype", data)
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/report_worker_statistics", data)
         err_string = "OK"
         if tmp_status is False:
             err_string = core_utils.dump_error_message(tmp_log, tmp_response)
@@ -761,7 +727,7 @@ class PandaCommunicator(BaseCommunicator):
             i_lookup += n_lookup
             data = dict()
             data["ids"] = ",".join(ids)
-            tmp_status, tmp_response = self.post_ssl("checkJobStatus", data)
+            tmp_status, tmp_response = self.request_ssl("POST", "job/get_status", data)
             err_string = "OK"
             if tmp_status is False:
                 err_string = core_utils.dump_error_message(tmp_log, tmp_response)
@@ -792,7 +758,7 @@ class PandaCommunicator(BaseCommunicator):
         data = dict()
         data["publicKeyName"] = public_key_name
         data["privateKeyName"] = private_key_name
-        tmp_status, tmp_response = self.post_ssl("getKeyPair", data)
+        tmp_status, tmp_response = self.request_ssl("POST", "credential/get_key_pair", data)
         ret_map = None
         err_string = None
         if tmp_status is False:
@@ -816,7 +782,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"start for {file_name} {offset}:{read_bytes}")
         file_object.seek(offset)
         files = {"file": (file_name, zlib.compress(file_object.read(read_bytes)))}
-        tmp_status, tmp_response = self.post_file_ssl("updateLog", files)
+        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file/update_jedi_log", files)
         if tmp_status is False:
             err_string = core_utils.dump_error_message(tmp_log, tmp_response)
         else:
@@ -837,7 +803,7 @@ class PandaCommunicator(BaseCommunicator):
             data["jobsetID"] = jobspec.jobParams["jobsetID"]
         else:
             data["jobsetID"] = jobspec.jobsetID
-        tmp_status, tmp_response = self.post_ssl("checkEventsAvailability", data)
+        tmp_status, tmp_response = self.request_ssl("POST", "event/get_available_event_range_count", data)
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
         else:
@@ -862,7 +828,7 @@ class PandaCommunicator(BaseCommunicator):
         data["harvesterID"] = harvester_config.master.harvester_id
         data["dialogs"] = json.dumps(data_list)
         tmp_log.debug(f"send {len(data_list)} messages")
-        tmp_status, tmp_response = self.post_ssl("addHarvesterDialogs", data)
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/add_dialogs", data)
         err_string = "OK"
         if tmp_status is False:
             err_string = core_utils.dump_error_message(tmp_log, tmp_response)
@@ -888,7 +854,7 @@ class PandaCommunicator(BaseCommunicator):
         data["harvesterID"] = harvester_config.master.harvester_id
         data["metrics"] = json.dumps(service_metrics_list)
         tmp_log.debug("updating metrics...")
-        tmp_stat, tmp_res = self.post_ssl("updateServiceMetrics", data)
+        tmp_stat, tmp_res = self.request_ssl("POST", "harvester/update_service_metrics", data)
         err_str = "OK"
         if tmp_stat is False:
             err_str = core_utils.dump_error_message(tmp_log, tmp_res)
@@ -912,7 +878,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"start for {file_name}")
         try:
             files = {"file": (file_name, open(file_path).read())}
-            tmp_status, tmp_response = self.post_file_ssl("server/panda/put_checkpoint", files, base_url=base_url)
+            tmp_status, tmp_response = self.request_ssl("UPLOAD", "file/upload_hpo_checkpoint", files, base_url=base_url)
             if tmp_status is False:
                 core_utils.dump_error_message(tmp_log, tmp_response)
             else:
@@ -928,7 +894,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"start for ID={point_id}")
         try:
             path = f"cache/hpo_cp_{task_id}_{point_id}"
-            tmp_status, tmp_response = self.post_ssl(path, {}, base_url=base_url)
+            tmp_status, tmp_response = self.request_ssl("POST", path, {}, base_url=base_url)
             file_name = None
             if tmp_status is False:
                 core_utils.dump_error_message(tmp_log, tmp_response)
@@ -949,7 +915,7 @@ class PandaCommunicator(BaseCommunicator):
         data["task_id"] = task_id
         data["sub_id"] = point_id
         tmp_log.debug("start")
-        tmp_status, tmp_response = self.post_ssl("server/panda/delete_checkpoint", data, base_url=base_url)
+        tmp_status, tmp_response = self.request_ssl("POST", "file/delete_hpo_checkpoint", data, base_url=base_url)
         ret_map = None
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
@@ -968,7 +934,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log = self.make_logger(method_name="get_max_worker_id")
         tmp_log.debug("start")
         data = {"harvester_id": harvester_config.master.harvester_id}
-        ret_status, ret_value = self.post_ssl("get_max_worker_id", data)
+        ret_status, ret_value = self.request_ssl("POST", "harvester/get_current_worker_id", data)
         if ret_status is False:
             core_utils.dump_error_message(tmp_log, ret_value)
         else:
@@ -985,7 +951,7 @@ class PandaCommunicator(BaseCommunicator):
     def get_worker_stats_from_panda(self):
         tmp_log = self.make_logger(method_name="get_worker_stats_from_panda")
         tmp_log.debug("start")
-        tmp_stat, tmp_res = self.post_ssl("getWorkerStats", {})
+        tmp_stat, tmp_res = self.request_ssl("POST", "harvester/get_worker_statistics", {})
         stats = {}
         if tmp_stat is False:
             ret_msg = "FAILED"
