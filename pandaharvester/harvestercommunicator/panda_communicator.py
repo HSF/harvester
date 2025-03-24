@@ -165,7 +165,8 @@ class PandaCommunicator(BaseCommunicator):
                 tmp_exec = str(uuid.uuid4())
 
             if base_url is None:
-                base_url = harvester_config.pandacon.pandaURLSSL if method != "UPLOAD" else harvester_config.pandacon.pandaCacheURL_W
+                # Most operations go to PanDA server, except for file uploads that go to PanDA cache
+                base_url = harvester_config.pandacon.server_api_url_ssl if method != "UPLOAD" else harvester_config.pandacon.cache_api_url_ssl
             url = f"{base_url}/{path}"
 
             # Get authentication config
