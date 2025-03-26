@@ -227,9 +227,10 @@ class PandaCommunicator(BaseCommunicator):
                 key_values[tmp_key] = tmp_val
 
         # send data
-        data = dict()
-        data["harvesterID"] = harvester_config.master.harvester_id
-        data["data"] = json.dumps(key_values)
+        data = {
+            "harvester_id": harvester_config.master.harvester_id,
+            "data": json.dumps(key_values),
+        }
         tmp_status, tmp_response = self.request_ssl("POST", "harvester/heartbeat", data)
 
         # Communication issue
