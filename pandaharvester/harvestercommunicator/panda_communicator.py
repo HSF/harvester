@@ -212,7 +212,7 @@ class PandaCommunicator(BaseCommunicator):
 
     # check server, this method is only used for testing the connectivity
     def check_panda(self):
-        tmp_status, tmp_response = self.request_ssl("POST", "system/is_alive", {})
+        tmp_status, tmp_response = self.request_ssl("GET", "system/is_alive", {})
         return tmp_status, tmp_response
 
     # send heartbeat of harvester instance
@@ -557,7 +557,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"Start retrieving {n_commands} commands")
 
         data = {"harvester_id": harvester_id, "n_commands": n_commands}
-        tmp_status, tmp_response = self.request_ssl("POST", "harvester/get_commands", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "harvester/get_commands", data)
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
             return []
@@ -606,7 +606,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug("Start")
 
         data = {"role": voms_role}
-        tmp_status, tmp_response = self.request_ssl("POST", "credential/get_proxy", data, cert)
+        tmp_status, tmp_response = self.request_ssl("GET", "credential/get_proxy", data, cert)
 
         # Communication issue
         if tmp_status is False:
@@ -643,7 +643,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug("Start")
 
         data = {"client_name": client_name}
-        tmp_status, tmp_response = self.request_ssl("POST", "credential/get_token_key", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "credential/get_token_key", data)
 
         # Communication issue
         if tmp_status is False:
@@ -672,7 +672,7 @@ class PandaCommunicator(BaseCommunicator):
         data = {}
         ret_message = ""
         ret_value = None
-        tmp_status, tmp_response = self.request_ssl("POST", "metaconfig/get_resource_types", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "metaconfig/get_resource_types", data)
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
             return ret_value, ret_message
@@ -696,7 +696,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log = self.make_logger(method_name="get_job_stats")
         tmp_log.debug("Start")
 
-        tmp_status, tmp_response = self.request_ssl("POST", "statistics/active_job_stats_by_site", {})
+        tmp_status, tmp_response = self.request_ssl("GET", "statistics/active_job_stats_by_site", {})
         stats = {}
         ret_message = "FAILED"
 
@@ -813,7 +813,7 @@ class PandaCommunicator(BaseCommunicator):
             i_lookup += n_lookup
 
             data = {"job_ids": job_ids}
-            tmp_status, tmp_response = self.request_ssl("POST", "job/get_status", data)
+            tmp_status, tmp_response = self.request_ssl("GET", "job/get_status", data)
 
             err_string = "OK"
             job_statuses = []
@@ -857,7 +857,7 @@ class PandaCommunicator(BaseCommunicator):
             "private_key_name": private_key_name,
         }
 
-        tmp_status, tmp_response = self.request_ssl("POST", "credential/get_key_pair", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "credential/get_key_pair", data)
 
         key_pair = None
         err_string = None
@@ -913,7 +913,7 @@ class PandaCommunicator(BaseCommunicator):
             "task_id": jobspec.taskID,
         }
 
-        tmp_status, tmp_response = self.request_ssl("POST", "event/get_available_event_range_count", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "event/get_available_event_range_count", data)
 
         # Communication issue
         if tmp_status is False:
@@ -1065,7 +1065,7 @@ class PandaCommunicator(BaseCommunicator):
 
         data = {"harvester_id": harvester_config.master.harvester_id}
 
-        tmp_status, tmp_response = self.request_ssl("POST", "harvester/get_current_worker_id", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "harvester/get_current_worker_id", data)
 
         # Communication issue
         if tmp_status is False:
@@ -1088,7 +1088,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log = self.make_logger(method_name="get_worker_stats_from_panda")
         tmp_log.debug("Start")
 
-        tmp_status, tmp_response = self.request_ssl("POST", "harvester/get_worker_statistics", {})
+        tmp_status, tmp_response = self.request_ssl("GET", "harvester/get_worker_statistics", {})
 
         # Communication issue
         if tmp_status is False:
