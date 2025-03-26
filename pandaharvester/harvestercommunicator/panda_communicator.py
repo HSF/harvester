@@ -1038,57 +1038,70 @@ class PandaCommunicator(BaseCommunicator):
     # clear checkpoint
     def clear_checkpoint(self, base_url, task_id, point_id):
         tmp_log = self.make_logger(f"taskID={task_id} pointID={point_id}", method_name="clear_checkpoints")
-        data = dict()
-        data["task_id"] = task_id
-        data["sub_id"] = point_id
         tmp_log.debug("Start")
-        tmp_status, tmp_response = self.request_ssl("POST", "file/delete_hpo_checkpoint", data, base_url=base_url)
-        ret_map = None
-        if tmp_status is False:
-            core_utils.dump_error_message(tmp_log, tmp_response)
-        else:
-            try:
-                ret_map = tmp_response.json()
-            except Exception:
-                core_utils.dump_error_message(tmp_log)
-        if ret_map is None:
-            ret_map = {"StatusCode": 999}
-        tmp_log.debug(f"Done with {ret_map}")
-        return ret_map
 
-    # check event availability
+        data = {"task_id": task_id, "sub_id": point_id}
+
+        tmp_status, tmp_response = self.request_ssl("POST", "file/delete_hpo_checkpoint", data, base_url=base_url)
+
+        # Communication issue
+        if tmp_status is False:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        tmp_log.debug(f"Done with {tmp_success}:{tmp_message}")
+
+        return tmp_success, tmp_message
+
+    # get the current/max worker id
     def get_max_worker_id(self):
         tmp_log = self.make_logger(method_name="get_max_worker_id")
         tmp_log.debug("Start")
+
         data = {"harvester_id": harvester_config.master.harvester_id}
-        ret_status, ret_value = self.request_ssl("POST", "harvester/get_current_worker_id", data)
-        if ret_status is False:
-            core_utils.dump_error_message(tmp_log, ret_value)
-        else:
-            try:
-                ret_value = ret_value.json()
-            except Exception:
-                core_utils.dump_error_message(tmp_log, ret_value.text)
-                ret_status = False
-                ret_value = ret_value.text
-        tmp_log.debug(f"Done with {ret_status} {ret_value}")
-        return ret_status, ret_value
+
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/get_current_worker_id", data)
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, None
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        tmp_data = tmp_response.get("data")
+
+        # If there was a max worker id, return it. Otherwise return the error message
+        ret_value = tmp_data if tmp_data is not None else tmp_message
+
+        tmp_log.debug(f"Done with {tmp_success} {ret_value}")
+        return tmp_success, ret_value
 
     # get worker stats from PanDA
     def get_worker_stats_from_panda(self):
         tmp_log = self.make_logger(method_name="get_worker_stats_from_panda")
         tmp_log.debug("Start")
+
         tmp_status, tmp_response = self.request_ssl("POST", "harvester/get_worker_statistics", {})
-        stats = {}
+
+        # Communication issue
         if tmp_status is False:
-            ret_message = "FAILED"
-            core_utils.dump_error_message(tmp_log, tmp_response)
-        else:
-            try:
-                stats = tmp_response.json()
-                ret_message = "OK"
-            except Exception:
-                ret_message = "Exception"
-                core_utils.dump_error_message(tmp_log)
-        tmp_log.debug(f"Done with {ret_message} {stats}")
-        return stats, ret_message
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return {}, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        stats = tmp_response.get("data", {})
+
+        if not tmp_success:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_message)
+            return {}, ret_message
+
+        tmp_log.debug(f"Done with {stats}")
+        return stats, "OK"
