@@ -216,20 +216,20 @@ class PandaCommunicator(BaseCommunicator):
         return tmp_status, tmp_response
 
     # send heartbeat of harvester instance
-    def is_alive(self, key_values):
+    def is_alive(self, metadata_dictionary):
         tmp_log = self.make_logger(method_name="is_alive")
         tmp_log.debug("Start")
 
         # convert datetime
-        for tmp_key, tmp_val in key_values.items():
+        for tmp_key, tmp_val in metadata_dictionary.items():
             if isinstance(tmp_val, datetime.datetime):
                 tmp_val = "datetime/" + tmp_val.strftime("%Y-%m-%d %H:%M:%S.%f")
-                key_values[tmp_key] = tmp_val
+                metadata_dictionary[tmp_key] = tmp_val
 
         # send data
         data = {
             "harvester_id": harvester_config.master.harvester_id,
-            "data": json.dumps(key_values),
+            "data": metadata_dictionary,
         }
         tmp_status, tmp_response = self.request_ssl("POST", "harvester/heartbeat", data)
 
@@ -551,12 +551,10 @@ class PandaCommunicator(BaseCommunicator):
 
     # get commands
     def get_commands(self, n_commands):
-        harvester_id = harvester_config.master.harvester_id
-
         tmp_log = self.make_logger(method_name="get_commands")
         tmp_log.debug(f"Start retrieving {n_commands} commands")
 
-        data = {"harvester_id": harvester_id, "n_commands": n_commands}
+        data = {"harvester_id": harvester_config.master.harvester_id, "n_commands": n_commands}
         tmp_status, tmp_response = self.request_ssl("GET", "harvester/get_commands", data)
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
