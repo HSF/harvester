@@ -556,20 +556,24 @@ class PandaCommunicator(BaseCommunicator):
 
         data = {"harvester_id": harvester_config.master.harvester_id, "n_commands": n_commands}
         tmp_status, tmp_response = self.request_ssl("POST", "harvester/acquire_commands", data)
+
+        # Communication issue
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
             return []
 
-        try:
-            if not tmp_response["success"]:
-                return []
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
 
-            commands = tmp_response["data"]
-            return commands
-        except Exception:
-            core_utils.dump_error_message(tmp_log, tmp_response)
+        # Some issue on the server side
+        if not tmp_success:
+            core_utils.dump_error_message(tmp_log, tmp_message)
+            return []
 
-        return []
+        commands = tmp_response["data"]
+        tmp_log.debug(f"Done.")
+        return commands
 
     # send ACKs
     def ack_commands(self, command_ids):
