@@ -571,7 +571,7 @@ class PandaCommunicator(BaseCommunicator):
             core_utils.dump_error_message(tmp_log, tmp_message)
             return []
 
-        commands = tmp_response["data"]
+        commands = tmp_response.get("data", [])
         tmp_log.debug(f"Done.")
         return commands
 
