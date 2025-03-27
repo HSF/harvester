@@ -555,7 +555,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"Start retrieving {n_commands} commands")
 
         data = {"harvester_id": harvester_config.master.harvester_id, "n_commands": n_commands}
-        tmp_status, tmp_response = self.request_ssl("GET", "harvester/get_commands", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "harvester/acquire_commands", data)
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
             return []
