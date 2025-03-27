@@ -944,7 +944,7 @@ class PandaCommunicator(BaseCommunicator):
         for diagSpec in dialog_list:
             data_list.append(diagSpec.convert_to_propagate())
 
-        data = {"harvester_id": harvester_config.master.harvester_id, "dialogs": json.dumps(data_list)}
+        data = {"harvester_id": harvester_config.master.harvester_id, "dialogs": data_list}
 
         tmp_log.debug(f"Sending {len(data_list)} messages")
         tmp_status, tmp_response = self.request_ssl("POST", "harvester/add_dialogs", data)
