@@ -171,7 +171,7 @@ class PandaCommunicator(BaseCommunicator):
             if self.verbose:
                 tmp_log.debug(f"exec={tmp_exec} URL={url} data={data} files={files}")
 
-            headers = {"Accept": "application/json", "Connection": "close"}
+            headers = {"Accept": "application/json", "Connection": "close", "Content-Type": "application/json"}
             if auth_type == "oidc":
                 self.renew_token()
                 cert = None
