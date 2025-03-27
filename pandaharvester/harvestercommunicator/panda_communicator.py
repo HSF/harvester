@@ -967,7 +967,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log = self.make_logger(method_name="update_service_metrics")
         tmp_log.debug("Start")
 
-        data = {"harvester_id": harvester_config.master.harvester_id, "metrics": json.dumps(service_metrics_list)}
+        data = {"harvester_id": harvester_config.master.harvester_id, "metrics": service_metrics_list}
 
         tmp_log.debug("Updating metrics")
         tmp_status, tmp_response = self.request_ssl("POST", "harvester/update_service_metrics", data)
