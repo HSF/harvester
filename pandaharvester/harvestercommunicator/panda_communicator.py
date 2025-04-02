@@ -254,12 +254,12 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"try to get {n_jobs} jobs")
 
         data = {
-            "siteName": site_name,
+            "site_name": site_name,
             "node": node_name,
-            "prodSourceLabel": prod_source_label,
-            "computingElement": computing_element,
-            "nJobs": n_jobs,
-            "schedulerID": f"harvester-{harvester_config.master.harvester_id}",
+            "prod_source_label": prod_source_label,
+            "computing_element": computing_element,
+            "n_jobs": n_jobs,
+            "scheduler_id": f"harvester-{harvester_config.master.harvester_id}",
         }
         if additional_criteria:
             for tmp_key, tmp_val in additional_criteria.items():
