@@ -728,7 +728,7 @@ class PandaCommunicator(BaseCommunicator):
 
         data = {
             "harvester_id": harvester_config.master.harvester_id,
-            "workers": json.dumps(data_list),
+            "workers": data_list,
         }
 
         tmp_log.debug(f"Update {len(data_list)} workers")
