@@ -763,7 +763,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug("Start")
 
         data = {
-            "harvesterID": harvester_config.master.harvester_id,
+            "harvester_id": harvester_config.master.harvester_id,
             "siteName": site_name,
             "paramsList": json.dumps(stats),
         }
