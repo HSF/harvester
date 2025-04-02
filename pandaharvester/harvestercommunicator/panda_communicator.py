@@ -187,7 +187,7 @@ class PandaCommunicator(BaseCommunicator):
             # Determine request type
             if method == "GET":
                 # URL encoding
-                response = session.request(method, url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
+                response = session.request(method, url, params=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
             elif method == "POST":
                 # JSON encoding in body
                 response = session.request(method, url, json=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
