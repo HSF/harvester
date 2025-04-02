@@ -764,8 +764,8 @@ class PandaCommunicator(BaseCommunicator):
 
         data = {
             "harvester_id": harvester_config.master.harvester_id,
-            "siteName": site_name,
-            "paramsList": json.dumps(stats),
+            "panda_queue": site_name,
+            "statistics": json.dumps(stats),
         }
         tmp_log.debug(f"update stats for {site_name}, stats: {stats}")
         tmp_status, tmp_response = self.request_ssl("POST", "harvester/report_worker_statistics", data)
