@@ -901,7 +901,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_success = tmp_response.get("success", False)
         tmp_message = tmp_response.get("message")
 
-        tmp_log.debug(f"Got {tmp_success}:{tmp_message}")
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
         return tmp_success, tmp_message
 
     # check event availability
@@ -958,7 +958,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_success = tmp_response.get("success", False)
         tmp_message = tmp_response.get("message")
 
-        tmp_log.debug(f"Done with {tmp_success}:{tmp_message}")
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
 
         return tmp_success, tmp_message
 
@@ -981,7 +981,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_success = tmp_response.get("success", False)
         tmp_message = tmp_response.get("message")
 
-        tmp_log.debug(f"Done with {tmp_success}:{tmp_message}")
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
 
         return tmp_success, tmp_message
 
@@ -1002,7 +1002,7 @@ class PandaCommunicator(BaseCommunicator):
             else:  # Parse the response
                 tmp_success = tmp_response.get("success", False)
                 tmp_message = tmp_response.get("message")
-                tmp_log.debug(f"Got {tmp_success}:{tmp_message}")
+                (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
                 ret_status = tmp_success
 
             return ret_status
@@ -1056,7 +1056,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_success = tmp_response.get("success", False)
         tmp_message = tmp_response.get("message")
 
-        tmp_log.debug(f"Done with {tmp_success}:{tmp_message}")
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
 
         return tmp_success, tmp_message
 
@@ -1082,7 +1082,7 @@ class PandaCommunicator(BaseCommunicator):
         # If there was a max worker id, return it. Otherwise return the error message
         ret_value = tmp_data if tmp_data is not None else tmp_message
 
-        tmp_log.debug(f"Done with {tmp_success} {ret_value}")
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
         return tmp_success, ret_value
 
     # get worker stats from PanDA
