@@ -384,7 +384,7 @@ class PandaCommunicator(BaseCommunicator):
                 try:
                     tmp_status, ret_message, ret_maps = tmp_response["success"], tmp_response["message"], tmp_response["data"]
                     if tmp_status is False:
-                        tmp_logger.error(f"updateJobsInBulk failed with {ret_message} {ret_maps}")
+                        tmp_logger.error(f"failed with {ret_message} {ret_maps}")
                         ret_maps = None
                         error_message = ret_message
                 except Exception:

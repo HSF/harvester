@@ -415,60 +415,56 @@ class JobSpec(SpecBase):
             return data
         # extract only panda attributes
         # FIXME use set literal for python >=2.7
-        panda_attributes = [
-            "token",
-            "transExitCode",
-            "pilotErrorCode",
-            "pilotErrorDiag",
-            "timestamp",
-            "node",
-            "workdir",
-            "cpuConsumptionTime",
-            "cpuConsumptionUnit",
-            "remainingSpace",
-            "schedulerID",
-            "pilotID",
-            "siteName",
-            "messageLevel",
-            "pilotLog",
-            "cpuConversionFactor",
-            "exeErrorCode",
-            "exeErrorDiag",
-            "pilotTiming",
-            "computingElement",
-            "startTime",
-            "endTime",
-            "nEvents",
-            "nInputFiles",
-            "batchID",
-            "attemptNr",
-            "jobMetrics",
-            "stdout",
-            "coreCount",
-            "maxRSS",
-            "maxVMEM",
-            "maxSWAP",
-            "maxPSS",
-            "avgRSS",
-            "avgVMEM",
-            "avgSWAP",
-            "avgPSS",
-            "totRCHAR",
-            "totWCHAR",
-            "totRBYTES",
-            "totWBYTES",
-            "rateRCHAR",
-            "rateWCHAR",
-            "rateRBYTES",
-            "rateWBYTES",
-            "resourceType",
-        ]
-        panda_attributes = set(panda_attributes)
-        for aName, aValue in self.jobAttributes.items():
-            if aName in panda_attributes:
-                if type(aValue) in (int,):
-                    aValue = str(aValue)
-                data[aName] = aValue
+        panda_attributes = {
+            "token": "token",
+            "transExitCode": "trans_exit_code",
+            "pilotErrorCode": "pilot_error_code",
+            "pilotErrorDiag": "pilot_error_diag",
+            "node": "node",
+            "cpuConsumptionTime": "cpu_consumption_time",
+            "cpuConsumptionUnit": "cpu_consumption_unit",
+            "schedulerID": "scheduler_id",
+            "pilotID": "pilot_id",
+            "siteName": "site_name",
+            "pilotLog": "pilot_log",
+            "cpuConversionFactor": "cpu_conversion_factor",
+            "exeErrorCode": "exe_error_code",
+            "exeErrorDiag": "exe_error_diag",
+            "pilotTiming": "pilot_timing",
+            "computingElement": "computing_element",
+            "startTime": "start_time",
+            "endTime": "end_time",
+            "nEvents": "n_events",
+            "nInputFiles": "n_input_files",
+            "batchID": "batch_id",
+            "attemptNr": "attempt_nr",
+            "jobMetrics": "job_metrics",
+            "stdout": "stdout",
+            "coreCount": "core_count",
+            "maxRSS": "max_rss",
+            "maxVMEM": "max_vmem",
+            "maxSWAP": "max_swap",
+            "maxPSS": "max_pss",
+            "avgRSS": "avg_rss",
+            "avgVMEM": "avg_vmem",
+            "avgSWAP": "avg_swap",
+            "avgPSS": "avg_pss",
+            "totRCHAR": "tot_rchar",
+            "totWCHAR": "tot_wchar",
+            "totRBYTES": "tot_rbytes",
+            "totWBYTES": "tot_wbytes",
+            "rateRCHAR": "rate_rchar",
+            "rateWCHAR": "rate_wchar",
+            "rateRBYTES": "rate_rbytes",
+            "rateWBYTES": "rate_wbytes",
+        }
+
+        # filter job attributes expected in a job update
+        for job_attribute_name, job_attribute_value in self.jobAttributes.items():
+            if job_attribute_name in panda_attributes:
+                clean_attribute_name = panda_attributes[job_attribute_name]
+                data[clean_attribute_name] = job_attribute_value
+
         return data
 
     # get job status from attributes
