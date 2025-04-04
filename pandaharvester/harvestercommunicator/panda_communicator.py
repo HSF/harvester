@@ -422,34 +422,24 @@ class PandaCommunicator(BaseCommunicator):
 
         for panda_id, data in data_map.items():
             # job-specific logger
-            tmp_log = self.make_logger(f"PandaID={data['pandaID']}", method_name="get_event_ranges")
-            if "nRanges" in data:
-                n_ranges = data["nRanges"]
-            else:
-                n_ranges = 1
+            tmp_log = self.make_logger(f"PandaID={panda_id}", method_name="get_event_ranges")
+
+            is_hpo = data.get("isHPO", False)
+            source_url = data.get("sourceURL")
+            n_ranges = data.get("nRanges", 1)
+
+            data_request = {"job_id": panda_id, "task_id": data.get("taskID"), "jobset_id": data.get("jobsetID")}
 
             if scattered:
-                data["scattered"] = True
-
-            if "isHPO" in data:
-                is_hpo = data["isHPO"]
-                del data["isHPO"]
-            else:
-                is_hpo = False
-
-            if "sourceURL" in data:
-                source_url = data["sourceURL"]
-                del data["sourceURL"]
-            else:
-                source_url = None
+                data_request["scattered"] = True
 
             tmp_log.debug(f"Start n_ranges={n_ranges}")
 
             while n_ranges > 0:
                 # use a small chunk size to avoid timeout
                 chunk_size = min(default_chunk_size, n_ranges)
-                data["nRanges"] = chunk_size
-                tmp_status, tmp_response = self.request_ssl("POST", "event/acquire_event_ranges", data)
+                data_request["n_ranges"] = chunk_size
+                tmp_status, tmp_response = self.request_ssl("POST", "event/acquire_event_ranges", data_request)
 
                 # decrease the number of ranges
                 n_ranges -= chunk_size
@@ -464,10 +454,10 @@ class PandaCommunicator(BaseCommunicator):
                     tmp_dict = tmp_response["data"]
                     if tmp_dict["StatusCode"] == 0:
                         ret_status = True
-                        ret_value.setdefault(data["pandaID"], [])
+                        ret_value.setdefault(panda_id, [])
 
                         if not is_hpo:
-                            ret_value[data["pandaID"]] += tmp_dict["eventRanges"]
+                            ret_value[panda_id] += tmp_dict["eventRanges"]
                         else:
                             for event in tmp_dict["eventRanges"]:
                                 event_id = event["eventRangeID"]
@@ -481,10 +471,10 @@ class PandaCommunicator(BaseCommunicator):
 
                                     # get checkpoint
                                     if source_url:
-                                        tmp_so, tmp_oo = self.download_checkpoint(source_url, task_id, data["pandaID"], point_id, base_path)
+                                        tmp_so, tmp_oo = self.download_checkpoint(source_url, task_id, panda_id, point_id, base_path)
                                         if tmp_so:
                                             event["checkpoint"] = tmp_oo
-                                    ret_value[data["pandaID"]].append(event)
+                                    ret_value[panda_id].append(event)
                                 else:
                                     core_utils.dump_error_message(tmp_log, tmp_oi)
                         # got empty
