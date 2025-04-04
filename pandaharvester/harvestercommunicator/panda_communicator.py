@@ -608,7 +608,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug("Start")
 
         data = {"role": voms_role}
-        tmp_status, tmp_response = self.request_ssl("GET", "credential/get_proxy", data, cert)
+        tmp_status, tmp_response = self.request_ssl("GET", "creds/get_proxy", data, cert)
 
         # Communication issue
         if tmp_status is False:
@@ -645,7 +645,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug("Start")
 
         data = {"client_name": client_name}
-        tmp_status, tmp_response = self.request_ssl("GET", "credential/get_token_key", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "creds/get_token_key", data)
 
         # Communication issue
         if tmp_status is False:
@@ -859,7 +859,7 @@ class PandaCommunicator(BaseCommunicator):
             "private_key_name": private_key_name,
         }
 
-        tmp_status, tmp_response = self.request_ssl("GET", "credential/get_key_pair", data)
+        tmp_status, tmp_response = self.request_ssl("GET", "creds/get_key_pair", data)
 
         key_pair = None
         err_string = None
