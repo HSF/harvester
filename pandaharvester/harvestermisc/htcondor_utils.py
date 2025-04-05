@@ -151,7 +151,7 @@ def get_job_id_tuple_from_batchid(batchid):
 #     return ret_map
 
 
-def condor_submit_process(mp_queue, host, jdl_map_list):
+def condor_submit_process(mp_queue, host, jdl_map_list, tmp_log):
     """
     Function for new process to submit condor
     """
@@ -161,12 +161,12 @@ def condor_submit_process(mp_queue, host, jdl_map_list):
     # parse schedd and pool name
     condor_schedd, condor_pool = None, None
     if host in ("LOCAL", "None"):
-        tmpLog.debug(f"submissionHost is {host}, treated as local schedd. Skipped")
+        tmp_log.debug(f"submissionHost is {host}, treated as local schedd. Skipped")
     else:
         try:
             condor_schedd, condor_pool = host.split(",")[0:2]
         except ValueError:
-            tmpLog.error(f"Invalid submissionHost: {host} . Skipped")
+            tmp_log.error(f"Invalid submissionHost: {host} . Skipped")
     # get schedd
     try:
         if condor_pool:
@@ -814,7 +814,7 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
         jdl_map_list = [dict(htcondor.Submit(jdl).items()) for jdl in jdl_list]
         # Go
         mp_queue = multiprocessing.Queue()
-        mp_process = multiprocessing.Process(target=condor_submit_process, args=(mp_queue, self.submissionHost, jdl_map_list))
+        mp_process = multiprocessing.Process(target=condor_submit_process, args=(mp_queue, self.submissionHost, jdl_map_list, tmpLog))
         mp_process.daemon = True
         mp_process.start()
         (batchIDs_list, errStr) = mp_queue.get()
