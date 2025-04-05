@@ -85,7 +85,7 @@ class WorkerAdjuster(object):
                     if type(nCoreFactor) in [dict]:
                         ret_val = 1.0 / nCoreFactor.get(job_type, {}).get(resource_type, 1)
                     else:
-                        ret_val = 1.0 / nCoreFactor     # nCoreFactor is number
+                        ret_val = 1.0 / nCoreFactor  # nCoreFactor is number
         except Exception:
             pass
         tmp_log.debug(f"ret_val={ret_val}")
@@ -153,12 +153,17 @@ class WorkerAdjuster(object):
             for queue_name in static_num_workers:
                 # get queue
                 queue_config = self.queue_configMapper.get_queue(queue_name)
-                worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
+                worker_limits_dict = {}
+                worker_stats_map.setdefault("queue", {"n": 0, "core": 0, "mem": 0})
+                if queue_config:
+                    worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
+                else:
+                    tmp_log.warning("missing queue_config")
                 max_workers = worker_limits_dict.get("maxWorkers", 0)
                 n_queue_limit = worker_limits_dict.get("nQueueLimitWorker", 0)
                 n_queue_limit_per_rt = n_queue_limit
-                queue_limit_cores = worker_limits_dict["nQueueWorkerCores"]
-                queue_limit_memory = worker_limits_dict["nQueueWorkerMemory"]
+                queue_limit_cores = worker_limits_dict.get("nQueueWorkerCores")
+                queue_limit_memory = worker_limits_dict.get("nQueueWorkerMemory")
                 cores_queue = worker_stats_map["queue"]["core"]
                 memory_queue = worker_stats_map["queue"]["mem"]
                 n_queue_total, n_ready_total, n_running_total = 0, 0, 0
