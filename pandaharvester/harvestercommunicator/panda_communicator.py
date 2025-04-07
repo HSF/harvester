@@ -524,19 +524,25 @@ class PandaCommunicator(BaseCommunicator):
         tmp_status, tmp_response = self.request_ssl("POST", "event/update_event_ranges", data)
         ret_map = None
 
+        # Communication issue
         if tmp_status is False:
             core_utils.dump_error_message(tmp_log, tmp_response)
             return {"StatusCode": 999}
 
-        try:
-            ret_map = tmp_response["data"]
-        except Exception:
-            core_utils.dump_error_message(tmp_log)
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        ret_map = tmp_response.get("data")
+
+        # Check the success flag
+        if not tmp_success:
+            core_utils.dump_error_message(tmp_log, tmp_message)
+            return {"StatusCode": 999}
 
         if ret_map is None:
             ret_map = {"StatusCode": 999}
 
-        tmp_log.debug(f"Done updateEventRanges with {ret_map}")
+        tmp_log.debug(f"Done update_event_ranges with: {ret_map}")
         return ret_map
 
     # get commands
@@ -880,7 +886,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"Start for {file_name} {offset}:{read_bytes}")
         file_object.seek(offset)
         files = {"file": (file_name, zlib.compress(file_object.read(read_bytes)))}
-        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file/update_jedi_log", files)
+        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/update_jedi_log", files)
 
         # Communication issue
         if tmp_status is False:
@@ -984,7 +990,7 @@ class PandaCommunicator(BaseCommunicator):
 
         try:
             files = {"file": (file_name, open(file_path).read())}
-            tmp_status, tmp_response = self.request_ssl("UPLOAD", "file/upload_hpo_checkpoint", files, base_url=base_url)
+            tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_hpo_checkpoint", files, base_url=base_url)
 
             if tmp_status is False:  # Communication issue
                 core_utils.dump_error_message(tmp_log, tmp_response)
@@ -1035,7 +1041,7 @@ class PandaCommunicator(BaseCommunicator):
 
         data = {"task_id": task_id, "sub_id": point_id}
 
-        tmp_status, tmp_response = self.request_ssl("POST", "file/delete_hpo_checkpoint", data, base_url=base_url)
+        tmp_status, tmp_response = self.request_ssl("POST", "file_server/delete_hpo_checkpoint", data, base_url=base_url)
 
         # Communication issue
         if tmp_status is False:
