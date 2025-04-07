@@ -171,7 +171,7 @@ class PandaCommunicator(BaseCommunicator):
             if self.verbose:
                 tmp_log.debug(f"exec={tmp_exec} URL={url} data={data} files={files}")
 
-            headers = {"Accept": "application/json", "Connection": "close", "Content-Type": "application/json"}
+            headers = {"Accept": "application/json", "Connection": "close"}
             if auth_type == "oidc":
                 self.renew_token()
                 cert = None
@@ -190,6 +190,7 @@ class PandaCommunicator(BaseCommunicator):
                 response = session.request(method, url, params=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
             elif method == "POST":
                 # JSON encoding in body
+                headers["Content-Type"] = "application/json"
                 response = session.request(method, url, json=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
             if method == "UPLOAD":
                 # Upload files
@@ -886,6 +887,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"Start for {file_name} {offset}:{read_bytes}")
         file_object.seek(offset)
         files = {"file": (file_name, zlib.compress(file_object.read(read_bytes)))}
+
         tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_jedi_log", files)
 
         # Communication issue
