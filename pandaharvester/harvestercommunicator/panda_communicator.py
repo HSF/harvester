@@ -886,7 +886,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log.debug(f"Start for {file_name} {offset}:{read_bytes}")
         file_object.seek(offset)
         files = {"file": (file_name, zlib.compress(file_object.read(read_bytes)))}
-        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/update_jedi_log", files)
+        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_jedi_log", files)
 
         # Communication issue
         if tmp_status is False:
