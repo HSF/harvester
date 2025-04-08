@@ -888,7 +888,7 @@ class PandaCommunicator(BaseCommunicator):
         file_object.seek(offset)
         files = {"file": (file_name, zlib.compress(file_object.read(read_bytes)))}
 
-        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_jedi_log", files)
+        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_jedi_log", files=files)
 
         # Communication issue
         if tmp_status is False:
@@ -992,7 +992,7 @@ class PandaCommunicator(BaseCommunicator):
 
         try:
             files = {"file": (file_name, open(file_path).read())}
-            tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_hpo_checkpoint", files, base_url=base_url)
+            tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_hpo_checkpoint", files=files, base_url=base_url)
 
             if tmp_status is False:  # Communication issue
                 core_utils.dump_error_message(tmp_log, tmp_response)
