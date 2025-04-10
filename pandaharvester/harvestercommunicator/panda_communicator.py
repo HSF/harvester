@@ -402,7 +402,13 @@ class PandaCommunicator(BaseCommunicator):
             for job_spec, ret_map, job_dict in zip(jobspec_shard, ret_maps, job_list):
                 tmp_log = self.make_logger(f"id={id} PandaID={job_spec.PandaID}", method_name="update_jobs")
                 tmp_log.debug(f"job_dict={job_dict}")
-                tmp_log.debug(f"Done with {ret_map}")
+
+                try:
+                    tmp_success = ret_map.get("success", False)
+                except Exception:
+                    tmp_success = False
+                (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {ret_map}")
+
                 ret_list.append(ret_map)
 
             i_lookup += n_lookup
