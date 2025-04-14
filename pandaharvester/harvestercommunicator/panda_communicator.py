@@ -413,10 +413,8 @@ class PandaCommunicator(BaseCommunicator):
 
             # make a default map when the jobs could not be updated
             if ret_maps is None:
-                ret_map = {"content": {}}
-                ret_map["content"]["StatusCode"] = 999
-                ret_map["content"]["ErrorDiag"] = error_message
-                ret_maps = [json.dumps(ret_map)] * len(jobspec_shard)
+                ret_map = {"StatusCode": 999, "ErrorDiag": error_message}
+                ret_maps = [ret_map] * len(jobspec_shard)
 
             # iterate the results
             for job_spec, ret_map, job_dict in zip(jobspec_shard, ret_maps, job_list):
@@ -429,7 +427,13 @@ class PandaCommunicator(BaseCommunicator):
                     tmp_success = False
                 (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {ret_map}")
 
-                ret_list.append(ret_map)
+                # Get the status code and command from the API response
+                job_ret_map = ret_map.get("data")
+                job_message = ret_map.get("message")
+                if not job_ret_map:
+                    job_ret_map = {"StatusCode": 999, "ErrorDiag": job_message}
+
+                ret_list.append(job_ret_map)
 
             i_lookup += n_lookup
 
