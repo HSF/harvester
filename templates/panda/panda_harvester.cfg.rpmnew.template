@@ -146,9 +146,6 @@ auth_origin = FIXME
 
 # base URL via http
 pandaURL = http://pandaserver.cern.ch:25080/server/panda
-
-# base URL via https
-pandaURLSSL = https://pandaserver.cern.ch:25443/server/panda
 server_api_url = http://pandaserver.cern.ch:25080/api/v1
 
 # base URL via https

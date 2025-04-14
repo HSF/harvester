@@ -67,6 +67,26 @@ class PandaCommunicator(BaseCommunicator):
         else:
             self.ca_cert = False
 
+        # Generate the base URL for the server. Priority for new URL directly configured in pandacon, otherwise we try to generate it from the old config
+        if hasattr(harvester_config.pandacon, "server_api_url_ssl"):
+            self.server_base_path_ssl = harvester_config.pandacon.server_api_url_ssl
+        elif hasattr(harvester_config.pandacon, "pandaURLSSL"):
+            parsed = urlparse(harvester_config.pandacon.pandaURLSSL)
+            self.server_base_path_ssl = f"{parsed.scheme}://{parsed.netloc}/api/v1"
+        else:
+            # No configuration at all will lead to broken configuration
+            self.server_base_path_ssl = None
+
+        # Generate the base URL for the cache. Priority for new URL directly configured in pandacon, otherwise we try to generate it from the old config
+        if hasattr(harvester_config.pandacon, "cache_api_url_ssl"):
+            self.cache_base_path_ssl = harvester_config.pandacon.cache_api_url_ssl
+        elif hasattr(harvester_config.pandacon, "pandaCacheURL_W"):
+            parsed = urlparse(harvester_config.pandacon.pandaCacheURL_W)
+            self.cache_base_path_ssl = f"{parsed.scheme}://{parsed.netloc}/api/v1"
+        else:
+            # No configuration at all will lead to broken configuration
+            self.cache_base_path_ssl = None
+
         # multihost auth configuration
         self.multihost_auth_config = {}
         if hasattr(harvester_config.pandacon, "multihost_auth_config") and harvester_config.pandacon.multihost_auth_config:
@@ -162,7 +182,7 @@ class PandaCommunicator(BaseCommunicator):
 
             if base_url is None:
                 # Most operations go to PanDA server, except for file uploads that go to PanDA cache
-                base_url = harvester_config.pandacon.server_api_url_ssl if method != "UPLOAD" else harvester_config.pandacon.cache_api_url_ssl
+                base_url = self.server_base_path_ssl if method != "UPLOAD" else self.cache_base_path_ssl
             url = f"{base_url}/{path}"
 
             # Get authentication config
