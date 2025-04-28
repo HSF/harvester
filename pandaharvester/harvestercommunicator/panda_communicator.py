@@ -11,10 +11,8 @@ try:
 except Exception:
     pass
 import datetime
-import inspect
 import json
 import os
-import pickle
 import sys
 import traceback
 import uuid
@@ -28,6 +26,7 @@ try:
     requests.packages.urllib3.disable_warnings()
 except Exception:
     pass
+
 from pandacommon.pandautils.net_utils import get_http_adapter_with_random_dns_resolution
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -67,6 +66,27 @@ class PandaCommunicator(BaseCommunicator):
             self.ca_cert = harvester_config.pandacon.ca_cert
         else:
             self.ca_cert = False
+
+        # Generate the base URL for the server. Priority for new URL directly configured in pandacon, otherwise we try to generate it from the old config
+        if hasattr(harvester_config.pandacon, "server_api_url_ssl"):
+            self.server_base_path_ssl = harvester_config.pandacon.server_api_url_ssl
+        elif hasattr(harvester_config.pandacon, "pandaURLSSL"):
+            parsed = urlparse(harvester_config.pandacon.pandaURLSSL)
+            self.server_base_path_ssl = f"{parsed.scheme}://{parsed.netloc}/api/v1"
+        else:
+            # No configuration at all will lead to broken configuration
+            self.server_base_path_ssl = None
+
+        # Generate the base URL for the cache. Priority for new URL directly configured in pandacon, otherwise we try to generate it from the old config
+        if hasattr(harvester_config.pandacon, "cache_api_url_ssl"):
+            self.cache_base_path_ssl = harvester_config.pandacon.cache_api_url_ssl
+        elif hasattr(harvester_config.pandacon, "pandaCacheURL_W"):
+            parsed = urlparse(harvester_config.pandacon.pandaCacheURL_W)
+            self.cache_base_path_ssl = f"{parsed.scheme}://{parsed.netloc}/api/v1"
+        else:
+            # No configuration at all will lead to broken configuration
+            self.cache_base_path_ssl = None
+
         # multihost auth configuration
         self.multihost_auth_config = {}
         if hasattr(harvester_config.pandacon, "multihost_auth_config") and harvester_config.pandacon.multihost_auth_config:
@@ -75,6 +95,7 @@ class PandaCommunicator(BaseCommunicator):
                     self.multihost_auth_config = json.load(f)
             except Exception:
                 pass
+
         # mapping between base URL and host
         self.base_url_host_map = {}
         # renew token
@@ -136,61 +157,40 @@ class PandaCommunicator(BaseCommunicator):
         else:
             return self.auth_type, self.cert_file, self.key_file, self.ca_cert, self.auth_token
 
-    # POST with http
-    def post(self, path, data):
-        try:
-            tmpLog = None
-            if self.verbose:
-                tmpLog = self.make_logger(method_name="post")
-                if self.useInspect:
-                    tmpExec = inspect.stack()[1][3]
-                    tmpExec += "/"
-                tmpExec = str(uuid.uuid4())
-            url = f"{harvester_config.pandacon.pandaURL}/{path}"
-            if self.verbose:
-                tmpLog.debug(f"exec={tmpExec} URL={url} data={str(data)}")
-            session = get_http_adapter_with_random_dns_resolution()
-            res = session.post(url, data=data, headers={"Accept": "application/json", "Connection": "close"}, timeout=harvester_config.pandacon.timeout)
-            if self.verbose:
-                tmpLog.debug(f"exec={tmpExec} code={res.status_code} return={res.text}")
-            if res.status_code == 200:
-                return True, res
-            else:
-                errMsg = f"StatusCode={res.status_code} {res.text}"
-        except Exception:
-            errType, errValue = sys.exc_info()[:2]
-            errMsg = f"failed to post with {errType}:{errValue} "
-            errMsg += traceback.format_exc()
-        return False, errMsg
-
-    # POST with https
-    def post_ssl(self, path: str, data: dict, cert: tuple[str, str] = None, base_url: str = None, raw_mode: bool = False):
+    def request_ssl(self, method: str, path: str, data: dict = None, files: dict = None, cert: tuple[str, str] = None, base_url: str = None):
         """
-        POST with https
+        Generic HTTPS request function for GET, POST, and file uploads.
 
+        :param method: HTTP method ("GET", "POST", or "UPLOAD"). The method defines how the data is sent.
         :param path: URL path
-        :param data: query data
-        :param cert: a tuple of (certificate, key) for SSL. If None, use the default certificate and key.
-        :param base_url: base URL. If None, use the default base URL.
-        :param raw_mode: return the raw response if True
+        :param data: Query data for GET/POST.
+        :param files: Files to upload (for "UPLOAD" method).
+        :param cert: SSL certificate tuple (cert_file, key_file). Defaults to None (use system default).
+        :param base_url: Base URL. Defaults to None (use the default base URL).
 
-        :return: a tuple of (status, response or message) if raw_mode is False. Otherwise, return the raw response.
+        :return: Tuple (status, response or message).
         """
+
+        if method not in ("GET", "POST", "UPLOAD"):
+            raise ValueError(f"Unsupported method: {method}")
+
         try:
-            tmpLog = None
+            tmp_log = None
             if self.verbose:
-                tmpLog = self.make_logger(method_name="post_ssl")
-                if self.useInspect:
-                    tmpExec = inspect.stack()[1][3]
-                    tmpExec += "/"
-                tmpExec = str(uuid.uuid4())
+                tmp_log = self.make_logger(method_name=f"{method.lower()}_ssl")
+                tmp_exec = str(uuid.uuid4())
+
             if base_url is None:
-                base_url = harvester_config.pandacon.pandaURLSSL
+                # Most operations go to PanDA server, except for file uploads that go to PanDA cache
+                base_url = self.server_base_path_ssl if method != "UPLOAD" else self.cache_base_path_ssl
             url = f"{base_url}/{path}"
-            # get auth config
+
+            # Get authentication config
             auth_type, cert_file, key_file, ca_cert, auth_token = self.get_host_specific_auth_config(base_url)
+
             if self.verbose:
-                tmpLog.debug(f"exec={tmpExec} URL={url} data={str(data)}")
+                tmp_log.debug(f"exec={tmp_exec} URL={url} data={data} files={files}")
+
             headers = {"Accept": "application/json", "Connection": "close"}
             if auth_type == "oidc":
                 self.renew_token()
@@ -200,393 +200,461 @@ class PandaCommunicator(BaseCommunicator):
             else:
                 if cert is None:
                     cert = (cert_file, key_file)
+
             session = get_http_adapter_with_random_dns_resolution()
             sw = core_utils.get_stopwatch()
-            res = session.post(url, data=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
-            if self.verbose:
-                tmpLog.debug(f"exec={tmpExec} code={res.status_code} {sw.get_elapsed_time()}. return={res.text}")
-            if raw_mode:
-                return res
-            if res.status_code == 200:
-                return True, res
-            else:
-                errMsg = f"StatusCode={res.status_code} {res.text}"
-        except Exception:
-            if raw_mode:
-                raise
-            errType, errValue = sys.exc_info()[:2]
-            errMsg = f"failed to post with {errType}:{errValue} "
-            errMsg += traceback.format_exc()
-        return False, errMsg
 
-    # PUT with https
-    def put_ssl(self, path, files, cert=None, base_url=None):
-        try:
-            tmpLog = None
-            tmpExec = None
-            if self.verbose:
-                tmpLog = self.make_logger(method_name="put_ssl")
-                if self.useInspect:
-                    tmpExec = inspect.stack()[1][3]
-                    tmpExec += "/"
-                tmpExec = str(uuid.uuid4())
-            if base_url is None:
-                base_url = harvester_config.pandacon.pandaCacheURL_W
-            url = f"{base_url}/{path}"
-            # get auth config
-            auth_type, cert_file, key_file, ca_cert, auth_token = self.get_host_specific_auth_config(base_url)
-            if self.verbose:
-                tmpLog.debug(f"exec={tmpExec} URL={url} files={files['file'][0]}")
-            if self.auth_type == "oidc":
-                self.renew_token()
-                cert = None
-                headers = dict()
-                headers["Authorization"] = f"Bearer {self.auth_token}"
-                headers["Origin"] = harvester_config.pandacon.auth_origin
-            else:
-                headers = None
-                if cert is None:
-                    cert = (cert_file, key_file)
-            session = get_http_adapter_with_random_dns_resolution()
-            res = session.post(url, files=files, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
-            if self.verbose:
-                tmpLog.debug(f"exec={tmpExec} code={res.status_code} return={res.text}")
-            if res.status_code == 200:
-                return True, res
-            else:
-                errMsg = f"StatusCode={res.status_code} {res.text}"
-        except Exception:
-            errType, errValue = sys.exc_info()[:2]
-            errMsg = f"failed to put with {errType}:{errValue} "
-            errMsg += traceback.format_exc()
-        return False, errMsg
+            # Determine request type
+            if method == "GET":
+                # URL encoding
+                response = session.request(method, url, params=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
+            elif method == "POST":
+                # JSON encoding in body
+                headers["Content-Type"] = "application/json"
+                response = session.request(method, url, json=data, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
+            if method == "UPLOAD":
+                # Upload files
+                response = session.post(url, files=files, headers=headers, timeout=harvester_config.pandacon.timeout, verify=ca_cert, cert=cert)
 
-    # check server
+            if self.verbose:
+                tmp_log.debug(f"exec={tmp_exec} code={response.status_code} {sw.get_elapsed_time()}. return={response.text}")
+
+            if response.status_code == 200:
+                return True, response.json()
+            else:
+                err_msg = f"StatusCode={response.status_code} {response.text}"
+
+        except Exception:
+            err_type, err_value = sys.exc_info()[:2]
+            err_msg = f"failed to {method} with {err_type}:{err_value} "
+            err_msg += traceback.format_exc()
+
+        return False, err_msg
+
+    # check server, this method is only used for testing the connectivity
     def check_panda(self):
-        tmpStat, tmpRes = self.post_ssl("isAlive", {})
-        if tmpStat:
-            return tmpStat, tmpRes.status_code, tmpRes.text
-        else:
-            return tmpStat, tmpRes
+        tmp_status, tmp_response = self.request_ssl("GET", "system/is_alive", {})
+        return tmp_status, tmp_response
+
+    # send heartbeat of harvester instance
+    def is_alive(self, metadata_dictionary):
+        tmp_log = self.make_logger(method_name="is_alive")
+        tmp_log.debug("Start")
+
+        # convert datetime
+        for tmp_key, tmp_val in metadata_dictionary.items():
+            if isinstance(tmp_val, datetime.datetime):
+                tmp_val = "datetime/" + tmp_val.strftime("%Y-%m-%d %H:%M:%S.%f")
+                metadata_dictionary[tmp_key] = tmp_val
+
+        # send data
+        data = {
+            "harvester_id": harvester_config.master.harvester_id,
+            "data": metadata_dictionary,
+        }
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/heartbeat", data)
+
+        # Communication issue
+        if tmp_status is False:
+            tmp_str = core_utils.dump_error_message(tmp_log, tmp_response)
+            tmp_log.debug(f"Done with {tmp_status} : {tmp_str}")
+            return tmp_status, tmp_str
+
+        # We see what PanDA server replied
+        tmp_status = tmp_response["success"]
+        tmp_str = ""
+        if not tmp_status:
+            tmp_str = tmp_response["message"]
+
+        tmp_log.debug(f"Done with {tmp_status} : {tmp_str}")
+        return tmp_status, tmp_str
 
     # get jobs
     def get_jobs(self, site_name, node_name, prod_source_label, computing_element, n_jobs, additional_criteria):
-        # get logger
-        tmpLog = self.make_logger(f"siteName={site_name}", method_name="get_jobs")
-        tmpLog.debug(f"try to get {n_jobs} jobs")
-        data = {}
-        data["siteName"] = site_name
-        data["node"] = node_name
-        data["prodSourceLabel"] = prod_source_label
-        data["computingElement"] = computing_element
-        data["nJobs"] = n_jobs
-        data["schedulerID"] = f"harvester-{harvester_config.master.harvester_id}"
+        tmp_log = self.make_logger(f"siteName={site_name}", method_name="get_jobs")
+        tmp_log.debug(f"try to get {n_jobs} jobs")
+
+        data = {
+            "site_name": site_name,
+            "node": node_name,
+            "prod_source_label": prod_source_label,
+            "computing_element": computing_element,
+            "n_jobs": n_jobs,
+            "scheduler_id": f"harvester-{harvester_config.master.harvester_id}",
+        }
         if additional_criteria:
-            for tmpKey, tmpVal in additional_criteria.items():
-                data[tmpKey] = tmpVal
+            for tmp_key, tmp_val in additional_criteria.items():
+                data[tmp_key] = tmp_val
+
+        # Get the jobs from PanDA server and measure the time
         sw = core_utils.get_stopwatch()
-        tmpStat, tmpRes = self.post_ssl("getJob", data)
-        tmpLog.debug(f"getJob for {n_jobs} jobs {sw.get_elapsed_time()}")
-        errStr = "OK"
-        if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                tmpDict = tmpRes.json()
-                tmpLog.debug(f"StatusCode={tmpDict['StatusCode']}")
-                if tmpDict["StatusCode"] == 0:
-                    tmpLog.debug(f"got {len(tmpDict['jobs'])} jobs")
-                    return tmpDict["jobs"], errStr
-                else:
-                    if "errorDialog" in tmpDict:
-                        errStr = tmpDict["errorDialog"]
-                    else:
-                        errStr = f"StatusCode={tmpDict['StatusCode']}"
-                return [], errStr
-            except Exception:
-                errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        return [], errStr
+        tmp_status, tmp_response = self.request_ssl("POST", "pilot/acquire_jobs", data)
+        tmp_log.debug(f"get_jobs for {n_jobs} jobs {sw.get_elapsed_time()}")
+
+        # Communication issue
+        if tmp_status is False:
+            err_string = core_utils.dump_error_message(tmp_log, tmp_response)
+            return [], err_string
+
+        # Parse the response
+        err_string = "OK"
+        try:
+            tmp_dict = tmp_response["data"]
+            tmp_log.debug(f"StatusCode={tmp_dict['StatusCode']}")
+            if tmp_dict["StatusCode"] == 0:
+                tmp_log.debug(f"got {len(tmp_dict['jobs'])} jobs")
+                return tmp_dict["jobs"], err_string
+
+            if "errorDialog" in tmp_dict:
+                err_string = tmp_dict["errorDialog"]
+            else:
+                err_string = f"StatusCode={tmp_dict['StatusCode']}"
+            return [], err_string
+        except Exception:
+            err_string = core_utils.dump_error_message(tmp_log, tmp_response["message"])
+
+        return [], err_string
 
     # update jobs
     def update_jobs(self, jobspec_list, id):
         sw = core_utils.get_stopwatch()
-        tmpLogG = self.make_logger(f"id={id}", method_name="update_jobs")
-        tmpLogG.debug(f"update {len(jobspec_list)} jobs")
-        retList = []
+        tmp_logger = self.make_logger(f"id={id}", method_name="update_jobs")
+        tmp_logger.debug(f"update {len(jobspec_list)} jobs")
+        ret_list = []
+
+        # TODO: check these work OK after the API migration
         # upload checkpoints
         for jobSpec in jobspec_list:
             if jobSpec.outFiles:
-                tmpLogG.debug(f"upload {len(jobSpec.outFiles)} checkpoint files for PandaID={jobSpec.PandaID}")
+                tmp_logger.debug(f"upload {len(jobSpec.outFiles)} checkpoint files for PandaID={jobSpec.PandaID}")
             for fileSpec in jobSpec.outFiles:
                 if "sourceURL" in jobSpec.jobParams:
-                    tmpS = self.upload_checkpoint(jobSpec.jobParams["sourceURL"], jobSpec.taskID, jobSpec.PandaID, fileSpec.lfn, fileSpec.path)
-                    if tmpS:
+                    tmp_status = self.upload_checkpoint(jobSpec.jobParams["sourceURL"], jobSpec.taskID, jobSpec.PandaID, fileSpec.lfn, fileSpec.path)
+                    if tmp_status:
                         fileSpec.status = "done"
+
+        # TODO: check these work OK after the API migration
         # update events
         for jobSpec in jobspec_list:
-            eventRanges, eventSpecs = jobSpec.to_event_data(max_events=10000)
-            if eventRanges != []:
-                tmpLogG.debug(f"update {len(eventSpecs)} events for PandaID={jobSpec.PandaID}")
-                tmpRet = self.update_event_ranges(eventRanges, tmpLogG)
-                if tmpRet["StatusCode"] == 0:
-                    for eventSpec, retVal in zip(eventSpecs, tmpRet["Returns"]):
-                        if retVal in [True, False] and eventSpec.is_final_status():
-                            eventSpec.subStatus = "done"
+            event_ranges, event_specs = jobSpec.to_event_data(max_events=10000)
+            if event_ranges != []:
+                tmp_logger.debug(f"update {len(event_specs)} events for PandaID={jobSpec.PandaID}")
+                tmp_ret = self.update_event_ranges(event_ranges, tmp_logger)
+                if tmp_ret["StatusCode"] == 0:
+                    for event_spec, ret_value in zip(event_specs, tmp_ret["Returns"]):
+                        if ret_value in [True, False] and event_spec.is_final_status():
+                            event_spec.subStatus = "done"
+
         # update jobs in bulk
-        nLookup = 100
-        iLookup = 0
-        while iLookup < len(jobspec_list):
-            dataList = []
-            jobSpecSubList = jobspec_list[iLookup : iLookup + nLookup]
-            for jobSpec in jobSpecSubList:
-                data = jobSpec.get_job_attributes_for_panda()
-                data["jobId"] = jobSpec.PandaID
-                data["siteName"] = jobSpec.computingSite
-                data["state"] = jobSpec.get_status()
-                data["attemptNr"] = jobSpec.attemptNr
-                data["jobSubStatus"] = jobSpec.subStatus
-                # change cancelled to failed to be accepted by panda server
-                if data["state"] in ["cancelled", "missed"]:
-                    if jobSpec.is_pilot_closed():
-                        data["jobSubStatus"] = "pilot_closed"
+        n_lookup = 100
+        i_lookup = 0
+        while i_lookup < len(jobspec_list):
+
+            # break down the jobspec_list into chunks of n_lookup
+            job_list = []
+            jobspec_shard = jobspec_list[i_lookup : i_lookup + n_lookup]
+            for job_spec in jobspec_shard:
+
+                # pre-fill job data
+                # TODO: this function needs to be reviewed, since now we changed the names
+                job_dict = job_spec.get_job_attributes_for_panda()
+
+                # basic fields
+                job_dict["job_id"] = job_spec.PandaID
+                job_dict["site_name"] = job_spec.computingSite
+                job_dict["job_status"] = job_spec.get_status()
+                job_dict["job_sub_status"] = job_spec.subStatus
+                job_dict["attempt_nr"] = job_spec.attemptNr
+
+                # change cancelled/missed to failed to be accepted by panda server
+                if job_dict["job_status"] in ["cancelled", "missed"]:
+                    if job_spec.is_pilot_closed():
+                        job_dict["job_sub_status"] = "pilot_closed"
                     else:
-                        data["jobSubStatus"] = data["state"]
-                    data["state"] = "failed"
-                if jobSpec.startTime is not None and "startTime" not in data:
-                    data["startTime"] = jobSpec.startTime.strftime("%Y-%m-%d %H:%M:%S")
-                if jobSpec.endTime is not None and "endTime" not in data:
-                    data["endTime"] = jobSpec.endTime.strftime("%Y-%m-%d %H:%M:%S")
-                if "coreCount" not in data and jobSpec.nCore is not None:
-                    data["coreCount"] = jobSpec.nCore
-                if jobSpec.is_final_status() and jobSpec.status == jobSpec.get_status():
-                    if jobSpec.metaData is not None:
-                        data["metaData"] = json.dumps(jobSpec.metaData)
-                    if jobSpec.outputFilesToReport is not None:
-                        data["xml"] = jobSpec.outputFilesToReport
-                dataList.append(data)
-            harvester_id = harvester_config.master.harvester_id
-            tmpData = {"jobList": json.dumps(dataList), "harvester_id": harvester_id}
-            tmpStat, tmpRes = self.post_ssl("updateJobsInBulk", tmpData)
-            retMaps = None
-            errStr = ""
-            if tmpStat is False:
-                errStr = core_utils.dump_error_message(tmpLogG, tmpRes)
+                        job_dict["job_sub_status"] = job_dict["job_status"]
+                    job_dict["job_status"] = "failed"
+
+                if job_spec.startTime is not None and "startTime" not in job_dict:
+                    job_dict["start_time"] = job_spec.startTime.strftime("%Y-%m-%d %H:%M:%S")
+                if job_spec.endTime is not None and "endTime" not in job_dict:
+                    job_dict["end_time"] = job_spec.endTime.strftime("%Y-%m-%d %H:%M:%S")
+
+                if "core_count" not in job_dict and job_spec.nCore is not None:
+                    job_dict["core_count"] = job_spec.nCore
+
+                # for jobs in final status we upload metadata and the job output report
+                if job_spec.is_final_status() and job_spec.status == job_spec.get_status():
+                    if job_spec.metaData is not None:
+                        job_dict["meta_data"] = json.dumps(job_spec.metaData)
+                    if job_spec.outputFilesToReport is not None:
+                        job_dict["job_output_report"] = job_spec.outputFilesToReport
+
+                job_list.append(job_dict)
+
+            # data dictionary to be sent to PanDA server
+            data = {"job_list": job_list}
+
+            tmp_status, tmp_response = self.request_ssl("POST", "pilot/update_jobs_bulk", data)
+            ret_maps = None
+
+            # Communication issue
+            error_message = ""
+            if tmp_status is False:
+                error_message = core_utils.dump_error_message(tmp_logger, tmp_response)
             else:
                 try:
-                    tmpStat, retMaps = tmpRes.json()
-                    if tmpStat is False:
-                        tmpLogG.error(f"updateJobsInBulk failed with {retMaps}")
-                        retMaps = None
+                    tmp_status, ret_message, ret_maps = tmp_response["success"], tmp_response["message"], tmp_response["data"]
+                    if tmp_status is False:
+                        tmp_logger.error(f"failed with {ret_message} {ret_maps}")
+                        ret_maps = None
+                        error_message = ret_message
                 except Exception:
-                    errStr = core_utils.dump_error_message(tmpLogG)
-            if retMaps is None:
-                retMap = {}
-                retMap["content"] = {}
-                retMap["content"]["StatusCode"] = 999
-                retMap["content"]["ErrorDiag"] = errStr
-                retMaps = [json.dumps(retMap)] * len(jobSpecSubList)
-            for jobSpec, retMap, data in zip(jobSpecSubList, retMaps, dataList):
-                tmpLog = self.make_logger(f"id={id} PandaID={jobSpec.PandaID}", method_name="update_jobs")
+                    error_message = core_utils.dump_error_message(tmp_logger)
+
+            # make a default map when the jobs could not be updated
+            if ret_maps is None:
+                ret_map = {"StatusCode": 999, "ErrorDiag": error_message}
+                ret_maps = [ret_map] * len(jobspec_shard)
+
+            # iterate the results
+            for job_spec, ret_map, job_dict in zip(jobspec_shard, ret_maps, job_list):
+                tmp_log = self.make_logger(f"id={id} PandaID={job_spec.PandaID}", method_name="update_jobs")
+                tmp_log.debug(f"job_dict={job_dict}")
+
                 try:
-                    retMap = json.loads(retMap["content"])
+                    tmp_success = ret_map.get("success", False)
                 except Exception:
-                    errStr = f"failed to json_load {str(retMap)}"
-                    retMap = {}
-                    retMap["StatusCode"] = 999
-                    retMap["ErrorDiag"] = errStr
-                tmpLog.debug(f"data={str(data)}")
-                tmpLog.debug(f"done with {str(retMap)}")
-                retList.append(retMap)
-            iLookup += nLookup
-        tmpLogG.debug("done" + sw.get_elapsed_time())
-        return retList
+                    tmp_success = False
+                (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {ret_map}")
+
+                # Get the status code and command from the API response
+                job_ret_map = ret_map.get("data")
+                job_message = ret_map.get("message")
+                if not job_ret_map:
+                    job_ret_map = {"StatusCode": 999, "ErrorDiag": job_message}
+
+                ret_list.append(job_ret_map)
+
+            i_lookup += n_lookup
+
+        tmp_logger.debug(f"Done. Took {sw.get_elapsed_time()} seconds")
+        return ret_list
 
     # get events
     def get_event_ranges(self, data_map, scattered, base_path):
-        retStat = False
-        retVal = dict()
+        ret_status = False
+        ret_value = dict()
+
+        # define the chunk size
         try:
-            getEventsChunkSize = harvester_config.pandacon.getEventsChunkSize
+            default_chunk_size = harvester_config.pandacon.getEventsChunkSize
         except Exception:
-            getEventsChunkSize = 5120
-        for pandaID, data in data_map.items():
-            # get logger
-            tmpLog = self.make_logger(f"PandaID={data['pandaID']}", method_name="get_event_ranges")
-            if "nRanges" in data:
-                nRanges = data["nRanges"]
-            else:
-                nRanges = 1
+            default_chunk_size = 5120
+
+        for panda_id, data in data_map.items():
+            # job-specific logger
+            tmp_log = self.make_logger(f"PandaID={panda_id}", method_name="get_event_ranges")
+
+            is_hpo = data.get("isHPO", False)
+            source_url = data.get("sourceURL")
+            n_ranges = data.get("nRanges", 1)
+
+            data_request = {"job_id": panda_id, "task_id": data.get("taskID"), "jobset_id": data.get("jobsetID")}
+
             if scattered:
-                data["scattered"] = True
-            if "isHPO" in data:
-                isHPO = data["isHPO"]
-                del data["isHPO"]
-            else:
-                isHPO = False
-            if "sourceURL" in data:
-                sourceURL = data["sourceURL"]
-                del data["sourceURL"]
-            else:
-                sourceURL = None
-            tmpLog.debug(f"start nRanges={nRanges}")
-            while nRanges > 0:
+                data_request["scattered"] = True
+
+            tmp_log.debug(f"Start n_ranges={n_ranges}")
+
+            while n_ranges > 0:
                 # use a small chunk size to avoid timeout
-                chunkSize = min(getEventsChunkSize, nRanges)
-                data["nRanges"] = chunkSize
-                tmpStat, tmpRes = self.post_ssl("getEventRanges", data)
-                if tmpStat is False:
-                    core_utils.dump_error_message(tmpLog, tmpRes)
-                else:
-                    try:
-                        tmpDict = tmpRes.json()
-                        if tmpDict["StatusCode"] == 0:
-                            retStat = True
-                            retVal.setdefault(data["pandaID"], [])
-                            if not isHPO:
-                                retVal[data["pandaID"]] += tmpDict["eventRanges"]
-                            else:
-                                for event in tmpDict["eventRanges"]:
-                                    event_id = event["eventRangeID"]
-                                    task_id = event_id.split("-")[0]
-                                    point_id = event_id.split("-")[3]
-                                    # get HP point
-                                    tmpSI, tmpOI = idds_utils.get_hp_point(harvester_config.pandacon.iddsURL, task_id, point_id, tmpLog, self.verbose)
-                                    if tmpSI:
-                                        event["hp_point"] = tmpOI
-                                        # get checkpoint
-                                        if sourceURL:
-                                            tmpSO, tmpOO = self.download_checkpoint(sourceURL, task_id, data["pandaID"], point_id, base_path)
-                                            if tmpSO:
-                                                event["checkpoint"] = tmpOO
-                                        retVal[data["pandaID"]].append(event)
-                                    else:
-                                        core_utils.dump_error_message(tmpLog, tmpOI)
-                            # got empty
-                            if len(tmpDict["eventRanges"]) == 0:
-                                break
-                    except Exception:
-                        core_utils.dump_error_message(tmpLog)
-                        break
-                nRanges -= chunkSize
-            tmpLog.debug(f"done with {str(retVal)}")
-        return retStat, retVal
+                chunk_size = min(default_chunk_size, n_ranges)
+                data_request["n_ranges"] = chunk_size
+                tmp_status, tmp_response = self.request_ssl("POST", "event/acquire_event_ranges", data_request)
+
+                # decrease the number of ranges
+                n_ranges -= chunk_size
+
+                # communication error
+                if tmp_status is False:
+                    core_utils.dump_error_message(tmp_log, tmp_response)
+                    continue
+
+                # communication with PanDA server was OK
+                try:
+                    tmp_dict = tmp_response["data"]
+                    if tmp_dict["StatusCode"] == 0:
+                        ret_status = True
+                        ret_value.setdefault(panda_id, [])
+
+                        if not is_hpo:
+                            ret_value[panda_id] += tmp_dict["eventRanges"]
+                        else:
+                            for event in tmp_dict["eventRanges"]:
+                                event_id = event["eventRangeID"]
+                                task_id = event_id.split("-")[0]
+                                point_id = event_id.split("-")[3]
+
+                                # get HP point
+                                tmp_si, tmp_oi = idds_utils.get_hp_point(harvester_config.pandacon.iddsURL, task_id, point_id, tmp_log, self.verbose)
+                                if tmp_si:
+                                    event["hp_point"] = tmp_oi
+
+                                    # get checkpoint
+                                    if source_url:
+                                        tmp_so, tmp_oo = self.download_checkpoint(source_url, task_id, panda_id, point_id, base_path)
+                                        if tmp_so:
+                                            event["checkpoint"] = tmp_oo
+                                    ret_value[panda_id].append(event)
+                                else:
+                                    core_utils.dump_error_message(tmp_log, tmp_oi)
+                        # got empty
+                        if len(tmp_dict["eventRanges"]) == 0:
+                            break
+                except Exception:
+                    core_utils.dump_error_message(tmp_log)
+                    break
+
+            tmp_log.debug(f"Done with {ret_value}")
+
+        return ret_status, ret_value
 
     # update events
     def update_event_ranges(self, event_ranges, tmp_log):
-        tmp_log.debug("start update_event_ranges")
+        # We are already receiving a tagged logger, no need to do a new one
+        tmp_log.debug("Start update_event_ranges")
 
         # loop over for HPO
         for item in event_ranges:
             new_event_ranges = []
             for event in item["eventRanges"]:
+
                 # report loss to idds
                 if "loss" in event:
                     event_id = event["eventRangeID"]
                     task_id = event_id.split("-")[0]
                     point_id = event_id.split("-")[3]
-                    tmpSI, tmpOI = idds_utils.update_hp_point(harvester_config.pandacon.iddsURL, task_id, point_id, event["loss"], tmp_log, self.verbose)
-                    if not tmpSI:
-                        core_utils.dump_error_message(tmp_log, tmpOI)
+                    tmp_si, tmp_oi = idds_utils.update_hp_point(harvester_config.pandacon.iddsURL, task_id, point_id, event["loss"], tmp_log, self.verbose)
+                    if not tmp_si:
+                        core_utils.dump_error_message(tmp_log, tmp_oi)
                         tmp_log.error(f"skip {event_id} since cannot update iDDS")
                         continue
                     else:
                         # clear checkpoint
                         if "sourceURL" in item:
-                            tmpSC, tmpOC = self.clear_checkpoint(item["sourceURL"], task_id, point_id)
-                            if not tmpSC:
-                                core_utils.dump_error_message(tmp_log, tmpOC)
+                            tmp_sc, tmp_oc = self.clear_checkpoint(item["sourceURL"], task_id, point_id)
+                            if not tmp_sc:
+                                core_utils.dump_error_message(tmp_log, tmp_oc)
                     del event["loss"]
                 new_event_ranges.append(event)
             item["eventRanges"] = new_event_ranges
+
         # update in panda
-        data = {}
-        data["eventRanges"] = json.dumps(event_ranges)
-        data["version"] = 1
-        tmp_log.debug(f"data={str(data)}")
-        tmpStat, tmpRes = self.post_ssl("updateEventRanges", data)
-        retMap = None
-        if tmpStat is False:
-            core_utils.dump_error_message(tmp_log, tmpRes)
-        else:
-            try:
-                retMap = tmpRes.json()
-            except Exception:
-                core_utils.dump_error_message(tmp_log)
-        if retMap is None:
-            retMap = {}
-            retMap["StatusCode"] = 999
-        tmp_log.debug(f"done updateEventRanges with {str(retMap)}")
-        return retMap
+        data = {"event_ranges": json.dumps(event_ranges), "version": 1}
+        tmp_log.debug(f"data={data}")
+        tmp_status, tmp_response = self.request_ssl("POST", "event/update_event_ranges", data)
+        ret_map = None
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return {"StatusCode": 999}
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        ret_map = tmp_response.get("data")
+
+        # Check the success flag
+        if not tmp_success:
+            core_utils.dump_error_message(tmp_log, tmp_message)
+            return {"StatusCode": 999}
+
+        if ret_map is None:
+            ret_map = {"StatusCode": 999}
+
+        tmp_log.debug(f"Done update_event_ranges with: {ret_map}")
+        return ret_map
 
     # get commands
     def get_commands(self, n_commands):
-        harvester_id = harvester_config.master.harvester_id
-        tmpLog = self.make_logger(f"harvesterID={harvester_id}", method_name="get_commands")
-        tmpLog.debug(f"Start retrieving {n_commands} commands")
-        data = {}
-        data["harvester_id"] = harvester_id
-        data["n_commands"] = n_commands
-        tmp_stat, tmp_res = self.post_ssl("getCommands", data)
-        if tmp_stat is False:
-            core_utils.dump_error_message(tmpLog, tmp_res)
-        else:
-            try:
-                tmp_dict = tmp_res.json()
-                if tmp_dict["StatusCode"] == 0:
-                    tmpLog.debug(f"Commands {tmp_dict['Commands']}")
-                    return tmp_dict["Commands"]
-                return []
-            except Exception:
-                core_utils.dump_error_message(tmpLog, tmp_res)
-        return []
+        tmp_log = self.make_logger(method_name="get_commands")
+        tmp_log.debug(f"Start retrieving {n_commands} commands")
+
+        data = {"harvester_id": harvester_config.master.harvester_id, "n_commands": n_commands}
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/acquire_commands", data)
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return []
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        # Some issue on the server side
+        if not tmp_success:
+            core_utils.dump_error_message(tmp_log, tmp_message)
+            return []
+
+        commands = tmp_response.get("data", [])
+        tmp_log.debug(f"Done.")
+        return commands
 
     # send ACKs
     def ack_commands(self, command_ids):
-        harvester_id = harvester_config.master.harvester_id
-        tmpLog = self.make_logger(f"harvesterID={harvester_id}", method_name="ack_commands")
-        tmpLog.debug(f"Start acknowledging {len(command_ids)} commands (command_ids={command_ids})")
-        data = {}
-        data["command_ids"] = json.dumps(command_ids)
-        tmp_stat, tmp_res = self.post_ssl("ackCommands", data)
-        if tmp_stat is False:
-            core_utils.dump_error_message(tmpLog, tmp_res)
-        else:
-            try:
-                tmp_dict = tmp_res.json()
-                if tmp_dict["StatusCode"] == 0:
-                    tmpLog.debug("Finished acknowledging commands")
-                    return True
-                return False
-            except Exception:
-                core_utils.dump_error_message(tmpLog, tmp_res)
-        return False
+        tmp_log = self.make_logger(method_name="ack_commands")
+        tmp_log.debug(f"Start acknowledging {len(command_ids)} commands (command_ids={command_ids})")
+
+        data = {"command_ids": command_ids}
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/acknowledge_commands", data)
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return False
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        # Check the success flag
+        if not tmp_success:
+            core_utils.dump_error_message(tmp_log, tmp_message)
+            return False
+
+        return True
 
     # get proxy
     def get_proxy(self, voms_role, cert=None):
-        retVal = None
-        retMsg = ""
-        # get logger
-        tmpLog = self.make_logger(method_name="get_proxy")
-        tmpLog.debug("start")
+        ret_value = None
+        ret_message = ""
+
+        tmp_log = self.make_logger(method_name="get_proxy")
+        tmp_log.debug("Start")
+
         data = {"role": voms_role}
-        tmpStat, tmpRes = self.post_ssl("getProxy", data, cert)
-        if tmpStat is False:
-            core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                tmpDict = tmpRes.json()
-                if tmpDict["StatusCode"] == 0:
-                    retVal = tmpDict["userProxy"]
-                else:
-                    retMsg = tmpDict["errorDialog"]
-                    core_utils.dump_error_message(tmpLog, retMsg)
-                    tmpStat = False
-            except Exception:
-                retMsg = core_utils.dump_error_message(tmpLog, tmpRes)
-                tmpStat = False
-        if tmpStat:
-            tmpLog.debug(f"done with {str(retVal)}")
-        return retVal, retMsg
+        tmp_status, tmp_response = self.request_ssl("GET", "creds/get_proxy", data, cert)
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return ret_value, tmp_response
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        tmp_data = tmp_response.get("data")
+
+        if not tmp_success:
+            core_utils.dump_error_message(tmp_log, tmp_message)
+            return ret_value, tmp_message
+
+        ret_value = tmp_data["userProxy"]
+        tmp_log.debug(f"Done with {ret_value}")
+
+        return ret_value, ret_message
 
     # get token key
     def get_token_key(self, client_name: str) -> tuple[bool, str]:
@@ -597,353 +665,403 @@ class PandaCommunicator(BaseCommunicator):
 
         :return: a tuple of (status, token key or error message)
         """
-        ret_val = None
-        ret_msg = ""
-        # get logger
+        ret_value = None
+        ret_message = ""
+
         tmp_log = self.make_logger(method_name="get_token_key")
-        tmp_log.debug("start")
+        tmp_log.debug("Start")
+
         data = {"client_name": client_name}
-        tmp_stat, tmp_res = self.post_ssl("get_token_key", data)
-        if tmp_stat is False:
-            core_utils.dump_error_message(tmp_log, tmp_res)
-        else:
-            try:
-                tmpDict = tmp_res.json()
-                if tmpDict["StatusCode"] == 0:
-                    ret_val = tmpDict["tokenKey"]
-                else:
-                    ret_msg = tmpDict["errorDialog"]
-                    core_utils.dump_error_message(tmp_log, ret_msg)
-                    tmp_stat = False
-            except Exception:
-                ret_msg = core_utils.dump_error_message(tmp_log, tmp_res)
-                tmp_stat = False
-        if tmp_stat:
-            tmp_log.debug(f"done with {str(ret_val)}")
-        return ret_val, ret_msg
+        tmp_status, tmp_response = self.request_ssl("GET", "creds/get_token_key", data)
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return ret_value, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        tmp_data = tmp_response.get("data")
+
+        if not tmp_success:
+            core_utils.dump_error_message(tmp_log, tmp_message)
+            return ret_value, tmp_message
+
+        ret_value = tmp_data["tokenKey"]
+        tmp_log.debug(f"Done with {ret_value}")
+
+        return ret_value, ret_message
 
     # get resource types
     def get_resource_types(self):
         tmp_log = self.make_logger(method_name="get_resource_types")
         tmp_log.debug("Start retrieving resource types")
-        data = {}
-        ret_msg = ""
-        ret_val = None
-        tmp_stat, tmp_res = self.post_ssl("getResourceTypes", data)
-        if tmp_stat is False:
-            core_utils.dump_error_message(tmp_log, tmp_res)
-        else:
-            try:
-                tmp_dict = tmp_res.json()
-                if tmp_dict["StatusCode"] == 0:
-                    ret_val = tmp_dict["ResourceTypes"]
-                    tmp_log.debug(f"Resource types: {ret_val}")
-                else:
-                    ret_msg = tmp_dict["errorDialog"]
-                    core_utils.dump_error_message(tmp_log, ret_msg)
-            except Exception:
-                core_utils.dump_error_message(tmp_log, tmp_res)
 
-        return ret_val, ret_msg
+        data = {}
+        ret_message = ""
+        ret_value = None
+        tmp_status, tmp_response = self.request_ssl("GET", "metaconfig/get_resource_types", data)
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return ret_value, ret_message
+
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        tmp_data = tmp_response.get("data")
+
+        if not tmp_success:
+            ret_message = tmp_message
+            core_utils.dump_error_message(tmp_log, ret_message)
+            return ret_value, ret_message
+
+        ret_value = tmp_data["ResourceTypes"]
+        tmp_log.debug(f"Resource types: {ret_value}")
+
+        return ret_value, ret_message
 
     # get job statistics
     def get_job_stats(self):
         tmp_log = self.make_logger(method_name="get_job_stats")
-        tmp_log.debug("start")
+        tmp_log.debug("Start")
 
-        tmp_stat, tmp_res = self.post_ssl("getJobStatisticsPerSite", {})
+        tmp_status, tmp_response = self.request_ssl("GET", "statistics/active_job_stats_by_site", {})
         stats = {}
-        if tmp_stat is False:
-            ret_msg = "FAILED"
-            core_utils.dump_error_message(tmp_log, tmp_res)
-        else:
-            try:
-                stats = pickle.loads(tmp_res.content)
-                ret_msg = "OK"
-            except Exception:
-                ret_msg = "Exception"
-                core_utils.dump_error_message(tmp_log)
+        ret_message = "FAILED"
 
-        return stats, ret_msg
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return stats, ret_message
+
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        stats = tmp_response.get("data")
+
+        if not tmp_success:
+            ret_message = tmp_message
+            core_utils.dump_error_message(tmp_log, ret_message)
+            return stats, ret_message
+
+        return stats, "OK"
 
     # update workers
     def update_workers(self, workspec_list):
-        tmpLog = self.make_logger(method_name="update_workers")
-        tmpLog.debug("start")
-        dataList = []
+        tmp_log = self.make_logger(method_name="update_workers")
+        tmp_log.debug("Start")
+        data_list = []
         for workSpec in workspec_list:
-            dataList.append(workSpec.convert_to_propagate())
-        data = dict()
-        data["harvesterID"] = harvester_config.master.harvester_id
-        data["workers"] = json.dumps(dataList)
-        tmpLog.debug(f"update {len(dataList)} workers")
-        tmpStat, tmpRes = self.post_ssl("updateWorkers", data)
-        retList = None
-        errStr = "OK"
-        if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                retCode, retList = tmpRes.json()
-                if not retCode:
-                    errStr = core_utils.dump_error_message(tmpLog, retList)
-                    retList = None
-                    tmpStat = False
-            except Exception:
-                errStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error(f"conversion failure from {tmpRes.text}")
-                tmpStat = False
-        if tmpStat:
-            tmpLog.debug(f"done with {errStr}")
-        return retList, errStr
+            data_list.append(workSpec.convert_to_propagate())
 
-    # send heartbeat of harvester instance
-    def is_alive(self, key_values):
-        tmpLog = self.make_logger(method_name="is_alive")
-        tmpLog.debug("start")
-        # convert datetime
-        for tmpKey, tmpVal in key_values.items():
-            if isinstance(tmpVal, datetime.datetime):
-                tmpVal = "datetime/" + tmpVal.strftime("%Y-%m-%d %H:%M:%S.%f")
-                key_values[tmpKey] = tmpVal
-        # send data
-        data = dict()
-        data["harvesterID"] = harvester_config.master.harvester_id
-        data["data"] = json.dumps(key_values)
-        tmpStat, tmpRes = self.post_ssl("harvesterIsAlive", data)
-        retCode = False
-        if tmpStat is False:
-            tmpStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                retCode, tmpStr = tmpRes.json()
-            except Exception:
-                tmpStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error(f"conversion failure from {tmpRes.text}")
-                tmpStat = False
-        if tmpStat:
-            tmpLog.debug(f"done with {retCode} : {tmpStr}")
-        return retCode, tmpStr
+        data = {
+            "harvester_id": harvester_config.master.harvester_id,
+            "workers": data_list,
+        }
+
+        tmp_log.debug(f"Update {len(data_list)} workers")
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/update_workers", data)
+
+        ret_list = None
+        ret_message = "OK"
+
+        # Communication issue
+        if tmp_status is False:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return ret_list, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        tmp_data = tmp_response.get("data")
+
+        # Update was not done correctly
+        if not tmp_success:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_message)
+            return ret_list, ret_message
+
+        ret_list = tmp_data
+        tmp_log.debug(f"Done with {ret_message}")
+
+        return ret_list, ret_message
 
     # update worker stats
     def update_worker_stats(self, site_name, stats):
-        tmpLog = self.make_logger(method_name="update_worker_stats")
-        tmpLog.debug("start")
-        data = dict()
-        data["harvesterID"] = harvester_config.master.harvester_id
-        data["siteName"] = site_name
-        data["paramsList"] = json.dumps(stats)
-        tmpLog.debug(f"update stats for {site_name}, stats: {stats}")
-        tmpStat, tmpRes = self.post_ssl("reportWorkerStats_jobtype", data)
-        errStr = "OK"
-        if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                retCode, retMsg = tmpRes.json()
-                if not retCode:
-                    tmpStat = False
-                    errStr = core_utils.dump_error_message(tmpLog, retMsg)
-            except Exception:
-                tmpStat = False
-                errStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error(f"conversion failure from {tmpRes.text}")
-        if tmpStat:
-            tmpLog.debug(f"done with {tmpStat}:{errStr}")
-        return tmpStat, errStr
+        tmp_log = self.make_logger(method_name="update_worker_stats")
+        tmp_log.debug("Start")
+
+        data = {
+            "harvester_id": harvester_config.master.harvester_id,
+            "panda_queue": site_name,
+            "statistics": json.dumps(stats),
+        }
+        tmp_log.debug(f"update stats for {site_name}, stats: {stats}")
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/report_worker_statistics", data)
+
+        ret_status = True
+        ret_message = "OK"
+
+        # Communication issue
+        if tmp_status is False:
+            ret_status = tmp_status
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return ret_status, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        # No need to parse the data field
+        # tmp_data = tmp_response.get("data")
+
+        # Update was not done correctly
+        if not tmp_success:
+            ret_status = tmp_success
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_message)
+            return ret_status, ret_message
+
+        tmp_log.debug(f"Done with {ret_status}:{ret_message}")
+
+        return ret_status, ret_message
 
     # check jobs
     def check_jobs(self, jobspec_list):
-        tmpLog = self.make_logger(method_name="check_jobs")
-        tmpLog.debug("start")
-        retList = []
-        nLookup = 100
-        iLookup = 0
-        while iLookup < len(jobspec_list):
-            ids = []
-            for jobSpec in jobspec_list[iLookup : iLookup + nLookup]:
-                ids.append(str(jobSpec.PandaID))
-            iLookup += nLookup
-            data = dict()
-            data["ids"] = ",".join(ids)
-            tmpStat, tmpRes = self.post_ssl("checkJobStatus", data)
-            errStr = "OK"
-            if tmpStat is False:
-                errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-                tmpRes = None
+        tmp_log = self.make_logger(method_name="check_jobs")
+        tmp_log.debug("Start")
+
+        ret_list = []
+
+        # Chunk size for job lookup
+        n_lookup = 100
+        i_lookup = 0
+
+        while i_lookup < len(jobspec_list):
+            # Create job shards for lookup
+            job_ids = []
+            for jobSpec in jobspec_list[i_lookup : i_lookup + n_lookup]:
+                job_ids.append(jobSpec.PandaID)
+
+            i_lookup += n_lookup
+
+            data = {"job_ids": job_ids}
+            tmp_status, tmp_response = self.request_ssl("GET", "job/get_status", data)
+
+            err_string = "OK"
+            job_statuses = []
+
+            # Communication issue
+            if tmp_status is False:
+                err_string = core_utils.dump_error_message(tmp_log, tmp_response)
             else:
-                try:
-                    tmpRes = tmpRes.json()
-                except Exception:
-                    tmpRes = None
-                    errStr = core_utils.dump_error_message(tmpLog)
-            for idx, pandaID in enumerate(ids):
-                if tmpRes is None or "data" not in tmpRes or idx >= len(tmpRes["data"]):
-                    retMap = dict()
-                    retMap["StatusCode"] = 999
-                    retMap["ErrorDiag"] = errStr
+                # Parse the response
+                tmp_success = tmp_response.get("success", False)
+                tmp_message = tmp_response.get("message")
+
+                # Exception or rejection from PanDA server
+                if not tmp_success:
+                    err_string = core_utils.dump_error_message(tmp_log, tmp_message)
+
+                # No need to parse the data field
+                job_statuses = tmp_response.get("data")
+
+            for idx, job_id in enumerate(job_ids):
+                # We requested more jobs than we got back
+                if not job_statuses or idx >= len(job_statuses):
+                    ret_map = {"StatusCode": 999, "ErrorDiag": err_string}
                 else:
-                    retMap = tmpRes["data"][idx]
-                    retMap["StatusCode"] = 0
-                    retMap["ErrorDiag"] = errStr
-                retList.append(retMap)
-                tmpLog.debug(f"got {str(retMap)} for PandaID={pandaID}")
-        return retList
+                    ret_map = job_statuses[idx]
+                    ret_map["StatusCode"] = 0
+                    ret_map["ErrorDiag"] = err_string
+                ret_list.append(ret_map)
+                tmp_log.debug(f"Received {ret_map} for PandaID={job_id}")
+
+        tmp_log.debug("Done")
+        return ret_list
 
     # get key pair
     def get_key_pair(self, public_key_name, private_key_name):
-        tmpLog = self.make_logger(method_name="get_key_pair")
-        tmpLog.debug(f"start for {public_key_name}:{private_key_name}")
-        data = dict()
-        data["publicKeyName"] = public_key_name
-        data["privateKeyName"] = private_key_name
-        tmpStat, tmpRes = self.post_ssl("getKeyPair", data)
-        retMap = None
-        errStr = None
-        if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                retMap = tmpRes.json()
-                if retMap["StatusCode"] != 0:
-                    errStr = f"failed to get key with StatusCode={retMap['StatusCode']} : {retMap['errorDialog']}"
-                    tmpLog.error(errStr)
-                    retMap = None
-                else:
-                    tmpLog.debug("got {0} with".format(str(retMap), errStr))
-            except Exception:
-                errStr = core_utils.dump_error_message(tmpLog)
-        return retMap, errStr
+        tmp_log = self.make_logger(method_name="get_key_pair")
+        tmp_log.debug(f"Start for {public_key_name}:{private_key_name}")
+
+        data = {
+            "public_key_name": public_key_name,
+            "private_key_name": private_key_name,
+        }
+
+        tmp_status, tmp_response = self.request_ssl("GET", "creds/get_key_pair", data)
+
+        key_pair = None
+        err_string = None
+
+        # Communication issue
+        if tmp_status is False:
+            err_string = core_utils.dump_error_message(tmp_log, tmp_response)
+            return key_pair, err_string
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        # Issue/condition on server side
+        if not tmp_success:
+            err_string = core_utils.dump_error_message(tmp_log, tmp_message)
+            return key_pair, err_string
+
+        # Set the key-pair
+        key_pair = tmp_response.get("data")
+        tmp_log.debug(f"Got key_pair: {key_pair} err_string: {err_string}")
+
+        return key_pair, err_string
 
     # upload file
     def upload_file(self, file_name, file_object, offset, read_bytes):
-        tmpLog = self.make_logger(method_name="upload_file")
-        tmpLog.debug(f"start for {file_name} {offset}:{read_bytes}")
+        tmp_log = self.make_logger(method_name="upload_file")
+        tmp_log.debug(f"Start for {file_name} {offset}:{read_bytes}")
         file_object.seek(offset)
         files = {"file": (file_name, zlib.compress(file_object.read(read_bytes)))}
-        tmpStat, tmpRes = self.put_ssl("updateLog", files)
-        errStr = None
-        if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            errStr = tmpRes.text
-            tmpLog.debug(f"got {errStr}")
-        return tmpStat, errStr
+
+        tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_jedi_log", files=files)
+
+        # Communication issue
+        if tmp_status is False:
+            err_string = core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, err_string
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
+        return tmp_success, tmp_message
 
     # check event availability
     def check_event_availability(self, jobspec):
-        retStat = False
-        retVal = None
-        tmpLog = self.make_logger(f"PandaID={jobspec.PandaID}", method_name="check_event_availability")
-        tmpLog.debug("start")
-        data = dict()
-        data["taskID"] = jobspec.taskID
-        data["pandaID"] = jobspec.PandaID
-        if jobspec.jobsetID is None:
-            data["jobsetID"] = jobspec.jobParams["jobsetID"]
-        else:
-            data["jobsetID"] = jobspec.jobsetID
-        tmpStat, tmpRes = self.post_ssl("checkEventsAvailability", data)
-        if tmpStat is False:
-            core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                tmpDict = tmpRes.json()
-                if tmpDict["StatusCode"] == 0:
-                    retStat = True
-                    retVal = tmpDict["nEventRanges"]
-            except Exception:
-                core_utils.dump_error_message(tmpLog, tmpRes)
-        tmpLog.debug(f"done with {retVal}")
-        return retStat, retVal
+        tmp_log = self.make_logger(f"PandaID={jobspec.PandaID}", method_name="check_event_availability")
+        tmp_log.debug("Start")
+
+        data = {
+            "job_id": jobspec.PandaID,
+            "jobset_id": jobspec.jobsetID or jobspec.jobParams["jobsetID"],
+            "task_id": jobspec.taskID,
+        }
+
+        tmp_status, tmp_response = self.request_ssl("GET", "event/get_available_event_range_count", data)
+
+        # Communication issue
+        if tmp_status is False:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        n_event_ranges = tmp_response.get("data", None)
+
+        # Issue/condition on server side
+        if not tmp_success:
+            err_string = core_utils.dump_error_message(tmp_log, tmp_message)
+            return tmp_success, err_string
+
+        tmp_log.debug(f"Done with {n_event_ranges}")
+        return tmp_success, n_event_ranges
 
     # send dialog messages
     def send_dialog_messages(self, dialog_list):
-        tmpLog = self.make_logger(method_name="send_dialog_messages")
-        tmpLog.debug("start")
-        dataList = []
+        tmp_log = self.make_logger(method_name="send_dialog_messages")
+        tmp_log.debug("Start")
+
+        data_list = []
         for diagSpec in dialog_list:
-            dataList.append(diagSpec.convert_to_propagate())
-        data = dict()
-        data["harvesterID"] = harvester_config.master.harvester_id
-        data["dialogs"] = json.dumps(dataList)
-        tmpLog.debug(f"send {len(dataList)} messages")
-        tmpStat, tmpRes = self.post_ssl("addHarvesterDialogs", data)
-        errStr = "OK"
-        if tmpStat is False:
-            errStr = core_utils.dump_error_message(tmpLog, tmpRes)
-        else:
-            try:
-                retCode, tmpStr = tmpRes.json()
-                if not retCode:
-                    errStr = core_utils.dump_error_message(tmpLog, tmpStr)
-                    tmpStat = False
-            except Exception:
-                errStr = core_utils.dump_error_message(tmpLog)
-                tmpLog.error(f"conversion failure from {tmpRes.text}")
-                tmpStat = False
-        if tmpStat:
-            tmpLog.debug(f"done with {errStr}")
-        return tmpStat, errStr
+            data_list.append(diagSpec.convert_to_propagate())
+
+        data = {"harvester_id": harvester_config.master.harvester_id, "dialogs": data_list}
+
+        tmp_log.debug(f"Sending {len(data_list)} messages")
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/add_dialogs", data)
+
+        # Communication issue
+        if tmp_status is False:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
+
+        return tmp_success, tmp_message
 
     # update service metrics
     def update_service_metrics(self, service_metrics_list):
         tmp_log = self.make_logger(method_name="update_service_metrics")
-        tmp_log.debug("start")
-        data = dict()
-        data["harvesterID"] = harvester_config.master.harvester_id
-        data["metrics"] = json.dumps(service_metrics_list)
-        tmp_log.debug("updating metrics...")
-        tmp_stat, tmp_res = self.post_ssl("updateServiceMetrics", data)
-        err_str = "OK"
-        if tmp_stat is False:
-            err_str = core_utils.dump_error_message(tmp_log, tmp_res)
-        else:
-            try:
-                ret_code, ret_msg = tmp_res.json()
-                if not ret_code:
-                    tmp_stat = False
-                    err_str = core_utils.dump_error_message(tmp_log, ret_msg)
-            except Exception:
-                tmp_stat = False
-                err_str = core_utils.dump_error_message(tmp_log)
-                tmp_log.error(f"conversion failure from {tmp_res.text}")
-        if tmp_stat:
-            tmp_log.debug(f"done with {tmp_stat}:{err_str}")
-        return tmp_stat, err_str
+        tmp_log.debug("Start")
+
+        data = {"harvester_id": harvester_config.master.harvester_id, "metrics": service_metrics_list}
+
+        tmp_log.debug("Updating metrics")
+        tmp_status, tmp_response = self.request_ssl("POST", "harvester/update_service_metrics", data)
+
+        # Communication issue
+        if tmp_status is False:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
+
+        return tmp_success, tmp_message
 
     # upload checkpoint
     def upload_checkpoint(self, base_url, task_id, panda_id, file_name, file_path):
         tmp_log = self.make_logger(f"taskID={task_id} pandaID={panda_id}", method_name="upload_checkpoint")
-        tmp_log.debug(f"start for {file_name}")
+        tmp_log.debug(f"Start for {file_name}")
+
+        ret_status = False
+
         try:
             files = {"file": (file_name, open(file_path).read())}
-            tmpStat, tmpRes = self.put_ssl("server/panda/put_checkpoint", files, base_url=base_url)
-            if tmpStat is False:
-                core_utils.dump_error_message(tmp_log, tmpRes)
-            else:
-                tmp_log.debug(f"got {tmpRes.text}")
-            return tmpStat
+            tmp_status, tmp_response = self.request_ssl("UPLOAD", "file_server/upload_hpo_checkpoint", files=files, base_url=base_url)
+
+            if tmp_status is False:  # Communication issue
+                core_utils.dump_error_message(tmp_log, tmp_response)
+                ret_status = tmp_status
+            else:  # Parse the response
+                tmp_success = tmp_response.get("success", False)
+                tmp_message = tmp_response.get("message")
+                (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
+                ret_status = tmp_success
+
+            return ret_status
+
         except Exception:
             core_utils.dump_error_message(tmp_log)
-            return False
+            return ret_status
 
     # download checkpoint
     def download_checkpoint(self, base_url, task_id, panda_id, point_id, base_path):
         tmp_log = self.make_logger(f"taskID={task_id} pandaID={panda_id}", method_name="download_checkpoint")
-        tmp_log.debug(f"start for ID={point_id}")
+        tmp_log.debug(f"Start for ID={point_id}")
         try:
+            # This method doesn't go through the API. The file is downloaded directly from Apache file server
             path = f"cache/hpo_cp_{task_id}_{point_id}"
-            tmpStat, tmpRes = self.post_ssl(path, {}, base_url=base_url)
+            tmp_status, tmp_response = self.request_ssl("POST", path, {}, base_url=base_url)
             file_name = None
-            if tmpStat is False:
-                core_utils.dump_error_message(tmp_log, tmpRes)
-            else:
-                file_name = os.path.join(base_path, str(uuid.uuid4()))
-                with open(file_name, "w") as f:
-                    f.write(tmpRes.content)
-                tmp_log.debug(f"got {file_name}")
-            return tmpStat, file_name
+
+            # Communication issue
+            if tmp_status is False:
+                core_utils.dump_error_message(tmp_log, tmp_response)
+                return tmp_status, file_name
+
+            # Generate a random file name
+            file_name = os.path.join(base_path, str(uuid.uuid4()))
+            with open(file_name, "w") as f:
+                f.write(tmp_response.content)
+
+            tmp_log.debug(f"Downloaded {file_name}")
+            return tmp_status, file_name
+
         except Exception:
             core_utils.dump_error_message(tmp_log)
             return False, None
@@ -951,58 +1069,70 @@ class PandaCommunicator(BaseCommunicator):
     # clear checkpoint
     def clear_checkpoint(self, base_url, task_id, point_id):
         tmp_log = self.make_logger(f"taskID={task_id} pointID={point_id}", method_name="clear_checkpoints")
-        data = dict()
-        data["task_id"] = task_id
-        data["sub_id"] = point_id
-        tmp_log.debug("start")
-        tmpStat, tmpRes = self.post_ssl("server/panda/delete_checkpoint", data, base_url=base_url)
-        retMap = None
-        if tmpStat is False:
-            core_utils.dump_error_message(tmp_log, tmpRes)
-        else:
-            try:
-                retMap = tmpRes.json()
-            except Exception:
-                core_utils.dump_error_message(tmp_log)
-        if retMap is None:
-            retMap = {}
-            retMap["StatusCode"] = 999
-        tmp_log.debug(f"done with {str(retMap)}")
-        return retMap
+        tmp_log.debug("Start")
 
-    # check event availability
+        data = {"task_id": task_id, "sub_id": point_id}
+
+        tmp_status, tmp_response = self.request_ssl("POST", "file_server/delete_hpo_checkpoint", data, base_url=base_url)
+
+        # Communication issue
+        if tmp_status is False:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
+
+        return tmp_success, tmp_message
+
+    # get the current/max worker id
     def get_max_worker_id(self):
-        tmpLog = self.make_logger(method_name="get_max_worker_id")
-        tmpLog.debug("start")
+        tmp_log = self.make_logger(method_name="get_max_worker_id")
+        tmp_log.debug("Start")
+
         data = {"harvester_id": harvester_config.master.harvester_id}
-        retStat, retVal = self.post_ssl("get_max_worker_id", data)
-        if retStat is False:
-            core_utils.dump_error_message(tmpLog, retVal)
-        else:
-            try:
-                retVal = retVal.json()
-            except Exception:
-                core_utils.dump_error_message(tmpLog, retVal.text)
-                retStat = False
-                retVal = retVal.text
-        tmpLog.debug(f"done with {retStat} {retVal}")
-        return retStat, retVal
+
+        tmp_status, tmp_response = self.request_ssl("GET", "harvester/get_current_worker_id", data)
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return tmp_status, None
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        tmp_data = tmp_response.get("data")
+
+        # If there was a max worker id, return it. Otherwise return the error message
+        ret_value = tmp_data if tmp_data is not None else tmp_message
+
+        (tmp_log.error if not tmp_success else tmp_log.debug)(f"Done with {tmp_success}:{tmp_message}")
+        return tmp_success, ret_value
 
     # get worker stats from PanDA
     def get_worker_stats_from_panda(self):
         tmp_log = self.make_logger(method_name="get_worker_stats_from_panda")
-        tmp_log.debug("start")
-        tmp_stat, tmp_res = self.post_ssl("getWorkerStats", {})
-        stats = {}
-        if tmp_stat is False:
-            ret_msg = "FAILED"
-            core_utils.dump_error_message(tmp_log, tmp_res)
-        else:
-            try:
-                stats = tmp_res.json()
-                ret_msg = "OK"
-            except Exception:
-                ret_msg = "Exception"
-                core_utils.dump_error_message(tmp_log)
-        tmp_log.debug(f"done with {ret_msg} {stats}")
-        return stats, ret_msg
+        tmp_log.debug("Start")
+
+        tmp_status, tmp_response = self.request_ssl("GET", "harvester/get_worker_statistics", {})
+
+        # Communication issue
+        if tmp_status is False:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_response)
+            return {}, ret_message
+
+        # Parse the response
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        stats = tmp_response.get("data", {})
+
+        if not tmp_success:
+            ret_message = core_utils.dump_error_message(tmp_log, tmp_message)
+            return {}, ret_message
+
+        tmp_log.debug(f"Done with {stats}")
+        return stats, "OK"

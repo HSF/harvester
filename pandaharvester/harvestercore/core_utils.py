@@ -188,28 +188,27 @@ def setup_logger(name=None):
 def make_logger(tmp_log, token=None, method_name=None, hook=None):
     # get method name of caller
     if method_name is None:
-        tmpStr = inspect.stack()[1][3]
+        tmp_str = inspect.stack()[1][3]
     else:
-        tmpStr = method_name
+        tmp_str = method_name
     if token is not None:
-        tmpStr += f" <{token}>"
+        tmp_str += f" <{token}>"
     else:
-        tmpStr += " :".format(token)
-    newLog = LogWrapper(tmp_log, tmpStr, seeMem=with_memory_profile, hook=hook)
-    return newLog
+        tmp_str += " :".format(token)
+    new_log = LogWrapper(tmp_log, tmp_str, seeMem=with_memory_profile, hook=hook)
+    return new_log
 
 
 # dump error message
 def dump_error_message(tmp_log, err_str=None, no_message=False):
     if not isinstance(tmp_log, LogWrapper):
-        methodName = f"{inspect.stack()[1][3]} : "
+        method_name = f"{inspect.stack()[1][3]} : "
     else:
-        methodName = ""
+        method_name = ""
     # error
     if err_str is None:
-        errtype, errvalue = sys.exc_info()[:2]
-        err_str = f"{methodName} {errtype.__name__} {errvalue} "
-        err_str += traceback.format_exc()
+        err_type, err_value = sys.exc_info()[:2]
+        err_str = f"{method_name} {err_type.__name__} {err_value} {traceback.format_exc()}"
     if not no_message:
         tmp_log.error(err_str)
     return err_str
@@ -218,17 +217,17 @@ def dump_error_message(tmp_log, err_str=None, no_message=False):
 # sleep for random duration and return True if no more sleep is needed
 def sleep(interval, stop_event, randomize=True):
     if randomize and interval > 0:
-        randInterval = random.randint(int(interval * 0.4), int(interval * 1.4))
+        random_interval = random.randint(int(interval * 0.4), int(interval * 1.4))
     else:
-        randInterval = interval
+        random_interval = interval
     if stop_event is None:
-        time.sleep(randInterval)
+        time.sleep(random_interval)
     else:
         i = 0
         while True:
             if stop_event.is_set():
                 return True
-            if i >= randInterval:
+            if i >= random_interval:
                 break
             stop_event.wait(1)
             i += 1
@@ -237,35 +236,37 @@ def sleep(interval, stop_event, randomize=True):
 
 # make PFC
 def make_pool_file_catalog(jobspec_list):
-    xmlStr = """<?xml version="1.0" ?>
+    xml_str = """<?xml version="1.0" ?>
 <!DOCTYPE POOLFILECATALOG  SYSTEM "InMemory">
 <POOLFILECATALOG>
     """
-    doneLFNs = set()
+
+    done_lfns = set()
     for jobSpec in jobspec_list:
-        inFiles = jobSpec.get_input_file_attributes()
-        for inLFN, inFile in inFiles.items():
-            if inLFN in doneLFNs:
+        input_files = jobSpec.get_input_file_attributes()
+        for input_lfn, input_file in input_files.items():
+            if input_lfn in done_lfns:
                 continue
-            doneLFNs.add(inLFN)
-            xmlStr += f"""  <File ID="{inFile['guid']}">
+            done_lfns.add(input_lfn)
+            xml_str += f"""  <File ID="{input_file['guid']}">
     <physical>
-      <pfn filetype="ROOT_All" name="{inLFN}"/>
+      <pfn filetype="ROOT_All" name="{input_lfn}"/>
     </physical>
     <logical/>
   </File>
   """
-    xmlStr += "</POOLFILECATALOG>"
-    return xmlStr
+
+    xml_str += "</POOLFILECATALOG>"
+    return xml_str
 
 
 # calculate adler32
 def calc_adler32(file_name):
     val = 1
-    blockSize = 32 * 1024 * 1024
+    block_size = 32 * 1024 * 1024
     with open(file_name, "rb") as fp:
         while True:
-            data = fp.read(blockSize)
+            data = fp.read(block_size)
             if not data:
                 break
             val = zlib.adler32(data, val)
