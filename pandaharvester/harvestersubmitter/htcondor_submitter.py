@@ -308,7 +308,6 @@ def make_a_jdl(
         "ceVersion": ce_info_dict.get("ce_version", ""),
         "logDir": log_dir,
         "logSubdir": log_subdir,
-        "gtag": batch_log_dict.get("gtag", "fake_GTAG_string"),
         "prodSourceLabel": prod_source_label,
         "jobType": workspec.jobType,
         "resourceType": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types),
@@ -336,6 +335,10 @@ def make_a_jdl(
         "requireGpus": is_gpu_resource,
         "customSubmitAttributes": custom_submit_attr_str,
     }
+
+    gtag = batch_log_dict.get("gtag", "fake_GTAG_string").format(**placeholder_map)
+    placeholder_map["gtag"] = gtag
+
     # fill in template string
     jdl_str = template.format(**placeholder_map)
     # save jdl to submit description file

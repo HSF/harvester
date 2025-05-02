@@ -262,6 +262,15 @@ class SlurmSubmitter(PluginBase):
         rt_mapper = ResourceTypeMapper()
         all_resource_types = rt_mapper.get_all_resource_types()
 
+        # GTAG
+        if self.logBaseURL and self.logDir:
+            stdOut, stdErr = self.get_log_file_names(workspec.accessPoint, workspec.workerID)
+            rel_stdOut = os.path.relpath(stdOut, self.logDir)
+            log_stdOut = os.path.join(self.logBaseURL, rel_stdOut)
+            gtag = log_stdOut
+        else:
+            gtag = 'unknown'
+
         placeholder_map = {
             "nCorePerNode": n_core_per_node,
             "nCoreTotal": n_core_total_factor,
@@ -288,6 +297,7 @@ class SlurmSubmitter(PluginBase):
             "logDir": self.logDir,
             "logSubDir": os.path.join(self.logDir, timeNow.strftime("%y-%m-%d_%H")),
             "jobType": workspec.jobType,
+            "gtag": gtag,
             "partition": partition,
             "resourceType": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types),
             "pilotResourceTypeOption": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types, is_pilot_option=True)
