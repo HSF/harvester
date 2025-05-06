@@ -76,11 +76,11 @@ class WorkerAdjuster(object):
                 if job_type in nCoreFactor:
                     t_job_type = job_type
                 else:
-                    t_job_type = 'Any'
+                    t_job_type = "Any"
                 if is_unified_queue:
                     t_resource_type = resource_type
                 else:
-                    t_resource_type = 'Undefined'
+                    t_resource_type = "Undefined"
                 n_core_factor = nCoreFactor.get(t_job_type, {}).get(t_resource_type, 1)
                 return int(n_core_factor)
             else:
@@ -136,8 +136,9 @@ class WorkerAdjuster(object):
                 # static factor
                 ret_val = self.activate_worker_factor
 
-        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name, job_type=job_type, resource_type=resource_type,
-                                                             queue_dict=queue_dict, queue_config=queue_config)
+        queue_factor = self.get_queue_activate_worker_factor(
+            site_name=site_name, job_type=job_type, resource_type=resource_type, queue_dict=queue_dict, queue_config=queue_config
+        )
         ret_val = ret_val * queue_factor
 
         tmp_log.debug(f"ret_val={ret_val}")

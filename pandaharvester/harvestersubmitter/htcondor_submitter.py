@@ -765,7 +765,9 @@ class HTCondorSubmitter(PluginBase):
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, f"site={self.queueName} workerID={workspec.workerID}, resourceType={workspec.resourceType}", method_name="_handle_one_worker")
+            tmpLog = core_utils.make_logger(
+                baseLogger, f"site={self.queueName} workerID={workspec.workerID}, resourceType={workspec.resourceType}", method_name="_handle_one_worker"
+            )
 
             def _choose_credential(workspec):
                 """
@@ -793,11 +795,11 @@ class HTCondorSubmitter(PluginBase):
                         if workspec.jobType in self.nCoreFactor:
                             job_type = workspec.jobType
                         else:
-                            job_type = 'Any'
+                            job_type = "Any"
                         if is_unified_queue:
                             resource_type = workspec.resourceType
                         else:
-                            resource_type = 'Undefined'
+                            resource_type = "Undefined"
                         n_core_factor = self.nCoreFactor.get(job_type, {}).get(resource_type, 1)
                         return int(n_core_factor)
                     else:

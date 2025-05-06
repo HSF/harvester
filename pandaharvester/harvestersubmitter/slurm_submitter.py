@@ -134,7 +134,7 @@ class SlurmSubmitter(PluginBase):
             log_stdOut = os.path.join(self.logBaseURL, rel_stdOut)
             gtag = log_stdOut
         else:
-            gtag = 'unknown'
+            gtag = "unknown"
 
         placeholder_map = {
             "nCorePerNode": n_core_per_node,

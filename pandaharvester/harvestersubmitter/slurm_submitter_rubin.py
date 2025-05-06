@@ -8,7 +8,6 @@ from math import ceil
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 from pandaharvester.harvestersubmitter import submitter_common
@@ -120,11 +119,11 @@ class SlurmSubmitter(PluginBase):
                 if workspec.jobType in self.nCoreFactor:
                     job_type = workspec.jobType
                 else:
-                    job_type = 'Any'
+                    job_type = "Any"
                 if is_unified_queue:
                     resource_type = workspec.resourceType
                 else:
-                    resource_type = 'Undefined'
+                    resource_type = "Undefined"
                 n_core_factor = self.nCoreFactor.get(job_type, {}).get(resource_type, 1)
                 return int(n_core_factor)
             else:
@@ -150,7 +149,9 @@ class SlurmSubmitter(PluginBase):
         num_workSpec = 0
         for workSpec in workspec_list:
             # make logger
-            tmpLog = self.make_logger(baseLogger, f"site={self.queueName} workerID={workSpec.workerID} resourceType={workSpec.resourceType}", method_name="submit_workers")
+            tmpLog = self.make_logger(
+                baseLogger, f"site={self.queueName} workerID={workSpec.workerID} resourceType={workSpec.resourceType}", method_name="submit_workers"
+            )
             # set nCore
             if self.nCore > 0:
                 workSpec.nCore = self.nCore
@@ -269,7 +270,7 @@ class SlurmSubmitter(PluginBase):
             log_stdOut = os.path.join(self.logBaseURL, rel_stdOut)
             gtag = log_stdOut
         else:
-            gtag = 'unknown'
+            gtag = "unknown"
 
         placeholder_map = {
             "nCorePerNode": n_core_per_node,
@@ -283,7 +284,7 @@ class SlurmSubmitter(PluginBase):
             "requestDisk": request_disk,
             "requestWalltime": request_walltime,
             "requestWalltimeMinute": request_walltime_minute,
-            'requestWalltimeHour': request_walltime_hour,
+            "requestWalltimeHour": request_walltime_hour,
             "requestCputime": request_cputime,
             "requestCputimeMinute": request_cputime_minute,
             "accessPoint": workspec.accessPoint,
@@ -300,7 +301,7 @@ class SlurmSubmitter(PluginBase):
             "gtag": gtag,
             "partition": partition,
             "resourceType": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types),
-            "pilotResourceTypeOption": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types, is_pilot_option=True)
+            "pilotResourceTypeOption": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types, is_pilot_option=True),
         }
         for k in ["tokenDir", "tokenName", "tokenOrigin", "submitMode"]:
             try:
