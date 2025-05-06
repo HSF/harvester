@@ -188,7 +188,7 @@ def make_a_jdl(
     make a condor jdl for a worker
     """
     # make logger
-    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="make_a_jdl")
+    tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID} resourceType={workspec.resourceType}", method_name="make_a_jdl")
     # Note: In workspec, unit of minRamCount and of maxDiskCount are both MB.
     #       In HTCondor SDF, unit of request_memory is MB, and request_disk is KB.
     n_core_total = workspec.nCore if workspec.nCore else n_core_per_node
@@ -308,7 +308,6 @@ def make_a_jdl(
         "ceVersion": ce_info_dict.get("ce_version", ""),
         "logDir": log_dir,
         "logSubdir": log_subdir,
-        "gtag": batch_log_dict.get("gtag", "fake_GTAG_string"),
         "prodSourceLabel": prod_source_label,
         "jobType": workspec.jobType,
         "resourceType": submitter_common.get_resource_type(workspec.resourceType, is_unified_queue, all_resource_types),
@@ -336,6 +335,10 @@ def make_a_jdl(
         "requireGpus": is_gpu_resource,
         "customSubmitAttributes": custom_submit_attr_str,
     }
+
+    gtag = batch_log_dict.get("gtag", "fake_GTAG_string").format(**placeholder_map)
+    placeholder_map["gtag"] = gtag
+
     # fill in template string
     jdl_str = template.format(**placeholder_map)
     # save jdl to submit description file
@@ -762,7 +765,9 @@ class HTCondorSubmitter(PluginBase):
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
-            tmpLog = core_utils.make_logger(baseLogger, f"site={self.queueName} workerID={workspec.workerID}", method_name="_handle_one_worker")
+            tmpLog = core_utils.make_logger(
+                baseLogger, f"site={self.queueName} workerID={workspec.workerID}, resourceType={workspec.resourceType}", method_name="_handle_one_worker"
+            )
 
             def _choose_credential(workspec):
                 """
@@ -787,9 +792,18 @@ class HTCondorSubmitter(PluginBase):
             def get_core_factor(workspec):
                 try:
                     if type(self.nCoreFactor) in [dict]:
-                        n_core_factor = self.nCoreFactor.get(workspec.jobType, {}).get(workspec.resourceType, 1)
+                        if workspec.jobType in self.nCoreFactor:
+                            job_type = workspec.jobType
+                        else:
+                            job_type = "Any"
+                        if is_unified_queue:
+                            resource_type = workspec.resourceType
+                        else:
+                            resource_type = "Undefined"
+                        n_core_factor = self.nCoreFactor.get(job_type, {}).get(resource_type, 1)
                         return int(n_core_factor)
-                    return int(self.nCoreFactor)
+                    else:
+                        return int(self.nCoreFactor)
                 except Exception as ex:
                     tmpLog.warning(f"Failed to get core factor: {ex}")
                 return 1
