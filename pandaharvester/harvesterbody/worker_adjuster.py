@@ -84,7 +84,7 @@ class WorkerAdjuster(object):
                 n_core_factor = nCoreFactor.get(t_job_type, {}).get(t_resource_type, 1)
                 return int(n_core_factor)
             else:
-                return int(self.nCoreFactor)
+                return int(nCoreFactor)
         except Exception as ex:
             tmp_logger.warning(f"Failed to get core factor: {ex}")
         return 1
