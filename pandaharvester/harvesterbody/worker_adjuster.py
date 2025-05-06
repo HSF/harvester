@@ -136,7 +136,8 @@ class WorkerAdjuster(object):
                 # static factor
                 ret_val = self.activate_worker_factor
 
-        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name, job_type=job_type, resource_type=resource_type, queue_dict=queue_dict)
+        queue_factor = self.get_queue_activate_worker_factor(site_name=site_name, job_type=job_type, resource_type=resource_type,
+                                                             queue_dict=queue_dict, queue_config=queue_config)
         ret_val = ret_val * queue_factor
 
         tmp_log.debug(f"ret_val={ret_val}")
