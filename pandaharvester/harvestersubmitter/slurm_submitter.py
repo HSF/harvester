@@ -127,6 +127,15 @@ class SlurmSubmitter(PluginBase):
         request_walltime_minute = ceil(request_walltime / 60)
         request_cputime_minute = ceil(request_cputime / 60)
 
+        # GTAG
+        if self.logBaseURL and self.logDir:
+            stdOut, stdErr = self.get_log_file_names(workspec.accessPoint, workspec.workerID)
+            rel_stdOut = os.path.relpath(stdOut, self.logDir)
+            log_stdOut = os.path.join(self.logBaseURL, rel_stdOut)
+            gtag = log_stdOut
+        else:
+            gtag = "unknown"
+
         placeholder_map = {
             "nCorePerNode": n_core_per_node,
             "nCoreTotal": n_core_total_factor,
@@ -151,6 +160,7 @@ class SlurmSubmitter(PluginBase):
             "logDir": self.logDir,
             "logSubDir": os.path.join(self.logDir, timeNow.strftime("%y-%m-%d_%H")),
             "jobType": workspec.jobType,
+            "gtag": gtag,
         }
         for k in ["tokenDir", "tokenName", "tokenOrigin", "submitMode"]:
             try:
@@ -191,6 +201,6 @@ class SlurmSubmitter(PluginBase):
         return stdOut, stdErr
 
     def get_log_file_names(self, access_point, worker_id):
-        stdOut = os.path.join(access_point, '%s.out' % worker_id)
-        stdErr = os.path.join(access_point, '%s.err' % worker_id)
+        stdOut = os.path.join(access_point, f"{worker_id}.out")
+        stdErr = os.path.join(access_point, f"{worker_id}.err")
         return stdOut, stdErr

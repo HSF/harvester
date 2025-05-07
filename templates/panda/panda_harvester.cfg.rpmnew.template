@@ -146,15 +146,15 @@ auth_origin = FIXME
 
 # base URL via http
 pandaURL = http://pandaserver.cern.ch:25080/server/panda
+server_api_url = http://pandaserver.cern.ch:25080/api/v1
 
 # base URL via https
 pandaURLSSL = https://pandaserver.cern.ch:25443/server/panda
-
-# base URL via proxy
-pandaURLProxy = http://pandaserver.cern.ch:25080/server/panda
+server_api_url_ssl = https://pandaserver.cern.ch:25443/api/v1
 
 # base URL for write access to log cache server
 pandaCacheURL_W = https://aipanda011.cern.ch:25443/server/panda
+cache_api_url_ssl = https://pandacache.cern.ch:25443/api/v1
 
 # base URL for read access to log cache server
 pandaCacheURL_R = https://aipanda011.cern.ch:25443/cache
