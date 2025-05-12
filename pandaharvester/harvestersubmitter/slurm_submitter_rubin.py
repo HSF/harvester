@@ -165,7 +165,7 @@ class SlurmSubmitter(PluginBase):
             # make batch script
             batchFile = self.make_batch_script(workSpec, partition, this_panda_queue_dict, tmpLog)
             # command
-            comStr = f"sbatch -D {workSpec.get_access_point()} {batchFile}"
+            comStr = f"sbatch --exclusive=user -D {workSpec.get_access_point()} {batchFile}"
             # submit
             tmpLog.debug(f"submit with {batchFile}")
             p = subprocess.Popen(comStr.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
