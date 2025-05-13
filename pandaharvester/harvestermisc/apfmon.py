@@ -295,6 +295,10 @@ class Apfmon(object):
                     apfmon_worker = {
                         "cid": batch_id,
                         "factory": factory,
+                        "harvesterid": self.harvester_id,
+                        "workerid": worker_id,
+                        "computingsite": computingsite,
+                        "computingelement": ce,
                         "label": f"{computingsite}-{ce}",
                         "jdlurl": jdl_url,
                         "stdouturl": stdout_url,
