@@ -174,6 +174,7 @@ class WorkerAdjuster(object):
                 # get queue
                 queue_config = self.queue_configMapper.get_queue(queue_name)
                 worker_limits_dict = {}
+                worker_stats_map = {}
                 worker_stats_map.setdefault("queue", {"n": 0, "core": 0, "mem": 0})
                 if queue_config:
                     worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
