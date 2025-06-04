@@ -115,7 +115,7 @@ def get_resource_type(resource_type_name, is_unified_queue, all_resource_types, 
 
 # Compute weight of each CE according to worker stat, return tuple(dict, total weight score)
 def get_ce_weighting(
-    ce_endpoint_list: list | None = None, worker_ce_all_tuple: tuple | None = None, is_slave_queue: bool = False, fair_share_percent: int = 50
+    ce_endpoint_list: list | None = None, worker_ce_all_tuple: tuple | None = None, is_slave_queue: bool = False, fairshare_percent: int = 50
 ) -> tuple:
     """
     Compute the weighting of each CE based on worker statistics and throughput.
@@ -129,7 +129,7 @@ def get_ce_weighting(
             - time_window (int): Time window for statistics in seconds.
             - n_new_workers (int): Number of new workers to consider.
         is_slave_queue (bool): Whether the queue is a slave queue.
-        fair_share_percent (int): Percentage of fair share to apply to the weighting.
+        fairshare_percent (int): Percentage of fair share to apply to the weighting.
 
     Returns:
         tuple: A tuple containing:
@@ -183,11 +183,11 @@ def get_ce_weighting(
 
     def _get_adj_ratio(thruput, nslots):  # inner function
         # compute coefficients for adjustment
-        if fair_share_percent < 0:
-            fair_share_percent = 0
-        elif fair_share_percent > 100:
-            fair_share_percent = 100
-        fair_share_coeff = float(fair_share_percent) / 100.0
+        if fairshare_percent < 0:
+            fairshare_percent = 0
+        elif fairshare_percent > 100:
+            fairshare_percent = 100
+        fair_share_coeff = float(fairshare_percent) / 100.0
         thruput_coeff = 0.5
         nslots_coeff = 0.0
         if fair_share_coeff > 0.5:
