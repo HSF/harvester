@@ -762,7 +762,9 @@ class HTCondorSubmitter(PluginBase):
                     is_slave_queue=is_slave_queue,
                     fairshare_percent=ce_fairshare_percent,
                 )
-                stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(ce_auxiliary_dict.keys(), worker_ce_all_tuple, ce_weighting)
+                stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(
+                    ce_auxiliary_dict.keys(), worker_ce_all_tuple, ce_weighting, ce_fairshare_percent
+                )
                 tmpLog.debug(f"CE stats and weighting: {stats_weighting_display_str}")
             else:
                 tmpLog.error("No valid CE endpoint found")

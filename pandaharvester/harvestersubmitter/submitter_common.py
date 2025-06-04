@@ -181,7 +181,7 @@ def get_ce_weighting(
     if total_nslots == 0:
         total_nslots = 1
 
-    def _get_adj_ratio(thruput, nslots):  # inner function
+    def _get_adj_ratio(thruput, nslots, fairshare_percent=fairshare_percent):  # inner function
         # compute coefficients for adjustment
         if fairshare_percent < 0:
             fairshare_percent = 0
@@ -261,9 +261,7 @@ def choose_ce(weighting):
 
 
 # Get better string to display the statistics and weighting of CEs
-
-
-def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
+def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting, fairshare_percent=None):
     worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
     total_score, ce_weight_dict, ce_thruput_dict, target_Q = ce_weighting
     worker_ce_stats_dict_sub_default = {"submitted": 0, "running": 0}
@@ -274,6 +272,7 @@ def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
         "nNewWorkers": int(n_new_workers),
         "target_Q": int(target_Q),
         "history_time_window": int(time_window),
+        "fairshare_percent": fairshare_percent,
     }
     general_str = (
         "maxWorkers={maxWorkers} "
@@ -281,6 +280,7 @@ def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
         "nNewWorkers={nNewWorkers} "
         "target_Q={target_Q} "
         "hist_timeWindow={history_time_window} "
+        "fairshare_perc={fairshare_percent} "
     ).format(**general_dict)
     ce_str_list = []
     for _ce in ce_list:
