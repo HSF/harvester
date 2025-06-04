@@ -170,12 +170,18 @@ def get_ce_weighting(
         return thruput
 
     def _get_nslots(_ce_endpoint):  # inner function
-        # estimated number of slots behind the CE by historical running workers
-        if _ce_endpoint not in worker_ce_stats_dict:
-            r = 0
+        # estimated number of slots behind the CE by historical running/finished workers and current running workers
+        hrf = 0
+        cr = 0
+        if _ce_endpoint not in worker_ce_backend_throughput_dict:
+            pass
         else:
-            r = int(worker_ce_backend_throughput_dict.get(_ce_endpoint, worker_ce_backend_throughput_dict[_ce_endpoint]).get("running", 0))
-        return r
+            hrf = sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st] for _st in ("running", "finished"))
+        if _ce_endpoint not in worker_ce_stats_dict:
+            pass
+        else:
+            cr = worker_ce_stats_dict[_ce_endpoint].get("running", 0)
+        return (hrf + cr) / 2.0
 
     total_nslots = sum((_get_nslots(_ce) for _ce in ce_endpoint_list))
     if total_nslots == 0:
