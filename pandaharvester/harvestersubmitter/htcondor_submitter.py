@@ -562,6 +562,7 @@ class HTCondorSubmitter(PluginBase):
         self.ceStats = dict()
         # allowed associated parameters and parameter prefixes from CRIC
         self._allowed_cric_attrs = [
+            "ce_fairshare_percent",
             "pilot_url",
             "pilot_args",
             "unified_dispatch",
@@ -646,13 +647,14 @@ class HTCondorSubmitter(PluginBase):
         pilot_version = str(this_panda_queue_dict.get("pilot_version", "current"))
         python_version = str(this_panda_queue_dict.get("python_version", "3"))
         is_gpu_resource = this_panda_queue_dict.get("resource_type", "") == "gpu"
+        ce_fairshare_percent = this_panda_queue_dict.get("ce_fairshare_percent", 50)
         custom_submit_attr_dict = {}
         for k, v in associated_params_dict.items():
             # fill custom submit attributes for adding to JDL
             try:
                 the_prefix = "jdl.plusattr."
                 if k.startswith(the_prefix):
-                    attr_key = k[len(the_prefix):]
+                    attr_key = k[len(the_prefix) :]
                     attr_value = str(v)
                     if not re.fullmatch(r"[a-zA-Z_0-9][a-zA-Z_0-9.\-]*", attr_key):
                         # skip invalid key
@@ -755,9 +757,14 @@ class HTCondorSubmitter(PluginBase):
                 worker_ce_all_tuple = self.get_ce_statistics(self.queueName, harvester_queue_config, nWorkers)
                 is_slave_queue = harvester_queue_config.runMode == "slave"
                 ce_weighting = submitter_common.get_ce_weighting(
-                    ce_endpoint_list=list(ce_auxiliary_dict.keys()), worker_ce_all_tuple=worker_ce_all_tuple, is_slave_queue=is_slave_queue
+                    ce_endpoint_list=list(ce_auxiliary_dict.keys()),
+                    worker_ce_all_tuple=worker_ce_all_tuple,
+                    is_slave_queue=is_slave_queue,
+                    fairshare_percent=ce_fairshare_percent,
                 )
-                stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(ce_auxiliary_dict.keys(), worker_ce_all_tuple, ce_weighting)
+                stats_weighting_display_str = submitter_common.get_ce_stats_weighting_display(
+                    ce_auxiliary_dict.keys(), worker_ce_all_tuple, ce_weighting, ce_fairshare_percent
+                )
                 tmpLog.debug(f"CE stats and weighting: {stats_weighting_display_str}")
             else:
                 tmpLog.error("No valid CE endpoint found")

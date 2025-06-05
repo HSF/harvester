@@ -114,13 +114,38 @@ def get_resource_type(resource_type_name, is_unified_queue, all_resource_types, 
 
 
 # Compute weight of each CE according to worker stat, return tuple(dict, total weight score)
-def get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None, is_slave_queue=False):
+def get_ce_weighting(
+    ce_endpoint_list: list | None = None, worker_ce_all_tuple: tuple | None = None, is_slave_queue: bool = False, fairshare_percent: int = 50
+) -> tuple:
+    """
+    Compute the weighting of each CE based on worker statistics and throughput.
+
+    Args:
+        ce_endpoint_list (list): List of CE endpoints to consider.
+        worker_ce_all_tuple (tuple): A tuple containing:
+            - worker_limits_dict (dict): Dictionary with worker limits.
+            - worker_ce_stats_dict (dict): Dictionary with CE statistics.
+            - worker_ce_backend_throughput_dict (dict): Dictionary with CE backend throughput.
+            - time_window (int): Time window for statistics in seconds.
+            - n_new_workers (int): Number of new workers to consider.
+        is_slave_queue (bool): Whether the queue is a slave queue.
+        fairshare_percent (int): Percentage of fair share to apply to the weighting.
+
+    Returns:
+        tuple: A tuple containing:
+            - total_score (float): Total score for the weighting.
+            - ce_weight_dict (dict): Dictionary with CE endpoints as keys and their weights as values.
+            - ce_thruput_dict (dict): Dictionary with CE endpoints as keys and their throughput as values.
+            - target_Q (float): Target number of queuing workers.
+    """
     multiplier = 1000.0
+    if ce_endpoint_list is None:
+        ce_endpoint_list = []
     n_ce = len(ce_endpoint_list)
     worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
     N = float(n_ce)
     Q = float(worker_limits_dict["nQueueLimitWorker"])
-    W = float(worker_limits_dict["maxWorkers"])
+    # W = float(worker_limits_dict["maxWorkers"])
     Q_good_init = float(
         sum(worker_ce_backend_throughput_dict[_ce][_st] for _st in ("submitted", "running", "finished") for _ce in worker_ce_backend_throughput_dict)
     )
@@ -144,17 +169,48 @@ def get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None, is_slave_que
         thruput = log1p(q_good_init) - log1p(q_good_fin)
         return thruput
 
-    def _get_thruput_adj_ratio(thruput):  # inner function
+    def _get_nslots(_ce_endpoint):  # inner function
+        # estimated number of slots behind the CE by historical running/finished workers and current running workers
+        hrf = 0
+        cr = 0
+        if _ce_endpoint not in worker_ce_backend_throughput_dict:
+            pass
+        else:
+            hrf = sum(worker_ce_backend_throughput_dict[_ce_endpoint][_st] for _st in ("running", "finished"))
+        if _ce_endpoint not in worker_ce_stats_dict:
+            pass
+        else:
+            cr = worker_ce_stats_dict[_ce_endpoint].get("running", 0)
+        return (hrf + cr) / 2.0
+
+    total_nslots = sum((_get_nslots(_ce) for _ce in ce_endpoint_list))
+    if total_nslots == 0:
+        total_nslots = 1
+
+    def _get_adj_ratio(thruput, nslots, fairshare_percent=fairshare_percent):  # inner function
+        # compute coefficients for adjustment
+        if fairshare_percent < 0:
+            fairshare_percent = 0
+        elif fairshare_percent > 100:
+            fairshare_percent = 100
+        fair_share_coeff = float(fairshare_percent) / 100.0
+        thruput_coeff = 0.5
+        nslots_coeff = 0.0
+        if fair_share_coeff > 0.5:
+            thruput_coeff = 1.0 - fair_share_coeff
+        else:
+            nslots_coeff = 1.0 - thruput_coeff - fair_share_coeff
+        # adjust throughput
         try:
-            thruput_adj_ratio = thruput / thruput_avg + 1 / N
+            adj_ratio = thruput_coeff * thruput / thruput_avg + fair_share_coeff * (1 / N) + nslots_coeff * nslots / total_nslots
         except ZeroDivisionError:
             if thruput == 0.0:
-                thruput_adj_ratio = 1 / N
+                adj_ratio = 1 / N
             else:
                 raise
-        return thruput_adj_ratio
+        return adj_ratio
 
-    ce_base_weight_sum = sum((_get_thruput_adj_ratio(_get_thruput(_ce)) for _ce in ce_endpoint_list))
+    ce_base_weight_sum = sum((_get_adj_ratio(_get_thruput(_ce), _get_nslots(_ce)) for _ce in ce_endpoint_list))
 
     def _get_init_weight(_ce_endpoint):  # inner function
         if _ce_endpoint not in worker_ce_stats_dict:
@@ -167,7 +223,7 @@ def get_ce_weighting(ce_endpoint_list=[], worker_ce_all_tuple=None, is_slave_que
             # r_avg = sum(( float(worker_ce_stats_dict[_k]['running']) for _k in worker_ce_stats_dict )) / N
         if _ce_endpoint in worker_ce_stats_dict and q > Q:
             return float(0)
-        ce_base_weight_normalized = _get_thruput_adj_ratio(_get_thruput(_ce_endpoint)) / ce_base_weight_sum
+        ce_base_weight_normalized = _get_adj_ratio(_get_thruput(_ce_endpoint), _get_nslots(_ce_endpoint)) / ce_base_weight_sum
         # target number of queuing of the CE
         q_expected = target_Q * ce_base_weight_normalized
         # weight by difference
@@ -211,9 +267,7 @@ def choose_ce(weighting):
 
 
 # Get better string to display the statistics and weighting of CEs
-
-
-def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
+def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting, fairshare_percent=None):
     worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers = worker_ce_all_tuple
     total_score, ce_weight_dict, ce_thruput_dict, target_Q = ce_weighting
     worker_ce_stats_dict_sub_default = {"submitted": 0, "running": 0}
@@ -224,6 +278,7 @@ def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
         "nNewWorkers": int(n_new_workers),
         "target_Q": int(target_Q),
         "history_time_window": int(time_window),
+        "fairshare_percent": fairshare_percent,
     }
     general_str = (
         "maxWorkers={maxWorkers} "
@@ -231,6 +286,7 @@ def get_ce_stats_weighting_display(ce_list, worker_ce_all_tuple, ce_weighting):
         "nNewWorkers={nNewWorkers} "
         "target_Q={target_Q} "
         "hist_timeWindow={history_time_window} "
+        "fairshare_perc={fairshare_percent} "
     ).format(**general_dict)
     ce_str_list = []
     for _ce in ce_list:
