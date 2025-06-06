@@ -208,7 +208,7 @@ class SlurmSubmitter(PluginBase):
 
         # get override requirements from queue configured
         try:
-            n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
+            n_core_per_node = self.nCorePerNode if self.nCorePerNode is not None else n_core_per_node_from_queue
         except AttributeError:
             n_core_per_node = n_core_per_node_from_queue
         if n_core_per_node < 1 and self.nCore > 0:
@@ -247,7 +247,10 @@ class SlurmSubmitter(PluginBase):
                     n_core_total = int(_match.group(1))
                 logger.debug(f"job attributes override by CRIC special_par: {attr}={str(_match.group(1))}")
 
-        n_node = ceil(n_core_total / n_core_per_node)
+        if not n_core_per_node or n_core_per_node < 1:
+            n_node = 1
+        else:
+            n_node = ceil(n_core_total / n_core_per_node)
         n_core_total_factor = n_core_total * n_core_factor
         request_ram_factor = request_ram * n_core_factor
         request_ram_bytes = request_ram * 2**20

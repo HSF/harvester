@@ -118,7 +118,7 @@ class SlurmSubmitter(PluginBase):
         request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
 
         if not n_core_per_node or n_core_per_node < 1:
-            n_node =1
+            n_node = 1
         else:
             n_node = ceil(n_core_total / n_core_per_node)
         request_ram_factor = request_ram * n_core_factor
