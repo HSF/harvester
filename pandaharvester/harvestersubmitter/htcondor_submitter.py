@@ -158,6 +158,7 @@ def submit_bag_of_workers(data_list):
 def make_a_jdl(
     workspec,
     template,
+    n_node,
     n_core_per_node,
     log_dir,
     panda_queue_name,
@@ -219,7 +220,8 @@ def make_a_jdl(
             tmpLog.debug(f"job attributes override by CRIC special_par: {attr}={str(_match.group(1))}")
     # derived job attributes
     n_core_total_factor = n_core_total * n_core_factor
-    n_node = ceil(n_core_total / n_core_per_node)
+    if n_node is None:
+        n_node = ceil(n_core_total / n_core_per_node)
     request_ram_factor = request_ram * n_core_factor
     request_ram_bytes = request_ram * 2**20
     request_ram_bytes_factor = request_ram * 2**20 * n_core_factor
@@ -391,6 +393,10 @@ class HTCondorSubmitter(PluginBase):
         self.nProcesses = getattr(self, "nProcesses", 1)
         if (not self.nProcesses) or (self.nProcesses < 1):
             self.nProcesses = 1
+        # number of nodes
+        self.nNode = getattr(self, "nNode", None)
+        # number of cores per node
+        self.nCorePerNode = getattr(self, "nCorePerNode", None)
         # ncore factor
         self.nCoreFactor = getattr(self, "nCoreFactor", 1)
         if type(self.nCoreFactor) in [dict]:
@@ -592,9 +598,9 @@ class HTCondorSubmitter(PluginBase):
                 continue
 
         # get override requirements from queue configured
-        try:
-            n_core_per_node = self.nCorePerNode if self.nCorePerNode else n_core_per_node_from_queue
-        except AttributeError:
+        n_node = getattr(self, "nNode", None)
+        n_core_per_node = getattr(self, "nCorePerNode", n_core_per_node_from_queue)
+        if not n_core_per_node:
             n_core_per_node = n_core_per_node_from_queue
 
         # deal with Condor schedd and central managers; make a random list the choose
@@ -873,6 +879,7 @@ class HTCondorSubmitter(PluginBase):
                         "executable_file": self.executableFile,
                         "log_dir": self.logDir,
                         "log_subdir": log_subdir,
+                        "n_node": n_node,
                         "n_core_per_node": n_core_per_node,
                         "n_core_factor": get_core_factor(workspec),
                         "panda_queue_name": panda_queue_name,
