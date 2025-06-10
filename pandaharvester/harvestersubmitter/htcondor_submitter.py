@@ -388,130 +388,66 @@ class HTCondorSubmitter(PluginBase):
         except KeyError:
             pass
         # number of processes
-        try:
-            self.nProcesses
-        except AttributeError:
+        self.nProcesses = getattr(self, "nProcesses", 1)
+        if (not self.nProcesses) or (self.nProcesses < 1):
             self.nProcesses = 1
-        else:
-            if (not self.nProcesses) or (self.nProcesses < 1):
-                self.nProcesses = 1
         # ncore factor
-        try:
-            if hasattr(self, "nCoreFactor"):
-                if type(self.nCoreFactor) in [dict]:
-                    # self.nCoreFactor is a dict for ucore
-                    # self.nCoreFactor = self.nCoreFactor
-                    pass
-                else:
-                    self.nCoreFactor = int(self.nCoreFactor)
-                    if (not self.nCoreFactor) or (self.nCoreFactor < 1):
-                        self.nCoreFactor = 1
-            else:
+        self.nCoreFactor = getattr(self, "nCoreFactor", 1)
+        if type(self.nCoreFactor) in [dict]:
+            # self.nCoreFactor is a dict for ucore
+            # self.nCoreFactor = self.nCoreFactor
+            pass
+        else:
+            self.nCoreFactor = int(self.nCoreFactor)
+            if (not self.nCoreFactor) or (self.nCoreFactor < 1):
                 self.nCoreFactor = 1
-        except AttributeError:
-            self.nCoreFactor = 1
         # executable file
-        try:
-            self.executableFile
-        except AttributeError:
-            self.executableFile = None
+        self.executableFile = getattr(self, "executableFile", None)
         # condor log directory
-        try:
-            self.logDir
-            if "$hostname" in self.logDir or "${hostname}" in self.logDir:
-                self.logDir = self.logDir.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
-                try:
-                    if not os.path.exists(self.logDir):
-                        os.mkdir(self.logDir)
-                except Exception as ex:
-                    tmpLog.debug(f"Failed to create logDir({self.logDir}): {str(ex)}")
-        except AttributeError:
-            self.logDir = os.getenv("TMPDIR") or "/tmp"
+        self.logDir = getattr(self, "logDir", os.getenv("TMPDIR") or "/tmp")
+        if self.logDir and ("$hostname" in self.logDir or "${hostname}" in self.logDir):
+            self.logDir = self.logDir.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
+            try:
+                if not os.path.exists(self.logDir):
+                    os.mkdir(self.logDir)
+            except Exception as ex:
+                tmpLog.debug(f"Failed to create logDir({self.logDir}): {str(ex)}")
         # log base url
-        try:
-            self.logBaseURL
-            if "$hostname" in self.logBaseURL or "${hostname}" in self.logBaseURL:
-                self.logBaseURL = self.logBaseURL.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
-        except AttributeError:
-            self.logBaseURL = None
+        self.logBaseURL = getattr(self, "logBaseURL", None)
+        if self.logBaseURL and ("$hostname" in self.logBaseURL or "${hostname}" in self.logBaseURL):
+            self.logBaseURL = self.logBaseURL.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         if self.logBaseURL and "${harvester_id}" in self.logBaseURL:
             self.logBaseURL = self.logBaseURL.replace("${harvester_id}", harvester_config.master.harvester_id)
         # Default x509 proxy for a queue
-        try:
-            self.x509UserProxy
-        except AttributeError:
-            self.x509UserProxy = os.getenv("X509_USER_PROXY")
+        self.x509UserProxy = getattr(self, "x509UserProxy", os.getenv("X509_USER_PROXY"))
         # x509 proxy for analysis jobs in grandly unified queues
-        try:
-            self.x509UserProxyAnalysis
-        except AttributeError:
-            self.x509UserProxyAnalysis = os.getenv("X509_USER_PROXY_ANAL")
+        self.x509UserProxyAnalysis = getattr(self, "x509UserProxyAnalysis", os.getenv("X509_USER_PROXY_ANAL"))
         # Default token directory for a queue
-        try:
-            self.tokenDir
-        except AttributeError:
-            self.tokenDir = None
+        self.tokenDir = getattr(self, "tokenDir", None)
         # token directory for analysis jobs in grandly unified queues
-        try:
-            self.tokenDirAnalysis
-        except AttributeError:
-            self.tokenDirAnalysis = None
+        self.tokenDirAnalysis = getattr(self, "tokenDirAnalysis", None)
         # pilot-pandaserver token
         self.pandaTokenFilename = getattr(self, "pandaTokenFilename", None)
         self.pandaTokenDir = getattr(self, "pandaTokenDir", None)
         self.pandaTokenKeyPath = getattr(self, "pandaTokenKeyPath", None)
         # CRIC
-        try:
-            self.useCRIC = bool(self.useCRIC)
-        except AttributeError:
-            # Try the old parameter name useAtlasCRIC
-            try:
-                self.useCRIC = bool(self.useAtlasCRIC)
-            except AttributeError:
-                # Try the old parameter name useAtlasAGIS
-                try:
-                    self.useCRIC = bool(self.useAtlasAGIS)
-                except AttributeError:
-                    self.useCRIC = False
+        self.useCRIC = getattr(self, "useCRIC", getattr(self, "useAtlasCRIC", getattr(self, "useAtlasAGIS", False)))
         # Grid CE, requiring CRIC
-        try:
-            self.useCRICGridCE = bool(self.useCRICGridCE)
-        except AttributeError:
-            # Try the old parameter name useAtlasGridCE
-            try:
-                self.useCRICGridCE = bool(self.useAtlasGridCE)
-            except AttributeError:
-                self.useCRICGridCE = False
-        finally:
-            self.useCRIC = self.useCRIC or self.useCRICGridCE
+        self.useCRICGridCE = getattr(self, "useCRICGridCE", getattr(self, "useAtlasGridCE", False))
+        self.useCRIC = self.useCRIC or self.useCRICGridCE
         # sdf template
-        try:
-            self.templateFile
-        except AttributeError:
-            self.templateFile = None
+        self.templateFile = getattr(self, "templateFile", None)
         # sdf template directories of CEs; ignored if templateFile is set
-        try:
-            self.CEtemplateDir
-        except AttributeError:
-            self.CEtemplateDir = ""
+        self.CEtemplateDir = getattr(self, "CEtemplateDir", "")
         # remote condor schedd and pool name (collector)
-        try:
-            self.condorSchedd
-            if "$hostname" in self.condorSchedd or "${hostname}" in self.condorSchedd:
-                self.condorSchedd = self.condorSchedd.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
-        except AttributeError:
-            self.condorSchedd = None
-        try:
-            self.condorPool
-            if "$hostname" in self.condorPool or "${hostname}" in self.condorPool:
-                self.condorPool = self.condorPool.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
-        except AttributeError:
-            self.condorPool = None
+        self.condorSchedd = getattr(self, "condorSchedd", None)
+        if self.condorSchedd is not None and ("$hostname" in self.condorSchedd or "${hostname}" in self.condorSchedd):
+            self.condorSchedd = self.condorSchedd.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
+        self.condorPool = getattr(self, "condorPool", None)
+        if self.condorPool is not None and ("$hostname" in self.condorPool or "${hostname}" in self.condorPool):
+            self.condorPool = self.condorPool.replace("$hostname", self.hostname).replace("${hostname}", self.hostname)
         # json config file of remote condor host: schedd/pool and weighting. If set, condorSchedd and condorPool are overwritten
-        try:
-            self.condorHostConfig
-        except AttributeError:
-            self.condorHostConfig = False
+        self.condorHostConfig = getattr(self, "condorHostConfig", False)
         if self.condorHostConfig:
             try:
                 self.condorSchedd = []
@@ -534,25 +470,13 @@ class HTCondorSubmitter(PluginBase):
             else:
                 self.condorHostWeight = [1]
         # condor spool mechanism. If False, need shared FS across remote schedd
-        try:
-            self.useSpool
-        except AttributeError:
-            self.useSpool = False
+        self.useSpool = getattr(self, "useSpool", False)
         # number of workers less than this number will be bulkily submitted in only one schedd
-        try:
-            self.minBulkToRandomizedSchedd
-        except AttributeError:
-            self.minBulkToRandomizedSchedd = 20
+        self.minBulkToRandomizedSchedd = getattr(self, "minBulkToRandomizedSchedd", 20)
         # try to use analysis credentials first
-        try:
-            self.useAnalysisCredentials
-        except AttributeError:
-            self.useAnalysisCredentials = False
+        self.useAnalysisCredentials = getattr(self, "useAnalysisCredentials", False)
         # probability permille to randomly run PR pilot with RC pilot url
-        try:
-            self.rcPilotRandomWeightPermille
-        except AttributeError:
-            self.rcPilotRandomWeightPermille = 0
+        self.rcPilotRandomWeightPermille = getattr(self, "rcPilotRandomWeightPermille", 0)
         # submission to ARC CE's with nordugrid (gridftp) or arc (REST) grid type
         self.submit_arc_grid_type = "arc"
         if extra_plugin_configs.get("submit_arc_grid_type") == "nordugrid":
