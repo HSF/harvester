@@ -225,8 +225,8 @@ def make_a_jdl(
     request_ram_factor = request_ram * n_core_factor
     request_ram_bytes = request_ram * 2**20
     request_ram_bytes_factor = request_ram * 2**20 * n_core_factor
-    request_ram_per_core = ceil(request_ram * n_node / n_core_total)
-    request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
+    request_ram_per_core = ceil(request_ram / n_core_total)
+    request_ram_bytes_per_core = ceil(request_ram_bytes / n_core_total)
     request_cputime = request_walltime * n_core_total
     request_walltime_minute = ceil(request_walltime / 60)
     request_cputime_minute = ceil(request_cputime / 60)
