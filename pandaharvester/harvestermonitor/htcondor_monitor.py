@@ -211,49 +211,37 @@ class HTCondorMonitor(PluginBase):
             pass
         except KeyError:
             pass
-        try:
-            self.nProcesses
-        except AttributeError:
-            self.nProcesses = 4
-        try:
-            self.cancelUnknown
-        except AttributeError:
-            self.cancelUnknown = False
-        else:
-            self.cancelUnknown = bool(self.cancelUnknown)
-        try:
-            self.heldTimeout
-        except AttributeError:
-            self.heldTimeout = 3600
+        # number of processes to use for checking workers
+        self.nProcesses = getattr(self, "nProcesses", 4)
+        # whether to cancel unknown workers
+        self.cancelUnknown = getattr(self, "cancelUnknown", False)
+        self.cancelUnknown = bool(self.cancelUnknown)
+        # timeout for held condor jobs in seconds
+        self.heldTimeout = getattr(self, "heldTimeout", 3600)
+        # whether to use cache for condor job query
+        self.cacheEnable = False
         try:
             self.cacheEnable = harvester_config.monitor.pluginCacheEnable
         except AttributeError:
-            self.cacheEnable = False
+            pass
+        # cache refresh interval in seconds
+        self.cacheRefreshInterval = 240
         try:
             self.cacheRefreshInterval = harvester_config.monitor.pluginCacheRefreshInterval
         except AttributeError:
             self.cacheRefreshInterval = harvester_config.monitor.checkInterval
-        try:
-            self.useCondorHistory
-        except AttributeError:
-            if extra_plugin_configs.get("use_condor_history") is False:
-                self.useCondorHistory = False
-            else:
-                self.useCondorHistory = True
-        try:
-            self.submissionHost_list
-        except AttributeError:
-            self.submissionHost_list = []
-        try:
-            self.condorHostConfig_list
-        except AttributeError:
-            self.condorHostConfig_list = []
-        try:
-            self.payloadType
-        except AttributeError:
-            self.payloadType = None
+        # whether to use condor history
+        self.useCondorHistory = getattr(self, "useCondorHistory", True)
+        if extra_plugin_configs.get("use_condor_history") is False:
+            self.useCondorHistory = False
         # max age of workers in seconds (since last status update) that are allowed to queyr with condor history
         self.useCondorHistoryMaxAge = getattr(self, "useCondorHistoryMaxAge", 7200)
+        # submission hosts
+        self.submissionHost_list = getattr(self, "submissionHost_list", [])
+        # condor host config files
+        self.condorHostConfig_list = getattr(self, "condorHostConfig_list", [])
+        # payload type
+        self.payloadType = getattr(self, "payloadType", None)
 
     # check workers
     def check_workers(self, workspec_list):
