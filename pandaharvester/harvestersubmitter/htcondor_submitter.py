@@ -577,7 +577,7 @@ class HTCondorSubmitter(PluginBase):
         pilot_version = str(this_panda_queue_dict.get("pilot_version", "current"))
         python_version = str(this_panda_queue_dict.get("python_version", "3"))
         is_gpu_resource = this_panda_queue_dict.get("resource_type", "") == "gpu"
-        ce_fairshare_percent = this_panda_queue_dict.get("ce_fairshare_percent", 50)
+        ce_fairshare_percent = associated_params_dict.get("ce_fairshare_percent", 50)
         custom_submit_attr_dict = {}
         for k, v in associated_params_dict.items():
             # fill custom submit attributes for adding to JDL
