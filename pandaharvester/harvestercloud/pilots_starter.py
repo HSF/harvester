@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 This script needs to be kept python2 compatible until all K8S sites are migrated to ALMA9
 This script will be executed at container startup
@@ -137,24 +135,29 @@ def get_configuration():
         global WORK_DIR
         WORK_DIR = tmpdir
 
-    # get the proxy certificate and save it
-    if os.environ.get("proxySecretPath"):
-        proxy_path_secret = os.environ.get("proxySecretPath")
+    proxy_path_secret = os.environ.get("proxySecretPath")
+    token_path = os.environ.get("PANDA_AUTH_DIR")
+    token_filename = os.environ.get("PANDA_AUTH_TOKEN")
+    token_key_filename = os.environ.get("PANDA_AUTH_TOKEN_KEY")
+
+    # check that either the proxy or the tokens are configured. If not, raise an exception
+    if not proxy_path_secret and (not token_path or not token_filename or not token_key_filename):
+        logging.debug("[main] there is no proxy or token specified")
+        raise Exception("Found no voms proxy or token configuration specified")
+
+    # get the proxy certificate and copy it to the work directory
+    proxy_path = None
+    if proxy_path_secret:
         proxy_path = copy_proxy(proxy_path_secret, WORK_DIR)
         if not proxy_path:
             logging.debug("[main] failed to copy proxies")
             raise Exception("Failed to copy proxies")
-    else:
-        logging.debug("[main] no proxy specified in env var $proxySecretPath")
-        raise Exception("Found no voms proxy specified")
+
+        logging.debug("[main] initialized proxy")
 
     os.environ["X509_USER_PROXY"] = proxy_path
-    logging.debug("[main] initialized proxy")
 
     # copy the pilot-panda token and token key to the work directory
-    token_path = os.environ.get("PANDA_AUTH_DIR")
-    token_filename = os.environ.get("PANDA_AUTH_TOKEN")
-    token_key_filename = os.environ.get("PANDA_AUTH_TOKEN_KEY")
     logging.debug(f"[main] token info {token_path} {token_filename} {token_key_filename}")
     if token_path and token_filename and token_key_filename:
         full_token_path = os.path.join(token_path, token_filename)
