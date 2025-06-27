@@ -48,7 +48,9 @@ def post_multipart(host, port, selector, files, proxy_cert, full_token_path, tok
 
     # if token is provided, use it instead of the proxy certificate
     if full_token_path and token_auth_origin:
-        h.putheader("Authorization", f"Bearer {token_auth_origin}")
+        with open(full_token_path, "r") as token_file:
+            token_content = token_file.read().strip()
+        h.putheader("Authorization", f"Bearer {token_content}")
         h.putheader("Origin", token_auth_origin)
 
     h.endheaders()
