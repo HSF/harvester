@@ -79,14 +79,14 @@ def encode_multipart_formdata(files):
     return content_type, body
 
 
-def upload_logs(url, log_file_name, destination_name, proxy_cert):
+def upload_logs(url, log_file_name, destination_name, proxy_cert, full_token_path, token_auth_origin):
     try:
         full_url = url + "/putFile"
         url_parts = urlparse.urlsplit(full_url)
 
         logging.debug("[upload_logs] start")
         files = [("file", destination_name, gzip.compress(open(log_file_name).read().encode()))]
-        status, reason = post_multipart(url_parts.hostname, url_parts.port, url_parts.path, files, proxy_cert)
+        status, reason = post_multipart(url_parts.hostname, url_parts.port, url_parts.path, files, proxy_cert, full_token_path, token_auth_origin)
         logging.debug(f"[upload_logs] finished with code={status} msg={reason}")
         if status == 200:
             return True
