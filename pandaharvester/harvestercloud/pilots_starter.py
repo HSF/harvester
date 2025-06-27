@@ -36,9 +36,8 @@ def post_multipart(host, port, selector, files, proxy_cert, full_token_path, tok
     content_type, body = encode_multipart_formdata(files)
 
     # if no token is provided, use the proxy certificate
-    context = None
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     if not full_token_path or not token_auth_origin:
-        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         context.load_cert_chain(certfile=proxy_cert, keyfile=proxy_cert)
 
     h = httplib.HTTPSConnection(host, port, context=context, timeout=180)
