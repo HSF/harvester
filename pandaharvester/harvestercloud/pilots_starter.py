@@ -1,7 +1,4 @@
-#!/usr/bin/env python
-
 """
-This script needs to be kept python2 compatible until all K8S sites are migrated to ALMA9
 This script will be executed at container startup
 - It will retrieve the proxy and panda queue from the environment
 - It will download the pilot wrapper from github and execute it
@@ -30,7 +27,7 @@ CONFIG_FILES = [PJD, PFC]
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 
 
-def post_multipart(host, port, selector, files, proxy_cert):
+def post_multipart(host, port, selector, files, proxy_cert, full_token_path, token_auth_origin):
     """
     Post files to an http host as multipart/form-data.
     files is a sequence of (name, filename, value) elements for data to be uploaded as files
@@ -38,14 +35,24 @@ def post_multipart(host, port, selector, files, proxy_cert):
     """
     content_type, body = encode_multipart_formdata(files)
 
+    # if no token is provided, use the proxy certificate
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    context.load_cert_chain(certfile=proxy_cert, keyfile=proxy_cert)
+    if not full_token_path or not token_auth_origin:
+        context.load_cert_chain(certfile=proxy_cert, keyfile=proxy_cert)
 
     h = httplib.HTTPSConnection(host, port, context=context, timeout=180)
 
     h.putrequest("POST", selector)
     h.putheader("content-type", content_type)
     h.putheader("content-length", str(len(body)))
+
+    # if token is provided, use it instead of the proxy certificate
+    if full_token_path and token_auth_origin:
+        with open(full_token_path, "r") as token_file:
+            token_content = token_file.read().strip()
+        h.putheader("Authorization", f"Bearer {token_content}")
+        h.putheader("Origin", token_auth_origin)
+
     h.endheaders()
     h.send(body)
     response = h.getresponse()
@@ -73,14 +80,14 @@ def encode_multipart_formdata(files):
     return content_type, body
 
 
-def upload_logs(url, log_file_name, destination_name, proxy_cert):
+def upload_logs(url, log_file_name, destination_name, proxy_cert, full_token_path, token_auth_origin):
     try:
         full_url = url + "/putFile"
         url_parts = urlparse.urlsplit(full_url)
 
         logging.debug("[upload_logs] start")
         files = [("file", destination_name, gzip.compress(open(log_file_name).read().encode()))]
-        status, reason = post_multipart(url_parts.hostname, url_parts.port, url_parts.path, files, proxy_cert)
+        status, reason = post_multipart(url_parts.hostname, url_parts.port, url_parts.path, files, proxy_cert, full_token_path, token_auth_origin)
         logging.debug(f"[upload_logs] finished with code={status} msg={reason}")
         if status == 200:
             return True
@@ -137,25 +144,33 @@ def get_configuration():
         global WORK_DIR
         WORK_DIR = tmpdir
 
-    # get the proxy certificate and save it
-    if os.environ.get("proxySecretPath"):
-        proxy_path_secret = os.environ.get("proxySecretPath")
+    proxy_path_secret = os.environ.get("proxySecretPath")
+    token_path = os.environ.get("PANDA_AUTH_DIR")
+    token_filename = os.environ.get("PANDA_AUTH_TOKEN")
+    token_key_filename = os.environ.get("PANDA_AUTH_TOKEN_KEY")
+    token_auth_origin = os.environ.get("PANDA_AUTH_ORIGIN")
+
+    # check that either the proxy or the tokens are configured. If not, raise an exception
+    if not proxy_path_secret and (not token_path or not token_filename or not token_key_filename or not token_auth_origin):
+        logging.debug("[main] there is no proxy or token specified")
+        raise Exception("Found no voms proxy or token configuration specified")
+
+    # get the proxy certificate and copy it to the work directory
+    proxy_path = None
+    if proxy_path_secret:
         proxy_path = copy_proxy(proxy_path_secret, WORK_DIR)
         if not proxy_path:
             logging.debug("[main] failed to copy proxies")
             raise Exception("Failed to copy proxies")
-    else:
-        logging.debug("[main] no proxy specified in env var $proxySecretPath")
-        raise Exception("Found no voms proxy specified")
+
+        logging.debug("[main] initialized proxy")
 
     os.environ["X509_USER_PROXY"] = proxy_path
-    logging.debug("[main] initialized proxy")
 
     # copy the pilot-panda token and token key to the work directory
-    token_path = os.environ.get("PANDA_AUTH_DIR")
-    token_filename = os.environ.get("PANDA_AUTH_TOKEN")
-    token_key_filename = os.environ.get("PANDA_AUTH_TOKEN_KEY")
     logging.debug(f"[main] token info {token_path} {token_filename} {token_key_filename}")
+    full_token_path = None
+    full_token_key_path = None
     if token_path and token_filename and token_key_filename:
         full_token_path = os.path.join(token_path, token_filename)
         copy_proxy(full_token_path, WORK_DIR)
@@ -224,6 +239,9 @@ def get_configuration():
 
     return (
         proxy_path,
+        full_token_path,
+        full_token_key_path,
+        token_auth_origin,
         panda_site,
         panda_queue,
         resource_type,
@@ -246,6 +264,9 @@ if __name__ == "__main__":
     # get all the configuration from environment
     (
         proxy_path,
+        full_token_path,
+        full_token_key_path,
+        token_auth_origin,
         panda_site,
         panda_queue,
         resource_type,
@@ -326,7 +347,7 @@ if __name__ == "__main__":
     logging.debug(f"[main] pilot wrapper done with return code {return_code} ...")
 
     # upload logs to e.g. panda cache or similar
-    upload_logs(logs_frontend_w, WORK_DIR + "/wrapper-wid.log", destination_name, proxy_path)
+    upload_logs(logs_frontend_w, WORK_DIR + "/wrapper-wid.log", destination_name, proxy_path, full_token_path, token_auth_origin)
     logging.debug("[main] FINISHED")
 
     # Exit with the same exit code as the pilot wrapper
