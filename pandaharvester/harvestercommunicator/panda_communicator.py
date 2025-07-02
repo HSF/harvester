@@ -715,10 +715,9 @@ class PandaCommunicator(BaseCommunicator):
             core_utils.dump_error_message(tmp_log, ret_message)
             return ret_value, ret_message
 
-        ret_value = tmp_data["ResourceTypes"]
-        tmp_log.debug(f"Resource types: {ret_value}")
+        tmp_log.debug(f"Resource types: {tmp_data}")
 
-        return ret_value, ret_message
+        return tmp_data, ret_message
 
     # get job statistics
     def get_job_stats(self):
