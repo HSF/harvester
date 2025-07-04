@@ -102,7 +102,6 @@ class WorkerErrors(object):
         4249: r"LRMS error: .* Job .*",
         4260: r"LRMS error: .* PeriodicRemove evaluated to TRUE",
         4261: r"LRMS error: .* RemoveReason: .*",
-        4270: r"LRMS error: .* Node fail",
         4290: r"LRMS error: .*",
         # 4.3. ARC CE general errors
         # 4.3.1 ARC command timeout errors
