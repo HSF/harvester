@@ -200,11 +200,11 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
         if error_code is None:
             # If no pattern matched, use a general error code
             error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
+        tmpLog.debug(f"errorCode={error_code} errorDiag={errStr}")
     else:
         # No error string; set to succeeded
         error_code = WorkerErrors.error_codes.get("SUCCEEDED")
     workspec.set_supplemental_error(error_code=error_code, error_diag=errStr)
-    tmpLog.debug(f"errorCode={error_code} errorDiag={errStr}")
     # Return
     return (newStatus, errStr)
 
