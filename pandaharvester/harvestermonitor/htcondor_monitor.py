@@ -193,7 +193,17 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
             tmpLog.warning(errStr)
             newStatus = None
     # Set supplemental error message
-    error_code = WorkerErrors.error_codes.get("GENERAL_ERROR") if errStr else WorkerErrors.error_codes.get("SUCCEEDED")
+    error_code = None
+    if errStr:
+        # Check if the error message matches any known patterns
+        error_code = WorkerErrors.htcondor_message_pattern_handler.get_error_code(errStr)
+        if error_code is None:
+            # If no pattern matched, use a general error code
+            error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
+        tmpLog.debug(f"errorCode={error_code} errorDiag={errStr}")
+    else:
+        # No error string; set to succeeded
+        error_code = WorkerErrors.error_codes.get("SUCCEEDED")
     workspec.set_supplemental_error(error_code=error_code, error_diag=errStr)
     # Return
     return (newStatus, errStr)

@@ -199,6 +199,7 @@ def get_ce_weighting(
         if fair_share_coeff > 0.5:
             thruput_coeff = 1.0 - fair_share_coeff
         else:
+            thruput_coeff = fair_share_coeff
             nslots_coeff = 1.0 - thruput_coeff - fair_share_coeff
         # adjust throughput
         try:

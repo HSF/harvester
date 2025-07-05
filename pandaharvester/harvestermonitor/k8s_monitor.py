@@ -235,7 +235,12 @@ class K8sMonitor(PluginBase):
                 sup_error_code = exit_code
                 sup_error_diag += get_payload_errstr_from_ec(self.payloadType, exit_code)
             else:
-                sup_error_code = WorkerErrors.error_codes.get("GENERAL_ERROR") if error_message else WorkerErrors.error_codes.get("SUCCEEDED")
+                if error_message:
+                    sup_error_code = WorkerErrors.k8s_message_pattern_handler.get_error_code(error_message)
+                    if sup_error_code is None:
+                        sup_error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
+                else:
+                    sup_error_code = WorkerErrors.error_codes.get("SUCCEEDED")
 
             # Extend the base error message with the information found querying the job and pods
             sup_error_diag += error_message
