@@ -196,7 +196,7 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
     error_code = None
     if errStr:
         # Check if the error message matches any known patterns
-        error_code = WorkerErrors.message_pattern_handler.get_error_code(errStr)
+        error_code = WorkerErrors.htcondor_message_pattern_handler.get_error_code(errStr)
         if error_code is None:
             # If no pattern matched, use a general error code
             error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
