@@ -183,6 +183,7 @@ def make_a_jdl(
     is_gpu_resource=False,
     n_core_factor=1,
     custom_submit_attr_dict=None,
+    cric_panda_site=None,
     **kwarg,
 ):
     """
@@ -336,6 +337,7 @@ def make_a_jdl(
         "requestGpus": 1 if is_gpu_resource else 0,
         "requireGpus": is_gpu_resource,
         "customSubmitAttributes": custom_submit_attr_str,
+        "cricPandaSite": cric_panda_site,
     }
 
     gtag = batch_log_dict.get("gtag", "fake_GTAG_string").format(**placeholder_map)
@@ -578,6 +580,7 @@ class HTCondorSubmitter(PluginBase):
         python_version = str(this_panda_queue_dict.get("python_version", "3"))
         is_gpu_resource = this_panda_queue_dict.get("resource_type", "") == "gpu"
         ce_fairshare_percent = associated_params_dict.get("ce_fairshare_percent", 50)
+        cric_panda_site = this_panda_queue_dict.get("panda_site")
         custom_submit_attr_dict = {}
         for k, v in associated_params_dict.items():
             # fill custom submit attributes for adding to JDL
@@ -904,6 +907,7 @@ class HTCondorSubmitter(PluginBase):
                         "prod_rc_permille": self.rcPilotRandomWeightPermille,
                         "is_gpu_resource": is_gpu_resource,
                         "custom_submit_attr_dict": custom_submit_attr_dict,
+                        "cric_panda_site": cric_panda_site,
                     }
                 )
             return data

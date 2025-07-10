@@ -94,15 +94,18 @@ CMPM_CE = {
 
 # 5. Batch system errors (shown in condor HoldReason)
 CMPM_Batch_System = {
-    # 5.1. Batch system errors
-    # 5.1.1 Memory errors
-    5110: r"Job has gone over cgroup memory limit of .*",
-    5116: r"peak memory usage exceeded .*",
+    # Deprecated codes: 5110
     # 5.5 HTCondor batch errors
     5511: r"Number of submitted jobs would exceed MAX_JOBS_SUBMITTED",
     5512: r"Number of submitted jobs would exceed MAX_JOBS_PER_OWNER",
     5519: r"Number of submitted jobs would exceed .*",
     5520: r"The job exceeded allowed .* duration of .*",
+    # 5.5.3 Slot errors about memory and resource limits
+    5530: r"Error from slot.*: (Job|.* job) has gone over (memory|.* memory) limit of .*",
+    5531: r"Error from slot.*: peak memory usage exceeded .*",
+    # 5.5.4 Other slot errors
+    5541: r"Error from slot.*: Error running docker job: .*",
+    5549: r"Error from slot.*: .*",
     # 5.5.7 Site customized HoldReason
     5571: r".* Second start not allowed",  # INFN-CNAF
     5572: r"job aborted due to .*",  # FZK-LCG2
