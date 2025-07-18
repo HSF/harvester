@@ -218,6 +218,7 @@ def make_a_jdl(
                 n_core_total = int(_match.group(1))
             tmpLog.debug(f"job attributes override by CRIC special_par: {attr}={str(_match.group(1))}")
     # derived job attributes
+    n_core_total_factor = n_core_total * n_core_factor
     n_node = ceil(n_core_total / n_core_per_node)
     request_ram_factor = request_ram * n_core_factor
     request_ram_bytes = request_ram * 2**20
