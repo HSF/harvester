@@ -100,12 +100,7 @@ class SlurmSubmitter(PluginBase):
 
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1) if this_panda_queue_dict.get("corecount", 1) else 1
-
-        # get override requirements from queue configured
-        try:
-            n_core_per_node = self.nCorePerNode if self.nCorePerNode is not None else n_core_per_node_from_queue
-        except AttributeError:
-            n_core_per_node = n_core_per_node_from_queue
+        n_core_per_node = getattr(self, "nCorePerNode", n_core_per_node_from_queue)
         if not n_core_per_node:
             n_core_per_node = self.nCore
 
@@ -117,15 +112,15 @@ class SlurmSubmitter(PluginBase):
         request_disk = workspec.maxDiskCount * 1024 if workspec.maxDiskCount else 1
         request_walltime = workspec.maxWalltime if workspec.maxWalltime else 0
 
-        if not n_core_per_node or n_core_per_node < 1:
-            n_node = 1
-        else:
+        n_node = getattr(self, "nNode", None)
+        if not n_node:
             n_node = ceil(n_core_total / n_core_per_node)
+
         request_ram_factor = request_ram * n_core_factor
         request_ram_bytes = request_ram * 2**20
         request_ram_bytes_factor = request_ram * 2**20 * n_core_factor
-        request_ram_per_core = ceil(request_ram * n_node / n_core_total)
-        request_ram_bytes_per_core = ceil(request_ram_bytes * n_node / n_core_total)
+        request_ram_per_core = ceil(request_ram / n_core_total)
+        request_ram_bytes_per_core = ceil(request_ram_bytes / n_core_total)
         request_cputime = request_walltime * n_core_total
         request_walltime_minute = ceil(request_walltime / 60)
         request_cputime_minute = ceil(request_cputime / 60)
