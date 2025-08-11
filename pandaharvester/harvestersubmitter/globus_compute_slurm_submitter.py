@@ -149,6 +149,12 @@ class GlobusComputeSlurmSubmitter(PluginBase):
         request_walltime_minute = ceil(request_walltime / 60)
         request_cputime_minute = ceil(request_cputime / 60)
 
+        # For remote working dir
+        if self.remote_workdir:
+            remote_accessPoint = os.path.join(self.remote_workdir, self.queueName, workspec.workerID)
+        else:
+            remote_accessPoint = workspec.accessPoint
+
         variables = {}
 
         variables['nCorePerNode']           = n_core_per_node
@@ -165,15 +171,13 @@ class GlobusComputeSlurmSubmitter(PluginBase):
         variables['requestCputime']         = request_cputime,
         variables['requestCputimeMinute']   = request_cputime_minute,
         variables['accessPoint']            = workspec.accessPoint
-        # For remote working dir
-        variables['remote_accessPoint']     = self.remote_accessPoint if self.remote_accessPoint is not None else workspec.accessPoint
+        variables['remote_accessPoint']     = remote_accessPoint
         variables['harvesterID']            = harvester_config.master.harvester_id 
         variables['workerID']               = workspec.workerID
         variables['computingSite']          = workspec.computingSite
         variables['pandaQueueName']         = self.queueName
         variables['localQueueName']         = self.localQueueName
         variables['jobType']                = workspec.jobType
-
         variables['tokenOrigin']            = self.tokenOrigin
         variables['tokenDir']               = self.tokenDir
         variables['tokenName']              = self.tokenName
@@ -210,7 +214,7 @@ class GlobusComputeSlurmSubmitter(PluginBase):
             tmpLog = self.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="submit_workers")
             tmpLog.debug(f"Step 1: Start submission with workSpec with detail of {workSpec.__dict__}")
             try:
-                task_content, user_endpoint_config = self.render_template(workSpec, logger)
+                task_content, user_endpoint_config = self.render_template(workSpec, tmpLog)
                 tmpLog.debug(f"Step 2: Rendering finished. \nGet task_content: \n{task_content}\nGet user_endpoint_config: \n{user_endpoint_config}")
     
                 batch = self.gc_client.create_batch(user_endpoint_config=user_endpoint_config)
@@ -230,7 +234,7 @@ class GlobusComputeSlurmSubmitter(PluginBase):
                 tmpLog.debug(f"Now setting: \nbatchID = {workSpec.batchID}, \nGC sandbox dir = {workSpec.gc_sandbox_dir}")
                 tmpRetVal = (True, "")
             except Exception as e:
-                tmoLog.error(f"Error during submit workers: {e}")
+                tmpLog.error(f"Error during submit workers: {e}")
                 tmpRetVal = (False, str(e))
             retList.append(tmpRetVal)
         return retList
