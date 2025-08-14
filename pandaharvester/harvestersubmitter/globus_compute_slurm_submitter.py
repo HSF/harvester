@@ -23,7 +23,7 @@ class CustomShellFunction(ShellFunction):
     def __init__(self, cmd: str, log_dir: Optional[str] = None, **kwargs):
         self.log_dir = log_dir
         if not self.log_dir:
-            self.log_dir = "/global/homes/u/usatlas/.globus_compute/CustomShellFunctionLog"
+            self.log_dir = "~/.globus_compute/CustomShellFunctionLog"
         super().__init__(cmd=cmd, **kwargs)
 
     def execute_cmd_line(self, cmd: str) -> ShellResult:
@@ -37,7 +37,7 @@ class CustomShellFunction(ShellFunction):
         except KeyError:
             raise RuntimeError("Environment variable GC_TASK_UUID is required")
 
-        run_dir = os.path.join(self.log_dir, task_uuid)
+        run_dir = os.path.join(self.log_dir, str(task_uuid))
         if run_dir:
             os.makedirs(run_dir, exist_ok=True)
             os.chdir(run_dir)
@@ -151,7 +151,7 @@ class GlobusComputeSlurmSubmitter(PluginBase):
 
         # For remote working dir
         if self.remote_workdir:
-            remote_accessPoint = os.path.join(self.remote_workdir, self.queueName, workspec.workerID)
+            remote_accessPoint = os.path.join(self.remote_workdir, self.queueName, str(workspec.workerID))
         else:
             remote_accessPoint = workspec.accessPoint
 
