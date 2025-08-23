@@ -261,9 +261,9 @@ class GlobusBulkStager(BaseStager):
                         scope = "panda"
                         if fileSpec.scope is not None:
                             scope = fileSpec.scope
-                        # for EventService job set the scope to transient for non log files
-                        if self.EventServicejob:
-                            scope = scope
+                        #The scope of the Raythena output files should not be "transient" so this is removed
+                        # if self.EventServicejob:
+                        #     scope = scope
                         # only print to log file first 25 files
                         if ifile < 25:
                             msgStr = f"fileSpec.lfn - {fileSpec.lfn} fileSpec.scope - {fileSpec.scope}"
