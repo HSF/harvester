@@ -593,7 +593,7 @@ class HTCondorSubmitter(PluginBase):
                         # skip invalid key
                         tmpLog.warning(f'custom submit attribute "{k}: {v}" has invalid key; skipped')
                         continue
-                    if not re.fullmatch(r"[a-zA-Z_0-9.\-,]+", attr_value):
+                    if not re.fullmatch(r'[a-zA-Z_0-9.\-,=&|()!?" ]+', attr_value):
                         # skip invalid value
                         tmpLog.warning(f'custom submit attribute "{k}: {v}" has invalid value; skipped')
                         continue
