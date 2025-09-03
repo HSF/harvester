@@ -107,6 +107,7 @@ CMPM_Batch_System = {
     5541: r"Error from slot.*: Error running docker job: .*",
     5549: r"Error from slot.*: .*",
     # 5.5.7 Site customized HoldReason
+    5570: r"SYSTEM_PERIODIC_HOLD",
     5571: r".* Second start not allowed",  # INFN-CNAF
     5572: r"job aborted due to .*",  # FZK-LCG2
     # 5.6 Slurm errors
