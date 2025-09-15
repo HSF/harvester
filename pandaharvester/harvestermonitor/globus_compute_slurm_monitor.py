@@ -116,25 +116,33 @@ exit 0
         retList = []
         for work_spec in workspec_list:
             tmplog = self.make_logger(baseLogger, f"workerID={work_spec.workerID}", method_name="check_workers")
-            if work_spec.slurmID:
-                tmplog.debug(f"for workerID={work_spec.workerID}, slurm_job_id is fetched successfully with {work_spec.slurmID}, so invoke get_status_sacct")
-                new_status, err_str = self.get_status_sacct(tmplog, work_spec.slurmID)
+            get_attr_status, globus_compute_attr_dict = work_spec.get_work_attribute("globus_compute_attr")
+            if not get_attr_status:
+                err_str = "Failed to get globus_compute_attr"
+                tmplog.error(err_str)
+                retList.append((work_spec.ST_failed, err_str))
+                continue
+            slurmID = globus_compute_attr_dict["slurmID"]
+            sandbox_dir = globus_compute_attr_dict["sandbox_dir"]
+            if slurmID:
+                tmplog.debug(f"for workerID={work_spec.workerID}, slurm_job_id is fetched successfully with {slurmID}, so invoke get_status_sacct")
+                new_status, err_str = self.get_status_sacct(tmplog, slurmID)
             else:
                 tmplog.debug(f"for workerID={work_spec.workerID}, slurm_job_id has not been fetched, so try to fetch it")
-                retCode, stdOut = self.get_slurm_job_id(tmplog, work_spec.gc_sandbox_dir)
+                retCode, stdOut = self.get_slurm_job_id(tmplog, sandbox_dir)
                 new_status = None
                 err_str = ""
                 status_dict = None
 
                 if retCode == 0:
-                    work_spec.slurmID = stdOut.strip()
+                    slurmID = stdOut.strip()
                     new_status = work_spec.ST_running
                     err_str = ""
                 else:
                     if retCode == 1:
-                        tmplog.debug(f"File {work_spec.gc_sandbox_dir} does not exist, need to check if the job is still query")
+                        tmplog.debug(f"File {sandbox_dir} does not exist, need to check if the job is still query")
                     else:
-                        tmplog.error(f"Unknown return code {retCode} for {work_spec.gc_sandbox_dir}, need to check")
+                        tmplog.error(f"Unknown return code {retCode} for {sandbox_dir}, need to check")
                     
                     task_list = [work_spec.batchID]
                     try:

@@ -5,6 +5,7 @@ import subprocess
 import time
 import yaml
 from typing import Optional
+from math import ceil
 
 from globus_compute_sdk import Executor, Client
 from globus_compute_sdk.sdk.shell_function import ShellFunction, ShellResult
@@ -37,7 +38,7 @@ class CustomShellFunction(ShellFunction):
         except KeyError:
             raise RuntimeError("Environment variable GC_TASK_UUID is required")
 
-        run_dir = os.path.join(self.log_dir, str(task_uuid))
+        run_dir = os.path.join(self.log_dir, task_uuid)
         if run_dir:
             os.makedirs(run_dir, exist_ok=True)
             os.chdir(run_dir)
@@ -229,9 +230,11 @@ class GlobusComputeSlurmSubmitter(PluginBase):
                 tmpLog.debug(f"Step 4: Made a batch submission to GC. Got batch_res = \n{batch_res}")
                 for func_id, each_task_list in batch_res['tasks'].items():
                     workSpec.batchID = each_task_list[0]
-                    workSpec.gc_sandbox_dir = os.path.join(self.slurm_log_dir, workSpec.batchID)
-                    workSpec.slurmID = None
-                tmpLog.debug(f"Now setting: \nbatchID = {workSpec.batchID}, \nGC sandbox dir = {workSpec.gc_sandbox_dir}")
+                    globus_compute_attr_dict = {}
+                    globus_compute_attr_dict["sandbox_dir"] = os.path.join(self.slurm_log_dir, workSpec.batchID)
+                    globus_compute_attr_dict["slurmID"] = None
+                    workSpec.set_work_attributes({"globus_compute_attr": globus_compute_attr_dict}) 
+                    tmpLog.debug(f"Now setting: \nbatchID = {workSpec.batchID}, \nGC sandbox dir = {globus_compute_attr_dict["sandbox_dir"]}")
                 tmpRetVal = (True, "")
             except Exception as e:
                 tmpLog.error(f"Error during submit workers: {e}")
