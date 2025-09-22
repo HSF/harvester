@@ -34,7 +34,7 @@ class CustomShellFunction(ShellFunction):
         sandbox_error_message = None
 
         try:
-            task_uuid = os.environ["GC_TASK_UUID"]
+            task_uuid = str(os.environ["GC_TASK_UUID"])
         except KeyError:
             raise RuntimeError("Environment variable GC_TASK_UUID is required")
 
@@ -190,7 +190,7 @@ class GlobusComputeSlurmSubmitter(PluginBase):
         ATHENA_COMPUTE_POLICY               = self.config.get('ATHENA_COMPUTE_POLICY', 'normal')
         if ATHENA_COMPUTE_POLICY == 'normal':
             variables['ATHENA_nCorePerNode']    = self.config.get('ATHENA_nCorePerNode', 256)
-            variables['ATHENA_PROC_NUMBER_JOB'] = variables['ATHENA_nCorePerNode'] // variables['HARVESTER_TASKS_PER_NODE']
+            variables['ATHENA_PROC_NUMBER_JOB'] = variables['ATHENA_nCorePerNode'] // variables['harvester_tasks_per_node']
             variables['ATHENA_PROC_NUMBER']     = variables['ATHENA_PROC_NUMBER_JOB']
             variables['ATHENA_CORE_NUMBER']     = variables['ATHENA_PROC_NUMBER_JOB']
         else:   # Currently only support normal policy for ATHENA 
@@ -234,7 +234,7 @@ class GlobusComputeSlurmSubmitter(PluginBase):
                     globus_compute_attr_dict["sandbox_dir"] = os.path.join(self.slurm_log_dir, workSpec.batchID)
                     globus_compute_attr_dict["slurmID"] = None
                     workSpec.set_work_attributes({"globus_compute_attr": globus_compute_attr_dict}) 
-                    tmpLog.debug(f"Now setting: \nbatchID = {workSpec.batchID}, \nGC sandbox dir = {globus_compute_attr_dict["sandbox_dir"]}")
+                    tmpLog.debug(f"Now setting: \nbatchID = {workSpec.batchID}, \nGC sandbox dir = {globus_compute_attr_dict['sandbox_dir']}")
                 tmpRetVal = (True, "")
             except Exception as e:
                 tmpLog.error(f"Error during submit workers: {e}")

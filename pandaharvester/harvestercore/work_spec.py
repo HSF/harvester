@@ -44,8 +44,6 @@ class WorkSpec(SpecBase):
     attributesWithTypes = (
         "workerID:integer primary key",
         "batchID:text",
-        "gc_sandbox_dir:text",
-        "slurmID:text",
         "mapType:text",
         "queueName:text",
         "status:text / index",
@@ -226,8 +224,6 @@ class WorkSpec(SpecBase):
         for attr in [
             "workerID",
             "batchID",
-            "gc_sandbox_dir",
-            "slurmID",
             "queueName",
             "status",
             "computingSite",
