@@ -153,8 +153,10 @@ class GlobusComputeSlurmSubmitter(PluginBase):
         # For remote working dir
         if self.remote_workdir:
             remote_accessPoint = os.path.join(self.remote_workdir, self.queueName, str(workspec.workerID))
+            logger.debug(f"In render_template, enable remote_accessPoint, set it to be {remote_accessPoint}")
         else:
             remote_accessPoint = workspec.accessPoint
+            logger.debug(f"In render_template, disable remote_accessPoint, set it to be {remote_accessPoint}")
 
         variables = {}
 
@@ -162,15 +164,15 @@ class GlobusComputeSlurmSubmitter(PluginBase):
         variables['nCoreTotal']             = n_core_total_factor
         variables['nCoreFactor']            = n_core_factor
         variables['nNode']                  = n_node
-        variables['requestRam']             = request_ram_factor,
-        variables['requestRamBytes']        = request_ram_bytes_factor,
-        variables['requestRamPerCore']      = request_ram_per_core,
-        variables['requestRamBytesPerCore'] = request_ram_bytes_per_core,
-        variables['requestDisk']            = request_disk,
-        variables['requestWalltime']        = request_walltime,
-        variables['requestWalltimeMinute']  = request_walltime_minute,
-        variables['requestCputime']         = request_cputime,
-        variables['requestCputimeMinute']   = request_cputime_minute,
+        variables['requestRam']             = request_ram_factor
+        variables['requestRamBytes']        = request_ram_bytes_factor
+        variables['requestRamPerCore']      = request_ram_per_core
+        variables['requestRamBytesPerCore'] = request_ram_bytes_per_core
+        variables['requestDisk']            = request_disk
+        variables['requestWalltime']        = request_walltime
+        variables['requestWalltimeMinute']  = request_walltime_minute
+        variables['requestCputime']         = request_cputime
+        variables['requestCputimeMinute']   = request_cputime_minute
         variables['accessPoint']            = workspec.accessPoint
         variables['remote_accessPoint']     = remote_accessPoint
         variables['harvesterID']            = harvester_config.master.harvester_id 
@@ -229,10 +231,10 @@ class GlobusComputeSlurmSubmitter(PluginBase):
                 batch_res = self.gc_client.batch_run(batch=batch, endpoint_id=self.mep_id)
                 tmpLog.debug(f"Step 4: Made a batch submission to GC. Got batch_res = \n{batch_res}")
                 for func_id, each_task_list in batch_res['tasks'].items():
-                    workSpec.batchID = each_task_list[0]
+                    workSpec.batchID = None
                     globus_compute_attr_dict = {}
-                    globus_compute_attr_dict["sandbox_dir"] = os.path.join(self.slurm_log_dir, workSpec.batchID)
-                    globus_compute_attr_dict["slurmID"] = None
+                    globus_compute_attr_dict["sandbox_dir"] = os.path.join(self.slurm_log_dir, each_task_list[0])
+                    globus_compute_attr_dict["gc_task_id"] = each_task_list[0]
                     workSpec.set_work_attributes({"globus_compute_attr": globus_compute_attr_dict}) 
                     tmpLog.debug(f"Now setting: \nbatchID = {workSpec.batchID}, \nGC sandbox dir = {globus_compute_attr_dict['sandbox_dir']}")
                 tmpRetVal = (True, "")

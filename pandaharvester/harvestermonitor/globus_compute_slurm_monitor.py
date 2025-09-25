@@ -122,8 +122,11 @@ exit 0
                 tmplog.error(err_str)
                 retList.append((work_spec.ST_failed, err_str))
                 continue
-            slurmID = globus_compute_attr_dict["slurmID"]
+            else:
+                tmplog.debug(f"globus_compute_attr_dict obtained from work_spec = {globus_compute_attr_dict}")
+            gc_task_id = globus_compute_attr_dict["gc_task_id"]
             sandbox_dir = globus_compute_attr_dict["sandbox_dir"]
+            slurmID = work_spec.batchID
             if slurmID:
                 tmplog.debug(f"for workerID={work_spec.workerID}, slurm_job_id is fetched successfully with {slurmID}, so invoke get_status_sacct")
                 new_status, err_str = self.get_status_sacct(tmplog, slurmID)
@@ -136,15 +139,18 @@ exit 0
 
                 if retCode == 0:
                     slurmID = stdOut.strip()
+                    work_spec.batchID = slurmID
+                    work_spec.nativeStatus = f"update batchID to be slurm_id={slurmID}"
                     new_status = work_spec.ST_running
                     err_str = ""
+                    tmplog.debug(f"retCode = 0, work_spec.batchID reset to {work_spec.batchID}")
                 else:
                     if retCode == 1:
                         tmplog.debug(f"File {sandbox_dir} does not exist, need to check if the job is still query")
                     else:
                         tmplog.error(f"Unknown return code {retCode} for {sandbox_dir}, need to check")
                     
-                    task_list = [work_spec.batchID]
+                    task_list = [gc_task_id]
                     try:
                         status_dict = self.gc_client.get_batch_result(task_list)
                     except ComputeAPIError as e:
@@ -162,7 +168,7 @@ exit 0
 
                     if status_dict:
                         tmplog.debug(f"Status dictionary received: {status_dict}")
-                        worker_status = status_dict.get(work_spec.batchID, {})
+                        worker_status = status_dict.get(gc_task_id, {})
                         pending = worker_status.get('pending')
                         status = worker_status.get('status')
                         err_str = ""
@@ -174,7 +180,7 @@ exit 0
                             else:
                                 tmplog.debug("Unexpected state: pending=%s, status=%s", pending, status)
                                 new_status = work_spec.ST_running
-                        tmplog.debug(f"Final status for worker {work_spec.workerID}: pending={pending}, status={status}, new_status={new_status}")
+                        tmplog.debug(f"Final status for worker {gc_task_id}: pending={pending}, status={status}, new_status={new_status}")
                     else:
                         new_status = work_spec.ST_failed
                         err_str = "Careful! It might not finished! This is testing empty dict!"
