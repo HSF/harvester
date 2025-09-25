@@ -123,7 +123,7 @@ exit 0
                 retList.append((work_spec.ST_failed, err_str))
                 continue
             else:
-                tmplog.debug(f"globus_compute_attr_dict obtained from work_spec = {globus_compute_attr_dict}")
+                tmplog.debug(f"globus_compute_attr_dict ontained from work_spec = {globus_compute_attr_dict}")
             gc_task_id = globus_compute_attr_dict["gc_task_id"]
             sandbox_dir = globus_compute_attr_dict["sandbox_dir"]
             slurmID = work_spec.batchID

@@ -20,63 +20,6 @@ from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 baseLogger = core_utils.setup_logger("globus_compute_slurm_submitter")
 
 
-class CustomShellFunction(ShellFunction):
-    def __init__(self, cmd: str, log_dir: Optional[str] = None, **kwargs):
-        self.log_dir = log_dir
-        if not self.log_dir:
-            self.log_dir = "~/.globus_compute/CustomShellFunctionLog"
-        super().__init__(cmd=cmd, **kwargs)
-
-    def execute_cmd_line(self, cmd: str) -> ShellResult:
-        import os
-        import subprocess
-
-        sandbox_error_message = None
-
-        try:
-            task_uuid = str(os.environ["GC_TASK_UUID"])
-        except KeyError:
-            raise RuntimeError("Environment variable GC_TASK_UUID is required")
-
-        run_dir = os.path.join(self.log_dir, task_uuid)
-        if run_dir:
-            os.makedirs(run_dir, exist_ok=True)
-            os.chdir(run_dir)
-
-        stdout_path = self.stdout or os.path.join(run_dir, "stdout")
-        stderr_path = self.stderr or os.path.join(run_dir, "stderr")
-        std_out = self.open_std_fd(stdout_path, mode="w+")
-        std_err = self.open_std_fd(stderr_path, mode="w+")
-
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=std_out,
-                stderr=std_err,
-                shell=True,
-                executable="/bin/bash",
-                close_fds=False,
-            )
-            proc.wait(timeout=self.walltime)
-            returncode = proc.returncode
-            exception_name = None if returncode == 0 else "subprocess.CalledProcessError"
-        except subprocess.TimeoutExpired:
-            returncode = 124
-            exception_name = "subprocess.TimeoutExpired"
-        finally:
-            stdout_snippet, stderr_snippet = self.get_and_close_streams(std_out, std_err)
-
-        return ShellResult(
-            cmd=cmd,
-            stdout=stdout_snippet,
-            stderr=stderr_snippet,
-            returncode=returncode,
-            exception_name=exception_name,
-        )
-
-
-
-
 class GlobusComputeSlurmSubmitter(PluginBase):
     def __init__(self, **kwargs):
         self.uploadLog = False
@@ -221,8 +164,8 @@ class GlobusComputeSlurmSubmitter(PluginBase):
                 tmpLog.debug(f"Step 2: Rendering finished. \nGet task_content: \n{task_content}\nGet user_endpoint_config: \n{user_endpoint_config}")
     
                 batch = self.gc_client.create_batch(user_endpoint_config=user_endpoint_config)
-    
-                self.bf = CustomShellFunction(cmd=task_content, snippet_lines=2000, log_dir=self.slurm_log_dir)
+   
+                self.bf = ShellFunction(cmd=task_content, snippet_lines=2000, log_dir=self.slurm_log_dir)
                 self.func_id = self.gc_client.register_function(self.bf)
                 tmpLog.debug(f"Finish registration of function with func_id = {self.func_id}")
     
