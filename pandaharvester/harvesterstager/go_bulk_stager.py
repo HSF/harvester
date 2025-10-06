@@ -262,7 +262,6 @@ class GlobusBulkStager(BaseStager):
                         if fileSpec.scope is not None:
                             scope = fileSpec.scope
                         # removed unnecessary scope override for  EventService jobs (Raythena fix)
-
                         
                         # only print to log file first 25 files
                         if ifile < 25:

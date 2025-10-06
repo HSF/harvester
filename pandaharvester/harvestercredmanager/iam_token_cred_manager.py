@@ -196,8 +196,9 @@ class IamTokenCredManager(BaseCredManager):
     def check_credential(self):
         # make logger
         tmp_log = self.make_logger(_logger, f"config={self.setup_name}", method_name="check_credential")
-        # clean up
+        # clean up and handle targets
         self._clean_up()
+        self._handle_target_types()
         # same update period as credmanager agent
         is_fresh = self._is_updated()
         if is_fresh:
