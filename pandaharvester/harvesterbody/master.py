@@ -69,126 +69,169 @@ class Master(object):
         # thread list
         thrList = []
         # Credential Manager
+        _logger.debug("Credential Manager")
         from pandaharvester.harvesterbody.cred_manager import CredManager
 
         thr = CredManager(self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        _logger.debug("prerunning Credential Manager ...")
         thr.execute()
+        _logger.debug("starting Credential Manager thread")
         thr.start()
         thrList.append(thr)
 
         # trigger credential renewal in communicator
+        _logger.debug("triggering credential renewal in communicator")
         self.communicatorPool.force_credential_renewal()
 
         # Command manager
+        _logger.debug("Command Manager")
         from pandaharvester.harvesterbody.command_manager import CommandManager
 
         thr = CommandManager(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        _logger.debug("starting Command Manager thread")
         thr.start()
         thrList.append(thr)
+
         # Cacher
+        _logger.debug("Cacher")
         from pandaharvester.harvesterbody.cacher import Cacher
 
         thr = Cacher(self.communicatorPool, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        _logger.debug("prerunning Cacher ...")
         thr.execute(force_update=True, skip_lock=True)
+        _logger.debug("starting Cacher thread")
         thr.start()
         thrList.append(thr)
+
         # Watcher
+        _logger.debug("Watcher")
         from pandaharvester.harvesterbody.watcher import Watcher
 
         thr = Watcher(single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        _logger.debug("starting Watcher thread")
         thr.start()
         thrList.append(thr)
+
         # Job Fetcher
+        _logger.debug("Job Fetcher")
         from pandaharvester.harvesterbody.job_fetcher import JobFetcher
 
+        _logger.debug("starting Job Fetcher threads")
         nThr = harvester_config.jobfetcher.nThreads
         for iThr in range(nThr):
             thr = JobFetcher(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Propagator
+        _logger.debug("Propagator")
         from pandaharvester.harvesterbody.propagator import Propagator
 
+        _logger.debug("starting Propagator threads")
         nThr = harvester_config.propagator.nThreads
         for iThr in range(nThr):
             thr = Propagator(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Monitor
+        _logger.debug("Monitor")
         from pandaharvester.harvesterbody.monitor import Monitor
 
+        _logger.debug("starting Monitor threads")
         nThr = harvester_config.monitor.nThreads
         for iThr in range(nThr):
             thr = Monitor(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Preparator
+        _logger.debug("Preparator")
         from pandaharvester.harvesterbody.preparator import Preparator
 
+        _logger.debug("starting Preparator threads")
         nThr = harvester_config.preparator.nThreads
         for iThr in range(nThr):
             thr = Preparator(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Submitter
+        _logger.debug("Submitter")
         from pandaharvester.harvesterbody.submitter import Submitter
 
+        _logger.debug("starting Submitter threads")
         nThr = harvester_config.submitter.nThreads
         for iThr in range(nThr):
             thr = Submitter(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Stager
+        _logger.debug("Stager")
         from pandaharvester.harvesterbody.stager import Stager
 
+        _logger.debug("starting Stager threads")
         nThr = harvester_config.stager.nThreads
         for iThr in range(nThr):
             thr = Stager(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # EventFeeder
+        _logger.debug("Event Feeder")
         from pandaharvester.harvesterbody.event_feeder import EventFeeder
 
+        _logger.debug("starting Event Feeder threads")
         nThr = harvester_config.eventfeeder.nThreads
         for iThr in range(nThr):
             thr = EventFeeder(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Sweeper
+        _logger.debug("Sweeper")
         from pandaharvester.harvesterbody.sweeper import Sweeper
 
+        _logger.debug("Sweeper threads")
         nThr = harvester_config.sweeper.nThreads
         for iThr in range(nThr):
             thr = Sweeper(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # File Syncer
+        _logger.debug("File Syncer")
         from pandaharvester.harvesterbody.file_syncer import FileSyncer
 
+        _logger.debug("starting File Syncer thread")
         thr = FileSyncer(self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
         thr.execute()
         thr.start()
         thrList.append(thr)
+
         # Service monitor
+        _logger.debug("Service Monitor")
         try:
             sm_active = harvester_config.service_monitor.active
         except Exception:
             sm_active = False
 
         if sm_active:
+            _logger.debug("starting Service Monitor thread")
             from pandaharvester.harvesterbody.service_monitor import ServiceMonitor
 
             thr = ServiceMonitor(options.pid, single_mode=self.singleMode)
@@ -197,9 +240,12 @@ class Master(object):
             thrList.append(thr)
 
         # Report itself to APF Mon
+        _logger.debug("APF Mon setup")
         apf_mon = Apfmon(self.queueConfigMapper)
         apf_mon.create_factory()
         apf_mon.create_labels()
+
+        _logger.info("All agents have started")
 
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
