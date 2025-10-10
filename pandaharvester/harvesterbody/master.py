@@ -66,129 +66,173 @@ class Master(object):
 
     # main loop
     def start(self):
+        tmp_log = core_utils.make_logger(_logger, f"pid={os.getpid()}", method_name="start")
         # thread list
         thrList = []
         # Credential Manager
+        tmp_log.debug("Credential Manager")
         from pandaharvester.harvesterbody.cred_manager import CredManager
 
         thr = CredManager(self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        tmp_log.debug("prerunning Credential Manager ...")
         thr.execute()
+        tmp_log.debug("starting Credential Manager thread")
         thr.start()
         thrList.append(thr)
 
         # trigger credential renewal in communicator
+        tmp_log.debug("triggering credential renewal in communicator")
         self.communicatorPool.force_credential_renewal()
 
         # Command manager
+        tmp_log.debug("Command Manager")
         from pandaharvester.harvesterbody.command_manager import CommandManager
 
         thr = CommandManager(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        tmp_log.debug("starting Command Manager thread")
         thr.start()
         thrList.append(thr)
+
         # Cacher
+        tmp_log.debug("Cacher")
         from pandaharvester.harvesterbody.cacher import Cacher
 
         thr = Cacher(self.communicatorPool, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        tmp_log.debug("prerunning Cacher ...")
         thr.execute(force_update=True, skip_lock=True)
+        tmp_log.debug("starting Cacher thread")
         thr.start()
         thrList.append(thr)
+
         # Watcher
+        tmp_log.debug("Watcher")
         from pandaharvester.harvesterbody.watcher import Watcher
 
         thr = Watcher(single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
+        tmp_log.debug("starting Watcher thread")
         thr.start()
         thrList.append(thr)
+
         # Job Fetcher
+        tmp_log.debug("Job Fetcher")
         from pandaharvester.harvesterbody.job_fetcher import JobFetcher
 
+        tmp_log.debug("starting Job Fetcher threads")
         nThr = harvester_config.jobfetcher.nThreads
         for iThr in range(nThr):
             thr = JobFetcher(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Propagator
+        tmp_log.debug("Propagator")
         from pandaharvester.harvesterbody.propagator import Propagator
 
+        tmp_log.debug("starting Propagator threads")
         nThr = harvester_config.propagator.nThreads
         for iThr in range(nThr):
             thr = Propagator(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Monitor
+        tmp_log.debug("Monitor")
         from pandaharvester.harvesterbody.monitor import Monitor
 
+        tmp_log.debug("starting Monitor threads")
         nThr = harvester_config.monitor.nThreads
         for iThr in range(nThr):
             thr = Monitor(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Preparator
+        tmp_log.debug("Preparator")
         from pandaharvester.harvesterbody.preparator import Preparator
 
+        tmp_log.debug("starting Preparator threads")
         nThr = harvester_config.preparator.nThreads
         for iThr in range(nThr):
             thr = Preparator(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Submitter
+        tmp_log.debug("Submitter")
         from pandaharvester.harvesterbody.submitter import Submitter
 
+        tmp_log.debug("starting Submitter threads")
         nThr = harvester_config.submitter.nThreads
         for iThr in range(nThr):
             thr = Submitter(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Stager
+        tmp_log.debug("Stager")
         from pandaharvester.harvesterbody.stager import Stager
 
+        tmp_log.debug("starting Stager threads")
         nThr = harvester_config.stager.nThreads
         for iThr in range(nThr):
             thr = Stager(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # EventFeeder
+        tmp_log.debug("Event Feeder")
         from pandaharvester.harvesterbody.event_feeder import EventFeeder
 
+        tmp_log.debug("starting Event Feeder threads")
         nThr = harvester_config.eventfeeder.nThreads
         for iThr in range(nThr):
             thr = EventFeeder(self.communicatorPool, self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # Sweeper
+        tmp_log.debug("Sweeper")
         from pandaharvester.harvesterbody.sweeper import Sweeper
 
+        tmp_log.debug("Sweeper threads")
         nThr = harvester_config.sweeper.nThreads
         for iThr in range(nThr):
             thr = Sweeper(self.queueConfigMapper, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
             thr.start()
             thrList.append(thr)
+
         # File Syncer
+        tmp_log.debug("File Syncer")
         from pandaharvester.harvesterbody.file_syncer import FileSyncer
 
+        tmp_log.debug("starting File Syncer thread")
         thr = FileSyncer(self.queueConfigMapper, single_mode=self.singleMode)
         thr.set_stop_event(self.stopEvent)
         thr.execute()
         thr.start()
         thrList.append(thr)
+
         # Service monitor
+        tmp_log.debug("Service Monitor")
         try:
             sm_active = harvester_config.service_monitor.active
         except Exception:
             sm_active = False
 
         if sm_active:
+            tmp_log.debug("starting Service Monitor thread")
             from pandaharvester.harvesterbody.service_monitor import ServiceMonitor
 
             thr = ServiceMonitor(options.pid, single_mode=self.singleMode)
@@ -197,9 +241,12 @@ class Master(object):
             thrList.append(thr)
 
         # Report itself to APF Mon
+        tmp_log.debug("APF Mon setup")
         apf_mon = Apfmon(self.queueConfigMapper)
         apf_mon.create_factory()
         apf_mon.create_labels()
+
+        tmp_log.info("All agents have started")
 
         ##################
         # loop on stop event to be interruptable since thr.join blocks signal capture in python 2.7
@@ -322,7 +369,8 @@ def main(daemon_mode=True):
         if options.pid:
             core_utils.set_file_permission(options.pid)
         core_utils.set_file_permission(logger_config.daemon["logdir"])
-        _logger.info(f"start : version = {panda_pkg_info.release_version}, last_commit = {commit_timestamp.timestamp}")
+        tmp_log = core_utils.make_logger(_logger, f"pid={os.getpid()}", method_name="main")
+        tmp_log.info(f"start : version = {panda_pkg_info.release_version}, last_commit = {commit_timestamp.timestamp}")
 
         # stop event
         stopEvent = threading.Event()
@@ -361,7 +409,7 @@ def main(daemon_mode=True):
         # signal handlers
         def catch_sigkill(sig, frame):
             disable_profiler()
-            _logger.info(f"got signal={sig} to be killed")
+            tmp_log.info(f"got signal={sig} to be killed")
             try:
                 os.remove(options.pid)
             except Exception:
@@ -372,12 +420,12 @@ def main(daemon_mode=True):
                 else:
                     os.kill(os.getpid(), signal.SIGKILL)
             except Exception:
-                core_utils.dump_error_message(_logger)
-                _logger.error("failed to be killed")
+                core_utils.dump_error_message(tmp_log)
+                tmp_log.error("failed to be killed")
 
         """
         def catch_sigterm(sig, frame):
-            _logger.info('got signal={0} to be terminated'.format(sig))
+            tmp_log.info('got signal={0} to be terminated'.format(sig))
             stopEvent.set()
             # register del function
             if os.getppid() == 1 and options.pid:
@@ -387,7 +435,7 @@ def main(daemon_mode=True):
         """
 
         def catch_debug(sig, frame):
-            _logger.info(f"got signal={sig} to go into debugger mode")
+            tmp_log.info(f"got signal={sig} to go into debugger mode")
             from trepan.api import debug
             from trepan.interfaces import server
 
@@ -398,7 +446,7 @@ def main(daemon_mode=True):
             connection_opts = {"IO": "TCP", "PORT": portNum}
             interface = server.ServerInterface(connection_opts=connection_opts)
             dbg_opts = {"interface": interface}
-            _logger.info(f"starting debugger on port {portNum}")
+            tmp_log.info(f"starting debugger on port {portNum}")
             debug(dbg_opts=dbg_opts)
 
         # set handler
@@ -422,7 +470,7 @@ def main(daemon_mode=True):
             # disable profiler
             disable_profiler()
         if daemon_mode:
-            _logger.info("terminated")
+            tmp_log.info("terminated")
 
 
 if __name__ == "__main__":
