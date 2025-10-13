@@ -9,7 +9,7 @@ from .base_cred_manager import BaseCredManager
 _logger = core_utils.setup_logger("sf_cred_manager")
 
 
-class SfCredManager(BaseCredManager):
+class SuperfacilityCredManager(BaseCredManager):
     # constructor
     def __init__(self, **kwarg):
         BaseCredManager.__init__(self, **kwarg)
@@ -55,7 +55,7 @@ class SfCredManager(BaseCredManager):
             main_log.debug(f"age={age}, lifetime_all={lifetime_all}")
             return age <= lifetime_all
         except Exception as e:
-            main_log.debug(f"[SfCredManager] check_credential func call with error: {e}")
+            main_log.debug(f"[SuperfacilityCredManager] check_credential func call with error: {e}")
             core_utils.dump_error_message(main_log)
             return False
 
@@ -63,5 +63,5 @@ class SfCredManager(BaseCredManager):
         # Does not support automatic cred updates
         # If this method is called, should return error immediately
         real_dir = os.path.realpath(self.cred_dir)
-        msg = f"SFClient credentials expired or invalid: symlink {self.cred_dir} points to {real_dir} which is older than {self.lifetime_days} days. "
+        msg = f"SuperfacilityClient credentials expired or invalid: symlink {self.cred_dir} points to {real_dir} which is older than {self.lifetime_days} days. "
         return False, msg

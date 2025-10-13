@@ -4,17 +4,17 @@ import requests
 
 from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestermisc.sfAPI_utils import SFClient
+from pandaharvester.harvestermisc.superfacility_utils import SuperfacilityClient
 
 
 baseLogger = core_utils.setup_logger("sf_sweeper")
 
 
-class SfSweeper(BaseSweeper):
+class SuperfacilitySweeper(BaseSweeper):
     def __init__(self, **kwargs):
         BaseSweeper.__init__(self, **kwargs)
         self.cred_dir = kwarg.get("sf_cred_dir")
-        self.sf_client = SFClient(self.cred_dir)
+        self.sf_client = SuperfacilityClient(self.cred_dir)
 
     def kill_worker(self, workspec):
         tmpLog = self.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="kill_worker")

@@ -6,7 +6,7 @@ from authlib.integrations.requests_client import OAuth2Session
 from authlib.oauth2.rfc7523 import PrivateKeyJWT
 
 
-class SFClient:
+class SuperfacilityClient:
     def __init__(self, cred_dir, base_url="https://api.nersc.gov/api/v1.2"):
         # cred_dir is a symlink pointing to the latest versioned cred directory
         self.cred_dir = os.path.abspath(cred_dir)

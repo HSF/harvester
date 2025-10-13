@@ -5,18 +5,18 @@ import os
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestercore.work_spec import WorkSpec
-from pandaharvester.harvestermisc.sfAPI_utils import SFClient
+from pandaharvester.harvestermisc.superfacility_utils import SuperfacilityClient
 
 # logger
 baseLogger = core_utils.setup_logger("sf_monitor")
 
 # monitor for SuperFacility API
-class SfMonitor(PluginBase):
+class SuperfacilityMonitor(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
         self.cred_dir = kwarg.get("sf_cred_dir")
-        self.sf_client = SFClient(self.cred_dir)
+        self.sf_client = SuperfacilityClient(self.cred_dir)
  
     def check_workers(self, workspec_list):
         retList = []

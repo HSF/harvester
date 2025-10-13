@@ -9,14 +9,14 @@ from math import ceil
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
-from pandaharvester.harvestermisc.sfAPI_utils import SFClient
+from pandaharvester.harvestermisc.superfacility_utils import SuperfacilityClient
 
 # logger
 baseLogger = core_utils.setup_logger("sf_submitter")
 
 
 # submitter for SuperFacility API
-class SfSubmitter(PluginBase):
+class SuperfacilitySubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         self.uploadLog = False
@@ -25,7 +25,7 @@ class SfSubmitter(PluginBase):
         self.num_retry_get_batch_id = kwarg.get("num_retry_get_batch_id", 5)
         self.time_interval_retry_get_batch_id = kwarg.get("time_interval_retry_get_batch_id", 5)
         self.cred_dir = kwarg.get("sf_cred_dir")
-        self.sf_client = SFClient(self.cred_dir)
+        self.sf_client = SuperfacilityClient(self.cred_dir)
         
         if not hasattr(self, "localQueueName"):
             self.localQueueName = "grid"
