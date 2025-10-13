@@ -12,7 +12,7 @@ from pandaharvester.harvestercore.plugin_base import PluginBase
 from pandaharvester.harvestermisc.superfacility_utils import SuperfacilityClient
 
 # logger
-baseLogger = core_utils.setup_logger("sf_submitter")
+baseLogger = core_utils.setup_logger("superfacility_submitter")
 
 
 # submitter for SuperFacility API
@@ -24,7 +24,7 @@ class SuperfacilitySubmitter(PluginBase):
         PluginBase.__init__(self, **kwarg)
         self.num_retry_get_batch_id = kwarg.get("num_retry_get_batch_id", 5)
         self.time_interval_retry_get_batch_id = kwarg.get("time_interval_retry_get_batch_id", 5)
-        self.cred_dir = kwarg.get("sf_cred_dir")
+        self.cred_dir = kwarg.get("superfacility_cred_dir")
         self.sf_client = SuperfacilityClient(self.cred_dir)
         
         if not hasattr(self, "localQueueName"):
@@ -69,14 +69,14 @@ class SuperfacilitySubmitter(PluginBase):
                                         data = {"job": script_string, "isPath": False})
                 data = r.json()
             except requests.HTTPError as e:
-                err = f"SF submit error: {e}"
+                err = f"Superfacility submit error: {e}"
                 tmpLog.error(err)
                 retList.append((False, err))
                 continue
 
             task_id = data.get("task_id")
             if not task_id:
-                err = f"SF job submission return no task_id: {data}"
+                err = f"Superfacility job submission return no task_id: {data}"
                 tmpLog.error(err)
                 retList.append((False, err))
                 continue
@@ -89,7 +89,7 @@ class SuperfacilitySubmitter(PluginBase):
                     r = self.sf_client.get(f"/tasks/{task_id}")
                     data = r.json()
                 except requests.HTTPError as e:
-                    err = f"SF get batch submission task error: {e}"
+                    err = f"Superfacility get batch submission task error: {e}"
                     tmpLog.error(err)
                     stop = True
                     retList.append((False, err))

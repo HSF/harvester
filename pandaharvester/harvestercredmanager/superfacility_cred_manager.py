@@ -6,7 +6,7 @@ from pandaharvester.harvestercore import core_utils
 from .base_cred_manager import BaseCredManager
 
 # logger
-_logger = core_utils.setup_logger("sf_cred_manager")
+_logger = core_utils.setup_logger("superfacility_cred_manager")
 
 
 class SuperfacilityCredManager(BaseCredManager):

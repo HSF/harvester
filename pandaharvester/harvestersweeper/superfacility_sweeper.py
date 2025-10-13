@@ -7,13 +7,13 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.superfacility_utils import SuperfacilityClient
 
 
-baseLogger = core_utils.setup_logger("sf_sweeper")
+baseLogger = core_utils.setup_logger("superfacility_sweeper")
 
 
 class SuperfacilitySweeper(BaseSweeper):
     def __init__(self, **kwargs):
         BaseSweeper.__init__(self, **kwargs)
-        self.cred_dir = kwarg.get("sf_cred_dir")
+        self.cred_dir = kwarg.get("superfacility_cred_dir")
         self.sf_client = SuperfacilityClient(self.cred_dir)
 
     def kill_worker(self, workspec):

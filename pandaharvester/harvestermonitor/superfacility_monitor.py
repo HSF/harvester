@@ -8,14 +8,14 @@ from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.superfacility_utils import SuperfacilityClient
 
 # logger
-baseLogger = core_utils.setup_logger("sf_monitor")
+baseLogger = core_utils.setup_logger("superfacility_monitor")
 
 # monitor for SuperFacility API
 class SuperfacilityMonitor(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         PluginBase.__init__(self, **kwarg)
-        self.cred_dir = kwarg.get("sf_cred_dir")
+        self.cred_dir = kwarg.get("superfacility_cred_dir")
         self.sf_client = SuperfacilityClient(self.cred_dir)
  
     def check_workers(self, workspec_list):
