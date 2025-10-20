@@ -41,7 +41,7 @@ setup(
     extras_require={
         "kubernetes": ["kubernetes", "pyyaml"],
         "mysql": ["mysqlclient"],
-        "atlasgrid": ["uWSGI >= 2.0.20", "htcondor >= 10.3.0", "mysqlclient >= 2.1.1"],
+        "atlasgrid": ["uWSGI >= 2.0.20", "htcondor>=10.3.0,<25.0,", "mysqlclient >= 2.1.1"],
     },
     data_files=[
         # config and cron files
@@ -75,15 +75,15 @@ setup(
         (
             "etc/systemd",
             [
-                "templates/logrotate.d/panda_harvester",
-                "templates/logrotate.d/panda_harvester_service",
+                "templates/systemd/panda_harvester-uwsgi.service.template",
             ],
         ),
         # logrotate
         (
             "etc/logrotate.d",
             [
-                "templates/systemd/panda_harvester-uwsgi.service.template",
+                "templates/logrotate.d/panda_harvester",
+                "templates/logrotate.d/panda_harvester_service",
             ],
         ),
         # admin tool
