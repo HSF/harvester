@@ -75,15 +75,15 @@ setup(
         (
             "etc/systemd",
             [
-                "templates/logrotate.d/panda_harvester",
-                "templates/logrotate.d/panda_harvester_service",
+                "templates/systemd/panda_harvester-uwsgi.service.template",
             ],
         ),
         # logrotate
         (
             "etc/logrotate.d",
             [
-                "templates/systemd/panda_harvester-uwsgi.service.template",
+                "templates/logrotate.d/panda_harvester",
+                "templates/logrotate.d/panda_harvester_service",
             ],
         ),
         # admin tool
