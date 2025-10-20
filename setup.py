@@ -41,7 +41,7 @@ setup(
     extras_require={
         "kubernetes": ["kubernetes", "pyyaml"],
         "mysql": ["mysqlclient"],
-        "atlasgrid": ["uWSGI >= 2.0.20", "htcondor >= 10.3.0 , <= 24.12.4", "mysqlclient >= 2.1.1"],
+        "atlasgrid": ["uWSGI >= 2.0.20", "htcondor>=10.3.0,<=24.12.4", "mysqlclient >= 2.1.1"],
     },
     data_files=[
         # config and cron files
