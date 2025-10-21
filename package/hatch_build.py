@@ -13,10 +13,15 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 class CustomHook(BuildHookInterface):
     def initialize(self, version, build_data):
-        # chmod +x
+        # chmod +x - only for intended executable files
+        executable_extensions = {'.sh','.py','.pl',''}
         for f in glob.glob("./templates/bin/*"):
-            st = os.stat(f)
-            os.chmod(f, st.st_mode | stat.S_IXUSR )
+            # Check if file should be executable - FIXED INDENTATION
+            _, ext = os.path.splitext(f)
+            if ext.lower() in executable_extensions:
+                st = os.stat(f)
+                os.chmod(f, st.st_mode | stat.S_IXUSR)
+        
         # user
         if os.getgid() == 0:
             panda_user = "atlpan"
@@ -24,6 +29,7 @@ class CustomHook(BuildHookInterface):
         else:
             panda_user = getpass.getuser()
             panda_group = grp.getgrgid(os.getgid()).gr_name
+        
         # parameters to be resolved
         self.params = {}
         self.params["install_dir"] = os.environ.get("PANDA_INSTALL_TARGET")
@@ -43,15 +49,18 @@ class CustomHook(BuildHookInterface):
 
                 self.params["install_purelib"] = distutils.sysconfig.get_python_lib()
                 self.params["install_scripts"] = os.path.join(sys.prefix, "bin")
+        
         for k in self.params:
             path = self.params[k]
             self.params[k] = os.path.abspath(os.path.expanduser(path))
+        
         # other parameters
         self.params["panda_user"] = panda_user
         self.params["panda_group"] = panda_group
         self.params["python_exec_version"] = "%s.%s" % sys.version_info[:2]
         self.params["virtual_env"] = ""
         self.params["virtual_env_setup"] = ""
+        
         if "VIRTUAL_ENV" in os.environ:
             self.params["virtual_env"] = os.environ["VIRTUAL_ENV"]
             self.params["virtual_env_setup"] = f"source {os.environ['VIRTUAL_ENV']}/bin/activate"
@@ -61,6 +70,7 @@ class CustomHook(BuildHookInterface):
             if os.path.exists(py_venv_activate):
                 self.params["virtual_env"] = venv_dir
                 self.params["virtual_env_setup"] = f"source {py_venv_activate}"
+        
         # instantiate templates
         for in_f in glob.glob("./templates/**", recursive=True):
             if not in_f.endswith(".template"):
@@ -82,13 +92,15 @@ class CustomHook(BuildHookInterface):
                     patt = re.sub("/var/tmp/.*-buildroot", "", patt)
                     # replace
                     file_data = file_data.replace(f"@@{item}@@", patt)
+                
                 out_f = re.sub(r"(\.exe)*\.template$", "", in_f)
                 with open(out_f, "w") as out_fh:
                     out_fh.write(file_data)
-                # chmod +x
+                
+                # chmod +x - Consider making this consistent too
                 if in_f.endswith(".exe.template"):
                     tmp_st = os.stat(out_f)
-                    os.chmod(out_f, tmp_st.st_mode | stat.S_IEXEC | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    os.chmod(out_f, tmp_st.st_mode | stat.S_IXUSR)  # Made consistent with owner-only permissions
 
     def finalize(self, version, build_data, artifact_path):
         pass
