@@ -16,7 +16,7 @@ class CustomHook(BuildHookInterface):
         # chmod +x
         for f in glob.glob("./templates/bin/*"):
             st = os.stat(f)
-            os.chmod(f, st.st_mode | stat.S_IEXEC | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            os.chmod(f, st.st_mode | stat.S_IXUSR )
         # user
         if os.getgid() == 0:
             panda_user = "atlpan"
