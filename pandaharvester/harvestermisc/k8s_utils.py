@@ -171,7 +171,7 @@ class k8s_Client(object):
                 eph_storage_request_GiB = maxwdir_prorated_GiB + ephemeral_storage_offset_GiB
                 eph_storage_request_MiB = round(eph_storage_request_GiB * 1024, 2)
                 container_env["resources"]["requests"]["ephemeral-storage"] = str(eph_storage_request_MiB) + "Mi"
-                container_env["env"].append({"name": "storageRequestMiB", "value": eph_storage_request_MiB})
+                container_env["env"].append({"name": "storageRequestMiB", "value": str(eph_storage_request_MiB)})
 
             # ephemeral storage limits
             container_env["resources"].setdefault("limits", {})
@@ -179,7 +179,7 @@ class k8s_Client(object):
                 eph_storage_limit_GiB = (maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * ephemeral_storage_limit_safety_factor / 100.0
                 eph_storage_limit_MiB = round(eph_storage_limit_GiB * 1024, 2)
                 container_env["resources"]["limits"]["ephemeral-storage"] = str(eph_storage_limit_MiB) + "Mi"
-                container_env["env"].append({"name": "storageLimitMiB", "value": eph_storage_limit_MiB})
+                container_env["env"].append({"name": "storageLimitMiB", "value": str(eph_storage_limit_MiB)})
 
             # add the ephemeral storage and mount it on pilot_dir
             yaml_content["spec"]["template"]["spec"].setdefault("volumes", [])
