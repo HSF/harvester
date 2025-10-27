@@ -155,6 +155,9 @@ class k8s_Client(object):
                     mem_limit = max(work_spec.minRamCount + memory_limit_min_offset, work_spec.minRamCount * memory_limit_safety_factor / 100.0)
                     container_env["resources"]["limits"]["memory"] = str(mem_limit) + "Mi"
 
+        # Environment variables
+        container_env.setdefault("env", [])
+
         # Ephemeral storage resources
         use_ephemeral_storage = resource_settings["use_ephemeral_storage"]
         ephemeral_storage_offset_GiB = resource_settings["ephemeral_storage_offset"] / 1024
@@ -168,12 +171,15 @@ class k8s_Client(object):
                 eph_storage_request_GiB = maxwdir_prorated_GiB + ephemeral_storage_offset_GiB
                 eph_storage_request_MiB = round(eph_storage_request_GiB * 1024, 2)
                 container_env["resources"]["requests"]["ephemeral-storage"] = str(eph_storage_request_MiB) + "Mi"
+                container_env["env"].append({"name": "storageRequestMiB", "value": eph_storage_request_MiB})
+
             # ephemeral storage limits
             container_env["resources"].setdefault("limits", {})
             if "ephemeral-storage" not in container_env["resources"]["limits"]:
                 eph_storage_limit_GiB = (maxwdir_prorated_GiB + ephemeral_storage_offset_GiB) * ephemeral_storage_limit_safety_factor / 100.0
                 eph_storage_limit_MiB = round(eph_storage_limit_GiB * 1024, 2)
                 container_env["resources"]["limits"]["ephemeral-storage"] = str(eph_storage_limit_MiB) + "Mi"
+                container_env["env"].append({"name": "storageLimitMiB", "value": eph_storage_limit_MiB})
 
             # add the ephemeral storage and mount it on pilot_dir
             yaml_content["spec"]["template"]["spec"].setdefault("volumes", [])
@@ -186,8 +192,6 @@ class k8s_Client(object):
             exists = list(filter(lambda vol_mount: vol_mount["name"] == "pilot-dir", container_env["volumeMounts"]))
             if not exists:
                 container_env["volumeMounts"].append({"name": "pilot-dir", "mountPath": pilot_dir})
-
-        container_env.setdefault("env", [])
 
         # setting up the paths for writing and reading logs
         parsed_url = urlparse(work_spec.workAttributes["stdOut"])
