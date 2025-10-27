@@ -86,7 +86,7 @@ def encode_multipart_formdata(files):
 def upload_logs(url, log_file_name, destination_name, proxy_cert, full_token_path, token_auth_origin):
     try:
         # modify the url to point to the new file server API
-        url.replace("/server/panda", "/api/v1/file_server")
+        url = url.replace("/server/panda", "/api/v1/file_server")
         full_url = url + "/upload_cache_file"
         url_parts = urlparse.urlsplit(full_url)
 
