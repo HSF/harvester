@@ -53,6 +53,9 @@ def post_multipart(host, port, selector, files, proxy_cert, full_token_path, tok
         h.putheader("Authorization", f"Bearer {token_content}")
         h.putheader("Origin", token_auth_origin)
 
+    # The new API expects JSON responses
+    h.putheader("Accept", "application/json")
+
     h.endheaders()
     h.send(body)
     response = h.getresponse()
@@ -82,7 +85,9 @@ def encode_multipart_formdata(files):
 
 def upload_logs(url, log_file_name, destination_name, proxy_cert, full_token_path, token_auth_origin):
     try:
-        full_url = url + "/putFile"
+        # modify the url to point to the new file server API
+        url.replace("/server/panda", "/api/v1/file_server")
+        full_url = url + "/upload_cache_file"
         url_parts = urlparse.urlsplit(full_url)
 
         logging.debug("[upload_logs] start")
