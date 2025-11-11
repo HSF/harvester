@@ -63,7 +63,9 @@ class Cacher(AgentBase):
                     return
                 # get information
                 tmpStat, newInfo = self.get_data(infoURL, mainLog)
-                if not tmpStat:
+                if tmpStat:
+                    mainLog.debug(f"got data for key={mainKey} subKey={subKey} from {infoURL}")
+                else:
                     mainLog.error(f"failed to get info for key={mainKey} subKey={subKey}")
                     return
                 # update
