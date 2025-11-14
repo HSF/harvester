@@ -27,6 +27,12 @@ dependencies = [
     'panda-pilot >= 2.7.2.1',
 ]
 
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
 [project.optional-dependencies]
 kubernetes = ['kubernetes', 'pyyaml']
 mysql = ['mysqlclient']
