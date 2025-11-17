@@ -297,7 +297,7 @@ class BaseZipper(PluginBase):
             retCode = p0.returncode
             if retCode != 0:
                 msgStr = f"failed to make tmpargfile remotely with {stdOut}:{stdErr}"
-                tmp_log.error(msgStr)
+                self.zip_tmp_log.error(msgStr)
                 return False, f"failed to zip with {msgStr}"
             stdOut_str = stdOut if (isinstance(stdOut, str) or stdOut is None) else stdOut.decode()
             tmpargfile_name = stdOut_str.strip("\n")
@@ -333,7 +333,7 @@ class BaseZipper(PluginBase):
             retCode = p1a.returncode
             if retCode != 0:
                 msgStr = f"failed to delete tmpargfile remotely with {stdOut}:{stdErr}"
-                tmp_log.error(msgStr)
+                self.zip_tmp_log.error(msgStr)
             del p1a, stdOut, stdErr
             gc.collect()
             # avoid overwriting
