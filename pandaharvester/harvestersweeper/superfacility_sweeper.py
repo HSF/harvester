@@ -1,11 +1,9 @@
 import os
-import json
-import requests
+import shutil
 
-from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.superfacility_utils import SuperfacilityClient
-
+from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
 baseLogger = core_utils.setup_logger("superfacility_sweeper")
 
@@ -13,7 +11,7 @@ baseLogger = core_utils.setup_logger("superfacility_sweeper")
 class SuperfacilitySweeper(BaseSweeper):
     def __init__(self, **kwargs):
         BaseSweeper.__init__(self, **kwargs)
-        self.cred_dir = kwarg.get("superfacility_cred_dir")
+        self.cred_dir = kwargs.get("superfacility_cred_dir")
         self.sf_client = SuperfacilityClient(self.cred_dir)
 
     def kill_worker(self, workspec):
@@ -30,7 +28,7 @@ class SuperfacilitySweeper(BaseSweeper):
             tmpLog.error(errStr)
             return False, errStr
 
-        if data.get('status') == 'success':
+        if data.get("status") == "success":
             tmpLog.info(f"Succeeded to kill workerID={workspec.workerID} batchID={workspec.workerID}")
         else:
             errStr = f"Failed to cancel job {jobid}: status: {data.get('status')}"
@@ -44,11 +42,11 @@ class SuperfacilitySweeper(BaseSweeper):
         if ap and os.path.exists(ap):
             try:
                 shutil.rmtree(ap)
-                logger.info(f"Removed directory {ap}")
+                tmpLog.info(f"Removed directory {ap}")
             except Exception as e:
                 err = f"Failed to remove {ap}: {e}"
-                logger.error(err)
+                tmpLog.error(err)
                 return False, err
         else:
-            logger.info("Access point already removed or none provided.")
+            tmpLog.info("Access point already removed or none provided.")
         return True, ""
