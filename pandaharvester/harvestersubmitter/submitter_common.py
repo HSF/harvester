@@ -1,5 +1,6 @@
 import random
 from math import log1p
+from typing import List, Optional, Tuple
 
 #########################
 # Pilot related functions
@@ -115,8 +116,11 @@ def get_resource_type(resource_type_name, is_unified_queue, all_resource_types, 
 
 # Compute weight of each CE according to worker stat, return tuple(dict, total weight score)
 def get_ce_weighting(
-    ce_endpoint_list: list | None = None, worker_ce_all_tuple: tuple | None = None, is_slave_queue: bool = False, fairshare_percent: int = 50
-) -> tuple:
+    ce_endpoint_list: Optional[List] = None,
+    worker_ce_all_tuple: Optional[Tuple] = None,
+    is_slave_queue: bool = False,
+    fairshare_percent: int = 50,
+) -> Tuple:
     """
     Compute the weighting of each CE based on worker statistics and throughput.
 

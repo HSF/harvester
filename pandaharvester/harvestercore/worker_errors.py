@@ -2,6 +2,7 @@
 # Integer values for errors must be not less than 1000
 
 import re
+from typing import Optional
 
 ######## Error Code Message Pattern Maps (CMPMs) ########
 
@@ -172,7 +173,7 @@ class ErrorMessagePatternHandler(object):
         self._code_pattern_map = code_pattern_map.copy()
         self._pattern_code_map = {v: k for k, v in self._code_pattern_map.items()}
 
-    def get_error_code(self, message: str) -> int | None:
+    def get_error_code(self, message: str) -> Optional[int]:
         """
         Get the error code for a given message based on the defined patterns.
 
