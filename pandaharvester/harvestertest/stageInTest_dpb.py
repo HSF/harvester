@@ -1,4 +1,5 @@
 import sys
+import time
 
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
