@@ -431,7 +431,6 @@ class JobSpec(SpecBase):
             "exeErrorCode": "exe_error_code",
             "exeErrorDiag": "exe_error_diag",
             "pilotTiming": "pilot_timing",
-            "computingElement": "computing_element",
             "startTime": "start_time",
             "endTime": "end_time",
             "nEvents": "n_events",
