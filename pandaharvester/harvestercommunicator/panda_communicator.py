@@ -392,7 +392,7 @@ class PandaCommunicator(BaseCommunicator):
                 job_list.append(job_dict)
 
             # data dictionary to be sent to PanDA server
-            data = {"job_list": job_list}
+            data = {"job_list": job_list, "harvester_id": harvester_config.master.harvester_id}
 
             tmp_status, tmp_response = self.request_ssl("POST", "pilot/update_jobs_bulk", data)
             ret_maps = None
