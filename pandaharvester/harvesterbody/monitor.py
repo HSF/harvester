@@ -88,6 +88,7 @@ class Monitor(AgentBase):
             sw_main = core_utils.get_stopwatch()
             mainLog.debug("start a monitor cycle")
             if time.time() >= last_DB_cycle_timestamp + harvester_config.monitor.sleepTime and not (monitor_fifo.enabled and self.singleMode):
+
                 # run with workers from DB
                 sw_db = core_utils.get_stopwatch()
                 mainLog.debug("starting run with DB")
@@ -96,6 +97,7 @@ class Monitor(AgentBase):
                     harvester_config.monitor.maxWorkers, harvester_config.monitor.checkInterval, harvester_config.monitor.lockInterval, lockedBy
                 )
                 mainLog.debug(f"got {len(workSpecsPerQueue)} queues")
+
                 # loop over all workers
                 for queueName, configIdWorkSpecs in workSpecsPerQueue.items():
                     for configID, workSpecsList in configIdWorkSpecs.items():
@@ -149,6 +151,7 @@ class Monitor(AgentBase):
                     to_deliver = time.time() >= last_event_delivery_timestamp + eventBasedCheckInterval
                     to_digest = time.time() >= last_event_digest_timestamp + eventBasedCheckInterval / 4
                     to_dispose = time.time() >= last_event_dispose_timestamp + eventBasedCheckInterval / 2
+
                     if to_deliver:
                         # deliver events of worker update
                         got_lock = self.dbProxy.get_process_lock("monitor_event_deliverer", lockedBy, eventBasedCheckInterval)
@@ -157,6 +160,7 @@ class Monitor(AgentBase):
                         else:
                             mainLog.debug("did not get lock. Skip monitor_event_deliverer")
                         last_event_delivery_timestamp = time.time()
+
                     if to_digest:
                         # digest events of worker update
                         to_run_fifo_check = False
@@ -168,6 +172,7 @@ class Monitor(AgentBase):
                             obj_to_enqueue_to_head_dict[qc_key][1] = max(obj_to_enqueue_to_head_dict[qc_key][1], timeNow_timestamp)
                             obj_to_enqueue_to_head_dict[qc_key][2] = max(obj_to_enqueue_to_head_dict[qc_key][2], fifoCheckInterval)
                         last_event_digest_timestamp = time.time()
+
                     if to_dispose:
                         # dispose of outdated events of worker update
                         self.monitor_event_disposer(event_lifetime=eventBasedEventLifetime, max_events=eventBasedRemoveMaxEvents)
@@ -274,6 +279,7 @@ class Monitor(AgentBase):
                             else:
                                 time.sleep(max(fifoCheckDuration * random.uniform(0.1, 1), adjusted_sleepTime))
                     mainLog.debug(f"run {n_loops} loops, including {n_loops_hit} FIFO cycles")
+
                 # enqueue to fifo
                 sw.reset()
                 n_chunk_put = 0
@@ -301,6 +307,7 @@ class Monitor(AgentBase):
                                 mainLog.info(f"put a chunk of {len(workSpecsToEnqueueToHead)} workers of {queueName} to FIFO with score {score}")
                         except Exception as errStr:
                             mainLog.error(f"failed to put object from FIFO head: {errStr}")
+
                 # delete protective dequeued objects
                 if fifoProtectiveDequeue and len(obj_dequeued_id_list) > 0:
                     try:
@@ -308,6 +315,7 @@ class Monitor(AgentBase):
                     except Exception as e:
                         mainLog.error(f"failed to delete object from FIFO: {e}")
                 mainLog.debug(f"put {n_chunk_put} worker chunks into FIFO" + sw.get_elapsed_time())
+
                 # adjust adjusted_sleepTime
                 if n_chunk_peeked_stat > 0 and sum_overhead_time_stat > sleepTime:
                     speedup_factor = (sum_overhead_time_stat - sleepTime) / (n_chunk_peeked_stat * harvester_config.monitor.checkInterval)
@@ -316,10 +324,13 @@ class Monitor(AgentBase):
                 elif n_chunk_peeked_stat == 0 or sum_overhead_time_stat < 0:
                     adjusted_sleepTime = (sleepTime + adjusted_sleepTime) / 2
                 mainLog.debug(f"adjusted_sleepTime becomes {adjusted_sleepTime:.3f} sec")
+
                 # end run with fifo
                 mainLog.debug("ended run with FIFO")
+
             # time the cycle
             mainLog.debug("done a monitor cycle" + sw_main.get_elapsed_time())
+
             # check if being terminated
             if self.terminated(adjusted_sleepTime):
                 mainLog.debug("terminated")
@@ -332,15 +343,19 @@ class Monitor(AgentBase):
         if not self.queueConfigMapper.has_queue(queueName, config_id):
             tmpQueLog.error("config not found")
             return None
+
         # get queue
         queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
+
         # get plugins
         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
         messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
+
         # workspec chunk of active workers
         workSpecsToEnqueue_dict = {}
         workSpecsToEnqueueToHead_dict = {}
         timeNow_timestamp = time.time()
+
         # get fifoCheckInterval for PQ and other fifo attributes
         try:
             fifoCheckInterval = monCore.fifoCheckInterval
@@ -357,6 +372,7 @@ class Monitor(AgentBase):
             fifoMaxPreemptInterval = harvester_config.monitor.fifoMaxPreemptInterval
         except AttributeError:
             fifoMaxPreemptInterval = 60
+
         # check workers
         allWorkers = [item for sublist in workSpecsList for item in sublist]
         tmpQueLog.debug(f"checking {len(allWorkers)} workers")
@@ -372,6 +388,7 @@ class Monitor(AgentBase):
                 filesToStageOutList = dict()
                 isCheckedList = []
                 mapType = workSpecs[0].mapType
+
                 # loop over workSpecs
                 for workSpec in workSpecs:
                     tmpLog = self.make_logger(_logger, f"id={lockedBy} workerID={workSpec.workerID} from={check_source}", method_name="run")
@@ -391,10 +408,12 @@ class Monitor(AgentBase):
                     tmpStr += "postProcessed={3} files={4}"
                     tmpLog.debug(tmpStr.format(newStatus, monStatus, diagMessage, workSpec.is_post_processed(), str(filesToStageOut)))
                     iWorker += 1
+
                     # check status
                     if newStatus not in WorkSpec.ST_LIST:
                         tmpLog.error(f"unknown status={newStatus}")
                         return
+
                     # update worker
                     workSpec.set_status(newStatus)
                     workSpec.set_work_attributes(workAttributes)
@@ -410,22 +429,27 @@ class Monitor(AgentBase):
                             workSpec.set_pilot_error(PilotErrors.PANDAKILL, diagMessage)
                     if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
                         workSpec.set_work_params({"finalMonStatus": monStatus})
+
                     # request events
                     if eventsRequestParams != {}:
                         workSpec.eventsRequest = WorkSpec.EV_requestEvents
                         workSpec.eventsRequestParams = eventsRequestParams
+
                     # jobs to refill
                     if nJobsToReFill is not None:
                         workSpec.nJobsToReFill = nJobsToReFill
+
                     # get associated jobs for the worker chunk
                     if workSpec.hasJob == 1 and jobSpecs is None:
                         jobSpecs = self.dbProxy.get_jobs_with_worker_id(workSpec.workerID, None, only_running=True, slim=True)
+
                     # pandaIDs for push
                     pandaIDsList.append(pandaIDs)
                     if len(eventsToUpdate) > 0:
                         eventsToUpdateList.append(eventsToUpdate)
                     if len(filesToStageOut) > 0:
                         filesToStageOutList[workSpec.workerID] = filesToStageOut
+
                     # apfmon status update
                     if newStatus != oldStatus:
                         tmpQueLog.debug(f"newStatus: {newStatus} monStatus: {monStatus} oldStatus: {oldStatus} workSpecStatus: {workSpec.status}")
@@ -451,10 +475,12 @@ class Monitor(AgentBase):
                     # skip if not locked
                     if not temRetLockWorker:
                         continue
+
                 # update jobs and workers
                 if jobSpecs is not None and len(jobSpecs) > 0:
                     tmpQueLog.debug(f"updating {len(jobSpecs)} jobs with {len(workSpecs)} workers")
                     core_utils.update_job_attributes_with_workers(mapType, jobSpecs, workSpecs, filesToStageOutList, eventsToUpdateList)
+
                 # update local database
                 tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
                 if not tmpRet:
@@ -474,6 +500,7 @@ class Monitor(AgentBase):
                             tmpLog.debug(
                                 f"new status={jobSpec.status} subStatus={jobSpec.subStatus} status_in_metadata={jobSpec.get_job_status_from_attributes()}"
                             )
+
                 # send ACK to workers for events and files
                 if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
                     for workSpec in workSpecs:
@@ -482,6 +509,7 @@ class Monitor(AgentBase):
                         except Exception:
                             core_utils.dump_error_message(tmpQueLog)
                             tmpQueLog.error(f"failed to send ACK to workerID={workSpec.workerID}")
+
                 # active workers for fifo
                 if self.monitor_fifo.enabled and workSpecs:
                     workSpec = workSpecs[0]
@@ -495,16 +523,19 @@ class Monitor(AgentBase):
                     ):
                         timeNow = core_utils.naive_utcnow()
                         timeNow_timestamp = time.time()
+
                         # get lastCheckAt
                         _bool, lastCheckAt = workSpec.get_work_params("lastCheckAt")
                         try:
                             last_check_period = timeNow_timestamp - lastCheckAt
                         except TypeError:
                             last_check_period = forceEnqueueInterval + 1.0
+
                         # get lastForceEnqueueAt
                         _bool, lastForceEnqueueAt = workSpec.get_work_params("lastForceEnqueueAt")
                         if not (_bool and lastForceEnqueueAt is not None):
                             lastForceEnqueueAt = 0
+
                         # notification
                         intolerable_delay = max(forceEnqueueInterval * 2, harvester_config.monitor.checkInterval * 4)
                         if (
@@ -669,10 +700,12 @@ class Monitor(AgentBase):
                         else:
                             # use original status
                             newStatus = workSpec.status
+
                     # request kill
                     if messenger.kill_requested(workSpec):
                         tmp_log.debug(f"kill workerID={workerID} as requested")
                         self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+
                     # stuck queuing for too long
                     if workSpec.status == WorkSpec.ST_submitted and timeNow > workSpec.submitTime + datetime.timedelta(seconds=workerQueueTimeLimit):
                         tmp_log.debug(f"kill workerID={workerID} due to queuing longer than {workerQueueTimeLimit} seconds")
@@ -681,6 +714,7 @@ class Monitor(AgentBase):
                         workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                         # set closed
                         workSpec.set_pilot_closed()
+
                     # expired heartbeat - only when requested in the configuration
                     try:
                         # check if the queue configuration requires checking for worker heartbeat
@@ -696,24 +730,30 @@ class Monitor(AgentBase):
                             self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
                             diagMessage = "Killed by Harvester due to worker heartbeat expired. " + diagMessage
                             workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
+
                     # get work attributes
                     workAttributes = messenger.get_work_attributes(workSpec)
                     retMap[workerID]["workAttributes"] = workAttributes
+
                     # get output files
                     filesToStageOut = messenger.get_files_to_stage_out(workSpec)
                     retMap[workerID]["filesToStageOut"] = filesToStageOut
+
                     # get events to update
                     if workSpec.eventsRequest in [WorkSpec.EV_useEvents, WorkSpec.EV_requestEvents]:
                         eventsToUpdate = messenger.events_to_update(workSpec)
                         retMap[workerID]["eventsToUpdate"] = eventsToUpdate
+
                     # request events
                     if workSpec.eventsRequest == WorkSpec.EV_useEvents:
                         eventsRequestParams = messenger.events_requested(workSpec)
                         retMap[workerID]["eventsRequestParams"] = eventsRequestParams
+
                     # get PandaIDs for pull model
                     if workSpec.mapType == WorkSpec.MT_NoJob:
                         pandaIDs = messenger.get_panda_ids(workSpec)
                     retMap[workerID]["pandaIDs"] = pandaIDs
+
                     # keep original new status
                     retMap[workerID]["monStatus"] = newStatus
                     # set running or idle while there are events to update or files to stage out
