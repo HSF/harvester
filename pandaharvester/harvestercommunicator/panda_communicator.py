@@ -440,6 +440,83 @@ class PandaCommunicator(BaseCommunicator):
         tmp_logger.debug(f"Done. Took {sw.get_elapsed_time()} seconds")
         return ret_list
 
+    def update_worker_node(self, worker_node_dictionary):
+        """
+        A worker node is described by the following dictionary:
+        {
+            "site": "CERN",  # the ATLAS site
+            "host_name": "host.domain.tld",
+            "cpu_model": "Intel Xeon",
+            "panda_queue": "CERN-TEST",  # the PanDA queue
+            "n_logical_cpus": 256,
+            "n_sockets": 2,
+            "cores_per_socket": 64,
+            "threads_per_core": 2,
+            "cpu_architecture": "x86_64",
+            "cpu_architecture_level": "x86-64-v3",
+            "clock_speed": 2304.88,  # in MHz
+            "total_memory": 515133,  # in MB
+            "total_local_disk": 117,  # in GB
+        }
+        """
+
+        tmp_log = self.make_logger(method_name="update_worker_node")
+        tmp_log.debug("Start")
+
+        tmp_status, tmp_response = self.request_ssl("POST", "pilot/update_worker_node", worker_node_dictionary)
+
+        # Communication issue
+        if tmp_status is False:
+            tmp_str = core_utils.dump_error_message(tmp_log, tmp_response)
+            tmp_log.debug(f"Done with {tmp_status} : {tmp_str}")
+            return tmp_status, tmp_str
+
+        # We see what PanDA server replied
+        tmp_status = tmp_response["success"]
+        tmp_str = ""
+        if not tmp_status:
+            tmp_str = tmp_response["message"]
+
+        tmp_log.debug(f"Done with {tmp_status} : {tmp_str}")
+        return tmp_status, tmp_str
+
+    def update_worker_node_gpu(self, worker_node_gpu_dictionary):
+        """
+        A worker node is described by the following dictionary:
+        {
+            "site": "CERN",  # the ATLAS site
+            "host_name": "host.domain.tld",
+            "vendor": "NVIDIA",
+            "model": "Tesla V100S-PCIE-32GB",
+            "count": 1,
+            "vram": 32768,  # in MB
+            "architecture": "Volta",
+            "framework": "CUDA",
+            "framework_version": "13.0",
+            "driver_version": "575.51.03"
+        }
+        """
+
+        tmp_log = self.make_logger(method_name="update_worker_node_gpu")
+        tmp_log.debug("Start")
+
+        tmp_status, tmp_response = self.request_ssl("POST", "pilot/update_worker_node_gpu", worker_node_gpu_dictionary)
+
+        # Communication issue
+        if tmp_status is False:
+            tmp_str = core_utils.dump_error_message(tmp_log, tmp_response)
+            tmp_log.debug(f"Done with {tmp_status} : {tmp_str}")
+            return tmp_status, tmp_str
+
+        # We see what PanDA server replied
+        tmp_status = tmp_response["success"]
+        tmp_str = ""
+        if not tmp_status:
+            tmp_str = tmp_response["message"]
+
+        tmp_log.debug(f"Done with {tmp_status} : {tmp_str}")
+        return tmp_status, tmp_str
+
     # get events
     def get_event_ranges(self, data_map, scattered, base_path):
         ret_status = False
