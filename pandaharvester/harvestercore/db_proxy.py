@@ -30,6 +30,7 @@ from .queue_config_dump_spec import QueueConfigDumpSpec
 from .resource_type_constants import BASIC_RESOURCE_TYPE_SINGLE_CORE
 from .seq_number_spec import SeqNumberSpec
 from .service_metrics_spec import ServiceMetricSpec
+from .wn_spec import WorkerNodeGpuSpec, WorkerNodeSpec
 from .work_spec import WorkSpec
 
 # logger
@@ -49,6 +50,8 @@ processLockTableName = "lock_table"
 diagTableName = "diag_table"
 queueConfigDumpTableName = "qcdump_table"
 serviceMetricsTableName = "sm_table"
+workerNodeTableName = "worker_node_table"
+workerNodeGpuTableName = "worker_node_gpu_table"
 
 # connection lock
 conLock = threading.Lock()
@@ -521,6 +524,8 @@ class DBProxy(object):
         outStrs += self.make_table(DiagSpec, diagTableName)
         outStrs += self.make_table(QueueConfigDumpSpec, queueConfigDumpTableName)
         outStrs += self.make_table(ServiceMetricSpec, serviceMetricsTableName)
+        outStrs += self.make_table(WorkerNodeSpec, workerNodeTableName)
+        outStrs += self.make_table(WorkerNodeGpuSpec, workerNodeGpuTableName)
 
         # dump error messages
         if len(outStrs) > 0:
@@ -6027,3 +6032,120 @@ class DBProxy(object):
             core_utils.dump_error_message(_logger)
             # return
             return None
+
+    def insert_worker_node(self, wn_spec):
+        try:
+            tmp_logger = core_utils.make_logger(_logger, method_name="insert_worker_node")
+            tmp_logger.debug("Start")
+
+            sql_insert = f"INSERT INTO {jobTableName} ({JobSpec.column_names()}) {JobSpec.bind_values_expression()}"
+            var_map = wn_spec.values_list()
+            self.execute(sql_insert, var_map)
+            self.commit()
+            tmp_logger.debug("Done")
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False
+
+    def retrieve_worker_nodes(self, locked_by):
+        try:
+            tmp_logger = core_utils.make_logger(_logger, method_name="get_job_stats_full")
+            tmp_logger.debug("Start")
+
+            time_now = core_utils.naive_utcnow()
+            time_limit = 600  # 10 minutes
+            locked_by_limit = time_now - datetime.timedelta(seconds=time_limit)
+
+            # lock a batch of entries
+            var_map = {":locked_by": locked_by, ":time_now": time_now, ":locked_by_limit": locked_by_limit}
+            sql_claim = (
+                f"UPDATE worker_node_table SET locked_by = :locked_by, locked_ts = :time_now "
+                f"WHERE locked_by IS NULL OR locked_ts < :locked_by_limit "
+                f"ORDER BY inserted_ts LIMIT 100"
+            )
+            self.execute(sql_claim, var_map)
+
+            # retrieve the batch of entries
+            var_map = {":locked_by": locked_by, ":time_now": time_now, ":locked_by_limit": locked_by_limit}
+            sql_get = (
+                f"SELECT site, host_name, cpu_model, panda_queue, n_logical_cpus, n_sockets, cores_per_socket, "
+                "threads_per_core, cpu_architecture, cpu_architecture_level, clock_speed, total_memory, total_local_disk "
+                "FROM worker_node_table "
+                f"WHERE locked_by = :locked_by"
+            )
+            self.execute(sql_get, var_map)
+            wn_results = self.cur.fetchall()
+            wn_dicts = []
+            for wn_result in wn_results:
+                (
+                    site,
+                    host_name,
+                    cpu_model,
+                    panda_queue,
+                    n_logical_cpus,
+                    n_sockets,
+                    cores_per_socket,
+                    threads_per_core,
+                    cpu_architecture,
+                    cpu_architecture_level,
+                    clock_speed,
+                    total_memory,
+                    total_local_disk,
+                ) = wn_result
+
+                wn_dict = {
+                    "site": site,
+                    "host_name": host_name,
+                    "cpu_model": cpu_model,
+                    "panda_queue": panda_queue,
+                    "n_logical_cpus": n_logical_cpus,
+                    "n_sockets": n_sockets,
+                    "cores_per_socket": cores_per_socket,
+                    "threads_per_core": threads_per_core,
+                    "cpu_architecture": cpu_architecture,
+                    "cpu_architecture_level": cpu_architecture_level,
+                    "clock_speed": clock_speed,
+                    "total_memory": total_memory,
+                    "total_local_disk": total_local_disk,
+                }
+                wn_dicts.append(wn_dict)
+
+            # site, host_name, vendor, model, count, vram, architecture, framework, framework_version, driver_version
+
+            # commit
+            self.commit()
+            tmp_logger.debug(f"Done with {len(wn_dicts)} worker nodes retrieved")
+            return wn_dicts
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None
+
+    def delete_processed_worker_nodes(self, locked_by):
+        try:
+            tmp_logger = core_utils.make_logger(_logger, method_name="delete_processed_worker_nodes")
+            tmp_logger.debug("Start")
+
+            var_map = {":locked_by": locked_by}
+            sql_delete = "DELETE FROM worker_node_table WHERE locked_by = :locked_by"
+            self.execute(sql_delete, var_map)
+
+            # commit
+            self.commit()
+            tmp_logger.debug("Done")
+            return True
+        except Exception:
+            # roll back
+            self.rollback()
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return False

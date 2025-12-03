@@ -22,21 +22,24 @@ class WorkerNodeSpec(SpecBase):
         "clock_speed:integer",  # in MHz
         "total_memory:integer",  # in MB
         "total_local_disk:integer",  # in GB
+        "inserted_ts:timestamp",
+        "locked_by:text",
+        "locked_ts:timestamp",
     )
 
     # constructor
     def __init__(self):
         SpecBase.__init__(self)
 
-    # convert to propagate
     def convert_to_propagate(self):
         """Collect attributes from `attributesWithTypes` and coerce floats to ints."""
         attrs = [spec.split(":", 1)[0] for spec in getattr(self, "attributesWithTypes", ())]
+        skip = {"inserted_ts", "locked_by", "locked_ts"}
 
         def _normalize(v):
             return int(v) if isinstance(v, float) else v
 
-        return {name: _normalize(getattr(self, name, None)) for name in attrs}
+        return {name: _normalize(getattr(self, name, None)) for name in attrs if name not in skip}
 
 
 class WorkerNodeGpuSpec(SpecBase):
@@ -52,6 +55,9 @@ class WorkerNodeGpuSpec(SpecBase):
         "framework:text",
         "framework_version:text",
         "driver_version:text",
+        "inserted_ts:timestamp",
+        "locked_by:text",
+        "locked_ts:timestamp",
     )
 
     # constructor
@@ -62,4 +68,5 @@ class WorkerNodeGpuSpec(SpecBase):
     def convert_to_propagate(self):
         """Collect attributes from `attributesWithTypes` and coerce floats to ints."""
         attrs = [spec.split(":", 1)[0] for spec in getattr(self, "attributesWithTypes", ())]
-        return {name: _normalize(getattr(self, name, None)) for name in attrs}
+        skip = {"inserted_ts", "locked_by", "locked_ts"}
+        return {name: _normalize(getattr(self, name, None)) for name in attrs if name not in skip}
