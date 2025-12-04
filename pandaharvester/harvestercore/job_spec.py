@@ -414,7 +414,6 @@ class JobSpec(SpecBase):
         if self.jobAttributes is None:
             return data
         # extract only panda attributes
-        # FIXME use set literal for python >=2.7
         panda_attributes = {
             "token": "token",
             "transExitCode": "trans_exit_code",
