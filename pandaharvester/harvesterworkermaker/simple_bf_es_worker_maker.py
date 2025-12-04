@@ -16,6 +16,7 @@ _logger = core_utils.setup_logger("simple_bf_worker_maker")
 
 
 class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
+    """Worker maker plugin for simple backfill event service workers."""
     # constructor
     def __init__(self, **kwarg):
         self.jobAttributesToUse = ["nCore", "minRamCount", "maxDiskCount", "maxWalltime"]
