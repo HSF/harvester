@@ -31,15 +31,28 @@ class SuperfacilityMonitor(PluginBase):
 
             try:
                 r = self.sf_client.get(f"/compute/jobs/perlmutter/{jobid}?sacct=true&cached=false")
+                r.raise_for_status()
                 data = r.json()
-            #FIXME: How to handle httperror?
             except requests.HTTPError as e:
-                newStatus = WorkSpec.ST_failed
-                retList.append((WorkSpec.ST_failed, f"can not get query slurm job {jobid} due to {e}"))
+                tmpLog.error(f"HTTP error querying slurm job {jobid}: {e}")
+                retList.append((WorkSpec.ST_failed, f"HTTP error querying slurm job {jobid}: {e}"))
+                continue
+            except requests.RequestException as e:
+                tmpLog.error(f"Request error querying slurm job {jobid}: {e}")
+                retList.append((WorkSpec.ST_failed, f"Request error querying slurm job {jobid}: {e}"))
+                continue
+            except (KeyError, IndexError, ValueError) as e:
+                tmpLog.error(f"Error parsing response for slurm job {jobid}: {e}")
+                retList.append((WorkSpec.ST_failed, f"Error parsing response for slurm job {jobid}: {e}"))
                 continue
             
-            batchStatus = data["output"][0]['state'].upper()
-            #FIXME: Are these mapping correct? Some do not exist, and some seem mismatch
+            try:
+                batchStatus = data["output"][0]['state'].upper()
+            except (KeyError, IndexError) as e:
+                tmpLog.error(f"Missing state information in response for slurm job {jobid}: {e}")
+                retList.append((WorkSpec.ST_failed, f"Missing state information in response for slurm job {jobid}: {e}"))
+                continue
+            
             if batchStatus in ["RUNNING", "COMPLETING", "STOPPED", "SUSPENDED"]:
                 newStatus = WorkSpec.ST_running
             elif batchStatus in ["COMPLETED", "PREEMPTED", "TIMEOUT"]:
@@ -49,6 +62,7 @@ class SuperfacilityMonitor(PluginBase):
             elif batchStatus in ["CONFIGURING", "PENDING"]:
                 newStatus = WorkSpec.ST_submitted
             else:
+                tmpLog.warning(f"Unknown batch status {batchStatus} for job {jobid}, marking as failed")
                 newStatus = WorkSpec.ST_failed
             tmpLog.debug(f"batchStatus {batchStatus} -> workerStatus {newStatus}")
             retList.append((newStatus, ""))
