@@ -8,6 +8,7 @@ _logger = core_utils.setup_logger("simple_zipper")
 
 # simple plugin for zipper
 class SimpleZipper(BaseZipper):
+    """Simple zipper plugin that zips output files synchronously."""
     # constructor
     def __init__(self, **kwarg):
         BaseZipper.__init__(self, **kwarg)
