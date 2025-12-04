@@ -402,7 +402,7 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
         for workSpec in workspec_list:
             if workSpec.new_status:
                 jobSpec.trigger_propagation()
-            # the the worker is running
+            # the worker is running
             if workSpec.status in [WorkSpec.ST_running]:
                 isRunning = True
                 # set start time
@@ -435,7 +435,9 @@ def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, fi
             # live core count
             jobSpec.nCore = nCore
         # combine worker attributes and set it to job
-        # FIXME
+        # NOTE: Setting worker attributes is commented out for MultiWorkers map type
+        # as it requires aggregating attributes from multiple workers, which needs
+        # careful implementation to avoid conflicts
         # jobSpec.set_attributes(workAttributes)
         # add files
         outFileAttrs = jobSpec.get_output_file_attributes()
