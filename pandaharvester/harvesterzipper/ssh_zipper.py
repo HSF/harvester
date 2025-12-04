@@ -8,6 +8,7 @@ _logger = core_utils.setup_logger("ssh_zipper")
 
 # ssh plugin for zipper
 class SshZipper(BaseZipper):
+    """SSH zipper plugin that zips output files via SSH connection."""
     # constructor
     def __init__(self, **kwarg):
         BaseZipper.__init__(self, **kwarg)
