@@ -24,7 +24,6 @@ class K8sSweeper(BaseSweeper):
 
         ret_list = []
         for work_spec in work_spec_list:
-            tmp_ret_val = (None, "Nothing done")
 
             batch_id = work_spec.batchID
             worker_id = str(work_spec.workerID)
@@ -37,7 +36,6 @@ class K8sSweeper(BaseSweeper):
                     except Exception as _e:
                         err_str = f"Failed to delete a CONFIGMAP with id={worker_id} ; {_e}"
                         tmp_log.error(err_str)
-                        tmp_ret_val = (False, err_str)
                 else:
                     tmp_log.debug(f"No pandajob/configmap associated to worker {work_spec.workerID}")
 
@@ -45,6 +43,7 @@ class K8sSweeper(BaseSweeper):
                 try:
                     self.k8s_client.delete_job(batch_id)
                     tmp_log.debug(f"Deleted JOB {batch_id}")
+                    tmp_ret_val = (True, "")
                 except Exception as _e:
                     err_str = f"Failed to delete a JOB with id={batch_id} ; {_e}"
                     tmp_log.error(err_str)
