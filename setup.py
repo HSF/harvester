@@ -19,11 +19,15 @@ setup(
     version=release_version,
     description="Harvester Package",
     long_description="""This package contains Harvester components""",
-    license="GPL",
+    # Packaging metadata is canonicalised in pyproject.toml (PEP 621/517).
+    # Keep this file compatible with that metadata.
+    license="Apache-2.0",
     author="Panda Team",
     author_email="atlas-adc-panda@cern.ch",
     url="https://github.com/PanDAWMS/panda-harvester/wiki",
-    python_requires=">=2.7",
+    # The project is maintained for modern Python; declare supported versions here
+    # and keep in sync with `pyproject.toml` (preferred source of truth).
+    python_requires=">=3.8",
     packages=find_packages(),
     install_requires=[
         "requests",
