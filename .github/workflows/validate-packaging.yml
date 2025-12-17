@@ -1,0 +1,51 @@
+name: Validate packaging metadata
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install build
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Dump METADATA
+        run: |
+          echo '--- METADATA ---'
+          unzip -p dist/*.whl '*/METADATA' > METADATA || unzip -p dist/*.whl '*-info/METADATA' > METADATA
+          cat METADATA
+
+      - name: Validate license
+        run: |
+          EXPECTED_LICENSE='Apache-2.0'
+          if grep -q "^License: ${EXPECTED_LICENSE}$" METADATA; then
+            echo "License matches: ${EXPECTED_LICENSE}"
+          elif grep -q "^Classifier: License :: OSI Approved :: Apache Software License$" METADATA; then
+            echo "License classifier present"
+          else
+            echo "ERROR: license metadata does not match ${EXPECTED_LICENSE}"; exit 1
+          fi
+
+      - name: Validate Requires-Python
+        run: |
+          EXPECTED_PY='>=3.8'
+          if grep -q "^Requires-Python: ${EXPECTED_PY}$" METADATA; then
+            echo "Requires-Python matches: ${EXPECTED_PY}"
+          else
+            echo "ERROR: Requires-Python missing or not ${EXPECTED_PY}"; exit 1
+          fi
