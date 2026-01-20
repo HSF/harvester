@@ -1,3 +1,4 @@
+import re
 import threading
 import time
 
@@ -17,6 +18,12 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
     Able to query with either PanDA Queue name or PanDA Resource name
     """
 
+    candidate_per_core_attrs = (
+        "maxrss",
+        "minrss",
+        "maxwdir",
+    )
+
     def __init__(self, **kwargs):
         dict.__init__(self)
         PluginBase.__init__(self, **kwargs)
@@ -33,6 +40,27 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
             return True
         return False
 
+    @staticmethod
+    def has_value_in_catchall(panda_queues_dict, key):
+        """
+        Check if specific value is in catchall attributes
+        """
+        catchall_str = panda_queues_dict.get("catchall")
+        if catchall_str is None:
+            return False
+        for tmp_key in catchall_str.split(","):
+            tmp_match = re.search(f"^{key}(=|)*", tmp_key)
+            if tmp_match is not None:
+                return True
+        return False
+
+    @staticmethod
+    def use_per_core_attr(panda_queues_dict):
+        """
+        Check if treating all attributes as per-core
+        """
+        return PandaQueuesDict.has_value_in_catchall(panda_queues_dict, "per_core_attr")
+
     def _refresh(self):
         with self.lock:
             if self._is_fresh():
@@ -48,6 +76,13 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
                         pass
                     else:
                         self[panda_resource] = v
+                    # handle per-core attributes: scale with corecount if per-core
+                    if PandaQueuesDict.use_per_core_attr(v):
+                        core_count = v.get("corecount", 1)
+                        for attr in self.candidate_per_core_attrs:
+                            if attr in v and core_count > 0:
+                                v[attr] = v[attr] * core_count
+                # successfully refreshed from cache
                 self.last_refresh_ts = time.time()
             else:
                 # not getting cache; shorten next period into 5 sec
