@@ -714,7 +714,7 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
                 # TODO: submit_with_python_process has no such error but spawns some processes that will not terminate after harvester stops
                 # TODO: Fall back to submit_with_command for now
                 # retVal = self.submit_with_python(jdl_list, use_spool)
-                # retVal = self.submit_with_python_proces(jdl_list, use_spool)
+                # retVal = self.submit_with_python_process(jdl_list, use_spool)
                 retVal = self.submit_with_command(jdl_list, use_spool)
             except Exception as e:
                 tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
