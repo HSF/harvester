@@ -39,10 +39,8 @@ except ImportError:
 # logger
 baseLogger = core_utils.setup_logger("htcondor_utils")
 
-
 # module level lock
 moduleLock = threading.Lock()
-
 
 # List of job ads required
 CONDOR_JOB_ADS_LIST = [
@@ -59,14 +57,12 @@ CONDOR_JOB_ADS_LIST = [
     "harvesterWorkerID",
 ]
 
-
 # harvesterID
 harvesterID = harvester_config.master.harvester_id
 
 # ===============================================================
 
 # === Functions =================================================
-
 
 def synchronize(func):
     """
@@ -80,7 +76,6 @@ def synchronize(func):
 
     return wrapper
 
-
 def _runShell(cmd):
     """
     Run shell function
@@ -91,7 +86,6 @@ def _runShell(cmd):
     retCode = p.returncode
     return (retCode, stdOut, stdErr)
 
-
 def condor_job_id_from_workspec(workspec):
     """
     Generate condor job id with schedd host from workspec
@@ -101,7 +95,6 @@ def condor_job_id_from_workspec(workspec):
     if "." not in batchid_str:
         batchid_str += ".0"
     return f"{workspec.submissionHost}#{batchid_str}"
-
 
 def get_host_batchid_map(workspec_list):
     """
@@ -122,14 +115,12 @@ def get_host_batchid_map(workspec_list):
         host_batchid_map[host][batchid_str] = workspec
     return host_batchid_map
 
-
 def get_batchid_from_job(job_ads_dict):
     """
     Get batchID string from condor job dict
     """
     batchid = f"{job_ads_dict['ClusterId']}.{job_ads_dict['ProcId']}"
     return batchid
-
 
 def get_job_id_tuple_from_batchid(batchid):
     """
@@ -141,7 +132,6 @@ def get_job_id_tuple_from_batchid(batchid):
     if not procid:
         procid = 0
     return (clusterid, procid)
-
 
 # def jdl_to_map(jdl):
 #     """
@@ -155,7 +145,6 @@ def get_job_id_tuple_from_batchid(batchid):
 #         if match:
 #             ret_map[match(1)] = match(2)
 #     return ret_map
-
 
 def condor_submit_process(mp_queue, host, jdl_map_list, tmp_log):
     """
@@ -200,14 +189,11 @@ def condor_submit_process(mp_queue, host, jdl_map_list, tmp_log):
             errStr = f"submission failed; {e.__class__.__name__}: {e}"
     mp_queue.put((batchIDs_list, errStr))
 
-
 # ===============================================================
 
 # === Classes ===================================================
 
 # Condor queue cache fifo
-
-
 class CondorQCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
     global_lock_id = -1
 
@@ -235,7 +221,6 @@ class CondorQCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
             return True
         else:
             return False
-
 
 # Condor client
 class CondorClient(object):
@@ -977,6 +962,5 @@ class CondorJobManage(CondorClient, metaclass=SingletonWithID):
         tmpLog.debug("Done")
         # Return
         return retMap
-
 
 # ===============================================================
