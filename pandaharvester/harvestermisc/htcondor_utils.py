@@ -64,6 +64,7 @@ harvesterID = harvester_config.master.harvester_id
 
 # === Functions =================================================
 
+
 def synchronize(func):
     """
     synchronize decorator
@@ -76,6 +77,7 @@ def synchronize(func):
 
     return wrapper
 
+
 def _runShell(cmd):
     """
     Run shell function
@@ -86,6 +88,7 @@ def _runShell(cmd):
     retCode = p.returncode
     return (retCode, stdOut, stdErr)
 
+
 def condor_job_id_from_workspec(workspec):
     """
     Generate condor job id with schedd host from workspec
@@ -95,6 +98,7 @@ def condor_job_id_from_workspec(workspec):
     if "." not in batchid_str:
         batchid_str += ".0"
     return f"{workspec.submissionHost}#{batchid_str}"
+
 
 def get_host_batchid_map(workspec_list):
     """
@@ -115,12 +119,14 @@ def get_host_batchid_map(workspec_list):
         host_batchid_map[host][batchid_str] = workspec
     return host_batchid_map
 
+
 def get_batchid_from_job(job_ads_dict):
     """
     Get batchID string from condor job dict
     """
     batchid = f"{job_ads_dict['ClusterId']}.{job_ads_dict['ProcId']}"
     return batchid
+
 
 def get_job_id_tuple_from_batchid(batchid):
     """
@@ -132,6 +138,7 @@ def get_job_id_tuple_from_batchid(batchid):
     if not procid:
         procid = 0
     return (clusterid, procid)
+
 
 # def jdl_to_map(jdl):
 #     """
@@ -145,6 +152,7 @@ def get_job_id_tuple_from_batchid(batchid):
 #         if match:
 #             ret_map[match(1)] = match(2)
 #     return ret_map
+
 
 def condor_submit_process(mp_queue, host, jdl_map_list, tmp_log):
     """
@@ -189,9 +197,11 @@ def condor_submit_process(mp_queue, host, jdl_map_list, tmp_log):
             errStr = f"submission failed; {e.__class__.__name__}: {e}"
     mp_queue.put((batchIDs_list, errStr))
 
+
 # ===============================================================
 
 # === Classes ===================================================
+
 
 # Condor queue cache fifo
 class CondorQCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
@@ -221,6 +231,7 @@ class CondorQCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
             return True
         else:
             return False
+
 
 # Condor client
 class CondorClient(object):
@@ -700,7 +711,7 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
         if self.condor_api_type == "python":
             try:
                 # TODO: submit_with_python will meet segfault or c++ error after many times of submission; need help from condor team
-                # TODO: submit_with_python_proces has no such error but spawns some processes that will not terminate after harvester stops
+                # TODO: submit_with_python_process has no such error but spawns some processes that will not terminate after harvester stops
                 # TODO: Fall back to submit_with_command for now
                 # retVal = self.submit_with_python(jdl_list, use_spool)
                 # retVal = self.submit_with_python_proces(jdl_list, use_spool)
@@ -962,5 +973,6 @@ class CondorJobManage(CondorClient, metaclass=SingletonWithID):
         tmpLog.debug("Done")
         # Return
         return retMap
+
 
 # ===============================================================
