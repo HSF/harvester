@@ -39,10 +39,8 @@ except ImportError:
 # logger
 baseLogger = core_utils.setup_logger("htcondor_utils")
 
-
 # module level lock
 moduleLock = threading.Lock()
-
 
 # List of job ads required
 CONDOR_JOB_ADS_LIST = [
@@ -58,7 +56,6 @@ CONDOR_JOB_ADS_LIST = [
     "RemoveReason",
     "harvesterWorkerID",
 ]
-
 
 # harvesterID
 harvesterID = harvester_config.master.harvester_id
@@ -205,9 +202,8 @@ def condor_submit_process(mp_queue, host, jdl_map_list, tmp_log):
 
 # === Classes ===================================================
 
+
 # Condor queue cache fifo
-
-
 class CondorQCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
     global_lock_id = -1
 
@@ -715,10 +711,10 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
         if self.condor_api_type == "python":
             try:
                 # TODO: submit_with_python will meet segfault or c++ error after many times of submission; need help from condor team
-                # TODO: submit_with_python_proces has no such error but spawns some processes that will not terminate after harvester stops
+                # TODO: submit_with_python_process has no such error but spawns some processes that will not terminate after harvester stops
                 # TODO: Fall back to submit_with_command for now
                 # retVal = self.submit_with_python(jdl_list, use_spool)
-                # retVal = self.submit_with_python_proces(jdl_list, use_spool)
+                # retVal = self.submit_with_python_process(jdl_list, use_spool)
                 retVal = self.submit_with_command(jdl_list, use_spool)
             except Exception as e:
                 tmpLog.error(f"Exception {e.__class__.__name__}: {e}")
