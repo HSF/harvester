@@ -334,11 +334,12 @@ class DBProxy(object):
             if harvester_config.db.verbose:
                 self.verbLog.debug(f"thr={self.thrName} exception during commit")
             raise
-        if self.usingAppLock and self.lockDB:
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} release with commit")
-            conLock.release()
-            self.lockDB = False
+        finally:
+            if self.usingAppLock and self.lockDB:
+                if harvester_config.db.verbose:
+                    self.verbLog.debug(f"thr={self.thrName} release with commit")
+                conLock.release()
+                self.lockDB = False
 
     # rollback
     def rollback(self):
