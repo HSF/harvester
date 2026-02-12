@@ -273,7 +273,7 @@ class DBProxy(object):
                 conLock.release()
         # return
         if harvester_config.db.verbose:
-            self.verbLog.debug("thr={0}  {1}  sql=[{2}]".format(self.thrName, sw.get_elapsed_time(), newSQL.replace("\n", " ").strip()))
+            self.verbLog.debug(f"thr={self.thrName}  {sw.get_elapsed_time()}  sql=[{newSQL.replace('\\n', ' ').strip()}]")
         return retVal
 
     # wrapper for executemany
@@ -4870,7 +4870,9 @@ class DBProxy(object):
             n_queue_limit_worker_eval = nQueueLimitWorker if nQueueLimitWorker is not None else maxWorkers
             n_queue_limit_worker_per_rt_eval = n_queue_limit_worker_eval
             n_queue_limit_worker_cores_eval = nQueueLimitWorkerCores
+            n_queue_limit_worker_cores_min_eval = nQueueLimitWorkerCoresMin
             n_queue_limit_worker_mem_eval = nQueueLimitWorkerMemory
+            n_queue_limit_worker_mem_min_eval = nQueueLimitWorkerMemoryMin
             # dynamic n_queue_limit_worker_eval
             if nQueueLimitWorkerRatio is not None:
                 n_queue_limit_worker_by_ratio = int(worker_stats_map["running"]["n"] * nQueueLimitWorkerRatio / 100)
@@ -4882,11 +4884,14 @@ class DBProxy(object):
                     n_queue_limit_worker_per_rt_eval = n_queue_limit_worker_eval
             if nQueueLimitWorkerCoresRatio is not None:
                 n_queue_limit_cores_by_ratio = int(worker_stats_map["running"]["core"] * nQueueLimitWorkerCoresRatio / 100)
-                if nQueueLimitWorkerCoresMin is not None and n_queue_limit_cores_by_ratio < nQueueLimitWorkerCoresMin:
+                if n_queue_limit_worker_cores_min_eval is None and nQueueLimitWorkerMin is not None:
+                    # get n_queue_limit_worker_cores_min_eval from nQueueLimitWorkerMin if nQueueLimitWorkerCoresMin is not set to ensure the minimum cores (1 core per worker)
+                    n_queue_limit_worker_cores_min_eval = int(nQueueLimitWorkerMin * 1)
+                if n_queue_limit_worker_cores_min_eval is not None and n_queue_limit_cores_by_ratio < n_queue_limit_worker_cores_min_eval:
                     if n_queue_limit_worker_cores_eval is not None:
-                        n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, nQueueLimitWorkerCoresMin)
+                        n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, n_queue_limit_worker_cores_min_eval)
                     else:
-                        n_queue_limit_worker_cores_eval = nQueueLimitWorkerCoresMin
+                        n_queue_limit_worker_cores_eval = n_queue_limit_worker_cores_min_eval
                 else:
                     if n_queue_limit_worker_cores_eval is not None:
                         n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, n_queue_limit_cores_by_ratio)
@@ -4894,11 +4899,14 @@ class DBProxy(object):
                         n_queue_limit_worker_cores_eval = n_queue_limit_cores_by_ratio
             if nQueueLimitWorkerMemoryRatio is not None:
                 n_queue_limit_mem_by_ratio = int(worker_stats_map["running"]["mem"] * nQueueLimitWorkerMemoryRatio / 100)
-                if nQueueLimitWorkerMemoryMin is not None and n_queue_limit_mem_by_ratio < nQueueLimitWorkerMemoryMin:
+                if n_queue_limit_worker_mem_min_eval is None and nQueueLimitWorkerMin is not None:
+                    # get n_queue_limit_worker_mem_min_eval from nQueueLimitWorkerMin if nQueueLimitWorkerMemoryMin is not set to ensure the minimum memory (1000 MB per worker)
+                    n_queue_limit_worker_mem_min_eval = int(nQueueLimitWorkerMin * 1000)
+                if n_queue_limit_worker_mem_min_eval is not None and n_queue_limit_mem_by_ratio < n_queue_limit_worker_mem_min_eval:
                     if n_queue_limit_worker_mem_eval is not None:
-                        n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, nQueueLimitWorkerMemoryMin)
+                        n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_worker_mem_min_eval)
                     else:
-                        n_queue_limit_worker_mem_eval = nQueueLimitWorkerMemoryMin
+                        n_queue_limit_worker_mem_eval = n_queue_limit_worker_mem_min_eval
                 else:
                     if n_queue_limit_worker_mem_eval is not None:
                         n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_mem_by_ratio)
