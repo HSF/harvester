@@ -4885,9 +4885,13 @@ class DBProxy(object):
                     n_queue_limit_worker_per_rt_eval = n_queue_limit_worker_eval
             if nQueueLimitWorkerCoresRatio is not None:
                 n_queue_limit_cores_by_ratio = int(worker_stats_map["running"]["core"] * nQueueLimitWorkerCoresRatio / 100)
-                if n_queue_limit_worker_cores_min_eval is None and nQueueLimitWorkerMin is not None:
+                if nQueueLimitWorkerMin is not None:
                     # get n_queue_limit_worker_cores_min_eval from nQueueLimitWorkerMin if nQueueLimitWorkerCoresMin is not set to ensure the minimum cores (1 core per worker)
-                    n_queue_limit_worker_cores_min_eval = int(nQueueLimitWorkerMin * 1)
+                    n_queue_limit_worker_cores_min_base = int(nQueueLimitWorkerMin * 1)
+                    if n_queue_limit_worker_cores_min_eval is None:
+                        n_queue_limit_worker_cores_min_eval = n_queue_limit_worker_cores_min_base
+                    else:
+                        n_queue_limit_worker_cores_min_eval = max(n_queue_limit_worker_cores_min_eval, n_queue_limit_worker_cores_min_base)
                 if n_queue_limit_worker_cores_min_eval is not None and n_queue_limit_cores_by_ratio < n_queue_limit_worker_cores_min_eval:
                     if n_queue_limit_worker_cores_eval is not None:
                         n_queue_limit_worker_cores_eval = min(n_queue_limit_worker_cores_eval, n_queue_limit_worker_cores_min_eval)
@@ -4900,9 +4904,13 @@ class DBProxy(object):
                         n_queue_limit_worker_cores_eval = n_queue_limit_cores_by_ratio
             if nQueueLimitWorkerMemoryRatio is not None:
                 n_queue_limit_mem_by_ratio = int(worker_stats_map["running"]["mem"] * nQueueLimitWorkerMemoryRatio / 100)
-                if n_queue_limit_worker_mem_min_eval is None and nQueueLimitWorkerMin is not None:
+                if nQueueLimitWorkerMin is not None:
                     # get n_queue_limit_worker_mem_min_eval from nQueueLimitWorkerMin if nQueueLimitWorkerMemoryMin is not set to ensure the minimum memory (1000 MB per worker)
-                    n_queue_limit_worker_mem_min_eval = int(nQueueLimitWorkerMin * 1000)
+                    n_queue_limit_worker_mem_min_base = int(nQueueLimitWorkerMin * 1000)
+                    if n_queue_limit_worker_mem_min_eval is None:
+                        n_queue_limit_worker_mem_min_eval = n_queue_limit_worker_mem_min_base
+                    else:
+                        n_queue_limit_worker_mem_min_eval = max(n_queue_limit_worker_mem_min_eval, n_queue_limit_worker_mem_min_base)
                 if n_queue_limit_worker_mem_min_eval is not None and n_queue_limit_mem_by_ratio < n_queue_limit_worker_mem_min_eval:
                     if n_queue_limit_worker_mem_eval is not None:
                         n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_worker_mem_min_eval)
