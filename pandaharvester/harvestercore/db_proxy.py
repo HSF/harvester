@@ -273,7 +273,8 @@ class DBProxy(object):
                 conLock.release()
         # return
         if harvester_config.db.verbose:
-            self.verbLog.debug(f"thr={self.thrName}  {sw.get_elapsed_time()}  sql=[{newSQL.replace('\\n', ' ').strip()}]")
+            sql_str = newSQL.replace("\n", " ").strip()
+            self.verbLog.debug(f"thr={self.thrName}  {sw.get_elapsed_time()}  sql=[{sql_str}]")
         return retVal
 
     # wrapper for executemany
