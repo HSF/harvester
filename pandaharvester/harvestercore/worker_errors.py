@@ -39,6 +39,7 @@ CMPM_HTCondor_Schedd = {
     3649: r"File stage-out failed: .*",
     # 3.6.8 other transfer or http errors
     3681: r"curl_easy_perform.* failed .*",
+    3689: r"HTTP response .*",
     # 3.8 Harvester reserved condor errors
     3811: r"condor job .* not found",
     3812: r"cannot get JobStatus of job .*",
@@ -111,6 +112,9 @@ CMPM_Batch_System = {
     5570: r"SYSTEM_PERIODIC_HOLD",
     5571: r".* Second start not allowed",  # INFN-CNAF
     5572: r"job aborted due to .*",  # FZK-LCG2
+    5573: r"Job runtime longer than reserved",  # DESY-HH_NAF
+    5574: r"Memory usage higher than .*",  # DESY-HH_NAF
+    5575: r"Failed to create session directory",  # CYFRONET_EOS, praguelcg2_Karolina_MCORE
     # 5.6 Slurm errors
     5601: r"submission command failed \(exit code = .*\).*",
     5602: r"no jobId in submission script's output .*",
@@ -137,8 +141,9 @@ CMPM_Kubernetes = {
 CMPM_Kill_Remove = {
     # 8.9 Condor RemoveReason
     # 8.9.7 Miscellaneous Condor RemoveReason
-    8970: r"Python-initiated action\. \(by user .*\)",
+    8970: r"Python-initiated action\.* \(by user .*\)",
     8971: r"via condor_rm .*",
+    8979: r"PeriodicRemove .*",  # catch-all for PeriodicRemove condor job classad
     # 8.9.8+ Condor RemoveReason reserved on Schedds (when HoldReason is insignificant)
     8981: r"removed by SYSTEM_PERIODIC_REMOVE due to job restarted undesirably",
     8982: r"removed by SYSTEM_PERIODIC_REMOVE due to job held time exceeded .*",
