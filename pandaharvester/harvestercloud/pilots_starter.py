@@ -17,6 +17,8 @@ import subprocess
 import sys
 import traceback
 import urllib.parse as urlparse
+from dataclasses import dataclass
+from typing import Optional
 
 WORK_DIR = "/scratch"
 CONFIG_DIR = "/scratch/jobconfig"
@@ -25,6 +27,29 @@ PFC = "PoolFileCatalog_H.xml"
 CONFIG_FILES = [PJD, PFC]
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
+
+
+@dataclass
+class Configuration:
+    proxy_path: Optional[str]
+    full_token_path: Optional[str]
+    full_token_key_path: Optional[str]
+    token_auth_origin: Optional[str]
+    panda_site: Optional[str]
+    panda_queue: Optional[str]
+    resource_type: Optional[str]
+    prod_source_label: Optional[str]
+    job_type: Optional[str]
+    pilot_type: str
+    pilot_url_option: str
+    python_option: str
+    pilot_version: str
+    harvester_id: Optional[str]
+    worker_id: Optional[str]
+    logs_frontend_w: Optional[str]
+    logs_frontend_r: Optional[str]
+    stdout_name: str
+    submit_mode: str
 
 
 def post_multipart(host, port, selector, files, proxy_cert, full_token_path, token_auth_origin):
@@ -91,7 +116,9 @@ def upload_logs(url, log_file_name, destination_name, proxy_cert, full_token_pat
         url_parts = urlparse.urlsplit(full_url)
 
         logging.debug("[upload_logs] start")
-        files = [("file", destination_name, gzip.compress(open(log_file_name).read().encode()))]
+        with open(log_file_name, "r") as log_file:
+            log_payload = gzip.compress(log_file.read().encode())
+        files = [("file", destination_name, log_payload)]
         status, reason = post_multipart(url_parts.hostname, url_parts.port, url_parts.path, files, proxy_cert, full_token_path, token_auth_origin)
         logging.debug(f"[upload_logs] finished with code={status} msg={reason}")
         if status == 200:
@@ -109,18 +136,6 @@ def copy_files_in_dir(src_dir, dst_dir):
     for file_name in CONFIG_FILES:
         full_file_name = os.path.join(src_dir, file_name)
         shutil.copy(full_file_name, dst_dir)
-
-
-def str_to_bool(input_str, default=False):
-    output_str = default
-    try:
-        if input_str.upper() == "FALSE":
-            output_str = False
-        elif input_str.upper() == "TRUE":
-            output_str = True
-    except BaseException:
-        pass
-    return output_str
 
 
 def copy_proxy(source_file, destination_dir):
@@ -242,102 +257,83 @@ def get_configuration():
     if not submit_mode:
         submit_mode = "PULL"
 
-    return (
-        proxy_path,
-        full_token_path,
-        full_token_key_path,
-        token_auth_origin,
-        panda_site,
-        panda_queue,
-        resource_type,
-        prodSourceLabel,
-        job_type,
-        pilot_type,
-        pilot_url_option,
-        python_option,
-        pilot_version,
-        harvester_id,
-        worker_id,
-        logs_frontend_w,
-        logs_frontend_r,
-        stdout_name,
-        submit_mode,
+    return Configuration(
+        proxy_path=proxy_path,
+        full_token_path=full_token_path,
+        full_token_key_path=full_token_key_path,
+        token_auth_origin=token_auth_origin,
+        panda_site=panda_site,
+        panda_queue=panda_queue,
+        resource_type=resource_type,
+        prod_source_label=prodSourceLabel,
+        job_type=job_type,
+        pilot_type=pilot_type,
+        pilot_url_option=pilot_url_option,
+        python_option=python_option,
+        pilot_version=pilot_version,
+        harvester_id=harvester_id,
+        worker_id=worker_id,
+        logs_frontend_w=logs_frontend_w,
+        logs_frontend_r=logs_frontend_r,
+        stdout_name=stdout_name,
+        submit_mode=submit_mode,
     )
 
 
 if __name__ == "__main__":
     # get all the configuration from environment
-    (
-        proxy_path,
-        full_token_path,
-        full_token_key_path,
-        token_auth_origin,
-        panda_site,
-        panda_queue,
-        resource_type,
-        prodSourceLabel,
-        job_type,
-        pilot_type,
-        pilot_url_opt,
-        python_option,
-        pilot_version,
-        harvester_id,
-        worker_id,
-        logs_frontend_w,
-        logs_frontend_r,
-        destination_name,
-        submit_mode,
-    ) = get_configuration()
+    config = get_configuration()
+    destination_name = config.stdout_name
 
     # the pilot should propagate the download link via the pilotId field in the job table
-    log_download_url = f"{logs_frontend_r}/{destination_name}"
+    log_download_url = f"{config.logs_frontend_r}/{destination_name}"
     os.environ["GTAG"] = log_download_url  # GTAG env variable is read by pilot
 
     # execute the pilot wrapper
     logging.debug("[main] starting pilot wrapper...")
     resource_type_option = ""
-    if resource_type:
-        resource_type_option = f"--resource-type {resource_type}"
+    if config.resource_type:
+        resource_type_option = f"--resource-type {config.resource_type}"
 
-    if prodSourceLabel:
-        psl_option = f"-j {prodSourceLabel}"
+    if config.prod_source_label:
+        psl_option = f"-j {config.prod_source_label}"
     else:
         psl_option = "-j managed"
 
     job_type_option = ""
-    if job_type:
-        job_type_option = f"--job-type {job_type}"
+    if config.job_type:
+        job_type_option = f"--job-type {config.job_type}"
 
     pilot_type_option = "-i PR"
-    if pilot_type:
-        pilot_type_option = f"-i {pilot_type}"
+    if config.pilot_type:
+        pilot_type_option = f"-i {config.pilot_type}"
 
     pilot_version_option = "--pilotversion 2"
-    if pilot_version:
-        pilot_version_option = f"--pilotversion {pilot_version}"
+    if config.pilot_version:
+        pilot_version_option = f"--pilotversion {config.pilot_version}"
 
     wrapper_params = "-q {0} -r {1} -s {2} -a {3} {4} {5} {6} {7} {8} {9} {10}".format(
-        panda_queue,
-        panda_queue,
-        panda_site,
+        config.panda_queue,
+        config.panda_queue,
+        config.panda_site,
         WORK_DIR,
         resource_type_option,
         psl_option,
         pilot_type_option,
         job_type_option,
-        pilot_url_opt,
-        python_option,
+        config.pilot_url_option,
+        config.python_option,
         pilot_version_option,
     )
 
-    if submit_mode == "PUSH":
+    if config.submit_mode == "PUSH":
         # job configuration files need to be copied, because k8s configmap mounts as read-only file system
         # and therefore the pilot cannot execute in the same directory
         copy_files_in_dir(CONFIG_DIR, WORK_DIR)
 
     wrapper_executable = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
     command = "/bin/bash {0} {1} -w generic --pilot-user=ATLAS --url=https://pandaserver.cern.ch -d --harvester-submit-mode={2} --allow-same-user=False".format(
-        wrapper_executable, wrapper_params, submit_mode
+        wrapper_executable, wrapper_params, config.submit_mode
     )
 
     # extend command to tee the stdout and stderr to a file. We need to return the wrapper exit code, not the tee exit code
@@ -352,7 +348,14 @@ if __name__ == "__main__":
     logging.debug(f"[main] pilot wrapper done with return code {return_code} ...")
 
     # upload logs to e.g. panda cache or similar
-    upload_logs(logs_frontend_w, WORK_DIR + "/wrapper-wid.log", destination_name, proxy_path, full_token_path, token_auth_origin)
+    upload_logs(
+        config.logs_frontend_w,
+        WORK_DIR + "/wrapper-wid.log",
+        destination_name,
+        config.proxy_path,
+        config.full_token_path,
+        config.token_auth_origin,
+    )
     logging.debug("[main] FINISHED")
 
     # Exit with the same exit code as the pilot wrapper

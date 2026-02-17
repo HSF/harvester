@@ -16,6 +16,7 @@ from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestermisc.info_utils_k8s import PandaQueuesDictK8s
+from pandaharvester.harvestersubmitter import submitter_common
 
 base_logger = core_utils.setup_logger("k8s_utils")
 
@@ -205,12 +206,10 @@ class k8s_Client(object):
                 {"name": "computingSite", "value": work_spec.computingSite},
                 {"name": "pandaQueueName", "value": queue_name},
                 {"name": "resourceType", "value": work_spec.resourceType},
-                {"name": "prodSourceLabel", "value": prod_source_label},
                 {"name": "pilotType", "value": pilot_type},
                 {"name": "pilotUrlOpt", "value": pilot_url_str},
                 {"name": "pythonOption", "value": pilot_python_option},
                 {"name": "pilotVersion", "value": pilot_version},
-                {"name": "jobType", "value": work_spec.jobType},
                 {"name": "proxySecretPath", "value": cert},
                 {"name": "PANDA_AUTH_ORIGIN", "value": "atlas.pilot"},
                 {"name": "PANDA_AUTH_DIR", "value": panda_token_path},
@@ -228,6 +227,8 @@ class k8s_Client(object):
                 {"name": "HOME", "value": pilot_dir},
                 {"name": "PANDA_HOSTNAME", "valueFrom": {"fieldRef": {"apiVersion": "v1", "fieldPath": "spec.nodeName"}}},
                 {"name": "K8S_JOB_ID", "value": worker_name},
+                {"name": "prodSourceLabel", "value": submitter_common.get_joblabel(prod_source_label, True)},
+                {"name": "jobType", "value": submitter_common.get_pilot_job_type(work_spec.jobType, True)},
             ]
         )
 

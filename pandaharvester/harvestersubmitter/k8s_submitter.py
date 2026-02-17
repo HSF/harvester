@@ -69,7 +69,10 @@ class K8sSubmitter(PluginBase):
         cert = None
         job_type = workspec.jobType
 
-        if is_grandly_unified_queue and job_type in ("user", "panda", "analysis"):
+        # We are using unified dispatch by default for all UPS queues from now on
+        is_unified_dispatch = True
+
+        if not is_unified_dispatch and is_grandly_unified_queue and job_type in ("user", "panda", "analysis"):
             if self.proxySecretPathAnalysis:
                 cert = self.proxySecretPathAnalysis
             elif self.proxySecretPath:
