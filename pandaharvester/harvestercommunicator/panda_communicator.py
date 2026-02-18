@@ -744,6 +744,31 @@ class PandaCommunicator(BaseCommunicator):
 
         return stats, "OK"
 
+    # get job statistics: new function with prodsourcelabel, under testing and may replace the old one
+    def get_job_stats_new(self):
+        tmp_log = self.make_logger(method_name="get_job_stats_new")
+        tmp_log.debug("Start")
+
+        tmp_status, tmp_response = self.request_ssl("GET", "statistics/active_job_stats_by_site_prodsourcelabel", {})
+        stats = {}
+        ret_message = "FAILED"
+
+        # Communication issue
+        if tmp_status is False:
+            core_utils.dump_error_message(tmp_log, tmp_response)
+            return stats, ret_message
+
+        tmp_success = tmp_response.get("success", False)
+        tmp_message = tmp_response.get("message")
+        stats = tmp_response.get("data")
+
+        if not tmp_success:
+            ret_message = tmp_message
+            core_utils.dump_error_message(tmp_log, ret_message)
+            return stats, ret_message
+
+        return stats, "OK"
+
     # update workers
     def update_workers(self, workspec_list):
         tmp_log = self.make_logger(method_name="update_workers")

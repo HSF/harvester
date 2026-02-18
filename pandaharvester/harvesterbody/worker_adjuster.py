@@ -145,7 +145,17 @@ class WorkerAdjuster(object):
         return ret_val
 
     # define number of workers to submit based on various information
-    def define_num_workers(self, static_num_workers, site_name):
+    def define_num_workers(self, static_num_workers, site_name) -> dict | None:
+        """
+        Define number of workers to submit based on various information, including static site config, queue status, job statistics, and throttler if defined. The function also updates APF monitoring with the decision and the reason.
+
+        Args:
+            static_num_workers (dict): A dict of the form {queue_name: {job_type: {resource_type: {"nQueue": int, "nReady": int, "nRunning": int, "nNewWorkers": int}}}} defining the static number of workers to submit for each queue, job type and resource type.
+            site_name (str): The name of the site for which to define the number of workers.
+
+        Returns:
+            (dict|None): The updated static_num_workers dict with the defined number of new workers to submit in the "nNewWorkers" field, or None if an error occurred.
+        """
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="define_num_workers")
         tmp_log.debug("start")
         tmp_log.debug(f"static_num_workers: {static_num_workers}")
@@ -159,7 +169,7 @@ class WorkerAdjuster(object):
                 queue_stat = queue_stat.data
 
             # get job statistics
-            job_stats = self.dbProxy.get_cache("job_statistics.json", None)
+            job_stats = self.dbProxy.get_cache("job_statistics_new.json", None)
             if job_stats is not None:
                 job_stats = job_stats.data
 
@@ -300,15 +310,13 @@ class WorkerAdjuster(object):
                                         if self.get_queue_no_pilots_when_no_active_jobs(queue_name):
                                             n_min_pilots = 0
 
-                                        queue_activated = job_stats[queue_name]["activated"]
-                                        tmp_log.debug(f"available activated panda jobs {queue_activated}")
+                                        tmp_n_activated = sum(job_stats[queue_name]["activated"].values())
+                                        tmp_log.debug(f"available activated panda jobs {tmp_n_activated}")
 
                                         activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
-                                        if job_stats[queue_name]["activated"] * activate_worker_factor > 0:
+                                        if tmp_n_activated * activate_worker_factor > 0:
                                             n_min_pilots = 1
-                                        n_activated = max(
-                                            int(job_stats[queue_name]["activated"] * activate_worker_factor), n_min_pilots
-                                        )  # avoid no activity queues
+                                        n_activated = max(int(tmp_n_activated * activate_worker_factor), n_min_pilots)  # avoid no activity queues
                                     except KeyError:
                                         # zero job in the queue
                                         tmp_log.debug("no job in queue")

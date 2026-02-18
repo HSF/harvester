@@ -71,8 +71,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         return job_type_final
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
-        tmp_log = self.make_logger(_logger, f"queue={queue_config.queueName}:{job_type}:{resource_type}", method_name="make_worker")
+    def make_worker(self, jobspec_list, queue_config, job_type, resource_type, prod_source_label=None):
+        tmp_log = self.make_logger(_logger, f"queue={queue_config.queueName}:{job_type}:{resource_type}:{prod_source_label}", method_name="make_worker")
 
         tmp_log.debug(f"jobspec_list: {jobspec_list}")
 
@@ -161,10 +161,13 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         else:
             # when no job
-            # randomize pilot type with weighting
-            pdpm = getattr(queue_config, "prodSourceLabelRandomWeightsPermille", {})
-            choice_list = core_utils.make_choice_list(pdpm=pdpm, default="managed")
-            tmp_prodsourcelabel = random.choice(choice_list)
+            tmp_prodsourcelabel = prod_source_label
+            if tmp_prodsourcelabel is None:
+                # no specified prodsourcelabel; randomize pilot type with weighting
+                pdpm = getattr(queue_config, "prodSourceLabelRandomWeightsPermille", {})
+                choice_list = core_utils.make_choice_list(pdpm=pdpm, default="managed")
+                tmp_prodsourcelabel = random.choice(choice_list)
+
             fake_job = JobSpec()
             fake_job.jobParams = {"prodSourceLabel": tmp_prodsourcelabel}
             work_spec.pilotType = fake_job.get_pilot_type()
