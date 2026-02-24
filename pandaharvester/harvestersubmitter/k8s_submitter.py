@@ -62,24 +62,14 @@ class K8sSubmitter(PluginBase):
         self.pandaTokenFilename = getattr(self, "pandaTokenFilename", None)
         self.pandaTokenKeyFilename = getattr(self, "pandaTokenKeyFilename", None)
 
-    def _choose_proxy(self, workspec, is_grandly_unified_queue):
+    def _choose_proxy(self):
         """
-        Choose the proxy based on the job type
+        Choose the proxy based on the queue configuration
         """
         cert = None
-        job_type = workspec.jobType
 
-        # We are using unified dispatch by default for all UPS queues from now on
-        is_unified_dispatch = True
-
-        if not is_unified_dispatch and is_grandly_unified_queue and job_type in ("user", "panda", "analysis"):
-            if self.proxySecretPathAnalysis:
-                cert = self.proxySecretPathAnalysis
-            elif self.proxySecretPath:
-                cert = self.proxySecretPath
-        else:
-            if self.proxySecretPath:
-                cert = self.proxySecretPath
+        if self.proxySecretPath:
+            cert = self.proxySecretPath
 
         return cert
 
@@ -100,9 +90,7 @@ class K8sSubmitter(PluginBase):
         try:
             # choose the appropriate proxy
             this_panda_queue_dict = self.panda_queues_dict.get(self.queueName, dict())
-
-            is_grandly_unified_queue = self.panda_queues_dict.is_grandly_unified_queue(self.queueName)
-            cert = self._choose_proxy(work_spec, is_grandly_unified_queue)
+            cert = self._choose_proxy()
             if not cert:
                 err_str = "No proxy specified in proxySecretPath. Not submitted"
                 return False, err_str
