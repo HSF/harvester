@@ -749,7 +749,7 @@ class PandaCommunicator(BaseCommunicator):
         tmp_log = self.make_logger(method_name="get_job_stats_new")
         tmp_log.debug("Start")
 
-        tmp_status, tmp_response = self.request_ssl("GET", "statistics/active_job_stats_by_site_prodsourcelabel", {})
+        tmp_status, tmp_response = self.request_ssl("GET", "statistics/active_job_detailed_stats_by_site", {})
         stats = {}
         ret_message = "FAILED"
 

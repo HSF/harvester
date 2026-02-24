@@ -169,7 +169,7 @@ class WorkerAdjuster(object):
                 queue_stat = queue_stat.data
 
             # get job statistics
-            job_stats = self.dbProxy.get_cache("job_statistics_new.json", None)
+            job_stats = self.dbProxy.get_cache("job_statistics.json", None)
             if job_stats is not None:
                 job_stats = job_stats.data
 
@@ -310,7 +310,7 @@ class WorkerAdjuster(object):
                                         if self.get_queue_no_pilots_when_no_active_jobs(queue_name):
                                             n_min_pilots = 0
 
-                                        tmp_n_activated = sum(job_stats[queue_name]["activated"].values())
+                                        tmp_n_activated = job_stats[queue_name]["activated"]
                                         tmp_log.debug(f"available activated panda jobs {tmp_n_activated}")
 
                                         activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
