@@ -1652,38 +1652,48 @@ class DBProxy(object):
             siteName = None
             resourceMap = dict()
             # sql to get a site
-            sqlS = f"SELECT siteName FROM {pandaQueueTableName} "
-            sqlS += "WHERE submitTime IS NULL "
-            sqlS += "OR (submitTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
-            sqlS += "OR (submitTime<:lookupTimeLimit AND lockedBy IS NULL) "
-            sqlS += "ORDER BY submitTime "
+            sql_get_site = (
+                f"SELECT siteName FROM {pandaQueueTableName} "
+                "WHERE submitTime IS NULL "
+                "OR (submitTime<:lockTimeLimit AND lockedBy IS NOT NULL) "
+                "OR (submitTime<:lookupTimeLimit AND lockedBy IS NULL) "
+                "ORDER BY submitTime "
+            )
+
             # sql to get queues
-            sqlQ = f"SELECT queueName, jobType, resourceType, nNewWorkers FROM {pandaQueueTableName} "
-            sqlQ += "WHERE siteName=:siteName "
+            sql_get_queues = f"SELECT queueName, jobType, resourceType, nNewWorkers FROM {pandaQueueTableName} WHERE siteName=:siteName "
+
             # sql to get orphaned workers
-            sqlO = f"SELECT workerID FROM {workTableName} "
-            sqlO += "WHERE computingSite=:computingSite "
-            sqlO += "AND status=:status AND modificationTime<:timeLimit "
+            sql_get_orphaned_workers = (
+                f"SELECT workerID FROM {workTableName} WHERE computingSite=:computingSite AND status=:status AND modificationTime<:timeLimit "
+            )
+
             # sql to delete orphaned workers. Not to use bulk delete to avoid deadlock with 0-record deletion
-            sqlD = f"DELETE FROM {workTableName} "
-            sqlD += "WHERE workerID=:workerID "
+            sql_delete_orphaned_worker = f"DELETE FROM {workTableName} WHERE workerID=:workerID "
+
             # sql to count nQueue
-            sqlN = f"SELECT status, COUNT(*) cnt FROM {workTableName} "
-            sqlN += "WHERE computingSite=:computingSite "
+            sql_count_workers = f"SELECT status, COUNT(*) cnt FROM {workTableName} WHERE computingSite=:computingSite "
+
             # sql to count re-fillers
-            sqlR = f"SELECT COUNT(*) cnt FROM {workTableName} "
-            sqlR += "WHERE computingSite=:computingSite AND status=:status "
-            sqlR += "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0 "
+            sql_count_refillers = (
+                f"SELECT COUNT(*) cnt FROM {workTableName} "
+                "WHERE computingSite=:computingSite AND status=:status "
+                "AND nJobsToReFill IS NOT NULL AND nJobsToReFill>0 "
+            )
+
             # sql to update timestamp and lock site
-            sqlU = f"UPDATE {pandaQueueTableName} SET submitTime=:submitTime,lockedBy=:lockedBy "
-            sqlU += "WHERE siteName=:siteName "
-            sqlU += "AND (submitTime IS NULL OR submitTime<:timeLimit) "
+            sql_lock_site = (
+                f"UPDATE {pandaQueueTableName} SET submitTime=:submitTime,lockedBy=:lockedBy "
+                "WHERE siteName=:siteName "
+                "AND (submitTime IS NULL OR submitTime<:timeLimit) "
+            )
+
             # get sites
             timeNow = core_utils.naive_utcnow()
             varMap = dict()
             varMap[":lockTimeLimit"] = timeNow - datetime.timedelta(seconds=queue_lock_interval)
             varMap[":lookupTimeLimit"] = timeNow - datetime.timedelta(seconds=lookup_interval)
-            self.execute(sqlS, varMap)
+            self.execute(sql_get_site, varMap)
             resS = self.cur.fetchall()
             for (siteName,) in resS:
                 # update timestamp to lock the site
@@ -1692,7 +1702,7 @@ class DBProxy(object):
                 varMap[":submitTime"] = timeNow
                 varMap[":lockedBy"] = locked_by
                 varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=lookup_interval)
-                self.execute(sqlU, varMap)
+                self.execute(sql_lock_site, varMap)
                 nRow = self.cur.rowcount
                 # commit
                 self.commit()
@@ -1702,7 +1712,7 @@ class DBProxy(object):
                 # get queues
                 varMap = dict()
                 varMap[":siteName"] = siteName
-                self.execute(sqlQ, varMap)
+                self.execute(sql_get_queues, varMap)
                 resQ = self.cur.fetchall()
                 for queueName, jobType, resourceType, nNewWorkers in resQ:
                     # delete orphaned workers
@@ -1710,19 +1720,19 @@ class DBProxy(object):
                     varMap[":computingSite"] = queueName
                     varMap[":status"] = WorkSpec.ST_pending
                     varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=lock_interval)
-                    sqlO_tmp = sqlO
+                    sql_get_orphaned_workers_tmp = sql_get_orphaned_workers
                     if jobType != "ANY":
                         varMap[":jobType"] = jobType
-                        sqlO_tmp += "AND jobType=:jobType "
+                        sql_get_orphaned_workers_tmp += "AND jobType=:jobType "
                     if resourceType != "ANY":
                         varMap[":resourceType"] = resourceType
-                        sqlO_tmp += "AND resourceType=:resourceType "
-                    self.execute(sqlO_tmp, varMap)
+                        sql_get_orphaned_workers_tmp += "AND resourceType=:resourceType "
+                    self.execute(sql_get_orphaned_workers_tmp, varMap)
                     resO = self.cur.fetchall()
                     for (tmpWorkerID,) in resO:
                         varMap = dict()
                         varMap[":workerID"] = tmpWorkerID
-                        self.execute(sqlD, varMap)
+                        self.execute(sql_delete_orphaned_worker, varMap)
                         # commit
                         self.commit()
 
@@ -1730,15 +1740,15 @@ class DBProxy(object):
                     varMap = dict()
                     varMap[":computingSite"] = queueName
                     varMap[":resourceType"] = resourceType
-                    sqlN_tmp = sqlN
+                    sql_count_workers_tmp = sql_count_workers
                     if jobType != "ANY":
                         varMap[":jobType"] = jobType
-                        sqlN_tmp += "AND jobType=:jobType "
+                        sql_count_workers_tmp += "AND jobType=:jobType "
                     if resourceType != "ANY":
                         varMap[":resourceType"] = resourceType
-                        sqlN_tmp += "AND resourceType=:resourceType "
-                    sqlN_tmp += "GROUP BY status "
-                    self.execute(sqlN_tmp, varMap)
+                        sql_count_workers_tmp += "AND resourceType=:resourceType "
+                    sql_count_workers_tmp += "GROUP BY status "
+                    self.execute(sql_count_workers_tmp, varMap)
                     nQueue = 0
                     nReady = 0
                     nRunning = 0
@@ -1754,14 +1764,14 @@ class DBProxy(object):
                     varMap = dict()
                     varMap[":computingSite"] = queueName
                     varMap[":status"] = WorkSpec.ST_running
-                    sqlR_tmp = sqlR
+                    sql_count_refillers_tmp = sql_count_refillers
                     if jobType != "ANY":
                         varMap[":jobType"] = jobType
-                        sqlR_tmp += "AND jobType=:jobType "
+                        sql_count_refillers_tmp += "AND jobType=:jobType "
                     if resourceType != "ANY":
                         varMap[":resourceType"] = resourceType
-                        sqlR_tmp += "AND resourceType=:resourceType "
-                    self.execute(sqlR_tmp, varMap)
+                        sql_count_refillers_tmp += "AND resourceType=:resourceType "
+                    self.execute(sql_count_refillers_tmp, varMap)
                     (nReFill,) = self.cur.fetchone()
                     nReady += nReFill
                     # add
