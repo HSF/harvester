@@ -1774,12 +1774,15 @@ class DBProxy(object):
                     self.execute(sql_count_refillers_tmp, varMap)
                     (nReFill,) = self.cur.fetchone()
                     nReady += nReFill
-                    # add
-                    retMap.setdefault(queueName, {})
-                    retMap[queueName].setdefault(jobType, {})
-                    retMap[queueName][jobType][resourceType] = {"nReady": nReady, "nRunning": nRunning, "nQueue": nQueue, "nNewWorkers": nNewWorkers}
-                    resourceMap.setdefault(jobType, {})
-                    resourceMap[jobType][resourceType] = queueName
+
+                    # add when there is activity on the queue
+                    if nReady or nRunning or nQueue or nNewWorkers:
+                        retMap.setdefault(queueName, {})
+                        retMap[queueName].setdefault(jobType, {})
+                        retMap[queueName][jobType][resourceType] = {"nReady": nReady, "nRunning": nRunning, "nQueue": nQueue, "nNewWorkers": nNewWorkers}
+                        resourceMap.setdefault(jobType, {})
+                        resourceMap[jobType][resourceType] = queueName
+
                 # enough queues
                 if len(retMap) >= 0:
                     break
