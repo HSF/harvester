@@ -45,7 +45,6 @@ class Submitter(AgentBase):
 
             # get queues associated to a site to submit workers
             current_workers, site_name, res_map = self.dbProxy.get_queues_to_submit(
-                harvester_config.submitter.nQueues,
                 harvester_config.submitter.lookupTime,
                 harvester_config.submitter.lockInterval,
                 locked_by,
