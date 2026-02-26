@@ -39,7 +39,7 @@ def _remote_write_token(encrypted_token: str, remote_token_path: str, key_file: 
     return remote_token_path
 
 
-class GlobusTokenReplicator:
+class GlobusComputeTokenReplicator:
     """
     Wrapper over globus compute client that is used by IamTokenCredManagerRemoteGlobusCompute to sync tokens with a remote site (like HPC).
     It first encrypts the token on local harvester machine using Fernet, 
@@ -64,7 +64,7 @@ class GlobusTokenReplicator:
             self.local_key_file = gc_cfg["local_key_file"]
             self.remote_key_file = gc_cfg.get("remote_key_file", self.local_key_file)
         except KeyError as e:
-            raise RuntimeError(f"GlobusTokenReplicator missing required config key: {e}") from e
+            raise RuntimeError(f"GlobusComputeTokenReplicator missing required config key: {e}") from e
 
         self.executor = Executor(endpoint_id=self.endpoint_id)
         self.task_timeout = gc_cfg.get("task_timeout", 120)

@@ -3,9 +3,9 @@ import traceback
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.token_utils import endpoint_to_filename
+from pandaharvester.harvestermisc.globus_compute_token_sync import GlobusComputeTokenReplicator
 
 from .iam_token_cred_manager import IamTokenCredManager
-from .globus_token_sync import GlobusTokenReplicator
 
 _logger = core_utils.setup_logger("iam_token_cred_manager_gc")
 
@@ -17,7 +17,7 @@ class IamTokenCredManagerRemoteGlobusCompute(IamTokenCredManager):
         self.remote_out_dir = self.setupMap.get("remote_out_dir", "")
         gc_cfg = self.setupMap.get("globus_compute", {})
         if gc_cfg and self.remote_out_dir:
-            self.replicator = GlobusTokenReplicator(gc_cfg, tmp_log)
+            self.replicator = GlobusComputeTokenReplicator(gc_cfg, tmp_log)
         else:
             tmp_log.debug(f"replicator is not initialized as either gc_cfg or remote_out_dir is missing. They are gc_cfg = {gc_cfg} and remote_out_dir = {self.remote_out_dir}")
             self.replicator = None
