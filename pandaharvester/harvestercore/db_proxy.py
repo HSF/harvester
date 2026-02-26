@@ -4099,24 +4099,23 @@ class DBProxy(object):
             tmpLog.debug("start")
 
             # sql to reset queue limits before setting new command to avoid old values being repeated again and again
-            sql_reset = f"UPDATE {pandaQueueTableName} "
-            sql_reset += "SET nNewWorkers=:zero WHERE siteName=:siteName "
+            sql_reset = f"UPDATE {pandaQueueTableName} SET nNewWorkers=:zero WHERE siteName=:siteName "
 
             # sql to get resource types
-            sql_get_job_resource = f"SELECT jobType, resourceType FROM {pandaQueueTableName} "
-            sql_get_job_resource += "WHERE siteName=:siteName "
-            sql_get_job_resource += "FOR UPDATE "
+            sql_get_job_resource = f"SELECT jobType, resourceType FROM {pandaQueueTableName} WHERE siteName=:siteName FOR UPDATE "
 
             # sql to update nQueueLimit
-            sql_update_queue = f"UPDATE {pandaQueueTableName} "
-            sql_update_queue += "SET nNewWorkers=:nQueue "
-            sql_update_queue += "WHERE siteName=:siteName AND jobType=:jobType AND resourceType=:resourceType "
+            sql_update_queue = (
+                f"UPDATE {pandaQueueTableName} SET nNewWorkers=:nQueue WHERE siteName=:siteName AND jobType=:jobType AND resourceType=:resourceType "
+            )
 
             # sql to get num of submitted workers
-            sql_count_workers = "SELECT COUNT(*) cnt "
-            sql_count_workers += f"FROM {workTableName} wt, {pandaQueueTableName} pq "
-            sql_count_workers += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
-            sql_count_workers += "AND pq.jobType=:jobType AND pq.resourceType=:resourceType "
+            sql_count_workers = (
+                "SELECT COUNT(*) cnt "
+                f"FROM {workTableName} wt, {pandaQueueTableName} pq "
+                "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status=:status "
+                "AND pq.jobType=:jobType AND pq.resourceType=:resourceType "
+            )
 
             # reset nqueued for all job & resource types
             varMap = dict()
