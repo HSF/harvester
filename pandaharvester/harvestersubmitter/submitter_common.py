@@ -75,23 +75,17 @@ def get_python_version_option(python_version, prod_source_label):
 
 
 # get pilot joblabel (-j) option, support unified dispatch
-
-
-def get_joblabel(prod_source_label, is_unified_dispatch=False):
-    joblabel = prod_source_label
-    if is_unified_dispatch and prod_source_label in ["managed", "user"]:
-        joblabel = "unified"
-    return joblabel
+def get_joblabel(prod_source_label):
+    if prod_source_label in ["managed", "user"]:
+        job_label = "unified"  # queues use unified dispatch for production and analysis
+    else:
+        job_label = prod_source_label
+    return job_label
 
 
 # get pilot job type (--job-type) option, support unified dispatch
-
-
-def get_pilot_job_type(job_type, is_unified_dispatch=False):
-    pilot_job_type = job_type
-    if is_unified_dispatch:
-        pilot_job_type = "unified"
-    return pilot_job_type
+def get_pilot_job_type(job_type):
+    return "unified"
 
 
 # Parse resource type from string for Unified PanDA Queue

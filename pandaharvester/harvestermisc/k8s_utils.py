@@ -227,8 +227,8 @@ class k8s_Client(object):
                 {"name": "HOME", "value": pilot_dir},
                 {"name": "PANDA_HOSTNAME", "valueFrom": {"fieldRef": {"apiVersion": "v1", "fieldPath": "spec.nodeName"}}},
                 {"name": "K8S_JOB_ID", "value": worker_name},
-                {"name": "prodSourceLabel", "value": submitter_common.get_joblabel(prod_source_label, True)},
-                {"name": "jobType", "value": submitter_common.get_pilot_job_type(work_spec.jobType, True)},
+                {"name": "prodSourceLabel", "value": submitter_common.get_joblabel(prod_source_label)},
+                {"name": "jobType", "value": submitter_common.get_pilot_job_type(work_spec.jobType)},
             ]
         )
 

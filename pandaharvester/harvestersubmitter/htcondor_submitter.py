@@ -169,7 +169,6 @@ def make_a_jdl(
     batch_log_dict=dict(),
     pilot_url=None,
     pilot_args="",
-    is_unified_dispatch=False,
     special_par="",
     harvester_queue_config=None,
     is_unified_queue=False,
@@ -332,8 +331,8 @@ def make_a_jdl(
         "pandaTokenPath": panda_token_path,
         "pandaTokenKeyFilename": panda_token_key_filename,
         "pandaTokenKeyPath": panda_token_key_path,
-        "pilotJobLabel": submitter_common.get_joblabel(prod_source_label, is_unified_dispatch),
-        "pilotJobType": submitter_common.get_pilot_job_type(workspec.jobType, is_unified_dispatch),
+        "pilotJobLabel": submitter_common.get_joblabel(prod_source_label),
+        "pilotJobType": submitter_common.get_pilot_job_type(workspec.jobType),
         "requestGpus": 1 if is_gpu_resource else 0,
         "requireGpus": is_gpu_resource,
         "customSubmitAttributes": custom_submit_attr_str,
@@ -497,7 +496,6 @@ class HTCondorSubmitter(PluginBase):
             "ce_fairshare_percent",
             "pilot_url",
             "pilot_args",
-            "unified_dispatch",
         ]
         self._allowed_cric_attr_prefixes = [
             "jdl.plusattr.",
@@ -573,7 +571,6 @@ class HTCondorSubmitter(PluginBase):
         # get default information from queue info
         n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1) if this_panda_queue_dict.get("corecount", 1) else 1
         is_unified_queue = this_panda_queue_dict.get("capability", "") == "ucore"
-        is_unified_dispatch = associated_params_dict.get("unified_dispatch", False)
         pilot_url = associated_params_dict.get("pilot_url")
         pilot_args = associated_params_dict.get("pilot_args", "")
         pilot_version = str(this_panda_queue_dict.get("pilot_version", "current"))
@@ -711,14 +708,13 @@ class HTCondorSubmitter(PluginBase):
                 baseLogger, f"site={self.queueName} workerID={workspec.workerID}, resourceType={workspec.resourceType}", method_name="_handle_one_worker"
             )
 
-            def _choose_credential(workspec):
+            def _choose_credential():
                 """
                 Choose the credential based on the job type
                 """
-                job_type = workspec.jobType
                 proxy = self.x509UserProxy
                 token_dir = self.tokenDir
-                if (not is_unified_dispatch and is_grandly_unified_queue and job_type in ("user", "panda", "analysis")) or self.useAnalysisCredentials:
+                if self.useAnalysisCredentials:
                     if self.x509UserProxyAnalysis:
                         tmpLog.debug("Taking analysis proxy")
                         proxy = self.x509UserProxyAnalysis
@@ -872,8 +868,8 @@ class HTCondorSubmitter(PluginBase):
                         tmpLog.debug("Done set_log_file before submission")
                     tmpLog.debug("Done jobspec attribute setting")
 
-                # choose the x509 certificate based on the type of job (analysis or production)
-                proxy, token_dir = _choose_credential(workspec)
+                # choose the x509 certificate based on the queue configuration
+                proxy, token_dir = _choose_credential()
 
                 # set data dict
                 data.update(
@@ -905,7 +901,7 @@ class HTCondorSubmitter(PluginBase):
                         "panda_token_filename": self.pandaTokenFilename,
                         "panda_token_dir": self.pandaTokenDir,
                         "panda_token_key_path": self.pandaTokenKeyPath,
-                        "is_unified_dispatch": is_unified_dispatch,
+                        "is_unified_dispatch": True,
                         "prod_rc_permille": self.rcPilotRandomWeightPermille,
                         "is_gpu_resource": is_gpu_resource,
                         "custom_submit_attr_dict": custom_submit_attr_dict,
