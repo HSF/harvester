@@ -151,11 +151,14 @@ class WorkerAdjuster(object):
         tmp_log.debug(f"static_num_workers: {static_num_workers}")
 
         def _normalize_job_type_any(queue_dict):
-            if "ANY" in queue_dict:
+            tmp_log.debug(f"normalize_job_type_any got: {queue_dict}")
+            if "ANY" in queue_dict and len(queue_dict) == 1:
+                tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
                 return
             if len(queue_dict) == 1:
                 only_job_type = next(iter(queue_dict))
                 queue_dict["ANY"] = queue_dict.pop(only_job_type)
+                tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
                 return
             merged = {}
             for _job_type, rt_map in queue_dict.items():
@@ -170,6 +173,7 @@ class WorkerAdjuster(object):
                             merged[rt].setdefault(key, val)
             queue_dict.clear()
             queue_dict["ANY"] = merged
+            tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
 
         static_num_workers = copy.deepcopy(static_num_workers)
         for queue_name, queue_dict in static_num_workers.items():
