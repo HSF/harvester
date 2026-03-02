@@ -149,6 +149,31 @@ class WorkerAdjuster(object):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="define_num_workers")
         tmp_log.debug("start")
         tmp_log.debug(f"static_num_workers: {static_num_workers}")
+
+        def _normalize_job_type_any(queue_dict):
+            if "ANY" in queue_dict:
+                return
+            if len(queue_dict) == 1:
+                only_job_type = next(iter(queue_dict))
+                queue_dict["ANY"] = queue_dict.pop(only_job_type)
+                return
+            merged = {}
+            for _job_type, rt_map in queue_dict.items():
+                for rt, stats in rt_map.items():
+                    if rt not in merged:
+                        merged[rt] = copy.deepcopy(stats)
+                        continue
+                    for key, val in stats.items():
+                        if isinstance(val, (int, float)):
+                            merged[rt][key] = merged[rt].get(key, 0) + val
+                        else:
+                            merged[rt].setdefault(key, val)
+            queue_dict.clear()
+            queue_dict["ANY"] = merged
+
+        static_num_workers = copy.deepcopy(static_num_workers)
+        for queue_name, queue_dict in static_num_workers.items():
+            _normalize_job_type_any(queue_dict)
         dyn_num_workers = copy.deepcopy(static_num_workers)
         try:
             # get queue status
