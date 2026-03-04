@@ -1775,13 +1775,11 @@ class DBProxy(object):
                     (nReFill,) = self.cur.fetchone()
                     nReady += nReFill
 
-                    # add when there is activity on the queue
-                    if nReady or nRunning or nQueue or nNewWorkers:
-                        retMap.setdefault(queueName, {})
-                        retMap[queueName].setdefault(jobType, {})
-                        retMap[queueName][jobType][resourceType] = {"nReady": nReady, "nRunning": nRunning, "nQueue": nQueue, "nNewWorkers": nNewWorkers}
-                        resourceMap.setdefault(jobType, {})
-                        resourceMap[jobType][resourceType] = queueName
+                    retMap.setdefault(queueName, {})
+                    retMap[queueName].setdefault(jobType, {})
+                    retMap[queueName][jobType][resourceType] = {"nReady": nReady, "nRunning": nRunning, "nQueue": nQueue, "nNewWorkers": nNewWorkers}
+                    resourceMap.setdefault(jobType, {})
+                    resourceMap[jobType][resourceType] = queueName
 
                 # enough queues
                 if len(retMap) >= 0:
