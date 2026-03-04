@@ -3404,8 +3404,7 @@ class DBProxy(object):
             varMap = dict()
             varMap[":receiver"] = receiver
             varMap[":processed"] = 0
-            sqlG = f"SELECT {CommandSpec.column_names()} FROM {commandTableName} "
-            sqlG += "WHERE receiver=:receiver AND processed=:processed "
+            sqlG = f"SELECT {CommandSpec.column_names()} FROM {commandTableName} WHERE receiver=:receiver AND processed=:processed "
             if command_pattern is not None:
                 varMap[":command"] = command_pattern
                 if "%" in command_pattern:
@@ -3445,11 +3444,7 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, method_name="get_commands_ack")
             tmpLog.debug("start")
             # sql to get commands that have been processed and need acknowledgement
-            sql = f"""
-                  SELECT command_id FROM {commandTableName}
-                  WHERE ack_requested=1
-                  AND processed=1
-                  """
+            sql = f"SELECT command_id FROM {commandTableName} WHERE ack_requested=1 AND processed=1"
             self.execute(sql)
             command_ids = [row[0] for row in self.cur.fetchall()]
             tmpLog.debug(f"command_ids {command_ids}")
@@ -3468,9 +3463,7 @@ class DBProxy(object):
         tmpLog = core_utils.make_logger(_logger, method_name="clean_commands_by_id")
         try:
             # sql to delete a specific command
-            sql = f"""
-                  DELETE FROM {commandTableName}
-                  WHERE command_id=:command_id"""
+            sql = f"DELETE FROM {commandTableName} WHERE command_id=:command_id"
 
             for command_id in commands_ids:
                 var_map = {":command_id": command_id}
@@ -3489,10 +3482,7 @@ class DBProxy(object):
         tmpLog = core_utils.make_logger(_logger, method_name="clean_processed_commands")
         try:
             # sql to delete all processed commands that do not need an ACK
-            sql = f"""
-                  DELETE FROM {commandTableName}
-                  WHERE (ack_requested=0 AND processed=1)
-                  """
+            sql = f"DELETE FROM {commandTableName} WHERE (ack_requested=0 AND processed=1)"
             self.execute(sql)
             self.commit()
             return True
@@ -3508,18 +3498,20 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, method_name="get_workers_to_kill")
             tmpLog.debug("start")
             # sql to get worker IDs
-            sqlW = f"SELECT workerID,status,configID FROM {workTableName} "
-            sqlW += "WHERE killTime IS NOT NULL AND killTime<:checkTimeLimit "
-            sqlW += f"ORDER BY killTime LIMIT {max_workers} "
+            sqlW = (
+                f"SELECT workerID,status,configID FROM {workTableName} "
+                "WHERE killTime IS NOT NULL AND killTime<:checkTimeLimit "
+                f"ORDER BY killTime LIMIT {max_workers} "
+            )
+
             # sql to lock or release worker
-            sqlL = f"UPDATE {workTableName} SET killTime=:setTime "
-            sqlL += "WHERE workerID=:workerID "
-            sqlL += "AND killTime IS NOT NULL AND killTime<:checkTimeLimit "
+            sqlL = f"UPDATE {workTableName} SET killTime=:setTime WHERE workerID=:workerID AND killTime IS NOT NULL AND killTime<:checkTimeLimit "
+
             # sql to get workers
-            sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} "
-            sqlG += "WHERE workerID=:workerID "
+            sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} WHERE workerID=:workerID "
             timeNow = core_utils.naive_utcnow()
             timeLimit = timeNow - datetime.timedelta(seconds=check_interval)
+
             # get workerIDs
             varMap = dict()
             varMap[":checkTimeLimit"] = timeLimit
@@ -3587,10 +3579,13 @@ class DBProxy(object):
                     retMap[jobType][resourceType] = {"running": 0, "submitted": 0, "finished": 0, "to_submit": nNewWorkers}
 
             # get worker stats
-            sqlW = "SELECT wt.status, wt.computingSite, pq.jobType, pq.resourceType, COUNT(*) cnt "
-            sqlW += f"FROM {workTableName} wt, {pandaQueueTableName} pq "
-            sqlW += "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2,:st3) "
-            sqlW += "GROUP BY wt.status, wt.computingSite, pq.jobType, pq.resourceType "
+            sqlW = (
+                "SELECT wt.status, wt.computingSite, pq.jobType, pq.resourceType, COUNT(*) cnt "
+                f"FROM {workTableName} wt, {pandaQueueTableName} pq "
+                "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2,:st3) "
+                "GROUP BY wt.status, wt.computingSite, pq.jobType, pq.resourceType "
+            )
+
             # get worker stats
             varMap = dict()
             varMap[":siteName"] = site_name
@@ -3636,11 +3631,13 @@ class DBProxy(object):
                     retMap[computingSite][jobType][resourceType] = {"running": 0, "submitted": 0, "finished": 0, "to_submit": nNewWorkers}
 
             # get worker stats
-            sqlW = "SELECT wt.status, wt.computingSite, wt.jobType, wt.resourceType, COUNT(*) cnt "
-            sqlW += f"FROM {workTableName} wt "
-            sqlW += "WHERE wt.status IN (:st1,:st2,:st3) "
-            sqlW += "GROUP BY wt.status,wt.computingSite, wt.jobType, wt.resourceType "
-            # get worker stats
+            sqlW = (
+                "SELECT wt.status, wt.computingSite, wt.jobType, wt.resourceType, COUNT(*) cnt "
+                f"FROM {workTableName} wt "
+                "WHERE wt.status IN (:st1,:st2,:st3) "
+                "GROUP BY wt.status,wt.computingSite, wt.jobType, wt.resourceType "
+            )
+
             varMap = dict()
             varMap[":st1"] = "running"
             varMap[":st2"] = "submitted"
@@ -3703,8 +3700,7 @@ class DBProxy(object):
                 retMap[computingSite][jobType][resourceType] = {"running": 0, "submitted": 0, "to_submit": nNewWorkers}
             # get worker stats
             varMap = dict()
-            sqlW = "SELECT wt.status, wt.computingSite, wt.jobType, wt.resourceType, COUNT(*) cnt "
-            sqlW += f"FROM {workTableName} wt "
+            sqlW = f"SELECT wt.status, wt.computingSite, wt.jobType, wt.resourceType, COUNT(*) cnt FROM {workTableName} wt "
             if filter_site_list is not None:
                 site_var_name_list = []
                 for j, site in enumerate(filter_site_list):
@@ -3755,11 +3751,10 @@ class DBProxy(object):
             tmpLog = core_utils.make_logger(_logger, f"PandaID={panda_id}", method_name="mark_workers_to_kill_by_pandaid")
             tmpLog.debug("start")
             # sql to set killTime
-            sqlL = f"UPDATE {workTableName} SET killTime=:setTime "
-            sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
+            sqlL = f"UPDATE {workTableName} SET killTime=:setTime WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
+
             # sql to get associated workers
-            sqlA = f"SELECT workerID FROM {jobWorkerTableName} "
-            sqlA += "WHERE PandaID=:pandaID "
+            sqlA = f"SELECT workerID FROM {jobWorkerTableName} WHERE PandaID=:pandaID "
             # set time to trigger sweeper
             if delay_seconds is None:
                 # set a past time to trigger sweeper immediately
