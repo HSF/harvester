@@ -163,7 +163,11 @@ class WorkerAdjuster(object):
                 tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
                 return
             merged = {}
+            any_job_types = {}
             for _job_type, rt_map in queue_dict.items():
+                if _job_type == "ANY":
+                    any_job_types[_job_type] = rt_map
+                    continue
                 for rt, stats in rt_map.items():
                     if rt not in merged:
                         merged[rt] = copy.deepcopy(stats)
@@ -174,6 +178,7 @@ class WorkerAdjuster(object):
                         else:
                             merged[rt].setdefault(key, val)
             queue_dict.clear()
+            queue_dict.update(any_job_types)
             queue_dict[DEFAULT_JOB_TYPE] = merged
             tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
 
