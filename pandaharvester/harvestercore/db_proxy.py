@@ -1643,7 +1643,7 @@ class DBProxy(object):
             return False
 
     # get queues to submit workers
-    def get_queues_to_submit(self, n_queues, lookup_interval, lock_interval, locked_by, queue_lock_interval):
+    def get_queues_to_submit(self, lookup_interval, lock_interval, locked_by, queue_lock_interval):
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, method_name="get_queues_to_submit")
