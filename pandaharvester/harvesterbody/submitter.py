@@ -19,6 +19,8 @@ from pandaharvester.harvestermisc.apfmon import Apfmon
 # logger
 _logger = core_utils.setup_logger("submitter")
 
+DEFAULT_JOB_TYPE = "managed"
+
 
 # class to submit workers
 class Submitter(AgentBase):
@@ -60,15 +62,14 @@ class Submitter(AgentBase):
                 main_log.debug(f"got {len(command_specs)} {com_str} commands")
                 for command_spec in command_specs:
                     new_limits = self.dbProxy.set_queue_limit(site_name, command_spec.params)
-                    # ignore the job type, we will submit as ANY
                     for _, tmp_jt_vals in new_limits.items():
-                        res_map.setdefault("ANY", {})
+                        res_map.setdefault(DEFAULT_JOB_TYPE, {})
                         for tmp_resource_type, tmp_new_val in tmp_jt_vals.items():
                             # if available, overwrite new worker value with the command from panda server
-                            if tmp_resource_type in res_map["ANY"]:
-                                tmp_queue_name = res_map["ANY"][tmp_resource_type]
+                            if tmp_resource_type in res_map[DEFAULT_JOB_TYPE]:
+                                tmp_queue_name = res_map[DEFAULT_JOB_TYPE][tmp_resource_type]
                                 if tmp_queue_name in current_workers:
-                                    current_workers[tmp_queue_name]["ANY"][tmp_resource_type]["nNewWorkers"] = tmp_new_val
+                                    current_workers[tmp_queue_name][DEFAULT_JOB_TYPE][tmp_resource_type]["nNewWorkers"] = tmp_new_val
 
                 # define number of new workers
                 if len(current_workers) == 0:
@@ -83,9 +84,7 @@ class Submitter(AgentBase):
                 else:
                     # loop over all queues and resource types
                     for queue_name in n_workers_per_queue_jt_rt:
-
-                        # UPS only sends one stream of 'managed' (production) workers that will then run any job type
-                        job_type = "ANY"
+                        job_type = DEFAULT_JOB_TYPE
                         for resource_type in n_workers_per_queue_jt_rt[queue_name][job_type]:
                             tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][resource_type]
                             tmp_log = self.make_logger(_logger, f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type}", method_name="run")
