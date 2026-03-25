@@ -167,7 +167,7 @@ class WorkerAdjuster(object):
                         {
                             "job_type": job_type,
                             "resource_type": resource_type,
-                            "prod_source_label": None,  # Placeholder for new field
+                            "prod_source_label": "ANY",
                             "nQueue": stats.get("nQueue", 0),
                             "nReady": stats.get("nReady", 0),
                             "nRunning": stats.get("nRunning", 0),

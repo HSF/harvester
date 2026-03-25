@@ -7,6 +7,7 @@ import time
 import traceback
 
 import requests
+
 from pandaharvester import panda_pkg_info
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -163,20 +164,45 @@ class Apfmon(object):
             return data
 
         try:
-            any = data["ANY"]
-            agg = {}
-            for rtype in data:
-                if rtype == "ANY":
-                    continue
-                else:
-                    for value in data[rtype]:
-                        agg.setdefault(value, 0)
-                        agg[value] += data[rtype][value]
+            # First aggregate over prodsourcelabel, then over resource_type
+            # Data structure: {prodsourcelabel: {resource_type: {values}}, "ANY": {...}}
 
-            if agg:
-                data["ANY"] = agg
+            # Extract the "ANY" prodsourcelabel if it exists
+            any_data = data.get("ANY", {})
+
+            # Aggregate across all prodsourcelabels for each resource_type
+            agg_by_rtype = {}
+            for prodsourcelabel in data:
+                if prodsourcelabel == "ANY":
+                    continue
+                # data[prodsourcelabel] is like {resource_type: {values}}
+                for rtype in data[prodsourcelabel]:
+                    if rtype == "ANY":
+                        continue
+                    # Aggregate values across all prodsourcelabels for this resource_type
+                    if rtype not in agg_by_rtype:
+                        agg_by_rtype[rtype] = {}
+                    for value_key, value_count in data[prodsourcelabel][rtype].items():
+                        agg_by_rtype[rtype].setdefault(value_key, 0)
+                        agg_by_rtype[rtype][value_key] += value_count
+
+            # Now aggregate across all resource_types to create final "ANY"
+            final_agg = {}
+            for rtype in agg_by_rtype:
+                for value_key, value_count in agg_by_rtype[rtype].items():
+                    final_agg.setdefault(value_key, 0)
+                    final_agg[value_key] += value_count
+
+            # Update data structure: keep prodsourcelabel level but aggregate to "ANY"
+            if final_agg:
+                # Rebuild data with aggregated "ANY" at the prodsourcelabel level
+                result = {}
+                for prodsourcelabel in data:
+                    result[prodsourcelabel] = data[prodsourcelabel]
+                result["ANY"] = final_agg
+                data = result
             else:
-                data["ANY"] = any
+                data["ANY"] = any_data
 
             tmp_log.debug(f"Massaged to data: {data}")
 

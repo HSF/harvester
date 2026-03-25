@@ -42,7 +42,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         return job_core_count, job_memory
 
-    def get_job_type(self, job_spec, job_type, queue_dict, tmp_prod_source_label=None):
+    def get_job_type(self, job_spec, job_type, queue_dict, tmp_prod_source_label="ANY"):
         queue_type = queue_dict.get("type", None)
 
         # 1. get prodSourceLabel from job (PUSH)
@@ -52,7 +52,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # 2. get prodSourceLabel from the specified job_type (PULL UPS)
         elif job_type:
             job_type_final = job_type
-            if tmp_prod_source_label:
+            if tmp_prod_source_label != "ANY":
                 if queue_type != "analysis" and tmp_prod_source_label not in ("user", "panda", "managed"):
                     # for production, unified or other types of queues we need to run neutral prod_source_labels
                     # with production proxy since they can't be distinguished and can fail
@@ -71,7 +71,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         return job_type_final
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config, job_type, resource_type, prod_source_label=None):
+    def make_worker(self, jobspec_list, queue_config, job_type, resource_type, prod_source_label="ANY"):
         tmp_log = self.make_logger(_logger, f"queue={queue_config.queueName}:{job_type}:{resource_type}:{prod_source_label}", method_name="make_worker")
 
         tmp_log.debug(f"jobspec_list: {jobspec_list}")
@@ -162,7 +162,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         else:
             # when no job
             tmp_prod_source_label = prod_source_label
-            if tmp_prod_source_label is None:
+            if tmp_prod_source_label != "ANY":
                 # no specified prod_source_label; randomize pilot type with weighting
                 pdpm = getattr(queue_config, "prodSourceLabelRandomWeightsPermille", {})
                 choice_list = core_utils.make_choice_list(pdpm=pdpm, default="managed")
