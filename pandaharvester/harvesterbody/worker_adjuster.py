@@ -200,9 +200,7 @@ class WorkerAdjuster(object):
             [job_type, resource_type, prod_source_label, nQueue, nReady, nRunning, nNewWorkers]
 
         Output dict structure:
-            {queue_name: {job_type: {prod_source_label: {resource_type: {nQueue, nReady, nRunning, nNewWorkers}}}}}
-
-        Note: prod_source_label is now a dimension in the output dict, nested before resource_type.
+            {queue_name: {job_type: {resource_type: {prod_source_label: {nQueue, nReady, nRunning, nNewWorkers}}}}}
         """
         result = {queue_name: {}}
 
@@ -214,11 +212,13 @@ class WorkerAdjuster(object):
             # Initialize nested dicts as needed
             if job_type not in result[queue_name]:
                 result[queue_name][job_type] = {}
-            if prod_source_label not in result[queue_name][job_type]:
-                result[queue_name][job_type][prod_source_label] = {}
+            if resource_type not in result[queue_name][job_type]:
+                result[queue_name][job_type][resource_type] = {}
+            if prod_source_label not in result[queue_name][job_type][resource_type]:
+                result[queue_name][job_type][resource_type][prod_source_label] = {}
 
-            # Store the stats for this resource type
-            result[queue_name][job_type][prod_source_label][resource_type] = {
+            # Store the stats for this prod_source_label
+            result[queue_name][job_type][resource_type][prod_source_label] = {
                 "nQueue": row["nQueue"],
                 "nReady": row["nReady"],
                 "nRunning": row["nRunning"],
@@ -237,7 +237,7 @@ class WorkerAdjuster(object):
             site_name (str): The name of the site for which to define the number of workers.
 
         Returns:
-            (dict|None): The updated static_num_workers dict with the defined number of new workers to submit in the "nNewWorkers" field, or None if an error occurred.
+            (dict|None): A dict of the form {queue_name: {job_type: {resource_type: {prod_source_label: {"nQueue": int, "nReady": int, "nRunning": int, "nNewWorkers": int}}}}} with the defined number of new workers to submit in the "nNewWorkers" field, or None if an error occurred.
         """
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="define_num_workers")
         tmp_log.debug("start")
@@ -292,6 +292,10 @@ class WorkerAdjuster(object):
             if job_stats is not None:
                 job_stats = job_stats.data
 
+            job_stats_new = self.dbProxy.get_cache("job_statistics_new.json", None)
+            if job_stats_new is not None:
+                job_stats_new = job_stats_new.data
+
             # get panda queues dict from CRIC
             panda_queues_dict = PandaQueuesDict()
 
@@ -301,11 +305,16 @@ class WorkerAdjuster(object):
             # Track results for all queues
             result_dict = {}
 
+            # define a priority list for prod_source_label to ensure consistent ordering in the dataframe and processing.
+            prioritized_pslabels = ["rc_alrb"]
+
             # define num of new workers - process by queue
             for queue_name in static_num_workers:
                 # Create dataframe for current queue only
                 df_queue_dict = {queue_name: static_num_workers[queue_name]}
                 df_queue = self._dict_to_dataframe(df_queue_dict)
+
+                # Get activated jobs stats of prioritized prod_source_labels for this queue
 
                 # You can add sorting here if needed, e.g.:
                 # df_queue = df_queue.sort(by=["job_type", "resource_type", "prod_source_label"])
@@ -341,8 +350,8 @@ class WorkerAdjuster(object):
                     n_running = row["nRunning"]
 
                     tmp_log.debug(
-                        f"Processing queue {queue_name} job_type {job_type} resource_type {resource_type} "
-                        f"prod_source_label {prod_source_label} with static_num_workers "
+                        f"Processing queue={queue_name} job_type={job_type} resource_type={resource_type} "
+                        f"prod_source_label={prod_source_label} with static_num_workers "
                         f"nQueue={n_queue} nReady={n_ready} nRunning={n_running}"
                     )
 

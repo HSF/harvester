@@ -88,11 +88,13 @@ class Submitter(AgentBase):
                         # get queue
                         queue_config = self.queue_configMapper.get_queue(queue_name)
                         workerMakerCore = self.workerMaker.get_plugin(queue_config)
-                        for prod_source_label in n_workers_per_queue_jt_rt[queue_name][job_type]:
-                            for resource_type in n_workers_per_queue_jt_rt[queue_name][job_type][prod_source_label]:
-                                tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][prod_source_label][resource_type]
+                        for resource_type in n_workers_per_queue_jt_rt[queue_name][job_type]:
+                            for prod_source_label in n_workers_per_queue_jt_rt[queue_name][job_type][resource_type]:
+                                tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][resource_type][prod_source_label]
                                 tmp_log = self.make_logger(
-                                    _logger, f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type}", method_name="run"
+                                    _logger,
+                                    f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type} pslabel={prod_source_label}",
+                                    method_name="run",
                                 )
                                 try:
                                     tmp_log.debug("start")
