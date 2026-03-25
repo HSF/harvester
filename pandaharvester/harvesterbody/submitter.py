@@ -90,8 +90,10 @@ class Submitter(AgentBase):
                         queue_config = self.queue_configMapper.get_queue(queue_name)
                         workerMakerCore = self.workerMaker.get_plugin(queue_config)
                         for resource_type in n_workers_per_queue_jt_rt[queue_name][job_type]:
-                            for prod_source_label in n_workers_per_queue_jt_rt[queue_name][job_type][resource_type]:
-                                tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][resource_type][prod_source_label]
+                            for pilot_type in n_workers_per_queue_jt_rt[queue_name][job_type][resource_type]:
+                                tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][resource_type][pilot_type]
+                                # get prod_source_label from pilot_type for worker maker
+                                prod_source_label = core_utils.special_pilot_type_to_prod_source_label(pilot_type)
                                 tmp_log = self.make_logger(
                                     _logger,
                                     f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type} pslabel={prod_source_label}",
