@@ -24,6 +24,7 @@ ALL_TARGET_TYPES = ["common", "ce", "panda"]
 # default port for CEs
 default_port_map = {
     "htcondor-ce": 9619,
+    "arc-ce": 443,
 }
 
 # credential manager with IAM token
