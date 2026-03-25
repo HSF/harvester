@@ -69,7 +69,8 @@ class Submitter(AgentBase):
                             if tmp_resource_type in res_map[DEFAULT_JOB_TYPE]:
                                 tmp_queue_name = res_map[DEFAULT_JOB_TYPE][tmp_resource_type]
                                 if tmp_queue_name in current_workers:
-                                    current_workers[tmp_queue_name][DEFAULT_JOB_TYPE][tmp_resource_type]["nNewWorkers"] = tmp_new_val
+                                    for tmp_pilot_type in current_workers[tmp_queue_name][DEFAULT_JOB_TYPE][tmp_resource_type]:
+                                        current_workers[tmp_queue_name][DEFAULT_JOB_TYPE][tmp_resource_type][tmp_pilot_type]["nNewWorkers"] = tmp_new_val
 
                 # define number of new workers
                 if len(current_workers) == 0:

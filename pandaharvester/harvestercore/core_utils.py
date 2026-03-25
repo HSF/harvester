@@ -706,3 +706,39 @@ def naive_utcfromtimestamp(timestamp: float) -> datetime:
         datetime: current UTC date and time, without tzinfo
     """
     return aware_utcfromtimestamp(timestamp).replace(tzinfo=None)
+
+
+def special_pilot_type_to_prod_source_label(pilot_type: str) -> str | None:
+    """
+    Convert special pilotType of worker to prodSourceLabel of PanDA job.
+
+    Args:
+        pilot_type (str): pilotType of worker, e.g. "RC", "ALRB", "PT" (except "PR" which is production)
+
+    Returns:
+        str: prodSourceLabel of PanDA job, e.g. "rc_test2", "rc_alrb", "ptest"; None if no mapping is defined for the given pilot_type
+    """
+    pilot_type_to_prod_source_label_map = {
+        "RC": "rc_test2",
+        "ALRB": "rc_alrb",
+        "PT": "ptest",
+    }
+    return pilot_type_to_prod_source_label_map.get(pilot_type, None)
+
+
+def prod_source_label_to_pilot_type(prod_source_label: str) -> str:
+    """
+    Convert prodSourceLabel of PanDA job to pilotType of worker.
+
+    Args:
+        prod_source_label (str): prodSourceLabel of PanDA job, e.g. "rc_test2", "rc_alrb", "ptest"
+
+    Returns:
+        str: pilotType of worker, e.g. "RC", "ALRB", "PT"; default to "PR" (production) if no mapping is defined for the given prod_source_label
+    """
+    prod_source_label_to_pilot_type_map = {
+        "rc_test2": "RC",
+        "rc_alrb": "ALRB",
+        "ptest": "PT",
+    }
+    return prod_source_label_to_pilot_type_map.get(prod_source_label, "PR")

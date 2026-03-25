@@ -1672,7 +1672,7 @@ class DBProxy(object):
             sql_delete_orphaned_worker = f"DELETE FROM {workTableName} WHERE workerID=:workerID "
 
             # sql to count nQueue
-            sql_count_workers = f"SELECT status, COUNT(*) cnt FROM {workTableName} WHERE computingSite=:computingSite "
+            sql_count_workers = f"SELECT pilotType, status, COUNT(*) cnt FROM {workTableName} WHERE computingSite=:computingSite "
 
             # sql to count re-fillers
             sql_count_refillers = (
@@ -1747,12 +1747,13 @@ class DBProxy(object):
                     if resourceType != "ANY":
                         varMap[":resourceType"] = resourceType
                         sql_count_workers_tmp += "AND resourceType=:resourceType "
-                    sql_count_workers_tmp += "GROUP BY status "
+                    sql_count_workers_tmp += "GROUP BY pilotType, status "
                     self.execute(sql_count_workers_tmp, varMap)
-                    nQueue = 0
-                    nReady = 0
-                    nRunning = 0
-                    for workerStatus, tmpNum in self.cur.fetchall():
+
+                    for pilotType, workerStatus, tmpNum in self.cur.fetchall():
+                        nQueue = 0
+                        nReady = 0
+                        nRunning = 0
                         if workerStatus in [WorkSpec.ST_submitted, WorkSpec.ST_pending, WorkSpec.ST_idle]:
                             nQueue += tmpNum
                         elif workerStatus in [WorkSpec.ST_ready]:
@@ -1760,24 +1761,31 @@ class DBProxy(object):
                         elif workerStatus in [WorkSpec.ST_running]:
                             nRunning += tmpNum
 
-                    # count nFillers
-                    varMap = dict()
-                    varMap[":computingSite"] = queueName
-                    varMap[":status"] = WorkSpec.ST_running
-                    sql_count_refillers_tmp = sql_count_refillers
-                    if jobType != "ANY":
-                        varMap[":jobType"] = jobType
-                        sql_count_refillers_tmp += "AND jobType=:jobType "
-                    if resourceType != "ANY":
-                        varMap[":resourceType"] = resourceType
-                        sql_count_refillers_tmp += "AND resourceType=:resourceType "
-                    self.execute(sql_count_refillers_tmp, varMap)
-                    (nReFill,) = self.cur.fetchone()
-                    nReady += nReFill
+                        # count nFillers
+                        varMap = dict()
+                        varMap[":computingSite"] = queueName
+                        varMap[":status"] = WorkSpec.ST_running
+                        sql_count_refillers_tmp = sql_count_refillers
+                        if jobType != "ANY":
+                            varMap[":jobType"] = jobType
+                            sql_count_refillers_tmp += "AND jobType=:jobType "
+                        if resourceType != "ANY":
+                            varMap[":resourceType"] = resourceType
+                            sql_count_refillers_tmp += "AND resourceType=:resourceType "
+                        self.execute(sql_count_refillers_tmp, varMap)
+                        (nReFill,) = self.cur.fetchone()
+                        nReady += nReFill
 
-                    retMap.setdefault(queueName, {})
-                    retMap[queueName].setdefault(jobType, {})
-                    retMap[queueName][jobType][resourceType] = {"nReady": nReady, "nRunning": nRunning, "nQueue": nQueue, "nNewWorkers": nNewWorkers}
+                        retMap.setdefault(queueName, {})
+                        retMap[queueName].setdefault(jobType, {})
+                        retMap[queueName][jobType].setdefault(resourceType, {})
+                        retMap[queueName][jobType][resourceType][pilotType] = {
+                            "nReady": nReady,
+                            "nRunning": nRunning,
+                            "nQueue": nQueue,
+                            "nNewWorkers": nNewWorkers,
+                        }
+
                     resourceMap.setdefault(jobType, {})
                     resourceMap[jobType][resourceType] = queueName
 
