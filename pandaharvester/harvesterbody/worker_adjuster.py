@@ -345,15 +345,13 @@ class WorkerAdjuster(object):
                                     if self.get_queue_no_pilots_when_no_active_jobs(queue_name):
                                         n_min_pilots = 0
 
-                                    queue_activated = job_stats[queue_name]["activated"]
-                                    tmp_log.debug(f"available activated panda jobs {queue_activated}")
+                                    tmp_n_activated_jobs = job_stats[queue_name]["activated"]
+                                    tmp_log.debug(f"available activated panda jobs {tmp_n_activated_jobs}")
 
                                     activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
-                                    if job_stats[queue_name]["activated"] * activate_worker_factor > 0:
+                                    if tmp_n_activated_jobs * activate_worker_factor > 0:
                                         n_min_pilots = 1
-                                    n_activated = max(
-                                        int(job_stats[queue_name]["activated"] * activate_worker_factor), n_min_pilots
-                                    )  # avoid no activity queues
+                                    n_activated = max(int(tmp_n_activated_jobs * activate_worker_factor), n_min_pilots)  # avoid no activity queues
                                 except KeyError:
                                     # zero job in the queue
                                     tmp_log.debug("no job in queue")
