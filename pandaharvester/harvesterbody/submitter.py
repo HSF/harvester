@@ -85,6 +85,9 @@ class Submitter(AgentBase):
                     # loop over all queues and resource types
                     for queue_name in n_workers_per_queue_jt_rt:
                         job_type = DEFAULT_JOB_TYPE
+                        # get queue
+                        queue_config = self.queue_configMapper.get_queue(queue_name)
+                        workerMakerCore = self.workerMaker.get_plugin(queue_config)
                         for resource_type in n_workers_per_queue_jt_rt[queue_name][job_type]:
                             tmp_val = n_workers_per_queue_jt_rt[queue_name][job_type][resource_type]
                             tmp_log = self.make_logger(_logger, f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type}", method_name="run")
@@ -103,9 +106,6 @@ class Submitter(AgentBase):
                                 if nWorkers == 0:
                                     tmp_log.debug("skipped since no new worker is needed based on current stats")
                                     continue
-                                # get queue
-                                queue_config = self.queue_configMapper.get_queue(queue_name)
-                                workerMakerCore = self.workerMaker.get_plugin(queue_config)
                                 # check if resource is ready
                                 if hasattr(workerMakerCore, "dynamicSizing") and workerMakerCore.dynamicSizing is True:
                                     numReadyResources = self.workerMaker.num_ready_resources(queue_config, job_type, resource_type, workerMakerCore)
