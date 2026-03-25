@@ -744,7 +744,7 @@ class PandaCommunicator(BaseCommunicator):
 
         return stats, "OK"
 
-    # get job statistics: new function with prodsourcelabel, under testing and may replace the old one
+    # get job statistics: new function with prod_source_label, under testing and may replace the old one
     def get_job_stats_new(self):
         tmp_log = self.make_logger(method_name="get_job_stats_new")
         tmp_log.debug("Start")

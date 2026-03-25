@@ -42,7 +42,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         return job_core_count, job_memory
 
-    def get_job_type(self, job_spec, job_type, queue_dict, tmp_prodsourcelabel=None):
+    def get_job_type(self, job_spec, job_type, queue_dict, tmp_prod_source_label=None):
         queue_type = queue_dict.get("type", None)
 
         # 1. get prodSourceLabel from job (PUSH)
@@ -52,9 +52,9 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         # 2. get prodSourceLabel from the specified job_type (PULL UPS)
         elif job_type:
             job_type_final = job_type
-            if tmp_prodsourcelabel:
-                if queue_type != "analysis" and tmp_prodsourcelabel not in ("user", "panda", "managed"):
-                    # for production, unified or other types of queues we need to run neutral prodsourcelabels
+            if tmp_prod_source_label:
+                if queue_type != "analysis" and tmp_prod_source_label not in ("user", "panda", "managed"):
+                    # for production, unified or other types of queues we need to run neutral prod_source_labels
                     # with production proxy since they can't be distinguished and can fail
                     job_type_final = "managed"
 
@@ -161,24 +161,24 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         else:
             # when no job
-            tmp_prodsourcelabel = prod_source_label
-            if tmp_prodsourcelabel is None:
-                # no specified prodsourcelabel; randomize pilot type with weighting
+            tmp_prod_source_label = prod_source_label
+            if tmp_prod_source_label is None:
+                # no specified prod_source_label; randomize pilot type with weighting
                 pdpm = getattr(queue_config, "prodSourceLabelRandomWeightsPermille", {})
                 choice_list = core_utils.make_choice_list(pdpm=pdpm, default="managed")
-                tmp_prodsourcelabel = random.choice(choice_list)
+                tmp_prod_source_label = random.choice(choice_list)
 
             fake_job = JobSpec()
-            fake_job.jobParams = {"prodSourceLabel": tmp_prodsourcelabel}
+            fake_job.jobParams = {"prodSourceLabel": tmp_prod_source_label}
             work_spec.pilotType = fake_job.get_pilot_type()
             del fake_job
             if work_spec.pilotType in ["RC", "ALRB", "PT"]:
                 tmp_log.info(f"a worker has pilotType={work_spec.pilotType}")
 
-            work_spec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prodsourcelabel)
+            work_spec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prod_source_label)
             tmp_log.debug(
-                "get_job_type decided for job_type: {0} (input job_type: {1}, queue_type: {2}, tmp_prodsourcelabel: {3})".format(
-                    work_spec.jobType, job_type, queue_dict.get("type", None), tmp_prodsourcelabel
+                "get_job_type decided for job_type: {0} (input job_type: {1}, queue_type: {2}, tmp_prod_source_label: {3})".format(
+                    work_spec.jobType, job_type, queue_dict.get("type", None), tmp_prod_source_label
                 )
             )
 

@@ -2,6 +2,8 @@ import copy
 import math
 import traceback
 
+import polars as pl
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -146,6 +148,85 @@ class WorkerAdjuster(object):
         tmp_log.debug(f"ret_val={ret_val}")
         return ret_val
 
+    # convert nested dict structure to polars dataframe
+    def _dict_to_dataframe(self, static_num_workers: dict) -> pl.DataFrame:
+        """
+        Convert nested dict structure to polars dataframe.
+
+        Input dict structure:
+            {queue_name: {job_type: {resource_type: {nQueue, nReady, nRunning, nNewWorkers}}}}
+
+        Output dataframe columns:
+            [job_type, resource_type, prod_source_label, nQueue, nReady, nRunning, nNewWorkers]
+        """
+        rows = []
+        for queue_name, queue_dict in static_num_workers.items():
+            for job_type, rt_dict in queue_dict.items():
+                for resource_type, stats in rt_dict.items():
+                    rows.append(
+                        {
+                            "job_type": job_type,
+                            "resource_type": resource_type,
+                            "prod_source_label": None,  # Placeholder for new field
+                            "nQueue": stats.get("nQueue", 0),
+                            "nReady": stats.get("nReady", 0),
+                            "nRunning": stats.get("nRunning", 0),
+                            "nNewWorkers": stats.get("nNewWorkers", 0),
+                        }
+                    )
+
+        if not rows:
+            # Return empty dataframe with correct schema
+            return pl.DataFrame(
+                {
+                    "job_type": [],
+                    "resource_type": [],
+                    "prod_source_label": [],
+                    "nQueue": [],
+                    "nReady": [],
+                    "nRunning": [],
+                    "nNewWorkers": [],
+                }
+            )
+
+        return pl.DataFrame(rows)
+
+    # convert polars dataframe back to nested dict structure
+    def _dataframe_to_dict(self, df: pl.DataFrame, queue_name: str) -> dict:
+        """
+        Convert polars dataframe back to nested dict structure.
+
+        Input dataframe columns:
+            [job_type, resource_type, prod_source_label, nQueue, nReady, nRunning, nNewWorkers]
+
+        Output dict structure:
+            {queue_name: {job_type: {prod_source_label: {resource_type: {nQueue, nReady, nRunning, nNewWorkers}}}}}
+
+        Note: prod_source_label is now a dimension in the output dict, nested before resource_type.
+        """
+        result = {queue_name: {}}
+
+        for row in df.iter_rows(named=True):
+            job_type = row["job_type"]
+            prod_source_label = row["prod_source_label"]
+            resource_type = row["resource_type"]
+
+            # Initialize nested dicts as needed
+            if job_type not in result[queue_name]:
+                result[queue_name][job_type] = {}
+            if prod_source_label not in result[queue_name][job_type]:
+                result[queue_name][job_type][prod_source_label] = {}
+
+            # Store the stats for this resource type
+            result[queue_name][job_type][prod_source_label][resource_type] = {
+                "nQueue": row["nQueue"],
+                "nReady": row["nReady"],
+                "nRunning": row["nRunning"],
+                "nNewWorkers": row["nNewWorkers"],
+            }
+
+        return result
+
     # define number of workers to submit based on various information
     def define_num_workers(self, static_num_workers, site_name) -> dict | None:
         """
@@ -197,6 +278,7 @@ class WorkerAdjuster(object):
             _normalize_job_type_any(queue_dict)
 
         dyn_num_workers = copy.deepcopy(static_num_workers)
+
         try:
             # get queue status
             queue_stat = self.dbProxy.get_cache("panda_queues.json", None)
@@ -216,8 +298,18 @@ class WorkerAdjuster(object):
             # get resource type mapper
             rt_mapper = ResourceTypeMapper()
 
-            # define num of new workers
+            # Track results for all queues
+            result_dict = {}
+
+            # define num of new workers - process by queue
             for queue_name in static_num_workers:
+                # Create dataframe for current queue only
+                df_queue_dict = {queue_name: static_num_workers[queue_name]}
+                df_queue = self._dict_to_dataframe(df_queue_dict)
+
+                # You can add sorting here if needed, e.g.:
+                # df_queue = df_queue.sort(by=["job_type", "resource_type", "prod_source_label"])
+
                 # get queue
                 queue_config = self.queue_configMapper.get_queue(queue_name)
                 worker_limits_dict = {}
@@ -238,8 +330,21 @@ class WorkerAdjuster(object):
                 apf_msg = None
                 apf_data = None
                 job_type = DEFAULT_JOB_TYPE
-                for resource_type, tmp_val in static_num_workers[queue_name][job_type].items():
-                    tmp_log.debug(f"Processing queue {queue_name} job_type {job_type} resource_type {resource_type} with static_num_workers {tmp_val}")
+
+                # Single loop over dataframe rows - replaces nested for-loops
+                for row_idx, row in enumerate(df_queue.iter_rows(named=True)):
+                    job_type = row["job_type"]
+                    resource_type = row["resource_type"]
+                    prod_source_label = row["prod_source_label"]
+                    n_queue = row["nQueue"]
+                    n_ready = row["nReady"]
+                    n_running = row["nRunning"]
+
+                    tmp_log.debug(
+                        f"Processing queue {queue_name} job_type {job_type} resource_type {resource_type} "
+                        f"prod_source_label {prod_source_label} with static_num_workers "
+                        f"nQueue={n_queue} nReady={n_ready} nRunning={n_running}"
+                    )
 
                     # get cores and memory request per worker of this resource_type
                     queue_dict = panda_queues_dict.get(queue_name, {})
@@ -247,7 +352,7 @@ class WorkerAdjuster(object):
 
                     # set 0 to num of new workers when the queue is disabled
                     if queue_name in queue_stat and queue_stat[queue_name]["status"] in ["offline", "standby", "maintenance"]:
-                        dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
+                        df_queue = df_queue.with_columns(pl.when(pl.col("job_type") == job_type).then(0).otherwise(pl.col("nNewWorkers")).alias("nNewWorkers"))
                         ret_msg = f"set n_new_workers=0 since status={queue_stat[queue_name]['status']}"
                         tmp_log.debug(ret_msg)
                         apf_msg = f"Not submitting workers since queue status = {queue_stat[queue_name]['status']}"
@@ -255,7 +360,7 @@ class WorkerAdjuster(object):
 
                     # protection against not-up-to-date queue config
                     if queue_config is None:
-                        dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
+                        df_queue = df_queue.with_columns(pl.when(pl.col("job_type") == job_type).then(0).otherwise(pl.col("nNewWorkers")).alias("nNewWorkers"))
                         ret_msg = "set n_new_workers=0 due to missing queue_config"
                         tmp_log.debug(ret_msg)
                         apf_msg = "Not submitting workers because of missing queue_config"
@@ -274,23 +379,32 @@ class WorkerAdjuster(object):
                     if throttler is not None:
                         to_throttle, tmp_msg = throttler.to_be_throttled(queue_config, queue_config_mapper=self.queue_configMapper)
                         if to_throttle:
-                            dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
+                            df_queue = df_queue.with_columns(
+                                pl.when(pl.col("job_type") == job_type).then(0).otherwise(pl.col("nNewWorkers")).alias("nNewWorkers")
+                            )
                             ret_msg = f"set n_new_workers=0 by {throttler.__class__.__name__}:{tmp_msg}"
                             tmp_log.debug(ret_msg)
                             continue
 
                     # check stats
-                    n_queue = tmp_val["nQueue"]
-                    n_ready = tmp_val["nReady"]
-                    n_running = tmp_val["nRunning"]
                     if resource_type != "ANY" and job_type != "ANY" and job_type is not None:
                         n_queue_total += n_queue
                         n_ready_total += n_ready
                         n_running_total += n_running
+
                     if queue_config.runMode == "slave":
-                        n_new_workers_def = tmp_val["nNewWorkers"]
+                        n_new_workers_def = row["nNewWorkers"]
                         if n_new_workers_def == 0:
-                            dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
+                            df_queue = df_queue.with_columns(
+                                pl.when(
+                                    (pl.col("job_type") == job_type)
+                                    & (pl.col("resource_type") == resource_type)
+                                    & (pl.col("prod_source_label") == prod_source_label)
+                                )
+                                .then(0)
+                                .otherwise(pl.col("nNewWorkers"))
+                                .alias("nNewWorkers")
+                            )
                             ret_msg = "set n_new_workers=0 by panda in slave mode"
                             tmp_log.debug(ret_msg)
                             continue
@@ -306,17 +420,17 @@ class WorkerAdjuster(object):
                         pass
                     elif (n_queue + n_ready + n_running) >= max_workers > 0:
                         # enough workers in the system
-                        ret_msg = f"No n_new_workers since n_queue({n_queue}) + n_ready({n_ready}) + n_running({n_running}) " f">= max_workers({max_workers})"
+                        ret_msg = f"No n_new_workers since n_queue({n_queue}) + n_ready({n_ready}) + n_running({n_running}) >= max_workers({max_workers})"
                         tmp_log.debug(ret_msg)
                         pass
                     elif queue_limit_cores is not None and cores_queue >= queue_limit_cores:
                         # enough queuing cores
-                        ret_msg = f"No n_new_workers since cores_queue({cores_queue}) >= " f"queue_limit_cores({queue_limit_cores})"
+                        ret_msg = f"No n_new_workers since cores_queue({cores_queue}) >= queue_limit_cores({queue_limit_cores})"
                         tmp_log.debug(ret_msg)
                         pass
                     elif queue_limit_memory is not None and memory_queue >= queue_limit_memory:
-                        # enough queuing cores
-                        ret_msg = f"No n_new_workers since memory_queue({memory_queue} MB) >= " f"queue_limit_memory({queue_limit_memory} MB)"
+                        # enough queuing memory
+                        ret_msg = f"No n_new_workers since memory_queue({memory_queue} MB) >= queue_limit_memory({queue_limit_memory} MB)"
                         tmp_log.debug(ret_msg)
                         pass
                     else:
@@ -387,7 +501,14 @@ class WorkerAdjuster(object):
                     if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
                         n_new_workers = min(n_new_workers, self.maxNewWorkers)
                         tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect universal maxNewWorkers")
-                    dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = n_new_workers
+                    df_queue = df_queue.with_columns(
+                        pl.when(
+                            (pl.col("job_type") == job_type) & (pl.col("resource_type") == resource_type) & (pl.col("prod_source_label") == prod_source_label)
+                        )
+                        .then(n_new_workers)
+                        .otherwise(pl.col("nNewWorkers"))
+                        .alias("nNewWorkers")
+                    )
 
                 # adjust n_new_workers for UCORE to let aggregations over RT respect nQueueLimitWorker and max_workers
                 if queue_config is None:
@@ -396,12 +517,13 @@ class WorkerAdjuster(object):
                     tmp_log.debug(ret_msg)
                 else:
                     max_new_workers_per_cycle = queue_config.maxNewWorkersPerCycle
-                if len(dyn_num_workers[queue_name]) > 1:
-                    total_new_workers_rts = 0
-                    for _jt in dyn_num_workers[queue_name]:
-                        for _rt in dyn_num_workers[queue_name][_jt]:
-                            if _jt != "ANY" and _rt != "ANY":
-                                total_new_workers_rts = total_new_workers_rts + dyn_num_workers[queue_name][_jt][_rt]["nNewWorkers"]
+
+                # Check if we have multiple job types for this queue
+                unique_job_types = df_queue["job_type"].unique()
+
+                if len(unique_job_types) > 1:
+                    total_new_workers_rts = df_queue.filter((pl.col("job_type") != "ANY") & (pl.col("resource_type") != "ANY"))["nNewWorkers"].sum()
+
                     n_new_workers_max_agg = min(max(n_queue_limit - n_queue_total, 0), max(max_workers - n_queue_total - n_ready_total - n_running_total, 0))
                     if max_new_workers_per_cycle >= 0:
                         n_new_workers_max_agg = min(n_new_workers_max_agg, max_new_workers_per_cycle)
@@ -411,51 +533,87 @@ class WorkerAdjuster(object):
                     # exceeded max, to adjust
                     if total_new_workers_rts > n_new_workers_max_agg:
                         if n_new_workers_max_agg == 0:
-                            for job_type in dyn_num_workers[queue_name]:
-                                for resource_type in dyn_num_workers[queue_name][job_type]:
-                                    dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = 0
+                            df_queue = df_queue.with_columns(pl.when(True).then(0).otherwise(pl.col("nNewWorkers")).alias("nNewWorkers"))
                             tmp_log.debug("No n_new_workers since n_new_workers_max_agg=0 for UCORE")
                         else:
                             tmp_log.debug(f"n_new_workers_max_agg={n_new_workers_max_agg} for UCORE")
-                            _d = dyn_num_workers[queue_name].copy()
-                            del _d["ANY"]
 
-                            # TODO: needs to be recalculated
-                            simple_rt_nw_list = []
-                            for job_type in _d:  # jt: job type
-                                for resource_type in _d[job_type]:  # rt: resource type
-                                    simple_rt_nw_list.append([(resource_type, job_type), _d[job_type][resource_type].get("nNewWorkers", 0), 0])
+                            # Build a list of (resource_type, job_type, nNewWorkers, original_index) for redistribution
+                            df_to_adjust = df_queue.filter((pl.col("job_type") != "ANY") & (pl.col("resource_type") != "ANY"))
 
-                            _countdown = n_new_workers_max_agg
-                            for _rt_list in simple_rt_nw_list:
-                                (resource_type, job_type), n_new_workers_orig, _r = _rt_list
-                                n_new_workers, remainder = divmod(n_new_workers_orig * n_new_workers_max_agg, total_new_workers_rts)
-                                dyn_num_workers[queue_name][job_type].setdefault(resource_type, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
-                                dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] = n_new_workers
-                                _rt_list[2] = remainder
-                                _countdown -= n_new_workers
-                            _s_list = sorted(simple_rt_nw_list, key=(lambda x: x[1]))
-                            sorted_rt_nw_list = sorted(_s_list, key=(lambda x: x[2]), reverse=True)
-                            for (resource_type, job_type), n_new_workers_orig, remainder in sorted_rt_nw_list:
-                                if _countdown <= 0:
-                                    break
-                                dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"] += 1
-                                _countdown -= 1
-                        for job_type in dyn_num_workers[queue_name]:
-                            for resource_type in dyn_num_workers[queue_name][job_type]:
-                                if job_type == "ANY" or resource_type == "ANY":
-                                    continue
-                                n_new_workers = dyn_num_workers[queue_name][job_type][resource_type]["nNewWorkers"]
-                                tmp_log.debug(
-                                    "setting n_new_workers to {0} of job_type {1} resource_type {2} in order to respect RT aggregations for UCORE".format(
-                                        n_new_workers, job_type, resource_type
+                            if len(df_to_adjust) > 0:
+                                # Calculate distribution factors
+                                simple_rt_nw_list = []
+                                for row_data in df_to_adjust.iter_rows(named=True):
+                                    n_new_workers_orig = row_data["nNewWorkers"]
+                                    simple_rt_nw_list.append([(row_data["resource_type"], row_data["job_type"]), n_new_workers_orig, 0])  # remainder
+
+                                # Distribute workers proportionally
+                                _countdown = n_new_workers_max_agg
+                                for _rt_list in simple_rt_nw_list:
+                                    (resource_type, job_type), n_new_workers_orig, _r = _rt_list
+                                    if total_new_workers_rts > 0:
+                                        n_new_workers, remainder = divmod(n_new_workers_orig * n_new_workers_max_agg, total_new_workers_rts)
+                                    else:
+                                        n_new_workers, remainder = 0, 0
+
+                                    # Update the dataframe
+                                    df_queue = df_queue.with_columns(
+                                        pl.when(
+                                            (pl.col("resource_type") == resource_type)
+                                            & (pl.col("job_type") == job_type)
+                                            & (pl.col("job_type") != "ANY")
+                                            & (pl.col("resource_type") != "ANY")
+                                        )
+                                        .then(n_new_workers)
+                                        .otherwise(pl.col("nNewWorkers"))
+                                        .alias("nNewWorkers")
                                     )
-                                )
+                                    _rt_list[2] = remainder
+                                    _countdown -= n_new_workers
+
+                                # Distribute remaining workers by remainder
+                                _s_list = sorted(simple_rt_nw_list, key=(lambda x: x[1]))
+                                sorted_rt_nw_list = sorted(_s_list, key=(lambda x: x[2]), reverse=True)
+                                for (resource_type, job_type), n_new_workers_orig, remainder in sorted_rt_nw_list:
+                                    if _countdown <= 0:
+                                        break
+                                    df_queue = df_queue.with_columns(
+                                        pl.when(
+                                            (pl.col("resource_type") == resource_type)
+                                            & (pl.col("job_type") == job_type)
+                                            & (pl.col("job_type") != "ANY")
+                                            & (pl.col("resource_type") != "ANY")
+                                        )
+                                        .then(pl.col("nNewWorkers") + 1)
+                                        .otherwise(pl.col("nNewWorkers"))
+                                        .alias("nNewWorkers")
+                                    )
+                                    _countdown -= 1
+
+                        # Log adjustments
+                        df_queue_final = df_queue.filter((pl.col("job_type") != "ANY") & (pl.col("resource_type") != "ANY"))
+                        for row_data in df_queue_final.iter_rows(named=True):
+                            n_new_workers = row_data["nNewWorkers"]
+                            tmp_log.debug(
+                                f"setting n_new_workers to {n_new_workers} of job_type {row_data['job_type']} "
+                                f"resource_type {row_data['resource_type']} prod_source_label {row_data['prod_source_label']} "
+                                f"in order to respect RT aggregations for UCORE"
+                            )
 
                 if not apf_msg:
-                    apf_data = copy.deepcopy(dyn_num_workers[queue_name])
+                    # Convert current queue back to dict format for APF monitoring
+                    dict_queue_apf = self._dataframe_to_dict(df_queue, queue_name)
+                    apf_data = dict_queue_apf.get(queue_name, {})
 
                 self.apf_mon.update_label(queue_name, apf_msg, apf_data)
+
+                # Store the updated queue version
+                dict_result = self._dataframe_to_dict(df_queue, queue_name)
+                result_dict.update(dict_result)
+
+            # Return the final result
+            dyn_num_workers = result_dict
 
             # dump
             tmp_log.debug(f"defined {str(dyn_num_workers)}")
