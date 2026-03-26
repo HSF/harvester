@@ -1786,8 +1786,7 @@ class DBProxy(object):
                             "nNewWorkers": 0,
                         }
                         # ANY pilotType
-                        retMap[queueName][jobType][resourceType].setdefault("ANY", {})
-                        retMap[queueName][jobType][resourceType]["ANY"].setdefault(pilotType, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
+                        retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
                         retMap[queueName][jobType][resourceType]["ANY"]["nReady"] += nReady
                         retMap[queueName][jobType][resourceType]["ANY"]["nRunning"] += nRunning
                         retMap[queueName][jobType][resourceType]["ANY"]["nQueue"] += nQueue
