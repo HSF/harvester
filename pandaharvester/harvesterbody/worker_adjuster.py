@@ -423,27 +423,29 @@ class WorkerAdjuster(object):
                 tmp_static_num_workers = copy.deepcopy(static_num_workers)
 
                 # update tmp_static_num_workers with tmp_master_df
-                # for row in tmp_master_df.iter_rows(named=True):
-                #     queue_name_from_row = row["queue_name"]
-                #     job_type = row["job_type"]
-                #     resource_type = row["resource_type"]
-                #     pilot_type = row["pilot_type"]
-                #     # create missing keys in nested dictionary
-                #     if queue_name_from_row not in tmp_static_num_workers:
-                #         tmp_static_num_workers[queue_name_from_row] = {}
-                #     if job_type not in tmp_static_num_workers[queue_name_from_row]:
-                #         tmp_static_num_workers[queue_name_from_row][job_type] = {}
-                #     if resource_type not in tmp_static_num_workers[queue_name_from_row][job_type]:
-                #         tmp_static_num_workers[queue_name_from_row][job_type][resource_type] = {}
-                #     if pilot_type not in tmp_static_num_workers[queue_name_from_row][job_type][resource_type]:
-                #         tmp_static_num_workers[queue_name_from_row][job_type][resource_type][pilot_type] = {}
-                #     # update values
-                #     tmp_static_num_workers[queue_name_from_row][job_type][resource_type][pilot_type].update({
-                #         "nQueue": row["nQueue"],
-                #         "nReady": row["nReady"],
-                #         "nRunning": row["nRunning"],
-                #         "nNewWorkers": row["nNewWorkers"],
-                #     })
+                for row in tmp_master_df.iter_rows(named=True):
+                    queue_name_from_row = row["queue_name"]
+                    job_type = row["job_type"]
+                    resource_type = row["resource_type"]
+                    pilot_type = row["pilot_type"]
+                    # create missing keys in nested dictionary
+                    if queue_name_from_row not in tmp_static_num_workers:
+                        tmp_static_num_workers[queue_name_from_row] = {}
+                    if job_type not in tmp_static_num_workers[queue_name_from_row]:
+                        tmp_static_num_workers[queue_name_from_row][job_type] = {}
+                    if resource_type not in tmp_static_num_workers[queue_name_from_row][job_type]:
+                        tmp_static_num_workers[queue_name_from_row][job_type][resource_type] = {}
+                    if pilot_type not in tmp_static_num_workers[queue_name_from_row][job_type][resource_type]:
+                        tmp_static_num_workers[queue_name_from_row][job_type][resource_type][pilot_type] = {}
+                    # update values
+                    tmp_static_num_workers[queue_name_from_row][job_type][resource_type][pilot_type].update(
+                        {
+                            "nQueue": row["nQueue"],
+                            "nReady": row["nReady"],
+                            "nRunning": row["nRunning"],
+                            "nNewWorkers": row["nNewWorkers"],
+                        }
+                    )
 
                 queue_config = self.queue_configMapper.get_queue(queue_name)
                 queue_dict = panda_queues_dict.get(queue_name, {})
@@ -518,8 +520,8 @@ class WorkerAdjuster(object):
                             )
                 tmp_log.debug(f"master_df: \n{master_df}")
                 # remove pilot type ANY
-                for job_type in tmp_static_num_workers[queue_name]:
-                    for resource_type, pilot_type_dict in tmp_static_num_workers[queue_name][job_type].items():
+                for job_type in static_num_workers[queue_name]:
+                    for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():
                         if "ANY" in pilot_type_dict:
                             del pilot_type_dict["ANY"]
 
