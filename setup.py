@@ -36,6 +36,7 @@ setup(
         "pexpect",
         "psutil >= 5.4.8",
         "panda-pilot >= 2.7.2.1",
+        "polars",
     ],
     # optional pip dependencies
     extras_require={

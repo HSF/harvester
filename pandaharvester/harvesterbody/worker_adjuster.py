@@ -2,7 +2,7 @@ import copy
 import math
 import traceback
 
-import polars
+import polars as pl
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -16,6 +16,14 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 _logger = core_utils.setup_logger("worker_adjuster")
 
 DEFAULT_JOB_TYPE = "managed"
+
+# polars config
+pl.Config.set_ascii_tables(True)
+pl.Config.set_tbl_hide_dataframe_shape(True)
+pl.Config.set_tbl_hide_column_data_types(True)
+pl.Config.set_tbl_rows(-1)
+pl.Config.set_tbl_cols(-1)
+pl.Config.set_tbl_width_chars(140)
 
 
 # class to define number of workers to submit
@@ -56,7 +64,7 @@ class WorkerAdjuster(object):
             self.no_pilots_when_no_active_jobs = False
 
     # transform job statistics dict to polars dataframe
-    def _job_stats_to_df(self, job_stats_dict: dict | None) -> polars.DataFrame:
+    def _job_stats_to_df(self, job_stats_dict: dict | None) -> pl.DataFrame:
         """
         Transform nested job statistics dict into a polars dataframe.
 
@@ -70,16 +78,16 @@ class WorkerAdjuster(object):
                 prod_source_label (Utf8), job_status (Utf8), n_jobs (Int64)
         """
         schema = {
-            "computing_site": polars.Utf8,
-            "resource_type": polars.Utf8,
-            "prod_source_label": polars.Utf8,
-            "job_status": polars.Utf8,
-            "n_jobs": polars.Int64,
+            "computing_site": pl.Utf8,
+            "resource_type": pl.Utf8,
+            "prod_source_label": pl.Utf8,
+            "job_status": pl.Utf8,
+            "n_jobs": pl.Int64,
         }
         if job_stats_dict is None:
-            return polars.DataFrame(schema=schema)
+            return pl.DataFrame(schema=schema)
         else:
-            return polars.from_records(
+            return pl.from_records(
                 [
                     {
                         "computing_site": computing_site,
@@ -97,7 +105,7 @@ class WorkerAdjuster(object):
             )
 
     # transform num workers dict to polars dataframe
-    def _num_workers_dict_to_df(self, num_workers_dict: dict | None) -> polars.DataFrame:
+    def _num_workers_dict_to_df(self, num_workers_dict: dict | None) -> pl.DataFrame:
         """
         Transform nested num workers dict into a polars dataframe.
 
@@ -111,20 +119,20 @@ class WorkerAdjuster(object):
                 resource_type (Utf8), pilot_type (Utf8), nQueue (Int64), nReady (Int64), nRunning (Int64), nNewWorkers (Int64)
         """
         schema = {
-            "queue_name": polars.Utf8,
-            "job_type": polars.Utf8,
-            "resource_type": polars.Utf8,
-            "pilot_type": polars.Utf8,
-            "nQueue": polars.Int64,
-            "nReady": polars.Int64,
-            "nRunning": polars.Int64,
-            "nNewWorkers": polars.Int64,
+            "queue_name": pl.Utf8,
+            "job_type": pl.Utf8,
+            "resource_type": pl.Utf8,
+            "pilot_type": pl.Utf8,
+            "nQueue": pl.Int64,
+            "nReady": pl.Int64,
+            "nRunning": pl.Int64,
+            "nNewWorkers": pl.Int64,
         }
 
         if num_workers_dict is None:
-            return polars.DataFrame(schema=schema)
+            return pl.DataFrame(schema=schema)
         else:
-            return polars.from_records(
+            return pl.from_records(
                 [
                     {
                         "queue_name": queue_name,
@@ -314,30 +322,107 @@ class WorkerAdjuster(object):
             # get resource type mapper
             rt_mapper = ResourceTypeMapper()
 
-            # set initial nNewWorkers for pilot types based on number of activated jobs
-            tmp_new_workers_df = self._static_num_workers_to_df(static_num_workers)
-            tmp_master_df = (
-                job_stats_new_df.filter(polars.col("job_status") == "activated")
-                .with_columns(
-                    polars.col("prod_source_label").map_elements(core_utils.prod_source_label_to_pilot_type, return_dtype=polars.Utf8).alias("pilot_type")
+            for queue_name in static_num_workers:
+                # set initial nNewWorkers for pilot types based on number of activated jobs
+                tmp_new_workers_df = (
+                    self._num_workers_dict_to_df(static_num_workers)
+                    .filter(pl.col("queue_name") == queue_name)
+                    .with_columns(
+                        [
+                            pl.col("queue_name").fill_null(pl.lit(queue_name)),
+                            pl.col("resource_type").fill_null(pl.lit("ANY")),
+                            pl.col("pilot_type").fill_null(pl.lit("ANY")),
+                            pl.col("nQueue").fill_null(0),
+                            pl.col("nReady").fill_null(0),
+                            pl.col("nRunning").fill_null(0),
+                            pl.col("nNewWorkers").fill_null(0),
+                        ]
+                    )
                 )
-                .join(
+                # tmp_log.debug(f"DEBUG: tmp_new_workers_df after filter shape: {tmp_new_workers_df.shape}")
+                # tmp_log.debug(f"DEBUG: tmp_new_workers_df columns: {tmp_new_workers_df.columns}")
+                # tmp_log.debug(f"DEBUG: tmp_new_workers_df:\n{tmp_new_workers_df}")
+
+                activated_df = (
+                    job_stats_new_df.filter((pl.col("computing_site") == queue_name) & (pl.col("job_status") == "activated"))
+                    .with_columns(
+                        pl.col("computing_site").alias("queue_name"),
+                        pl.col("prod_source_label").map_elements(core_utils.prod_source_label_to_pilot_type, return_dtype=pl.Utf8).alias("pilot_type"),
+                    )
+                    .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
+                )
+                # Add aggregated rows with resource_type="ANY" (sum over all resource_types for each pilot_type)
+                activated_df_any_rt = (
+                    activated_df.group_by(["queue_name", "pilot_type"])
+                    .agg(pl.col("n_jobs").sum())
+                    .with_columns(pl.lit("ANY").alias("resource_type"))
+                    .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
+                )
+                # Add aggregated rows with pilot_type="ANY" (sum over all pilot_types for each resource_type)
+                activated_df_any_pt = (
+                    activated_df.group_by(["queue_name", "resource_type"])
+                    .agg(pl.col("n_jobs").sum())
+                    .with_columns(pl.lit("ANY").alias("pilot_type"))
+                    .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
+                )
+                # Add aggregated row with both resource_type="ANY" and pilot_type="ANY" (sum over all)
+                activated_df_any_both = (
+                    activated_df.select(pl.col("n_jobs").sum())
+                    .with_columns(pl.lit(queue_name).alias("queue_name"), pl.lit("ANY").alias("resource_type"), pl.lit("ANY").alias("pilot_type"))
+                    .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
+                )
+
+                activated_df = pl.concat([activated_df, activated_df_any_rt, activated_df_any_pt, activated_df_any_both])
+                # tmp_log.debug(f"DEBUG: activated_df after filter shape: {activated_df.shape}")
+                # tmp_log.debug(f"DEBUG: activated_df columns: {activated_df.columns}")
+                # tmp_log.debug(f"DEBUG: activated_df:\n{activated_df}")
+
+                joined_df = activated_df.join(
                     tmp_new_workers_df,
-                    left_on=["computing_site", "resource_type", "pilot_type"],
-                    right_on=["queue_name", "resource_type", "pilot_type"],
-                    how="right",
+                    on=["queue_name", "resource_type", "pilot_type"],
+                    how="full",
+                ).with_columns(
+                    [
+                        pl.col("queue_name").fill_null(pl.lit(queue_name)),
+                        pl.col("resource_type").fill_null(pl.lit("ANY")),
+                        pl.col("pilot_type").fill_null(pl.lit("ANY")),
+                        pl.col("nQueue").fill_null(0),
+                        pl.col("nReady").fill_null(0),
+                        pl.col("nRunning").fill_null(0),
+                        pl.col("nNewWorkers").fill_null(0),
+                        pl.col("job_type").fill_null(DEFAULT_JOB_TYPE),
+                    ]
                 )
-                .group_by(["queue_name", "job_type", "resource_type", "pilot_type"])
-                .agg(
-                    polars.col("nQueue").max(),
-                    polars.col("nReady").max(),
-                    polars.col("nRunning").max(),
-                    polars.col("nNewWorkers").max(),
-                    polars.col("n_jobs").sum().alias("n_activated_jobs"),
+                # tmp_log.debug(f"DEBUG: joined_df shape: {joined_df.shape}")
+                # tmp_log.debug(f"DEBUG: joined_df columns: {joined_df.columns}")
+                # tmp_log.debug(f"DEBUG: joined_df:\n{joined_df}")
+
+                tmp_master_df = (
+                    joined_df.group_by(["queue_name", "job_type", "resource_type", "pilot_type"])
+                    .agg(
+                        pl.col("nQueue").max(),
+                        pl.col("nReady").max(),
+                        pl.col("nRunning").max(),
+                        pl.col("nNewWorkers").max(),
+                        pl.col("n_jobs").fill_null(0).sum().alias("n_activated_jobs"),
+                    )
+                    .sort(
+                        [
+                            "queue_name",
+                            "job_type",
+                            pl.when(pl.col("resource_type") == "ANY").then(1).otherwise(0),
+                            "resource_type",
+                            pl.when(pl.col("pilot_type") == "ANY").then(1).otherwise(0),
+                            "pilot_type",
+                        ]
+                    )
                 )
-            )
-            tmp_log.debug(f"master_df: \n{tmp_master_df}")
-            ...
+                tmp_log.debug(f"master_df: \n{tmp_master_df}")
+                ...
+                for job_type in static_num_workers[queue_name]:
+                    # remove pilot type ANY
+                    for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():
+                        del pilot_type_dict["ANY"]
 
             dyn_num_workers = copy.deepcopy(static_num_workers)
 
@@ -366,9 +451,6 @@ class WorkerAdjuster(object):
                 # loop over resource types and pilot types to define nNewWorkers
                 for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():
                     for pilot_type, tmp_val in pilot_type_dict.items():
-                        if pilot_type == "ANY":
-                            continue
-
                         tmp_log.debug(
                             f"Processing queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} with static_num_workers={tmp_val}"
                         )
