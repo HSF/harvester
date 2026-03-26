@@ -2,6 +2,8 @@ import copy
 import math
 import traceback
 
+import polars
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -52,6 +54,95 @@ class WorkerAdjuster(object):
             tmp_log.error(err_str)
             tmp_log.warning("default no_pilots_when_no_active_jobs = False")
             self.no_pilots_when_no_active_jobs = False
+
+    # transform job statistics dict to polars dataframe
+    def _job_stats_to_df(self, job_stats_dict: dict | None) -> polars.DataFrame:
+        """
+        Transform nested job statistics dict into a polars dataframe.
+
+        Args:
+            job_stats_dict (dict|None): Dict structure from getDetailedJobStatistics with form
+                {computing_site: {resource_type: {prod_source_label: {job_status: n_jobs}}}}
+                If None, returns an empty dataframe with the correct schema.
+
+        Returns:
+            polars.DataFrame: Dataframe with columns: computing_site (Utf8), resource_type (Utf8),
+                prod_source_label (Utf8), job_status (Utf8), n_jobs (Int64)
+        """
+        schema = {
+            "computing_site": polars.Utf8,
+            "resource_type": polars.Utf8,
+            "prod_source_label": polars.Utf8,
+            "job_status": polars.Utf8,
+            "n_jobs": polars.Int64,
+        }
+        if job_stats_dict is None:
+            return polars.DataFrame(schema=schema)
+        else:
+            return polars.from_records(
+                [
+                    {
+                        "computing_site": computing_site,
+                        "resource_type": resource_type,
+                        "prod_source_label": prod_source_label,
+                        "job_status": job_status,
+                        "n_jobs": n_jobs,
+                    }
+                    for computing_site, resource_types in job_stats_dict.items()
+                    for resource_type, prod_labels in resource_types.items()
+                    for prod_source_label, statuses in prod_labels.items()
+                    for job_status, n_jobs in statuses.items()
+                ],
+                schema=schema,
+            )
+
+    # transform num workers dict to polars dataframe
+    def _num_workers_dict_to_df(self, num_workers_dict: dict | None) -> polars.DataFrame:
+        """
+        Transform nested num workers dict into a polars dataframe.
+
+        Args:
+            num_workers_dict (dict|None): Dict structure with form
+                {queue_name: {job_type: {resource_type: {pilot_type: {"nQueue": int, "nReady": int, "nRunning": int, "nNewWorkers": int}}}}}
+                If None, returns an empty dataframe with the correct schema.
+
+        Returns:
+            polars.DataFrame: Dataframe with columns: queue_name (Utf8), job_type (Utf8),
+                resource_type (Utf8), pilot_type (Utf8), nQueue (Int64), nReady (Int64), nRunning (Int64), nNewWorkers (Int64)
+        """
+        schema = {
+            "queue_name": polars.Utf8,
+            "job_type": polars.Utf8,
+            "resource_type": polars.Utf8,
+            "pilot_type": polars.Utf8,
+            "nQueue": polars.Int64,
+            "nReady": polars.Int64,
+            "nRunning": polars.Int64,
+            "nNewWorkers": polars.Int64,
+        }
+
+        if num_workers_dict is None:
+            return polars.DataFrame(schema=schema)
+        else:
+            return polars.from_records(
+                [
+                    {
+                        "queue_name": queue_name,
+                        "job_type": job_type,
+                        "resource_type": resource_type,
+                        "pilot_type": pilot_type,
+                        "nQueue": pilot_data.get("nQueue", 0),
+                        "nReady": pilot_data.get("nReady", 0),
+                        "nRunning": pilot_data.get("nRunning", 0),
+                        "nNewWorkers": pilot_data.get("nNewWorkers", 0),
+                    }
+                    for queue_name, job_types in num_workers_dict.items()
+                    for job_type, resource_types in job_types.items()
+                    for resource_type, pilot_types in resource_types.items()
+                    for pilot_type, pilot_data in pilot_types.items()
+                ],
+                schema=schema,
+            )
 
     # get queue noPilotsWhenNoActiveJobs
     def get_queue_no_pilots_when_no_active_jobs(self, site_name=None):
@@ -196,7 +287,6 @@ class WorkerAdjuster(object):
         for queue_name, queue_dict in static_num_workers.items():
             _normalize_job_type_any(queue_dict)
 
-        dyn_num_workers = copy.deepcopy(static_num_workers)
         try:
             # get queue status
             queue_stat = self.dbProxy.get_cache("panda_queues.json", None)
@@ -210,11 +300,46 @@ class WorkerAdjuster(object):
             if job_stats is not None:
                 job_stats = job_stats.data
 
+            job_stats_new_df = self._job_stats_to_df(None)
+            job_stats_new = self.dbProxy.get_cache("job_statistics_new.json", None)
+            if job_stats_new is not None:
+                job_stats_new_df = self._job_stats_to_df(job_stats_new.data)
+
+            # prioritized prod_source_labels for pilot submission
+            PRIORITIZED_PROD_SOURCE_LABELS = ["rc_alrb"]
+
             # get panda queues dict from CRIC
             panda_queues_dict = PandaQueuesDict()
 
             # get resource type mapper
             rt_mapper = ResourceTypeMapper()
+
+            # set initial nNewWorkers for pilot types based on number of activated jobs
+            tmp_new_workers_df = self._static_num_workers_to_df(static_num_workers)
+            tmp_master_df = (
+                job_stats_new_df.filter(polars.col("job_status") == "activated")
+                .with_columns(
+                    polars.col("prod_source_label").map_elements(core_utils.prod_source_label_to_pilot_type, return_dtype=polars.Utf8).alias("pilot_type")
+                )
+                .join(
+                    tmp_new_workers_df,
+                    left_on=["computing_site", "resource_type", "pilot_type"],
+                    right_on=["queue_name", "resource_type", "pilot_type"],
+                    how="right",
+                )
+                .group_by(["queue_name", "job_type", "resource_type", "pilot_type"])
+                .agg(
+                    polars.col("nQueue").max(),
+                    polars.col("nReady").max(),
+                    polars.col("nRunning").max(),
+                    polars.col("nNewWorkers").max(),
+                    polars.col("n_jobs").sum().alias("n_activated_jobs"),
+                )
+            )
+            tmp_log.debug(f"master_df: \n{tmp_master_df}")
+            ...
+
+            dyn_num_workers = copy.deepcopy(static_num_workers)
 
             # define num of new workers
             for queue_name in static_num_workers:
@@ -238,8 +363,12 @@ class WorkerAdjuster(object):
                 apf_msg = None
                 apf_data = None
                 job_type = DEFAULT_JOB_TYPE
+                # loop over resource types and pilot types to define nNewWorkers
                 for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():
                     for pilot_type, tmp_val in pilot_type_dict.items():
+                        if pilot_type == "ANY":
+                            continue
+
                         tmp_log.debug(
                             f"Processing queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} with static_num_workers={tmp_val}"
                         )
