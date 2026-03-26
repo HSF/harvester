@@ -96,7 +96,7 @@ class Submitter(AgentBase):
                                 prod_source_label = core_utils.special_pilot_type_to_prod_source_label(pilot_type)
                                 tmp_log = self.make_logger(
                                     _logger,
-                                    f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type} pslabel={prod_source_label}",
+                                    f"id={locked_by} queue={queue_name} jtype={job_type} rtype={resource_type} ptype={pilot_type} pslabel={prod_source_label}",
                                     method_name="run",
                                 )
                                 try:

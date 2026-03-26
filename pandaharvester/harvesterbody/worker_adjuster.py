@@ -315,6 +315,7 @@ class WorkerAdjuster(object):
 
             # prioritized prod_source_labels for pilot submission
             PRIORITIZED_PROD_SOURCE_LABELS = ["rc_alrb"]
+            PRIORITIZED_PILOT_TYPES = [core_utils.prod_source_label_to_pilot_type(label) for label in PRIORITIZED_PROD_SOURCE_LABELS]
 
             # get panda queues dict from CRIC
             panda_queues_dict = PandaQueuesDict()
@@ -323,7 +324,6 @@ class WorkerAdjuster(object):
             rt_mapper = ResourceTypeMapper()
 
             for queue_name in static_num_workers:
-                # set initial nNewWorkers for pilot types based on number of activated jobs
                 tmp_new_workers_df = (
                     self._num_workers_dict_to_df(static_num_workers)
                     .filter(pl.col("queue_name") == queue_name)
@@ -417,14 +417,118 @@ class WorkerAdjuster(object):
                         ]
                     )
                 )
-                tmp_log.debug(f"master_df: \n{tmp_master_df}")
-                ...
-                for job_type in static_num_workers[queue_name]:
-                    # remove pilot type ANY
-                    for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():
-                        del pilot_type_dict["ANY"]
+                # tmp_log.debug(f"master_df: \n{tmp_master_df}")
+                master_df = tmp_master_df.clone()
+
+                tmp_static_num_workers = copy.deepcopy(static_num_workers)
+
+                # update tmp_static_num_workers with tmp_master_df
+                # for row in tmp_master_df.iter_rows(named=True):
+                #     queue_name_from_row = row["queue_name"]
+                #     job_type = row["job_type"]
+                #     resource_type = row["resource_type"]
+                #     pilot_type = row["pilot_type"]
+                #     # create missing keys in nested dictionary
+                #     if queue_name_from_row not in tmp_static_num_workers:
+                #         tmp_static_num_workers[queue_name_from_row] = {}
+                #     if job_type not in tmp_static_num_workers[queue_name_from_row]:
+                #         tmp_static_num_workers[queue_name_from_row][job_type] = {}
+                #     if resource_type not in tmp_static_num_workers[queue_name_from_row][job_type]:
+                #         tmp_static_num_workers[queue_name_from_row][job_type][resource_type] = {}
+                #     if pilot_type not in tmp_static_num_workers[queue_name_from_row][job_type][resource_type]:
+                #         tmp_static_num_workers[queue_name_from_row][job_type][resource_type][pilot_type] = {}
+                #     # update values
+                #     tmp_static_num_workers[queue_name_from_row][job_type][resource_type][pilot_type].update({
+                #         "nQueue": row["nQueue"],
+                #         "nReady": row["nReady"],
+                #         "nRunning": row["nRunning"],
+                #         "nNewWorkers": row["nNewWorkers"],
+                #     })
+
+                queue_config = self.queue_configMapper.get_queue(queue_name)
+                queue_dict = panda_queues_dict.get(queue_name, {})
+                # set initial nNewWorkers for pilot types based on number of activated jobs and the activate worker factor
+                for job_type in tmp_static_num_workers[queue_name]:
+                    for resource_type, pilot_type_dict in tmp_static_num_workers[queue_name][job_type].items():
+                        total_n_new_workers = pilot_type_dict["ANY"]["nNewWorkers"]
+                        if total_n_new_workers <= 0:
+                            continue
+                        # calculate the total number of new workers needed for prioritized pilot types
+                        remaining_n_new_workers = total_n_new_workers
+                        activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
+                        prio_ptype_result = tmp_master_df.filter(
+                            (pl.col("queue_name") == queue_name)
+                            & (pl.col("job_type") == job_type)
+                            & (pl.col("resource_type") == resource_type)
+                            & (pl.col("pilot_type").is_in(PRIORITIZED_PILOT_TYPES))
+                        ).select([pl.col("n_activated_jobs").sum(), pl.col("nQueue").sum()])
+                        if prio_ptype_result.shape[0] > 0:
+                            total_prio_ptype_n_activated_jobs, total_prio_ptype_nQueue = prio_ptype_result.row(0)
+                        else:
+                            total_prio_ptype_n_activated_jobs, total_prio_ptype_nQueue = 0, 0
+                        total_prio_ptype_calculated_n_new_workers = max(
+                            int(total_prio_ptype_n_activated_jobs * activate_worker_factor) - total_prio_ptype_nQueue, 0
+                        )
+                        if total_prio_ptype_calculated_n_new_workers > 0:
+                            adjust_ratio = min(total_n_new_workers / total_prio_ptype_calculated_n_new_workers, 1)
+                            for pilot_type, tmp_val in pilot_type_dict.items():
+                                if pilot_type in PRIORITIZED_PILOT_TYPES:
+                                    pt_result = tmp_master_df.filter(
+                                        (pl.col("queue_name") == queue_name)
+                                        & (pl.col("job_type") == job_type)
+                                        & (pl.col("resource_type") == resource_type)
+                                        & (pl.col("pilot_type") == pilot_type)
+                                    ).select([pl.col("n_activated_jobs"), pl.col("nQueue")])
+                                    if pt_result.shape[0] > 0:
+                                        n_activated_jobs, nQueue = pt_result.row(0)
+                                    else:
+                                        n_activated_jobs, nQueue = 0, 0
+                                    calculated_n_new_workers = int(max(int(n_activated_jobs * activate_worker_factor) - nQueue, 0) * adjust_ratio)
+                                    if calculated_n_new_workers <= 0:
+                                        continue
+                                    tmp_static_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = calculated_n_new_workers
+                                    remaining_n_new_workers -= calculated_n_new_workers
+                                    master_df = master_df.with_columns(
+                                        pl.when(
+                                            (pl.col("queue_name") == queue_name)
+                                            & (pl.col("job_type") == job_type)
+                                            & (pl.col("resource_type") == resource_type)
+                                            & (pl.col("pilot_type") == pilot_type)
+                                        )
+                                        .then(pl.lit(calculated_n_new_workers))
+                                        .otherwise(pl.col("nNewWorkers"))
+                                        .alias("nNewWorkers")
+                                    )
+                                    tmp_log.debug(
+                                        f"set initial nNewWorkers to {calculated_n_new_workers} for queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type}"
+                                    )
+                        if remaining_n_new_workers > 0:
+                            # add remaining n_new_workers to PR pilot_type
+                            tmp_static_num_workers[queue_name][job_type][resource_type]["PR"]["nNewWorkers"] += remaining_n_new_workers
+                            master_df = master_df.with_columns(
+                                pl.when(
+                                    (pl.col("queue_name") == queue_name)
+                                    & (pl.col("job_type") == job_type)
+                                    & (pl.col("resource_type") == resource_type)
+                                    & (pl.col("pilot_type") == "PR")
+                                )
+                                .then(pl.lit(remaining_n_new_workers))
+                                .otherwise(pl.col("nNewWorkers"))
+                                .alias("nNewWorkers")
+                            )
+                tmp_log.debug(f"master_df: \n{master_df}")
+                # remove pilot type ANY
+                for job_type in tmp_static_num_workers[queue_name]:
+                    for resource_type, pilot_type_dict in tmp_static_num_workers[queue_name][job_type].items():
+                        if "ANY" in pilot_type_dict:
+                            del pilot_type_dict["ANY"]
 
             dyn_num_workers = copy.deepcopy(static_num_workers)
+            for queue_name in dyn_num_workers:
+                for job_type in dyn_num_workers[queue_name]:
+                    for resource_type, pilot_type_dict in dyn_num_workers[queue_name][job_type].items():
+                        if "ANY" in pilot_type_dict:
+                            del pilot_type_dict["ANY"]
 
             # define num of new workers
             for queue_name in static_num_workers:
