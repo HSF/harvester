@@ -525,7 +525,10 @@ class WorkerAdjuster(object):
                                 .otherwise(pl.col("nNewWorkers"))
                                 .alias("nNewWorkers")
                             )
-                tmp_log.debug(f"master_df: \n{master_df}")
+                display_master_df = master_df.select(
+                    ["job_type", "resource_type", "pilot_type", "nQueue", "nReady", "nRunning", "nNewWorkers", "n_activated_jobs"]
+                )
+                tmp_log.debug(f"master_df: \n{display_master_df}")
                 # remove pilot type ANY
                 for job_type in static_num_workers[queue_name]:
                     for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():

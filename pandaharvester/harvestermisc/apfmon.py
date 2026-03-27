@@ -164,45 +164,20 @@ class Apfmon(object):
             return data
 
         try:
-            # First aggregate over resource_type, then over prod_source_label
-            # Data structure: {resource_type: {prod_source_label: {values}}, "ANY": {...}}
-
-            # Extract the "ANY" resource_type if it exists
-            any_data = data.get("ANY", {})
-
-            # Aggregate across all resource_types for each prod_source_label
-            agg_by_pslabel = {}
+            any = data["ANY"]
+            agg = {}
             for rtype in data:
                 if rtype == "ANY":
                     continue
-                # data[rtype] is like {prod_source_label: {values}}
-                for prod_source_label in data[rtype]:
-                    if prod_source_label == "ANY":
-                        continue
-                    # Aggregate values across all resource_types for this prod_source_label
-                    if prod_source_label not in agg_by_pslabel:
-                        agg_by_pslabel[prod_source_label] = {}
-                    for value_key, value_count in data[rtype][prod_source_label].items():
-                        agg_by_pslabel[prod_source_label].setdefault(value_key, 0)
-                        agg_by_pslabel[prod_source_label][value_key] += value_count
+                else:
+                    for value in data[rtype]:
+                        agg.setdefault(value, 0)
+                        agg[value] += data[rtype][value]
 
-            # Now aggregate across all prod_source_labels to create final "ANY"
-            final_agg = {}
-            for prod_source_label in agg_by_pslabel:
-                for value_key, value_count in agg_by_pslabel[prod_source_label].items():
-                    final_agg.setdefault(value_key, 0)
-                    final_agg[value_key] += value_count
-
-            # Update data structure: keep resource_type level but aggregate to "ANY"
-            if final_agg:
-                # Rebuild data with aggregated "ANY" at the resource_type level
-                result = {}
-                for rtype in data:
-                    result[rtype] = data[rtype]
-                result["ANY"] = final_agg
-                data = result
+            if agg:
+                data["ANY"] = agg
             else:
-                data["ANY"] = any_data
+                data["ANY"] = any
 
             tmp_log.debug(f"Massaged to data: {data}")
 
