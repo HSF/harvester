@@ -164,20 +164,44 @@ class Apfmon(object):
             return data
 
         try:
-            any = data["ANY"]
+            # Preserve original ANY if it exists
+            any_backup = data.get("ANY", {})
             agg = {}
-            for rtype in data:
-                if rtype == "ANY":
-                    continue
-                else:
-                    for value in data[rtype]:
-                        agg.setdefault(value, 0)
-                        agg[value] += data[rtype][value]
 
+            # Iterate through job_type, resource_type, pilot_type dimensions
+            # and aggregate all metrics for non-ANY combinations
+            for job_type in data:
+                if job_type == "ANY":
+                    continue
+
+                for resource_type in data[job_type]:
+                    if resource_type == "ANY":
+                        continue
+
+                    for pilot_type in data[job_type][resource_type]:
+                        if pilot_type == "ANY":
+                            continue
+
+                        # Get all metrics for this combination
+                        metrics = data[job_type][resource_type][pilot_type]
+                        for metric_key, metric_value in metrics.items():
+                            if isinstance(metric_value, (int, float)):
+                                agg.setdefault(metric_key, 0)
+                                agg[metric_key] += metric_value
+
+            # Update the ANY entry with aggregated values
             if agg:
-                data["ANY"] = agg
-            else:
-                data["ANY"] = any
+                # Initialize ANY structure if needed
+                if "ANY" not in data:
+                    data["ANY"] = {}
+                if "ANY" not in data["ANY"]:
+                    data["ANY"]["ANY"] = {}
+                if "ANY" not in data["ANY"]["ANY"]:
+                    data["ANY"]["ANY"]["ANY"] = {}
+
+                data["ANY"]["ANY"]["ANY"].update(agg)
+            elif any_backup:
+                data["ANY"] = any_backup
 
             tmp_log.debug(f"Massaged to data: {data}")
 
