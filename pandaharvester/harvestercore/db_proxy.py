@@ -1779,12 +1779,17 @@ class DBProxy(object):
                         retMap.setdefault(queueName, {})
                         retMap[queueName].setdefault(jobType, {})
                         retMap[queueName][jobType].setdefault(resourceType, {})
-                        retMap[queueName][jobType][resourceType][pilotType] = {
-                            "nReady": nReady,
-                            "nRunning": nRunning,
-                            "nQueue": nQueue,
-                            "nNewWorkers": 0,
-                        }
+                        # Initialize or update pilot type entry
+                        if pilotType not in retMap[queueName][jobType][resourceType]:
+                            retMap[queueName][jobType][resourceType][pilotType] = {
+                                "nReady": 0,
+                                "nRunning": 0,
+                                "nQueue": 0,
+                                "nNewWorkers": 0,
+                            }
+                        retMap[queueName][jobType][resourceType][pilotType]["nReady"] += nReady
+                        retMap[queueName][jobType][resourceType][pilotType]["nRunning"] += nRunning
+                        retMap[queueName][jobType][resourceType][pilotType]["nQueue"] += nQueue
                         # ANY pilotType
                         retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
                         retMap[queueName][jobType][resourceType]["ANY"]["nReady"] += nReady

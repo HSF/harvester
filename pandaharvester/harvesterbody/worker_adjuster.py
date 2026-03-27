@@ -413,7 +413,7 @@ class WorkerAdjuster(object):
                             "job_type",
                             pl.when(pl.col("resource_type") == "ANY").then(1).otherwise(0),
                             "resource_type",
-                            pl.when(pl.col("pilot_type") == "ANY").then(1).otherwise(0),
+                            pl.when(pl.col("pilot_type") == "ANY").then(2).when(pl.col("pilot_type") == DEFAULT_PILOT_TYPE).then(0).otherwise(1),
                             "pilot_type",
                         ]
                     )
