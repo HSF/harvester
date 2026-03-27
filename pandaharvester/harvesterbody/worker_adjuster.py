@@ -16,6 +16,7 @@ from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 _logger = core_utils.setup_logger("worker_adjuster")
 
 DEFAULT_JOB_TYPE = "managed"
+DEFAULT_PILOT_TYPE = "PR"
 
 # polars config
 pl.Config.set_ascii_tables(True)
@@ -489,6 +490,9 @@ class WorkerAdjuster(object):
                                     if calculated_n_new_workers <= 0:
                                         continue
                                     tmp_static_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = calculated_n_new_workers
+                                    static_num_workers[queue_name].setdefault(job_type, {}).setdefault(resource_type, {}).setdefault(
+                                        pilot_type, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
+                                    )["nNewWorkers"] = calculated_n_new_workers
                                     remaining_n_new_workers -= calculated_n_new_workers
                                     master_df = master_df.with_columns(
                                         pl.when(
@@ -502,17 +506,20 @@ class WorkerAdjuster(object):
                                         .alias("nNewWorkers")
                                     )
                                     tmp_log.debug(
-                                        f"set initial nNewWorkers to {calculated_n_new_workers} for queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type}"
+                                        f"Set initial nNewWorkers to {calculated_n_new_workers} for queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type}"
                                     )
                         if remaining_n_new_workers > 0:
-                            # add remaining n_new_workers to PR pilot_type
-                            tmp_static_num_workers[queue_name][job_type][resource_type]["PR"]["nNewWorkers"] += remaining_n_new_workers
+                            # add remaining n_new_workers to DEFAULT_PILOT_TYPE PR
+                            tmp_static_num_workers[queue_name][job_type][resource_type][DEFAULT_PILOT_TYPE]["nNewWorkers"] += remaining_n_new_workers
+                            static_num_workers[queue_name].setdefault(job_type, {}).setdefault(resource_type, {}).setdefault(
+                                DEFAULT_PILOT_TYPE, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
+                            )["nNewWorkers"] = tmp_static_num_workers[queue_name][job_type][resource_type][DEFAULT_PILOT_TYPE]["nNewWorkers"]
                             master_df = master_df.with_columns(
                                 pl.when(
                                     (pl.col("queue_name") == queue_name)
                                     & (pl.col("job_type") == job_type)
                                     & (pl.col("resource_type") == resource_type)
-                                    & (pl.col("pilot_type") == "PR")
+                                    & (pl.col("pilot_type") == DEFAULT_PILOT_TYPE)
                                 )
                                 .then(pl.lit(remaining_n_new_workers))
                                 .otherwise(pl.col("nNewWorkers"))
@@ -616,6 +623,13 @@ class WorkerAdjuster(object):
                                 continue
                         else:
                             n_new_workers_def = None
+                            if pilot_type != DEFAULT_PILOT_TYPE:
+                                n_new_workers_def = tmp_val["nNewWorkers"]
+                                if n_new_workers_def == 0:
+                                    dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
+                                    ret_msg = f"got n_new_workers=0 for non-{DEFAULT_PILOT_TYPE} pilot_type in self mode; skipped"
+                                    tmp_log.debug(ret_msg)
+                                    continue
 
                         # define num of new workers based on static site config
                         n_new_workers = 0

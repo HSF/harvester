@@ -162,7 +162,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         else:
             # when no job
             tmp_prod_source_label = prod_source_label
-            if tmp_prod_source_label != "ANY":
+            if tmp_prod_source_label == "ANY":
                 # no specified prod_source_label; randomize pilot type with weighting
                 pdpm = getattr(queue_config, "prodSourceLabelRandomWeightsPermille", {})
                 choice_list = core_utils.make_choice_list(pdpm=pdpm, default="managed")
