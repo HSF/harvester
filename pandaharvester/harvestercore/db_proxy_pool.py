@@ -22,6 +22,7 @@ class DBProxyMethod(object):
     def __call__(self, *args, **kwargs):
         tmpLog = core_utils.make_logger(_logger, f"method={self.methodName}", method_name="call")
         sw = core_utils.get_stopwatch()
+        con = None
         try:
             # get connection
             con = self.pool.get()
@@ -32,8 +33,9 @@ class DBProxyMethod(object):
             # exec
             return func(*args, **kwargs)
         finally:
-            tmpLog.debug("release lock" + sw.get_elapsed_time())
-            self.pool.put(con)
+            if con is not None:
+                tmpLog.debug("release lock" + sw.get_elapsed_time())
+                self.pool.put(con)
 
 
 # connection class
