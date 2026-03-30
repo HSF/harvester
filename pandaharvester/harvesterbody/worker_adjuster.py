@@ -410,6 +410,7 @@ class WorkerAdjuster(object):
                     .sort(
                         [
                             "queue_name",
+                            pl.when(pl.col("job_type") == "ANY").then(1).otherwise(0),
                             "job_type",
                             pl.when(pl.col("resource_type") == "ANY").then(1).otherwise(0),
                             "resource_type",
