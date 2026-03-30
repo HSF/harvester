@@ -510,10 +510,16 @@ class WorkerAdjuster(object):
                                     )
                         if remaining_n_new_workers > 0:
                             # add remaining n_new_workers to DEFAULT_PILOT_TYPE PR
+                            tmp_static_num_workers[queue_name][job_type][resource_type].setdefault(
+                                DEFAULT_PILOT_TYPE, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
+                            )
                             tmp_static_num_workers[queue_name][job_type][resource_type][DEFAULT_PILOT_TYPE]["nNewWorkers"] += remaining_n_new_workers
                             static_num_workers[queue_name].setdefault(job_type, {}).setdefault(resource_type, {}).setdefault(
                                 DEFAULT_PILOT_TYPE, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
                             )["nNewWorkers"] = tmp_static_num_workers[queue_name][job_type][resource_type][DEFAULT_PILOT_TYPE]["nNewWorkers"]
+                            tmp_log.debug(
+                                f"Set remaining nNewWorkers to {remaining_n_new_workers} for queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={DEFAULT_PILOT_TYPE}"
+                            )
                             master_df = master_df.with_columns(
                                 pl.when(
                                     (pl.col("queue_name") == queue_name)
