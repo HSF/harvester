@@ -1750,6 +1750,11 @@ class DBProxy(object):
                     sql_count_workers_tmp += "GROUP BY pilotType, status "
                     self.execute(sql_count_workers_tmp, varMap)
 
+                    # Initialize nested dict structure before the loop
+                    retMap.setdefault(queueName, {})
+                    retMap[queueName].setdefault(jobType, {})
+                    retMap[queueName][jobType].setdefault(resourceType, {})
+
                     for pilotType, workerStatus, tmpNum in self.cur.fetchall():
                         nQueue = 0
                         nReady = 0
@@ -1776,9 +1781,6 @@ class DBProxy(object):
                         (nReFill,) = self.cur.fetchone()
                         nReady += nReFill
 
-                        retMap.setdefault(queueName, {})
-                        retMap[queueName].setdefault(jobType, {})
-                        retMap[queueName][jobType].setdefault(resourceType, {})
                         # Initialize or update pilot type entry
                         if pilotType not in retMap[queueName][jobType][resourceType]:
                             retMap[queueName][jobType][resourceType][pilotType] = {
@@ -1797,6 +1799,7 @@ class DBProxy(object):
                         retMap[queueName][jobType][resourceType]["ANY"]["nQueue"] += nQueue
 
                     # set nNewWorkers only in ANY pilotType
+                    retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
                     retMap[queueName][jobType][resourceType]["ANY"]["nNewWorkers"] = nNewWorkers
 
                     resourceMap.setdefault(jobType, {})
