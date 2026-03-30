@@ -1754,6 +1754,7 @@ class DBProxy(object):
                     retMap.setdefault(queueName, {})
                     retMap[queueName].setdefault(jobType, {})
                     retMap[queueName][jobType].setdefault(resourceType, {})
+                    retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
 
                     for pilotType, workerStatus, tmpNum in self.cur.fetchall():
                         nQueue = 0
@@ -1793,13 +1794,11 @@ class DBProxy(object):
                         retMap[queueName][jobType][resourceType][pilotType]["nRunning"] += nRunning
                         retMap[queueName][jobType][resourceType][pilotType]["nQueue"] += nQueue
                         # ANY pilotType
-                        retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
                         retMap[queueName][jobType][resourceType]["ANY"]["nReady"] += nReady
                         retMap[queueName][jobType][resourceType]["ANY"]["nRunning"] += nRunning
                         retMap[queueName][jobType][resourceType]["ANY"]["nQueue"] += nQueue
 
                     # set nNewWorkers only in ANY pilotType
-                    retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
                     retMap[queueName][jobType][resourceType]["ANY"]["nNewWorkers"] = nNewWorkers
 
                     resourceMap.setdefault(jobType, {})
