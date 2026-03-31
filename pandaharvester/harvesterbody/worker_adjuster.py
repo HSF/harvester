@@ -328,11 +328,11 @@ class WorkerAdjuster(object):
                 tmp_new_workers_df = (
                     self._num_workers_dict_to_df(static_num_workers)
                     .filter(pl.col("queue_name") == queue_name)
+                    .filter(pl.col("resource_type").is_not_null())
+                    .filter(pl.col("pilot_type").is_not_null())
                     .with_columns(
                         [
                             pl.col("queue_name").fill_null(pl.lit(queue_name)),
-                            pl.col("resource_type").fill_null(pl.lit("ANY")),
-                            pl.col("pilot_type").fill_null(pl.lit("ANY")),
                             pl.col("nQueue").fill_null(0),
                             pl.col("nReady").fill_null(0),
                             pl.col("nRunning").fill_null(0),
@@ -352,28 +352,24 @@ class WorkerAdjuster(object):
                     )
                     .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
                 )
-                # Add aggregated rows with resource_type="ANY" (sum over all resource_types for each pilot_type)
-                activated_df_any_rt = (
-                    activated_df.group_by(["queue_name", "pilot_type"])
-                    .agg(pl.col("n_jobs").sum())
-                    .with_columns(pl.lit("ANY").alias("resource_type"))
-                    .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
-                )
                 # Add aggregated rows with pilot_type="ANY" (sum over all pilot_types for each resource_type)
                 activated_df_any_pt = (
-                    activated_df.group_by(["queue_name", "resource_type"])
+                    activated_df.select(["queue_name", "resource_type", "n_jobs"])
+                    .group_by(["queue_name", "resource_type"])
                     .agg(pl.col("n_jobs").sum())
                     .with_columns(pl.lit("ANY").alias("pilot_type"))
                     .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
                 )
                 # Add aggregated row with both resource_type="ANY" and pilot_type="ANY" (sum over all)
                 activated_df_any_both = (
-                    activated_df.select(pl.col("n_jobs").sum())
-                    .with_columns(pl.lit(queue_name).alias("queue_name"), pl.lit("ANY").alias("resource_type"), pl.lit("ANY").alias("pilot_type"))
+                    activated_df.select(["queue_name", "n_jobs"])
+                    .group_by(["queue_name"])
+                    .agg(pl.col("n_jobs").sum())
+                    .with_columns(pl.lit("ANY").alias("resource_type"), pl.lit("ANY").alias("pilot_type"))
                     .select(["queue_name", "resource_type", "pilot_type", "n_jobs"])
                 )
 
-                activated_df = pl.concat([activated_df, activated_df_any_rt, activated_df_any_pt, activated_df_any_both])
+                activated_df = pl.concat([activated_df, activated_df_any_pt, activated_df_any_both])
                 # tmp_log.debug(f"DEBUG: activated_df after filter shape: {activated_df.shape}")
                 # tmp_log.debug(f"DEBUG: activated_df columns: {activated_df.columns}")
                 # tmp_log.debug(f"DEBUG: activated_df:\n{activated_df}")
