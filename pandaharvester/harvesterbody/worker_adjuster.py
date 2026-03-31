@@ -17,6 +17,7 @@ _logger = core_utils.setup_logger("worker_adjuster")
 
 DEFAULT_JOB_TYPE = "managed"
 DEFAULT_PILOT_TYPE = "PR"
+DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS = ["rc_alrb"]
 
 # polars config
 pl.Config.set_ascii_tables(True)
@@ -314,10 +315,6 @@ class WorkerAdjuster(object):
             if job_stats_new is not None:
                 job_stats_new_df = self._job_stats_to_df(job_stats_new.data)
 
-            # prioritized prod_source_labels for pilot submission
-            PRIORITIZED_PROD_SOURCE_LABELS = ["rc_alrb"]
-            PRIORITIZED_PILOT_TYPES = [core_utils.prod_source_label_to_pilot_type(label) for label in PRIORITIZED_PROD_SOURCE_LABELS]
-
             # get panda queues dict from CRIC
             panda_queues_dict = PandaQueuesDict()
 
@@ -325,6 +322,13 @@ class WorkerAdjuster(object):
             rt_mapper = ResourceTypeMapper()
 
             for queue_name in static_num_workers:
+                queue_config = self.queue_configMapper.get_queue(queue_name)
+                queue_dict = panda_queues_dict.get(queue_name, {})
+
+                # prioritized prod_source_labels for pilot submission
+                prioritized_pslabels = queue_config.get("prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
+                prioritized_pilot_types = [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
+
                 tmp_new_workers_df = (
                     self._num_workers_dict_to_df(static_num_workers)
                     .filter(pl.col("queue_name") == queue_name)
@@ -445,8 +449,6 @@ class WorkerAdjuster(object):
                         }
                     )
 
-                queue_config = self.queue_configMapper.get_queue(queue_name)
-                queue_dict = panda_queues_dict.get(queue_name, {})
                 # set initial nNewWorkers for pilot types based on number of activated jobs and the activate worker factor
                 for job_type in tmp_static_num_workers[queue_name]:
                     for resource_type, pilot_type_dict in tmp_static_num_workers[queue_name][job_type].items():
@@ -460,7 +462,7 @@ class WorkerAdjuster(object):
                             (pl.col("queue_name") == queue_name)
                             & (pl.col("job_type") == job_type)
                             & (pl.col("resource_type") == resource_type)
-                            & (pl.col("pilot_type").is_in(PRIORITIZED_PILOT_TYPES))
+                            & (pl.col("pilot_type").is_in(prioritized_pilot_types))
                         ).select([pl.col("n_activated_jobs").sum(), pl.col("nQueue").sum()])
                         if prio_ptype_result.shape[0] > 0:
                             total_prio_ptype_n_activated_jobs, total_prio_ptype_nQueue = prio_ptype_result.row(0)
@@ -472,7 +474,7 @@ class WorkerAdjuster(object):
                         if total_prio_ptype_calculated_n_new_workers > 0:
                             adjust_ratio = min(total_n_new_workers / total_prio_ptype_calculated_n_new_workers, 1)
                             for pilot_type, tmp_val in pilot_type_dict.items():
-                                if pilot_type in PRIORITIZED_PILOT_TYPES:
+                                if pilot_type in prioritized_pilot_types:
                                     pt_result = tmp_master_df.filter(
                                         (pl.col("queue_name") == queue_name)
                                         & (pl.col("job_type") == job_type)
