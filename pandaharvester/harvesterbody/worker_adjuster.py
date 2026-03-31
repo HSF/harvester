@@ -378,22 +378,31 @@ class WorkerAdjuster(object):
                 # tmp_log.debug(f"DEBUG: activated_df columns: {activated_df.columns}")
                 # tmp_log.debug(f"DEBUG: activated_df:\n{activated_df}")
 
-                joined_df = activated_df.join(
-                    tmp_new_workers_df,
-                    on=["queue_name", "resource_type", "pilot_type"],
-                    how="full",
-                ).with_columns(
-                    [
-                        pl.col("queue_name").fill_null(pl.lit(queue_name)),
-                        pl.col("job_type").fill_null(DEFAULT_JOB_TYPE),
-                        pl.col("resource_type").fill_null(pl.lit("ANY")),
-                        pl.col("pilot_type").fill_null(pl.lit("ANY")),
-                        pl.col("nQueue").fill_null(0),
-                        pl.col("nReady").fill_null(0),
-                        pl.col("nRunning").fill_null(0),
-                        pl.col("nNewWorkers").fill_null(0),
-                        pl.col("n_jobs").fill_null(0),
-                    ]
+                joined_df = (
+                    activated_df.join(
+                        tmp_new_workers_df,
+                        on=["queue_name", "resource_type", "pilot_type"],
+                        how="full",
+                        suffix="_right",
+                    )
+                    .with_columns(
+                        [
+                            pl.col("queue_name").fill_null(pl.lit(queue_name)),
+                            pl.col("job_type").fill_null(DEFAULT_JOB_TYPE),
+                            # Use coalesce to prefer left side if not null, otherwise use right side
+                            pl.coalesce(pl.col("resource_type"), pl.col("resource_type_right")).fill_null(pl.lit("ANY")).alias("resource_type"),
+                            pl.coalesce(pl.col("pilot_type"), pl.col("pilot_type_right")).fill_null(pl.lit("ANY")).alias("pilot_type"),
+                            pl.col("nQueue").fill_null(0),
+                            pl.col("nReady").fill_null(0),
+                            pl.col("nRunning").fill_null(0),
+                            pl.col("nNewWorkers").fill_null(0),
+                            pl.col("n_jobs").fill_null(0),
+                        ]
+                    )
+                    .select(
+                        # Drop the temporary *_right columns after coalesce
+                        pl.all().exclude(["resource_type_right", "pilot_type_right"])
+                    )
                 )
                 # tmp_log.debug(f"DEBUG: joined_df shape: {joined_df.shape}")
                 # tmp_log.debug(f"DEBUG: joined_df columns: {joined_df.columns}")
