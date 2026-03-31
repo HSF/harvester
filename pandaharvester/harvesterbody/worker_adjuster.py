@@ -326,7 +326,7 @@ class WorkerAdjuster(object):
                 queue_dict = panda_queues_dict.get(queue_name, {})
 
                 # prioritized prod_source_labels for pilot submission
-                prioritized_pslabels = queue_config.get("prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
+                prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
                 prioritized_pilot_types = [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
 
                 tmp_new_workers_df = (
@@ -385,13 +385,14 @@ class WorkerAdjuster(object):
                 ).with_columns(
                     [
                         pl.col("queue_name").fill_null(pl.lit(queue_name)),
+                        pl.col("job_type").fill_null(DEFAULT_JOB_TYPE),
                         pl.col("resource_type").fill_null(pl.lit("ANY")),
                         pl.col("pilot_type").fill_null(pl.lit("ANY")),
                         pl.col("nQueue").fill_null(0),
                         pl.col("nReady").fill_null(0),
                         pl.col("nRunning").fill_null(0),
                         pl.col("nNewWorkers").fill_null(0),
-                        pl.col("job_type").fill_null(DEFAULT_JOB_TYPE),
+                        pl.col("n_jobs").fill_null(0),
                     ]
                 )
                 # tmp_log.debug(f"DEBUG: joined_df shape: {joined_df.shape}")
@@ -405,7 +406,7 @@ class WorkerAdjuster(object):
                         pl.col("nReady").max(),
                         pl.col("nRunning").max(),
                         pl.col("nNewWorkers").max(),
-                        pl.col("n_jobs").fill_null(0).sum().alias("n_activated_jobs"),
+                        pl.col("n_jobs").sum().alias("n_activated_jobs"),
                     )
                     .sort(
                         [
