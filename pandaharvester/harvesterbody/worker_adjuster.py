@@ -568,6 +568,10 @@ class WorkerAdjuster(object):
                     worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
                 else:
                     tmp_log.warning("missing queue_config")
+                # prioritized prod_source_labels for pilot submission
+                prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
+                prioritized_pilot_types = [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
+                # get limits from queue config
                 max_workers = worker_limits_dict.get("maxWorkers", 0)
                 n_queue_limit = worker_limits_dict.get("nQueueLimitWorker", 0)
                 n_queue_limit_per_rt = n_queue_limit
@@ -796,8 +800,8 @@ class WorkerAdjuster(object):
                                 dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = n_new_workers
                                 _rt_list[2] = remainder
                                 _countdown -= n_new_workers
-                            _s_list = sorted(simple_rt_nw_list, key=(lambda x: x[1]))
-                            sorted_rt_nw_list = sorted(_s_list, key=(lambda x: x[2]), reverse=True)
+                            # sort by pilot_type (favor prioritized), then by remainder (descending), then by original n_new_workers (favor smaller ones)
+                            sorted_rt_nw_list = sorted(simple_rt_nw_list, key=(lambda x: (x[0][2] not in prioritized_pilot_types, -x[2], x[1])))
                             for (resource_type, job_type, pilot_type), n_new_workers_orig, remainder in sorted_rt_nw_list:
                                 if _countdown <= 0:
                                     break
