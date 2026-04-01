@@ -800,8 +800,8 @@ class WorkerAdjuster(object):
                                 dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = n_new_workers
                                 _rt_list[2] = remainder
                                 _countdown -= n_new_workers
-                            # sort by pilot_type (favor prioritized), then by remainder (descending), then by original n_new_workers (favor smaller ones)
-                            sorted_rt_nw_list = sorted(simple_rt_nw_list, key=(lambda x: (x[0][2] not in prioritized_pilot_types, -x[2], x[1])))
+                            # sort by whether n_new_workers_orig > 0 (favor positive over 0), then by pilot_type (favor prioritized), then by remainder (descending), then by original n_new_workers (favor smaller ones)
+                            sorted_rt_nw_list = sorted(simple_rt_nw_list, key=(lambda x: (not (x[1] > 0), x[0][2] not in prioritized_pilot_types, -x[2], x[1])))
                             for (resource_type, job_type, pilot_type), n_new_workers_orig, remainder in sorted_rt_nw_list:
                                 if _countdown <= 0:
                                     break
