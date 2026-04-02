@@ -824,6 +824,26 @@ class WorkerAdjuster(object):
 
             # dump
             tmp_log.debug(f"defined {str(dyn_num_workers)}")
+            # print result in table
+            dyn_num_workers_rows = []
+            for queue_name, job_types in dyn_num_workers.items():
+                for job_type, resource_types in job_types.items():
+                    for resource_type, pilot_types in resource_types.items():
+                        for pilot_type, worker_data in pilot_types.items():
+                            dyn_num_workers_rows.append(
+                                {
+                                    "queue_name": queue_name,
+                                    "job_type": job_type,
+                                    "resource_type": resource_type,
+                                    "pilot_type": pilot_type,
+                                    "nQueue": worker_data.get("nQueue", 0),
+                                    "nReady": worker_data.get("nReady", 0),
+                                    "nRunning": worker_data.get("nRunning", 0),
+                                    "nNewWorkers": worker_data.get("nNewWorkers", 0),
+                                }
+                            )
+            result_df = pl.DataFrame(dyn_num_workers_rows).select(pl.all().exclude(["queue_name"]))
+            tmp_log.debug(f"result_df:\n{result_df}")
             return dyn_num_workers
         except Exception:
             # dump error
