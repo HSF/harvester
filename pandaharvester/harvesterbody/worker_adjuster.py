@@ -842,21 +842,24 @@ class WorkerAdjuster(object):
                                     "nNewWorkers": worker_data.get("nNewWorkers", 0),
                                 }
                             )
-            result_df = (
-                pl.DataFrame(dyn_num_workers_rows)
-                .select(pl.all().exclude(["queue_name"]))
-                .sort(
-                    [
-                        pl.when(pl.col("job_type") == "ANY").then(1).otherwise(0),
-                        "job_type",
-                        pl.when(pl.col("resource_type") == "ANY").then(1).otherwise(0),
-                        "resource_type",
-                        pl.when(pl.col("pilot_type") == "ANY").then(2).when(pl.col("pilot_type") == DEFAULT_PILOT_TYPE).then(0).otherwise(1),
-                        "pilot_type",
-                    ]
+            if dyn_num_workers_rows:
+                result_df = (
+                    pl.DataFrame(dyn_num_workers_rows)
+                    .select(pl.all().exclude(["queue_name"]))
+                    .sort(
+                        [
+                            pl.when(pl.col("job_type") == "ANY").then(1).otherwise(0),
+                            "job_type",
+                            pl.when(pl.col("resource_type") == "ANY").then(1).otherwise(0),
+                            "resource_type",
+                            pl.when(pl.col("pilot_type") == "ANY").then(2).when(pl.col("pilot_type") == DEFAULT_PILOT_TYPE).then(0).otherwise(1),
+                            "pilot_type",
+                        ]
+                    )
                 )
-            )
-            tmp_log.debug(f"result_df:\n{result_df}")
+                tmp_log.debug(f"result_df:\n{result_df}")
+            else:
+                tmp_log.debug("result_df: nothing to display")
             return dyn_num_workers
         except Exception:
             # dump error
