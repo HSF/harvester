@@ -747,7 +747,7 @@ class WorkerAdjuster(object):
                                 tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect universal maxNewWorkers")
                             dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = n_new_workers
 
-                # adjust n_new_workers for UCORE to let aggregations over RT respect nQueueLimitWorker and max_workers
+                # adjust n_new_workers for UCORE to let aggregations over rtype respect nQueueLimitWorker and max_workers
                 if queue_config is None:
                     max_new_workers_per_cycle = 0
                     ret_msg = "set max_new_workers_per_cycle=0 in UCORE aggregation due to missing queue_config"
@@ -814,7 +814,7 @@ class WorkerAdjuster(object):
                                 for pilot_type in dyn_num_workers[queue_name][job_type][resource_type]:
                                     n_new_workers = dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"]
                                     tmp_log.debug(
-                                        f"setting n_new_workers to {n_new_workers} of job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} in order to respect RT aggregations for UCORE"
+                                        f"setting n_new_workers to {n_new_workers} of job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} in order to respect rtype aggregations for UCORE"
                                     )
 
                 if not apf_msg:
