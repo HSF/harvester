@@ -322,17 +322,16 @@ class WorkerAdjuster(object):
             rt_mapper = ResourceTypeMapper()
 
             for queue_name in static_num_workers:
+                queue_dict = panda_queues_dict.get(queue_name, {})
                 queue_config = self.queue_configMapper.get_queue(queue_name)
 
-                # protection against not-up-to-date queue config
-                if queue_config is None:
-                    tmp_log.debug(f"skipping queue {queue_name} due to missing queue_config in preprocessing loop")
-                    continue
-
-                queue_dict = panda_queues_dict.get(queue_name, {})
-
                 # prioritized prod_source_labels for pilot submission
-                prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
+                prioritized_pslabels = DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS
+                if queue_config:
+                    prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
+                else:
+                    tmp_log.warning(f"missing queue_config for queue: {queue_name}")
+
                 prioritized_pilot_types = [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
 
                 tmp_new_workers_df = (
@@ -573,7 +572,7 @@ class WorkerAdjuster(object):
                 if queue_config:
                     worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
                 else:
-                    tmp_log.warning("missing queue_config")
+                    tmp_log.warning(f"missing queue_config for queue: {queue_name}")
                 # prioritized prod_source_labels for pilot submission
                 prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
                 prioritized_pilot_types = [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
