@@ -23,7 +23,7 @@ setup(
     author="Panda Team",
     author_email="atlas-adc-panda@cern.ch",
     url="https://github.com/PanDAWMS/panda-harvester/wiki",
-    python_requires=">=2.7",
+    python_requires=">=3.10",
     packages=find_packages(),
     install_requires=[
         "requests",

@@ -1750,6 +1750,20 @@ class DBProxy(object):
                     sql_count_workers_tmp += "GROUP BY pilotType, status "
                     self.execute(sql_count_workers_tmp, varMap)
 
+                    # count nFillers once per queue/jobType/resourceType combination
+                    varMap = dict()
+                    varMap[":computingSite"] = queueName
+                    varMap[":status"] = WorkSpec.ST_running
+                    sql_count_refillers_tmp = sql_count_refillers
+                    if jobType != "ANY":
+                        varMap[":jobType"] = jobType
+                        sql_count_refillers_tmp += "AND jobType=:jobType "
+                    if resourceType != "ANY":
+                        varMap[":resourceType"] = resourceType
+                        sql_count_refillers_tmp += "AND resourceType=:resourceType "
+                    self.execute(sql_count_refillers_tmp, varMap)
+                    (nReFill,) = self.cur.fetchone()
+
                     # Initialize nested dict structure before the loop
                     retMap.setdefault(queueName, {})
                     retMap[queueName].setdefault(jobType, {})
@@ -1767,21 +1781,6 @@ class DBProxy(object):
                         elif workerStatus in [WorkSpec.ST_running]:
                             nRunning += tmpNum
 
-                        # count nFillers
-                        varMap = dict()
-                        varMap[":computingSite"] = queueName
-                        varMap[":status"] = WorkSpec.ST_running
-                        sql_count_refillers_tmp = sql_count_refillers
-                        if jobType != "ANY":
-                            varMap[":jobType"] = jobType
-                            sql_count_refillers_tmp += "AND jobType=:jobType "
-                        if resourceType != "ANY":
-                            varMap[":resourceType"] = resourceType
-                            sql_count_refillers_tmp += "AND resourceType=:resourceType "
-                        self.execute(sql_count_refillers_tmp, varMap)
-                        (nReFill,) = self.cur.fetchone()
-                        nReady += nReFill
-
                         # Initialize or update pilot type entry
                         if pilotType not in retMap[queueName][jobType][resourceType]:
                             retMap[queueName][jobType][resourceType][pilotType] = {
@@ -1797,6 +1796,9 @@ class DBProxy(object):
                         retMap[queueName][jobType][resourceType]["ANY"]["nReady"] += nReady
                         retMap[queueName][jobType][resourceType]["ANY"]["nRunning"] += nRunning
                         retMap[queueName][jobType][resourceType]["ANY"]["nQueue"] += nQueue
+
+                    # Add refiller count once to the ANY pilotType entry
+                    retMap[queueName][jobType][resourceType]["ANY"]["nReady"] += nReFill
 
                     # set nNewWorkers only in ANY pilotType
                     retMap[queueName][jobType][resourceType]["ANY"]["nNewWorkers"] = nNewWorkers

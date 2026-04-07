@@ -209,7 +209,13 @@ class Submitter(AgentBase):
                                         continue
                                     # make workers
                                     okChunks, ngChunks = self.workerMaker.make_workers(
-                                        jobChunks, queue_config, nReady, job_type, resource_type, prod_source_label=prod_source_label, maker=workerMakerCore
+                                        jobChunks,
+                                        queue_config,
+                                        nReady,
+                                        job_type,
+                                        resource_type,
+                                        prod_source_label=prod_source_label,
+                                        maker=workerMakerCore,
                                     )
 
                                     if len(ngChunks) == 0:

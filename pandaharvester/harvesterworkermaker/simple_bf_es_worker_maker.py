@@ -17,6 +17,7 @@ _logger = core_utils.setup_logger("simple_bf_worker_maker")
 
 class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
     """Worker maker plugin for simple backfill event service workers."""
+
     # constructor
     def __init__(self, **kwarg):
         self.jobAttributesToUse = ["nCore", "minRamCount", "maxDiskCount", "maxWalltime"]
@@ -26,7 +27,7 @@ class SimpleBackfillESWorkerMaker(BaseWorkerMaker):
         self.dyn_resources = None
 
     # make a worker from jobs
-    def make_worker(self, jobspec_list, queue_config, job_type, resource_type):
+    def make_worker(self, jobspec_list, queue_config, job_type, resource_type, **kwargs):
         tmpLog = self.make_logger(_logger, f"queue={queue_config.queueName}", method_name="make_worker")
 
         tmpLog.debug(f"jobspec_list: {jobspec_list}")

@@ -323,6 +323,12 @@ class WorkerAdjuster(object):
 
             for queue_name in static_num_workers:
                 queue_config = self.queue_configMapper.get_queue(queue_name)
+
+                # protection against not-up-to-date queue config
+                if queue_config is None:
+                    tmp_log.debug(f"skipping queue {queue_name} due to missing queue_config in preprocessing loop")
+                    continue
+
                 queue_dict = panda_queues_dict.get(queue_name, {})
 
                 # prioritized prod_source_labels for pilot submission
