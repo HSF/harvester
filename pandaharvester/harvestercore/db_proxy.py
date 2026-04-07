@@ -1749,6 +1749,8 @@ class DBProxy(object):
                         sql_count_workers_tmp += "AND resourceType=:resourceType "
                     sql_count_workers_tmp += "GROUP BY pilotType, status "
                     self.execute(sql_count_workers_tmp, varMap)
+                    # Fetch worker count results BEFORE executing any other query to preserve cursor state
+                    resW = self.cur.fetchall()
 
                     # count nFillers once per queue/jobType/resourceType combination
                     varMap = dict()
@@ -1770,7 +1772,7 @@ class DBProxy(object):
                     retMap[queueName][jobType].setdefault(resourceType, {})
                     retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
 
-                    for pilotType, workerStatus, tmpNum in self.cur.fetchall():
+                    for pilotType, workerStatus, tmpNum in resW:
                         nQueue = 0
                         nReady = 0
                         nRunning = 0
