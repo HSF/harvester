@@ -67,13 +67,13 @@ class JobFetcher(AgentBase):
                 if n_jobs == 0:
                     tmpLog.debug("no job to fetch; skip")
                     continue
-                # prodsourcelabel
+                # prod_source_label
                 try:
                     is_grandly_unified_queue = pandaQueueDict.is_grandly_unified_queue(siteName)
                 except Exception:
                     is_grandly_unified_queue = False
                 default_prodSourceLabel = queueConfig.get_source_label(is_gu=is_grandly_unified_queue)
-                # randomize prodsourcelabel if configured
+                # randomize prod_source_label if configured
                 pdpm = getattr(queueConfig, "prodSourceLabelRandomWeightsPermille", {})
                 choice_list = core_utils.make_choice_list(pdpm=pdpm, default=default_prodSourceLabel)
                 prodSourceLabel = random.choice(choice_list)

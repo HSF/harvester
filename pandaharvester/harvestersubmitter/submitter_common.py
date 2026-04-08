@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple
 # and piloturl (pilot option --piloturl) for pilot 2
 
 
-def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version="", prod_source_label=None, prod_rc_permille=0):
+def get_complicated_pilot_options(pilot_type, pilot_url=None, pilot_version="", prod_source_label="ANY", prod_rc_permille=0):
     # for pilot 3
     is_pilot3 = True if pilot_version.startswith("3") else False
     # basic map
