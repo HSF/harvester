@@ -413,30 +413,61 @@ class WorkerAdjuster(object):
                 # tmp_log.debug(f"DEBUG: joined_df columns: {joined_df.columns}")
                 # tmp_log.debug(f"DEBUG: joined_df:\n{joined_df}")
 
-                tmp_master_df = (
-                    joined_df.group_by(["queue_name", "job_type", "resource_type", "pilot_type"])
-                    .agg(
-                        pl.col("nQueue").max(),
-                        pl.col("nReady").max(),
-                        pl.col("nRunning").max(),
-                        pl.col("nNewWorkers").max(),
-                        pl.col("n_jobs").sum().alias("n_activated_jobs"),
-                    )
-                    .sort(
-                        [
-                            "queue_name",
-                            pl.when(pl.col("job_type") == "ANY").then(1).otherwise(0),
-                            "job_type",
-                            pl.when(pl.col("resource_type") == "ANY").then(1).otherwise(0),
-                            "resource_type",
-                            pl.when(pl.col("pilot_type") == "ANY").then(2).when(pl.col("pilot_type") == DEFAULT_PILOT_TYPE).then(0).otherwise(1),
-                            "pilot_type",
-                        ]
-                    )
+                tmp_master_df = joined_df.group_by(["queue_name", "job_type", "resource_type", "pilot_type"]).agg(
+                    pl.col("nQueue").max(),
+                    pl.col("nReady").max(),
+                    pl.col("nRunning").max(),
+                    pl.col("nNewWorkers").max(),
+                    pl.col("n_jobs").sum().alias("n_activated_jobs"),
                 )
+
+                # ensure DEFAULT_PILOT_TYPE exists in static_num_workers and master_df for all (job_type, resource_type) pairs
+                for job_type in static_num_workers[queue_name]:
+                    for resource_type in static_num_workers[queue_name][job_type]:
+                        # add to static_num_workers
+                        static_num_workers[queue_name][job_type][resource_type].setdefault(
+                            DEFAULT_PILOT_TYPE, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
+                        )
+                        # add to master_df if not exists
+                        default_pt_exists = (
+                            tmp_master_df.filter(
+                                (pl.col("queue_name") == queue_name)
+                                & (pl.col("job_type") == job_type)
+                                & (pl.col("resource_type") == resource_type)
+                                & (pl.col("pilot_type") == DEFAULT_PILOT_TYPE)
+                            ).shape[0]
+                            > 0
+                        )
+                        if not default_pt_exists:
+                            new_row = pl.DataFrame(
+                                {
+                                    "queue_name": [queue_name],
+                                    "job_type": [job_type],
+                                    "resource_type": [resource_type],
+                                    "pilot_type": [DEFAULT_PILOT_TYPE],
+                                    "nQueue": [0],
+                                    "nReady": [0],
+                                    "nRunning": [0],
+                                    "nNewWorkers": [0],
+                                    "n_activated_jobs": [0],
+                                }
+                            )
+                            tmp_master_df = pl.concat([tmp_master_df, new_row])
+
+                tmp_master_df = tmp_master_df.sort(
+                    [
+                        "queue_name",
+                        pl.when(pl.col("job_type") == "ANY").then(1).otherwise(0),
+                        "job_type",
+                        pl.when(pl.col("resource_type") == "ANY").then(1).otherwise(0),
+                        "resource_type",
+                        pl.when(pl.col("pilot_type") == "ANY").then(2).when(pl.col("pilot_type") == DEFAULT_PILOT_TYPE).then(0).otherwise(1),
+                        "pilot_type",
+                    ]
+                )
+
                 # tmp_log.debug(f"master_df: \n{tmp_master_df}")
                 master_df = tmp_master_df.clone()
-
                 tmp_static_num_workers = copy.deepcopy(static_num_workers)
 
                 # update tmp_static_num_workers with tmp_master_df
@@ -523,10 +554,7 @@ class WorkerAdjuster(object):
                                         f"Set initial nNewWorkers to {calculated_n_new_workers} for queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type}"
                                     )
                         if remaining_n_new_workers > 0:
-                            # add remaining n_new_workers to DEFAULT_PILOT_TYPE PR
-                            tmp_static_num_workers[queue_name][job_type][resource_type].setdefault(
-                                DEFAULT_PILOT_TYPE, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
-                            )
+                            # allocate remaining n_new_workers to DEFAULT_PILOT_TYPE PR
                             tmp_static_num_workers[queue_name][job_type][resource_type][DEFAULT_PILOT_TYPE]["nNewWorkers"] += remaining_n_new_workers
                             static_num_workers[queue_name].setdefault(job_type, {}).setdefault(resource_type, {}).setdefault(
                                 DEFAULT_PILOT_TYPE, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
