@@ -26,6 +26,7 @@ pl.Config.set_tbl_hide_column_data_types(True)
 pl.Config.set_tbl_rows(-1)
 pl.Config.set_tbl_cols(-1)
 pl.Config.set_tbl_width_chars(140)
+pl.Config.set_tbl_cell_numeric_alignment("RIGHT")
 
 
 # class to define number of workers to submit
