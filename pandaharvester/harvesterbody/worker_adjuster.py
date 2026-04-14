@@ -422,38 +422,57 @@ class WorkerAdjuster(object):
                 )
 
                 # ensure DEFAULT_PILOT_TYPE exists in static_num_workers and master_df for all (job_type, resource_type) pairs
+                required_default_rows = []
                 for job_type in static_num_workers[queue_name]:
                     for resource_type in static_num_workers[queue_name][job_type]:
                         # add to static_num_workers
                         static_num_workers[queue_name][job_type][resource_type].setdefault(
                             DEFAULT_PILOT_TYPE, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
                         )
-                        # add to master_df if not exists
-                        default_pt_exists = (
-                            tmp_master_df.filter(
-                                (pl.col("queue_name") == queue_name)
-                                & (pl.col("job_type") == job_type)
-                                & (pl.col("resource_type") == resource_type)
-                                & (pl.col("pilot_type") == DEFAULT_PILOT_TYPE)
-                            ).shape[0]
-                            > 0
+                        required_default_rows.append(
+                            {
+                                "queue_name": queue_name,
+                                "job_type": job_type,
+                                "resource_type": resource_type,
+                            }
                         )
-                        if not default_pt_exists:
-                            new_row = pl.DataFrame(
-                                {
-                                    "queue_name": [queue_name],
-                                    "job_type": [job_type],
-                                    "resource_type": [resource_type],
-                                    "pilot_type": [DEFAULT_PILOT_TYPE],
-                                    "nQueue": [0],
-                                    "nReady": [0],
-                                    "nRunning": [0],
-                                    "nNewWorkers": [0],
-                                    "n_activated_jobs": [0],
-                                }
-                            )
-                            tmp_master_df = pl.concat([tmp_master_df, new_row])
 
+                if required_default_rows:
+                    required_default_df = pl.DataFrame(required_default_rows)
+                    existing_default_df = (
+                        tmp_master_df.filter((pl.col("queue_name") == queue_name) & (pl.col("pilot_type") == DEFAULT_PILOT_TYPE))
+                        .select(["queue_name", "job_type", "resource_type"])
+                        .unique()
+                    )
+                    missing_default_df = required_default_df.join(
+                        existing_default_df,
+                        on=["queue_name", "job_type", "resource_type"],
+                        how="anti",
+                    )
+                    if missing_default_df.height > 0:
+                        missing_default_df = missing_default_df.with_columns(
+                            [
+                                pl.lit(DEFAULT_PILOT_TYPE).alias("pilot_type"),
+                                pl.lit(0).alias("nQueue"),
+                                pl.lit(0).alias("nReady"),
+                                pl.lit(0).alias("nRunning"),
+                                pl.lit(0).alias("nNewWorkers"),
+                                pl.lit(0).alias("n_activated_jobs"),
+                            ]
+                        ).select(
+                            [
+                                "queue_name",
+                                "job_type",
+                                "resource_type",
+                                "pilot_type",
+                                "nQueue",
+                                "nReady",
+                                "nRunning",
+                                "nNewWorkers",
+                                "n_activated_jobs",
+                            ]
+                        )
+                        tmp_master_df = pl.concat([tmp_master_df, missing_default_df])
                 tmp_master_df = tmp_master_df.sort(
                     [
                         "queue_name",
