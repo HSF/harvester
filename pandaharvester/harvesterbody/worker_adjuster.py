@@ -632,7 +632,6 @@ class WorkerAdjuster(object):
                 joined_df = self._join_workers_activated_dfs(activated_df, tmp_new_workers_df, queue_name, tmp_log)
 
                 tmp_master_df = self._build_master_df(joined_df, queue_name, static_num_workers, tmp_log)
-
                 master_df = tmp_master_df.clone()
                 tmp_static_num_workers = copy.deepcopy(static_num_workers)
 
@@ -926,10 +925,6 @@ class WorkerAdjuster(object):
                     apf_data = copy.deepcopy(dyn_num_workers[queue_name])
 
                 self.apf_mon.update_label(queue_name, apf_msg, apf_data)
-
-            # dump
-            tmp_log.debug(f"defined {str(dyn_num_workers)}")
-            # print result in table
 
             # dump
             tmp_log.debug(f"defined {str(dyn_num_workers)}")
