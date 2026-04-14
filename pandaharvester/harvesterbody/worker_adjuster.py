@@ -361,11 +361,11 @@ class WorkerAdjuster(object):
                 missing_default_df = missing_default_df.with_columns(
                     [
                         pl.lit(DEFAULT_PILOT_TYPE).alias("pilot_type"),
-                        pl.lit(0).alias("nQueue"),
-                        pl.lit(0).alias("nReady"),
-                        pl.lit(0).alias("nRunning"),
-                        pl.lit(0).alias("nNewWorkers"),
-                        pl.lit(0).alias("n_activated_jobs"),
+                        pl.lit(0, dtype=pl.Int64).alias("nQueue"),
+                        pl.lit(0, dtype=pl.Int64).alias("nReady"),
+                        pl.lit(0, dtype=pl.Int64).alias("nRunning"),
+                        pl.lit(0, dtype=pl.Int64).alias("nNewWorkers"),
+                        pl.lit(0, dtype=pl.Int64).alias("n_activated_jobs"),
                     ]
                 ).select(
                     [
