@@ -169,6 +169,8 @@ class IamTokenCredManager(BaseCredManager):
                                 target_attr_dict = {
                                     "ce_flavour": ce_flavour,
                                 }
+                                if ce_flavour_str == "arc-ce":
+                                    target_attr_dict["ce_hostname"] = ce_hostname
                                 self.targets_dict[ce_endpoint_modified] = target_attr_dict
                     else:
                         # do not generate token if no queues of CE
@@ -229,7 +231,22 @@ class IamTokenCredManager(BaseCredManager):
                     tmp_log.debug(f"token for {target} at {token_path} still fresh; skipped")
                 else:
                     # renew access token of target
-                    access_token = self.issuer_broker.get_access_token(aud=target, scope=self.scope)
+                    target_attr = self.targets_dict.get(target, {})
+                    ce_flavour = target_attr.get("ce_flavour")
+                    aud = target
+                    if ce_flavour and str(ce_flavour).lower() == "arc-ce":
+                        # special handling of aud for ARC CE
+                        ce_hostname = target_attr.get("ce_hostname")
+                        if ce_hostname:
+                            # Extract port from target
+                            port_match = re.search(r":(\d+)$", target)
+                            default_port = default_port_map.get("arc-ce", 443)
+                            port = int(port_match.group(1)) if port_match else default_port
+                            if port == default_port:
+                                aud = f"https://{ce_hostname}"
+                            else:
+                                aud = f"https://{ce_hostname}:{port}"
+                    access_token = self.issuer_broker.get_access_token(aud=aud, scope=self.scope)
                     with open(token_path, "w") as f:
                         f.write(access_token)
                     tmp_log.info(f"renewed token for {target} at {token_path}")
