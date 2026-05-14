@@ -156,11 +156,12 @@ class IamTokenCredManager(BaseCredManager):
                             #     # skip disabled ce queues
                             #     continue
                             ce_endpoint = ce_q.get("ce_endpoint")
-                            ce_hostname = re.sub(":\w*", "", ce_endpoint)
+                            ce_endpoint_no_scheme = re.sub(r"^\w+://", "", ce_endpoint or "")
+                            ce_hostname = re.sub(r":\w*$", "", ce_endpoint_no_scheme)
                             ce_flavour = ce_q.get("ce_flavour")
                             ce_flavour_str = str(ce_flavour).lower()
-                            ce_endpoint_modified = ce_endpoint
-                            if ce_endpoint == ce_hostname:
+                            ce_endpoint_modified = ce_endpoint_no_scheme
+                            if ce_endpoint_no_scheme == ce_hostname:
                                 # no port, add default port
                                 if ce_flavour_str in default_port_map:
                                     default_port = default_port_map[ce_flavour_str]
