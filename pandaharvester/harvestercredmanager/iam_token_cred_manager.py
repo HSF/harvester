@@ -239,10 +239,12 @@ class IamTokenCredManager(BaseCredManager):
                         # special handling of aud for ARC CE
                         ce_hostname = target_attr.get("ce_hostname")
                         if ce_hostname:
-                            # Extract port from target
+                            # Extract port from target; normalize GridFTP port 2811 to HTTPS/REST port 443
                             port_match = re.search(r":(\d+)$", target)
                             default_port = default_port_map.get("arc-ce", 443)
                             port = int(port_match.group(1)) if port_match else default_port
+                            if port == 2811:
+                                port = default_port
                             if port == default_port:
                                 aud = f"https://{ce_hostname}"
                             else:
