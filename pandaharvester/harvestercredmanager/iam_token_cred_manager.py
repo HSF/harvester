@@ -156,11 +156,12 @@ class IamTokenCredManager(BaseCredManager):
                             #     # skip disabled ce queues
                             #     continue
                             ce_endpoint = ce_q.get("ce_endpoint")
-                            ce_hostname = re.sub(":\w*", "", ce_endpoint)
+                            ce_endpoint_no_scheme = re.sub(r"^\w+://", "", ce_endpoint or "")
+                            ce_hostname = re.sub(r":\w*$", "", ce_endpoint_no_scheme)
                             ce_flavour = ce_q.get("ce_flavour")
                             ce_flavour_str = str(ce_flavour).lower()
-                            ce_endpoint_modified = ce_endpoint
-                            if ce_endpoint == ce_hostname:
+                            ce_endpoint_modified = ce_endpoint_no_scheme
+                            if ce_endpoint_no_scheme == ce_hostname:
                                 # no port, add default port
                                 if ce_flavour_str in default_port_map:
                                     default_port = default_port_map[ce_flavour_str]
@@ -169,6 +170,8 @@ class IamTokenCredManager(BaseCredManager):
                                 target_attr_dict = {
                                     "ce_flavour": ce_flavour,
                                 }
+                                if ce_flavour_str == "arc-ce":
+                                    target_attr_dict["ce_hostname"] = ce_hostname
                                 self.targets_dict[ce_endpoint_modified] = target_attr_dict
                     else:
                         # do not generate token if no queues of CE
@@ -229,7 +232,24 @@ class IamTokenCredManager(BaseCredManager):
                     tmp_log.debug(f"token for {target} at {token_path} still fresh; skipped")
                 else:
                     # renew access token of target
-                    access_token = self.issuer_broker.get_access_token(aud=target, scope=self.scope)
+                    target_attr = self.targets_dict.get(target, {})
+                    ce_flavour = target_attr.get("ce_flavour")
+                    aud = target
+                    if ce_flavour and str(ce_flavour).lower() == "arc-ce":
+                        # special handling of aud for ARC CE
+                        ce_hostname = target_attr.get("ce_hostname")
+                        if ce_hostname:
+                            # Extract port from target; normalize GridFTP port 2811 to HTTPS/REST port 443
+                            port_match = re.search(r":(\d+)$", target)
+                            default_port = default_port_map.get("arc-ce", 443)
+                            port = int(port_match.group(1)) if port_match else default_port
+                            if port == 2811:
+                                port = default_port
+                            if port == default_port:
+                                aud = f"https://{ce_hostname}"
+                            else:
+                                aud = f"https://{ce_hostname}:{port}"
+                    access_token = self.issuer_broker.get_access_token(aud=aud, scope=self.scope)
                     with open(token_path, "w") as f:
                         f.write(access_token)
                     tmp_log.info(f"renewed token for {target} at {token_path}")
