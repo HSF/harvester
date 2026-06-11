@@ -61,6 +61,11 @@ class QueueConfig(object):
         self.uniqueName = None
         self.configID = None
         self.initEventsMultipler = 2
+        self.masterQueue = None
+
+    @property
+    def is_subqueue(self):
+        return self.masterQueue is not None
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -174,6 +179,16 @@ class QueueConfigMapper(metaclass=SingletonWithID):
     updatable_plugin_attrs = set(
         ["common", "messenger", "monitor", "preparator", "stager", "submitter", "sweeper", "workerMaker", "throttler", "zipper", "aux_preparator", "extractor"]
     )
+
+    @staticmethod
+    def _deep_update(base, override):
+        """Recursively merge override into base (in-place). override wins on key conflicts."""
+        for k, v in override.items():
+            if k in base and isinstance(base[k], dict) and isinstance(v, dict):
+                QueueConfigMapper._deep_update(base[k], v)
+            else:
+                base[k] = v
+        return base
 
     # constructor
     def __init__(self, update_db=True):
@@ -455,8 +470,18 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             allQueuesNameList |= set(dynamicQueuesDict)
             allQueuesNameList |= set(localQueuesDict)
             allQueuesNameList.discard(None)
-            # set attributes
+            # identify subqueues so masters are processed first
+            subqueue_set = set()
             for queueName in allQueuesNameList:
+                for queuesDict in [remoteQueuesDict, dynamicQueuesDict, localQueuesDict]:
+                    if queueName in queuesDict and queuesDict[queueName].get("masterQueue"):
+                        subqueue_set.add(queueName)
+                        break
+            orderedQueueNameList = [q for q in allQueuesNameList if q not in subqueue_set] + [q for q in allQueuesNameList if q in subqueue_set]
+            # store resolved raw queueDicts for subqueue inheritance
+            resolvedQueueDicts = {}
+            # set attributes
+            for queueName in orderedQueueNameList:
                 # sources or queues and templates
                 queueSourceList = []
                 templateSourceList = []
@@ -489,6 +514,23 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                             queueDict[key].update(val)
                         else:
                             queueDict[key] = val
+                # apply subqueue inheritance: deep-merge master's resolved dict before creating QueueConfig
+                masterQueueName = queueDict.get("masterQueue")
+                if masterQueueName:
+                    if masterQueueName not in resolvedQueueDicts:
+                        mainLog.error(f'masterQueue "{masterQueueName}" not found for subqueue "{queueName}". Skipped')
+                        invalidQueueList.add(queueName)
+                        continue
+                    if resolvedQueueDicts[masterQueueName].get("masterQueue"):
+                        mainLog.error(f'masterQueue "{masterQueueName}" is itself a subqueue; nested subqueues are not allowed. Skipped "{queueName}"')
+                        invalidQueueList.add(queueName)
+                        continue
+                    merged = copy.deepcopy(resolvedQueueDicts[masterQueueName])
+                    self._deep_update(merged, queueDict)
+                    queueDict = merged
+                    mainLog.debug(f"subqueue {queueName} inherits config from master {masterQueueName}")
+                # store resolved queueDict for potential subqueue children
+                resolvedQueueDicts[queueName] = copy.deepcopy(queueDict)
                 # record sources of the queue config and its templates in log
                 if templateQueueName:
                     mainLog.debug(

@@ -27,6 +27,7 @@ class PandaQueueSpec(SpecBase):
         "nQueueLimitWorkerRatio:integer",
         "nQueueLimitWorkerMax:integer",
         "nQueueLimitWorkerMin:integer",
+        "masterQueue:text",
     )
 
     # catchall resource type

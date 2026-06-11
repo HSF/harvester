@@ -60,6 +60,10 @@ class JobFetcher(AgentBase):
                 tmpLog = self.make_logger(_logger, f"queueName={queueName}", method_name="run")
                 # get queue
                 queueConfig = self.queueConfigMapper.get_queue(queueName)
+                # subqueues do not fetch jobs independently
+                if queueConfig.is_subqueue:
+                    tmpLog.debug("subqueue; skip job fetching")
+                    continue
                 siteName = queueConfig.siteName
                 # upper limit
                 if n_jobs > harvester_config.jobfetcher.maxJobs:

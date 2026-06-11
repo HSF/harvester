@@ -262,6 +262,8 @@ class Submitter(AgentBase):
                                             work_spec.mapType = queue_config.mapType
                                             # queue name
                                             work_spec.computingSite = queue_config.queueName
+                                            # master queue for subqueues
+                                            work_spec.masterQueue = queue_config.masterQueue
                                             # set access point
                                             work_spec.accessPoint = queue_config.messenger["accessPoint"]
                                             # sync level

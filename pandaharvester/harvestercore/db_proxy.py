@@ -930,6 +930,7 @@ class DBProxy(object):
                             "nQueueLimitWorkerRatio",
                             "nQueueLimitWorkerMax",
                             "nQueueLimitWorkerMin",
+                            "masterQueue",
                         ]:
                             if hasattr(queueConfig, qAttr):
                                 sqlU += "{0}=:{0},".format(qAttr)
