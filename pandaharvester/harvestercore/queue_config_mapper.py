@@ -573,11 +573,15 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                         else:
                             del _t3mP_1Mp0R7_mO6U1e__
                             del _t3mP_1Mp0R7_N4m3__
-                        # fill in siteName and queueName
+                        # fill in siteName, queueName, and masterQueue
                         if "siteName" not in val:
                             val["siteName"] = queueConfig.siteName
                         if "queueName" not in val:
                             val["queueName"] = queueConfig.queueName
+                        if "masterQueue" not in val:
+                            master_q = queueDict.get("masterQueue")
+                            if master_q is not None:
+                                val["masterQueue"] = master_q
                         # middleware
                         if "middleware" in val and val["middleware"] in queueDict:
                             # keep original config

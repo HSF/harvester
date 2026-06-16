@@ -500,6 +500,8 @@ class HTCondorSubmitter(PluginBase):
         self._allowed_cric_attr_prefixes = [
             "jdl.plusattr.",
         ]
+        # masterQueue for subqueue support
+        self.masterQueue = getattr(self, "masterQueue", None)
 
     # get CE statistics of a site
     def get_ce_statistics(self, site_name, queue_config, n_new_workers, time_window=21600):
