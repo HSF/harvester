@@ -3483,6 +3483,24 @@ class DBProxy(object):
             # return
             return []
 
+    # get the smallest command_id currently stored (None if the table is empty)
+    def get_min_command_id(self):
+        try:
+            # get logger
+            tmpLog = core_utils.make_logger(_logger, method_name="get_min_command_id")
+            tmpLog.debug("start")
+            sql = f"SELECT MIN(command_id) FROM {commandTableName} "
+            self.execute(sql)
+            res = self.cur.fetchone()
+            min_command_id = res[0] if res is not None else None
+            tmpLog.debug(f"min_command_id {min_command_id}")
+            return min_command_id
+        except Exception:
+            # dump error
+            core_utils.dump_error_message(_logger)
+            # return
+            return None
+
     def clean_commands_by_id(self, commands_ids):
         """
         Deletes the commands specified in a list of IDs
