@@ -374,11 +374,6 @@ class PandaCommunicator(BaseCommunicator):
                         job_dict["job_sub_status"] = job_dict["job_status"]
                     job_dict["job_status"] = "failed"
 
-                if job_spec.startTime is not None and "startTime" not in job_dict:
-                    job_dict["start_time"] = job_spec.startTime.strftime("%Y-%m-%d %H:%M:%S")
-                if job_spec.endTime is not None and "endTime" not in job_dict:
-                    job_dict["end_time"] = job_spec.endTime.strftime("%Y-%m-%d %H:%M:%S")
-
                 if "core_count" not in job_dict and job_spec.nCore is not None:
                     job_dict["core_count"] = job_spec.nCore
 

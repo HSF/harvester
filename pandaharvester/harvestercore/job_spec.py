@@ -462,6 +462,11 @@ class JobSpec(SpecBase):
         for job_attribute_name, job_attribute_value in self.jobAttributes.items():
             if job_attribute_name in panda_attributes:
                 clean_attribute_name = panda_attributes[job_attribute_name]
+
+                # convert start and end time to strings
+                if clean_attribute_name in ("start_time", "end_time") and isinstance(job_attribute_value, datetime.datetime):
+                    job_attribute_value = job_attribute_value.strftime("%Y-%m-%d %H:%M:%S")
+
                 data[clean_attribute_name] = job_attribute_value
 
         return data
