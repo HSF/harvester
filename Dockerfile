@@ -13,7 +13,7 @@ RUN yum-config-manager --enable crb
 
 RUN dnf install -y --allowerasing gcc make less git psmisc curl voms-clients-cpp wget httpd logrotate procps mod_ssl \
     openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel passwd voms-clients-java which mysql-devel mariadb \
-    sudo vim htop
+    sudo vim htop s-nail
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
