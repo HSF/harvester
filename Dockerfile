@@ -15,6 +15,15 @@ RUN dnf install -y --allowerasing gcc make less git psmisc curl voms-clients-cpp
     openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel passwd voms-clients-java which mysql-devel mariadb \
     sudo vim htop
 
+# headers for CPython optional stdlib extensions (_sqlite3, _lzma, ...); removed below
+RUN dnf install -y \
+        sqlite-devel \
+        xz-devel \
+        tk-devel \
+        gdbm-devel \
+        libuuid-devel \
+        ncurses-devel
+
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
@@ -23,7 +32,21 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     ./configure --enable-shared --enable-optimizations --with-lto && \
     make altinstall && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
-    cd / && rm -rf /tmp/pyton
+    cd / && rm -rf /tmp/python
+
+# fail early if an optional stdlib extension didn't compile
+RUN PYBIN=python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') && \
+    ${PYBIN} -c "import sqlite3, ssl, ctypes, bz2, lzma, zlib, uuid, readline"
+
+# drop build-only headers; runtime *-libs stay as dependencies
+RUN dnf remove -y \
+        sqlite-devel \
+        xz-devel \
+        tk-devel \
+        gdbm-devel \
+        libuuid-devel \
+        ncurses-devel && \
+    dnf clean all
 
 # install condor
 RUN mkdir -p /data/condor; cd /data/condor; \
