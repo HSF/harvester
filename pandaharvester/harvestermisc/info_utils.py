@@ -26,7 +26,20 @@ def to_refresh(func):
     return wrapped_func
 
 
-class CachedDictBase(dict, PluginBase, metaclass=SingletonWithID):
+class SingletonWithCacherKey(SingletonWithID):
+    """
+    Singleton metaclass which distinguishes instances with cacher_key
+    Note the id in kwargs still takes precedence if explicitly given
+    """
+
+    def __call__(cls, *args, **kwargs):
+        if "id" not in kwargs:
+            # the key of the cached data determines the contents, thus good to identify the instance
+            kwargs["id"] = kwargs.get("cacher_key", getattr(cls, "default_cacher_key", None))
+        return super().__call__(*args, **kwargs)
+
+
+class CachedDictBase(dict, PluginBase, metaclass=SingletonWithCacherKey):
     """
     Base class of dictionary of information taken from DB cache filled by cacher
     Derived classes are to set default_cacher_key, and to override _update_from_cache
@@ -34,6 +47,7 @@ class CachedDictBase(dict, PluginBase, metaclass=SingletonWithID):
     """
 
     # key of the cached data in DB; overridden by cacher_key in kwargs
+    # it also identifies the singleton instance, i.e. one instance per key unless id is given
     default_cacher_key = None
 
     def __init__(self, **kwargs):
