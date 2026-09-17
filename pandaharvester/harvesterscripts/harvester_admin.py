@@ -354,6 +354,8 @@ def qconf_refresh(arguments):
 def qconf_dump(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
 
+    if not arguments.id_list and not arguments.all and not arguments.queue_list:
+        raise RuntimeError("no queue specified; give <queue_name> ... , -a/--all for all queues, or -i/--id <configID>")
     to_print = not arguments.json
     try:
         if arguments.id_list:
@@ -416,12 +418,21 @@ def kill_workers(arguments):
         mainLogger.critical("Failed to kill workers. See panda-db_proxy.log")
 
 
-def query_workers(arguments):
-    dbProxy = DBProxy()
+def get_filter_site_list(arguments):
+    """
+    Return the list of queues to query, or None to query all queues
+    """
     if arguments.all:
-        res_obj = dbProxy.get_worker_stats_full()
-    else:
-        res_obj = dbProxy.get_worker_stats_full(filter_site_list=arguments.queue_list)
+        return None
+    if not arguments.queue_list:
+        raise RuntimeError("no queue specified; give <queue_name> ... or -a/--all for all queues")
+    return arguments.queue_list
+
+
+def query_workers(arguments):
+    filter_site_list = get_filter_site_list(arguments)
+    dbProxy = DBProxy()
+    res_obj = dbProxy.get_worker_stats_full(filter_site_list=filter_site_list)
     if arguments.json:
         json_print(res_obj)
     else:
@@ -429,11 +440,9 @@ def query_workers(arguments):
 
 
 def query_jobs(arguments):
+    filter_site_list = get_filter_site_list(arguments)
     dbProxy = DBProxy()
-    if arguments.all:
-        res_obj = dbProxy.get_job_stats_full()
-    else:
-        res_obj = dbProxy.get_job_stats_full(filter_site_list=arguments.queue_list)
+    res_obj = dbProxy.get_job_stats_full(filter_site_list=filter_site_list)
     if arguments.json:
         json_print(res_obj)
     else:
@@ -517,7 +526,9 @@ def main():
     qconf_dump_parser.set_defaults(which="qconf_dump")
     qconf_dump_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Dump configuration in JSON format")
     qconf_dump_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Dump configuration of all active queues")
-    qconf_dump_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    qconf_dump_parser.add_argument(
+        "queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue; not needed with -a or -i"
+    )
     qconf_dump_parser.add_argument(
         "-i", "--id", dest="id_list", nargs="+", type=int, action="store", metavar="<configID>", help="Dump configuration of queue with configID"
     )
@@ -569,13 +580,15 @@ def main():
     query_workers_parser.set_defaults(which="query_workers")
     query_workers_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Show results of all queues")
     query_workers_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Show results in JSON format")
-    query_workers_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    query_workers_parser.add_argument(
+        "queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue; not needed with -a"
+    )
     # query job_stats command
     query_jobs_parser = query_subparsers.add_parser("jobs", help="Query statistiscs of jobs in queues")
     query_jobs_parser.set_defaults(which="query_jobs")
     query_jobs_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Show results of all queues")
     query_jobs_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Show results in JSON format")
-    query_jobs_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    query_jobs_parser.add_argument("queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue; not needed with -a")
 
     # start parsing
     if len(sys.argv) == 1:
