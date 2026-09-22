@@ -7,12 +7,25 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import polars as pl
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore import fifos as harvesterFifos
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
+
+# === Polars config for tables =================================
+
+pl.Config.set_ascii_tables(True)
+pl.Config.set_tbl_hide_dataframe_shape(True)
+pl.Config.set_tbl_hide_column_data_types(True)
+pl.Config.set_tbl_rows(-1)
+pl.Config.set_tbl_cols(-1)
+# no width limit; a narrower limit makes polars truncate the headers and the cells instead of dropping columns
+pl.Config.set_tbl_width_chars(-1)
+pl.Config.set_tbl_cell_numeric_alignment("RIGHT")
 
 # === Logger ===================================================
 
@@ -54,6 +67,87 @@ setupLogger(mainLogger)
 
 def json_print(data):
     print(json.dumps(data, sort_keys=True, indent=4))
+
+
+# preferred order of the status columns in tables; the rest of the statuses follow in alphabetical order
+WORKER_STATUS_ORDER = ("to_submit", "ready", "submitted", "idle", "pending", "running", "finished", "failed", "cancelled", "missed")
+JOB_STATUS_ORDER = ("starting", "running")
+# preferred order of the metric rows in the job table
+JOB_METRIC_ORDER = ("jobs", "cores")
+
+
+def ordered_keys(keys, preferred_order):
+    """
+    Return the keys with the preferred ones first in the given order, followed by the rest in alphabetical order
+    """
+    preferred_list = [key for key in preferred_order if key in keys]
+    rest_list = sorted(key for key in keys if key not in preferred_order)
+    return preferred_list + rest_list
+
+
+def total_last_sort_key(key):
+    """
+    Sort key to place the "_total" entry after the others
+    """
+    return (key == "_total", key)
+
+
+def worker_stats_to_rows(worker_stats_dict):
+    """
+    Flatten worker stats {computingSite: {jobType: {resourceType: {status: n_workers}}}} into rows of a table,
+    one row per (computingSite, jobType, resourceType) and one column per worker status
+    """
+    status_set = set()
+    for job_type_dict in worker_stats_dict.values():
+        for resource_type_dict in job_type_dict.values():
+            for status_dict in resource_type_dict.values():
+                status_set |= set(status_dict)
+    status_list = ordered_keys(status_set, WORKER_STATUS_ORDER)
+    rows = []
+    for computing_site in sorted(worker_stats_dict):
+        job_type_dict = worker_stats_dict[computing_site]
+        for job_type in sorted(job_type_dict, key=total_last_sort_key):
+            resource_type_dict = job_type_dict[job_type]
+            for resource_type in sorted(resource_type_dict, key=total_last_sort_key):
+                status_dict = resource_type_dict[resource_type]
+                row = {"computingSite": computing_site, "jobType": job_type, "resourceType": resource_type}
+                row.update({status: status_dict.get(status, 0) for status in status_list})
+                rows.append(row)
+    return rows
+
+
+def job_stats_to_rows(job_stats_dict):
+    """
+    Flatten job stats {computingSite: {resourceType: {metric: {status: n}}}} into rows of a table,
+    one row per (computingSite, resourceType, metric) and one column per job status
+    """
+    status_set = set()
+    for resource_type_dict in job_stats_dict.values():
+        for metric_dict in resource_type_dict.values():
+            for status_dict in metric_dict.values():
+                status_set |= set(status_dict)
+    status_list = ordered_keys(status_set, JOB_STATUS_ORDER)
+    rows = []
+    for computing_site in sorted(job_stats_dict):
+        resource_type_dict = job_stats_dict[computing_site]
+        for resource_type in sorted(resource_type_dict, key=total_last_sort_key):
+            metric_dict = resource_type_dict[resource_type]
+            for metric in ordered_keys(metric_dict, JOB_METRIC_ORDER):
+                status_dict = metric_dict[metric]
+                row = {"computingSite": computing_site, "resourceType": resource_type, "metric": metric}
+                row.update({status: status_dict.get(status, 0) for status in status_list})
+                rows.append(row)
+    return rows
+
+
+def table_print(rows):
+    """
+    Print the rows in a table
+    """
+    if not rows:
+        print("(no entry)")
+        return
+    print(pl.DataFrame(rows))
 
 
 def multithread_executer(func, n_objects, n_threads, initializer=None, initargs=()):
@@ -260,6 +354,8 @@ def qconf_refresh(arguments):
 def qconf_dump(arguments):
     from pandaharvester.harvesterscripts import queue_config_tool
 
+    if not arguments.id_list and not arguments.all and not arguments.queue_list:
+        raise RuntimeError("no queue specified; give <queue_name> ... , -a/--all for all queues, or -i/--id <configID>")
     to_print = not arguments.json
     try:
         if arguments.id_list:
@@ -322,28 +418,35 @@ def kill_workers(arguments):
         mainLogger.critical("Failed to kill workers. See panda-db_proxy.log")
 
 
+def get_filter_site_list(arguments):
+    """
+    Return the list of queues to query, or None to query all queues
+    """
+    if arguments.all:
+        return None
+    if not arguments.queue_list:
+        raise RuntimeError("no queue specified; give <queue_name> ... or -a/--all for all queues")
+    return arguments.queue_list
+
+
 def query_workers(arguments):
+    filter_site_list = get_filter_site_list(arguments)
     dbProxy = DBProxy()
-    try:
-        if arguments.all:
-            res_obj = dbProxy.get_worker_stats_full()
-        else:
-            res_obj = dbProxy.get_worker_stats_full(filter_site_list=arguments.queue_list)
+    res_obj = dbProxy.get_worker_stats_full(filter_site_list=filter_site_list)
+    if arguments.json:
         json_print(res_obj)
-    except TypeError as e:
-        raise
+    else:
+        table_print(worker_stats_to_rows(res_obj))
 
 
 def query_jobs(arguments):
+    filter_site_list = get_filter_site_list(arguments)
     dbProxy = DBProxy()
-    try:
-        if arguments.all:
-            res_obj = dbProxy.get_job_stats_full()
-        else:
-            res_obj = dbProxy.get_job_stats_full(filter_site_list=arguments.queue_list)
+    res_obj = dbProxy.get_job_stats_full(filter_site_list=filter_site_list)
+    if arguments.json:
         json_print(res_obj)
-    except TypeError as e:
-        raise
+    else:
+        table_print(job_stats_to_rows(res_obj))
 
 
 # === Command map =======================================================
@@ -423,7 +526,9 @@ def main():
     qconf_dump_parser.set_defaults(which="qconf_dump")
     qconf_dump_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Dump configuration in JSON format")
     qconf_dump_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Dump configuration of all active queues")
-    qconf_dump_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    qconf_dump_parser.add_argument(
+        "queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue; not needed with -a or -i"
+    )
     qconf_dump_parser.add_argument(
         "-i", "--id", dest="id_list", nargs="+", type=int, action="store", metavar="<configID>", help="Dump configuration of queue with configID"
     )
@@ -474,12 +579,16 @@ def main():
     query_workers_parser = query_subparsers.add_parser("workers", help="Query statistiscs of workers in queues")
     query_workers_parser.set_defaults(which="query_workers")
     query_workers_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Show results of all queues")
-    query_workers_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    query_workers_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Show results in JSON format")
+    query_workers_parser.add_argument(
+        "queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue; not needed with -a"
+    )
     # query job_stats command
     query_jobs_parser = query_subparsers.add_parser("jobs", help="Query statistiscs of jobs in queues")
     query_jobs_parser.set_defaults(which="query_jobs")
     query_jobs_parser.add_argument("-a", "--all", dest="all", action="store_true", help="Show results of all queues")
-    query_jobs_parser.add_argument("queue_list", nargs="+", type=str, action="store", metavar="<queue_name>", help="Name of active queue")
+    query_jobs_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Show results in JSON format")
+    query_jobs_parser.add_argument("queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="Name of active queue; not needed with -a")
 
     # start parsing
     if len(sys.argv) == 1:

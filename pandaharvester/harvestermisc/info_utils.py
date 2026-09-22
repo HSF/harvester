@@ -3,33 +3,59 @@ import threading
 import time
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore.core_utils import SingletonWithID
+from pandaharvester.harvestercore.core_utils import SingletonWithID, setup_logger
 from pandaharvester.harvestercore.db_interface import DBInterface
 from pandaharvester.harvestercore.plugin_base import PluginBase
+
+# logger
+_logger = setup_logger("info_utils")
 
 harvesterID = harvester_config.master.harvester_id
 resolver_config = getattr(harvester_config.qconf, "resolverConfig", {})
 
 
-class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
+def to_refresh(func):
     """
-    Dictionary of PanDA queue info from DB by cacher
-    Key is PanDA Resource name (rather than PanDA Queue name)
-    Able to query with either PanDA Queue name or PanDA Resource name
+    Decorator to refresh before accessing the data
     """
 
-    candidate_per_core_attrs = (
-        "maxrss",
-        "minrss",
-        "maxwdir",
-    )
+    def wrapped_func(self, *args, **kwargs):
+        self._refresh()
+        return func(self, *args, **kwargs)
+
+    return wrapped_func
+
+
+class SingletonWithCacherKey(SingletonWithID):
+    """
+    Singleton metaclass which distinguishes instances with cacher_key
+    Note the id in kwargs still takes precedence if explicitly given
+    """
+
+    def __call__(cls, *args, **kwargs):
+        if "id" not in kwargs:
+            # the key of the cached data determines the contents, thus good to identify the instance
+            kwargs["id"] = kwargs.get("cacher_key", getattr(cls, "default_cacher_key", None))
+        return super().__call__(*args, **kwargs)
+
+
+class CachedDictBase(dict, PluginBase, metaclass=SingletonWithCacherKey):
+    """
+    Base class of dictionary of information taken from DB cache filled by cacher
+    Derived classes are to set default_cacher_key, and to override _update_from_cache
+    if the cached data need to be reshaped or postprocessed
+    """
+
+    # key of the cached data in DB; overridden by cacher_key in kwargs
+    # it also identifies the singleton instance, i.e. one instance per key unless id is given
+    default_cacher_key = None
 
     def __init__(self, **kwargs):
         dict.__init__(self)
         PluginBase.__init__(self, **kwargs)
         self.lock = threading.Lock()
         self.dbInterface = DBInterface()
-        self.cacher_key = kwargs.get("cacher_key", "panda_queues.json")
+        self.cacher_key = kwargs.get("cacher_key", self.default_cacher_key)
         self.refresh_period = resolver_config.get("refreshPeriod", 300)
         self.last_refresh_ts = 0
         self._refresh()
@@ -39,6 +65,79 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
         if self.last_refresh_ts + self.refresh_period > now_ts:
             return True
         return False
+
+    def _update_from_cache(self, cache_data):
+        """
+        Fill self with the data from cache; to be overridden in derived classes
+        """
+        self.update(cache_data)
+
+    def _retry_soon(self):
+        """
+        Shorten next refresh period into 5 sec, to retry soon
+        """
+        self.last_refresh_ts = time.time() - self.refresh_period + 5
+
+    def _refresh(self):
+        with self.lock:
+            if self._is_fresh():
+                return
+            tmp_log = self.make_logger(_logger, f"cacher_key={self.cacher_key}", method_name="_refresh", send_dialog=False)
+            # get cached data; note the key can be absent in DB, e.g. when it is not in the data of the cacher section in the cfg
+            data_cache = None
+            if not self.cacher_key:
+                tmp_log.warning("cacher_key is not set; skipped")
+            else:
+                try:
+                    data_cache = self.dbInterface.get_cache(self.cacher_key)
+                except Exception as e:
+                    tmp_log.warning(f"failed to get cache with {e.__class__.__name__}: {e} ; skipped")
+            cache_data = getattr(data_cache, "data", None)
+            if not isinstance(cache_data, dict):
+                # no valid data cached (yet); keep whatever is already filled and retry soon
+                tmp_log.debug("no valid cached data; to retry soon")
+                self._retry_soon()
+                return
+            # fill self with the cached data
+            try:
+                self._update_from_cache(cache_data)
+            except Exception as e:
+                tmp_log.error(f"failed to update from cache with {e.__class__.__name__}: {e} ; to retry soon")
+                self._retry_soon()
+                return
+            # successfully refreshed from cache
+            self.last_refresh_ts = time.time()
+
+    @to_refresh
+    def __getitem__(self, key):
+        return dict.__getitem__(self, key)
+
+    @to_refresh
+    def get(self, key, default=None):
+        return dict.get(self, key, default)
+
+    @to_refresh
+    def get_all_names(self):
+        """
+        Return the set of all keys
+        """
+        return set(self.keys())
+
+
+class PandaQueuesDict(CachedDictBase):
+    """
+    Dictionary of PanDA queue info from DB by cacher
+    Key is PanDA Resource name (rather than PanDA Queue name)
+    Able to query with either PanDA Queue name or PanDA Resource name
+    """
+
+    default_cacher_key = "panda_queues.json"
+
+    candidate_per_core_attrs = (
+        "maxrss",
+        "minrss",
+        "maxwdir",
+    )
 
     @staticmethod
     def has_value_in_catchall(panda_queues_dict, key):
@@ -61,43 +160,27 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
         """
         return PandaQueuesDict.has_value_in_catchall(panda_queues_dict, "per_core_attr")
 
-    def _refresh(self):
-        with self.lock:
-            if self._is_fresh():
-                return
-            panda_queues_cache = self.dbInterface.get_cache(self.cacher_key)
-            if panda_queues_cache and isinstance(panda_queues_cache.data, dict):
-                panda_queues_dict = panda_queues_cache.data
-                for k, v in panda_queues_dict.items():
-                    try:
-                        panda_resource = v["panda_resource"]
-                        assert k == v["nickname"]
-                    except Exception:
-                        pass
-                    else:
-                        self[panda_resource] = v
-                    # handle per-core attributes: scale with corecount if per-core
-                    if PandaQueuesDict.use_per_core_attr(v):
-                        core_count = v.get("corecount", 1)
-                        for attr in self.candidate_per_core_attrs:
-                            if attr in v and core_count > 0:
-                                v[attr] = v[attr] * core_count
-                # successfully refreshed from cache
-                self.last_refresh_ts = time.time()
+    def _update_from_cache(self, cache_data):
+        panda_queues_dict = cache_data
+        for k, v in panda_queues_dict.items():
+            # handle per-core attributes: scale with corecount if per-core
+            # work on a copy so repeated refreshes never re-scale the same shared cached dict
+            # (cache_data can be the same object reused across refreshes; mutating it in place
+            # would compound the scaling by corecount on every refresh cycle)
+            if PandaQueuesDict.use_per_core_attr(v):
+                core_count = v.get("corecount", 1)
+                if core_count > 0:
+                    v = dict(v)
+                    for attr in self.candidate_per_core_attrs:
+                        if attr in v:
+                            v[attr] = v[attr] * core_count
+            try:
+                panda_resource = v["panda_resource"]
+                assert k == v["nickname"]
+            except Exception:
+                pass
             else:
-                # not getting cache; shorten next period into 5 sec
-                self.last_refresh_ts = time.time() - self.refresh_period + 5
-
-    def to_refresh(func):
-        """
-        Decorator to refresh
-        """
-
-        def wrapped_func(self, *args, **kwargs):
-            self._refresh()
-            return func(self, *args, **kwargs)
-
-        return wrapped_func
+                self[panda_resource] = v
 
     @to_refresh
     def __getitem__(self, panda_resource):
@@ -205,3 +288,40 @@ class PandaQueuesDict(dict, PluginBase, metaclass=SingletonWithID):
             maxwdir_prorated = 0
 
         return maxwdir_prorated
+
+
+class GridServicesDict(CachedDictBase):
+    """
+    Dictionary of grid service info from DB by cacher
+    Key is the name of the service (e.g. CE, SE) as in CRIC
+    """
+
+    default_cacher_key = "grid_services.json"
+
+    # get the type of a service (e.g. CE, SE)
+    def get_type(self, service_name):
+        service_dict = self.get(service_name)
+        if service_dict is None:
+            return None
+        return service_dict.get("type")
+
+    # get the flavour of a service (e.g. HTCONDOR-CE, ARC-CE)
+    def get_flavour(self, service_name):
+        service_dict = self.get(service_name)
+        if service_dict is None:
+            return None
+        return service_dict.get("flavour")
+
+    # get the endpoint of a service
+    def get_endpoint(self, service_name):
+        service_dict = self.get(service_name)
+        if service_dict is None:
+            return None
+        return service_dict.get("endpoint")
+
+    # get the state of a service (e.g. ACTIVE, DISABLED)
+    def get_state(self, service_name):
+        service_dict = self.get(service_name)
+        if service_dict is None:
+            return None
+        return service_dict.get("state")

@@ -19,7 +19,7 @@ from pandaharvester.harvestermisc.htcondor_utils import (
     CondorJobSubmit,
     get_job_id_tuple_from_batchid,
 )
-from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
+from pandaharvester.harvestermisc.info_utils import GridServicesDict, PandaQueuesDict
 from pandaharvester.harvestermisc.token_utils import endpoint_to_filename
 from pandaharvester.harvestersubmitter import submitter_common
 
@@ -252,6 +252,9 @@ def make_a_jdl(
         token_path = os.path.join(token_dir, token_filename)
     else:
         tmpLog.warning(f"token_path is None: site={panda_queue_name}, token_dir={token_dir} , token_filename={token_filename}")
+    # whether to use token for ARC CE, i.e. to put scitokens_file in the jdl; only when the CE supports token auth
+    use_arc_token = ce_info_dict.get("ce_grid_type") == "arc" and "token" in (ce_info_dict.get("auth") or [])
+    tmpLog.debug(f"use_arc_token={use_arc_token}")
     # get pilot-pandaserver token
     panda_token_path = None
     if panda_token_dir is not None and panda_token_filename is not None:
@@ -337,6 +340,7 @@ def make_a_jdl(
         "requireGpus": is_gpu_resource,
         "customSubmitAttributes": custom_submit_attr_str,
         "cricPandaSite": cric_panda_site,
+        "arcTokenParam": f"scitokens_file = {token_path}" if use_arc_token and token_path else "",
     }
 
     gtag = batch_log_dict.get("gtag", "fake_GTAG_string").format(**placeholder_map)
@@ -637,6 +641,8 @@ class HTCondorSubmitter(PluginBase):
         if self.useCRICGridCE:
             # If CRIC Grid CE mode used
             tmpLog.debug("Using CRIC Grid CE mode...")
+            # grid service info from CRIC by cacher in db; empty if grid_services.json is not in the cacher config
+            grid_services_dict = GridServicesDict()
             queues_from_queue_list = this_panda_queue_dict.get("queues", [])
             special_par = this_panda_queue_dict.get("special_par", "")
             ce_auxiliary_dict = {}
@@ -648,6 +654,17 @@ class HTCondorSubmitter(PluginBase):
                 ):
                     continue
                 ce_info_dict = _queue_dict.copy()
+                # auth methods of the CE from grid service info; empty list if unknown
+                ce_info_dict["auth"] = []
+                ce_name = ce_info_dict.get("ce_name")
+                grid_service_dict = grid_services_dict.get(ce_name)
+                if grid_service_dict is None:
+                    tmpLog.debug(f"no grid service info for ce_name={ce_name} ; auth unknown")
+                elif grid_service_dict.get("type") != "CE":
+                    tmpLog.warning(f"grid service {ce_name} is of type {grid_service_dict.get('type')} rather than CE ; auth unknown")
+                else:
+                    ce_info_dict["auth"] = grid_service_dict.get("auth") or []
+                    tmpLog.debug(f"got auth={ce_info_dict['auth']} for ce_name={ce_name}")
                 # ignore protocol prefix in ce_endpoint for cream and condor CE
                 # check protocol prefix for ARC CE (gridftp or REST)
                 _match_ce_endpoint = re.match("^(\w+)://(\w+)", ce_info_dict.get("ce_endpoint", ""))

@@ -47,7 +47,7 @@ class JobFetcher(AgentBase):
             )
             mainLog.debug(f"got {len(job_limit_to_fetch_dict)} queues")
             # get up to date queue configuration
-            pandaQueueDict = PandaQueuesDict(filter_site_list=job_limit_to_fetch_dict.keys())
+            pandaQueueDict = PandaQueuesDict()
             # loop over all queues
             for queueName, value_dict in job_limit_to_fetch_dict.items():
                 n_jobs = value_dict["jobs"]
