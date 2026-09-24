@@ -68,7 +68,7 @@ class Method(object):
         tmpLog = core_utils.make_logger(_logger, method_name=self.function_name)
         tmpLog.debug("start")
         if self.conn is None:
-            tmpLog.warning(f"connection is not alive; method {self.function_name} returns None")
+            tmpLog.error(f"connection is not alive; method {self.function_name} returns None")
             return None
         params = {
             "plugin_config": self.plugin_config,
