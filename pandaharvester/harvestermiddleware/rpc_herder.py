@@ -28,7 +28,7 @@ class RpcHerder(PluginBase):
                 return rpyc.utils.classic.obtain(retVal)
             else:
                 tmpLog = core_utils.make_logger(_logger, method_name=func.__name__)
-                tmpLog.warning(f"instance not alive; method {func.__name__} returns None")
+                tmpLog.error(f"instance not alive; method {func.__name__} returns None")
                 return None
 
         return wrapper

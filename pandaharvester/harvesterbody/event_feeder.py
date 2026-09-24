@@ -56,7 +56,7 @@ class EventFeeder(AgentBase):
                     tmpLog.debug("get events")
                     tmpStat, events = self.communicator.get_event_ranges(workSpec.eventsRequestParams, scattered, workSpec.get_access_point())
                     # failed
-                    if tmpStat is False:
+                    if not tmpStat:
                         tmpLog.error(f"failed to get events with {events}")
                         continue
                     # lock worker again
@@ -65,9 +65,9 @@ class EventFeeder(AgentBase):
                         tmpLog.debug("skipped before feeding since locked by another")
                         continue
                     tmpStat = messenger.feed_events(workSpec, events)
-                    # failed
-                    if tmpStat is False:
-                        tmpLog.error("failed to feed events")
+                    # failed. middleware messengers return None when the remote side is unreachable
+                    if not tmpStat:
+                        tmpLog.error(f"failed to feed events with {tmpStat}")
                         continue
                     # dump
                     for pandaID, eventList in events.items():
