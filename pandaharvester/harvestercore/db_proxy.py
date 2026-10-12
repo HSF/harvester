@@ -1895,7 +1895,10 @@ class DBProxy(object):
                 varMap[":checkTimeLimit"] = checkTimeLimit
                 self.execute(sqlC, varMap)
                 (nAvailableJobs,) = self.cur.fetchone()
-                maxJobs = int(min(maxJobs, nAvailableJobs) / n_jobs_per_worker) * n_jobs_per_worker
+                maxJobs = min(maxJobs, nAvailableJobs)
+                # only full chunks unless there are not enough jobs for even one chunk
+                if maxJobs >= n_jobs_per_worker:
+                    maxJobs = maxJobs // n_jobs_per_worker * n_jobs_per_worker
             tmpStr = f"n_workers={n_workers} n_ready={n_ready} "
             tmpStr += f"n_jobs_per_worker={n_jobs_per_worker} n_workers_per_job={n_workers_per_job} "
             tmpStr += f"n_ava_jobs={nAvailableJobs}"
@@ -1999,6 +2002,10 @@ class DBProxy(object):
                         self.rollback()
                     if toEscape or iJobs >= maxJobs:
                         break
+                # at least one chunk even if not enough jobs to fill it
+                if len(jobChunk) > 0 and len(jobChunkList) == 0:
+                    tmpLog.debug(f"new chunk with {len(jobChunk)} jobs due to lack of jobs")
+                    jobChunkList.append(jobChunk)
             tmpLog.debug(f"got {len(jobChunkList)} job chunks")
             return jobChunkList
         except Exception:
