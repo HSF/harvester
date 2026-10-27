@@ -130,6 +130,8 @@ CMPM_Kubernetes = {
     6814: r"Pod was rejected: .*",
     6815: r"Pod was active on the node longer than the specified deadline",
     6819: r"Pod was .*",
+    # 6.8.5 Payload errors
+    6850: r"payload returned non-zero exit code .*",
     # 6.8.8 Harvester K8s plugin reserved errors
     6881: r"Failed to get status for id=.*",
     6882: r"JOB id=.* not found",
@@ -199,6 +201,7 @@ class WorkerErrors(object):
         "SUCCEEDED": 0,
         "UNKNOWN": 1000,
         "PREEMPTED": 1001,
+        "K8S_PAYLOAD_NONZERO": 6850,
         "GENERAL_ERROR": 9000,
     }
 
@@ -208,4 +211,4 @@ class WorkerErrors(object):
     )
 
     # Kubernetes plugin worker error message patterns
-    k8s_message_pattern_handler = ErrorMessagePatternHandler(CMPM_Kubernetes | CMPM_Catchall)
+    k8s_message_pattern_handler = ErrorMessagePatternHandler(CMPM_Pilot_Wrapper | CMPM_Kubernetes | CMPM_Catchall)
