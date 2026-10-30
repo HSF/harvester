@@ -470,6 +470,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                 # Command failed
                 errStr = f'command "{comStr}" failed, retCode={retCode}, error: {stdOut} {stdErr}'
                 tmpLog.error(errStr)
+                raise RuntimeError(errStr)
         if len(batchIDs_set) > 0:
             # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
             for batchid in batchIDs_set:
