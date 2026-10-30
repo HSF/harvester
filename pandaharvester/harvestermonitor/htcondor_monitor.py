@@ -245,7 +245,8 @@ class HTCondorMonitor(PluginBase):
         if extra_plugin_configs.get("use_condor_history") is False:
             self.useCondorHistory = False
         # max age of workers in seconds (since last status update) that are allowed to queyr with condor history
-        self.useCondorHistoryMaxAge = getattr(self, "useCondorHistoryMaxAge", 7200)
+        # monitor.historyMaxAgeFloor raises it, also for workers whose queue configuration predates a change
+        self.useCondorHistoryMaxAge = max(getattr(self, "useCondorHistoryMaxAge", 7200), getattr(harvester_config.monitor, "historyMaxAgeFloor", 0))
         # submission hosts
         self.submissionHost_list = getattr(self, "submissionHost_list", [])
         # condor host config files

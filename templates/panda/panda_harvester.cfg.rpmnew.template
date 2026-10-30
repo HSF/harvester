@@ -375,6 +375,9 @@ respectSleepTime = False
 # factor to adjust workers
 #activateWorkerFactor = auto
 
+# job statistics (job_statistics.json) missing or older than this in sec give no demand from activated jobs; 0 to disable
+#jobStatsMaxAge = 90
+
 ##########################
 #
 # Monitor parameters
@@ -423,6 +426,12 @@ fifoMaxWorkersPerChunk = 500
 
 # max interval in sec a post-processing worker can preempt in fifo
 fifoMaxPreemptInterval = 60
+
+# upper bound in sec on the fifo check interval of every worker, including workers whose queue configuration predates a change; 0 for none
+#fifoMaxCheckInterval = 30
+
+# lower bound in sec on useCondorHistoryMaxAge of HTCondorMonitor, including workers whose queue configuration predates a change; 0 for none
+#historyMaxAgeFloor = 86400
 
 # plugin cache parameters (used if monitor plugin supports)
 #pluginCacheEnable = True
@@ -664,6 +673,10 @@ data =
 
 # refresh interval in minint
 refreshInterval = 10
+
+# refresh interval in sec for the main keys listed, instead of refreshInterval
+#refreshSecondsByKey =
+# {"job_statistics.json": 30, "job_statistics_new.json": 30}
 
 # sleep interval in sec
 sleepTime = 60
