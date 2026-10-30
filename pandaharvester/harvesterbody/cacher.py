@@ -59,7 +59,10 @@ class Cacher(AgentBase):
                     subKey = None
                 # check last update time
                 lastUpdateTime = self.dbProxy.get_cache_last_update_time(mainKey, subKey)
-                if (not force_update) and lastUpdateTime is not None and lastUpdateTime > timeLimit:
+                # a key listed in refreshSecondsByKey has its own refresh interval in seconds
+                refresh_seconds = getattr(harvester_config.cacher, "refreshSecondsByKey", {}).get(mainKey)
+                itemTimeLimit = timeLimit if refresh_seconds is None else core_utils.naive_utcnow() - datetime.timedelta(seconds=refresh_seconds)
+                if (not force_update) and lastUpdateTime is not None and lastUpdateTime > itemTimeLimit:
                     return
                 # get information
                 tmpStat, newInfo = self.get_data(infoURL, mainLog)
