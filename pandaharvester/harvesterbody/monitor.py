@@ -669,12 +669,20 @@ class Monitor(AgentBase):
                             and timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout)
                         ):
                             if getattr(mon_core, "preserveUnknownWorkers", False) and getattr(workSpec, "nativeStatus", None) == "unknown":
-                                tmp_log.error(
-                                    f"WORKER_STATE_UNVERIFIED workerID={workerID}: "
-                                    f"scheduler state unknown beyond checkTimeout; "
-                                    f"retaining {workSpec.status}; {diagMessage}"
-                                )
-                                newStatus = workSpec.status
+                                if workSpec.killTime is not None and workSpec.killTime <= timeNow:
+                                    # Harvester has already ordered the kill, so the scheduler's silence ends the worker
+                                    tmp_log.debug(f"end workerID={workerID}: killed by Harvester and its batch job no longer in the scheduler")
+                                    newStatus = WorkSpec.ST_cancelled
+                                    diagMessage = "Killed by Harvester; batch job no longer in the scheduler. " + diagMessage
+                                    if not workSpec.has_pilot_error():
+                                        workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
+                                else:
+                                    tmp_log.error(
+                                        f"WORKER_STATE_UNVERIFIED workerID={workerID}: "
+                                        f"scheduler state unknown beyond checkTimeout; "
+                                        f"retaining {workSpec.status}; {diagMessage}"
+                                    )
+                                    newStatus = workSpec.status
                             else:
                                 # kill due to timeout
                                 tmp_log.debug(f"kill workerID={workerID} due to consecutive check failures")
