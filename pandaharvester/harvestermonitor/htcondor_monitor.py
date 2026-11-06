@@ -226,6 +226,8 @@ class HTCondorMonitor(PluginBase):
         # whether to cancel unknown workers
         self.cancelUnknown = getattr(self, "cancelUnknown", False)
         self.cancelUnknown = bool(self.cancelUnknown)
+        # whether to keep workers of unknown state past checkTimeout instead of killing them
+        self.preserveUnknownWorkers = bool(getattr(self, "preserveUnknownWorkers", False))
         # timeout for held condor jobs in seconds
         self.heldTimeout = getattr(self, "heldTimeout", 3600)
         # whether to use cache for condor job query
@@ -272,9 +274,9 @@ class HTCondorMonitor(PluginBase):
                 )
                 host_job_ads_dict = job_query.get_all(batchIDs_dict=batchIDs_dict)
             except Exception as e:
-                host_job_ads_dict = {}
-                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
+                ret_err_str = f"Condor query failed; worker states unchanged: {e.__class__.__name__}: {e}"
                 tmpLog.error(ret_err_str)
+                return False, ret_err_str
             job_ads_all_dict.update(host_job_ads_dict)
         # Check for all workers
         with Pool(self.nProcesses) as _pool:
