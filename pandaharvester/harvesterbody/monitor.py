@@ -349,6 +349,10 @@ class Monitor(AgentBase):
                 fifoCheckInterval = harvester_config.monitor.fifoCheckInterval
             else:
                 fifoCheckInterval = harvester_config.monitor.checkInterval
+        # fifoMaxCheckInterval caps the interval, also for workers whose queue configuration predates a change
+        fifoMaxCheckInterval = getattr(harvester_config.monitor, "fifoMaxCheckInterval", 0)
+        if fifoMaxCheckInterval > 0:
+            fifoCheckInterval = min(fifoCheckInterval, fifoMaxCheckInterval)
         try:
             forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
         except AttributeError:
