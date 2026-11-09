@@ -617,6 +617,10 @@ class WorkerAdjuster(object):
                     tmp_log.error(f"job statistics missing or older than jobStatsMaxAge={job_stats_max_age}s; no demand from activated jobs")
                     job_stats = {}
                     job_stats_new_df = self._job_stats_to_df(None)
+                job_stats_new_time = self.dbProxy.get_cache_last_update_time("job_statistics_new.json", None)
+                if job_stats_new_time is None or (core_utils.naive_utcnow() - job_stats_new_time).total_seconds() > job_stats_max_age:
+                    tmp_log.error(f"detailed job statistics missing or older than jobStatsMaxAge={job_stats_max_age}s; no demand from detailed activated jobs")
+                    job_stats_new_df = self._job_stats_to_df(None)
 
             # get panda queues dict from CRIC
             panda_queues_dict = PandaQueuesDict()
