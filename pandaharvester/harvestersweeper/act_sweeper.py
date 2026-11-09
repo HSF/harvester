@@ -2,7 +2,10 @@ import os
 import shutil
 
 from act.atlas.aCTDBPanda import aCTDBPanda
+from act.atlas.dbModels import PandaJob
 from act.common.aCTConfig import aCTConfigARC
+from sqlalchemy import update
+
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
 
@@ -42,9 +45,12 @@ class ACTSweeper(PluginBase):
 
         try:
             # Only kill jobs which are still active
-            self.actDB.updateJobs(
-                f"id={workspec.batchID} AND actpandastatus IN ('sent', 'starting', 'running')", {"actpandastatus": "tobekilled", "pandastatus": None}
-            )
+            with self.actDB.Session.begin() as session:
+                session.execute(
+                    update(PandaJob)
+                    .where(PandaJob.id == workspec.batchID, PandaJob.actpandastatus.in_(["sent", "starting", "running"]))
+                    .values(actpandastatus="tobekilled", pandastatus=None)
+                )
         except Exception as e:
             if self.actDB:
                 tmpLog.error(f"Failed to cancel job {workspec.batchID} in aCT: {str(e)}")

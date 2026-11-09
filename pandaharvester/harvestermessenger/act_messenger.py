@@ -3,6 +3,8 @@ import json
 import os
 
 from act.atlas.aCTDBPanda import aCTDBPanda
+from act.atlas.dbModels import PandaJob
+from sqlalchemy import update
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -72,7 +74,8 @@ class ACTMessenger(BaseMessenger):
                 desc = {"eventranges": json.dumps(eventranges), "actpandastatus": "sent", "pandastatus": "sent", "arcjobid": None}
                 tmpLog.info(f"Inserting {len(eventranges)} events for job {pandaid}")
                 try:
-                    self.actDB.updateJob(pandaid, desc)
+                    with self.actDB.Session.begin() as session:
+                        session.execute(update(PandaJob).where(PandaJob.pandaid == pandaid).values(**desc))
                 except Exception as e:
                     core_utils.dump_error_message(tmpLog)
                     retVal = False

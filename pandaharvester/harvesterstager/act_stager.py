@@ -2,6 +2,9 @@ import json
 import os
 
 from act.atlas.aCTDBPanda import aCTDBPanda
+from act.atlas.dbModels import PandaJob
+from sqlalchemy import select
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.file_spec import FileSpec
@@ -51,19 +54,19 @@ class ACTStager(BaseStager):
         tmpLog = core_utils.make_logger(baseLogger, f"workerID={workSpec.workerID}", method_name="check_workers")
         try:
             tmpLog.debug(f"Querying aCT for id {workSpec.batchID}")
-            columns = ["actpandastatus", "error"]
-            actjobs = self.actDB.getJobs(f"id={workSpec.batchID}", columns)
+            with self.actDB.Session() as session:
+                actjob = session.execute(select(PandaJob.actpandastatus, PandaJob.error).where(PandaJob.id == workSpec.batchID)).one_or_none()
         except Exception as e:
             if self.actDB:
                 tmpLog.error(f"Failed to query aCT DB: {str(e)}")
             # try again later
             return None, "Failed to query aCT DB"
 
-        if not actjobs:
+        if not actjob:
             tmpLog.error(f"Job with id {workSpec.batchID} not found in aCT")
             return False, "Job not found in aCT"
 
-        actstatus = actjobs[0]["actpandastatus"]
+        actstatus = actjob.actpandastatus
         # Only check for final states
         if actstatus == "done":
             # Do post processing
@@ -72,7 +75,7 @@ class ACTStager(BaseStager):
             # Call post processing to collect attributes set by aCT for failed jobs
             self.post_processing(workSpec, jobspec)
             # Set error reported by aCT
-            errorMsg = actjobs[0]["error"] or "Unknown error"
+            errorMsg = actjob.error or "Unknown error"
             error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
             jobspec.status = "failed"
             # No way to update workspec here

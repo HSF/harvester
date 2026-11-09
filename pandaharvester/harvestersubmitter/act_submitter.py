@@ -4,9 +4,12 @@ import time
 import urllib.parse
 
 import arc
+from act.arc.dbModels import Proxy
 from act.atlas.aCTDBPanda import aCTDBPanda
+from act.atlas.dbModels import PandaJob
 from act.common.aCTConfig import aCTConfigARC
-from act.common.aCTProxy import aCTProxy
+from sqlalchemy import insert, select
+
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.plugin_base import PluginBase
@@ -41,9 +44,9 @@ class ACTSubmitter(PluginBase):
             cred = arc.Credential(uc)
             dn = cred.GetIdentityName()
 
-            actp = aCTProxy(self.log)
-            attr = "/atlas/Role=" + role
-            proxyid = actp.getProxyId(dn, attr)
+            with self.actDB.Session() as session:
+                attr = "/atlas/Role=" + role
+                proxyid = session.execute(select(Proxy.id).where(Proxy.attribute == attr, Proxy.dn == dn)).scalar_one_or_none()
             if not proxyid:
                 raise Exception(f"Proxy with DN {dn} and attribute {attr} was not found in proxies table")
 
@@ -89,7 +92,7 @@ class ACTSubmitter(PluginBase):
                 "harvesterid": harvester_config.master.harvester_id,
                 "harvesterworkerid": workSpec.workerID,
             }
-            desc["metadata"] = json.dumps(metadata)
+            desc["metadata_"] = json.dumps(metadata).encode("utf-8")
 
             if jobSpec:
                 # push mode: aCT takes the url-encoded job description (like it gets from panda server)
@@ -111,7 +114,8 @@ class ACTSubmitter(PluginBase):
 
             tmpLog.info(f"Inserting job {pandaid} into aCT DB: {str(desc)}")
             try:
-                batchid = self.actDB.insertJob(pandaid, actjobdesc, desc)["LAST_INSERT_ID()"]
+                with self.actDB.Session.begin() as session:
+                    batchid = session.execute(insert(PandaJob).values(pandaid=pandaid, pandajob=actjobdesc, **desc)).inserted_primary_key[0]
             except Exception as e:
                 result = (False, f"Failed to insert job into aCT DB: {str(e)}")
             else:
