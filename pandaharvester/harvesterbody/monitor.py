@@ -349,6 +349,10 @@ class Monitor(AgentBase):
                 fifoCheckInterval = harvester_config.monitor.fifoCheckInterval
             else:
                 fifoCheckInterval = harvester_config.monitor.checkInterval
+        # fifoMaxCheckInterval caps the interval, also for workers whose queue configuration predates a change
+        fifoMaxCheckInterval = getattr(harvester_config.monitor, "fifoMaxCheckInterval", 0)
+        if fifoMaxCheckInterval > 0:
+            fifoCheckInterval = min(fifoCheckInterval, fifoMaxCheckInterval)
         try:
             forceEnqueueInterval = harvester_config.monitor.fifoForceEnqueueInterval
         except AttributeError:
@@ -637,6 +641,14 @@ class Monitor(AgentBase):
                 tmpStat, tmpOut = mon_core.check_workers(workersToCheck)
                 if not tmpStat:
                     tmp_log.error(f"failed to check workers with: {tmpOut}")
+                    for unchecked in workersToCheck:
+                        retMap[unchecked.workerID].update(
+                            newStatus=unchecked.status,
+                            monStatus=unchecked.status,
+                            isChecked=False,
+                            workAttributes=unchecked.workAttributes or {},
+                            diagMessage=f"WORKER_STATE_UNVERIFIED: monitor query failed: {tmpOut}",
+                        )
                     workersToCheck = []
                     tmpOut = []
                 else:
@@ -660,12 +672,28 @@ class Monitor(AgentBase):
                             and checkTimeout is not None
                             and timeNow - workSpec.checkTime > datetime.timedelta(seconds=checkTimeout)
                         ):
-                            # kill due to timeout
-                            tmp_log.debug(f"kill workerID={workerID} due to consecutive check failures")
-                            self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
-                            newStatus = WorkSpec.ST_cancelled
-                            diagMessage = "Killed by Harvester due to consecutive worker check failures. " + diagMessage
-                            workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
+                            if getattr(mon_core, "preserveUnknownWorkers", False) and getattr(workSpec, "nativeStatus", None) == "unknown":
+                                if workSpec.killTime is not None and workSpec.killTime <= timeNow:
+                                    # Harvester has already ordered the kill, so the scheduler's silence ends the worker
+                                    tmp_log.debug(f"end workerID={workerID}: killed by Harvester and its batch job no longer in the scheduler")
+                                    newStatus = WorkSpec.ST_cancelled
+                                    diagMessage = "Killed by Harvester; batch job no longer in the scheduler. " + diagMessage
+                                    if not workSpec.has_pilot_error():
+                                        workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
+                                else:
+                                    tmp_log.error(
+                                        f"WORKER_STATE_UNVERIFIED workerID={workerID}: "
+                                        f"scheduler state unknown beyond checkTimeout; "
+                                        f"retaining {workSpec.status}; {diagMessage}"
+                                    )
+                                    newStatus = workSpec.status
+                            else:
+                                # kill due to timeout
+                                tmp_log.debug(f"kill workerID={workerID} due to consecutive check failures")
+                                self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+                                newStatus = WorkSpec.ST_cancelled
+                                diagMessage = "Killed by Harvester due to consecutive worker check failures. " + diagMessage
+                                workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                         else:
                             # use original status
                             newStatus = workSpec.status

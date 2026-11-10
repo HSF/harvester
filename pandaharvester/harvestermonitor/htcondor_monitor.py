@@ -226,6 +226,8 @@ class HTCondorMonitor(PluginBase):
         # whether to cancel unknown workers
         self.cancelUnknown = getattr(self, "cancelUnknown", False)
         self.cancelUnknown = bool(self.cancelUnknown)
+        # whether to keep workers of unknown state past checkTimeout instead of killing them
+        self.preserveUnknownWorkers = bool(getattr(self, "preserveUnknownWorkers", False))
         # timeout for held condor jobs in seconds
         self.heldTimeout = getattr(self, "heldTimeout", 3600)
         # whether to use cache for condor job query
@@ -245,7 +247,8 @@ class HTCondorMonitor(PluginBase):
         if extra_plugin_configs.get("use_condor_history") is False:
             self.useCondorHistory = False
         # max age of workers in seconds (since last status update) that are allowed to queyr with condor history
-        self.useCondorHistoryMaxAge = getattr(self, "useCondorHistoryMaxAge", 7200)
+        # monitor.historyMaxAgeFloor raises it, also for workers whose queue configuration predates a change
+        self.useCondorHistoryMaxAge = max(getattr(self, "useCondorHistoryMaxAge", 7200), getattr(harvester_config.monitor, "historyMaxAgeFloor", 0))
         # submission hosts
         self.submissionHost_list = getattr(self, "submissionHost_list", [])
         # condor host config files
@@ -272,9 +275,9 @@ class HTCondorMonitor(PluginBase):
                 )
                 host_job_ads_dict = job_query.get_all(batchIDs_dict=batchIDs_dict)
             except Exception as e:
-                host_job_ads_dict = {}
-                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
+                ret_err_str = f"Condor query failed; worker states unchanged: {e.__class__.__name__}: {e}"
                 tmpLog.error(ret_err_str)
+                return False, ret_err_str
             job_ads_all_dict.update(host_job_ads_dict)
         # Check for all workers
         with Pool(self.nProcesses) as _pool:

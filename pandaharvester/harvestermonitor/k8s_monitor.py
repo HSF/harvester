@@ -229,11 +229,18 @@ class K8sMonitor(PluginBase):
                         deleted_pods_list.append(item["name"])
                 tmp_log.debug(f"Deleted pods queuing too long: {','.join(deleted_pods_list)}")
 
-            # If there was an exit code and we have predefined message from e.g. the pilot wrapper
+            # If there was an exit code, map known payload (e.g. pilot wrapper) errors by pattern, otherwise use the k8s payload catch-all code
             sup_error_diag = ""
             if exit_code != 0:
-                sup_error_code = exit_code
-                sup_error_diag += get_payload_errstr_from_ec(self.payloadType, exit_code)
+                payload_errstr = get_payload_errstr_from_ec(self.payloadType, exit_code)
+                if payload_errstr:
+                    sup_error_code = WorkerErrors.k8s_message_pattern_handler.get_error_code(payload_errstr)
+                    if sup_error_code is None:
+                        sup_error_code = WorkerErrors.error_codes.get("GENERAL_ERROR")
+                    sup_error_diag = payload_errstr
+                else:
+                    sup_error_code = WorkerErrors.error_codes.get("K8S_PAYLOAD_NONZERO")
+                    sup_error_diag = f"payload returned non-zero exit code {exit_code}"
             else:
                 if error_message:
                     sup_error_code = WorkerErrors.k8s_message_pattern_handler.get_error_code(error_message)
@@ -243,6 +250,8 @@ class K8sMonitor(PluginBase):
                     sup_error_code = WorkerErrors.error_codes.get("SUCCEEDED")
 
             # Extend the base error message with the information found querying the job and pods
+            if sup_error_diag and error_message:
+                sup_error_diag += ";"
             sup_error_diag += error_message
 
             tmp_log.debug(f"setting sup_error_code={sup_error_code}, sup_error_diag={sup_error_diag}")
