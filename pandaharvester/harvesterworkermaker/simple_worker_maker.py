@@ -40,6 +40,14 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             else:
                 job_memory = site_maxrss
 
+            # cap the default memory with maxrampercore of the job's resource type, unless the site requires max memory
+            if "useMaxRam" not in (queue_dict.get("catchall", "") or ""):
+                job_resource_type = getattr(job_spec, "resourceType", None) or job_spec.jobParams.get("resourceType")
+                max_ram_per_core = self.rt_mapper.get_max_ram_per_core(job_resource_type) if job_resource_type else None
+                if max_ram_per_core:
+                    rt_max_memory = int(math.ceil(max_ram_per_core * job_core_count))
+                    job_memory = min(job_memory, rt_max_memory) if job_memory else rt_max_memory
+
         return job_core_count, job_memory
 
     def get_job_type(self, job_spec, job_type, queue_dict, tmp_prod_source_label="ANY"):
