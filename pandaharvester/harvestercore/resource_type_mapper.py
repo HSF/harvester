@@ -150,6 +150,17 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
 
         return False
 
+    def get_max_ram_per_core(self, resource_name):
+        """
+        Returns the maximum memory per core of the resource type
+        :param resource_name: string with the resource type name
+        :return: maxrampercore of the resource type, or None if the resource type is unknown or has no maxrampercore
+        """
+        self.load_data()
+        if resource_name in self.resource_types:
+            return self.resource_types[resource_name].max_ram_per_core
+        return None
+
     def get_single_core_resource_types(self):
         """
         Returns a list of resource types that are single core
