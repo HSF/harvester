@@ -3,6 +3,8 @@ DB proxy base: database connection and SQL execution helpers
 
 """
 
+import copy
+import functools
 import inspect
 import os
 import re
@@ -32,6 +34,26 @@ serviceMetricsTableName = "sm_table"
 
 # connection lock
 conLock = threading.Lock()
+
+
+# decorator for DB proxy methods: on any exception, roll back, dump the error, and return a fresh copy of default
+def db_error_handler(default=None):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except Exception:
+                # roll back
+                self.rollback()
+                # dump error
+                core_utils.dump_error_message(core_utils.make_logger(_logger, method_name=func.__name__))
+                # return
+                return copy.deepcopy(default)
+
+        return wrapper
+
+    return decorator
 
 
 # base class of DB proxy modules
