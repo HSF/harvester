@@ -53,7 +53,6 @@ class WorkerCheckModule(BaseModule):
         Schedule rows of workers missing in work_table or of multi-worker mapping are deleted.
         """
         tmpLog = core_utils.make_logger(_logger, f"by={locked_by}", method_name="claim_workers_to_check")
-        tmpLog.debug("start")
         timeNow = core_utils.naive_utcnow()
         lock_token = f"{locked_by}-{random.getrandbits(32):08x}"
         # get candidates
@@ -65,13 +64,17 @@ class WorkerCheckModule(BaseModule):
         candidates = [workerID for (workerID,) in self.cur.fetchall()]
         if not candidates:
             self.commit()
-            tmpLog.debug("no worker to check")
             return lock_token, {}, {}
-        # lease candidates unless leased by others in the meantime
-        varMap = {":lockedBy": lock_token, ":lockedUntil": timeNow + datetime.timedelta(seconds=lock_interval), ":lockTimeLimit": timeNow}
+        # lease candidates unless leased by others in the meantime, or already checked and released by others with a new schedule
+        varMap = {
+            ":lockedBy": lock_token,
+            ":lockedUntil": timeNow + datetime.timedelta(seconds=lock_interval),
+            ":lockTimeLimit": timeNow,
+            ":timeNow": timeNow,
+        }
         sqlL = f"UPDATE {workerCheckTableName} SET lockedBy=:lockedBy,lockedUntil=:lockedUntil "
         sqlL += f"WHERE workerID IN ({_bind_in('wID', candidates, varMap)}) "
-        sqlL += "AND (lockedBy IS NULL OR lockedUntil<:lockTimeLimit) "
+        sqlL += "AND nextCheckTime<=:timeNow AND (lockedBy IS NULL OR lockedUntil<:lockTimeLimit) "
         self.execute(sqlL, varMap)
         self.commit()
         # get schedule of workers leased by this claim
@@ -291,8 +294,10 @@ class WorkerCheckModule(BaseModule):
             if modificationTime is None:
                 nextCheckTime = timeNow
             else:
-                nextCheckTime = min(modificationTime + datetime.timedelta(seconds=check_interval), latest_time)
+                nextCheckTime = modificationTime + datetime.timedelta(seconds=check_interval)
+            # jitter before the cap, not to go beyond the cap and get clamped below
             nextCheckTime += datetime.timedelta(seconds=check_interval * random.uniform(-jitter_fraction, jitter_fraction))
+            nextCheckTime = min(nextCheckTime, latest_time)
             check_spec = WorkerCheckSpec()
             check_spec.workerID = workerID
             check_spec.nextCheckTime = nextCheckTime

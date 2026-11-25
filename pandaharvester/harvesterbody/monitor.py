@@ -30,6 +30,9 @@ _jitter_group_size = 50
 _event_lock_name = "monitor_event_deliverer"
 _reconcile_lock_name = "monitor_reconciler"
 
+# minimum interval to log that monitor agents keep finding no worker to check
+_idle_log_interval = 600
+
 # cache keys of the time of the last successful event delivery
 _event_delivery_cache_keys = ("_monitor_event_last_delivery", "_universal")
 
@@ -93,6 +96,7 @@ def get_schedule_config():
     config.lock_interval = mc.lockInterval
     config.max_workers = mc.maxWorkers
     config.check_timeout = getattr(mc, "checkTimeout", None)
+    config.worker_max_lifetime_hours = getattr(mc, "workerMaxLifetimeHours", 720)
     config.idle_sleep_time = getattr(mc, "idleSleepTime", 10)
     config.reconcile_interval = getattr(mc, "reconcileInterval", 600)
     config.stale_check_age = getattr(mc, "staleCheckAge", 3 * check_interval)
@@ -161,9 +165,11 @@ class Monitor(AgentBase):
         # main
         last_reconcile_timestamp = 0
         last_event_delivery_timestamp = 0
+        # consecutive cycles without worker to check, logged only once in a while
+        n_idle_cycles = 0
+        last_idle_log_timestamp = 0
         while True:
             sw_main = core_utils.get_stopwatch()
-            mainLog.debug("start a monitor cycle")
             # make the schedule consistent with workers; one agent at a time
             if time.time() >= last_reconcile_timestamp + self.config.reconcile_interval:
                 last_reconcile_timestamp = time.time()
@@ -180,7 +186,14 @@ class Monitor(AgentBase):
                     mainLog.debug("did not get lock. Skip monitor_event_deliverer")
             # check due workers
             n_claimed = self.check_due_workers(lockedBy)
-            mainLog.debug("done a monitor cycle" + sw_main.get_elapsed_time())
+            if n_claimed > 0:
+                n_idle_cycles = 0
+                mainLog.debug("done a monitor cycle" + sw_main.get_elapsed_time())
+            else:
+                n_idle_cycles += 1
+                if n_idle_cycles == 1 or time.time() >= last_idle_log_timestamp + _idle_log_interval:
+                    last_idle_log_timestamp = time.time()
+                    mainLog.debug(f"no worker to check in {n_idle_cycles} consecutive cycles; logged at most every {_idle_log_interval} sec while idle")
             # go on at once while there can be more due workers
             if n_claimed >= self.config.max_workers:
                 sleep_time = 0
@@ -268,7 +281,6 @@ class Monitor(AgentBase):
             mainLog.error("failed to claim workers to check")
             return 0
         if not check_specs:
-            mainLog.debug("no worker to check")
             return 0
         sw = core_utils.get_stopwatch()
         check_start = core_utils.naive_utcnow()
@@ -334,24 +346,29 @@ class Monitor(AgentBase):
         tmpQueLog = self.make_logger(_logger, f"id={lockedBy} queue={queueName}", method_name="run")
         if check_specs is None:
             check_specs = {}
-        # check queue
+        allWorkers = [item for sublist in workSpecsList for item in sublist]
         if not self.queueConfigMapper.has_queue(queueName, config_id):
             tmpQueLog.error("config not found")
-            return None
-        # get queue
-        queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
-        # get plugins
-        monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
-        messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
-        # start of consecutive check failures
-        first_fail_time_map = {workerID: check_spec.firstFailTime for workerID, check_spec in check_specs.items()}
-        # check workers
-        allWorkers = [item for sublist in workSpecsList for item in sublist]
-        tmpQueLog.debug(f"checking {len(allWorkers)} workers")
-        tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog, first_fail_time_map)
-        if not tmpStat:
-            tmpQueLog.error("failed to check workers")
-            return None
+            # nothing can check the workers; end the ones too old to keep waiting for the queue configuration
+            tmpRetMap = self.end_unconfigured_workers(allWorkers, tmpQueLog)
+            if not tmpRetMap:
+                return None
+            workSpecsList = [workSpecs for workSpecs in workSpecsList if workSpecs[0].workerID in tmpRetMap]
+            messenger = None
+        else:
+            # get queue
+            queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
+            # get plugins
+            monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
+            messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
+            # start of consecutive check failures
+            first_fail_time_map = {workerID: check_spec.firstFailTime for workerID, check_spec in check_specs.items()}
+            # check workers
+            tmpQueLog.debug(f"checking {len(allWorkers)} workers")
+            tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog, first_fail_time_map)
+            if not tmpStat:
+                tmpQueLog.error("failed to check workers")
+                return None
         # loop over all worker chunks
         tmpQueLog.debug("update jobs and workers")
         retMap = {}
@@ -442,7 +459,7 @@ class Monitor(AgentBase):
                         tmpLog = self.make_logger(_logger, f"id={lockedBy} PandaID={jobSpec.PandaID}", method_name="run")
                         tmpLog.debug(f"new status={jobSpec.status} subStatus={jobSpec.subStatus} status_in_metadata={jobSpec.get_job_status_from_attributes()}")
             # send ACK to workers for events and files
-            if len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0:
+            if messenger is not None and (len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0):
                 for workSpec in workSpecs:
                     try:
                         messenger.acknowledge_events_files(workSpec)
@@ -451,6 +468,37 @@ class Monitor(AgentBase):
                         tmpQueLog.error(f"failed to send ACK to workerID={workSpec.workerID}")
             retMap.update(chunk_outcome_map)
         tmpQueLog.debug("done")
+        return retMap
+
+    # end workers older than workerMaxLifetimeHours without checking them, when their queue configuration is gone
+    def end_unconfigured_workers(self, all_workers, tmp_log):
+        """
+        Return {workerID: check result} in the format of check_workers, only for workers to end
+        """
+        retMap = {}
+        if not self.config.worker_max_lifetime_hours:
+            return retMap
+        timeLimit = core_utils.naive_utcnow() - datetime.timedelta(hours=self.config.worker_max_lifetime_hours)
+        for workSpec in all_workers:
+            if workSpec.creationTime is None or workSpec.creationTime > timeLimit:
+                continue
+            diagMessage = f"Cancelled by Harvester since queue configuration is missing and worker is older than {self.config.worker_max_lifetime_hours} hours"
+            tmp_log.warning(f"cancel workerID={workSpec.workerID} created at {workSpec.creationTime} without killing it, since queue configuration is missing")
+            if not workSpec.has_pilot_error():
+                workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
+            retMap[workSpec.workerID] = {
+                "oldStatus": workSpec.status,
+                "newStatus": WorkSpec.ST_cancelled,
+                "monStatus": WorkSpec.ST_cancelled,
+                "workAttributes": None,
+                "filesToStageOut": [],
+                "eventsRequestParams": {},
+                "eventsToUpdate": [],
+                "diagMessage": diagMessage,
+                "pandaIDs": [],
+                "nJobsToReFill": None,
+                "isChecked": True,
+            }
         return retMap
 
     # wrapper for checkWorkers
@@ -592,6 +640,20 @@ class Monitor(AgentBase):
                         workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                         # set closed
                         workSpec.set_pilot_closed()
+                    # alive for too long
+                    if (
+                        self.config.worker_max_lifetime_hours
+                        and newStatus not in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]
+                        and workSpec.creationTime is not None
+                        and timeNow > workSpec.creationTime + datetime.timedelta(hours=self.config.worker_max_lifetime_hours)
+                    ):
+                        tmp_log.warning(
+                            f"kill workerID={workerID} created at {workSpec.creationTime} due to living longer than {self.config.worker_max_lifetime_hours} hours"
+                        )
+                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+                        newStatus = WorkSpec.ST_cancelled
+                        diagMessage = "Killed by Harvester due to worker living longer than workerMaxLifetimeHours. " + diagMessage
+                        workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                     # expired heartbeat - only when requested in the configuration
                     try:
                         # check if the queue configuration requires checking for worker heartbeat
@@ -709,8 +771,12 @@ class Monitor(AgentBase):
     def reconcile_schedule(self):
         tmpLog = self.make_logger(_logger, f"id=monitor-{self.get_pid()}", method_name="reconcile_schedule")
         tmpLog.debug("start")
+        # maxCheckInterval caps the interval as in get_check_interval
+        check_interval = self.config.check_interval
+        if self.config.max_check_interval > 0:
+            check_interval = min(check_interval, self.config.max_check_interval)
         retVal = self.dbProxy.reconcile_worker_checks(
-            self.config.check_interval, self.config.max_schedule_ahead, self.config.stale_check_age, jitter_fraction=self.config.jitter_fraction
+            check_interval, self.config.max_schedule_ahead, self.config.stale_check_age, jitter_fraction=self.config.jitter_fraction
         )
         if retVal is None:
             tmpLog.error("failed to reconcile")
