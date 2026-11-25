@@ -206,7 +206,9 @@ def monitor_repopulate(arguments):
 
     config, _ = get_schedule_config()
     dbProxy = DBProxy()
-    res_obj = dbProxy.reconcile_worker_checks(config.check_interval, config.max_schedule_ahead, config.stale_check_age, jitter_fraction=config.jitter_fraction)
+    res_obj = dbProxy.reconcile_worker_checks(
+        config.default_check_interval, config.max_schedule_ahead, config.stale_check_age, jitter_fraction=config.jitter_fraction
+    )
     if res_obj is None:
         mainLogger.critical("Failed to repopulate worker check schedule. See panda-db_proxy.log")
         return 1

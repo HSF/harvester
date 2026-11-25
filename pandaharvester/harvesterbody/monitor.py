@@ -20,6 +20,9 @@ _logger = core_utils.setup_logger("monitor")
 # worker statuses to check
 _active_statuses = (WorkSpec.ST_submitted, WorkSpec.ST_running, WorkSpec.ST_idle)
 
+# monitored statuses of workers ended on the resource
+_final_mon_statuses = (WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled)
+
 # fraction of the interval to randomize next check time, to spread the load
 _jitter_fraction = 0.1
 
@@ -95,10 +98,17 @@ def get_schedule_config():
     config.jitter_fraction = _jitter_fraction
     config.check_interval = check_interval
     config.max_check_interval = getattr(mc, "maxCheckInterval", getattr(mc, "fifoMaxCheckInterval", 0))
+    # check interval of queues without their own, capped by maxCheckInterval
+    if config.max_check_interval > 0:
+        config.default_check_interval = min(check_interval, config.max_check_interval)
+    else:
+        config.default_check_interval = check_interval
     config.check_retry_interval = getattr(mc, "checkRetryInterval", min(300, check_interval))
     config.lock_interval = mc.lockInterval
     config.max_workers = mc.maxWorkers
     config.check_timeout = getattr(mc, "checkTimeout", None)
+    config.worker_queue_time_limit = getattr(mc, "workerQueueTimeLimit", 172800)
+    config.post_process_timeout = getattr(mc, "postProcessTimeout", 0)
     config.worker_max_lifetime_hours = getattr(mc, "workerMaxLifetimeHours", 720)
     config.idle_sleep_time = getattr(mc, "idleSleepTime", 10)
     config.idle_log_interval = getattr(mc, "idleLogInterval", 300)
@@ -120,6 +130,25 @@ def get_schedule_config():
     else:
         config.max_schedule_ahead = 86400
     return config, messages
+
+
+def make_check_result(work_spec, status, diag_message="", n_jobs_to_refill=None):
+    """
+    Make the check result of a worker, in the format of check_workers
+    """
+    return {
+        "oldStatus": work_spec.status,
+        "newStatus": status,
+        "monStatus": status,
+        "workAttributes": None,
+        "filesToStageOut": [],
+        "eventsRequestParams": {},
+        "eventsToUpdate": [],
+        "diagMessage": diag_message,
+        "pandaIDs": [],
+        "nJobsToReFill": n_jobs_to_refill,
+        "isChecked": True,
+    }
 
 
 # check workers and update their status
@@ -153,8 +182,6 @@ class Monitor(AgentBase):
                 except Exception:
                     tmp_log.error(f"failed to launch event-based-monitor plugin of {plugin_key}")
                     core_utils.dump_error_message(tmp_log)
-        # random jitters of the current check cycle
-        self.jitterList = []
 
     # main loop
     def run(self):
@@ -221,22 +248,16 @@ class Monitor(AgentBase):
                 self.deprecationWarnedQueues.add(queue_name)
                 tmp_log.warning("monitor plugin parameter fifoCheckInterval is deprecated; used as checkInterval. Please rename it")
         if check_interval is None:
-            check_interval = self.config.check_interval
+            return self.config.default_check_interval
         # maxCheckInterval caps the interval, also for workers whose queue configuration predates a change
         if self.config.max_check_interval > 0:
             check_interval = min(check_interval, self.config.max_check_interval)
         return check_interval
 
-    # get a random jitter of next check time; the same for each group of workers in a check cycle
-    def get_jitter(self, index):
-        group = index // _jitter_group_size
-        while len(self.jitterList) <= group:
-            self.jitterList.append(random.uniform(-_jitter_fraction, _jitter_fraction))
-        return self.jitterList[group]
-
     # make an item to release a worker with its next schedule
-    def make_release_item(self, check_spec, check_start, outcome, interval, index, postproc=False):
+    def make_release_item(self, check_spec, check_start, outcome, interval, jitter, postproc=False):
         """
+        jitter is the random fraction of the interval added to next check time
         outcome is one of:
         - "final": worker in final status; delete its schedule
         - "checked": checked successfully
@@ -278,7 +299,7 @@ class Monitor(AgentBase):
             item["lastTrigger"] = WorkerCheckSpec.TRIG_retry
         else:
             item["lastTrigger"] = WorkerCheckSpec.TRIG_poll
-        item["nextCheckTime"] = check_start + datetime.timedelta(seconds=interval * (1 + self.get_jitter(index)))
+        item["nextCheckTime"] = check_start + datetime.timedelta(seconds=interval * (1 + jitter))
         return item
 
     # claim due workers, check them, and release them with next schedule. Return the number of workers claimed
@@ -294,20 +315,25 @@ class Monitor(AgentBase):
         check_start = core_utils.naive_utcnow()
         max_lag = max((check_start - check_spec.nextCheckTime).total_seconds() for check_spec in check_specs.values())
         mainLog.debug(f"claimed {len(check_specs)} workers; max lag {max_lag:.0f} sec")
-        self.jitterList = []
         release_list = []
+        jitter = 0
         n_outcome = {}
         for queueName, per_config in workspecs_per_queue.items():
             for configID, workSpecsList in per_config.items():
                 tmpQueLog = self.make_logger(_logger, f"id={locked_by} queue={queueName}", method_name="check_due_workers")
-                # check interval of the queue
-                check_interval = self.config.check_interval
+                # queue configuration and monitor plugin; None if the queue configuration is missing
+                queueConfig = None
+                monCore = None
+                check_interval = self.config.default_check_interval
+                got_plugin = True
                 if self.queueConfigMapper.has_queue(queueName, configID):
                     try:
                         queueConfig = self.queueConfigMapper.get_queue(queueName, configID)
                         monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
                         check_interval = self.get_check_interval(monCore, queueName, tmpQueLog)
                     except Exception:
+                        got_plugin = False
+                        tmpQueLog.error("failed to get queue configuration or monitor plugin")
                         core_utils.dump_error_message(tmpQueLog)
                 # sort out workers to check
                 outcome_map = {}
@@ -322,18 +348,22 @@ class Monitor(AgentBase):
                         outcome_map[workSpec.workerID] = ("skipped", False)
                 # check workers
                 if workSpecsToCheck:
-                    try:
-                        retMap = self.check_and_update_workers(locked_by, queueName, workSpecsToCheck, config_id=configID, check_specs=check_specs)
-                    except Exception as e:
-                        tmpQueLog.error(f"check_and_update_workers excepted with {e}")
-                        core_utils.dump_error_message(tmpQueLog)
-                        retMap = None
+                    retMap = None
+                    if got_plugin:
+                        try:
+                            retMap = self.check_and_update_workers(locked_by, queueName, workSpecsToCheck, queueConfig, monCore, check_specs)
+                        except Exception as e:
+                            tmpQueLog.error(f"check_and_update_workers excepted with {e}")
+                            core_utils.dump_error_message(tmpQueLog)
                     for workSpecs in workSpecsToCheck:
                         workerID = workSpecs[0].workerID
                         outcome_map[workerID] = ("retry", False) if retMap is None else retMap.get(workerID, ("retry", False))
                 # release items
                 for workerID, (outcome, postproc) in outcome_map.items():
-                    release_list.append(self.make_release_item(check_specs[workerID], check_start, outcome, check_interval, len(release_list), postproc))
+                    # the same jitter for each group of workers, so that they are released with one statement
+                    if len(release_list) % _jitter_group_size == 0:
+                        jitter = random.uniform(-_jitter_fraction, _jitter_fraction)
+                    release_list.append(self.make_release_item(check_specs[workerID], check_start, outcome, check_interval, jitter, postproc))
                     n_outcome[outcome] = n_outcome.get(outcome, 0) + 1
                     if postproc:
                         n_outcome["postproc"] = n_outcome.get("postproc", 0) + 1
@@ -346,16 +376,14 @@ class Monitor(AgentBase):
         return len(check_specs)
 
     # core of monitor agent to check workers in workSpecsList of queueName
-    def check_and_update_workers(self, lockedBy, queueName, workSpecsList, config_id=None, check_specs=None):
+    def check_and_update_workers(self, lockedBy, queueName, workSpecsList, queueConfig, monCore, check_specs):
         """
-        Check workers and update them in DB.
+        Check workers and update them in DB. queueConfig and monCore are None if the queue configuration is missing.
         Return {workerID: (outcome, postproc)} as arguments of make_release_item, or None if not checked at all.
         """
         tmpQueLog = self.make_logger(_logger, f"id={lockedBy} queue={queueName}", method_name="check_and_update_workers")
-        if check_specs is None:
-            check_specs = {}
         allWorkers = [item for sublist in workSpecsList for item in sublist]
-        if not self.queueConfigMapper.has_queue(queueName, config_id):
+        if queueConfig is None:
             tmpQueLog.error("config not found")
             # nothing can check the workers; end the ones too old to keep waiting for the queue configuration
             tmpRetMap = self.end_unconfigured_workers(allWorkers, tmpQueLog)
@@ -364,16 +392,10 @@ class Monitor(AgentBase):
             workSpecsList = [workSpecs for workSpecs in workSpecsList if workSpecs[0].workerID in tmpRetMap]
             messenger = None
         else:
-            # get queue
-            queueConfig = self.queueConfigMapper.get_queue(queueName, config_id)
-            # get plugins
-            monCore = self.pluginFactory.get_plugin(queueConfig.monitor)
             messenger = self.pluginFactory.get_plugin(queueConfig.messenger)
-            # start of consecutive check failures
-            first_fail_time_map = {workerID: check_spec.firstFailTime for workerID, check_spec in check_specs.items()}
             # check workers
             tmpQueLog.debug(f"checking {len(allWorkers)} workers")
-            tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog, first_fail_time_map)
+            tmpStat, tmpRetMap = self.check_workers(monCore, messenger, allWorkers, queueConfig, tmpQueLog, check_specs)
             if not tmpStat:
                 tmpQueLog.error("failed to check workers")
                 return None
@@ -421,7 +443,9 @@ class Monitor(AgentBase):
                 elif monStatus == WorkSpec.ST_cancelled:
                     if not workSpec.has_pilot_error() and workSpec.errorCode is None:
                         workSpec.set_pilot_error(PilotErrors.PANDAKILL, diagMessage)
-                if monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                # final on the resource or killed
+                endedOnResource = monStatus in _final_mon_statuses
+                if endedOnResource:
                     workSpec.set_work_params({"finalMonStatus": monStatus})
                 # request events
                 if eventsRequestParams != {}:
@@ -447,9 +471,8 @@ class Monitor(AgentBase):
                 if workSpec.is_final_status():
                     chunk_outcome_map[workSpec.workerID] = ("final", False)
                 else:
-                    # final on the resource or killed, while post-processing or stage-out is pending
-                    postproc = monStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]
-                    chunk_outcome_map[workSpec.workerID] = ("checked" if isChecked else "failed", postproc)
+                    # post-processing or stage-out is pending when ended on the resource
+                    chunk_outcome_map[workSpec.workerID] = ("checked" if isChecked else "failed", endedOnResource)
             # update jobs and workers
             if jobSpecs is not None and len(jobSpecs) > 0:
                 tmpQueLog.debug(f"updating {len(jobSpecs)} jobs with {len(workSpecs)} workers")
@@ -494,50 +517,22 @@ class Monitor(AgentBase):
             tmp_log.warning(f"cancel workerID={workSpec.workerID} created at {workSpec.creationTime} without killing it, since queue configuration is missing")
             if not workSpec.has_pilot_error():
                 workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
-            retMap[workSpec.workerID] = {
-                "oldStatus": workSpec.status,
-                "newStatus": WorkSpec.ST_cancelled,
-                "monStatus": WorkSpec.ST_cancelled,
-                "workAttributes": None,
-                "filesToStageOut": [],
-                "eventsRequestParams": {},
-                "eventsToUpdate": [],
-                "diagMessage": diagMessage,
-                "pandaIDs": [],
-                "nJobsToReFill": None,
-                "isChecked": True,
-            }
+            retMap[workSpec.workerID] = make_check_result(workSpec, WorkSpec.ST_cancelled, diagMessage)
         return retMap
 
     # wrapper for checkWorkers
-    def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log, first_fail_time_map=None):
+    def check_workers(self, mon_core, messenger, all_workers, queue_config, tmp_log, check_specs):
         """
-        first_fail_time_map is {workerID: start of consecutive check failures before this check, or None}
+        check_specs is {workerID: WorkerCheckSpec}, giving the start of consecutive check failures before this check
         """
-        if first_fail_time_map is None:
-            first_fail_time_map = {}
-        # check timeout value
-        try:
-            checkTimeout = mon_core.checkTimeout
-        except Exception:
-            try:
-                checkTimeout = harvester_config.monitor.checkTimeout
-            except Exception:
-                checkTimeout = None
-        try:
-            workerQueueTimeLimit = harvester_config.monitor.workerQueueTimeLimit
-        except AttributeError:
-            workerQueueTimeLimit = 172800
+        checkTimeout = getattr(mon_core, "checkTimeout", self.config.check_timeout)
+        workerQueueTimeLimit = self.config.worker_queue_time_limit
         workersToCheck = []
+        workerIDsToKill = set()
         thingsToPostProcess = []
         retMap = dict()
         for workSpec in all_workers:
-            eventsRequestParams = {}
-            eventsToUpdate = []
-            pandaIDs = []
             workStatus = None
-            workAttributes = None
-            filesToStageOut = []
             nJobsToReFill = None
             if workSpec.has_work_params("finalMonStatus"):
                 # to post-process
@@ -563,19 +558,7 @@ class Monitor(AgentBase):
                 else:
                     workersToCheck.append(workSpec)
             # add
-            retMap[workSpec.workerID] = {
-                "oldStatus": workSpec.status,
-                "newStatus": workStatus,
-                "monStatus": workStatus,
-                "workAttributes": workAttributes,
-                "filesToStageOut": filesToStageOut,
-                "eventsRequestParams": eventsRequestParams,
-                "eventsToUpdate": eventsToUpdate,
-                "diagMessage": "",
-                "pandaIDs": pandaIDs,
-                "nJobsToReFill": nJobsToReFill,
-                "isChecked": True,
-            }
+            retMap[workSpec.workerID] = make_check_result(workSpec, workStatus, n_jobs_to_refill=nJobsToReFill)
         # check workers
         tmp_log.debug("checking workers with plugin")
         try:
@@ -609,7 +592,7 @@ class Monitor(AgentBase):
                         tmp_log.warning(f"Failed to check workerID={workerID} with {diagMessage}")
                         retMap[workerID]["isChecked"] = False
                         # set status when checks keep failing for longer than checkTimeout
-                        firstFailTime = first_fail_time_map.get(workerID)
+                        firstFailTime = check_specs[workerID].firstFailTime
                         if firstFailTime is not None and checkTimeout is not None and timeNow - firstFailTime > datetime.timedelta(seconds=checkTimeout):
                             if getattr(mon_core, "preserveUnknownWorkers", False) and getattr(workSpec, "nativeStatus", None) == "unknown":
                                 if workSpec.killTime is not None and workSpec.killTime <= timeNow:
@@ -629,7 +612,7 @@ class Monitor(AgentBase):
                             else:
                                 # kill due to timeout
                                 tmp_log.debug(f"kill workerID={workerID} due to consecutive check failures since {firstFailTime}")
-                                self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+                                workerIDsToKill.add(workerID)
                                 newStatus = WorkSpec.ST_cancelled
                                 diagMessage = "Killed by Harvester due to consecutive worker check failures. " + diagMessage
                                 workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
@@ -639,11 +622,11 @@ class Monitor(AgentBase):
                     # request kill
                     if messenger.kill_requested(workSpec):
                         tmp_log.debug(f"kill workerID={workerID} as requested")
-                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+                        workerIDsToKill.add(workerID)
                     # stuck queuing for too long
                     if workSpec.status == WorkSpec.ST_submitted and timeNow > workSpec.submitTime + datetime.timedelta(seconds=workerQueueTimeLimit):
                         tmp_log.debug(f"kill workerID={workerID} due to queuing longer than {workerQueueTimeLimit} seconds")
-                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+                        workerIDsToKill.add(workerID)
                         diagMessage = "Killed by Harvester due to worker queuing too long. " + diagMessage
                         workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                         # set closed
@@ -651,14 +634,14 @@ class Monitor(AgentBase):
                     # alive for too long
                     if (
                         self.config.worker_max_lifetime_hours
-                        and newStatus not in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]
+                        and newStatus not in _final_mon_statuses
                         and workSpec.creationTime is not None
                         and timeNow > workSpec.creationTime + datetime.timedelta(hours=self.config.worker_max_lifetime_hours)
                     ):
                         tmp_log.warning(
                             f"kill workerID={workerID} created at {workSpec.creationTime} due to living longer than {self.config.worker_max_lifetime_hours} hours"
                         )
-                        self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+                        workerIDsToKill.add(workerID)
                         newStatus = WorkSpec.ST_cancelled
                         diagMessage = "Killed by Harvester due to worker living longer than workerMaxLifetimeHours. " + diagMessage
                         workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
@@ -674,7 +657,7 @@ class Monitor(AgentBase):
                             tmp_log.debug(f"heartbeat for workerID={workerID} is valid")
                         else:
                             tmp_log.debug(f"heartbeat for workerID={workerID} expired: sending kill request")
-                            self.dbProxy.mark_workers_to_kill_by_workerids([workSpec.workerID])
+                            workerIDsToKill.add(workerID)
                             diagMessage = "Killed by Harvester due to worker heartbeat expired. " + diagMessage
                             workSpec.set_pilot_error(PilotErrors.FAILEDBYSERVER, diagMessage)
                     # get work attributes
@@ -698,7 +681,7 @@ class Monitor(AgentBase):
                     # keep original new status
                     retMap[workerID]["monStatus"] = newStatus
                     # set running or idle while there are events to update or files to stage out
-                    if newStatus in [WorkSpec.ST_finished, WorkSpec.ST_failed, WorkSpec.ST_cancelled]:
+                    if newStatus in _final_mon_statuses:
                         isOK = True
                         if len(retMap[workerID]["filesToStageOut"]) > 0 or len(retMap[workerID]["eventsToUpdate"]) > 0:
                             if workSpec.status == WorkSpec.ST_running:
@@ -715,7 +698,7 @@ class Monitor(AgentBase):
                                 tmpStat = messenger.post_processing(workSpec, jobSpecs, workSpec.mapType)
                                 if tmpStat is None:
                                     # retry
-                                    ppTimeOut = getattr(harvester_config.monitor, "postProcessTimeout", 0)
+                                    ppTimeOut = self.config.post_process_timeout
                                     if ppTimeOut > 0:
                                         timeLimit = core_utils.naive_utcnow() - datetime.timedelta(minutes=ppTimeOut)
                                         if workSpec.endTime is None or workSpec.endTime > timeLimit:
@@ -732,6 +715,9 @@ class Monitor(AgentBase):
                     retMap[workerID]["diagMessage"] = diagMessage
                 else:
                     tmp_log.debug(f"workerID={workerID} not in retMap")
+            # request kill with one statement
+            if workerIDsToKill:
+                self.dbProxy.mark_workers_to_kill_by_workerids(sorted(workerIDsToKill))
             return True, retMap
         except Exception:
             core_utils.dump_error_message(tmp_log)
@@ -779,12 +765,8 @@ class Monitor(AgentBase):
     def reconcile_schedule(self):
         tmpLog = self.make_logger(_logger, f"id=monitor-{self.get_pid()}", method_name="reconcile_schedule")
         tmpLog.debug("start")
-        # maxCheckInterval caps the interval as in get_check_interval
-        check_interval = self.config.check_interval
-        if self.config.max_check_interval > 0:
-            check_interval = min(check_interval, self.config.max_check_interval)
         retVal = self.dbProxy.reconcile_worker_checks(
-            check_interval, self.config.max_schedule_ahead, self.config.stale_check_age, jitter_fraction=self.config.jitter_fraction
+            self.config.default_check_interval, self.config.max_schedule_ahead, self.config.stale_check_age, jitter_fraction=self.config.jitter_fraction
         )
         if retVal is None:
             tmpLog.error("failed to reconcile")

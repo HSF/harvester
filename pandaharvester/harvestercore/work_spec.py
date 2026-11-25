@@ -200,11 +200,6 @@ class WorkSpec(SpecBase):
     def post_processed(self):
         self.postProcessed = 1
 
-    # trigger next lookup
-    def trigger_next_lookup(self):
-        self.nextLookup = True
-        self.modificationTime = core_utils.naive_utcnow() - datetime.timedelta(hours=1)
-
     # trigger propagation
     def trigger_propagation(self):
         self.lastUpdate = core_utils.naive_utcnow() - datetime.timedelta(hours=24)
