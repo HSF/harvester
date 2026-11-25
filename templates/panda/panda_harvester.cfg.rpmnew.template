@@ -388,47 +388,35 @@ respectSleepTime = False
 # number of threads
 nThreads = 3
 
-# max number of workers to try in one cycle
+# max number of workers to check in one cycle of a thread
 maxWorkers = 500
 
-# lock interval in sec
+# lease of workers being checked in sec; workers are checked again after this if a thread dies while checking them
 lockInterval = 600
 
-# check interval in sec
-checkInterval = 300
+# interval in sec between routine checks of a worker. A monitor plugin can override it with its checkInterval parameter
+checkInterval = 1800
 
-# timeout in sec to give up checking if it keeps failing
+# upper bound in sec on the check interval of every worker, including workers whose queue configuration predates a change; 0 for none
+#maxCheckInterval = 0
+
+# interval in sec to check a worker again after a failed check
+#checkRetryInterval = 300
+
+# kill a worker whose checks keep failing for longer than this, in sec
 checkTimeout = 3600
 
-# sleep interval in sec
-sleepTime = 600
+# sleep interval in sec when no worker is due
+#idleSleepTime = 10
 
-# whether to use fifo
-fifoEnable = False
+# interval in sec to make the worker check schedule consistent with workers
+#reconcileInterval = 600
 
-# sleep interval in millisecond using fifo
-fifoSleepTimeMilli = 15000
+# warn about active workers not checked for longer than this, in sec; 3 * checkInterval by default
+#staleCheckAge = 5400
 
-# check interval in fifo in sec
-fifoCheckInterval = 120
-
-# check duration of a fifo cycle in sec
-fifoCheckDuration = 60
-
-# interval of force enqueue in sec
-fifoForceEnqueueInterval = 1500
-
-# max number of workers to be populated into fifo
-#fifoMaxWorkersToPopulate = 100000
-
-# max number of workers in a chunk to enqueue
-fifoMaxWorkersPerChunk = 500
-
-# max interval in sec a post-processing worker can preempt in fifo
-fifoMaxPreemptInterval = 60
-
-# upper bound in sec on the fifo check interval of every worker, including workers whose queue configuration predates a change; 0 for none
-#fifoMaxCheckInterval = 30
+# max interval in sec a post-processing worker is checked before others
+#postProcessPriorityInterval = 60
 
 # lower bound in sec on useCondorHistoryMaxAge of HTCondorMonitor, including workers whose queue configuration predates a change; 0 for none
 #historyMaxAgeFloor = 86400
@@ -440,7 +428,7 @@ fifoMaxPreemptInterval = 60
 # workers will be killed if stuck queuing (submitted) for longer than this
 workerQueueTimeLimit = 172800
 
-# enable event-based monitor check. Only works when fifoEnable is True
+# enable event-based monitor check, to check workers soon after they are updated on the resource
 eventBasedEnable = False
 
 # list of plugins for event-based check. Mandatory when eventBasedEnable is True
@@ -455,20 +443,14 @@ eventBasedEnable = False
 #    }
 #  ]
 
-# interval of event-based check to query with plugin, in sec
+# interval of event-based check to query with plugin, in sec. Also the delay of the first check of new workers when enabled
 #eventBasedCheckInterval = 300
 
 # time window of event-based check to check within, in sec
 #eventBasedTimeWindow = 450
 
-# max number of events of event-based check to handle in one cycle
-#eventBasedCheckMaxEvents = 500
-
-# lifetime of an event in event-based check, in sec
-#eventBasedEventLifetime = 1800
-
-# max number of expired events to remove in one cycle
-#eventBasedRemoveMaxEvents = 2000
+# max time window in sec to look back after event-based check did not run for a while, e.g. after an outage
+#eventBasedMaxTimeWindow = 3600
 
 # timeout for post-processing in minutes. 0 to give up immediately
 postProcessTimeout = 0

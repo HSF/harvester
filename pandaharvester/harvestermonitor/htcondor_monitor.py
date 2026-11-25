@@ -237,11 +237,7 @@ class HTCondorMonitor(PluginBase):
         except AttributeError:
             pass
         # cache refresh interval in seconds
-        self.cacheRefreshInterval = 240
-        try:
-            self.cacheRefreshInterval = harvester_config.monitor.pluginCacheRefreshInterval
-        except AttributeError:
-            self.cacheRefreshInterval = harvester_config.monitor.checkInterval
+        self.cacheRefreshInterval = getattr(harvester_config.monitor, "pluginCacheRefreshInterval", 240)
         # whether to use condor history
         self.useCondorHistory = getattr(self, "useCondorHistory", True)
         if extra_plugin_configs.get("use_condor_history") is False:

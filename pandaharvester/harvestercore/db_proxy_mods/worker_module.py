@@ -23,6 +23,7 @@ from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.job_worker_relation_spec import JobWorkerRelationSpec
 from pandaharvester.harvestercore.work_spec import WorkSpec
+from pandaharvester.harvestercore.worker_check_spec import WorkerCheckSpec
 
 
 # DB proxy module for workers
@@ -59,7 +60,11 @@ class WorkerModule(BaseModule):
 
     # register a worker
     @db_error_handler(default=False)
-    def register_worker(self, workspec, jobspec_list, locked_by):
+    def register_worker(self, workspec, jobspec_list, locked_by, first_check_time=None):
+        """
+        first_check_time: time of the first check by the monitor; when given, the worker check schedule is created
+        in the same transaction, unless the worker is in final status or of multi-worker mapping
+        """
         tmpLog = core_utils.make_logger(_logger, f"batchID={workspec.batchID}", method_name="register_worker")
         tmpLog.debug("start")
         # sql to check if exists
@@ -168,6 +173,9 @@ class WorkerModule(BaseModule):
         # insert job/worker mapping
         if len(varMapsR) > 0:
             self.executemany(sqlR, varMapsR)
+        # create the worker check schedule
+        if first_check_time is not None and not workspec.is_final_status() and workspec.mapType != WorkSpec.MT_MultiWorkers:
+            self._insert_worker_check(workspec.workerID, first_check_time, WorkerCheckSpec.TRIG_submit)
         # commit
         self.commit()
         # return

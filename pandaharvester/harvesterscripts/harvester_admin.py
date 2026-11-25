@@ -324,6 +324,45 @@ def fifo_repopulate(arguments):
         repopulate_fifos(*arguments.name_list)
 
 
+def monitor_status(arguments):
+    dbProxy = DBProxy()
+    res_obj = dbProxy.get_worker_check_stats()
+    if res_obj is None:
+        mainLogger.critical("Failed to get worker check schedule. See panda-db_proxy.log")
+        return 1
+    if arguments.json:
+        json_print(res_obj)
+    else:
+        print(f"Workers scheduled : {res_obj['n_total']}")
+        print(f"Due (not leased)  : {res_obj['n_due']}")
+        print(f"Being checked     : {res_obj['n_leased']}")
+        print(f"Lag               : {res_obj['lag']:.0f} sec")
+        print(f"Per priority      : {res_obj['per_priority']}")
+        print(f"Per last trigger  : {res_obj['per_trigger']}")
+
+
+def monitor_repopulate(arguments):
+    from pandaharvester.harvesterbody.monitor import get_schedule_config
+
+    config, _ = get_schedule_config()
+    dbProxy = DBProxy()
+    res_obj = dbProxy.reconcile_worker_checks(config.check_interval, config.max_schedule_ahead, config.stale_check_age, jitter_fraction=config.jitter_fraction)
+    if res_obj is None:
+        mainLogger.critical("Failed to repopulate worker check schedule. See panda-db_proxy.log")
+        return 1
+    print(
+        f"Added schedules of {res_obj['n_inserted']} workers, removed {res_obj['n_deleted']} obsolete ones, "
+        f"made due {res_obj['n_clamped']} scheduled too far ahead; "
+        f"{res_obj['n_stale']} active workers not checked for longer than {config.stale_check_age} sec"
+    )
+    if arguments.now:
+        for queue_name in arguments.queue_list or [None]:
+            n_workers = dbProxy.force_worker_checks(queue_name)
+            print(f"Made due now {n_workers} workers" + ("" if queue_name is None else f" of {queue_name}"))
+    elif arguments.queue_list:
+        raise RuntimeError("<queue_name> is only used with --now")
+
+
 def cacher_refresh(arguments):
     from pandaharvester.harvesterbody.cacher import Cacher
     from pandaharvester.harvestercore.communicator_pool import CommunicatorPool
@@ -460,6 +499,9 @@ commandMap = {
     # fifo commands
     "fifo_benchmark": fifo_benchmark,
     "fifo_repopulate": fifo_repopulate,
+    # monitor commands
+    "monitor_status": monitor_status,
+    "monitor_repopulate": monitor_repopulate,
     # cacher commands
     "cacher_refresh": cacher_refresh,
     # qconf commands
@@ -505,6 +547,23 @@ def main():
     fifo_repopulate_parser.set_defaults(which="fifo_repopulate")
     fifo_repopulate_parser.add_argument(
         "name_list", nargs="+", type=str, action="store", metavar="<agent_name>", help='Name of agent fifo, e.g. "monitor" ("ALL" for all)'
+    )
+
+    # monitor parser
+    monitor_parser = subparsers.add_parser("monitor", help="monitor related")
+    monitor_subparsers = monitor_parser.add_subparsers()
+    # monitor status command
+    monitor_status_parser = monitor_subparsers.add_parser("status", help="Show the state of the worker check schedule")
+    monitor_status_parser.set_defaults(which="monitor_status")
+    monitor_status_parser.add_argument("-J", "--json", dest="json", action="store_true", help="Show results in JSON format")
+    # monitor repopulate command
+    monitor_repopulate_parser = monitor_subparsers.add_parser(
+        "repopulate", help="Make the worker check schedule consistent with workers now; optionally make workers due now"
+    )
+    monitor_repopulate_parser.set_defaults(which="monitor_repopulate")
+    monitor_repopulate_parser.add_argument("--now", dest="now", action="store_true", help="Also make workers due now, before others")
+    monitor_repopulate_parser.add_argument(
+        "queue_list", nargs="*", type=str, action="store", metavar="<queue_name>", help="With --now, only workers of these queues; all if none"
     )
 
     # cacher parser

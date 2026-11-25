@@ -549,14 +549,13 @@ class JobWorkerModule(BaseModule):
                     workSpec.modificationTime = timeNow
             else:
                 workSpec.nextLookup = False
-            # sql to update worker
+            # sql to update worker; exclusive access is given by the lease of the worker check schedule
             sqlW = f"UPDATE {workTableName} SET {workSpec.bind_update_changes_expression()} "
-            sqlW += "WHERE workerID=:workerID AND lockedBy=:cr_lockedBy "
+            sqlW += "WHERE workerID=:workerID "
             sqlW += "AND (status NOT IN (:st1,:st2,:st3,:st4)) "
             varMap = workSpec.values_map(only_changed=True)
             if len(varMap) > 0:
                 varMap[":workerID"] = workSpec.workerID
-                varMap[":cr_lockedBy"] = locked_by
                 varMap[":st1"] = WorkSpec.ST_cancelled
                 varMap[":st2"] = WorkSpec.ST_finished
                 varMap[":st3"] = WorkSpec.ST_failed

@@ -1,16 +1,15 @@
 import datetime
 import math
 import socket
-import time
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvesterbody.monitor import get_schedule_config
 from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.fifos import MonitorFIFO
 from pandaharvester.harvestercore.pilot_errors import PilotErrors
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -32,13 +31,13 @@ class Submitter(AgentBase):
         self.workerMaker = WorkerMaker()
         self.workerAdjuster = WorkerAdjuster(queue_config_mapper)
         self.pluginFactory = PluginFactory()
-        self.monitor_fifo = MonitorFIFO()
+        # delay of the first monitor check of new workers
+        self.first_check_delay = get_schedule_config()[0].first_check_delay
         self.apfmon = Apfmon(self.queue_configMapper)
 
     # main loop
     def run(self):
         locked_by = f"submitter-{self.get_pid()}"
-        monitor_fifo = self.monitor_fifo
         queue_lock_interval = getattr(harvester_config.submitter, "queueLockInterval", harvester_config.submitter.lockInterval)
         while True:
             sw_main = core_utils.get_stopwatch()
@@ -223,7 +222,6 @@ class Submitter(AgentBase):
                                     else:
                                         tmp_log.debug(f"made {len(okChunks)} workers, while {len(ngChunks)} workers failed")
                                     timeNow = core_utils.naive_utcnow()
-                                    timeNow_timestamp = time.time()
                                     pandaIDs = set()
                                     # NG (=not good)
                                     for ngJobs in ngChunks:
@@ -353,8 +351,6 @@ class Submitter(AgentBase):
                                             work_spec.submitTime = timeNow
                                             work_spec.modificationTime = timeNow
                                             work_spec.checkTime = timeNow
-                                            if self.monitor_fifo.enabled:
-                                                work_spec.set_work_params({"lastCheckAt": timeNow_timestamp})
                                             # prefetch events
                                             if (
                                                 tmpRet
@@ -380,7 +376,9 @@ class Submitter(AgentBase):
                                                         eventsRequestParams[job_spec.PandaID].update({"isHPO": True, "jobsetID": 0, "sourceURL": sourceURL})
                                                 work_spec.eventsRequestParams = eventsRequestParams
                                             # register worker
-                                            tmpStat = self.dbProxy.register_worker(work_spec, jobList, locked_by)
+                                            tmpStat = self.dbProxy.register_worker(
+                                                work_spec, jobList, locked_by, first_check_time=timeNow + datetime.timedelta(seconds=self.first_check_delay)
+                                            )
                                             if jobList is not None:
                                                 for job_spec in jobList:
                                                     pandaIDs.add(job_spec.PandaID)
@@ -396,19 +394,6 @@ class Submitter(AgentBase):
                                                     else:
                                                         tmpStr = "failed to register a worker for PandaID={0} with submissionHost={1} batchID={2}"
                                                         tmp_log.error(tmpStr.format(job_spec.PandaID, work_spec.submissionHost, work_spec.batchID))
-                                        # enqueue to monitor fifo
-                                        if self.monitor_fifo.enabled and queue_config.mapType != WorkSpec.MT_MultiWorkers:
-                                            work_specsToEnqueue = [[w] for w in work_specList if w.status in (WorkSpec.ST_submitted, WorkSpec.ST_running)]
-                                            check_delay = min(
-                                                getattr(harvester_config.monitor, "eventBasedCheckInterval", harvester_config.monitor.checkInterval),
-                                                getattr(harvester_config.monitor, "fifoCheckInterval", harvester_config.monitor.checkInterval),
-                                            )
-                                            # don't let a FIFO failure skip releasing the jobs below; the monitor DB cycle picks the workers up
-                                            try:
-                                                monitor_fifo.put((queue_name, work_specsToEnqueue), time.time() + check_delay)
-                                                main_log.debug("put workers to monitor FIFO")
-                                            except Exception as e:
-                                                main_log.error(f"failed to put workers to monitor FIFO: {e}")
                                         submitted = True
                                     # release jobs
                                     self.dbProxy.release_jobs(pandaIDs, locked_by)
