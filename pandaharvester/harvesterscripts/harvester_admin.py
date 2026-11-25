@@ -250,8 +250,7 @@ def qconf_refresh(arguments):
     qcm = QueueConfigMapper(update_db=False)
     if not qcm.request_reload():
         raise RuntimeError("failed to request running processes to reload")
-    qcm.lastUpdate = None
-    qcm.load_data()
+    # fill_pq_table loads the queue config first
     qcm.fill_pq_table(refill_table=arguments.refill)
 
 

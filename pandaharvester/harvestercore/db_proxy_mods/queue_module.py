@@ -620,13 +620,15 @@ class QueueModule(BaseModule):
         """
         tmpLog = core_utils.make_logger(_logger, method_name="touch_queue_config_dumps")
         config_ids = sorted(config_ids)
-        varMapBase = {":creationTime": core_utils.naive_utcnow()}
+        timeNow = core_utils.naive_utcnow()
         nUpdated = 0
         for idx in range(0, len(config_ids), 500):
-            varMap = dict(varMapBase)
+            varMap = {":creationTime": timeNow}
+            bindNameList = []
             for jdx, configID in enumerate(config_ids[idx : idx + 500]):
-                varMap[f":configID{jdx}"] = configID
-            bindNames = ",".join(key for key in varMap if key != ":creationTime")
+                bindNameList.append(f":configID{jdx}")
+                varMap[bindNameList[-1]] = configID
+            bindNames = ",".join(bindNameList)
             sqlU = f"UPDATE {queueConfigDumpTableName} SET creationTime=:creationTime WHERE configID IN ({bindNames}) "
             self.execute(sqlU, varMap)
             nUpdated += self.cur.rowcount

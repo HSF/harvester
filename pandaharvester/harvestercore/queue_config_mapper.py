@@ -56,17 +56,10 @@ def _format_signature(signature):
         return "None"
     items = []
     for key, val in signature.items():
-        if key == _file_mtime_key and val is not None:
-            val = core_utils.naive_utcfromtimestamp(val)
         if isinstance(val, datetime.datetime):
             val = val.isoformat()
         items.append(f"{key}={val}")
     return "{" + ", ".join(items) + "}"
-
-
-# timestamp string of a naive UTC datetime
-def _to_ts_info(the_time):
-    return f"{core_utils.naive_utc_to_timestamp(the_time):.3f}"
 
 
 # class for queue config
@@ -321,27 +314,30 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             return None
         signature = {key: update_times.get(key) for key in keys}
         try:
-            signature[_file_mtime_key] = os.stat(self._get_config_file_path()).st_mtime
+            signature[_file_mtime_key] = core_utils.naive_utcfromtimestamp(os.stat(self._get_config_file_path()).st_mtime)
         except OSError:
             signature[_file_mtime_key] = None
         return signature
 
     # request all processes to reload the queue config at their next check
     def request_reload(self):
-        return self.dbProxy.refresh_cache(_reload_request_key, "_universal", _to_ts_info(core_utils.naive_utcnow()))
+        return self.dbProxy.refresh_cache(_reload_request_key, "_universal", f"{core_utils.naive_utc_to_timestamp(core_utils.naive_utcnow()):.3f}")
 
-    # update pq_table
-    def _update_pq_table(self, refill_table=False):
+    # update pq_table with the active queues, and record what it is filled with if succeeded
+    def _update_pq_table(self, fill_key, refill_table=False):
+        """
+        Return True if filled, False if failed, or None if the lock was not got
+        """
         got_update_lock = self.dbProxy.get_process_lock("pq_table_fill", "qconf_universal", 120)
-        if got_update_lock:
-            fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
-            self.dbProxy.release_process_lock("pq_table_fill", "qconf_universal")
-            if fill_ret_val:
-                return True
-            else:
-                return False
-        else:
+        if not got_update_lock:
             return None
+        fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
+        self.dbProxy.release_process_lock("pq_table_fill", "qconf_universal")
+        if not fill_ret_val:
+            return False
+        self.pqTableFillKey = fill_key
+        self.pqTableFillTime = core_utils.naive_utcnow()
+        return True
 
     # key of what pq_table is filled with
     def _get_pq_table_fill_key(self):
@@ -355,10 +351,8 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         self.load_data()
         deadline = time.monotonic() + timeout
         while True:
-            retVal = self._update_pq_table(refill_table=refill_table)
+            retVal = self._update_pq_table(self._get_pq_table_fill_key(), refill_table=refill_table)
             if retVal:
-                self.pqTableFillKey = self._get_pq_table_fill_key()
-                self.pqTableFillTime = core_utils.naive_utcnow()
                 return True
             if retVal is False:
                 raise RuntimeError("failed to fill pq_table")
@@ -397,24 +391,24 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         return queueConfig
 
     # load data
-    def load_data(self, refill_table=False):
+    def load_data(self):
         """
         Reload the queue config if any of its sources changed (see _get_source_signature), or if older than updateInterval.
         Sources are checked at most every checkInterval
         """
         mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="load_data")
         call_time = core_utils.naive_utcnow()
+        signature = None
         # check if to update; until loaded once, wait for the ongoing first load instead
         with self.lock:
             if self.lastUpdate is not None:
-                now_time = core_utils.naive_utcnow()
                 # skip if lastCheck is fresh (within checkInterval)
-                if self.lastCheck is not None and now_time - self.lastCheck < datetime.timedelta(seconds=self.checkInterval):
+                if self.lastCheck is not None and call_time - self.lastCheck < datetime.timedelta(seconds=self.checkInterval):
                     return
-                self.lastCheck = now_time
+                self.lastCheck = call_time
                 # skip if no source changed and lastUpdate is fresh (within updateInterval)
                 signature = self._get_source_signature()
-                if (signature is None or signature == self.sourceSignature) and now_time - self.lastUpdate < datetime.timedelta(seconds=self.updateInterval):
+                if (signature is None or signature == self.sourceSignature) and call_time - self.lastUpdate < datetime.timedelta(seconds=self.updateInterval):
                     return
                 if signature is not None and signature != self.sourceSignature:
                     mainLog.debug(f"sources changed: {_format_signature(self.sourceSignature)} -> {_format_signature(signature)}")
@@ -427,9 +421,11 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             resolver = self._get_resolver()
             if resolver is None:
                 mainLog.debug("No resolver is configured")
-            self.resolverCacherKey = getattr(resolver, "cacher_key", None)
-            # get the source signature before reading the sources, so that updates meanwhile trigger the next reload
-            signature = self._get_source_signature()
+            resolverCacherKey = getattr(resolver, "cacher_key", None)
+            # get the source signature before reading the sources, so that updates meanwhile trigger the next reload; reuse the one just checked
+            if signature is None or resolverCacherKey != self.resolverCacherKey:
+                self.resolverCacherKey = resolverCacherKey
+                signature = self._get_source_signature()
             # refresh resolver data now if updated, rather than after its refresh period
             if hasattr(resolver, "force_refresh") and (
                 signature is None or self.sourceSignature is None or signature.get(self.resolverCacherKey) != self.sourceSignature.get(self.resolverCacherKey)
@@ -445,7 +441,6 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             remoteQueuesDict = dict()
             dynamicQueuesDict = dict()
             allQueuesNameList = set()
-            getQueuesDynamic = False
             invalidQueueList = set()
             pandaQueueDict = PandaQueuesDict()
             # load config json from cacher (RT & RQ)
@@ -491,17 +486,12 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                         mainLog.warning(f'Invalid templateQueueName "{templateQueueName}" for {queueName} ({acr}). Skipped')
             # get queue names from resolver and fill in dynamic queue (DQ)
             if resolver is not None and "DYNAMIC" in harvester_config.qconf.queueList:
-                getQueuesDynamic = True
-                dynamicQueuesNameList = resolver.get_all_queue_names()
-                for queueName in dynamicQueuesNameList.copy():
+                for queueName in resolver.get_all_queue_names():
                     try:
                         queueDict = dict()
                         # template and default template via workflow
-                        templateQueueName = None
-                        resolver_harvester_template = None
-                        if resolver is not None:
-                            resolver_harvester_template = resolver.get_harvester_template(queueName)
-                            resolver_type, resolver_workflow = resolver.get_type_workflow(queueName)
+                        resolver_harvester_template = resolver.get_harvester_template(queueName)
+                        resolver_type, resolver_workflow = resolver.get_type_workflow(queueName)
                         if resolver_harvester_template:
                             templateQueueName = resolver_harvester_template
                         elif not (resolver_type is None or resolver_workflow is None):
@@ -510,7 +500,6 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                             templateQueueName = harvester_config.qconf.defaultTemplateQueueName
                         if templateQueueName not in finalTemplatesDict:
                             # remove queues with invalid templateQueueName
-                            dynamicQueuesNameList.discard(queueName)
                             mainLog.warning(f'Invalid templateQueueName "{templateQueueName}" for {queueName} (DQ). Skipped')
                             continue
                         # parameters
@@ -525,8 +514,6 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     except Exception:
                         mainLog.error(f"failed to get dynamic queue config of {queueName}. Skipped")
                         core_utils.dump_error_message(mainLog)
-                        dynamicQueuesNameList.discard(queueName)
-                        dynamicQueuesDict.pop(queueName, None)
             # fill in all queue name list (names of RQ + DQ + LQ)
             allQueuesNameList |= set(remoteQueuesDict)
             allQueuesNameList |= set(dynamicQueuesDict)
@@ -575,10 +562,7 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     else:
                         mainLog.debug(f"queue {queueName} comes from {','.join(queueSourceList)}")
                     # prepare queueConfig
-                    if queueName in newQueueConfig:
-                        queueConfig = newQueueConfig[queueName]
-                    else:
-                        queueConfig = QueueConfig(queueName)
+                    queueConfig = QueueConfig(queueName)
                     # queueName = siteName/resourceType
                     queueConfig.siteName = queueConfig.queueName.split("/")[0]
                     if queueConfig.siteName != queueConfig.queueName:
@@ -707,15 +691,13 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     # put into new queue configs
                     newQueueConfig[queueName] = queueConfig
                     # Check existence of mandatory attributes
-                    if queueName in newQueueConfig:
-                        queueConfig = newQueueConfig[queueName]
-                        missing_attr_list = []
-                        for _attr in self.mandatory_attrs:
-                            if not hasattr(queueConfig, _attr):
-                                invalidQueueList.add(queueConfig.queueName)
-                                missing_attr_list.append(_attr)
-                        if missing_attr_list:
-                            mainLog.error(f"Missing mandatory attributes {','.join(missing_attr_list)} . Omitted {queueConfig.queueName} in queue config")
+                    missing_attr_list = []
+                    for _attr in self.mandatory_attrs:
+                        if not hasattr(queueConfig, _attr):
+                            invalidQueueList.add(queueConfig.queueName)
+                            missing_attr_list.append(_attr)
+                    if missing_attr_list:
+                        mainLog.error(f"Missing mandatory attributes {','.join(missing_attr_list)} . Omitted {queueConfig.queueName} in queue config")
                 except Exception:
                     mainLog.error(f"failed to make queue config of {queueName}. Omitted in queue config")
                     core_utils.dump_error_message(mainLog)
@@ -735,8 +717,9 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     raise RuntimeError("failed to get configIDs of queue config dumps")
                 mainLog.error("failed to get configIDs of queue config dumps. Kept the previous queue config")
                 return
-            # cache of queue configs with configID; only the current ones, others are read from DB when needed
-            newQueueConfigWithID = dict()
+            # cache of queue configs with configID; the current ones and the old ones read from DB when needed, while their dumps exist
+            liveConfigIDs = {configID for configID, _ in dumpIDs.values()}
+            newQueueConfigWithID = {configID: queueConfig for configID, queueConfig in self.queueConfigWithID.items() if configID in liveConfigIDs}
             # dumps of current configs to touch
             touchTimeLimit = core_utils.naive_utcnow() - datetime.timedelta(hours=_dump_touch_age_hours)
             dumpIDsToTouch = set()
@@ -806,31 +789,27 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             self.queueConfig = newQueueConfig.copy()
             self.activeQueues = activeQueues.copy()
             self.queueConfigWithID = newQueueConfigWithID
-            # keep dumps of current configs from being deleted as old, also by cleanup in other processes
-            if dumpIDsToTouch:
-                if self.dbProxy.touch_queue_config_dumps(dumpIDsToTouch) is None:
-                    mainLog.warning(f"failed to touch {len(dumpIDsToTouch)} queue config dumps")
-                else:
-                    mainLog.debug(f"touched {len(dumpIDsToTouch)} queue config dumps")
             # what pq_table is filled with
             pq_table_fill_key = self._get_pq_table_fill_key()
             # update lastUpdate and lastCheck
             self.sourceSignature = signature
             self.lastUpdate = core_utils.naive_utcnow()
             self.lastCheck = self.lastUpdate
+        # keep dumps of current configs from being deleted as old, also by cleanup in other processes
+        if dumpIDsToTouch:
+            if self.dbProxy.touch_queue_config_dumps(dumpIDsToTouch) is None:
+                mainLog.warning(f"failed to touch {len(dumpIDsToTouch)} queue config dumps")
+            else:
+                mainLog.debug(f"touched {len(dumpIDsToTouch)} queue config dumps")
         if self.toUpdateDB:
             # update database pq_table if the active queues changed, or not filled for long
-            now_time = core_utils.naive_utcnow()
             if (
-                refill_table
-                or pq_table_fill_key != self.pqTableFillKey
+                pq_table_fill_key != self.pqTableFillKey
                 or self.pqTableFillTime is None
-                or now_time - self.pqTableFillTime >= datetime.timedelta(seconds=_pq_table_fill_interval)
+                or core_utils.naive_utcnow() - self.pqTableFillTime >= datetime.timedelta(seconds=_pq_table_fill_interval)
             ):
-                retVal = self._update_pq_table(refill_table=refill_table)
+                retVal = self._update_pq_table(pq_table_fill_key)
                 if retVal:
-                    self.pqTableFillKey = pq_table_fill_key
-                    self.pqTableFillTime = now_time
                     if cache_ts:
                         mainLog.debug(f"updated pq_table (last cache updated at {str(cache_ts)})")
                     else:
