@@ -61,7 +61,7 @@ class SchemaModule(BaseModule):
             attr_type = attr_type.replace("autoincrement", "auto_increment")
         elif harvester_config.db.engine == "sqlite":
             if attr_type.startswith("varchar"):
-                attr_type = re.sub("varchar\(\d+\)", "text", attr_type)
+                attr_type = re.sub(r"varchar\(\d+\)", "text", attr_type)
             attr_type = attr_type.replace("auto_increment", "autoincrement")
         return attr_type
 
