@@ -36,8 +36,9 @@ _target_cache_max_age = 86400
 # cache keys of the time of the last successful event delivery
 _event_delivery_cache_keys = ("_monitor_event_last_delivery", "_universal")
 
-# monitor parameters removed with the fifo, to warn about
+# obsolete monitor parameters, mostly removed with the fifo, to warn about
 _removed_params = (
+    "sleepTime",
     "fifoEnable",
     "fifoSleepTimeMilli",
     "fifoCheckInterval",
