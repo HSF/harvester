@@ -36,6 +36,22 @@ serviceMetricsTableName = "sm_table"
 conLock = threading.Lock()
 
 
+# get the logger a failed DB proxy method made for itself, to keep its token (e.g. PandaID=...) in the error message
+def _get_method_logger(func, exc_traceback):
+    # find the frame of the method in the traceback
+    tb = exc_traceback
+    while tb is not None:
+        if tb.tb_frame.f_code is func.__code__:
+            for var_name in ("tmpLog", "tmp_log", "tmp_logger"):
+                tmp_log = tb.tb_frame.f_locals.get(var_name)
+                if isinstance(tmp_log, core_utils.LogWrapper):
+                    return tmp_log
+            break
+        tb = tb.tb_next
+    # fallback when the method failed before making its logger or has none
+    return core_utils.make_logger(_logger, method_name=func.__name__)
+
+
 # decorator for DB proxy methods: on any exception, roll back, dump the error, and return a fresh copy of default
 def db_error_handler(default=None):
     def decorator(func):
@@ -43,11 +59,11 @@ def db_error_handler(default=None):
         def wrapper(self, *args, **kwargs):
             try:
                 return func(self, *args, **kwargs)
-            except Exception:
+            except Exception as e:
                 # roll back
                 self.rollback()
                 # dump error
-                core_utils.dump_error_message(core_utils.make_logger(_logger, method_name=func.__name__))
+                core_utils.dump_error_message(_get_method_logger(func, e.__traceback__))
                 # return
                 return copy.deepcopy(default)
 
