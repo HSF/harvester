@@ -4,6 +4,7 @@ DB proxy module for sequence numbers, cache, commands, process locks and dialog 
 """
 
 import datetime
+import time
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.cache_spec import CacheSpec
@@ -21,6 +22,19 @@ from pandaharvester.harvestercore.db_proxy_mods.base_module import (
 from pandaharvester.harvestercore.diag_spec import DiagSpec
 from pandaharvester.harvestercore.process_lock_spec import ProcessLockSpec
 from pandaharvester.harvestercore.seq_number_spec import SeqNumberSpec
+
+# seconds a cached info in the process is used before checking lastUpdate in DB, to see updates by other processes
+_local_cache_check_interval = 60
+
+
+# cached info in the process
+class _LocalCacheItem:
+    __slots__ = ("lastUpdate", "data", "checkTime")
+
+    def __init__(self, last_update, data):
+        self.lastUpdate = last_update
+        self.data = data
+        self.checkTime = time.monotonic()
 
 
 # DB proxy module for sequence numbers, cache, commands, process locks and dialog messages
@@ -132,39 +146,61 @@ class MiscModule(BaseModule):
         cacheKey = f"cache|{main_key}|{sub_key}"
         globalDict = core_utils.get_global_dict()
         globalDict.acquire()
-        globalDict[cacheKey] = cacheSpec.data
+        globalDict[cacheKey] = _LocalCacheItem(cacheSpec.lastUpdate, cacheSpec.data)
         globalDict.release()
         tmpLog.debug("refreshed")
         return True
 
     # get a cached info
     def get_cache(self, main_key, sub_key=None, from_local_cache=True):
+        """
+        Return CacheSpec, or None if missing.
+        With from_local_cache, the copy in the process is used, and checked against lastUpdate in DB once older than
+        _local_cache_check_interval seconds, so that updates by other processes are seen
+        """
         useDB = False
         try:
             # get logger
             tmpLog = core_utils.make_logger(_logger, f"mainKey={main_key} subKey={sub_key}", method_name="get_cache")
             tmpLog.debug("start")
+            # where clause
+            sqlW = "WHERE mainKey=:mainKey "
+            varMap = dict()
+            varMap[":mainKey"] = main_key
+            if sub_key is not None:
+                sqlW += "AND subKey=:subKey "
+                varMap[":subKey"] = sub_key
             # get from global dict
             cacheKey = f"cache|{main_key}|{sub_key}"
             globalDict = core_utils.get_global_dict()
             # lock dict
             globalDict.acquire()
             try:
-                # found
+                localItem = None
                 if from_local_cache and cacheKey in globalDict:
+                    localItem = globalDict[cacheKey]
+                    if time.monotonic() - localItem.checkTime >= _local_cache_check_interval:
+                        # check if updated in DB
+                        useDB = True
+                        sqlL = f"SELECT lastUpdate FROM {cacheTableName} " + sqlW
+                        self.execute(sqlL, varMap)
+                        resL = self.cur.fetchone()
+                        # commit
+                        self.commit()
+                        if resL is not None and resL[0] == localItem.lastUpdate:
+                            localItem.checkTime = time.monotonic()
+                        else:
+                            tmpLog.debug("local cache outdated")
+                            localItem = None
+                if localItem is not None:
                     # make spec
                     cacheSpec = CacheSpec()
-                    cacheSpec.data = globalDict[cacheKey]
+                    cacheSpec.lastUpdate = localItem.lastUpdate
+                    cacheSpec.data = localItem.data
                 else:
                     # read from database
                     useDB = True
-                    sql = f"SELECT {CacheSpec.column_names()} FROM {cacheTableName} "
-                    sql += "WHERE mainKey=:mainKey "
-                    varMap = dict()
-                    varMap[":mainKey"] = main_key
-                    if sub_key is not None:
-                        sql += "AND subKey=:subKey "
-                        varMap[":subKey"] = sub_key
+                    sql = f"SELECT {CacheSpec.column_names()} FROM {cacheTableName} " + sqlW
                     self.execute(sql, varMap)
                     resJ = self.cur.fetchall()
                     # commit
@@ -177,7 +213,7 @@ class MiscModule(BaseModule):
                         cacheSpec = CacheSpec()
                         cacheSpec.pack(res_one)
                         # put into global dict
-                        globalDict[cacheKey] = cacheSpec.data
+                        globalDict[cacheKey] = _LocalCacheItem(cacheSpec.lastUpdate, cacheSpec.data)
             finally:
                 # release dict
                 globalDict.release()

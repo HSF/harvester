@@ -708,6 +708,20 @@ def naive_utcfromtimestamp(timestamp: float) -> datetime:
     return aware_utcfromtimestamp(timestamp).replace(tzinfo=None)
 
 
+def naive_utc_to_timestamp(naive_utc_time: datetime) -> float:
+    """
+    Return the POSIX timestamp of a naive datetime in UTC; the inverse of naive_utcfromtimestamp
+    Note that naive_utc_time.timestamp() would take it as local time
+
+    Args:
+        naive_utc_time (datetime): UTC date and time without tzinfo
+
+    Returns:
+        float: POSIX timestamp
+    """
+    return naive_utc_time.replace(tzinfo=timezone.utc).timestamp()
+
+
 def special_pilot_type_to_prod_source_label(pilot_type: str) -> str:
     """
     Convert special pilotType of worker to prodSourceLabel of PanDA job.

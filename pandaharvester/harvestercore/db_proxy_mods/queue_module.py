@@ -556,8 +556,8 @@ class QueueModule(BaseModule):
         tmpLog.debug(f"got {str(worker_limits_dict)}")
         return worker_limits_dict, worker_stats_map
 
-    # get queue config dumps
-    @db_error_handler(default={})
+    # get queue config dumps; None if failed
+    @db_error_handler(default=None)
     def get_queue_config_dumps(self):
         retVal = dict()
         configIDs = set()

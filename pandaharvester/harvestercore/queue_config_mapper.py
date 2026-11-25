@@ -32,6 +32,11 @@ def _make_logger(base_log=_logger, token=None, method_name=None, send_dialog=Tru
     return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
 
 
+# timestamp string of a naive UTC datetime
+def _to_ts_info(the_time):
+    return f"{core_utils.naive_utc_to_timestamp(the_time):.3f}"
+
+
 # class for queue config
 class QueueConfig(object):
     def __init__(self, queue_name):
@@ -182,6 +187,11 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         self.lastReload = None
         self.lastCheck = None
         self.last_cache_ts = None
+        self.last_pq_table_fill_time = None
+        self.cache_to_fill_pq_table_time = None
+        self.queueConfig = dict()
+        self.activeQueues = dict()
+        self.queueConfigWithID = dict()
         self.dbProxy = DBProxy()
         self.toUpdateDB = update_db
         try:
@@ -257,15 +267,14 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             resolver = None
         return resolver
 
-    # update last reload time
-    def _update_last_reload_time(self, the_time=None):
-        # update timestamp of last reload, lock with check interval
-        got_update_lock = self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
+    # update last reload time; force to update it regardless of the lock, to make all processes reload
+    def _update_last_reload_time(self, the_time=None, force=False):
+        # update timestamp of last reload, lock with update interval
+        got_update_lock = force or self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
         if got_update_lock:
             if the_time is None:
                 the_time = core_utils.naive_utcnow()
-            ts = the_time.timestamp()
-            new_ts_info = f"{ts:.3f}"
+            new_ts_info = _to_ts_info(the_time)
             ret_val = self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_ts_info)
             if ret_val:
                 return True
@@ -290,13 +299,9 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
             now_time = core_utils.naive_utcnow()
             if fill_ret_val:
-                now_ts = now_time.timestamp()
-                now_ts_info = f"{now_ts:.3f}"
-                self.dbProxy.refresh_cache("_pq_table_last_fill", "_universal", now_ts_info)
+                self.dbProxy.refresh_cache("_pq_table_last_fill", "_universal", _to_ts_info(now_time))
                 if cache_time:
-                    cache_ts = cache_time.timestamp()
-                    cache_ts_info = f"{cache_ts:.3f}"
-                    self.dbProxy.refresh_cache("_cache_to_fill_pq_table", "_universal", cache_ts_info)
+                    self.dbProxy.refresh_cache("_cache_to_fill_pq_table", "_universal", _to_ts_info(cache_time))
             self.dbProxy.release_process_lock("pq_table_fill", "qconf_universal")
             if fill_ret_val:
                 return True
@@ -324,13 +329,14 @@ class QueueConfigMapper(metaclass=SingletonWithID):
     # load data
     def load_data(self, refill_table=False):
         mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="load_data")
+        call_time = core_utils.naive_utcnow()
         # check if to update
         with self.lock:
             now_time = core_utils.naive_utcnow()
             updateInterval_td = datetime.timedelta(seconds=self.updateInterval)
             checkInterval_td = datetime.timedelta(seconds=self.checkInterval)
-            # skip if lastCheck is fresh (within checkInterval)
-            if self.lastCheck is not None and now_time - self.lastCheck < checkInterval_td:
+            # skip if lastCheck is fresh (within checkInterval) and already loaded once; otherwise wait for the ongoing first load
+            if self.lastCheck is not None and now_time - self.lastCheck < checkInterval_td and self.lastUpdate is not None:
                 return
             self.lastCheck = now_time
             # get last_reload_timestamp from DB
@@ -348,7 +354,10 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     return
         # start
         with self.lock:
-            # update timestamp of last reload, lock with check interval
+            # skip if another thread reloaded while waiting for the lock
+            if self.lastUpdate is not None and self.lastUpdate >= call_time:
+                return
+            # update timestamp of last reload, lock with update interval
             now_time = core_utils.naive_utcnow()
             update_last_reload_ret_val = self._update_last_reload_time(now_time)
             if update_last_reload_ret_val:
@@ -423,33 +432,39 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 getQueuesDynamic = True
                 dynamicQueuesNameList = resolver.get_all_queue_names()
                 for queueName in dynamicQueuesNameList.copy():
-                    queueDict = dict()
-                    # template and default template via workflow
-                    templateQueueName = None
-                    resolver_harvester_template = None
-                    if resolver is not None:
-                        resolver_harvester_template = resolver.get_harvester_template(queueName)
-                        resolver_type, resolver_workflow = resolver.get_type_workflow(queueName)
-                    if resolver_harvester_template:
-                        templateQueueName = resolver_harvester_template
-                    elif not (resolver_type is None or resolver_workflow is None):
-                        templateQueueName = f"{resolver_type}.{resolver_workflow}"
-                    else:
-                        templateQueueName = harvester_config.qconf.defaultTemplateQueueName
-                    if templateQueueName not in finalTemplatesDict:
-                        # remove queues with invalid templateQueueName
+                    try:
+                        queueDict = dict()
+                        # template and default template via workflow
+                        templateQueueName = None
+                        resolver_harvester_template = None
+                        if resolver is not None:
+                            resolver_harvester_template = resolver.get_harvester_template(queueName)
+                            resolver_type, resolver_workflow = resolver.get_type_workflow(queueName)
+                        if resolver_harvester_template:
+                            templateQueueName = resolver_harvester_template
+                        elif not (resolver_type is None or resolver_workflow is None):
+                            templateQueueName = f"{resolver_type}.{resolver_workflow}"
+                        else:
+                            templateQueueName = harvester_config.qconf.defaultTemplateQueueName
+                        if templateQueueName not in finalTemplatesDict:
+                            # remove queues with invalid templateQueueName
+                            dynamicQueuesNameList.discard(queueName)
+                            mainLog.warning(f'Invalid templateQueueName "{templateQueueName}" for {queueName} (DQ). Skipped')
+                            continue
+                        # parameters
+                        resolver_harvester_params = resolver.get_harvester_params(queueName)
+                        for key, val in resolver_harvester_params.items():
+                            if key in self.queue_limit_attrs:
+                                queueDict[key] = val
+                        # fill in dynamic queue configs
+                        queueDict["templateQueueName"] = templateQueueName
+                        queueDict["isTemplateQueue"] = False
+                        dynamicQueuesDict[queueName] = queueDict
+                    except Exception:
+                        mainLog.error(f"failed to get dynamic queue config of {queueName}. Skipped")
+                        core_utils.dump_error_message(mainLog)
                         dynamicQueuesNameList.discard(queueName)
-                        mainLog.warning(f'Invalid templateQueueName "{templateQueueName}" for {queueName} (DQ). Skipped')
-                        continue
-                    # parameters
-                    resolver_harvester_params = resolver.get_harvester_params(queueName)
-                    for key, val in resolver_harvester_params.items():
-                        if key in self.queue_limit_attrs:
-                            queueDict[key] = val
-                    # fill in dynamic queue configs
-                    queueDict["templateQueueName"] = templateQueueName
-                    queueDict["isTemplateQueue"] = False
-                    dynamicQueuesDict[queueName] = queueDict
+                        dynamicQueuesDict.pop(queueName, None)
             # fill in all queue name list (names of RQ + DQ + LQ)
             allQueuesNameList |= set(remoteQueuesDict)
             allQueuesNameList |= set(dynamicQueuesDict)
@@ -457,184 +472,192 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             allQueuesNameList.discard(None)
             # set attributes
             for queueName in allQueuesNameList:
-                # sources or queues and templates
-                queueSourceList = []
-                templateSourceList = []
-                # prepare templateQueueName
-                templateQueueName = None
-                for queuesDict in [remoteQueuesDict, dynamicQueuesDict, localQueuesDict]:
-                    if queueName not in queuesDict:
-                        continue
-                    tmp_queueDict = queuesDict[queueName]
-                    tmp_templateQueueName = tmp_queueDict.get("templateQueueName")
-                    if tmp_templateQueueName is not None:
-                        templateQueueName = tmp_templateQueueName
-                # prepare queueDict
-                queueDict = dict()
-                if templateQueueName in finalTemplatesDict:
-                    queueDict.update(copy.deepcopy(finalTemplatesDict[templateQueueName]))
-                for acr, templatesDict in [("RT", remoteTemplatesDict), ("LT", localTemplatesDict)]:
-                    if templateQueueName in templatesDict:
-                        templateSourceList.append(acr)
-                # update queueDict
-                for acr, queuesDict in [("RQ", remoteQueuesDict), ("DQ", dynamicQueuesDict), ("LQ", localQueuesDict)]:
-                    if queueName not in queuesDict:
-                        continue
-                    queueSourceList.append(acr)
-                    tmp_queueDict = queuesDict[queueName]
-                    for key, val in tmp_queueDict.items():
-                        val = copy.deepcopy(val)
-                        if key in self.updatable_plugin_attrs and isinstance(queueDict.get(key), dict) and isinstance(val, dict):
-                            # update plugin parameters instead of overwriting whole plugin section
-                            queueDict[key].update(val)
-                        else:
-                            queueDict[key] = val
-                # record sources of the queue config and its templates in log
-                if templateQueueName:
-                    mainLog.debug(
-                        f"queue {queueName} comes from {','.join(queueSourceList)} (with template {templateQueueName} from {','.join(templateSourceList)})"
-                    )
-                else:
-                    mainLog.debug(f"queue {queueName} comes from {','.join(queueSourceList)}")
-                # prepare queueConfig
-                if queueName in newQueueConfig:
-                    queueConfig = newQueueConfig[queueName]
-                else:
-                    queueConfig = QueueConfig(queueName)
-                # queueName = siteName/resourceType
-                queueConfig.siteName = queueConfig.queueName.split("/")[0]
-                if queueConfig.siteName != queueConfig.queueName:
-                    queueConfig.resourceType = queueConfig.queueName.split("/")[-1]
-                if not queueConfig.siteFamily:
-                    queueConfig.siteFamily = queueConfig.siteName
-                # get common attributes
-                commonAttrDict = dict()
-                if isinstance(queueDict.get("common"), dict):
-                    commonAttrDict = queueDict.get("common")
-                # according to queueDict
-                for key, val in queueDict.items():
-                    if isinstance(val, dict) and "module" in val and "name" in val:
-                        # plugin attributes
-                        val = copy.deepcopy(val)
-                        # fill in common attributes for all plugins
-                        for c_key, c_val in commonAttrDict.items():
-                            if c_key not in val and c_key not in ("module", "name"):
-                                val[c_key] = c_val
-                        # check module and class name
-                        try:
-                            _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val["module"])
-                            _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val["name"])
-                        except Exception as _e:
-                            invalidQueueList.add(queueConfig.queueName)
-                            mainLog.error(f"Module or class not found. Omitted {queueConfig.queueName} in queue config ({_e})")
-                            continue
-                        else:
-                            del _t3mP_1Mp0R7_mO6U1e__
-                            del _t3mP_1Mp0R7_N4m3__
-                        # fill in siteName and queueName
-                        if "siteName" not in val:
-                            val["siteName"] = queueConfig.siteName
-                        if "queueName" not in val:
-                            val["queueName"] = queueConfig.queueName
-                        # middleware
-                        if "middleware" in val and val["middleware"] in queueDict:
-                            # keep original config
-                            val["original_config"] = copy.deepcopy(val)
-                            # overwrite with middleware config
-                            for m_key, m_val in queueDict[val["middleware"]].items():
-                                val[m_key] = m_val
-                    setattr(queueConfig, key, val)
-                # delete isTemplateQueue attribute
                 try:
-                    if getattr(queueConfig, "isTemplateQueue"):
-                        mainLog.error(f"Internal error: isTemplateQueue is True. Omitted {queueConfig.queueName} in queue config")
-                        invalidQueueList.add(queueConfig.queueName)
+                    # sources or queues and templates
+                    queueSourceList = []
+                    templateSourceList = []
+                    # prepare templateQueueName
+                    templateQueueName = None
+                    for queuesDict in [remoteQueuesDict, dynamicQueuesDict, localQueuesDict]:
+                        if queueName not in queuesDict:
+                            continue
+                        tmp_queueDict = queuesDict[queueName]
+                        tmp_templateQueueName = tmp_queueDict.get("templateQueueName")
+                        if tmp_templateQueueName is not None:
+                            templateQueueName = tmp_templateQueueName
+                    # prepare queueDict
+                    queueDict = dict()
+                    if templateQueueName in finalTemplatesDict:
+                        queueDict.update(copy.deepcopy(finalTemplatesDict[templateQueueName]))
+                    for acr, templatesDict in [("RT", remoteTemplatesDict), ("LT", localTemplatesDict)]:
+                        if templateQueueName in templatesDict:
+                            templateSourceList.append(acr)
+                    # update queueDict
+                    for acr, queuesDict in [("RQ", remoteQueuesDict), ("DQ", dynamicQueuesDict), ("LQ", localQueuesDict)]:
+                        if queueName not in queuesDict:
+                            continue
+                        queueSourceList.append(acr)
+                        tmp_queueDict = queuesDict[queueName]
+                        for key, val in tmp_queueDict.items():
+                            val = copy.deepcopy(val)
+                            if key in self.updatable_plugin_attrs and isinstance(queueDict.get(key), dict) and isinstance(val, dict):
+                                # update plugin parameters instead of overwriting whole plugin section
+                                queueDict[key].update(val)
+                            else:
+                                queueDict[key] = val
+                    # record sources of the queue config and its templates in log
+                    if templateQueueName:
+                        mainLog.debug(
+                            f"queue {queueName} comes from {','.join(queueSourceList)} (with template {templateQueueName} from {','.join(templateSourceList)})"
+                        )
                     else:
-                        delattr(queueConfig, "isTemplateQueue")
-                except AttributeError as _e:
-                    mainLog.error(f'Internal error with attr "isTemplateQueue". Omitted {queueConfig.queueName} in queue config ({_e})')
-                    invalidQueueList.add(queueConfig.queueName)
-                # get Panda Queue Name
-                if resolver is not None:
-                    queueConfig.pandaQueueName = resolver.get_panda_queue_name(queueConfig.siteName)
-                # additional criteria for getJob
-                if queueConfig.getJobCriteria is not None:
-                    tmpCriteria = dict()
-                    for tmpItem in queueConfig.getJobCriteria.split(","):
-                        tmpKey, tmpVal = tmpItem.split("=")
-                        tmpCriteria[tmpKey] = tmpVal
-                    if len(tmpCriteria) == 0:
-                        queueConfig.getJobCriteria = None
+                        mainLog.debug(f"queue {queueName} comes from {','.join(queueSourceList)}")
+                    # prepare queueConfig
+                    if queueName in newQueueConfig:
+                        queueConfig = newQueueConfig[queueName]
                     else:
-                        queueConfig.getJobCriteria = tmpCriteria
-                # nullify all job limit attributes if NoJob mapType (PULL)
-                if queueConfig.mapType == WorkSpec.MT_NoJob:
-                    for attName in [
-                        "nQueueLimitJob",
-                        "nQueueLimitJobRatio",
-                        "nQueueLimitJobMax",
-                        "nQueueLimitJobMin",
-                        "nQueueLimitJobCores",
-                        "nQueueLimitJobCoresRatio",
-                        "nQueueLimitJobCoresMin",
-                    ]:
-                        setattr(queueConfig, attName, None)
-                # nullify worker ratio limit attributes if jobful mapTypes (PUSH)
-                if queueConfig.mapType != WorkSpec.MT_NoJob:
-                    for attName in ["nQueueLimitWorkerRatio", "nQueueLimitWorkerMin"]:
-                        setattr(queueConfig, attName, None)
-                # sanity for worker and job limit attributes
-                for key in self.queue_limit_attrs:
-                    val = getattr(queueConfig, key, None)
-                    if val is not None:
-                        if not isinstance(val, int):
-                            setattr(queueConfig, key, None)
-                        elif val < 0:
-                            setattr(queueConfig, key, 0)
-                if getattr(queueConfig, "maxWorkers", None) is None:
-                    queueConfig.maxWorkers = 0
-                if getattr(queueConfig, "nQueueLimitWorker", None) is not None and getattr(queueConfig, "nQueueLimitWorkerMax", None) is not None:
-                    max_queue_workers = min(queueConfig.nQueueLimitWorker, queueConfig.nQueueLimitWorkerMax, queueConfig.maxWorkers)
-                    queueConfig.nQueueLimitWorker = max_queue_workers
-                    queueConfig.nQueueLimitWorkerMax = max_queue_workers
-                elif getattr(queueConfig, "nQueueLimitWorker", None) is not None:
-                    queueConfig.nQueueLimitWorker = min(queueConfig.nQueueLimitWorker, queueConfig.maxWorkers)
-                elif getattr(queueConfig, "nQueueLimitWorkerMax", None) is not None:
-                    queueConfig.nQueueLimitWorkerMax = min(queueConfig.nQueueLimitWorkerMax, queueConfig.maxWorkers)
-                    queueConfig.nQueueLimitWorker = queueConfig.nQueueLimitWorkerMax
-                if getattr(queueConfig, "nQueueLimitWorkerMin", None) is not None and getattr(queueConfig, "nQueueLimitWorker", None) is not None:
-                    queueConfig.nQueueLimitWorkerMin = min(queueConfig.nQueueLimitWorkerMin, queueConfig.nQueueLimitWorker, queueConfig.maxWorkers)
-                if getattr(queueConfig, "nQueueLimitWorkerCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitWorkerCores", None) is not None:
-                    queueConfig.nQueueLimitWorkerCoresMin = min(queueConfig.nQueueLimitWorkerCoresMin, queueConfig.nQueueLimitWorkerCores)
-                if getattr(queueConfig, "nQueueLimitWorkerMemoryMin", None) is not None and getattr(queueConfig, "nQueueLimitWorkerMemory", None) is not None:
-                    queueConfig.nQueueLimitWorkerMemoryMin = min(queueConfig.nQueueLimitWorkerMemoryMin, queueConfig.nQueueLimitWorkerMemory)
-                if getattr(queueConfig, "nQueueLimitJob", None) is not None and getattr(queueConfig, "nQueueLimitJobMax", None) is not None:
-                    max_queue_jobs = min(queueConfig.nQueueLimitJob, queueConfig.nQueueLimitJobMax)
-                    queueConfig.nQueueLimitJob = max_queue_jobs
-                    queueConfig.nQueueLimitJobMax = max_queue_jobs
-                elif getattr(queueConfig, "nQueueLimitJobMax", None) is not None:
-                    queueConfig.nQueueLimitJob = queueConfig.nQueueLimitJobMax
-                if getattr(queueConfig, "nQueueLimitJobMin", None) is not None and getattr(queueConfig, "nQueueLimitJob", None) is not None:
-                    queueConfig.nQueueLimitJobMin = min(queueConfig.nQueueLimitJobMin, queueConfig.nQueueLimitJob)
-                if getattr(queueConfig, "nQueueLimitJobCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitJobCores", None) is not None:
-                    queueConfig.nQueueLimitJobCoresMin = min(queueConfig.nQueueLimitJobCoresMin, queueConfig.nQueueLimitJobCores)
-                # heartbeat suppression
-                if queueConfig.truePilot and queueConfig.noHeartbeat == "":
-                    queueConfig.noHeartbeat = "running,transferring,finished,failed"
-                # set unique name
-                queueConfig.set_unique_name()
-                # put into new queue configs
-                newQueueConfig[queueName] = queueConfig
-                # Check existence of mandatory attributes
-                if queueName in newQueueConfig:
-                    queueConfig = newQueueConfig[queueName]
-                    missing_attr_list = []
-                    for _attr in self.mandatory_attrs:
-                        if not hasattr(queueConfig, _attr):
+                        queueConfig = QueueConfig(queueName)
+                    # queueName = siteName/resourceType
+                    queueConfig.siteName = queueConfig.queueName.split("/")[0]
+                    if queueConfig.siteName != queueConfig.queueName:
+                        queueConfig.resourceType = queueConfig.queueName.split("/")[-1]
+                    if not queueConfig.siteFamily:
+                        queueConfig.siteFamily = queueConfig.siteName
+                    # get common attributes
+                    commonAttrDict = dict()
+                    if isinstance(queueDict.get("common"), dict):
+                        commonAttrDict = queueDict.get("common")
+                    # according to queueDict
+                    for key, val in queueDict.items():
+                        if isinstance(val, dict) and "module" in val and "name" in val:
+                            # plugin attributes
+                            val = copy.deepcopy(val)
+                            # fill in common attributes for all plugins
+                            for c_key, c_val in commonAttrDict.items():
+                                if c_key not in val and c_key not in ("module", "name"):
+                                    val[c_key] = c_val
+                            # check module and class name
+                            try:
+                                _t3mP_1Mp0R7_mO6U1e__ = importlib.import_module(val["module"])
+                                _t3mP_1Mp0R7_N4m3__ = getattr(_t3mP_1Mp0R7_mO6U1e__, val["name"])
+                            except Exception as _e:
+                                invalidQueueList.add(queueConfig.queueName)
+                                mainLog.error(f"Module or class not found. Omitted {queueConfig.queueName} in queue config ({_e})")
+                                continue
+                            else:
+                                del _t3mP_1Mp0R7_mO6U1e__
+                                del _t3mP_1Mp0R7_N4m3__
+                            # fill in siteName and queueName
+                            if "siteName" not in val:
+                                val["siteName"] = queueConfig.siteName
+                            if "queueName" not in val:
+                                val["queueName"] = queueConfig.queueName
+                            # middleware
+                            if "middleware" in val and val["middleware"] in queueDict:
+                                # keep original config
+                                val["original_config"] = copy.deepcopy(val)
+                                # overwrite with middleware config
+                                for m_key, m_val in queueDict[val["middleware"]].items():
+                                    val[m_key] = m_val
+                        setattr(queueConfig, key, val)
+                    # delete isTemplateQueue attribute
+                    try:
+                        if getattr(queueConfig, "isTemplateQueue"):
+                            mainLog.error(f"Internal error: isTemplateQueue is True. Omitted {queueConfig.queueName} in queue config")
                             invalidQueueList.add(queueConfig.queueName)
-                            missing_attr_list.append(_attr)
-                    if missing_attr_list:
-                        mainLog.error(f"Missing mandatory attributes {','.join(missing_attr_list)} . Omitted {queueConfig.queueName} in queue config")
+                        else:
+                            delattr(queueConfig, "isTemplateQueue")
+                    except AttributeError as _e:
+                        mainLog.error(f'Internal error with attr "isTemplateQueue". Omitted {queueConfig.queueName} in queue config ({_e})')
+                        invalidQueueList.add(queueConfig.queueName)
+                    # get Panda Queue Name
+                    if resolver is not None:
+                        queueConfig.pandaQueueName = resolver.get_panda_queue_name(queueConfig.siteName)
+                    # additional criteria for getJob
+                    if queueConfig.getJobCriteria is not None:
+                        tmpCriteria = dict()
+                        for tmpItem in queueConfig.getJobCriteria.split(","):
+                            tmpKey, tmpVal = tmpItem.split("=")
+                            tmpCriteria[tmpKey] = tmpVal
+                        if len(tmpCriteria) == 0:
+                            queueConfig.getJobCriteria = None
+                        else:
+                            queueConfig.getJobCriteria = tmpCriteria
+                    # nullify all job limit attributes if NoJob mapType (PULL)
+                    if queueConfig.mapType == WorkSpec.MT_NoJob:
+                        for attName in [
+                            "nQueueLimitJob",
+                            "nQueueLimitJobRatio",
+                            "nQueueLimitJobMax",
+                            "nQueueLimitJobMin",
+                            "nQueueLimitJobCores",
+                            "nQueueLimitJobCoresRatio",
+                            "nQueueLimitJobCoresMin",
+                        ]:
+                            setattr(queueConfig, attName, None)
+                    # nullify worker ratio limit attributes if jobful mapTypes (PUSH)
+                    if queueConfig.mapType != WorkSpec.MT_NoJob:
+                        for attName in ["nQueueLimitWorkerRatio", "nQueueLimitWorkerMin"]:
+                            setattr(queueConfig, attName, None)
+                    # sanity for worker and job limit attributes
+                    for key in self.queue_limit_attrs:
+                        val = getattr(queueConfig, key, None)
+                        if val is not None:
+                            if not isinstance(val, int):
+                                setattr(queueConfig, key, None)
+                            elif val < 0:
+                                setattr(queueConfig, key, 0)
+                    if getattr(queueConfig, "maxWorkers", None) is None:
+                        queueConfig.maxWorkers = 0
+                    if getattr(queueConfig, "nQueueLimitWorker", None) is not None and getattr(queueConfig, "nQueueLimitWorkerMax", None) is not None:
+                        max_queue_workers = min(queueConfig.nQueueLimitWorker, queueConfig.nQueueLimitWorkerMax, queueConfig.maxWorkers)
+                        queueConfig.nQueueLimitWorker = max_queue_workers
+                        queueConfig.nQueueLimitWorkerMax = max_queue_workers
+                    elif getattr(queueConfig, "nQueueLimitWorker", None) is not None:
+                        queueConfig.nQueueLimitWorker = min(queueConfig.nQueueLimitWorker, queueConfig.maxWorkers)
+                    elif getattr(queueConfig, "nQueueLimitWorkerMax", None) is not None:
+                        queueConfig.nQueueLimitWorkerMax = min(queueConfig.nQueueLimitWorkerMax, queueConfig.maxWorkers)
+                        queueConfig.nQueueLimitWorker = queueConfig.nQueueLimitWorkerMax
+                    if getattr(queueConfig, "nQueueLimitWorkerMin", None) is not None and getattr(queueConfig, "nQueueLimitWorker", None) is not None:
+                        queueConfig.nQueueLimitWorkerMin = min(queueConfig.nQueueLimitWorkerMin, queueConfig.nQueueLimitWorker, queueConfig.maxWorkers)
+                    if getattr(queueConfig, "nQueueLimitWorkerCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitWorkerCores", None) is not None:
+                        queueConfig.nQueueLimitWorkerCoresMin = min(queueConfig.nQueueLimitWorkerCoresMin, queueConfig.nQueueLimitWorkerCores)
+                    if (
+                        getattr(queueConfig, "nQueueLimitWorkerMemoryMin", None) is not None
+                        and getattr(queueConfig, "nQueueLimitWorkerMemory", None) is not None
+                    ):
+                        queueConfig.nQueueLimitWorkerMemoryMin = min(queueConfig.nQueueLimitWorkerMemoryMin, queueConfig.nQueueLimitWorkerMemory)
+                    if getattr(queueConfig, "nQueueLimitJob", None) is not None and getattr(queueConfig, "nQueueLimitJobMax", None) is not None:
+                        max_queue_jobs = min(queueConfig.nQueueLimitJob, queueConfig.nQueueLimitJobMax)
+                        queueConfig.nQueueLimitJob = max_queue_jobs
+                        queueConfig.nQueueLimitJobMax = max_queue_jobs
+                    elif getattr(queueConfig, "nQueueLimitJobMax", None) is not None:
+                        queueConfig.nQueueLimitJob = queueConfig.nQueueLimitJobMax
+                    if getattr(queueConfig, "nQueueLimitJobMin", None) is not None and getattr(queueConfig, "nQueueLimitJob", None) is not None:
+                        queueConfig.nQueueLimitJobMin = min(queueConfig.nQueueLimitJobMin, queueConfig.nQueueLimitJob)
+                    if getattr(queueConfig, "nQueueLimitJobCoresMin", None) is not None and getattr(queueConfig, "nQueueLimitJobCores", None) is not None:
+                        queueConfig.nQueueLimitJobCoresMin = min(queueConfig.nQueueLimitJobCoresMin, queueConfig.nQueueLimitJobCores)
+                    # heartbeat suppression
+                    if queueConfig.truePilot and queueConfig.noHeartbeat == "":
+                        queueConfig.noHeartbeat = "running,transferring,finished,failed"
+                    # set unique name
+                    queueConfig.set_unique_name()
+                    # put into new queue configs
+                    newQueueConfig[queueName] = queueConfig
+                    # Check existence of mandatory attributes
+                    if queueName in newQueueConfig:
+                        queueConfig = newQueueConfig[queueName]
+                        missing_attr_list = []
+                        for _attr in self.mandatory_attrs:
+                            if not hasattr(queueConfig, _attr):
+                                invalidQueueList.add(queueConfig.queueName)
+                                missing_attr_list.append(_attr)
+                        if missing_attr_list:
+                            mainLog.error(f"Missing mandatory attributes {','.join(missing_attr_list)} . Omitted {queueConfig.queueName} in queue config")
+                except Exception:
+                    mainLog.error(f"failed to make queue config of {queueName}. Omitted in queue config")
+                    core_utils.dump_error_message(mainLog)
+                    invalidQueueList.add(queueName)
             # delete invalid queues
             for invalidQueueName in invalidQueueList:
                 if invalidQueueName in newQueueConfig:
@@ -643,64 +666,73 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             autoBlacklist = False
             if resolver is not None and hasattr(harvester_config.qconf, "autoBlacklist") and harvester_config.qconf.autoBlacklist:
                 autoBlacklist = True
-            # get queue dumps
+            # get queue dumps; keep the previous config if failed, since workers of missing configIDs would be taken as unconfigured
             queueConfigDumps = self.dbProxy.get_queue_config_dumps()
+            if queueConfigDumps is None:
+                if self.lastUpdate is None:
+                    raise RuntimeError("failed to get queue config dumps")
+                mainLog.error("failed to get queue config dumps. Kept the previous queue config")
+                return
             # get active queues
             activeQueues = dict()
             for queueName, queueConfig in newQueueConfig.items():
-                # get status
-                if queueConfig.queueStatus is None and autoBlacklist:
-                    queueConfig.queueStatus = resolver.get_queue_status(queueName)
-                # get dynamic information
-                if "DYNAMIC" in harvester_config.qconf.queueList:
-                    # UPS queue
-                    if resolver is not None and resolver.is_ups_queue(queueName):
-                        queueConfig.runMode = "slave"
-                        queueConfig.mapType = "NoJob"
-                # set online if undefined
-                if queueConfig.queueStatus is None:
-                    queueConfig.queueStatus = "online"
-                queueConfig.queueStatus = queueConfig.queueStatus.lower()
-                # look for configID
-                dumpSpec = QueueConfigDumpSpec()
-                dumpSpec.queueName = queueName
-                dumpSpec.set_data(vars(queueConfig))
-                if dumpSpec.dumpUniqueName in queueConfigDumps:
-                    dumpSpec = queueConfigDumps[dumpSpec.dumpUniqueName]
-                else:
-                    # add dump
-                    dumpSpec.creationTime = core_utils.naive_utcnow()
-                    dumpSpec.configID = self.dbProxy.get_next_seq_number("SEQ_configID")
-                    tmpStat = self.dbProxy.add_queue_config_dump(dumpSpec)
-                    if not tmpStat:
-                        dumpSpec.configID = self.dbProxy.get_config_id_dump(dumpSpec)
-                        if dumpSpec.configID is None:
-                            mainLog.error(f"failed to get configID for {dumpSpec.dumpUniqueName}")
-                            continue
-                    queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
-                queueConfig.configID = dumpSpec.configID
-                # ignore offline
-                if queueConfig.queueStatus == "offline":
-                    mainLog.debug(f"{queueName} inactive due to offline")
-                    continue
-                # filter for pilot version
-                if (
-                    hasattr(harvester_config.qconf, "pilotVersion")
-                    and pandaQueueDict.get(queueConfig.siteName) is not None
-                    and pandaQueueDict.get(queueConfig.siteName).get("pilot_version") != str(harvester_config.qconf.pilotVersion)
-                ):
-                    mainLog.debug(f"{queueName} inactive due to unmatched pilot version")
-                    continue
-                # filter if static queue list
-                if (
-                    "ALL" not in harvester_config.qconf.queueList
-                    and "DYNAMIC" not in harvester_config.qconf.queueList
-                    and queueName not in harvester_config.qconf.queueList
-                ):
-                    mainLog.debug(f"{queueName} inactive due to not in static queue list")
-                    continue
-                # added to active queues
-                activeQueues[queueName] = queueConfig
+                try:
+                    # get status
+                    if queueConfig.queueStatus is None and autoBlacklist:
+                        queueConfig.queueStatus = resolver.get_queue_status(queueName)
+                    # get dynamic information
+                    if "DYNAMIC" in harvester_config.qconf.queueList:
+                        # UPS queue
+                        if resolver is not None and resolver.is_ups_queue(queueName):
+                            queueConfig.runMode = "slave"
+                            queueConfig.mapType = "NoJob"
+                    # set online if undefined
+                    if queueConfig.queueStatus is None:
+                        queueConfig.queueStatus = "online"
+                    queueConfig.queueStatus = queueConfig.queueStatus.lower()
+                    # look for configID
+                    dumpSpec = QueueConfigDumpSpec()
+                    dumpSpec.queueName = queueName
+                    dumpSpec.set_data(vars(queueConfig))
+                    if dumpSpec.dumpUniqueName in queueConfigDumps:
+                        dumpSpec = queueConfigDumps[dumpSpec.dumpUniqueName]
+                    else:
+                        # add dump
+                        dumpSpec.creationTime = core_utils.naive_utcnow()
+                        dumpSpec.configID = self.dbProxy.get_next_seq_number("SEQ_configID")
+                        tmpStat = self.dbProxy.add_queue_config_dump(dumpSpec)
+                        if not tmpStat:
+                            dumpSpec.configID = self.dbProxy.get_config_id_dump(dumpSpec)
+                            if dumpSpec.configID is None:
+                                mainLog.error(f"failed to get configID for {dumpSpec.dumpUniqueName}")
+                                continue
+                        queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
+                    queueConfig.configID = dumpSpec.configID
+                    # ignore offline
+                    if queueConfig.queueStatus == "offline":
+                        mainLog.debug(f"{queueName} inactive due to offline")
+                        continue
+                    # filter for pilot version
+                    if (
+                        hasattr(harvester_config.qconf, "pilotVersion")
+                        and pandaQueueDict.get(queueConfig.siteName) is not None
+                        and pandaQueueDict.get(queueConfig.siteName).get("pilot_version") != str(harvester_config.qconf.pilotVersion)
+                    ):
+                        mainLog.debug(f"{queueName} inactive due to unmatched pilot version")
+                        continue
+                    # filter if static queue list
+                    if (
+                        "ALL" not in harvester_config.qconf.queueList
+                        and "DYNAMIC" not in harvester_config.qconf.queueList
+                        and queueName not in harvester_config.qconf.queueList
+                    ):
+                        mainLog.debug(f"{queueName} inactive due to not in static queue list")
+                        continue
+                    # added to active queues
+                    activeQueues[queueName] = queueConfig
+                except Exception:
+                    mainLog.error(f"failed to set active queue config of {queueName}. Skipped")
+                    core_utils.dump_error_message(mainLog)
             self.queueConfig = newQueueConfig.copy()
             self.activeQueues = activeQueues.copy()
             newQueueConfigWithID = dict()
