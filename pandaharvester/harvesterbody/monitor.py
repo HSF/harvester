@@ -30,8 +30,8 @@ _jitter_group_size = 50
 _event_lock_name = "monitor_event_deliverer"
 _reconcile_lock_name = "monitor_reconciler"
 
-# minimum interval to log that monitor agents keep finding no worker to check
-_idle_log_interval = 600
+# max age in sec of the worker target cache of a target host since its last refresh, before deleting it
+_target_cache_max_age = 86400
 
 # cache keys of the time of the last successful event delivery
 _event_delivery_cache_keys = ("_monitor_event_last_delivery", "_universal")
@@ -88,6 +88,8 @@ def get_schedule_config():
     for name in _removed_params:
         if hasattr(mc, name) and name not in used_params:
             messages.append(f"monitor.{name} is obsolete and ignored")
+    if hasattr(harvester_config, "fifo"):
+        messages.append("[fifo] section is obsolete and ignored")
     config = types.SimpleNamespace()
     config.jitter_fraction = _jitter_fraction
     config.check_interval = check_interval
@@ -98,6 +100,7 @@ def get_schedule_config():
     config.check_timeout = getattr(mc, "checkTimeout", None)
     config.worker_max_lifetime_hours = getattr(mc, "workerMaxLifetimeHours", 720)
     config.idle_sleep_time = getattr(mc, "idleSleepTime", 10)
+    config.idle_log_interval = getattr(mc, "idleLogInterval", 300)
     config.reconcile_interval = getattr(mc, "reconcileInterval", 600)
     config.stale_check_age = getattr(mc, "staleCheckAge", 3 * check_interval)
     config.postproc_priority_interval = getattr(mc, "postProcessPriorityInterval", getattr(mc, "fifoMaxPreemptInterval", 60))
@@ -122,6 +125,8 @@ def get_schedule_config():
 class Monitor(AgentBase):
     # whether reconcile ran in this process, shared by all monitor agents
     reconciledInProcess = False
+    # time of the last cleanup of the worker target cache in this process
+    lastTargetCacheCleanupTimestamp = 0
 
     # constructor
     def __init__(self, queue_config_mapper, single_mode=False):
@@ -191,9 +196,11 @@ class Monitor(AgentBase):
                 mainLog.debug("done a monitor cycle" + sw_main.get_elapsed_time())
             else:
                 n_idle_cycles += 1
-                if n_idle_cycles == 1 or time.time() >= last_idle_log_timestamp + _idle_log_interval:
+                if n_idle_cycles == 1 or time.time() >= last_idle_log_timestamp + self.config.idle_log_interval:
                     last_idle_log_timestamp = time.time()
-                    mainLog.debug(f"no worker to check in {n_idle_cycles} consecutive cycles; logged at most every {_idle_log_interval} sec while idle")
+                    mainLog.debug(
+                        f"no worker to check in {n_idle_cycles} consecutive cycles; logged at most every {self.config.idle_log_interval} sec while idle"
+                    )
             # go on at once while there can be more due workers
             if n_claimed >= self.config.max_workers:
                 sleep_time = 0
@@ -790,3 +797,8 @@ class Monitor(AgentBase):
         if retVal["n_stale"] > 0:
             tmpLog.warning(f"{retVal['n_stale']} active workers not checked for longer than {self.config.stale_check_age} sec")
         Monitor.reconciledInProcess = True
+        # delete the cache of target hosts no longer refreshed, e.g. removed from configuration; once in a while
+        if time.time() >= Monitor.lastTargetCacheCleanupTimestamp + _target_cache_max_age:
+            Monitor.lastTargetCacheCleanupTimestamp = time.time()
+            n_deleted = self.dbProxy.clean_worker_target_cache(_target_cache_max_age)
+            tmpLog.debug(f"deleted {n_deleted} rows of worker target cache not refreshed for {_target_cache_max_age} sec")

@@ -2,7 +2,6 @@ import argparse
 import os
 import sys
 
-from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
 
 
@@ -25,13 +24,6 @@ def main():
         hpi.renew_local_info()
     else:
         print("Harvester package unchanged. Skipped")
-
-    # if fifo is configured, clean up inactive fifo tables, e.g. those of the monitor fifo removed in 2.0.0
-    if hasattr(harvester_config, "fifo"):
-        from pandaharvester.harvestercore.fifos import ManagementFIFO
-
-        mfifo = ManagementFIFO()
-        mfifo.cleanup_tables()
 
     # done
     pass

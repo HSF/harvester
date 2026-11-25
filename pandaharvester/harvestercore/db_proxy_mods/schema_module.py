@@ -26,6 +26,7 @@ from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     seqNumberTableName,
     serviceMetricsTableName,
     workerCheckTableName,
+    workerTargetCacheTableName,
     workTableName,
 )
 from pandaharvester.harvestercore.diag_spec import DiagSpec
@@ -40,6 +41,7 @@ from pandaharvester.harvestercore.seq_number_spec import SeqNumberSpec
 from pandaharvester.harvestercore.service_metrics_spec import ServiceMetricSpec
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_check_spec import WorkerCheckSpec
+from pandaharvester.harvestercore.worker_target_cache_spec import WorkerTargetCacheSpec
 
 
 # DB proxy module for table creation and schema checks
@@ -213,6 +215,7 @@ class SchemaModule(BaseModule):
         outStrs += self.make_table(QueueConfigDumpSpec, queueConfigDumpTableName)
         outStrs += self.make_table(ServiceMetricSpec, serviceMetricsTableName)
         outStrs += self.make_table(WorkerCheckSpec, workerCheckTableName)
+        outStrs += self.make_table(WorkerTargetCacheSpec, workerTargetCacheTableName)
 
         # dump error messages
         if len(outStrs) > 0:

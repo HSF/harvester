@@ -325,7 +325,7 @@ class HTCondorMonitor(PluginBase):
         # Choose workers updated within a time window
         workers_to_check_list = []
         for condor_job_id, job_ads in job_ads_all_dict.items():
-            # put in worker cache fifo, with lock mechanism
+            # workers whose condor job changed status within the time window
             job_EnteredCurrentStatus = job_ads.get("EnteredCurrentStatus")
             if not (job_EnteredCurrentStatus > timeNow - time_window):
                 continue

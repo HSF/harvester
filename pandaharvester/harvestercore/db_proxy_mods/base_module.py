@@ -32,6 +32,7 @@ diagTableName = "diag_table"
 queueConfigDumpTableName = "qcdump_table"
 serviceMetricsTableName = "sm_table"
 workerCheckTableName = "worker_check_table"
+workerTargetCacheTableName = "worker_target_cache_table"
 
 # connection lock
 conLock = threading.Lock()

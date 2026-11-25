@@ -3,8 +3,9 @@
 import datetime
 import functools
 import multiprocessing
-import random
+import os
 import re
+import socket
 import subprocess
 import tempfile
 import threading
@@ -16,7 +17,7 @@ from threading import get_ident
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.core_utils import SingletonWithID
-from pandaharvester.harvestercore.fifos import SpecialFIFOBase
+from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
 # === Condor ====================================================
 
@@ -59,6 +60,9 @@ CONDOR_JOB_ADS_LIST = [
 
 # harvesterID
 harvesterID = harvester_config.master.harvester_id
+
+# minimum interval in sec between forced refreshes of the condor job cache of a submission host
+_cache_force_refresh_min_interval = 60
 
 # ===============================================================
 
@@ -201,36 +205,6 @@ def condor_submit_process(mp_queue, host, jdl_map_list, tmp_log):
 # ===============================================================
 
 # === Classes ===================================================
-
-
-# Condor queue cache fifo
-class CondorQCacheFifo(SpecialFIFOBase, metaclass=SingletonWithID):
-    global_lock_id = -1
-
-    def __init__(self, target, *args, **kwargs):
-        name_suffix = target.split(".")[0]
-        name_suffix = re.sub("-", "_", name_suffix)
-        self.titleName = f"CondorQCache_{name_suffix}"
-        SpecialFIFOBase.__init__(self)
-
-    def lock(self, score=None):
-        lock_key = format(int(random.random() * 2**32), "x")
-        if score is None:
-            score = time.time()
-        retVal = self.putbyid(self.global_lock_id, lock_key, score)
-        if retVal:
-            return lock_key
-        return None
-
-    def unlock(self, key=None, force=False):
-        peeked_tuple = self.peekbyid(id=self.global_lock_id)
-        if peeked_tuple.score is None or peeked_tuple.item is None:
-            return True
-        elif force or self.decode(peeked_tuple.item) == key:
-            self.delete([self.global_lock_id])
-            return True
-        else:
-            return False
 
 
 # Condor client
@@ -389,8 +363,8 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             # For condor_q cache
             self.cacheEnable = cacheEnable
             if self.cacheEnable:
-                self.cache = ([], 0)
                 self.cacheRefreshInterval = cacheRefreshInterval
+                self.dbProxy = DBProxy()
             self.useCondorHistory = useCondorHistory
             self.useCondorHistoryMaxAge = useCondorHistoryMaxAge
             tmpLog.debug("Initialize done")
@@ -486,150 +460,20 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_python")
         # Start query
         tmpLog.debug("Start query")
-        cache_fifo = None
         job_ads_all_dict = {}
         # make id sets
         if batchIDs_dict is None:
             batchIDs_dict = {}
         batchIDs_set = set(batchIDs_dict.keys())
         clusterids_set = set([get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_dict])
-        # query from cache
+        # query from the cache shared in DB
 
-        def cache_query(constraint=None, projection=CONDOR_JOB_ADS_LIST, timeout=60):
-            # query from condor query and update cache to fifo
-            def update_cache(lockInterval=90):
-                tmpLog.debug("update_cache")
-                # acquire lock with score timestamp
-                score = time.time() - self.cacheRefreshInterval + lockInterval
-                lock_key = cache_fifo.lock(score=score)
-                if lock_key is not None:
-                    # acquired lock, update from condor schedd
-                    tmpLog.debug("got lock, updating cache")
-                    jobs_iter_orig = self.schedd.query(constraint=constraint, projection=projection)
-                    jobs_iter = []
-                    for job in jobs_iter_orig:
-                        try:
-                            jobs_iter.append(dict(job))
-                        except Exception as e:
-                            tmpLog.error(f"In updating cache schedd query; got exception {e.__class__.__name__}: {e} ; {repr(job)}")
-                    timeNow = time.time()
-                    cache_fifo.put(jobs_iter, timeNow)
-                    self.cache = (jobs_iter, timeNow)
-                    # release lock
-                    retVal = cache_fifo.unlock(key=lock_key)
-                    if retVal:
-                        tmpLog.debug("done update cache and unlock")
-                    else:
-                        tmpLog.warning("cannot unlock... Maybe something wrong")
-                    return jobs_iter
-                else:
-                    tmpLog.debug("cache fifo locked by other thread. Skipped")
-                    return None
-
-            # remove invalid or outdated caches from fifo
-            def cleanup_cache(timeout=60):
-                tmpLog.debug("cleanup_cache")
-                id_list = list()
-                attempt_timestamp = time.time()
-                n_cleanup = 0
-                while True:
-                    if time.time() > attempt_timestamp + timeout:
-                        tmpLog.debug("time is up when cleanup cache. Skipped")
-                        break
-                    peeked_tuple = cache_fifo.peek(skip_item=True)
-                    if peeked_tuple is None:
-                        tmpLog.debug("empty cache fifo")
-                        break
-                    elif peeked_tuple.score is not None and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
-                        tmpLog.debug("nothing expired")
-                        break
-                    elif peeked_tuple.id is not None:
-                        retVal = cache_fifo.delete([peeked_tuple.id])
-                        if isinstance(retVal, int):
-                            n_cleanup += retVal
-                    else:
-                        # problematic
-                        tmpLog.warning("got nothing when cleanup cache, maybe problematic. Skipped")
-                        break
-                tmpLog.debug(f"cleaned up {n_cleanup} objects in cache fifo")
-
-            # start
-            jobs_iter = tuple()
-            try:
-                attempt_timestamp = time.time()
-                while True:
-                    if time.time() > attempt_timestamp + timeout:
-                        # skip cache_query if too long
-                        tmpLog.debug(f"cache_query got timeout ({timeout} seconds). Skipped ")
-                        break
-                    # get latest cache
-                    peeked_tuple = cache_fifo.peeklast(skip_item=True)
-                    if peeked_tuple is not None and peeked_tuple.score is not None:
-                        # got something
-                        if peeked_tuple.id == cache_fifo.global_lock_id:
-                            if time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
-                                # lock
-                                tmpLog.debug("got fifo locked. Wait and retry...")
-                                time.sleep(random.uniform(1, 5))
-                                continue
-                            else:
-                                # expired lock
-                                tmpLog.debug("got lock expired. Clean up and retry...")
-                                cleanup_cache()
-                                continue
-                        elif not to_update_cache and time.time() <= peeked_tuple.score + self.cacheRefreshInterval:
-                            # got valid cache
-                            _obj, _last_update = self.cache
-                            if _last_update >= peeked_tuple.score:
-                                # valid local cache
-                                tmpLog.debug("valid local cache")
-                                jobs_iter = _obj
-                            else:
-                                # valid fifo cache
-                                tmpLog.debug("update local cache from fifo")
-                                peeked_tuple_with_item = cache_fifo.peeklast()
-                                if (
-                                    peeked_tuple_with_item is not None
-                                    and peeked_tuple.id != cache_fifo.global_lock_id
-                                    and peeked_tuple_with_item.item is not None
-                                ):
-                                    jobs_iter = cache_fifo.decode(peeked_tuple_with_item.item)
-                                    self.cache = (jobs_iter, peeked_tuple_with_item.score)
-                                else:
-                                    tmpLog.debug("peeked invalid cache fifo object. Wait and retry...")
-                                    time.sleep(random.uniform(1, 5))
-                                    continue
-                        else:
-                            # cache expired or force to_update_cache
-                            tmpLog.debug("update cache in fifo")
-                            retVal = update_cache()
-                            if retVal is not None:
-                                jobs_iter = retVal
-                            cleanup_cache()
-                        break
-                    else:
-                        # no cache in fifo, check with size again
-                        if cache_fifo.size() == 0:
-                            if time.time() > attempt_timestamp + random.uniform(10, 30):
-                                # have waited for long enough, update cache
-                                tmpLog.debug("waited enough, update cache in fifo")
-                                retVal = update_cache()
-                                if retVal is not None:
-                                    jobs_iter = retVal
-                                break
-                            else:
-                                # still nothing, wait
-                                time.sleep(2)
-                        continue
-            except Exception as _e:
-                tb_str = traceback.format_exc()
-                tmpLog.error(f"Error querying from cache fifo; {_e} ; {tb_str}")
-            return jobs_iter
+        def cache_query(constraint=None, projection=CONDOR_JOB_ADS_LIST):
+            return self.query_from_cache(batchIDs_set, allJobs=allJobs, to_update_cache=to_update_cache)
 
         # query method options
         query_method_list = [self.schedd.query]
         if self.cacheEnable:
-            cache_fifo = CondorQCacheFifo(target=self.submissionHost, id=f"{self.submissionHost},{get_ident()}")
             query_method_list.insert(0, cache_query)
         if self.useCondorHistory:
             query_method_list.append(self.schedd.history)
@@ -684,6 +528,73 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             tmpLog.info(f"Unfound batch jobs of submissionHost={self.submissionHost}: {' '.join(list(batchIDs_set))}")
         # Return
         return job_ads_all_dict
+
+    # get condor jobs from the cache shared in DB, refreshing the cache from the schedd when due
+    def query_from_cache(self, batchIDs_set, allJobs=False, to_update_cache=False):
+        """
+        Return a list of job ads dicts of all jobs if allJobs, else of jobs in batchIDs_set.
+        Jobs missing in the cache are not included. Empty if the cache is not usable
+        """
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_from_cache")
+        # refresh if due; one at a time across threads and processes
+        lock_name = f"condor_job_cache:{self.submissionHost}"
+        locked_by = f"{socket.gethostname()}_{os.getpid()}-{get_ident():x}"
+        if to_update_cache:
+            lock_interval = min(_cache_force_refresh_min_interval, self.cacheRefreshInterval)
+        else:
+            lock_interval = self.cacheRefreshInterval
+        if self.dbProxy.get_process_lock(lock_name, locked_by, lock_interval):
+            jobs = self.refresh_cache(tmpLog)
+            if jobs is not None:
+                if allJobs:
+                    return jobs
+                return [job for job in jobs if get_batchid_from_job(job) in batchIDs_set]
+        # read from the cache
+        refresh_time, target_map = self.dbProxy.get_worker_target_cache(self.submissionHost, None if allJobs else list(batchIDs_set))
+        max_age = 2 * self.cacheRefreshInterval
+        if refresh_time is None or refresh_time < core_utils.naive_utcnow() - datetime.timedelta(seconds=max_age):
+            tmpLog.debug(f"cache not refreshed in last {max_age} sec; not used")
+            return []
+        tmpLog.debug(f"got {len(target_map)} jobs from cache refreshed at {refresh_time}")
+        return list(target_map.values())
+
+    # query all jobs of this harvester from the schedd and write them to the cache. Return a list of job ads dicts, or None if failed
+    def refresh_cache(self, tmpLog):
+        refresh_time = core_utils.naive_utcnow()
+        try:
+            jobs_iter = self.schedd.query(constraint=f'harvesterID =?= "{harvesterID}"', projection=CONDOR_JOB_ADS_LIST)
+        except Exception as e:
+            tmpLog.error(f"failed to query schedd to refresh cache; {e.__class__.__name__}: {e}")
+            return None
+        jobs = []
+        target_list = []
+        for job in jobs_iter:
+            try:
+                job_ads_dict = dict(job)
+                batchid = get_batchid_from_job(job_ads_dict)
+                worker_id = job_ads_dict.get("harvesterWorkerID")
+                status_time = job_ads_dict.get("EnteredCurrentStatus")
+                target_list.append(
+                    {
+                        "targetID": batchid,
+                        "workerID": int(worker_id) if worker_id is not None else None,
+                        "statusTime": (
+                            datetime.datetime.fromtimestamp(int(status_time), datetime.timezone.utc).replace(tzinfo=None) if status_time is not None else None
+                        ),
+                        # values of non-JSON types, e.g. expressions, as strings
+                        "attributes": {k: v if isinstance(v, (str, int, float, bool, type(None))) else str(v) for k, v in job_ads_dict.items()},
+                    }
+                )
+            except Exception as e:
+                tmpLog.error(f"In refreshing cache; got exception {e.__class__.__name__}: {e} ; {repr(job)}")
+                continue
+            jobs.append(job_ads_dict)
+        retVal = self.dbProxy.refresh_worker_target_cache(self.submissionHost, target_list, refresh_time)
+        if retVal is None:
+            tmpLog.error("failed to write cache to DB")
+        else:
+            tmpLog.debug(f"refreshed cache with {retVal}")
+        return jobs
 
 
 # Condor job submit
@@ -760,7 +671,7 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
             # extract clusterid and n_jobs
             job_id_match = None
             for tmp_line_str in stdOut.split("\n"):
-                job_id_match = re.search("^(\d+) job[(]s[)] submitted to cluster (\d+)\.$", tmp_line_str)
+                job_id_match = re.search(r"^(\d+) job[(]s[)] submitted to cluster (\d+)\.$", tmp_line_str)
                 if job_id_match:
                     break
             if job_id_match is not None:

@@ -1,19 +1,13 @@
 import argparse
 import json
 import logging
-import random
 import sys
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 import polars as pl
 
 from pandaharvester.harvesterconfig import harvester_config
-from pandaharvester.harvestercore import core_utils
-from pandaharvester.harvestercore import fifos as harvesterFifos
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
-from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestermisc.selfcheck import harvesterPackageInfo
 
 # === Polars config for tables =================================
@@ -150,12 +144,6 @@ def table_print(rows):
     print(pl.DataFrame(rows))
 
 
-def multithread_executer(func, n_objects, n_threads, initializer=None, initargs=()):
-    with ThreadPoolExecutor(n_threads, initializer=initializer, initargs=initargs) as _pool:
-        retIterator = _pool.map(func, range(n_objects))
-    return retIterator
-
-
 def get_harvester_attributes():
     attr_list = [
         "harvesterID",
@@ -194,109 +182,6 @@ def get(arguments):
         print(harvester_config.master.harvester_id)
     elif attr == "harvester_config":
         json_print(harvester_config.config_dict)
-
-
-def fifo_benchmark(arguments):
-    n_objects = arguments.n_objects
-    n_threads = arguments.n_threads
-    sum_dict = {
-        "put_n": 0,
-        "put_time": 0.0,
-        "get_time": 0.0,
-        "get_protective_time": 0.0,
-        "clear_time": 0.0,
-    }
-    thread_lock = threading.Lock()
-    thread_fifo_map = {}
-
-    def _thread_initializer():
-        thread_id = threading.get_ident()
-        with thread_lock:
-            thread_fifo_map[thread_id] = harvesterFifos.BenchmarkFIFO()
-
-    def _put_object(i_index):
-        mq = thread_fifo_map.get(threading.get_ident())
-        if mq is None:
-            return
-        workspec = WorkSpec()
-        workspec.workerID = i_index
-        data = {"random": [(i_index**2) % 2**16, random.random()]}
-        workspec.workAttributes = data
-        mq.put(workspec)
-
-    def _get_object(i_index):
-        mq = thread_fifo_map.get(threading.get_ident())
-        if mq is None:
-            return
-        return mq.get(timeout=3, protective=False)
-
-    def _get_object_protective(i_index):
-        mq = thread_fifo_map.get(threading.get_ident())
-        if mq is None:
-            return
-        return mq.get(timeout=3, protective=True)
-
-    def put_test():
-        sw = core_utils.get_stopwatch()
-        sw.reset()
-        multithread_executer(_put_object, n_objects, n_threads, _thread_initializer)
-        sum_dict["put_time"] += sw.get_elapsed_time_in_sec()
-        sum_dict["put_n"] += 1
-        print(f"Put {n_objects} objects by {n_threads} threads" + sw.get_elapsed_time())
-        benchmark_mq = harvesterFifos.BenchmarkFIFO()
-        print(f"Now fifo size is {benchmark_mq.size()}")
-        del benchmark_mq
-
-    def get_test():
-        sw = core_utils.get_stopwatch()
-        sw.reset()
-        multithread_executer(_get_object, n_objects, n_threads, _thread_initializer)
-        sum_dict["get_time"] = sw.get_elapsed_time_in_sec()
-        print(f"Get {n_objects} objects by {n_threads} threads" + sw.get_elapsed_time())
-        benchmark_mq = harvesterFifos.BenchmarkFIFO()
-        print(f"Now fifo size is {benchmark_mq.size()}")
-        del benchmark_mq
-
-    def get_protective_test():
-        sw = core_utils.get_stopwatch()
-        sw.reset()
-        multithread_executer(_get_object_protective, n_objects, n_threads, _thread_initializer)
-        sum_dict["get_protective_time"] = sw.get_elapsed_time_in_sec()
-        print(f"Get {n_objects} objects protective dequeue by {n_threads} threads" + sw.get_elapsed_time())
-        benchmark_mq = harvesterFifos.BenchmarkFIFO()
-        print(f"Now fifo size is {benchmark_mq.size()}")
-        del benchmark_mq
-
-    def clear_test():
-        benchmark_mq = harvesterFifos.BenchmarkFIFO()
-        sw = core_utils.get_stopwatch()
-        sw.reset()
-        benchmark_mq.fifo.clear()
-        sum_dict["clear_time"] = sw.get_elapsed_time_in_sec()
-        print("Cleared fifo" + sw.get_elapsed_time())
-        print(f"Now fifo size is {benchmark_mq.size()}")
-        del benchmark_mq
-
-    # Benchmark
-    print("Start fifo benchmark ...")
-    benchmark_mq = harvesterFifos.BenchmarkFIFO()
-    benchmark_mq.fifo.clear()
-    print("Cleared fifo")
-    put_test()
-    get_test()
-    put_test()
-    get_protective_test()
-    put_test()
-    clear_test()
-    print("Finished fifo benchmark")
-    # summary
-    print("Summary:")
-    print(f"FIFO plugin is: {benchmark_mq.fifo.__class__.__name__}")
-    print(f"Benchmark with {n_objects} objects by {n_threads} threads")
-    print(f"Put            : {1000.0 * sum_dict['put_time'] / (sum_dict['put_n'] * n_objects):.3f} ms / obj")
-    print(f"Get            : {1000.0 * sum_dict['get_time'] / n_objects:.3f} ms / obj")
-    print(f"Get protective : {1000.0 * sum_dict['get_protective_time'] / n_objects:.3f} ms / obj")
-    print(f"Clear          : {1000.0 * sum_dict['clear_time'] / n_objects:.3f} ms / obj")
 
 
 def monitor_status(arguments):
@@ -471,8 +356,6 @@ commandMap = {
     "test": test,
     # get commands
     "get": get,
-    # fifo commands
-    "fifo_benchmark": fifo_benchmark,
     # monitor commands
     "monitor_status": monitor_status,
     "monitor_repopulate": monitor_repopulate,
@@ -507,15 +390,6 @@ def main():
     get_parser = subparsers.add_parser("get", help="get attributes of this harvester")
     get_parser.set_defaults(which="get")
     get_parser.add_argument("attribute", type=str, action="store", metavar="<attribute>", choices=get_harvester_attributes(), help="attribute")
-
-    # fifo parser
-    fifo_parser = subparsers.add_parser("fifo", help="fifo related")
-    fifo_subparsers = fifo_parser.add_subparsers()
-    # fifo benchmark command
-    fifo_benchmark_parser = fifo_subparsers.add_parser("benchmark", help="benchmark fifo backend")
-    fifo_benchmark_parser.set_defaults(which="fifo_benchmark")
-    fifo_benchmark_parser.add_argument("-n", type=int, dest="n_objects", action="store", default=500, metavar="<N>", help="Benchmark with N objects")
-    fifo_benchmark_parser.add_argument("-t", type=int, dest="n_threads", action="store", default=1, metavar="<N>", help="Benchmark with N threads")
 
     # monitor parser
     monitor_parser = subparsers.add_parser("monitor", help="monitor related")
