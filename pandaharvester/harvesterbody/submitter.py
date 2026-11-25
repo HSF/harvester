@@ -403,8 +403,12 @@ class Submitter(AgentBase):
                                                 getattr(harvester_config.monitor, "eventBasedCheckInterval", harvester_config.monitor.checkInterval),
                                                 getattr(harvester_config.monitor, "fifoCheckInterval", harvester_config.monitor.checkInterval),
                                             )
-                                            monitor_fifo.put((queue_name, work_specsToEnqueue), time.time() + check_delay)
-                                            main_log.debug("put workers to monitor FIFO")
+                                            # don't let a FIFO failure skip releasing the jobs below; the monitor DB cycle picks the workers up
+                                            try:
+                                                monitor_fifo.put((queue_name, work_specsToEnqueue), time.time() + check_delay)
+                                                main_log.debug("put workers to monitor FIFO")
+                                            except Exception as e:
+                                                main_log.error(f"failed to put workers to monitor FIFO: {e}")
                                         submitted = True
                                     # release jobs
                                     self.dbProxy.release_jobs(pandaIDs, locked_by)

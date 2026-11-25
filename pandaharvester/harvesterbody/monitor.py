@@ -28,19 +28,21 @@ class Monitor(AgentBase):
         self.dbProxy = DBProxy()
         self.pluginFactory = PluginFactory()
         self.startTimestamp = time.time()
+        # the monitor cannot run without its fifo object, so a failure here is raised
         try:
             self.monitor_fifo = MonitorFIFO()
         except Exception:
             tmp_log.error("failed to launch monitor-fifo")
             core_utils.dump_error_message(tmp_log)
+            raise
+        # without the event fifo, the monitor runs without event-based check
+        self.monitor_event_fifo = None
         if self.monitor_fifo.enabled:
             try:
                 self.monitor_event_fifo = MonitorEventFIFO()
             except Exception:
                 tmp_log.error("failed to launch monitor-event-fifo")
                 core_utils.dump_error_message(tmp_log)
-        else:
-            self.monitor_event_fifo = None
         self.apfmon = Apfmon(self.queueConfigMapper)
         self.eventBasedMonCoreList = []
         if getattr(harvester_config.monitor, "eventBasedEnable", False):
@@ -118,7 +120,7 @@ class Monitor(AgentBase):
                             if workSpecsToEnqueueToHead:
                                 mainLog.debug("putting workers to FIFO head")
                                 try:
-                                    score = fifoCheckInterval - timeNow_timestamp
+                                    score = fifoCheckInterval + timeNow_timestamp - 2**32
                                     monitor_fifo.put((queueName, workSpecsToEnqueueToHead), score)
                                     mainLog.info(f"put workers of {queueName} to FIFO with score {score}")
                                 except Exception as errStr:
@@ -144,7 +146,7 @@ class Monitor(AgentBase):
                 remaining_obj_to_enqueue_to_head_dict = {}
                 n_chunk_peeked_stat, sum_overhead_time_stat = 0, 0.0
                 # go get workers
-                if self.monitor_event_fifo.enabled:
+                if self.monitor_event_fifo is not None and self.monitor_event_fifo.enabled:
                     # run with workers reported from plugin (event-based check)
                     to_deliver = time.time() >= last_event_delivery_timestamp + eventBasedCheckInterval
                     to_digest = time.time() >= last_event_digest_timestamp + eventBasedCheckInterval / 4
@@ -178,13 +180,15 @@ class Monitor(AgentBase):
                         sw.reset()
                         n_loops += 1
                         try:
-                            retVal, overhead_time = monitor_fifo.to_check_workers()
+                            to_check, overhead_time = monitor_fifo.to_check_workers()
                         except Exception as e:
                             mainLog.error(f"failed to check workers from FIFO: {e}")
+                            # treat as nothing to check, to sleep below
+                            to_check, overhead_time = False, None
                         if overhead_time is not None:
                             n_chunk_peeked_stat += 1
                             sum_overhead_time_stat += overhead_time
-                        if retVal:
+                        if to_check:
                             # check fifo size
                             try:
                                 fifo_size = monitor_fifo.size()

@@ -47,8 +47,8 @@ class SqliteFifo(PluginBase):
             _db_filename = self.database_filename
         else:
             _db_filename = harvester_config.fifo.database_filename
-        _db_filename = re.sub("\$\(TITLE\)", self.titleName, _db_filename)
-        _db_filename = re.sub("\$\(AGENT\)", self.titleName, _db_filename)
+        _db_filename = re.sub(r"\$\(TITLE\)", self.titleName, _db_filename)
+        _db_filename = re.sub(r"\$\(AGENT\)", self.titleName, _db_filename)
         self.db_path = os.path.abspath(_db_filename)
         self._connection_cache = {}
         with self._get_conn() as conn:

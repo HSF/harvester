@@ -14,7 +14,7 @@ class MysqlFifo(PluginBase):
     def __init__(self, **kwarg):
         self.reconnectTimeout = 300
         if hasattr(harvester_config, "fifo") and hasattr(harvester_config.fifo, "reconnectTimeout"):
-            self.reconnectTimeout = harvester_config.db.reconnectTimeout
+            self.reconnectTimeout = harvester_config.fifo.reconnectTimeout
         elif hasattr(harvester_config.db, "reconnectTimeout"):
             self.reconnectTimeout = harvester_config.db.reconnectTimeout
         PluginBase.__init__(self, **kwarg)
@@ -83,7 +83,7 @@ class MysqlFifo(PluginBase):
             @functools.wraps(_method)
             def _wrapped_method(self, *args, **kwargs):
                 try:
-                    _method(self, *args, **kwargs)
+                    return _method(self, *args, **kwargs)
                 except Exception as exc:
                     # Case to try renew connection
                     isOperationalError = False
@@ -103,12 +103,11 @@ class MysqlFifo(PluginBase):
                                 self.con.close()
                             except Exception as e:
                                 pass
-                            # restart the proxy instance
+                            # restart the proxy instance; the failed statement is not retried, so the caller still gets the error
                             try:
                                 self._connect_db()
-                                return
-                            except Exception as _e:
-                                exc = _e
+                                break
+                            except Exception:
                                 sleep_time = core_utils.retry_period_sec(n_retry, increment=2, max_seconds=300, min_seconds=1)
                                 if not sleep_time:
                                     break
