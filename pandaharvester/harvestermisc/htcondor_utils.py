@@ -578,11 +578,12 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                     {
                         "targetID": batchid,
                         "workerID": int(worker_id) if worker_id is not None else None,
-                        "statusTime": (
-                            datetime.datetime.fromtimestamp(int(status_time), datetime.timezone.utc).replace(tzinfo=None) if status_time is not None else None
-                        ),
+                        "statusTime": core_utils.naive_utcfromtimestamp(int(status_time)) if status_time is not None else None,
+                        # only queried attributes, without ones the schedd adds such as ServerTime which changes in every query;
                         # values of non-JSON types, e.g. expressions, as strings
-                        "attributes": {k: v if isinstance(v, (str, int, float, bool, type(None))) else str(v) for k, v in job_ads_dict.items()},
+                        "attributes": {
+                            k: v if isinstance(v, (str, int, float, bool, type(None))) else str(v) for k, v in job_ads_dict.items() if k in CONDOR_JOB_ADS_LIST
+                        },
                     }
                 )
             except Exception as e:
