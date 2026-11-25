@@ -1,11 +1,8 @@
 import collections
-import datetime
-import json
 import os
 import pickle
 import socket
 import time
-from calendar import timegm
 from threading import get_ident
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -50,38 +47,6 @@ class FIFOBase(object):
         else:
             hook = None
         return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
-
-    # initialize fifo from harvester configuration
-    def _initialize_fifo(self, force_enable=False):
-        self.fifoName = f"{self.titleName}_fifo"
-        self.config = getattr(harvester_config, self.titleName)
-        if force_enable:
-            self.enabled = True
-        elif hasattr(self.config, "fifoEnable") and self.config.fifoEnable:
-            self.enabled = True
-        else:
-            self.enabled = False
-            return
-        pluginConf = vars(self.config).copy()
-        pluginConf.update({"titleName": self.titleName})
-        if hasattr(self.config, "fifoModule") and hasattr(self.config, "fifoClass"):
-            pluginConf.update(
-                {
-                    "module": self.config.fifoModule,
-                    "name": self.config.fifoClass,
-                }
-            )
-        else:
-            if not hasattr(harvester_config, "fifo"):
-                return
-            pluginConf.update(
-                {
-                    "module": harvester_config.fifo.fifoModule,
-                    "name": harvester_config.fifo.fifoClass,
-                }
-            )
-        pluginFactory = PluginFactory()
-        self.fifo = pluginFactory.get_plugin(pluginConf)
 
     # encode
     def encode(self, item):
@@ -316,98 +281,3 @@ class ManagementFIFO(SpecialFIFOBase):
 # Benchmark fifo
 class BenchmarkFIFO(SpecialFIFOBase):
     titleName = "benchmark"
-
-
-# monitor fifo
-class MonitorFIFO(FIFOBase):
-    titleName = "monitor"
-
-    # constructor
-    def __init__(self, **kwarg):
-        FIFOBase.__init__(self, **kwarg)
-        self._initialize_fifo()
-
-    def populate(self, seconds_ago=0, clear_fifo=False):
-        """
-        Populate monitor fifo with all active worker chunks and timeNow as score from DB
-        with modificationTime earlier than seconds_ago seconds ago
-        object in fifo = [(queueName_1, [[worker_1_1], [worker_1_2], ...]), (queueName_2, ...)]
-        """
-        if clear_fifo:
-            self.fifo.clear()
-        try:
-            fifoMaxWorkersToPopulate = self.config.fifoMaxWorkersToPopulate
-        except AttributeError:
-            fifoMaxWorkersToPopulate = 2**32
-        try:
-            fifoMaxWorkersPerChunk = self.config.fifoMaxWorkersPerChunk
-        except AttributeError:
-            fifoMaxWorkersPerChunk = 500
-        workspec_iterator = self.dbProxy.get_active_workers(fifoMaxWorkersToPopulate, seconds_ago)
-        last_queueName = None
-        workspec_chunk = []
-        timeNow_timestamp = time.time()
-        score = timeNow_timestamp
-        for workspec in workspec_iterator:
-            workspec.set_work_params({"lastCheckAt": timeNow_timestamp})
-            if last_queueName is None:
-                try:
-                    score = timegm(workspec.modificationTime.utctimetuple())
-                except Exception:
-                    pass
-                workspec_chunk = [[workspec]]
-                last_queueName = workspec.computingSite
-            elif workspec.computingSite == last_queueName and len(workspec_chunk) < fifoMaxWorkersPerChunk:
-                workspec_chunk.append([workspec])
-            else:
-                self.put((last_queueName, workspec_chunk), score)
-                try:
-                    score = timegm(workspec.modificationTime.utctimetuple())
-                except Exception:
-                    pass
-                workspec_chunk = [[workspec]]
-                last_queueName = workspec.computingSite
-        if len(workspec_chunk) > 0:
-            self.put((last_queueName, workspec_chunk), score)
-
-    def to_check_workers(self, check_interval=harvester_config.monitor.checkInterval):
-        """
-        Justify whether to check any worker by the modificationTime of the first worker in fifo
-        retVal True if OK to dequeue to check;
-        retVal False otherwise.
-        Return retVal, overhead_time
-        """
-        mainLog = self.make_logger(_logger, f"id={self.fifoName}-{self.get_pid()}", method_name="to_check_worker")
-        retVal = False
-        overhead_time = None
-        timeNow_timestamp = time.time()
-        peeked_tuple = self.peek(skip_item=True)
-        if peeked_tuple is not None:
-            score = peeked_tuple.score
-            overhead_time = timeNow_timestamp - score
-            if overhead_time > 0:
-                retVal = True
-                if score < 0:
-                    mainLog.debug("True. Preempting")
-                    overhead_time = None
-                else:
-                    mainLog.debug("True")
-                    mainLog.info(f"Overhead time is {overhead_time:.3f} sec")
-            else:
-                mainLog.debug("False. Workers too young to check")
-                mainLog.debug(f"Overhead time is {overhead_time:.3f} sec")
-        else:
-            mainLog.debug("False. Got nothing in FIFO")
-        return retVal, overhead_time
-
-
-class MonitorEventFIFO(SpecialFIFOBase):
-    titleName = "monitorEvent"
-
-    # constructor
-    def __init__(self, **kwarg):
-        self.config = getattr(harvester_config, "monitor")
-        self.enabled = False
-        if hasattr(self.config, "fifoEnable") and self.config.fifoEnable and getattr(self.config, "eventBasedEnable", False):
-            self.enabled = True
-        SpecialFIFOBase.__init__(self, **kwarg)

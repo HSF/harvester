@@ -166,24 +166,6 @@ def get_harvester_attributes():
     return attr_list
 
 
-def repopulate_fifos(*names):
-    fifo_class_name_map = {
-        "monitor": "MonitorFIFO",
-    }
-    if len(names) > 0:
-        fifo_class_name_list = [fifo_class_name_map.get(name) for name in names]
-    else:
-        fifo_class_name_list = fifo_class_name_map.values()
-    for fifo_class_name in fifo_class_name_list:
-        if fifo_class_name is None:
-            continue
-        fifo = getattr(harvesterFifos, fifo_class_name)()
-        if not fifo.enabled:
-            continue
-        fifo.populate(clear_fifo=True)
-        print(f"Repopulated {fifo.titleName} fifo")
-
-
 # TODO
 
 # === Command functions ========================================================
@@ -315,13 +297,6 @@ def fifo_benchmark(arguments):
     print(f"Get            : {1000.0 * sum_dict['get_time'] / n_objects:.3f} ms / obj")
     print(f"Get protective : {1000.0 * sum_dict['get_protective_time'] / n_objects:.3f} ms / obj")
     print(f"Clear          : {1000.0 * sum_dict['clear_time'] / n_objects:.3f} ms / obj")
-
-
-def fifo_repopulate(arguments):
-    if "ALL" in arguments.name_list:
-        repopulate_fifos()
-    else:
-        repopulate_fifos(*arguments.name_list)
 
 
 def monitor_status(arguments):
@@ -498,7 +473,6 @@ commandMap = {
     "get": get,
     # fifo commands
     "fifo_benchmark": fifo_benchmark,
-    "fifo_repopulate": fifo_repopulate,
     # monitor commands
     "monitor_status": monitor_status,
     "monitor_repopulate": monitor_repopulate,
@@ -542,12 +516,6 @@ def main():
     fifo_benchmark_parser.set_defaults(which="fifo_benchmark")
     fifo_benchmark_parser.add_argument("-n", type=int, dest="n_objects", action="store", default=500, metavar="<N>", help="Benchmark with N objects")
     fifo_benchmark_parser.add_argument("-t", type=int, dest="n_threads", action="store", default=1, metavar="<N>", help="Benchmark with N threads")
-    # fifo repopuate command
-    fifo_repopulate_parser = fifo_subparsers.add_parser("repopulate", help="Repopulate agent fifo")
-    fifo_repopulate_parser.set_defaults(which="fifo_repopulate")
-    fifo_repopulate_parser.add_argument(
-        "name_list", nargs="+", type=str, action="store", metavar="<agent_name>", help='Name of agent fifo, e.g. "monitor" ("ALL" for all)'
-    )
 
     # monitor parser
     monitor_parser = subparsers.add_parser("monitor", help="monitor related")

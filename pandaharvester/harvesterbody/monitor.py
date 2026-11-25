@@ -315,9 +315,9 @@ class Monitor(AgentBase):
                 # check workers
                 if workSpecsToCheck:
                     try:
-                        retMap = self.monitor_agent_core(locked_by, queueName, workSpecsToCheck, config_id=configID, check_specs=check_specs)
+                        retMap = self.check_and_update_workers(locked_by, queueName, workSpecsToCheck, config_id=configID, check_specs=check_specs)
                     except Exception as e:
-                        tmpQueLog.error(f"monitor_agent_core excepted with {e}")
+                        tmpQueLog.error(f"check_and_update_workers excepted with {e}")
                         core_utils.dump_error_message(tmpQueLog)
                         retMap = None
                     for workSpecs in workSpecsToCheck:
@@ -338,12 +338,12 @@ class Monitor(AgentBase):
         return len(check_specs)
 
     # core of monitor agent to check workers in workSpecsList of queueName
-    def monitor_agent_core(self, lockedBy, queueName, workSpecsList, config_id=None, check_specs=None):
+    def check_and_update_workers(self, lockedBy, queueName, workSpecsList, config_id=None, check_specs=None):
         """
         Check workers and update them in DB.
         Return {workerID: (outcome, postproc)} as arguments of make_release_item, or None if not checked at all.
         """
-        tmpQueLog = self.make_logger(_logger, f"id={lockedBy} queue={queueName}", method_name="run")
+        tmpQueLog = self.make_logger(_logger, f"id={lockedBy} queue={queueName}", method_name="check_and_update_workers")
         if check_specs is None:
             check_specs = {}
         allWorkers = [item for sublist in workSpecsList for item in sublist]
@@ -381,7 +381,7 @@ class Monitor(AgentBase):
             chunk_outcome_map = {}
             # loop over workSpecs
             for workSpec in workSpecs:
-                tmpLog = self.make_logger(_logger, f"id={lockedBy} workerID={workSpec.workerID}", method_name="run")
+                tmpLog = self.make_logger(_logger, f"id={lockedBy} workerID={workSpec.workerID}", method_name="check_and_update_workers")
                 tmpOut = tmpRetMap[workSpec.workerID]
                 oldStatus = tmpOut["oldStatus"]
                 newStatus = tmpOut["newStatus"]
@@ -450,13 +450,13 @@ class Monitor(AgentBase):
             tmpRet = self.dbProxy.update_jobs_workers(jobSpecs, workSpecs, lockedBy, pandaIDsList)
             if not tmpRet:
                 for workSpec in workSpecs:
-                    tmpLog = self.make_logger(_logger, f"id={lockedBy} workerID={workSpec.workerID}", method_name="run")
+                    tmpLog = self.make_logger(_logger, f"id={lockedBy} workerID={workSpec.workerID}", method_name="check_and_update_workers")
                     tmpLog.error("failed to update the DB. Will retry")
                     chunk_outcome_map[workSpec.workerID] = ("retry", False)
             else:
                 if jobSpecs is not None:
                     for jobSpec in jobSpecs:
-                        tmpLog = self.make_logger(_logger, f"id={lockedBy} PandaID={jobSpec.PandaID}", method_name="run")
+                        tmpLog = self.make_logger(_logger, f"id={lockedBy} PandaID={jobSpec.PandaID}", method_name="check_and_update_workers")
                         tmpLog.debug(f"new status={jobSpec.status} subStatus={jobSpec.subStatus} status_in_metadata={jobSpec.get_job_status_from_attributes()}")
             # send ACK to workers for events and files
             if messenger is not None and (len(eventsToUpdateList) > 0 or len(filesToStageOutList) > 0):
