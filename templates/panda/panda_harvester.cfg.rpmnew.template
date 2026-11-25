@@ -403,13 +403,16 @@ checkTimeout = 3600
 # lower bound in sec on useCondorHistoryMaxAge of HTCondorMonitor, including workers whose queue configuration predates a change; 0 for none
 #historyMaxAgeFloor = 86400
 
+# workers will be killed if stuck queuing (submitted) for longer than this
+workerQueueTimeLimit = 172800
+
+# timeout for post-processing in minutes. 0 to give up immediately
+postProcessTimeout = 0
+
 # plugin cache parameters (used if monitor plugin supports, e.g. HTCondorMonitor)
 # the cache is shared by all threads and processes in worker_target_cache_table; refreshed by one at a time every pluginCacheRefreshInterval sec
 #pluginCacheEnable = True
 #pluginCacheRefreshInterval = 240
-
-# workers will be killed if stuck queuing (submitted) for longer than this
-workerQueueTimeLimit = 172800
 
 # workers will be killed if alive for longer than this many hours since creation; 0 to disable. Default 720 (30 days).
 # Workers of a queue no longer in the queue configuration cannot be checked, killed or cleaned up;
@@ -440,8 +443,6 @@ eventBasedEnable = False
 # max time window in sec to look back after event-based check did not run for a while, e.g. after an outage
 #eventBasedMaxTimeWindow = 3600
 
-# timeout for post-processing in minutes. 0 to give up immediately
-postProcessTimeout = 0
 
 
 
