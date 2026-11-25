@@ -429,8 +429,8 @@ checkTimeout = 3600
 workerQueueTimeLimit = 172800
 
 # workers will be killed if alive for longer than this many hours since creation; 0 to disable. Default 720 (30 days).
-# Workers of a queue no longer in the queue configuration cannot be checked or killed;
-# they are set to cancelled in DB without killing once older than this
+# Workers of a queue no longer in the queue configuration cannot be checked, killed or cleaned up;
+# once older than this, the monitor sets them to cancelled without killing, and the sweeper deletes them from DB without cleanup
 #workerMaxLifetimeHours = 720
 
 # enable event-based monitor check, to check workers soon after they are updated on the resource

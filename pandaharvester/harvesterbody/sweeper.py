@@ -1,3 +1,4 @@
+import datetime
 import os
 from os import walk
 
@@ -48,6 +49,25 @@ class Sweeper(AgentBase):
             n_to_kill = self.dbProxy.mark_workers_to_kill_by_workerids(command_spec.params)
             tmp_log.debug(f"will kill {n_to_kill} workers with {command_spec.params}")
         tmp_log.debug(f"done handling {command_string} commands took {stopwatch.get_elapsed_time()}")
+
+    # delete workers to clean up whose queue configuration is gone, without cleanup on the resource or of messenger files
+    def delete_unconfigured_workers(self, workspec_list, main_log):
+        # wait as long as the monitor does before ending such workers, in case the queue configuration comes back
+        lifetime_hours = getattr(harvester_config.monitor, "workerMaxLifetimeHours", 720)
+        if not lifetime_hours:
+            return
+        time_limit = core_utils.naive_utcnow() - datetime.timedelta(hours=lifetime_hours)
+        n_deleted = 0
+        for workspec in workspec_list:
+            if workspec.creationTime is None or workspec.creationTime > time_limit:
+                continue
+            tmp_log = self.make_logger(_logger, f"workerID={workspec.workerID}", method_name="delete_unconfigured_workers")
+            tmp_log.warning(
+                f"delete from DB without cleanup since queue config not found and created at {workspec.creationTime}, over {lifetime_hours} hours ago"
+            )
+            self.dbProxy.delete_worker(workspec.workerID)
+            n_deleted += 1
+        main_log.debug(f"deleted {n_deleted}/{len(workspec_list)} workers without queue config older than {lifetime_hours} hours")
 
     # main loop
     def run(self):
@@ -140,6 +160,7 @@ class Sweeper(AgentBase):
                     # get sweeper
                     if not self.queueConfigMapper.has_queue(queue_name, configID):
                         main_log.error(f"queue config for {queue_name}/{configID} not found")
+                        self.delete_unconfigured_workers(workspec_list, main_log)
                         continue
                     queue_config = self.queueConfigMapper.get_queue(queue_name, configID)
                     sweeper_core = self.pluginFactory.get_plugin(queue_config.sweeper)
