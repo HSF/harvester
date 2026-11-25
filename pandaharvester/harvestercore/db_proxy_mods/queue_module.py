@@ -734,7 +734,6 @@ class QueueModule(BaseModule):
     # update PQ table
     @db_error_handler(default=False)
     def update_panda_queue_attribute(self, key, value, site_name=None, queue_name=None):
-        tmpLog = None
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"site={site_name} queue={queue_name}", method_name="update_panda_queue")
         tmpLog.debug(f"start key={key}")

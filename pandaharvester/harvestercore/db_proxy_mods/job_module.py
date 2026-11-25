@@ -781,7 +781,6 @@ class JobModule(BaseModule):
     # disable multi workers
     @db_error_handler(default=None)
     def disable_multi_workers(self, panda_id):
-        tmpLog = None
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"PandaID={panda_id}", method_name="disable_multi_workers")
         tmpLog.debug("start")
