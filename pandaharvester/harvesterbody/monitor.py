@@ -13,6 +13,7 @@ from pandaharvester.harvestercore.plugin_factory import PluginFactory
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_check_spec import WorkerCheckSpec
 from pandaharvester.harvestermisc.apfmon import Apfmon
+from pandaharvester.harvestermonitor.monitor_common import PartialReportError
 
 # logger
 _logger = core_utils.setup_logger("monitor")
@@ -748,6 +749,12 @@ class Monitor(AgentBase):
             tmpLog.debug(f"run with {mon_core.__class__.__name__} within {time_window:.0f} sec")
             try:
                 for workerID, updateTimestamp in mon_core.report_updated_workers(time_window=time_window):
+                    event_list.append((workerID, core_utils.naive_utcfromtimestamp(updateTimestamp)))
+            except PartialReportError as e:
+                # take what was got, but look back from the last full delivery next time
+                all_ok = False
+                tmpLog.error(f"got updated workers only partially with {mon_core.__class__.__name__}: {e}")
+                for workerID, updateTimestamp in e.workers:
                     event_list.append((workerID, core_utils.naive_utcfromtimestamp(updateTimestamp)))
             except Exception:
                 all_ok = False

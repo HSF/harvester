@@ -5,7 +5,6 @@ import random
 import re
 import socket
 import tempfile
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 
@@ -36,8 +35,8 @@ def _condor_macro_replace(string, **kwarg):
     """
     new_string = string
     macro_map = {
-        "\$\(Cluster\)": str(kwarg["ClusterId"]),
-        "\$\(Process\)": str(kwarg["ProcId"]),
+        r"\$\(Cluster\)": str(kwarg["ClusterId"]),
+        r"\$\(Process\)": str(kwarg["ProcId"]),
     }
     for k, v in macro_map.items():
         new_string = re.sub(k, v, new_string)
@@ -61,32 +60,22 @@ def submit_bag_of_workers(data_list):
         workspec = data["workspec"]
         workerID = workspec.workerID
         worker_data_map[workerID] = data
-        to_submit = data["to_submit"]
         # no need to submit bad worker
-        if not to_submit:
+        if not data["to_submit"]:
             errStr = f"{workerID} not submitted due to incomplete data of the worker"
             tmpLog.warning(errStr)
-            tmpRetVal = (None, errStr)
-            # return tmpRetVal, workspec.get_changed_attributes()
-            worker_retval_map[workerID] = (tmpRetVal, workspec.get_changed_attributes())
-        # attributes
+            worker_retval_map[workerID] = ((None, errStr), workspec.get_changed_attributes())
+            continue
+        workspec.reset_changed_list()
+        # fill in host_jdl_list_workerid_map
         try:
-            use_spool = data["use_spool"]
-        except KeyError:
-            errStr = f"{workerID} not submitted due to incomplete data of the worker"
-            tmpLog.warning(errStr)
-            tmpRetVal = (None, errStr)
-            # return tmpRetVal, workspec.get_changed_attributes()
-            worker_retval_map[workerID] = (tmpRetVal, workspec.get_changed_attributes())
-        else:
-            workspec.reset_changed_list()
-            # fill in host_jdl_list_workerid_map
             a_jdl, placeholder_map = make_a_jdl(**data)
-            val = (workspec, a_jdl, placeholder_map)
-            try:
-                host_jdl_list_workerid_map[workspec.submissionHost].append(val)
-            except KeyError:
-                host_jdl_list_workerid_map[workspec.submissionHost] = [val]
+        except Exception as e:
+            errStr = f"{workerID} not submitted due to failure in making jdl; {e.__class__.__name__}: {e}"
+            tmpLog.error(errStr)
+            worker_retval_map[workerID] = ((None, errStr), workspec.get_changed_attributes())
+            continue
+        host_jdl_list_workerid_map.setdefault(workspec.submissionHost, []).append((workspec, a_jdl, placeholder_map))
     # loop over submissionHost
     for host, val_list in host_jdl_list_workerid_map.items():
         # make jdl string of workers
@@ -96,7 +85,7 @@ def submit_bag_of_workers(data_list):
         # submit
         try:
             condor_job_submit = CondorJobSubmit(id=host)
-            batchIDs_list, ret_err_str = condor_job_submit.submit(jdl_list, use_spool=use_spool)
+            batchIDs_list, ret_err_str = condor_job_submit.submit(jdl_list, use_spool=worker_data_map[val_list[0][0].workerID]["use_spool"])
         except Exception as e:
             batchIDs_list = None
             ret_err_str = f"Exception {e.__class__.__name__}: {e}"
@@ -104,41 +93,47 @@ def submit_bag_of_workers(data_list):
         if batchIDs_list:
             # submitted
             n_workers = len(val_list)
+            if len(batchIDs_list) != n_workers:
+                tmpLog.error(f"got {len(batchIDs_list)} batchIDs for {n_workers} workers submitted to submissionHost={host}: {' '.join(batchIDs_list)}")
             tmpLog.debug(f"submitted {n_workers} workers to submissionHost={host}")
-            for val_i in range(n_workers):
-                val = val_list[val_i]
-                workspec = val[0]
-                placeholder_map = val[2]
+            for val_i, (workspec, a_jdl, placeholder_map) in enumerate(val_list):
+                if val_i >= len(batchIDs_list):
+                    errStr = f"submission failed: no batchID returned for workerID={workspec.workerID}"
+                    tmpLog.error(errStr)
+                    worker_retval_map[workspec.workerID] = ((None, errStr), workspec.get_changed_attributes())
+                    continue
                 # got batchID
                 workspec.batchID = batchIDs_list[val_i]
                 tmpLog.debug(f"workerID={workspec.workerID} submissionHost={workspec.submissionHost} batchID={workspec.batchID}")
-                # get worker data
-                data = worker_data_map[workspec.workerID]
-                # set computingElement
-                ce_info_dict = data["ce_info_dict"]
-                workspec.computingElement = ce_info_dict.get("ce_endpoint", "")
-                # set log
-                batch_log_dict = data["batch_log_dict"]
-                (clusterid, procid) = get_job_id_tuple_from_batchid(workspec.batchID)
-                batch_log = _condor_macro_replace(batch_log_dict["batch_log"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
-                batch_stdout = _condor_macro_replace(batch_log_dict["batch_stdout"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
-                batch_stderr = _condor_macro_replace(batch_log_dict["batch_stderr"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                # the job is in condor now, so the worker is submitted even if the following fails
                 try:
-                    batch_jdl = f"{batch_stderr[:-4]}.jdl"
-                except Exception:
-                    batch_jdl = None
-                workspec.set_log_file("batch_log", batch_log)
-                workspec.set_log_file("stdout", batch_stdout)
-                workspec.set_log_file("stderr", batch_stderr)
-                workspec.set_log_file("jdl", batch_jdl)
-                if not workspec.get_jobspec_list():
-                    tmpLog.debug(f"No jobspec associated in the worker of workerID={workspec.workerID}")
-                else:
-                    for jobSpec in workspec.get_jobspec_list():
-                        # using batchLog and stdOut URL as pilotID and pilotLog
-                        jobSpec.set_one_attribute("pilotID", workspec.workAttributes["stdOut"])
-                        jobSpec.set_one_attribute("pilotLog", workspec.workAttributes["batchLog"])
-                tmpLog.debug(f"Done set_log_file after submission of workerID={workspec.workerID}")
+                    # get worker data
+                    data = worker_data_map[workspec.workerID]
+                    # set computingElement
+                    ce_info_dict = data["ce_info_dict"]
+                    workspec.computingElement = ce_info_dict.get("ce_endpoint", "")
+                    # set log; only with logBaseURL
+                    batch_log_dict = data["batch_log_dict"]
+                    if batch_log_dict:
+                        (clusterid, procid) = get_job_id_tuple_from_batchid(workspec.batchID)
+                        batch_log = _condor_macro_replace(batch_log_dict["batch_log"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                        batch_stdout = _condor_macro_replace(batch_log_dict["batch_stdout"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                        batch_stderr = _condor_macro_replace(batch_log_dict["batch_stderr"], ClusterId=clusterid, ProcId=procid).format(**placeholder_map)
+                        batch_jdl = f"{batch_stderr[:-4]}.jdl"
+                        workspec.set_log_file("batch_log", batch_log)
+                        workspec.set_log_file("stdout", batch_stdout)
+                        workspec.set_log_file("stderr", batch_stderr)
+                        workspec.set_log_file("jdl", batch_jdl)
+                        if not workspec.get_jobspec_list():
+                            tmpLog.debug(f"No jobspec associated in the worker of workerID={workspec.workerID}")
+                        else:
+                            for jobSpec in workspec.get_jobspec_list():
+                                # using batchLog and stdOut URL as pilotID and pilotLog
+                                jobSpec.set_one_attribute("pilotID", workspec.workAttributes["stdOut"])
+                                jobSpec.set_one_attribute("pilotLog", workspec.workAttributes["batchLog"])
+                        tmpLog.debug(f"Done set_log_file after submission of workerID={workspec.workerID}")
+                except Exception as e:
+                    tmpLog.error(f"failed to set attributes after submission of workerID={workspec.workerID} ; {e.__class__.__name__}: {e}")
                 tmpRetVal = (True, "")
                 worker_retval_map[workspec.workerID] = (tmpRetVal, workspec.get_changed_attributes())
         else:
@@ -365,7 +360,7 @@ def parse_batch_job_filename(value_str, file_dir, batchID, guess=False):
         # guess file name before files really created; possibly containing condor macros
         return _filename
     else:
-        _sanitized_list = re.sub("\{(\w+)\}|\[(\w+)\]|\((\w+)\)|#(\w+)#|\$", "", _filename).split(".")
+        _sanitized_list = re.sub(r"\{(\w+)\}|\[(\w+)\]|\((\w+)\)|#(\w+)#|\$", "", _filename).split(".")
         _prefix = _sanitized_list[0]
         _suffix = _sanitized_list[-1] if len(_sanitized_list) > 1 else ""
 
@@ -380,12 +375,11 @@ class HTCondorSubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         tmpLog = core_utils.make_logger(baseLogger, method_name="__init__")
-        self.logBaseURL = None
-        if hasattr(self, "useFQDN") and self.useFQDN:
+        PluginBase.__init__(self, **kwarg)
+        if getattr(self, "useFQDN", False):
             self.hostname = socket.getfqdn()
         else:
             self.hostname = socket.gethostname().split(".")[0]
-        PluginBase.__init__(self, **kwarg)
         # extra plugin configs
         extra_plugin_configs = {}
         try:
@@ -492,9 +486,6 @@ class HTCondorSubmitter(PluginBase):
         self.submit_arc_grid_type = "arc"
         if extra_plugin_configs.get("submit_arc_grid_type") == "nordugrid":
             self.submit_arc_grid_type = "nordugrid"
-        # record of information of CE statistics
-        self.ceStatsLock = threading.Lock()
-        self.ceStats = dict()
         # allowed associated parameters and parameter prefixes from CRIC
         self._allowed_cric_attrs = [
             "ce_fairshare_percent",
@@ -505,18 +496,12 @@ class HTCondorSubmitter(PluginBase):
             "jdl.plusattr.",
         ]
 
-    # get CE statistics of a site
-    def get_ce_statistics(self, site_name, queue_config, n_new_workers, time_window=21600):
-        if site_name in self.ceStats:
-            return self.ceStats[site_name]
-        with self.ceStatsLock:
-            if site_name in self.ceStats:
-                return self.ceStats[site_name]
-            else:
-                worker_limits_dict, _ = self.dbInterface.get_worker_limits(self.queueName, queue_config)
-                worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
-                worker_ce_backend_throughput_dict = self.dbInterface.get_worker_ce_backend_throughput(self.queueName, time_window=time_window)
-                return (worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers)
+    # get CE statistics of the queue
+    def get_ce_statistics(self, queue_config, n_new_workers, time_window=21600):
+        worker_limits_dict, _ = self.dbInterface.get_worker_limits(self.queueName, queue_config)
+        worker_ce_stats_dict = self.dbInterface.get_worker_ce_stats(self.queueName)
+        worker_ce_backend_throughput_dict = self.dbInterface.get_worker_ce_backend_throughput(self.queueName, time_window=time_window)
+        return (worker_limits_dict, worker_ce_stats_dict, worker_ce_backend_throughput_dict, time_window, n_new_workers)
 
     # submit workers
     def submit_workers(self, workspec_list):
@@ -548,7 +533,6 @@ class HTCondorSubmitter(PluginBase):
         # associated parameters dict
         associated_params_dict = {}
 
-        is_grandly_unified_queue = False
         # get queue info from CRIC by cacher in db
         if self.useCRIC:
             panda_queues_dict = PandaQueuesDict()
@@ -556,7 +540,6 @@ class HTCondorSubmitter(PluginBase):
             tmpLog.debug(f"PandaQueuesDict last refresh at {panda_queues_dict_last_refresh}")
             panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
             this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
-            is_grandly_unified_queue = panda_queues_dict.is_grandly_unified_queue(self.queueName)
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
             # associated params on CRIC
             for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
@@ -656,20 +639,14 @@ class HTCondorSubmitter(PluginBase):
                 else:
                     ce_info_dict["auth"] = grid_service_dict.get("auth") or []
                     tmpLog.debug(f"got auth={ce_info_dict['auth']} for ce_name={ce_name}")
-                # ignore protocol prefix in ce_endpoint for cream and condor CE
-                # check protocol prefix for ARC CE (gridftp or REST)
-                _match_ce_endpoint = re.match("^(\w+)://(\w+)", ce_info_dict.get("ce_endpoint", ""))
-                ce_endpoint_prefix = ""
-                if _match_ce_endpoint:
-                    ce_endpoint_prefix = _match_ce_endpoint.group(1)
-                ce_endpoint_from_queue = re.sub("^\w+://", "", ce_info_dict.get("ce_endpoint", ""))
+                # ignore protocol prefix in ce_endpoint
+                ce_endpoint_from_queue = re.sub(r"^\w+://", "", ce_info_dict.get("ce_endpoint", ""))
                 ce_flavour_str = str(ce_info_dict.get("ce_flavour", "")).lower()
-                ce_version_str = str(ce_info_dict.get("ce_version", "")).lower()
                 # grid type of htcondor grid universe to use; empty string as default
                 ce_info_dict["ce_grid_type"] = ""
                 if ce_flavour_str == "arc-ce":
                     ce_info_dict["ce_grid_type"] = self.submit_arc_grid_type
-                ce_info_dict["ce_hostname"] = re.sub(":\w*", "", ce_endpoint_from_queue)
+                ce_info_dict["ce_hostname"] = re.sub(r":\w*", "", ce_endpoint_from_queue)
                 if ce_info_dict["ce_grid_type"] == "arc":
                     default_port = None
                     if ce_info_dict["ce_hostname"] == ce_endpoint_from_queue:
@@ -703,7 +680,7 @@ class HTCondorSubmitter(PluginBase):
             if n_qualified_ce > 0:
                 # Get CE weighting
                 tmpLog.debug("Get CE weighting")
-                worker_ce_all_tuple = self.get_ce_statistics(self.queueName, harvester_queue_config, nWorkers)
+                worker_ce_all_tuple = self.get_ce_statistics(harvester_queue_config, nWorkers)
                 is_slave_queue = harvester_queue_config.runMode == "slave"
                 ce_weighting = submitter_common.get_ce_weighting(
                     ce_endpoint_list=list(ce_auxiliary_dict.keys()),
@@ -718,6 +695,32 @@ class HTCondorSubmitter(PluginBase):
             else:
                 tmpLog.error("No valid CE endpoint found")
                 to_submit_any = False
+
+        # sdf templates read in this cycle; {template file: (template without comments, log value, output value, error value)}
+        sdf_template_cache = {}
+
+        def _read_sdf_template(sdf_template_file):
+            if sdf_template_file not in sdf_template_cache:
+                with open(sdf_template_file) as f:
+                    sdf_template_raw = f.read()
+                # get batch_log, stdout, stderr filename, and remove commented lines
+                batch_log_value, stdout_value, stderr_value = None, None, None
+                sdf_template_str_list = []
+                for _line in sdf_template_raw.split("\n"):
+                    if _line.startswith("#"):
+                        continue
+                    sdf_template_str_list.append(_line)
+                    _match_batch_log = re.match(r"log\s*=\s*(.+)", _line)
+                    _match_stdout = re.match(r"output\s*=\s*(.+)", _line)
+                    _match_stderr = re.match(r"error\s*=\s*(.+)", _line)
+                    if _match_batch_log:
+                        batch_log_value = _match_batch_log.group(1)
+                    elif _match_stdout:
+                        stdout_value = _match_stdout.group(1)
+                    elif _match_stderr:
+                        stderr_value = _match_stderr.group(1)
+                sdf_template_cache[sdf_template_file] = ("\n".join(sdf_template_str_list), batch_log_value, stdout_value, stderr_value)
+            return sdf_template_cache[sdf_template_file]
 
         def _handle_one_worker(workspec, to_submit=to_submit_any):
             # make logger
@@ -816,74 +819,56 @@ class HTCondorSubmitter(PluginBase):
                         pass
                 # template for batch script
                 try:
-                    tmpFile = open(sdf_template_file)
-                    sdf_template_raw = tmpFile.read()
-                    tmpFile.close()
-                except AttributeError:
-                    tmpLog.error("No valid templateFile found. Maybe templateFile, CEtemplateDir invalid, or no valid CE found")
-                    to_submit = False
+                    sdf_template, batch_log_value, stdout_value, stderr_value = _read_sdf_template(sdf_template_file)
+                except Exception as e:
+                    tmpLog.error(f"No valid templateFile {sdf_template_file} ; maybe templateFile or CEtemplateDir invalid; {e.__class__.__name__}: {e}")
+                    data["to_submit"] = False
                     return data
+                if self.logBaseURL is not None and None in (batch_log_value, stdout_value, stderr_value):
+                    tmpLog.error(f"templateFile {sdf_template_file} lacks log, output or error line, required with logBaseURL")
+                    data["to_submit"] = False
+                    return data
+                # Choose from Condor schedd and central managers
+                condor_schedd, condor_pool = random.choice(schedd_pool_choice_list)
+                # set submissionHost
+                if not condor_schedd and not condor_pool:
+                    workspec.submissionHost = "LOCAL"
                 else:
-                    # get batch_log, stdout, stderr filename, and remove commented lines
-                    sdf_template_str_list = []
-                    for _line in sdf_template_raw.split("\n"):
-                        if _line.startswith("#"):
-                            continue
-                        sdf_template_str_list.append(_line)
-                        _match_batch_log = re.match("log = (.+)", _line)
-                        _match_stdout = re.match("output = (.+)", _line)
-                        _match_stderr = re.match("error = (.+)", _line)
-                        if _match_batch_log:
-                            batch_log_value = _match_batch_log.group(1)
-                            continue
-                        if _match_stdout:
-                            stdout_value = _match_stdout.group(1)
-                            continue
-                        if _match_stderr:
-                            stderr_value = _match_stderr.group(1)
-                            continue
-                    sdf_template = "\n".join(sdf_template_str_list)
-                    # Choose from Condor schedd and central managers
-                    condor_schedd, condor_pool = random.choice(schedd_pool_choice_list)
-                    # set submissionHost
-                    if not condor_schedd and not condor_pool:
-                        workspec.submissionHost = "LOCAL"
+                    workspec.submissionHost = f"{condor_schedd},{condor_pool}"
+                tmpLog.debug(f"set submissionHost={workspec.submissionHost}")
+                # Log Base URL
+                if self.logBaseURL and "[ScheddHostname]" in self.logBaseURL:
+                    schedd_hostname = re.sub(
+                        r"(?:[a-zA-Z0-9_.\-]*@)?([a-zA-Z0-9.\-]+)(?::[0-9]+)?",
+                        lambda matchobj: matchobj.group(1) if matchobj.group(1) else "",
+                        condor_schedd,
+                    )
+                    log_base_url = re.sub(r"\[ScheddHostname\]", schedd_hostname, self.logBaseURL)
+                else:
+                    log_base_url = self.logBaseURL
+                # URLs for log files
+                if not (log_base_url is None):
+                    if workspec.batchID:
+                        batchID = workspec.batchID
+                        guess = False
                     else:
-                        workspec.submissionHost = f"{condor_schedd},{condor_pool}"
-                    tmpLog.debug(f"set submissionHost={workspec.submissionHost}")
-                    # Log Base URL
-                    if self.logBaseURL and "[ScheddHostname]" in self.logBaseURL:
-                        schedd_hostname = re.sub(
-                            r"(?:[a-zA-Z0-9_.\-]*@)?([a-zA-Z0-9.\-]+)(?::[0-9]+)?",
-                            lambda matchobj: matchobj.group(1) if matchobj.group(1) else "",
-                            condor_schedd,
-                        )
-                        log_base_url = re.sub(r"\[ScheddHostname\]", schedd_hostname, self.logBaseURL)
-                    else:
-                        log_base_url = self.logBaseURL
-                    # URLs for log files
-                    if not (log_base_url is None):
-                        if workspec.batchID:
-                            batchID = workspec.batchID
-                            guess = False
-                        else:
-                            batchID = ""
-                            guess = True
-                        batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                        stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                        stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
-                        batch_log = f"{log_base_url}/{log_subdir}/{batch_log_filename}"
-                        batch_stdout = f"{log_base_url}/{log_subdir}/{stdout_path_file_name}"
-                        batch_stderr = f"{log_base_url}/{log_subdir}/{stderr_path_filename}"
-                        workspec.set_log_file("batch_log", batch_log)
-                        workspec.set_log_file("stdout", batch_stdout)
-                        workspec.set_log_file("stderr", batch_stderr)
-                        batch_log_dict["batch_log"] = batch_log
-                        batch_log_dict["batch_stdout"] = batch_stdout
-                        batch_log_dict["batch_stderr"] = batch_stderr
-                        batch_log_dict["gtag"] = workspec.workAttributes["stdOut"]
-                        tmpLog.debug("Done set_log_file before submission")
-                    tmpLog.debug("Done jobspec attribute setting")
+                        batchID = ""
+                        guess = True
+                    batch_log_filename = parse_batch_job_filename(value_str=batch_log_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                    stdout_path_file_name = parse_batch_job_filename(value_str=stdout_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                    stderr_path_filename = parse_batch_job_filename(value_str=stderr_value, file_dir=log_subdir_path, batchID=batchID, guess=guess)
+                    batch_log = f"{log_base_url}/{log_subdir}/{batch_log_filename}"
+                    batch_stdout = f"{log_base_url}/{log_subdir}/{stdout_path_file_name}"
+                    batch_stderr = f"{log_base_url}/{log_subdir}/{stderr_path_filename}"
+                    workspec.set_log_file("batch_log", batch_log)
+                    workspec.set_log_file("stdout", batch_stdout)
+                    workspec.set_log_file("stderr", batch_stderr)
+                    batch_log_dict["batch_log"] = batch_log
+                    batch_log_dict["batch_stdout"] = batch_stdout
+                    batch_log_dict["batch_stderr"] = batch_stderr
+                    batch_log_dict["gtag"] = workspec.workAttributes["stdOut"]
+                    tmpLog.debug("Done set_log_file before submission")
+                tmpLog.debug("Done jobspec attribute setting")
 
                 # choose the x509 certificate based on the queue configuration
                 proxy, token_dir = _choose_credential()
@@ -947,10 +932,7 @@ class HTCondorSubmitter(PluginBase):
         tmpLog.debug(f"{nWorkers} workers submitted")
 
         # propagate changed attributes
-        with ThreadPoolExecutor(self.nProcesses) as thread_pool:
-            retIterator = thread_pool.map(lambda _wv_tuple: _propagate_attributes(*_wv_tuple), zip(workspec_list, retValList))
-
-        retList = list(retIterator)
+        retList = [_propagate_attributes(workspec, tmpVal) for workspec, tmpVal in zip(workspec_list, retValList)]
         tmpLog.debug("done")
 
         return retList

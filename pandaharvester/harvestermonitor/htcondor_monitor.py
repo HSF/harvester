@@ -14,7 +14,10 @@ from pandaharvester.harvestermisc.htcondor_utils import (
     condor_job_id_from_workspec,
     get_host_batchid_map,
 )
-from pandaharvester.harvestermonitor.monitor_common import get_payload_errstr_from_ec
+from pandaharvester.harvestermonitor.monitor_common import (
+    PartialReportError,
+    get_payload_errstr_from_ec,
+)
 
 # logger
 baseLogger = core_utils.setup_logger("htcondor_monitor")
@@ -44,7 +47,7 @@ PILOT_ERRORS = PilotErrors()
 
 
 # Check one worker
-def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_timeout=3600, payload_type=None):
+def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_timeout=3600, payload_type=None, held_to_kill_list=None):
     # Make logger for one single worker
     tmpLog = core_utils.make_logger(baseLogger, f"workerID={workspec.workerID}", method_name="_check_one_worker")
     # Initialize newStatus
@@ -107,26 +110,13 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
                 hold_reason = job_ads_dict.get("HoldReason")
                 errStr = f"Condor HoldReason: {hold_reason} "
                 if hold_reason in TO_KILL_HOLD_REASONS or int(time.time()) - int(job_ads_dict.get("EnteredCurrentStatus", 0)) > held_timeout:
-                    # Kill the job if held too long or other reasons
+                    # Kill the job if held too long or other reasons; killed in bulk afterwards
                     if hold_reason in TO_KILL_HOLD_REASONS:
-                        tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to HoldReason: {hold_reason}")
+                        tmpLog.debug(f"to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to HoldReason: {hold_reason}")
                     else:
-                        tmpLog.debug(f"trying to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to held too long")
-                    for submissionHost, batchIDs_dict in get_host_batchid_map([workspec]).items():
-                        batchIDs_list = list(batchIDs_dict.keys())
-                        condor_job_manage = CondorJobManage(id=workspec.submissionHost)
-                        try:
-                            ret_map = condor_job_manage.remove(batchIDs_list)
-                        except Exception as e:
-                            ret_map = {}
-                            ret_err_str = f"failed to kill job. Exception {e.__class__.__name__}: {e}"
-                            tmpLog.error(ret_err_str)
-                        else:
-                            ret = ret_map.get(condor_job_id_from_workspec(workspec))
-                            if ret and ret[0]:
-                                tmpLog.info(f"killed held job submissionHost={workspec.submissionHost} batchID={workspec.batchID}")
-                            else:
-                                tmpLog.error(f"cannot kill held job submissionHost={workspec.submissionHost} batchID={workspec.batchID}")
+                        tmpLog.debug(f"to kill job submissionHost={workspec.submissionHost} batchID={workspec.batchID} due to held too long")
+                    if held_to_kill_list is not None:
+                        held_to_kill_list.append(workspec)
                     newStatus = WorkSpec.ST_cancelled
                     errStr += " ; Worker canceled by harvester due to held too long or not found"
                     # Mark the PanDA job as closed instead of failed
@@ -209,6 +199,23 @@ def _check_one_worker(workspec, job_ads_all_dict, cancel_unknown=False, held_tim
     return (newStatus, errStr)
 
 
+# Kill held condor jobs in bulk per submissionHost
+def _kill_held_jobs(workspec_list):
+    tmpLog = core_utils.make_logger(baseLogger, method_name="_kill_held_jobs")
+    for submissionHost, batchIDs_dict in get_host_batchid_map(workspec_list).items():
+        try:
+            ret_map = CondorJobManage(id=submissionHost).remove(list(batchIDs_dict.keys()))
+        except Exception as e:
+            tmpLog.error(f"failed to kill held jobs on submissionHost={submissionHost} ; {e.__class__.__name__}: {e}")
+            continue
+        for batchid, workspec in batchIDs_dict.items():
+            ret = ret_map.get(condor_job_id_from_workspec(workspec))
+            if ret and ret[0]:
+                tmpLog.info(f"killed held job workerID={workspec.workerID} submissionHost={submissionHost} batchID={batchid}")
+            else:
+                tmpLog.error(f"cannot kill held job workerID={workspec.workerID} submissionHost={submissionHost} batchID={batchid}")
+
+
 # monitor for HTCONDOR batch system
 class HTCondorMonitor(PluginBase):
     # constructor
@@ -262,28 +269,36 @@ class HTCondorMonitor(PluginBase):
         for submissionHost, batchIDs_dict in get_host_batchid_map(workspec_list).items():
             # Record batch job query result to this dict, with key = batchID
             try:
-                job_query = CondorJobQuery(
+                host_job_ads_dict = CondorJobQuery(id=submissionHost).get_all(
+                    batchIDs_dict=batchIDs_dict,
                     cacheEnable=self.cacheEnable,
                     cacheRefreshInterval=self.cacheRefreshInterval,
                     useCondorHistory=self.useCondorHistory,
-                    id=submissionHost,
                     useCondorHistoryMaxAge=self.useCondorHistoryMaxAge,
                 )
-                host_job_ads_dict = job_query.get_all(batchIDs_dict=batchIDs_dict)
             except Exception as e:
                 ret_err_str = f"Condor query failed; worker states unchanged: {e.__class__.__name__}: {e}"
                 tmpLog.error(ret_err_str)
                 return False, ret_err_str
             job_ads_all_dict.update(host_job_ads_dict)
         # Check for all workers
+        held_to_kill_list = []
         with Pool(self.nProcesses) as _pool:
             retIterator = _pool.map(
                 lambda _x: _check_one_worker(
-                    _x, job_ads_all_dict, cancel_unknown=self.cancelUnknown, held_timeout=self.heldTimeout, payload_type=self.payloadType
+                    _x,
+                    job_ads_all_dict,
+                    cancel_unknown=self.cancelUnknown,
+                    held_timeout=self.heldTimeout,
+                    payload_type=self.payloadType,
+                    held_to_kill_list=held_to_kill_list,
                 ),
                 workspec_list,
             )
         retList = list(retIterator)
+        # kill held jobs
+        if held_to_kill_list:
+            _kill_held_jobs(held_to_kill_list)
         tmpLog.debug("done")
         return True, retList
 
@@ -312,22 +327,24 @@ class HTCondorMonitor(PluginBase):
                 continue
         # Loop over submissionHost and get all jobs
         job_ads_all_dict = {}
+        failed_host_list = []
         for submissionHost in submission_host_set:
             try:
-                job_query = CondorJobQuery(
-                    cacheEnable=self.cacheEnable, cacheRefreshInterval=self.cacheRefreshInterval, useCondorHistory=self.useCondorHistory, id=submissionHost
+                job_ads_all_dict.update(
+                    CondorJobQuery(id=submissionHost).get_all(
+                        allJobs=True, to_update_cache=True, cacheEnable=self.cacheEnable, cacheRefreshInterval=self.cacheRefreshInterval
+                    )
                 )
-                job_ads_all_dict.update(job_query.get_all(batchIDs_dict=None, allJobs=True, to_update_cache=True))
                 tmpLog.debug(f"got information of condor jobs on {submissionHost}")
             except Exception as e:
-                ret_err_str = f"Exception {e.__class__.__name__}: {e}"
-                tmpLog.error(ret_err_str)
+                failed_host_list.append(submissionHost)
+                tmpLog.error(f"failed to get condor jobs on {submissionHost} ; {e.__class__.__name__}: {e}")
         # Choose workers updated within a time window
         workers_to_check_list = []
         for condor_job_id, job_ads in job_ads_all_dict.items():
             # workers whose condor job changed status within the time window
             job_EnteredCurrentStatus = job_ads.get("EnteredCurrentStatus")
-            if not (job_EnteredCurrentStatus > timeNow - time_window):
+            if job_EnteredCurrentStatus is None or not (job_EnteredCurrentStatus > timeNow - time_window):
                 continue
             workerid = job_ads.get("harvesterWorkerID")
             batch_status = job_ads.get("JobStatus")
@@ -338,5 +355,7 @@ class HTCondorMonitor(PluginBase):
             workers_to_check_list.append((workerid, job_EnteredCurrentStatus))
             tmpLog.debug(f"workerID={workerid} got batchStatus={batch_status} at ts={job_EnteredCurrentStatus}")
         tmpLog.debug(f"got {len(workers_to_check_list)} workers")
+        if failed_host_list:
+            raise PartialReportError(f"failed to get condor jobs on {','.join(sorted(failed_host_list))}", workers_to_check_list)
         tmpLog.debug("done")
         return workers_to_check_list
