@@ -2,6 +2,7 @@
 Queue Config dump class
 
 """
+
 import copy
 import hashlib
 import json
@@ -34,7 +35,7 @@ class QueueConfigDumpSpec(SpecBase):
             pass
         # get checksum
         m = hashlib.md5()
-        m.update(json.dumps(self.data).encode("utf-8"))
+        m.update(json.dumps(self.data, sort_keys=True).encode("utf-8"))
         self.checksum = m.hexdigest()
         # set unique name
         self.dumpUniqueName = f"{self.queueName}_{self.checksum}"

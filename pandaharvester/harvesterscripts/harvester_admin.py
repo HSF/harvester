@@ -246,10 +246,13 @@ def qconf_list(arguments):
 def qconf_refresh(arguments):
     from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
-    qcm = QueueConfigMapper()
-    qcm.request_reload()
+    # without update_db, to fill pq_table below with an error if failed
+    qcm = QueueConfigMapper(update_db=False)
+    if not qcm.request_reload():
+        raise RuntimeError("failed to request running processes to reload")
     qcm.lastUpdate = None
-    qcm.load_data(refill_table=arguments.refill)
+    qcm.load_data()
+    qcm.fill_pq_table(refill_table=arguments.refill)
 
 
 def qconf_dump(arguments):

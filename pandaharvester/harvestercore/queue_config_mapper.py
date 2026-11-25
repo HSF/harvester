@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import threading
+import time
 from json.decoder import JSONDecodeError
 
 from pandaharvester.harvesterconfig import harvester_config
@@ -37,6 +38,16 @@ _reload_request_key = "_qconf_reload_request"
 
 # key in the source signature for modification time of the local config file
 _file_mtime_key = "_file_mtime"
+
+# max interval in sec to fill pq_table even if the active queues are unchanged
+_pq_table_fill_interval = 3600
+
+# interval in sec to delete old queue config dumps, and their min age in hours
+_dump_clean_interval = 3600
+_dump_max_age_hours = 24
+
+# age in hours of a dump of a current config, after which its creationTime is set to now so that it is not deleted as old
+_dump_touch_age_hours = 12
 
 
 # source signature as string for logs, with times in ISO format in UTC
@@ -208,6 +219,8 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         self.lastCheck = None
         self.sourceSignature = None
         self.resolverCacherKey = None
+        self.pqTableFillKey = None
+        self.pqTableFillTime = None
         self.queueConfig = dict()
         self.activeQueues = dict()
         self.queueConfigWithID = dict()
@@ -329,6 +342,59 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 return False
         else:
             return None
+
+    # key of what pq_table is filled with
+    def _get_pq_table_fill_key(self):
+        return {queueName: (queueConfig.configID, queueConfig.queueStatus) for queueName, queueConfig in self.activeQueues.items()}
+
+    # fill pq_table now with the active queues, waiting up to timeout sec for the lock; for admin tools
+    def fill_pq_table(self, refill_table=False, timeout=180):
+        """
+        Return True if filled. Raise RuntimeError if failed, or if the lock was not got within timeout
+        """
+        self.load_data()
+        deadline = time.monotonic() + timeout
+        while True:
+            retVal = self._update_pq_table(refill_table=refill_table)
+            if retVal:
+                self.pqTableFillKey = self._get_pq_table_fill_key()
+                self.pqTableFillTime = core_utils.naive_utcnow()
+                return True
+            if retVal is False:
+                raise RuntimeError("failed to fill pq_table")
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"did not get pq_table_fill lock within {timeout} sec; another process may be filling pq_table")
+            time.sleep(5)
+
+    # delete old queue config dumps, at most every _dump_clean_interval across processes
+    def _clean_queue_config_dumps(self, main_log):
+        if not self.dbProxy.get_process_lock("qconf_dump_clean", "qconf_universal", _dump_clean_interval):
+            return
+        # keep dumps of the current configs, which may not be used by workers yet; in addition to their creationTime touched by reloads
+        protected_ids = {queueConfig.configID for queueConfig in self.queueConfig.values() if queueConfig.configID is not None}
+        deleted_ids = self.dbProxy.clean_queue_config_dumps(_dump_max_age_hours, protected_ids)
+        if deleted_ids is None:
+            main_log.warning("failed to delete old queue config dumps")
+        else:
+            main_log.debug(f"deleted {len(deleted_ids)} old queue config dumps")
+
+    # make queue config from dump
+    @staticmethod
+    def _make_queue_config_from_dump(dump_spec):
+        queueConfig = QueueConfig(dump_spec.queueName)
+        queueConfig.update_attributes(dump_spec.data)
+        queueConfig.configID = dump_spec.configID
+        return queueConfig
+
+    # get queue config with configID; cached in the process, otherwise read from DB. None if missing
+    def _get_queue_config_with_id(self, config_id):
+        queueConfig = self.queueConfigWithID.get(config_id)
+        if queueConfig is None:
+            dumpSpec = self.dbProxy.get_queue_config_dump(config_id)
+            if dumpSpec is not None:
+                queueConfig = self._make_queue_config_from_dump(dumpSpec)
+                self.queueConfigWithID[config_id] = queueConfig
+        return queueConfig
 
     # load data
     def load_data(self, refill_table=False):
@@ -662,13 +728,18 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             autoBlacklist = False
             if resolver is not None and hasattr(harvester_config.qconf, "autoBlacklist") and harvester_config.qconf.autoBlacklist:
                 autoBlacklist = True
-            # get queue dumps; keep the previous config if failed, since workers of missing configIDs would be taken as unconfigured
-            queueConfigDumps = self.dbProxy.get_queue_config_dumps()
-            if queueConfigDumps is None:
+            # get configIDs of queue config dumps; keep the previous config if failed
+            dumpIDs = self.dbProxy.get_queue_config_dump_ids()
+            if dumpIDs is None:
                 if self.lastUpdate is None:
-                    raise RuntimeError("failed to get queue config dumps")
-                mainLog.error("failed to get queue config dumps. Kept the previous queue config")
+                    raise RuntimeError("failed to get configIDs of queue config dumps")
+                mainLog.error("failed to get configIDs of queue config dumps. Kept the previous queue config")
                 return
+            # cache of queue configs with configID; only the current ones, others are read from DB when needed
+            newQueueConfigWithID = dict()
+            # dumps of current configs to touch
+            touchTimeLimit = core_utils.naive_utcnow() - datetime.timedelta(hours=_dump_touch_age_hours)
+            dumpIDsToTouch = set()
             # get active queues
             activeQueues = dict()
             for queueName, queueConfig in newQueueConfig.items():
@@ -690,8 +761,10 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     dumpSpec = QueueConfigDumpSpec()
                     dumpSpec.queueName = queueName
                     dumpSpec.set_data(vars(queueConfig))
-                    if dumpSpec.dumpUniqueName in queueConfigDumps:
-                        dumpSpec = queueConfigDumps[dumpSpec.dumpUniqueName]
+                    if dumpSpec.dumpUniqueName in dumpIDs:
+                        dumpSpec.configID, dumpCreationTime = dumpIDs[dumpSpec.dumpUniqueName]
+                        if dumpCreationTime is None or dumpCreationTime < touchTimeLimit:
+                            dumpIDsToTouch.add(dumpSpec.configID)
                     else:
                         # add dump
                         dumpSpec.creationTime = core_utils.naive_utcnow()
@@ -702,8 +775,9 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                             if dumpSpec.configID is None:
                                 mainLog.error(f"failed to get configID for {dumpSpec.dumpUniqueName}")
                                 continue
-                        queueConfigDumps[dumpSpec.dumpUniqueName] = dumpSpec
+                        dumpIDs[dumpSpec.dumpUniqueName] = (dumpSpec.configID, dumpSpec.creationTime)
                     queueConfig.configID = dumpSpec.configID
+                    newQueueConfigWithID[dumpSpec.configID] = self._make_queue_config_from_dump(dumpSpec)
                     # ignore offline
                     if queueConfig.queueStatus == "offline":
                         mainLog.debug(f"{queueName} inactive due to offline")
@@ -731,29 +805,44 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                     core_utils.dump_error_message(mainLog)
             self.queueConfig = newQueueConfig.copy()
             self.activeQueues = activeQueues.copy()
-            newQueueConfigWithID = dict()
-            for dumpSpec in queueConfigDumps.values():
-                queueConfig = QueueConfig(dumpSpec.queueName)
-                queueConfig.update_attributes(dumpSpec.data)
-                queueConfig.configID = dumpSpec.configID
-                newQueueConfigWithID[dumpSpec.configID] = queueConfig
             self.queueConfigWithID = newQueueConfigWithID
+            # keep dumps of current configs from being deleted as old, also by cleanup in other processes
+            if dumpIDsToTouch:
+                if self.dbProxy.touch_queue_config_dumps(dumpIDsToTouch) is None:
+                    mainLog.warning(f"failed to touch {len(dumpIDsToTouch)} queue config dumps")
+                else:
+                    mainLog.debug(f"touched {len(dumpIDsToTouch)} queue config dumps")
+            # what pq_table is filled with
+            pq_table_fill_key = self._get_pq_table_fill_key()
             # update lastUpdate and lastCheck
             self.sourceSignature = signature
             self.lastUpdate = core_utils.naive_utcnow()
             self.lastCheck = self.lastUpdate
-        # update database pq_table
         if self.toUpdateDB:
-            retVal = self._update_pq_table(refill_table=refill_table)
-            if retVal:
-                if cache_ts:
-                    mainLog.debug(f"updated pq_table (last cache updated at {str(cache_ts)})")
+            # update database pq_table if the active queues changed, or not filled for long
+            now_time = core_utils.naive_utcnow()
+            if (
+                refill_table
+                or pq_table_fill_key != self.pqTableFillKey
+                or self.pqTableFillTime is None
+                or now_time - self.pqTableFillTime >= datetime.timedelta(seconds=_pq_table_fill_interval)
+            ):
+                retVal = self._update_pq_table(refill_table=refill_table)
+                if retVal:
+                    self.pqTableFillKey = pq_table_fill_key
+                    self.pqTableFillTime = now_time
+                    if cache_ts:
+                        mainLog.debug(f"updated pq_table (last cache updated at {str(cache_ts)})")
+                    else:
+                        mainLog.debug("updated pq_table")
+                elif retVal is None:
+                    mainLog.debug("did not get pq_table_fill lock. Skipped to update pq_table")
                 else:
-                    mainLog.debug("updated pq_table")
-            elif retVal is None:
-                mainLog.debug("did not get pq_table_fill lock. Skipped to update pq_table")
+                    mainLog.warning("failed to update pq_table. Skipped")
             else:
-                mainLog.warning("failed to update pq_table. Skipped")
+                mainLog.debug("active queues unchanged. Skipped to update pq_table")
+            # delete old queue config dumps
+            self._clean_queue_config_dumps(mainLog)
         # done
         mainLog.debug("done")
 
@@ -761,14 +850,16 @@ class QueueConfigMapper(metaclass=SingletonWithID):
     def has_queue(self, queue_name, config_id=None):
         self.load_data()
         if config_id is not None:
-            return config_id in self.queueConfigWithID
+            return self._get_queue_config_with_id(config_id) is not None
         return queue_name in self.queueConfig
 
     # get queue config
     def get_queue(self, queue_name, config_id=None):
         self.load_data()
-        if config_id is not None and config_id in self.queueConfigWithID:
-            return self.queueConfigWithID[config_id]
+        if config_id is not None:
+            queueConfig = self._get_queue_config_with_id(config_id)
+            if queueConfig is not None:
+                return queueConfig
         if queue_name in self.queueConfig:
             return self.queueConfig[queue_name]
         return None
@@ -798,7 +889,9 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 continue
         return active_ups_queues
 
-    # all queues with config IDs
+    # all queues with config IDs, read from DB
     def get_all_queues_with_config_ids(self):
-        self.load_data()
-        return self.queueConfigWithID
+        queueConfigDumps = self.dbProxy.get_queue_config_dumps()
+        if queueConfigDumps is None:
+            return dict()
+        return {dumpSpec.configID: self._make_queue_config_from_dump(dumpSpec) for dumpSpec in queueConfigDumps.values()}

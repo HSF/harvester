@@ -556,53 +556,114 @@ class QueueModule(BaseModule):
         tmpLog.debug(f"got {str(worker_limits_dict)}")
         return worker_limits_dict, worker_stats_map
 
-    # get queue config dumps; None if failed
+    # get queue config dumps
     @db_error_handler(default=None)
     def get_queue_config_dumps(self):
-        retVal = dict()
-        configIDs = set()
-        # time limit
-        timeLimit = core_utils.naive_utcnow() - datetime.timedelta(hours=24)
-        # get logger
+        """
+        Return {dumpUniqueName: QueueConfigDumpSpec} of all queue config dumps, or None if failed
+        """
         tmpLog = core_utils.make_logger(_logger, method_name="get_queue_config_dumps")
         tmpLog.debug("start")
-        # sql to get used IDs
-        sqlIJ = f"SELECT DISTINCT configID FROM {jobTableName} "
-        self.execute(sqlIJ)
-        resIJ = self.cur.fetchall()
-        for (tmpID,) in resIJ:
-            configIDs.add(tmpID)
-        sqlIW = f"SELECT DISTINCT configID FROM {workTableName} "
-        self.execute(sqlIW)
-        resIW = self.cur.fetchall()
-        for (tmpID,) in resIW:
-            configIDs.add(tmpID)
-        # sql to delete
-        sqlD = f"DELETE FROM {queueConfigDumpTableName} WHERE configID=:configID "
-        # sql to get config
         sqlQ = f"SELECT {QueueConfigDumpSpec.column_names()} FROM {queueConfigDumpTableName} "
-        sqlQ += "FOR UPDATE "
         self.execute(sqlQ)
         resQs = self.cur.fetchall()
-        iDump = 0
-        iDel = 0
+        # commit
+        self.commit()
+        retVal = dict()
         for resQ in resQs:
             dumpSpec = QueueConfigDumpSpec()
             dumpSpec.pack(resQ)
-            # delete if unused and too old
-            if dumpSpec.configID not in configIDs and dumpSpec.creationTime < timeLimit:
-                varMap = dict()
-                varMap[":configID"] = dumpSpec.configID
-                self.execute(sqlD, varMap)
-                iDel += 1
-            else:
-                retVal[dumpSpec.dumpUniqueName] = dumpSpec
-                iDump += 1
+            retVal[dumpSpec.dumpUniqueName] = dumpSpec
+        tmpLog.debug(f"got {len(retVal)} dumps")
+        return retVal
+
+    # get configIDs of queue config dumps
+    @db_error_handler(default=None)
+    def get_queue_config_dump_ids(self):
+        """
+        Return {dumpUniqueName: (configID, creationTime)} of all queue config dumps, or None if failed
+        """
+        tmpLog = core_utils.make_logger(_logger, method_name="get_queue_config_dump_ids")
+        sqlQ = f"SELECT dumpUniqueName,configID,creationTime FROM {queueConfigDumpTableName} "
+        self.execute(sqlQ)
+        retVal = {dumpUniqueName: (configID, creationTime) for dumpUniqueName, configID, creationTime in self.cur.fetchall()}
         # commit
         self.commit()
-        tmpLog.debug(f"got {iDump} dumps and delete {iDel} dumps")
-        # return
+        tmpLog.debug(f"got {len(retVal)} configIDs")
         return retVal
+
+    # get a queue config dump
+    @db_error_handler(default=None)
+    def get_queue_config_dump(self, config_id):
+        """
+        Return QueueConfigDumpSpec of config_id, or None if missing or failed
+        """
+        tmpLog = core_utils.make_logger(_logger, f"configID={config_id}", method_name="get_queue_config_dump")
+        sqlQ = f"SELECT {QueueConfigDumpSpec.column_names()} FROM {queueConfigDumpTableName} WHERE configID=:configID "
+        self.execute(sqlQ, {":configID": config_id})
+        resQ = self.cur.fetchone()
+        # commit
+        self.commit()
+        if resQ is None:
+            tmpLog.debug("not found")
+            return None
+        dumpSpec = QueueConfigDumpSpec()
+        dumpSpec.pack(resQ)
+        tmpLog.debug(f"got {dumpSpec.queueName}")
+        return dumpSpec
+
+    # set creationTime of queue config dumps to now, to keep dumps in use as current configs from being deleted as old
+    @db_error_handler(default=None)
+    def touch_queue_config_dumps(self, config_ids):
+        """
+        Return the number of updated dumps, or None if failed
+        """
+        tmpLog = core_utils.make_logger(_logger, method_name="touch_queue_config_dumps")
+        config_ids = sorted(config_ids)
+        varMapBase = {":creationTime": core_utils.naive_utcnow()}
+        nUpdated = 0
+        for idx in range(0, len(config_ids), 500):
+            varMap = dict(varMapBase)
+            for jdx, configID in enumerate(config_ids[idx : idx + 500]):
+                varMap[f":configID{jdx}"] = configID
+            bindNames = ",".join(key for key in varMap if key != ":creationTime")
+            sqlU = f"UPDATE {queueConfigDumpTableName} SET creationTime=:creationTime WHERE configID IN ({bindNames}) "
+            self.execute(sqlU, varMap)
+            nUpdated += self.cur.rowcount
+        # commit
+        self.commit()
+        tmpLog.debug(f"updated {nUpdated} dumps")
+        return nUpdated
+
+    # delete queue config dumps unused by jobs and workers, and older than max_age_hours
+    @db_error_handler(default=None)
+    def clean_queue_config_dumps(self, max_age_hours, protected_ids=()):
+        """
+        Dumps with configID in protected_ids are kept. Return the list of deleted configIDs, or None if failed
+        """
+        tmpLog = core_utils.make_logger(_logger, method_name="clean_queue_config_dumps")
+        tmpLog.debug("start")
+        timeLimit = core_utils.naive_utcnow() - datetime.timedelta(hours=max_age_hours)
+        # old dumps
+        sqlO = f"SELECT configID FROM {queueConfigDumpTableName} WHERE creationTime<:timeLimit "
+        self.execute(sqlO, {":timeLimit": timeLimit})
+        candidateIDs = {configID for (configID,) in self.cur.fetchall()} - set(protected_ids)
+        deletedIDs = []
+        if candidateIDs:
+            # configIDs in use
+            usedIDs = set()
+            for tableName in (jobTableName, workTableName):
+                self.execute(f"SELECT DISTINCT configID FROM {tableName} ")
+                usedIDs |= {configID for (configID,) in self.cur.fetchall()}
+            # delete
+            sqlD = f"DELETE FROM {queueConfigDumpTableName} WHERE configID=:configID "
+            for configID in sorted(candidateIDs - usedIDs):
+                self.execute(sqlD, {":configID": configID})
+                deletedIDs.append(configID)
+        # commit
+        self.commit()
+        tmpLog.debug(f"deleted {len(deletedIDs)} dumps")
+        return deletedIDs
 
     # add queue config dump
     @db_error_handler(default=False)
