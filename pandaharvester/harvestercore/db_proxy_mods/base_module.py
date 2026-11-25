@@ -214,10 +214,10 @@ class BaseModule(object):
             self.lockDB = True
         # remove FOR UPDATE for sqlite
         if harvester_config.db.engine == "sqlite":
-            sql = re.sub(" FOR UPDATE", " ", sql, re.I)
-            sql = re.sub("INSERT IGNORE", "INSERT OR IGNORE", sql, re.I)
+            sql = re.sub(" FOR UPDATE", " ", sql, flags=re.I)
+            sql = re.sub("INSERT IGNORE", "INSERT OR IGNORE", sql, flags=re.I)
         else:
-            sql = re.sub("INSERT OR IGNORE", "INSERT IGNORE", sql, re.I)
+            sql = re.sub("INSERT OR IGNORE", "INSERT IGNORE", sql, flags=re.I)
         # no conversation unless dict
         if not isinstance(varmap, dict):
             # using the printf style syntax for mariaDB

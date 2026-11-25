@@ -149,38 +149,36 @@ class MiscModule(BaseModule):
             globalDict = core_utils.get_global_dict()
             # lock dict
             globalDict.acquire()
-            # found
-            if from_local_cache and cacheKey in globalDict:
-                # release dict
-                globalDict.release()
-                # make spec
-                cacheSpec = CacheSpec()
-                cacheSpec.data = globalDict[cacheKey]
-            else:
-                # read from database
-                useDB = True
-                sql = f"SELECT {CacheSpec.column_names()} FROM {cacheTableName} "
-                sql += "WHERE mainKey=:mainKey "
-                varMap = dict()
-                varMap[":mainKey"] = main_key
-                if sub_key is not None:
-                    sql += "AND subKey=:subKey "
-                    varMap[":subKey"] = sub_key
-                self.execute(sql, varMap)
-                resJ = self.cur.fetchall()
-                # commit
-                self.commit()
-                if not resJ:
-                    # release dict
-                    globalDict.release()
-                    return None
-                else:
-                    res_one = resJ[0]
+            try:
+                # found
+                if from_local_cache and cacheKey in globalDict:
                     # make spec
                     cacheSpec = CacheSpec()
-                    cacheSpec.pack(res_one)
-                    # put into global dict
-                    globalDict[cacheKey] = cacheSpec.data
+                    cacheSpec.data = globalDict[cacheKey]
+                else:
+                    # read from database
+                    useDB = True
+                    sql = f"SELECT {CacheSpec.column_names()} FROM {cacheTableName} "
+                    sql += "WHERE mainKey=:mainKey "
+                    varMap = dict()
+                    varMap[":mainKey"] = main_key
+                    if sub_key is not None:
+                        sql += "AND subKey=:subKey "
+                        varMap[":subKey"] = sub_key
+                    self.execute(sql, varMap)
+                    resJ = self.cur.fetchall()
+                    # commit
+                    self.commit()
+                    if not resJ:
+                        return None
+                    else:
+                        res_one = resJ[0]
+                        # make spec
+                        cacheSpec = CacheSpec()
+                        cacheSpec.pack(res_one)
+                        # put into global dict
+                        globalDict[cacheKey] = cacheSpec.data
+            finally:
                 # release dict
                 globalDict.release()
             tmpLog.debug("done")
@@ -219,65 +217,55 @@ class MiscModule(BaseModule):
         return True
 
     # get commands for a receiver
+    @db_error_handler(default=[])
     def get_commands_for_receiver(self, receiver, command_pattern=None):
-        try:
-            # get logger
-            tmpLog = core_utils.make_logger(_logger, method_name="get_commands_for_receiver")
-            tmpLog.debug("start")
-            # sql to get commands
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name="get_commands_for_receiver")
+        tmpLog.debug("start")
+        # sql to get commands
+        varMap = dict()
+        varMap[":receiver"] = receiver
+        varMap[":processed"] = 0
+        sqlG = f"SELECT {CommandSpec.column_names()} FROM {commandTableName} WHERE receiver=:receiver AND processed=:processed "
+        if command_pattern is not None:
+            varMap[":command"] = command_pattern
+            if "%" in command_pattern:
+                sqlG += "AND command LIKE :command "
+            else:
+                sqlG += "AND command=:command "
+        sqlG += "FOR UPDATE "
+        # sql to lock command
+        sqlL = f"UPDATE {commandTableName} SET processed=:processed WHERE command_id=:command_id "
+        self.execute(sqlG, varMap)
+        commandSpecList = []
+        for res in self.cur.fetchall():
+            # make command
+            commandSpec = CommandSpec()
+            commandSpec.pack(res)
+            # lock
             varMap = dict()
-            varMap[":receiver"] = receiver
-            varMap[":processed"] = 0
-            sqlG = f"SELECT {CommandSpec.column_names()} FROM {commandTableName} WHERE receiver=:receiver AND processed=:processed "
-            if command_pattern is not None:
-                varMap[":command"] = command_pattern
-                if "%" in command_pattern:
-                    sqlG += "AND command LIKE :command "
-                else:
-                    sqlG += "AND command=:command "
-            sqlG += "FOR UPDATE "
-            # sql to lock command
-            sqlL = f"UPDATE {commandTableName} SET processed=:processed WHERE command_id=:command_id "
-            self.execute(sqlG, varMap)
-            commandSpecList = []
-            for res in self.cur.fetchall():
-                # make command
-                commandSpec = CommandSpec()
-                commandSpec.pack(res)
-                # lock
-                varMap = dict()
-                varMap[":command_id"] = commandSpec.command_id
-                varMap[":processed"] = 1
-                self.execute(sqlL, varMap)
-                # append
-                commandSpecList.append(commandSpec)
-            # commit
-            self.commit()
-            tmpLog.debug(f"got {len(commandSpecList)} commands")
-            return commandSpecList
-        except Exception:
-            # dump error
-            core_utils.dump_error_message(_logger)
-            # return
-            return []
+            varMap[":command_id"] = commandSpec.command_id
+            varMap[":processed"] = 1
+            self.execute(sqlL, varMap)
+            # append
+            commandSpecList.append(commandSpec)
+        # commit
+        self.commit()
+        tmpLog.debug(f"got {len(commandSpecList)} commands")
+        return commandSpecList
 
     # get command ids that have been processed and need to be acknowledged to panda server
+    @db_error_handler(default=[])
     def get_commands_ack(self):
-        try:
-            # get logger
-            tmpLog = core_utils.make_logger(_logger, method_name="get_commands_ack")
-            tmpLog.debug("start")
-            # sql to get commands that have been processed and need acknowledgement
-            sql = f"SELECT command_id FROM {commandTableName} WHERE ack_requested=1 AND processed=1"
-            self.execute(sql)
-            command_ids = [row[0] for row in self.cur.fetchall()]
-            tmpLog.debug(f"command_ids {command_ids}")
-            return command_ids
-        except Exception:
-            # dump error
-            core_utils.dump_error_message(_logger)
-            # return
-            return []
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name="get_commands_ack")
+        tmpLog.debug("start")
+        # sql to get commands that have been processed and need acknowledgement
+        sql = f"SELECT command_id FROM {commandTableName} WHERE ack_requested=1 AND processed=1"
+        self.execute(sql)
+        command_ids = [row[0] for row in self.cur.fetchall()]
+        tmpLog.debug(f"command_ids {command_ids}")
+        return command_ids
 
     @db_error_handler(default=False)
     def clean_commands_by_id(self, commands_ids):

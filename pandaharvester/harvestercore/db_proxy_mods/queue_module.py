@@ -771,12 +771,12 @@ class QueueModule(BaseModule):
         varMap[":siteName"] = site_name
         varMap[":lockedBy"] = locked_by
         self.execute(sql, varMap)
-        n_done = self.cur.rowcount > 0
+        n_done = self.cur.rowcount
         # commit
         self.commit()
         if n_done >= 1:
             tmpLog.debug(f"released {site_name}")
         else:
-            tmpLog.debug("found nothing to release. Skipped".format(site_name))
+            tmpLog.debug(f"found nothing to release for {site_name}. Skipped")
         # return
         return True

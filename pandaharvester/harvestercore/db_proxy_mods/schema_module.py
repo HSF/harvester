@@ -91,6 +91,8 @@ class SchemaModule(BaseModule):
             self.commit()
             tmp_log.debug(f"initialized entries in {table_name}")
         except Exception:
+            # roll back
+            self.rollback()
             core_utils.dump_error_message(tmp_log)
 
     # make table
@@ -164,7 +166,7 @@ class SchemaModule(BaseModule):
                             core_utils.dump_error_message(tmpLog)
 
                         # if we just added the jobType, old entries need to be initialized
-                        if (table_name == pandaQueueTableName and attrName == "jobType") or (table_name == pandaQueueTableName and attrName == "jobType"):
+                        if (table_name == pandaQueueTableName and attrName == "jobType") or (table_name == workTableName and attrName == "jobType"):
                             self.initialize_jobType(table_name)
 
             # make indexes
