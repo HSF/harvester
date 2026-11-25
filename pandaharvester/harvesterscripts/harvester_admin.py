@@ -247,7 +247,7 @@ def qconf_refresh(arguments):
     from pandaharvester.harvestercore.queue_config_mapper import QueueConfigMapper
 
     qcm = QueueConfigMapper()
-    qcm._update_last_reload_time(force=True)
+    qcm.request_reload()
     qcm.lastUpdate = None
     qcm.load_data(refill_table=arguments.refill)
 

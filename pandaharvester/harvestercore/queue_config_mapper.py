@@ -32,6 +32,27 @@ def _make_logger(base_log=_logger, token=None, method_name=None, send_dialog=Tru
     return core_utils.make_logger(base_log, token=token, method_name=method_name, hook=hook)
 
 
+# key in cache table to request all processes to reload the queue config
+_reload_request_key = "_qconf_reload_request"
+
+# key in the source signature for modification time of the local config file
+_file_mtime_key = "_file_mtime"
+
+
+# source signature as string for logs, with times in ISO format in UTC
+def _format_signature(signature):
+    if signature is None:
+        return "None"
+    items = []
+    for key, val in signature.items():
+        if key == _file_mtime_key and val is not None:
+            val = core_utils.naive_utcfromtimestamp(val)
+        if isinstance(val, datetime.datetime):
+            val = val.isoformat()
+        items.append(f"{key}={val}")
+    return "{" + ", ".join(items) + "}"
+
+
 # timestamp string of a naive UTC datetime
 def _to_ts_info(the_time):
     return f"{core_utils.naive_utc_to_timestamp(the_time):.3f}"
@@ -184,11 +205,9 @@ class QueueConfigMapper(metaclass=SingletonWithID):
     def __init__(self, update_db=True):
         self.lock = threading.Lock()
         self.lastUpdate = None
-        self.lastReload = None
         self.lastCheck = None
-        self.last_cache_ts = None
-        self.last_pq_table_fill_time = None
-        self.cache_to_fill_pq_table_time = None
+        self.sourceSignature = None
+        self.resolverCacherKey = None
         self.queueConfig = dict()
         self.activeQueues = dict()
         self.queueConfigWithID = dict()
@@ -227,11 +246,9 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             mainLog.debug("queues config URL not set. Skipped")
         return None, None
 
-    # load config from local json file with syntax validation
+    # get path of local config file
     @staticmethod
-    def _load_config_from_file():
-        mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="_load_config_from_file")
-        # define config file path
+    def _get_config_file_path():
         if os.path.isabs(harvester_config.qconf.configFile):
             confFilePath = harvester_config.qconf.configFile
         else:
@@ -244,6 +261,13 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             # look into /etc/panda
             if confFilePath is None:
                 confFilePath = os.path.join("/etc/panda", harvester_config.qconf.configFile)
+        return confFilePath
+
+    # load config from local json file with syntax validation
+    @staticmethod
+    def _load_config_from_file():
+        mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="_load_config_from_file")
+        confFilePath = QueueConfigMapper._get_config_file_path()
         # load from config file
         try:
             with open(confFilePath) as f:
@@ -267,41 +291,37 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             resolver = None
         return resolver
 
-    # update last reload time; force to update it regardless of the lock, to make all processes reload
-    def _update_last_reload_time(self, the_time=None, force=False):
-        # update timestamp of last reload, lock with update interval
-        got_update_lock = force or self.dbProxy.get_process_lock("qconf_reload", "qconf_universal", self.updateInterval)
-        if got_update_lock:
-            if the_time is None:
-                the_time = core_utils.naive_utcnow()
-            new_ts_info = _to_ts_info(the_time)
-            ret_val = self.dbProxy.refresh_cache("_qconf_last_reload", "_universal", new_ts_info)
-            if ret_val:
-                return True
-            else:
-                return False
-        else:
+    # get source signature
+    def _get_source_signature(self):
+        """
+        Return a dict which changes when any source of the queue config is updated, or None if failed to get it:
+        update times in cache table of the reload request, queues_config_file and resolver data, and modification time of
+        the local config file
+        """
+        keys = [_reload_request_key]
+        if self.configFromCacher:
+            keys.append("queues_config_file")
+        if self.resolverCacherKey:
+            keys.append(self.resolverCacherKey)
+        update_times = self.dbProxy.get_cache_last_update_times(keys)
+        if update_times is None:
             return None
+        signature = {key: update_times.get(key) for key in keys}
+        try:
+            signature[_file_mtime_key] = os.stat(self._get_config_file_path()).st_mtime
+        except OSError:
+            signature[_file_mtime_key] = None
+        return signature
 
-    # get last reload time
-    def _get_last_reload_time(self):
-        cacheSpec = self.dbProxy.get_cache("_qconf_last_reload", "_universal", from_local_cache=False)
-        if cacheSpec is None:
-            return None
-        timestamp = float(cacheSpec.data)
-        return core_utils.naive_utcfromtimestamp(timestamp)
+    # request all processes to reload the queue config at their next check
+    def request_reload(self):
+        return self.dbProxy.refresh_cache(_reload_request_key, "_universal", _to_ts_info(core_utils.naive_utcnow()))
 
-    # update last pq_table fill time
-    def _update_pq_table(self, cache_time=None, refill_table=False):
-        # update timestamp of last reload, lock with check interval
+    # update pq_table
+    def _update_pq_table(self, refill_table=False):
         got_update_lock = self.dbProxy.get_process_lock("pq_table_fill", "qconf_universal", 120)
         if got_update_lock:
             fill_ret_val = self.dbProxy.fill_panda_queue_table(self.activeQueues.keys(), self, refill_table=refill_table)
-            now_time = core_utils.naive_utcnow()
-            if fill_ret_val:
-                self.dbProxy.refresh_cache("_pq_table_last_fill", "_universal", _to_ts_info(now_time))
-                if cache_time:
-                    self.dbProxy.refresh_cache("_cache_to_fill_pq_table", "_universal", _to_ts_info(cache_time))
             self.dbProxy.release_process_lock("pq_table_fill", "qconf_universal")
             if fill_ret_val:
                 return True
@@ -310,63 +330,46 @@ class QueueConfigMapper(metaclass=SingletonWithID):
         else:
             return None
 
-    # get last pq_table fill time
-    def _get_last_pq_table_fill_time(self):
-        cacheSpec = self.dbProxy.get_cache("_pq_table_last_fill", "_universal", from_local_cache=False)
-        if cacheSpec is None:
-            return None
-        timestamp = float(cacheSpec.data)
-        return core_utils.naive_utcfromtimestamp(timestamp)
-
-    # get time of last cache used to fill pq_table
-    def _get_cache_to_fill_pq_table_time(self):
-        cacheSpec = self.dbProxy.get_cache("_cache_to_fill_pq_table", "_universal", from_local_cache=False)
-        if cacheSpec is None:
-            return None
-        timestamp = float(cacheSpec.data)
-        return core_utils.naive_utcfromtimestamp(timestamp)
-
     # load data
     def load_data(self, refill_table=False):
+        """
+        Reload the queue config if any of its sources changed (see _get_source_signature), or if older than updateInterval.
+        Sources are checked at most every checkInterval
+        """
         mainLog = _make_logger(token=f"id={core_utils.get_pid()}", method_name="load_data")
         call_time = core_utils.naive_utcnow()
-        # check if to update
+        # check if to update; until loaded once, wait for the ongoing first load instead
         with self.lock:
-            now_time = core_utils.naive_utcnow()
-            updateInterval_td = datetime.timedelta(seconds=self.updateInterval)
-            checkInterval_td = datetime.timedelta(seconds=self.checkInterval)
-            # skip if lastCheck is fresh (within checkInterval) and already loaded once; otherwise wait for the ongoing first load
-            if self.lastCheck is not None and now_time - self.lastCheck < checkInterval_td and self.lastUpdate is not None:
-                return
-            self.lastCheck = now_time
-            # get last_reload_timestamp from DB
-            self.lastReload = self._get_last_reload_time()
-            # get last_pq_table_fill_time from DB
-            self.last_pq_table_fill_time = self._get_last_pq_table_fill_time()
-            # get time of last cache used to fill pq_table from DB
-            self.cache_to_fill_pq_table_time = self._get_cache_to_fill_pq_table_time()
-            # skip if min_last_reload is fresh and lastUpdate fresher than lastReload (within updateInterval)
-            if self.lastReload and self.lastUpdate:
-                min_last_reload = self.lastReload
-                if self.last_cache_ts:
-                    min_last_reload = min(min_last_reload, self.last_cache_ts + updateInterval_td * 0.25)
-                if self.lastReload < self.lastUpdate and now_time - min_last_reload < updateInterval_td:
+            if self.lastUpdate is not None:
+                now_time = core_utils.naive_utcnow()
+                # skip if lastCheck is fresh (within checkInterval)
+                if self.lastCheck is not None and now_time - self.lastCheck < datetime.timedelta(seconds=self.checkInterval):
                     return
+                self.lastCheck = now_time
+                # skip if no source changed and lastUpdate is fresh (within updateInterval)
+                signature = self._get_source_signature()
+                if (signature is None or signature == self.sourceSignature) and now_time - self.lastUpdate < datetime.timedelta(seconds=self.updateInterval):
+                    return
+                if signature is not None and signature != self.sourceSignature:
+                    mainLog.debug(f"sources changed: {_format_signature(self.sourceSignature)} -> {_format_signature(signature)}")
         # start
         with self.lock:
             # skip if another thread reloaded while waiting for the lock
             if self.lastUpdate is not None and self.lastUpdate >= call_time:
                 return
-            # update timestamp of last reload, lock with update interval
-            now_time = core_utils.naive_utcnow()
-            update_last_reload_ret_val = self._update_last_reload_time(now_time)
-            if update_last_reload_ret_val:
-                self.lastReload = now_time
-                mainLog.debug("updated last reload timestamp")
-            elif update_last_reload_ret_val is None:
-                mainLog.debug("did not get qconf_reload timestamp lock. Skipped to update last reload timestamp")
-            else:
-                mainLog.warning("failed to update last reload timestamp. Skipped")
+            # get resolver
+            resolver = self._get_resolver()
+            if resolver is None:
+                mainLog.debug("No resolver is configured")
+            self.resolverCacherKey = getattr(resolver, "cacher_key", None)
+            # get the source signature before reading the sources, so that updates meanwhile trigger the next reload
+            signature = self._get_source_signature()
+            # refresh resolver data now if updated, rather than after its refresh period
+            if hasattr(resolver, "force_refresh") and (
+                signature is None or self.sourceSignature is None or signature.get(self.resolverCacherKey) != self.sourceSignature.get(self.resolverCacherKey)
+            ):
+                mainLog.debug("refresh resolver data")
+                resolver.force_refresh()
             # init
             newQueueConfig = dict()
             localTemplatesDict = dict()
@@ -379,15 +382,8 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             getQueuesDynamic = False
             invalidQueueList = set()
             pandaQueueDict = PandaQueuesDict()
-            # get resolver
-            resolver = self._get_resolver()
-            if resolver is None:
-                mainLog.debug("No resolver is configured")
             # load config json from cacher (RT & RQ)
-            queueConfigJson_cacher, self.last_cache_ts = self._load_config_from_cache()
-            if self.last_cache_ts and self.cache_to_fill_pq_table_time and (self.last_cache_ts < self.cache_to_fill_pq_table_time):
-                # cacher data outdated compared with pq_table fill time; warn
-                mainLog.warning(f"Found cacher data outdated ({str(self.last_cache_ts)} < {str(self.cache_to_fill_pq_table_time)})")
+            queueConfigJson_cacher, cache_ts = self._load_config_from_cache()
             if queueConfigJson_cacher is not None:
                 mainLog.debug("Applying cacher data")
                 for queueName, queueDict in queueConfigJson_cacher.items():
@@ -743,14 +739,15 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                 newQueueConfigWithID[dumpSpec.configID] = queueConfig
             self.queueConfigWithID = newQueueConfigWithID
             # update lastUpdate and lastCheck
+            self.sourceSignature = signature
             self.lastUpdate = core_utils.naive_utcnow()
             self.lastCheck = self.lastUpdate
         # update database pq_table
         if self.toUpdateDB:
-            retVal = self._update_pq_table(cache_time=self.last_cache_ts, refill_table=refill_table)
+            retVal = self._update_pq_table(refill_table=refill_table)
             if retVal:
-                if self.last_cache_ts:
-                    mainLog.debug(f"updated pq_table (last cache updated at {str(self.last_cache_ts)})")
+                if cache_ts:
+                    mainLog.debug(f"updated pq_table (last cache updated at {str(cache_ts)})")
                 else:
                     mainLog.debug("updated pq_table")
             elif retVal is None:

@@ -78,9 +78,15 @@ class CachedDictBase(dict, PluginBase, metaclass=SingletonWithCacherKey):
         """
         self.last_refresh_ts = time.time() - self.refresh_period + 5
 
-    def _refresh(self):
+    def force_refresh(self):
+        """
+        Refresh now with the data in DB, regardless of the refresh period and the cache in the process
+        """
+        self._refresh(force=True)
+
+    def _refresh(self, force=False):
         with self.lock:
-            if self._is_fresh():
+            if not force and self._is_fresh():
                 return
             tmp_log = self.make_logger(_logger, f"cacher_key={self.cacher_key}", method_name="_refresh", send_dialog=False)
             # get cached data; note the key can be absent in DB, e.g. when it is not in the data of the cacher section in the cfg
@@ -89,7 +95,7 @@ class CachedDictBase(dict, PluginBase, metaclass=SingletonWithCacherKey):
                 tmp_log.warning("cacher_key is not set; skipped")
             else:
                 try:
-                    data_cache = self.dbInterface.get_cache(self.cacher_key)
+                    data_cache = self.dbInterface.get_cache(self.cacher_key, from_local_cache=not force)
                 except Exception as e:
                     tmp_log.warning(f"failed to get cache with {e.__class__.__name__}: {e} ; skipped")
             cache_data = getattr(data_cache, "data", None)

@@ -105,6 +105,25 @@ class MiscModule(BaseModule):
         tmpLog.debug(f"got {retVal}")
         return retVal
 
+    # get last update times of cached infos
+    @db_error_handler(default=None)
+    def get_cache_last_update_times(self, main_keys):
+        """
+        Return {mainKey: lastUpdate} for main_keys in the cache, or None if failed. Missing keys are omitted
+        """
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name="get_cache_last_update_times")
+        varMap = dict()
+        for idx, main_key in enumerate(main_keys):
+            varMap[f":mainKey{idx}"] = main_key
+        sqlS = f"SELECT mainKey,lastUpdate FROM {cacheTableName} WHERE mainKey IN ({','.join(varMap)}) "
+        self.execute(sqlS, varMap)
+        retVal = {mainKey: lastUpdate for mainKey, lastUpdate in self.cur.fetchall()}
+        # commit
+        self.commit()
+        tmpLog.debug(f"got {retVal}")
+        return retVal
+
     # refresh a cached info
     @db_error_handler(default=False)
     def refresh_cache(self, main_key, sub_key, new_info):

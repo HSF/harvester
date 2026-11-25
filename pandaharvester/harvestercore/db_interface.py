@@ -17,8 +17,8 @@ class DBInterface(object):
         self.dbProxy = DBProxyPool()
 
     # get cache data
-    def get_cache(self, data_name):
-        return self.dbProxy.get_cache(data_name)
+    def get_cache(self, data_name, from_local_cache=True):
+        return self.dbProxy.get_cache(data_name, from_local_cache=from_local_cache)
 
     # get files with a group ID
     def get_files_with_group_id(self, group_id):
