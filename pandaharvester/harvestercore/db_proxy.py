@@ -12,6 +12,7 @@ from pandaharvester.harvestercore.db_proxy_mods import (
     queue_module,
     schema_module,
     stats_module,
+    worker_check_module,
     worker_module,
 )
 
@@ -45,5 +46,6 @@ class DBProxy(
     stats_module.StatsModule,
     file_module.FileModule,
     misc_module.MiscModule,
+    worker_check_module.WorkerCheckModule,
 ):
     pass
