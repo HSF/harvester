@@ -1,6 +1,7 @@
 import copy
 import math
 import traceback
+from dataclasses import dataclass
 
 import polars as pl
 
@@ -29,8 +30,19 @@ pl.Config.set_tbl_width_chars(140)
 pl.Config.set_tbl_cell_numeric_alignment("RIGHT")
 
 
+# limits and current usage of a queue
+@dataclass
+class QueueLimits:
+    max_workers: int
+    n_queue_limit: int
+    queue_limit_cores: int | None
+    queue_limit_memory: int | None
+    cores_queue: int
+    memory_queue: int
+
+
 # class to define number of workers to submit
-class WorkerAdjuster(object):
+class WorkerAdjuster:
     # constructor
     def __init__(self, queue_config_mapper):
         tmp_log = core_utils.make_logger(_logger, method_name="__init__")
@@ -39,10 +51,7 @@ class WorkerAdjuster(object):
         self.dbProxy = DBProxy()
         self.throttlerMap = dict()
         self.apf_mon = Apfmon(self.queue_configMapper)
-        try:
-            self.maxNewWorkers = harvester_config.submitter.maxNewWorkers
-        except AttributeError:
-            self.maxNewWorkers = None
+        self.maxNewWorkers = getattr(harvester_config.submitter, "maxNewWorkers", None)
         try:
             if harvester_config.submitter.activateWorkerFactor == "auto":
                 self.activate_worker_factor = "auto"
@@ -192,7 +201,6 @@ class WorkerAdjuster(object):
         # balance in a queue when MCore is used in a pilot wrapper
         try:
             if queue_config:
-                # tmp_log.debug("queue_config.submitter:%s" % str(queue_config.submitter))
                 nCoreFactor = self.get_core_factor(queue_config, queue_dict, job_type, resource_type, tmp_log)
 
                 ret_val = 1.0 / nCoreFactor
@@ -532,6 +540,372 @@ class WorkerAdjuster(object):
         else:
             tmp_log.debug("result_df: nothing to display")
 
+    # normalize job types of a queue in place: keep job type ANY, and merge all other job types into DEFAULT_JOB_TYPE
+    def _normalize_job_type_any(self, queue_dict, tmp_log):
+        tmp_log.debug(f"normalize_job_type_any got: {queue_dict}")
+        if DEFAULT_JOB_TYPE in queue_dict and len(queue_dict) == 1:
+            tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
+            return
+        if len(queue_dict) == 1:
+            only_job_type = next(iter(queue_dict))
+            queue_dict[DEFAULT_JOB_TYPE] = queue_dict.pop(only_job_type)
+            tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
+            return
+        merged = {}
+        any_job_types = {}
+        for _job_type, rt_map in queue_dict.items():
+            if _job_type == "ANY":
+                any_job_types[_job_type] = rt_map
+                continue
+            for rt, stats in rt_map.items():
+                if rt not in merged:
+                    merged[rt] = copy.deepcopy(stats)
+                    continue
+                for key, val in stats.items():
+                    if isinstance(val, (int, float)):
+                        merged[rt][key] = merged[rt].get(key, 0) + val
+                    else:
+                        merged[rt].setdefault(key, val)
+        queue_dict.clear()
+        queue_dict.update(any_job_types)
+        queue_dict[DEFAULT_JOB_TYPE] = merged
+        tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
+
+    # get queue status, job statistics, and detailed job statistics as dataframe from the cache
+    def _get_demand_inputs(self, tmp_log):
+        # get queue status
+        queue_stat = self.dbProxy.get_cache("panda_queues.json", None)
+        if queue_stat is None:
+            queue_stat = dict()
+        else:
+            queue_stat = queue_stat.data
+
+        # get job statistics
+        job_stats = self.dbProxy.get_cache("job_statistics.json", None)
+        if job_stats is not None:
+            job_stats = job_stats.data
+
+        job_stats_new_df = self._job_stats_to_df(None)
+        job_stats_new = self.dbProxy.get_cache("job_statistics_new.json", None)
+        if job_stats_new is not None:
+            job_stats_new_df = self._job_stats_to_df(job_stats_new.data)
+
+        # job statistics missing or older than jobStatsMaxAge seconds are not used as demand
+        job_stats_max_age = getattr(harvester_config.submitter, "jobStatsMaxAge", 0)
+        if job_stats_max_age > 0:
+            job_stats_time = self.dbProxy.get_cache_last_update_time("job_statistics.json", None)
+            if job_stats_time is None or (core_utils.naive_utcnow() - job_stats_time).total_seconds() > job_stats_max_age:
+                tmp_log.error(f"job statistics missing or older than jobStatsMaxAge={job_stats_max_age}s; no demand from activated jobs")
+                job_stats = {}
+                job_stats_new_df = self._job_stats_to_df(None)
+            job_stats_new_time = self.dbProxy.get_cache_last_update_time("job_statistics_new.json", None)
+            if job_stats_new_time is None or (core_utils.naive_utcnow() - job_stats_new_time).total_seconds() > job_stats_max_age:
+                tmp_log.error(f"detailed job statistics missing or older than jobStatsMaxAge={job_stats_max_age}s; no demand from detailed activated jobs")
+                job_stats_new_df = self._job_stats_to_df(None)
+        return queue_stat, job_stats, job_stats_new_df
+
+    # get pilot types to prioritize for a queue
+    @staticmethod
+    def _get_prioritized_pilot_types(queue_config):
+        prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
+        return [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
+
+    # distribute nNewWorkers of pilot type ANY of a queue to pilot types based on activated jobs, then remove pilot type ANY
+    def _distribute_new_workers_to_pilot_types(self, static_num_workers, queue_name, queue_config, queue_dict, job_stats_new_df, tmp_log):
+        if queue_config is None:
+            tmp_log.warning(f"missing queue_config for queue: {queue_name}")
+        else:
+            tmp_new_workers_df = self._build_new_workers_df(static_num_workers, queue_name, tmp_log)
+            activated_df = self._build_activated_df(job_stats_new_df, queue_name, tmp_log)
+            joined_df = self._join_workers_activated_dfs(activated_df, tmp_new_workers_df, queue_name, tmp_log)
+
+            tmp_master_df = self._build_master_df(joined_df, queue_name, static_num_workers, tmp_log)
+            master_df = tmp_master_df.clone()
+            tmp_static_num_workers = copy.deepcopy(static_num_workers)
+
+            # update tmp_static_num_workers with tmp_master_df
+            self._sync_master_df_to_static_workers(tmp_master_df, queue_name, tmp_static_num_workers, tmp_log)
+
+            # set initial nNewWorkers for pilot types based on number of activated jobs and the activate worker factor
+            master_df = self._set_initial_new_workers(
+                tmp_master_df,
+                tmp_static_num_workers,
+                static_num_workers,
+                queue_name,
+                master_df,
+                queue_dict,
+                queue_config,
+                self._get_prioritized_pilot_types(queue_config),
+                tmp_log,
+            )
+            display_master_df = master_df.select(["job_type", "resource_type", "pilot_type", "nQueue", "nReady", "nRunning", "nNewWorkers", "n_activated_jobs"])
+            tmp_log.debug(f"master_df: \n{display_master_df}")
+        # remove pilot type ANY
+        for pilot_type_dict_map in static_num_workers[queue_name].values():
+            for pilot_type_dict in pilot_type_dict_map.values():
+                pilot_type_dict.pop("ANY", None)
+
+    # get the throttler of a queue; made again when the queue configuration changes
+    def _get_throttler(self, queue_name, queue_config):
+        config_id = getattr(queue_config, "configID", None)
+        cached = self.throttlerMap.get(queue_name)
+        if cached is None or cached[0] != config_id:
+            throttler = self.pluginFactory.get_plugin(queue_config.throttler) if hasattr(queue_config, "throttler") else None
+            cached = (config_id, throttler)
+            self.throttlerMap[queue_name] = cached
+        return cached[1]
+
+    # get limits and current usage of a queue
+    def _get_queue_limits(self, queue_name, queue_config):
+        worker_limits_dict = {}
+        worker_stats_map = {"queue": {"n": 0, "core": 0, "mem": 0}}
+        if queue_config is not None:
+            worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
+        return QueueLimits(
+            max_workers=worker_limits_dict.get("maxWorkers", 0),
+            n_queue_limit=worker_limits_dict.get("nQueueLimitWorker", 0),
+            queue_limit_cores=worker_limits_dict.get("nQueueWorkerCores"),
+            queue_limit_memory=worker_limits_dict.get("nQueueWorkerMemory"),
+            cores_queue=worker_stats_map["queue"]["core"],
+            memory_queue=worker_stats_map["queue"]["mem"],
+        )
+
+    # calculate the number of new workers of a resource type and pilot type within the limits of the queue
+    def _calculate_n_new_workers(
+        self, queue_name, queue_config, queue_dict, job_type, resource_type, tmp_val, n_new_workers_def, limits, job_stats, rtype_request, tmp_log
+    ):
+        n_queue = tmp_val["nQueue"]
+        n_ready = tmp_val["nReady"]
+        n_running = tmp_val["nRunning"]
+        # the limit of queued workers is the one of the whole queue; nQueueLimitWorkerPerRT is not used on purpose
+        n_queue_limit_per_rt = limits.n_queue_limit
+        if n_queue >= n_queue_limit_per_rt > 0:
+            # enough queued workers
+            tmp_log.debug(f"No n_new_workers since n_queue({n_queue})>=n_queue_limit_per_rt({n_queue_limit_per_rt})")
+            return 0
+        if (n_queue + n_ready + n_running) >= limits.max_workers > 0:
+            # enough workers in the system
+            tmp_log.debug(f"No n_new_workers since n_queue({n_queue}) + n_ready({n_ready}) + n_running({n_running}) >= max_workers({limits.max_workers})")
+            return 0
+        if limits.queue_limit_cores is not None and limits.cores_queue >= limits.queue_limit_cores:
+            # enough queuing cores
+            tmp_log.debug(f"No n_new_workers since cores_queue({limits.cores_queue}) >= queue_limit_cores({limits.queue_limit_cores})")
+            return 0
+        if limits.queue_limit_memory is not None and limits.memory_queue >= limits.queue_limit_memory:
+            # enough queuing memory
+            tmp_log.debug(f"No n_new_workers since memory_queue({limits.memory_queue} MB) >= queue_limit_memory({limits.queue_limit_memory} MB)")
+            return 0
+
+        max_queued_workers = None
+        if n_queue_limit_per_rt > 0:  # there is a limit set for the queue
+            max_queued_workers = n_queue_limit_per_rt
+
+        # Reset the maxQueueWorkers according to particular
+        if n_new_workers_def is not None:
+            # don't surpass limits given centrally
+            max_queued_workers_slave = n_new_workers_def + n_queue
+            if max_queued_workers is not None:
+                max_queued_workers = min(max_queued_workers_slave, max_queued_workers)
+            else:
+                max_queued_workers = max_queued_workers_slave
+        elif queue_config.mapType == "NoJob":
+            # for pull mode, limit to activated jobs
+            if job_stats is None:
+                tmp_log.warning("n_activated not defined, defaulting to configured queue limits")
+            else:
+                # limit the queue to the number of activated jobs to avoid empty pilots
+                no_pilots_when_no_active_jobs = self.get_queue_no_pilots_when_no_active_jobs(queue_name)
+                tmp_n_activated_jobs = (job_stats.get(queue_name) or {}).get("activated")
+                if tmp_n_activated_jobs is None:
+                    # zero job in the queue
+                    tmp_log.debug("no job in queue")
+                    if no_pilots_when_no_active_jobs:
+                        n_activated = 0
+                    else:
+                        n_activated = max(1 - n_queue - n_ready - n_running, 0)
+                else:
+                    tmp_log.debug(f"available activated panda jobs {tmp_n_activated_jobs}")
+                    activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
+                    # at least one pilot to avoid no activity queues, unless no pilots wanted without activated jobs
+                    if no_pilots_when_no_active_jobs and tmp_n_activated_jobs * activate_worker_factor <= 0:
+                        n_min_pilots = 0
+                    else:
+                        n_min_pilots = 1
+                    n_activated = max(int(tmp_n_activated_jobs * activate_worker_factor), n_min_pilots)
+                queue_limit = max_queued_workers
+                if max_queued_workers is None:
+                    max_queued_workers = n_activated
+                else:
+                    max_queued_workers = min(n_activated, max_queued_workers)
+                tmp_log.debug(f"limiting max_queued_workers to min(n_activated={n_activated}, queue_limit={queue_limit})")
+
+        if max_queued_workers is None:  # no value found, use default value
+            max_queued_workers = 1
+
+        # new workers
+        n_new_workers = max(max_queued_workers - n_queue, 0)
+        tmp_log.debug(f"setting n_new_workers to {n_new_workers} in max_queued_workers calculation")
+        if limits.max_workers > 0:
+            n_new_workers = min(n_new_workers, max(limits.max_workers - n_queue - n_ready - n_running, 0))
+            tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect max_workers")
+        rtype_request_cores, rtype_request_memory = rtype_request
+        if limits.queue_limit_cores:
+            new_worker_cores_max = max(limits.queue_limit_cores - limits.cores_queue, 0)
+            n_new_workers = min(n_new_workers, math.ceil(new_worker_cores_max / rtype_request_cores))
+            tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_cores")
+        if limits.queue_limit_memory:
+            new_worker_memory_max = max(limits.queue_limit_memory - limits.memory_queue, 0)
+            n_new_workers = min(n_new_workers, math.ceil(new_worker_memory_max / rtype_request_memory))
+            tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_memory")
+        if queue_config.maxNewWorkersPerCycle > 0:
+            n_new_workers = min(n_new_workers, queue_config.maxNewWorkersPerCycle)
+            tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect maxNewWorkersPerCycle")
+        if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
+            n_new_workers = min(n_new_workers, self.maxNewWorkers)
+            tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect universal maxNewWorkers")
+        return n_new_workers
+
+    # scale down nNewWorkers of resource types and pilot types of a queue with several job types, so that their sum respects the limits of the queue
+    def _apply_aggregation_limits(self, queue_name, queue_config, queue_num_workers, limits, n_totals, tmp_log):
+        n_queue_total, n_ready_total, n_running_total = n_totals
+        if queue_config is None:
+            max_new_workers_per_cycle = 0
+            tmp_log.debug("set max_new_workers_per_cycle=0 in UCORE aggregation due to missing queue_config")
+        else:
+            max_new_workers_per_cycle = queue_config.maxNewWorkersPerCycle
+        total_new_workers_rts = 0
+        for _jt, rt_map in queue_num_workers.items():
+            for _rt, pt_map in rt_map.items():
+                if _jt != "ANY" and _rt != "ANY":
+                    for pt_val in pt_map.values():
+                        total_new_workers_rts += pt_val["nNewWorkers"]
+
+        n_new_workers_max_agg = min(max(limits.n_queue_limit - n_queue_total, 0), max(limits.max_workers - n_queue_total - n_ready_total - n_running_total, 0))
+        if max_new_workers_per_cycle >= 0:
+            n_new_workers_max_agg = min(n_new_workers_max_agg, max_new_workers_per_cycle)
+        if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
+            n_new_workers_max_agg = min(n_new_workers_max_agg, self.maxNewWorkers)
+
+        # not exceeded max
+        if total_new_workers_rts <= n_new_workers_max_agg:
+            return
+        if n_new_workers_max_agg == 0:
+            for rt_map in queue_num_workers.values():
+                for pt_map in rt_map.values():
+                    for pt_val in pt_map.values():
+                        pt_val["nNewWorkers"] = 0
+            tmp_log.debug("No n_new_workers since n_new_workers_max_agg=0 for UCORE")
+        else:
+            tmp_log.debug(f"n_new_workers_max_agg={n_new_workers_max_agg} for UCORE")
+            prioritized_pilot_types = self._get_prioritized_pilot_types(queue_config)
+            # TODO: needs to be recalculated
+            # share n_new_workers_max_agg in proportion to nNewWorkers, as [(resource_type, job_type, pilot_type), n_new_workers_orig, remainder]
+            simple_rt_nw_list = []
+            for job_type, rt_map in queue_num_workers.items():
+                if job_type == "ANY":
+                    continue
+                for resource_type, pt_map in rt_map.items():
+                    for pilot_type, pt_val in pt_map.items():
+                        simple_rt_nw_list.append([(resource_type, job_type, pilot_type), pt_val.get("nNewWorkers", 0), 0])
+            _countdown = n_new_workers_max_agg
+            for _rt_list in simple_rt_nw_list:
+                (resource_type, job_type, pilot_type), n_new_workers_orig, _r = _rt_list
+                n_new_workers, remainder = divmod(n_new_workers_orig * n_new_workers_max_agg, total_new_workers_rts)
+                queue_num_workers[job_type][resource_type][pilot_type]["nNewWorkers"] = n_new_workers
+                _rt_list[2] = remainder
+                _countdown -= n_new_workers
+            # give the rest one by one, sorted by whether n_new_workers_orig > 0 (favor positive over 0), then by pilot_type (favor prioritized),
+            # then by remainder (descending), then by original n_new_workers (favor smaller ones)
+            sorted_rt_nw_list = sorted(simple_rt_nw_list, key=(lambda x: (not (x[1] > 0), x[0][2] not in prioritized_pilot_types, -x[2], x[1])))
+            for (resource_type, job_type, pilot_type), n_new_workers_orig, remainder in sorted_rt_nw_list:
+                if _countdown <= 0:
+                    break
+                queue_num_workers[job_type][resource_type][pilot_type]["nNewWorkers"] += 1
+                _countdown -= 1
+        for job_type, rt_map in queue_num_workers.items():
+            for resource_type, pt_map in rt_map.items():
+                if job_type == "ANY" or resource_type == "ANY":
+                    continue
+                for pilot_type, pt_val in pt_map.items():
+                    tmp_log.debug(
+                        f"setting n_new_workers to {pt_val['nNewWorkers']} of job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} "
+                        "in order to respect rtype aggregations for UCORE"
+                    )
+
+    # define nNewWorkers of all resource types and pilot types of a queue in dyn_num_workers, and report to APF monitoring
+    def _define_queue_new_workers(
+        self, queue_name, queue_config, queue_dict, queue_num_workers, queue_dyn_num_workers, queue_stat, job_stats, rt_mapper, tmp_log
+    ):
+        job_type = DEFAULT_JOB_TYPE
+        if queue_config is None:
+            tmp_log.warning(f"missing queue_config for queue: {queue_name}")
+        limits = self._get_queue_limits(queue_name, queue_config)
+        queue_status = (queue_stat.get(queue_name) or {}).get("status")
+        n_queue_total, n_ready_total, n_running_total = 0, 0, 0
+        apf_msg = None
+        # loop over resource types and pilot types to define nNewWorkers
+        for resource_type, pilot_type_dict in queue_num_workers[job_type].items():
+            for pilot_type, tmp_val in pilot_type_dict.items():
+                tmp_log.debug(
+                    f"Processing queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} with static_num_workers={tmp_val}"
+                )
+                dyn_val = queue_dyn_num_workers[job_type][resource_type][pilot_type]
+
+                # set 0 to num of new workers when the queue is disabled
+                if queue_status in ["offline", "standby", "maintenance"]:
+                    dyn_val["nNewWorkers"] = 0
+                    tmp_log.debug(f"set n_new_workers=0 since status={queue_status}")
+                    apf_msg = f"Not submitting workers since queue status = {queue_status}"
+                    continue
+
+                # protection against not-up-to-date queue config
+                if queue_config is None:
+                    dyn_val["nNewWorkers"] = 0
+                    tmp_log.debug("set n_new_workers=0 due to missing queue_config")
+                    apf_msg = "Not submitting workers because of missing queue_config"
+                    continue
+
+                # check throttler
+                throttler = self._get_throttler(queue_name, queue_config)
+                if throttler is not None:
+                    to_throttle, tmp_msg = throttler.to_be_throttled(queue_config, queue_config_mapper=self.queue_configMapper)
+                    if to_throttle:
+                        dyn_val["nNewWorkers"] = 0
+                        tmp_log.debug(f"set n_new_workers=0 by {throttler.__class__.__name__}:{tmp_msg}")
+                        continue
+
+                # check stats
+                if resource_type != "ANY":
+                    n_queue_total += tmp_val["nQueue"]
+                    n_ready_total += tmp_val["nReady"]
+                    n_running_total += tmp_val["nRunning"]
+                n_new_workers_def = None
+                if queue_config.runMode == "slave" or pilot_type != DEFAULT_PILOT_TYPE:
+                    # number of new workers given by panda in slave mode, or set for the pilot type
+                    n_new_workers_def = tmp_val["nNewWorkers"]
+                    if n_new_workers_def == 0:
+                        dyn_val["nNewWorkers"] = 0
+                        if queue_config.runMode == "slave":
+                            tmp_log.debug("set n_new_workers=0 by panda in slave mode")
+                        else:
+                            tmp_log.debug(f"got n_new_workers=0 for non-{DEFAULT_PILOT_TYPE} pilot_type in self mode; skipped")
+                        continue
+
+                # define num of new workers based on static site config
+                rtype_request = rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
+                dyn_val["nNewWorkers"] = self._calculate_n_new_workers(
+                    queue_name, queue_config, queue_dict, job_type, resource_type, tmp_val, n_new_workers_def, limits, job_stats, rtype_request, tmp_log
+                )
+
+        # adjust n_new_workers for UCORE to let aggregations over rtype respect nQueueLimitWorker and max_workers
+        if len(queue_dyn_num_workers) > 1:
+            self._apply_aggregation_limits(queue_name, queue_config, queue_dyn_num_workers, limits, (n_queue_total, n_ready_total, n_running_total), tmp_log)
+
+        apf_data = None
+        if not apf_msg:
+            apf_data = copy.deepcopy(queue_dyn_num_workers)
+        self.apf_mon.update_label(queue_name, apf_msg, apf_data)
+
     # define number of workers to submit based on various information
     def define_num_workers(self, static_num_workers, site_name) -> dict | None:
         """
@@ -547,71 +921,12 @@ class WorkerAdjuster(object):
         tmp_log = core_utils.make_logger(_logger, f"site={site_name}", method_name="define_num_workers")
         tmp_log.debug("start")
         tmp_log.debug(f"static_num_workers: {static_num_workers}")
-
-        def _normalize_job_type_any(queue_dict):
-            tmp_log.debug(f"normalize_job_type_any got: {queue_dict}")
-            if DEFAULT_JOB_TYPE in queue_dict and len(queue_dict) == 1:
-                tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
-                return
-            if len(queue_dict) == 1:
-                only_job_type = next(iter(queue_dict))
-                queue_dict[DEFAULT_JOB_TYPE] = queue_dict.pop(only_job_type)
-                tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
-                return
-            merged = {}
-            any_job_types = {}
-            for _job_type, rt_map in queue_dict.items():
-                if _job_type == "ANY":
-                    any_job_types[_job_type] = rt_map
-                    continue
-                for rt, stats in rt_map.items():
-                    if rt not in merged:
-                        merged[rt] = copy.deepcopy(stats)
-                        continue
-                    for key, val in stats.items():
-                        if isinstance(val, (int, float)):
-                            merged[rt][key] = merged[rt].get(key, 0) + val
-                        else:
-                            merged[rt].setdefault(key, val)
-            queue_dict.clear()
-            queue_dict.update(any_job_types)
-            queue_dict[DEFAULT_JOB_TYPE] = merged
-            tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
-
         try:
             static_num_workers = copy.deepcopy(static_num_workers)
             for queue_dict in static_num_workers.values():
-                _normalize_job_type_any(queue_dict)
+                self._normalize_job_type_any(queue_dict, tmp_log)
 
-            # get queue status
-            queue_stat = self.dbProxy.get_cache("panda_queues.json", None)
-            if queue_stat is None:
-                queue_stat = dict()
-            else:
-                queue_stat = queue_stat.data
-
-            # get job statistics
-            job_stats = self.dbProxy.get_cache("job_statistics.json", None)
-            if job_stats is not None:
-                job_stats = job_stats.data
-
-            job_stats_new_df = self._job_stats_to_df(None)
-            job_stats_new = self.dbProxy.get_cache("job_statistics_new.json", None)
-            if job_stats_new is not None:
-                job_stats_new_df = self._job_stats_to_df(job_stats_new.data)
-
-            # job statistics missing or older than jobStatsMaxAge seconds are not used as demand
-            job_stats_max_age = getattr(harvester_config.submitter, "jobStatsMaxAge", 0)
-            if job_stats_max_age > 0:
-                job_stats_time = self.dbProxy.get_cache_last_update_time("job_statistics.json", None)
-                if job_stats_time is None or (core_utils.naive_utcnow() - job_stats_time).total_seconds() > job_stats_max_age:
-                    tmp_log.error(f"job statistics missing or older than jobStatsMaxAge={job_stats_max_age}s; no demand from activated jobs")
-                    job_stats = {}
-                    job_stats_new_df = self._job_stats_to_df(None)
-                job_stats_new_time = self.dbProxy.get_cache_last_update_time("job_statistics_new.json", None)
-                if job_stats_new_time is None or (core_utils.naive_utcnow() - job_stats_new_time).total_seconds() > job_stats_max_age:
-                    tmp_log.error(f"detailed job statistics missing or older than jobStatsMaxAge={job_stats_max_age}s; no demand from detailed activated jobs")
-                    job_stats_new_df = self._job_stats_to_df(None)
+            queue_stat, job_stats, job_stats_new_df = self._get_demand_inputs(tmp_log)
 
             # get panda queues dict from CRIC
             panda_queues_dict = PandaQueuesDict()
@@ -619,322 +934,32 @@ class WorkerAdjuster(object):
             # get resource type mapper
             rt_mapper = ResourceTypeMapper()
 
-            for queue_name in static_num_workers:
-                queue_dict = panda_queues_dict.get(queue_name, {})
-                queue_config = self.queue_configMapper.get_queue(queue_name)
+            # get queue configs
+            queue_config_map = {queue_name: self.queue_configMapper.get_queue(queue_name) for queue_name in static_num_workers}
 
-                # prioritized prod_source_labels for pilot submission
-                prioritized_pslabels = DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS
-                if queue_config:
-                    prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
-                else:
-                    tmp_log.warning(f"missing queue_config for queue: {queue_name}")
-
-                prioritized_pilot_types = [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
-
-                tmp_new_workers_df = self._build_new_workers_df(static_num_workers, queue_name, tmp_log)
-                activated_df = self._build_activated_df(job_stats_new_df, queue_name, tmp_log)
-                joined_df = self._join_workers_activated_dfs(activated_df, tmp_new_workers_df, queue_name, tmp_log)
-
-                tmp_master_df = self._build_master_df(joined_df, queue_name, static_num_workers, tmp_log)
-                master_df = tmp_master_df.clone()
-                tmp_static_num_workers = copy.deepcopy(static_num_workers)
-
-                # update tmp_static_num_workers with tmp_master_df
-                self._sync_master_df_to_static_workers(tmp_master_df, queue_name, tmp_static_num_workers, tmp_log)
-
-                # set initial nNewWorkers for pilot types based on number of activated jobs and the activate worker factor
-                master_df = self._set_initial_new_workers(
-                    tmp_master_df, tmp_static_num_workers, static_num_workers, queue_name, master_df, queue_dict, queue_config, prioritized_pilot_types, tmp_log
+            # distribute new workers to pilot types
+            for queue_name, queue_config in queue_config_map.items():
+                self._distribute_new_workers_to_pilot_types(
+                    static_num_workers, queue_name, queue_config, panda_queues_dict.get(queue_name, {}), job_stats_new_df, tmp_log
                 )
-                display_master_df = master_df.select(
-                    ["job_type", "resource_type", "pilot_type", "nQueue", "nReady", "nRunning", "nNewWorkers", "n_activated_jobs"]
-                )
-                tmp_log.debug(f"master_df: \n{display_master_df}")
-                # remove pilot type ANY
-                for job_type in static_num_workers[queue_name]:
-                    for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():
-                        if "ANY" in pilot_type_dict:
-                            del pilot_type_dict["ANY"]
-
-            dyn_num_workers = copy.deepcopy(static_num_workers)
-            for queue_name in dyn_num_workers:
-                for job_type in dyn_num_workers[queue_name]:
-                    for resource_type, pilot_type_dict in dyn_num_workers[queue_name][job_type].items():
-                        if "ANY" in pilot_type_dict:
-                            del pilot_type_dict["ANY"]
 
             # define num of new workers
-            for queue_name in static_num_workers:
-                # get queue
-                queue_config = self.queue_configMapper.get_queue(queue_name)
-                worker_limits_dict = {}
-                worker_stats_map = {}
-                worker_stats_map.setdefault("queue", {"n": 0, "core": 0, "mem": 0})
-                if queue_config:
-                    worker_limits_dict, worker_stats_map = self.dbProxy.get_worker_limits(queue_name, queue_config)
-                else:
-                    tmp_log.warning(f"missing queue_config for queue: {queue_name}")
-                # prioritized prod_source_labels for pilot submission
-                prioritized_pslabels = getattr(queue_config, "prioritizedProdSourceLabels", DEFAULT_PRIORITIZED_PROD_SOURCE_LABELS)
-                prioritized_pilot_types = [core_utils.prod_source_label_to_pilot_type(label) for label in prioritized_pslabels]
-                # get limits from queue config
-                max_workers = worker_limits_dict.get("maxWorkers", 0)
-                n_queue_limit = worker_limits_dict.get("nQueueLimitWorker", 0)
-                n_queue_limit_per_rt = n_queue_limit
-                queue_limit_cores = worker_limits_dict.get("nQueueWorkerCores")
-                queue_limit_memory = worker_limits_dict.get("nQueueWorkerMemory")
-                cores_queue = worker_stats_map["queue"]["core"]
-                memory_queue = worker_stats_map["queue"]["mem"]
-                n_queue_total, n_ready_total, n_running_total = 0, 0, 0
-                apf_msg = None
-                apf_data = None
-                job_type = DEFAULT_JOB_TYPE
-                # loop over resource types and pilot types to define nNewWorkers
-                for resource_type, pilot_type_dict in static_num_workers[queue_name][job_type].items():
-                    for pilot_type, tmp_val in pilot_type_dict.items():
-                        tmp_log.debug(
-                            f"Processing queue={queue_name} job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} with static_num_workers={tmp_val}"
-                        )
-
-                        # get cores and memory request per worker of this resource_type
-                        queue_dict = panda_queues_dict.get(queue_name, {})
-                        rtype_request_cores, rtype_request_memory = rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
-
-                        # set 0 to num of new workers when the queue is disabled
-                        queue_status = (queue_stat.get(queue_name) or {}).get("status")
-                        if queue_status in ["offline", "standby", "maintenance"]:
-                            dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
-                            ret_msg = f"set n_new_workers=0 since status={queue_status}"
-                            tmp_log.debug(ret_msg)
-                            apf_msg = f"Not submitting workers since queue status = {queue_status}"
-                            continue
-
-                        # protection against not-up-to-date queue config
-                        if queue_config is None:
-                            dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
-                            ret_msg = "set n_new_workers=0 due to missing queue_config"
-                            tmp_log.debug(ret_msg)
-                            apf_msg = "Not submitting workers because of missing queue_config"
-                            continue
-
-                        # get throttler
-                        if queue_name not in self.throttlerMap:
-                            if hasattr(queue_config, "throttler"):
-                                throttler = self.pluginFactory.get_plugin(queue_config.throttler)
-                            else:
-                                throttler = None
-                            self.throttlerMap[queue_name] = throttler
-
-                        # check throttler
-                        throttler = self.throttlerMap[queue_name]
-                        if throttler is not None:
-                            to_throttle, tmp_msg = throttler.to_be_throttled(queue_config, queue_config_mapper=self.queue_configMapper)
-                            if to_throttle:
-                                dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
-                                ret_msg = f"set n_new_workers=0 by {throttler.__class__.__name__}:{tmp_msg}"
-                                tmp_log.debug(ret_msg)
-                                continue
-
-                        # check stats
-                        n_queue = tmp_val["nQueue"]
-                        n_ready = tmp_val["nReady"]
-                        n_running = tmp_val["nRunning"]
-                        if resource_type != "ANY" and job_type != "ANY" and job_type is not None:
-                            n_queue_total += n_queue
-                            n_ready_total += n_ready
-                            n_running_total += n_running
-                        if queue_config.runMode == "slave":
-                            n_new_workers_def = tmp_val["nNewWorkers"]
-                            if n_new_workers_def == 0:
-                                dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
-                                ret_msg = "set n_new_workers=0 by panda in slave mode"
-                                tmp_log.debug(ret_msg)
-                                continue
-                        else:
-                            n_new_workers_def = None
-                            if pilot_type != DEFAULT_PILOT_TYPE:
-                                n_new_workers_def = tmp_val["nNewWorkers"]
-                                if n_new_workers_def == 0:
-                                    dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
-                                    ret_msg = f"got n_new_workers=0 for non-{DEFAULT_PILOT_TYPE} pilot_type in self mode; skipped"
-                                    tmp_log.debug(ret_msg)
-                                    continue
-
-                        # define num of new workers based on static site config
-                        n_new_workers = 0
-                        if n_queue >= n_queue_limit_per_rt > 0:
-                            # enough queued workers
-                            ret_msg = f"No n_new_workers since n_queue({n_queue})>=n_queue_limit_per_rt({n_queue_limit_per_rt})"
-                            tmp_log.debug(ret_msg)
-                            pass
-                        elif (n_queue + n_ready + n_running) >= max_workers > 0:
-                            # enough workers in the system
-                            ret_msg = (
-                                f"No n_new_workers since n_queue({n_queue}) + n_ready({n_ready}) + n_running({n_running}) " f">= max_workers({max_workers})"
-                            )
-                            tmp_log.debug(ret_msg)
-                            pass
-                        elif queue_limit_cores is not None and cores_queue >= queue_limit_cores:
-                            # enough queuing cores
-                            ret_msg = f"No n_new_workers since cores_queue({cores_queue}) >= " f"queue_limit_cores({queue_limit_cores})"
-                            tmp_log.debug(ret_msg)
-                            pass
-                        elif queue_limit_memory is not None and memory_queue >= queue_limit_memory:
-                            # enough queuing cores
-                            ret_msg = f"No n_new_workers since memory_queue({memory_queue} MB) >= " f"queue_limit_memory({queue_limit_memory} MB)"
-                            tmp_log.debug(ret_msg)
-                            pass
-                        else:
-                            max_queued_workers = None
-
-                            if n_queue_limit_per_rt > 0:  # there is a limit set for the queue
-                                max_queued_workers = n_queue_limit_per_rt
-
-                            # Reset the maxQueueWorkers according to particular
-                            if n_new_workers_def is not None:  # don't surpass limits given centrally
-
-                                maxQueuedWorkers_slave = n_new_workers_def + n_queue
-                                if max_queued_workers is not None:
-                                    max_queued_workers = min(maxQueuedWorkers_slave, max_queued_workers)
-                                else:
-                                    max_queued_workers = maxQueuedWorkers_slave
-
-                            elif queue_config.mapType == "NoJob":  # for pull mode, limit to activated jobs
-                                if job_stats is None:
-                                    tmp_log.warning("n_activated not defined, defaulting to configured queue limits")
-                                    pass
-                                else:
-                                    # limit the queue to the number of activated jobs to avoid empty pilots
-                                    no_pilots_when_no_active_jobs = self.get_queue_no_pilots_when_no_active_jobs(queue_name)
-                                    tmp_n_activated_jobs = (job_stats.get(queue_name) or {}).get("activated")
-                                    if tmp_n_activated_jobs is None:
-                                        # zero job in the queue
-                                        tmp_log.debug("no job in queue")
-                                        if no_pilots_when_no_active_jobs:
-                                            n_activated = 0
-                                        else:
-                                            n_activated = max(1 - n_queue - n_ready - n_running, 0)
-                                    else:
-                                        tmp_log.debug(f"available activated panda jobs {tmp_n_activated_jobs}")
-                                        activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
-                                        # at least one pilot to avoid no activity queues, unless no pilots wanted without activated jobs
-                                        if no_pilots_when_no_active_jobs and tmp_n_activated_jobs * activate_worker_factor <= 0:
-                                            n_min_pilots = 0
-                                        else:
-                                            n_min_pilots = 1
-                                        n_activated = max(int(tmp_n_activated_jobs * activate_worker_factor), n_min_pilots)
-                                    queue_limit = max_queued_workers
-                                    if max_queued_workers is None:
-                                        max_queued_workers = n_activated
-                                    else:
-                                        max_queued_workers = min(n_activated, max_queued_workers)
-                                    tmp_log.debug(f"limiting max_queued_workers to min(n_activated={n_activated}, queue_limit={queue_limit})")
-
-                            if max_queued_workers is None:  # no value found, use default value
-                                max_queued_workers = 1
-
-                            # new workers
-                            n_new_workers = max(max_queued_workers - n_queue, 0)
-                            tmp_log.debug(f"setting n_new_workers to {n_new_workers} in max_queued_workers calculation")
-                            if max_workers > 0:
-                                n_new_workers = min(n_new_workers, max(max_workers - n_queue - n_ready - n_running, 0))
-                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect max_workers")
-                            if queue_limit_cores:
-                                new_worker_cores_max = max(queue_limit_cores - cores_queue, 0)
-                                n_new_workers = min(n_new_workers, math.ceil(new_worker_cores_max / rtype_request_cores))
-                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_cores")
-                            if queue_limit_memory:
-                                new_worker_memory_max = max(queue_limit_memory - memory_queue, 0)
-                                n_new_workers = min(n_new_workers, math.ceil(new_worker_memory_max / rtype_request_memory))
-                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} to respect queue_limit_memory")
-                            if queue_config.maxNewWorkersPerCycle > 0:
-                                n_new_workers = min(n_new_workers, queue_config.maxNewWorkersPerCycle)
-                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect maxNewWorkersPerCycle")
-                            if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
-                                n_new_workers = min(n_new_workers, self.maxNewWorkers)
-                                tmp_log.debug(f"setting n_new_workers to {n_new_workers} in order to respect universal maxNewWorkers")
-                            dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = n_new_workers
-
-                # adjust n_new_workers for UCORE to let aggregations over rtype respect nQueueLimitWorker and max_workers
-                if queue_config is None:
-                    max_new_workers_per_cycle = 0
-                    ret_msg = "set max_new_workers_per_cycle=0 in UCORE aggregation due to missing queue_config"
-                    tmp_log.debug(ret_msg)
-                else:
-                    max_new_workers_per_cycle = queue_config.maxNewWorkersPerCycle
-
-                if len(dyn_num_workers[queue_name]) > 1:
-                    total_new_workers_rts = 0
-                    for _jt in dyn_num_workers[queue_name]:
-                        for _rt in dyn_num_workers[queue_name][_jt]:
-                            if _jt != "ANY" and _rt != "ANY":
-                                for _pt in dyn_num_workers[queue_name][_jt][_rt]:
-                                    total_new_workers_rts = total_new_workers_rts + dyn_num_workers[queue_name][_jt][_rt][_pt]["nNewWorkers"]
-
-                    n_new_workers_max_agg = min(max(n_queue_limit - n_queue_total, 0), max(max_workers - n_queue_total - n_ready_total - n_running_total, 0))
-                    if max_new_workers_per_cycle >= 0:
-                        n_new_workers_max_agg = min(n_new_workers_max_agg, max_new_workers_per_cycle)
-                    if self.maxNewWorkers is not None and self.maxNewWorkers > 0:
-                        n_new_workers_max_agg = min(n_new_workers_max_agg, self.maxNewWorkers)
-
-                    # exceeded max, to adjust
-                    if total_new_workers_rts > n_new_workers_max_agg:
-                        if n_new_workers_max_agg == 0:
-                            for job_type in dyn_num_workers[queue_name]:
-                                for resource_type in dyn_num_workers[queue_name][job_type]:
-                                    for pilot_type in dyn_num_workers[queue_name][job_type][resource_type]:
-                                        dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
-                            tmp_log.debug("No n_new_workers since n_new_workers_max_agg=0 for UCORE")
-                        else:
-                            tmp_log.debug(f"n_new_workers_max_agg={n_new_workers_max_agg} for UCORE")
-                            _d = dyn_num_workers[queue_name].copy()
-                            del _d["ANY"]
-
-                            # TODO: needs to be recalculated
-                            simple_rt_nw_list = []
-                            for job_type in _d:  # jt: job type
-                                for resource_type in _d[job_type]:  # rt: resource type
-                                    for pilot_type in _d[job_type][resource_type]:  # pt: pilot type
-                                        simple_rt_nw_list.append(
-                                            [(resource_type, job_type, pilot_type), _d[job_type][resource_type][pilot_type].get("nNewWorkers", 0), 0]
-                                        )
-
-                            _countdown = n_new_workers_max_agg
-                            for _rt_list in simple_rt_nw_list:
-                                (resource_type, job_type, pilot_type), n_new_workers_orig, _r = _rt_list
-                                n_new_workers, remainder = divmod(n_new_workers_orig * n_new_workers_max_agg, total_new_workers_rts)
-                                dyn_num_workers[queue_name][job_type].setdefault(resource_type, {})
-                                dyn_num_workers[queue_name][job_type][resource_type].setdefault(
-                                    pilot_type, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0}
-                                )
-                                dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = n_new_workers
-                                _rt_list[2] = remainder
-                                _countdown -= n_new_workers
-                            # sort by whether n_new_workers_orig > 0 (favor positive over 0), then by pilot_type (favor prioritized), then by remainder (descending), then by original n_new_workers (favor smaller ones)
-                            sorted_rt_nw_list = sorted(simple_rt_nw_list, key=(lambda x: (not (x[1] > 0), x[0][2] not in prioritized_pilot_types, -x[2], x[1])))
-                            for (resource_type, job_type, pilot_type), n_new_workers_orig, remainder in sorted_rt_nw_list:
-                                if _countdown <= 0:
-                                    break
-                                dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] += 1
-                                _countdown -= 1
-                        for job_type in dyn_num_workers[queue_name]:
-                            for resource_type in dyn_num_workers[queue_name][job_type]:
-                                if job_type == "ANY" or resource_type == "ANY":
-                                    continue
-                                for pilot_type in dyn_num_workers[queue_name][job_type][resource_type]:
-                                    n_new_workers = dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"]
-                                    tmp_log.debug(
-                                        f"setting n_new_workers to {n_new_workers} of job_type={job_type} resource_type={resource_type} pilot_type={pilot_type} in order to respect rtype aggregations for UCORE"
-                                    )
-
-                if not apf_msg:
-                    apf_data = copy.deepcopy(dyn_num_workers[queue_name])
-
-                self.apf_mon.update_label(queue_name, apf_msg, apf_data)
+            dyn_num_workers = copy.deepcopy(static_num_workers)
+            for queue_name, queue_config in queue_config_map.items():
+                self._define_queue_new_workers(
+                    queue_name,
+                    queue_config,
+                    panda_queues_dict.get(queue_name, {}),
+                    static_num_workers[queue_name],
+                    dyn_num_workers[queue_name],
+                    queue_stat,
+                    job_stats,
+                    rt_mapper,
+                    tmp_log,
+                )
 
             # dump
-            tmp_log.debug(f"defined {str(dyn_num_workers)}")
+            tmp_log.debug(f"defined {dyn_num_workers}")
             # print result in table
             self._format_result_dataframe(dyn_num_workers, tmp_log)
             return dyn_num_workers
