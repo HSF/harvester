@@ -55,7 +55,7 @@ class ResourceType(object):
         return True
 
 
-class ResourceTypeMapper(object, metaclass=SingletonWithID):
+class ResourceTypeMapper(metaclass=SingletonWithID):
     def __init__(self):
         self.lock = threading.Lock()
         self.resource_types = {}
@@ -63,27 +63,28 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
 
     def load_data(self):
         with self.lock:
-            # check interval
+            # check interval; retry sooner while no resource type is loaded, e.g. before the cacher fills the cache
             time_now = core_utils.naive_utcnow()
-            if self.last_update is not None and time_now - self.last_update < datetime.timedelta(minutes=10):
+            reload_interval = datetime.timedelta(minutes=10) if self.resource_types else datetime.timedelta(minutes=1)
+            if self.last_update is not None and time_now - self.last_update < reload_interval:
                 return
 
             db_proxy = DBProxy()
             resource_type_cache = db_proxy.get_cache("resource_types.json")
-            if resource_type_cache:
-                resource_type_list = resource_type_cache.data
-            else:
-                resource_type_list = []
+            resource_type_list = (resource_type_cache.data if resource_type_cache else None) or []
 
+            # build a new dict, so that resource types removed from the cache are dropped, and readers never see a half-filled dict
+            resource_types = {}
             for resource_type_dict in resource_type_list:
                 try:
-                    resource_type = ResourceType(resource_type_dict)
-                    resource_name = resource_type_dict["resource_name"]
-                    self.resource_types[resource_name] = resource_type
+                    resource_types[resource_type_dict["resource_name"]] = ResourceType(resource_type_dict)
                 except KeyError:
                     continue
+            # keep the previous resource types if the cache is empty
+            if resource_types:
+                self.resource_types = resource_types
 
-            self.last_update = core_utils.naive_utcnow()
+            self.last_update = time_now
             return
 
     def is_valid_resource_type(self, resource_name):
@@ -180,8 +181,8 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
         """
         self.load_data()
         # iterate over the resource types and find the ones that are multi core (not single core)
-        single_core_resource_types = [resource_name for resource_name in self.resource_types if not self.is_single_core_resource_type(resource_name)]
-        return single_core_resource_types
+        multi_core_resource_types = [resource_name for resource_name in self.resource_types if not self.is_single_core_resource_type(resource_name)]
+        return multi_core_resource_types
 
     def get_all_resource_types(self):
         """

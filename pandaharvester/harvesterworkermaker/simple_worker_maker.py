@@ -17,6 +17,17 @@ from .base_worker_maker import BaseWorkerMaker
 _logger = core_utils.setup_logger("simple_worker_maker")
 
 
+# sum of a numeric job parameter over jobs, skipping jobs where it is missing or not a number
+def sum_job_param(jobspec_list, key):
+    total = 0
+    for job_spec in jobspec_list:
+        try:
+            total += job_spec.jobParams[key]
+        except Exception:
+            pass
+    return total
+
+
 # simple maker
 class SimpleWorkerMaker(BaseWorkerMaker):
     # constructor
@@ -82,7 +93,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
     def make_worker(self, jobspec_list, queue_config, job_type, resource_type, prod_source_label="ANY"):
         tmp_log = self.make_logger(_logger, f"queue={queue_config.queueName}:{job_type}:{resource_type}:{prod_source_label}", method_name="make_worker")
 
-        tmp_log.debug(f"jobspec_list: {jobspec_list}")
+        tmp_log.debug(f"PandaIDs: {[job_spec.PandaID for job_spec in jobspec_list]}")
 
         work_spec = WorkSpec()
         work_spec.creationTime = core_utils.naive_utcnow()
@@ -100,7 +111,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
         # case of unified queue: look at the job & resource type and queue configuration
         else:
-            catchall = queue_dict.get("catchall", "")
+            catchall = queue_dict.get("catchall", "") or ""
             if "useMaxRam" in catchall:
                 # some sites require to always set the maximum memory due to memory killing jobs
                 site_corecount = queue_dict.get("corecount", 1) or 1
@@ -129,25 +140,13 @@ class SimpleWorkerMaker(BaseWorkerMaker):
             # get info from jobs
             nCore = 0
             minRamCount = 0
-            maxDiskCount = 0
-            maxWalltime = 0
-            ioIntensity = 0
             for jobSpec in jobspec_list:
                 job_core_count, job_memory = self.get_job_core_and_memory(queue_dict, jobSpec)
                 nCore += job_core_count
                 minRamCount += job_memory
-                try:
-                    maxDiskCount += jobSpec.jobParams["maxDiskCount"]
-                except Exception:
-                    pass
-                try:
-                    maxWalltime += jobSpec.jobParams["maxWalltime"]
-                except Exception:
-                    pass
-                try:
-                    ioIntensity += jobSpec.jobParams["ioIntensity"]
-                except Exception:
-                    pass
+            maxDiskCount = sum_job_param(jobspec_list, "maxDiskCount")
+            maxWalltime = sum_job_param(jobspec_list, "maxWalltime")
+            ioIntensity = sum_job_param(jobspec_list, "ioIntensity")
             # update resource type
             job_resource_type = getattr(jobspec_list[0], "resourceType", None)
             if job_resource_type:
@@ -185,9 +184,8 @@ class SimpleWorkerMaker(BaseWorkerMaker):
 
             work_spec.jobType = self.get_job_type(None, job_type, queue_dict, tmp_prod_source_label)
             tmp_log.debug(
-                "get_job_type decided for job_type: {0} (input job_type: {1}, queue_type: {2}, tmp_prod_source_label: {3})".format(
-                    work_spec.jobType, job_type, queue_dict.get("type", None), tmp_prod_source_label
-                )
+                f"get_job_type decided for job_type: {work_spec.jobType} (input job_type: {job_type}, queue_type: {queue_dict.get('type', None)}, "
+                f"tmp_prod_source_label: {tmp_prod_source_label})"
             )
 
         # retrieve queue resource types

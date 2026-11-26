@@ -7,7 +7,7 @@ _logger = core_utils.setup_logger("worker_maker")
 
 
 # class to make worker
-class WorkerMaker(object):
+class WorkerMaker:
     # constructor
     def __init__(self):
         self.pluginFactory = PluginFactory()
@@ -25,8 +25,7 @@ class WorkerMaker(object):
         tmpLog.debug("start")
         try:
             # get plugin
-            if maker is None:
-                maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
+            maker = self._get_maker(queue_config, maker)
             if maker is None:
                 # not found
                 tmpLog.error(f"plugin for {queue_config.queueName} not found")
@@ -64,37 +63,28 @@ class WorkerMaker(object):
             core_utils.dump_error_message(tmpLog)
             return [], jobchunk_list
 
+    # get the plugin unless given
+    def _get_maker(self, queue_config, maker):
+        if maker is None:
+            maker = self.get_plugin(queue_config)
+        return maker
+
     # get number of jobs per worker
     def get_num_jobs_per_worker(self, queue_config, n_workers, job_type, resource_type, prod_source_label="ANY", maker=None):
-        # get plugin
-        if maker is None:
-            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.get_num_jobs_per_worker(n_workers)
+        return self._get_maker(queue_config, maker).get_num_jobs_per_worker(n_workers)
 
     # get number of workers per job
     def get_num_workers_per_job(self, queue_config, n_workers, job_type, resource_type, prod_source_label="ANY", maker=None):
-        # get plugin
-        if maker is None:
-            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.get_num_workers_per_job(n_workers)
+        return self._get_maker(queue_config, maker).get_num_workers_per_job(n_workers)
 
     # check number of ready resources
     def num_ready_resources(self, queue_config, job_type, resource_type, prod_source_label="ANY", maker=None):
-        # get plugin
-        if maker is None:
-            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.num_ready_resources()
+        return self._get_maker(queue_config, maker).num_ready_resources()
 
     # get upper limit on the cumulative total of workers per job
     def get_max_workers_per_job_in_total(self, queue_config, job_type, resource_type, prod_source_label="ANY", maker=None):
-        # get plugin
-        if maker is None:
-            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.get_max_workers_per_job_in_total()
+        return self._get_maker(queue_config, maker).get_max_workers_per_job_in_total()
 
     # get upper limit on the number of new workers per job in a cycle
     def get_max_workers_per_job_per_cycle(self, queue_config, job_type, resource_type, prod_source_label="ANY", maker=None):
-        # get plugin
-        if maker is None:
-            maker = self.pluginFactory.get_plugin(queue_config.workerMaker)
-        return maker.get_max_workers_per_job_per_cycle()
+        return self._get_maker(queue_config, maker).get_max_workers_per_job_per_cycle()
