@@ -232,8 +232,8 @@ class FileModule(BaseModule):
         tmpLog.debug("done")
         return True
 
-    # get all active input files
-    @db_error_handler(default=set())
+    # get all active input files; None on failure, so that callers can tell it from no active file
+    @db_error_handler(default=None)
     def get_all_active_input_files(self):
         # get logger
         tmpLog = core_utils.make_logger(_logger, method_name="get_all_active_input_files")
