@@ -205,7 +205,7 @@ class WorkerModule(BaseModule):
         return True
 
     # get workers to propagate
-    @db_error_handler(default={})
+    @db_error_handler(default=[])
     def get_workers_to_propagate(self, max_workers, check_interval):
         # get logger
         tmpLog = core_utils.make_logger(_logger, method_name="get_workers_to_propagate")

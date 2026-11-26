@@ -406,6 +406,12 @@ class PandaCommunicator(BaseCommunicator):
                 except Exception:
                     error_message = core_utils.dump_error_message(tmp_logger)
 
+            # results must be one per job, since they are paired by position
+            if ret_maps is not None and (not isinstance(ret_maps, list) or len(ret_maps) != len(jobspec_shard)):
+                error_message = f"got {len(ret_maps) if isinstance(ret_maps, list) else ret_maps} results for {len(jobspec_shard)} jobs"
+                tmp_logger.error(error_message)
+                ret_maps = None
+
             # make a default map when the jobs could not be updated
             if ret_maps is None:
                 ret_map = {"StatusCode": 999, "ErrorDiag": error_message}
@@ -796,6 +802,12 @@ class PandaCommunicator(BaseCommunicator):
         # Update was not done correctly
         if not tmp_success:
             ret_message = core_utils.dump_error_message(tmp_log, tmp_message)
+            return ret_list, ret_message
+
+        # results must be one per worker, since they are paired by position
+        if not isinstance(tmp_data, list) or len(tmp_data) != len(workspec_list):
+            ret_message = f"got {len(tmp_data) if isinstance(tmp_data, list) else tmp_data} results for {len(workspec_list)} workers"
+            tmp_log.error(ret_message)
             return ret_list, ret_message
 
         ret_list = tmp_data

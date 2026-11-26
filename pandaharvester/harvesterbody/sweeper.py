@@ -38,18 +38,16 @@ class Sweeper(AgentBase):
         while True:
             sw_main = core_utils.get_stopwatch()
             main_log = self.make_logger(_logger, f"id={self.lockedBy}", method_name="run")
-            # run all stages; a failure in one stage does not skip the others
-            for stage in (
-                self.process_kill_commands,
-                self.kill_marked_workers,
-                self.clean_up_workers,
-                self.delete_old_jobs,
-                self.clean_up_disk,
-            ):
-                try:
-                    stage()
-                except Exception:
-                    core_utils.dump_error_message(main_log)
+            self.run_stages(
+                (
+                    self.process_kill_commands,
+                    self.kill_marked_workers,
+                    self.clean_up_workers,
+                    self.delete_old_jobs,
+                    self.clean_up_disk,
+                ),
+                main_log,
+            )
             # time the cycle
             main_log.debug("done a sweeper cycle" + sw_main.get_elapsed_time())
             # check if being terminated

@@ -213,16 +213,17 @@ class Master(object):
             thr.start()
             thrList.append(thr)
 
-        # File Syncer
-        tmp_log.debug("File Syncer")
-        from pandaharvester.harvesterbody.file_syncer import FileSyncer
+        # File Syncer, only when configured
+        if hasattr(harvester_config, "file_syncer"):
+            tmp_log.debug("File Syncer")
+            from pandaharvester.harvesterbody.file_syncer import FileSyncer
 
-        tmp_log.debug("starting File Syncer thread")
-        thr = FileSyncer(self.queueConfigMapper, single_mode=self.singleMode)
-        thr.set_stop_event(self.stopEvent)
-        thr.execute()
-        thr.start()
-        thrList.append(thr)
+            tmp_log.debug("starting File Syncer thread")
+            thr = FileSyncer(self.queueConfigMapper, single_mode=self.singleMode)
+            thr.set_stop_event(self.stopEvent)
+            thr.execute()
+            thr.start()
+            thrList.append(thr)
 
         # Service monitor
         tmp_log.debug("Service Monitor")

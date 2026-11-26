@@ -1,5 +1,3 @@
-import datetime
-import math
 import random
 import socket
 
@@ -10,19 +8,13 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.plugin_factory import PluginFactory
-from pandaharvester.harvestercore.resource_type_constants import (
-    BASIC_RESOURCE_TYPE_MULTI_CORE,
-    BASIC_RESOURCE_TYPE_SINGLE_CORE,
-)
-from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestermisc.info_utils import PandaQueuesDict
 
 # logger
 _logger = core_utils.setup_logger("job_fetcher")
 
-# resource type mapper
-rt_mapper = ResourceTypeMapper()
-all_resource_types = rt_mapper.get_all_resource_types()
+# file statuses meaning that another job already takes care of staging in the file
+STAGE_IN_TAKEN_STATUSES = ("ready", "preparing", "to_prepare", "triggered")
 
 
 # class to fetch jobs
@@ -39,135 +31,122 @@ class JobFetcher(AgentBase):
     # main loop
     def run(self):
         while True:
-            mainLog = self.make_logger(_logger, f"id={self.get_pid()}", method_name="run")
-            mainLog.debug("getting number of jobs to be fetched")
-            # get number of jobs to be fetched
-            job_limit_to_fetch_dict = self.dbProxy.get_num_jobs_to_fetch(
-                harvester_config.jobfetcher.nQueues, harvester_config.jobfetcher.lookupTime, self.queueConfigMapper
-            )
-            mainLog.debug(f"got {len(job_limit_to_fetch_dict)} queues")
-            # get up to date queue configuration
-            pandaQueueDict = PandaQueuesDict()
-            # loop over all queues
-            for queueName, value_dict in job_limit_to_fetch_dict.items():
-                n_jobs = value_dict["jobs"]
-                n_cores = value_dict["cores"]
-                if n_cores is None:
-                    n_cores = math.inf
-                # check queue
-                if not self.queueConfigMapper.has_queue(queueName):
-                    continue
-                tmpLog = self.make_logger(_logger, f"queueName={queueName}", method_name="run")
-                # get queue
-                queueConfig = self.queueConfigMapper.get_queue(queueName)
-                siteName = queueConfig.siteName
-                # upper limit
-                if n_jobs > harvester_config.jobfetcher.maxJobs:
-                    n_jobs = harvester_config.jobfetcher.maxJobs
-                if n_jobs == 0:
-                    tmpLog.debug("no job to fetch; skip")
-                    continue
-                # prod_source_label
-                try:
-                    is_grandly_unified_queue = pandaQueueDict.is_grandly_unified_queue(siteName)
-                except Exception:
-                    is_grandly_unified_queue = False
-                default_prodSourceLabel = queueConfig.get_source_label(is_gu=is_grandly_unified_queue)
-                # randomize prod_source_label if configured
-                pdpm = getattr(queueConfig, "prodSourceLabelRandomWeightsPermille", {})
-                choice_list = core_utils.make_choice_list(pdpm=pdpm, default=default_prodSourceLabel)
-                prodSourceLabel = random.choice(choice_list)
-                # caps from resource_type_limit params on CRIC of the PQ
-                resource_type_limits_dict = dict()
-                for key, val in pandaQueueDict.get_harvester_params(siteName).items():
-                    if str(key).startswith("resource_type_limits."):
-                        new_key = str(key).lstrip("resource_type_limits.")
-                        if isinstance(val, int):
-                            resource_type_limits_dict[new_key] = val
-
-                # function to call get jobs
-                def _get_jobs(resource_type=None, n_jobs=0):
-                    # custom criteria from queueconfig
-                    additional_criteria = queueConfig.getJobCriteria
-                    if resource_type:
-                        # addition criteria for getJob on resourcetype
-                        additional_criteria = {"resourceType": resource_type}
-                    # call get jobs
-                    tmpLog.debug(f"getting {n_jobs} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type}")
-                    sw = core_utils.get_stopwatch()
-                    if n_jobs > 0:
-                        jobs, errStr = self.communicator.get_jobs(siteName, self.nodeName, prodSourceLabel, self.nodeName, n_jobs, additional_criteria)
-                    else:
-                        jobs, errStr = [], "no need to get job"
-                    tmpLog.info(f"got {len(jobs)} jobs for prodSourceLabel={prodSourceLabel} rtype={resource_type} with {errStr} {sw.get_elapsed_time()}")
-                    # convert to JobSpec
-                    if len(jobs) > 0:
-                        # get extractor plugin
-                        if hasattr(queueConfig, "extractor"):
-                            extractorCore = self.pluginFactory.get_plugin(queueConfig.extractor)
-                        else:
-                            extractorCore = None
-                        jobSpecs = []
-                        fileStatMap = dict()
-                        sw_startconvert = core_utils.get_stopwatch()
-                        for job in jobs:
-                            timeNow = core_utils.naive_utcnow()
-                            jobSpec = JobSpec()
-                            jobSpec.convert_job_json(job)
-                            jobSpec.computingSite = queueName
-                            jobSpec.status = "starting"
-                            jobSpec.subStatus = "fetched"
-                            jobSpec.creationTime = timeNow
-                            jobSpec.stateChangeTime = timeNow
-                            jobSpec.configID = queueConfig.configID
-                            jobSpec.set_one_attribute("schedulerID", f"harvester-{harvester_config.master.harvester_id}")
-                            if queueConfig.zipPerMB is not None and jobSpec.zipPerMB is None:
-                                jobSpec.zipPerMB = queueConfig.zipPerMB
-                            fileGroupDictList = [jobSpec.get_input_file_attributes()]
-                            if extractorCore is not None:
-                                fileGroupDictList.append(extractorCore.get_aux_inputs(jobSpec))
-                            for fileGroupDict in fileGroupDictList:
-                                for tmpLFN, fileAttrs in fileGroupDict.items():
-                                    # make file spec
-                                    fileSpec = FileSpec()
-                                    fileSpec.PandaID = jobSpec.PandaID
-                                    fileSpec.taskID = jobSpec.taskID
-                                    fileSpec.lfn = tmpLFN
-                                    fileSpec.endpoint = queueConfig.ddmEndpointIn
-                                    fileSpec.scope = fileAttrs["scope"]
-                                    if "INTERNAL_FileType" in fileAttrs:
-                                        fileSpec.fileType = fileAttrs["INTERNAL_FileType"]
-                                        jobSpec.auxInput = JobSpec.AUX_hasAuxInput
-                                    else:
-                                        fileSpec.fileType = "input"
-                                    # check file status
-                                    if tmpLFN not in fileStatMap:
-                                        fileStatMap[tmpLFN] = self.dbProxy.get_file_status(tmpLFN, fileSpec.fileType, queueConfig.ddmEndpointIn, "starting")
-                                    # set preparing to skip stage-in if the file is (being) taken care of by another job
-                                    if [x for x in ["ready", "preparing", "to_prepare", "triggered"] if x in fileStatMap[tmpLFN]]:
-                                        fileSpec.status = "preparing"
-                                    else:
-                                        fileSpec.status = "to_prepare"
-                                    fileStatMap[tmpLFN].setdefault(fileSpec.status, None)
-                                    if "INTERNAL_URL" in fileAttrs:
-                                        fileSpec.url = fileAttrs["INTERNAL_URL"]
-                                    jobSpec.add_in_file(fileSpec)
-                            jobSpec.trigger_propagation()
-                            jobSpecs.append(jobSpec)
-                        # insert to DB
-                        tmpLog.debug(f"Converting of {len(jobs)} jobs {sw_startconvert.get_elapsed_time()}")
-                        sw_insertdb = core_utils.get_stopwatch()
-                        self.dbProxy.insert_jobs(jobSpecs)
-                        tmpLog.debug(f"Insert of {len(jobSpecs)} jobs {sw_insertdb.get_elapsed_time()}")
-                    # return len jobs
-                    return len(jobs)
-
-                # call get jobs
-                _get_jobs(n_jobs=n_jobs)
-
-            # done loop
-            mainLog.debug("done")
+            main_log = self.make_logger(_logger, f"id={self.get_pid()}", method_name="run")
+            try:
+                self.execute(main_log)
+            except Exception:
+                core_utils.dump_error_message(main_log)
             # check if being terminated
             if self.terminated(harvester_config.jobfetcher.sleepTime):
-                mainLog.debug("terminated")
+                main_log.debug("terminated")
                 return
+
+    # fetch jobs for queues which need them
+    def execute(self, main_log):
+        main_log.debug("getting number of jobs to be fetched")
+        job_limit_to_fetch_dict = self.dbProxy.get_num_jobs_to_fetch(
+            harvester_config.jobfetcher.nQueues, harvester_config.jobfetcher.lookupTime, self.queueConfigMapper
+        )
+        main_log.debug(f"got {len(job_limit_to_fetch_dict)} queues")
+        # get up to date queue configuration
+        panda_queue_dict = PandaQueuesDict()
+        # loop over all queues; a failure in one queue does not skip the others
+        for queue_name, value_dict in job_limit_to_fetch_dict.items():
+            if not self.queueConfigMapper.has_queue(queue_name):
+                continue
+            tmp_log = self.make_logger(_logger, f"queueName={queue_name}", method_name="fetch_jobs")
+            try:
+                self.fetch_jobs(queue_name, value_dict["jobs"], panda_queue_dict, tmp_log)
+            except Exception:
+                core_utils.dump_error_message(tmp_log)
+        main_log.debug("done")
+
+    # fetch jobs for a queue
+    def fetch_jobs(self, queue_name, n_jobs, panda_queue_dict, tmp_log):
+        queue_config = self.queueConfigMapper.get_queue(queue_name)
+        site_name = queue_config.siteName
+        # upper limit
+        n_jobs = min(n_jobs, harvester_config.jobfetcher.maxJobs)
+        if n_jobs <= 0:
+            tmp_log.debug("no job to fetch; skip")
+            return
+        # prod_source_label
+        try:
+            is_grandly_unified_queue = panda_queue_dict.is_grandly_unified_queue(site_name)
+        except Exception:
+            is_grandly_unified_queue = False
+        default_prod_source_label = queue_config.get_source_label(is_gu=is_grandly_unified_queue)
+        # randomize prod_source_label if configured
+        pdpm = getattr(queue_config, "prodSourceLabelRandomWeightsPermille", {})
+        prod_source_label = random.choice(core_utils.make_choice_list(pdpm=pdpm, default=default_prod_source_label))
+        # get jobs with custom criteria from queue config
+        tmp_log.debug(f"getting {n_jobs} jobs for prodSourceLabel={prod_source_label}")
+        sw = core_utils.get_stopwatch()
+        jobs, err_str = self.communicator.get_jobs(site_name, self.nodeName, prod_source_label, self.nodeName, n_jobs, queue_config.getJobCriteria)
+        tmp_log.info(f"got {len(jobs)} jobs for prodSourceLabel={prod_source_label} with {err_str}" + sw.get_elapsed_time())
+        if not jobs:
+            return
+        # convert to JobSpecs; a job failing to convert does not stop the others
+        sw.reset()
+        extractor_core = self.pluginFactory.get_plugin(queue_config.extractor) if hasattr(queue_config, "extractor") else None
+        file_stat_map = {}
+        job_specs = []
+        for job in jobs:
+            try:
+                job_specs.append(self.make_job_spec(job, queue_name, queue_config, extractor_core, file_stat_map))
+            except Exception:
+                tmp_log.error(f"failed to convert PandaID={job.get('PandaID') if isinstance(job, dict) else None}")
+                core_utils.dump_error_message(tmp_log)
+        tmp_log.debug(f"converted {len(job_specs)}/{len(jobs)} jobs" + sw.get_elapsed_time())
+        # insert to DB
+        sw.reset()
+        if self.dbProxy.insert_jobs(job_specs):
+            tmp_log.debug(f"inserted {len(job_specs)} jobs" + sw.get_elapsed_time())
+        else:
+            tmp_log.error(f"failed to insert {len(job_specs)} jobs with PandaIDs={[job_spec.PandaID for job_spec in job_specs]}")
+
+    # make a JobSpec with input FileSpecs from job json
+    def make_job_spec(self, job, queue_name, queue_config, extractor_core, file_stat_map):
+        time_now = core_utils.naive_utcnow()
+        job_spec = JobSpec()
+        job_spec.convert_job_json(job)
+        job_spec.computingSite = queue_name
+        job_spec.status = "starting"
+        job_spec.subStatus = "fetched"
+        job_spec.creationTime = time_now
+        job_spec.stateChangeTime = time_now
+        job_spec.configID = queue_config.configID
+        job_spec.set_one_attribute("schedulerID", f"harvester-{harvester_config.master.harvester_id}")
+        if queue_config.zipPerMB is not None and job_spec.zipPerMB is None:
+            job_spec.zipPerMB = queue_config.zipPerMB
+        file_group_dict_list = [job_spec.get_input_file_attributes()]
+        if extractor_core is not None:
+            file_group_dict_list.append(extractor_core.get_aux_inputs(job_spec))
+        for file_group_dict in file_group_dict_list:
+            for lfn, file_attrs in file_group_dict.items():
+                # make file spec
+                file_spec = FileSpec()
+                file_spec.PandaID = job_spec.PandaID
+                file_spec.taskID = job_spec.taskID
+                file_spec.lfn = lfn
+                file_spec.endpoint = queue_config.ddmEndpointIn
+                file_spec.scope = file_attrs["scope"]
+                if "INTERNAL_FileType" in file_attrs:
+                    file_spec.fileType = file_attrs["INTERNAL_FileType"]
+                    job_spec.auxInput = JobSpec.AUX_hasAuxInput
+                else:
+                    file_spec.fileType = "input"
+                # check file status
+                if lfn not in file_stat_map:
+                    file_stat_map[lfn] = self.dbProxy.get_file_status(lfn, file_spec.fileType, queue_config.ddmEndpointIn, "starting")
+                # set preparing to skip stage-in if the file is (being) taken care of by another job
+                if any(status in file_stat_map[lfn] for status in STAGE_IN_TAKEN_STATUSES):
+                    file_spec.status = "preparing"
+                else:
+                    file_spec.status = "to_prepare"
+                file_stat_map[lfn].setdefault(file_spec.status, None)
+                if "INTERNAL_URL" in file_attrs:
+                    file_spec.url = file_attrs["INTERNAL_URL"]
+                job_spec.add_in_file(file_spec)
+        job_spec.trigger_propagation()
+        return job_spec

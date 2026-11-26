@@ -1,7 +1,11 @@
 import itertools
-import re
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
+from pandaharvester.harvesterbody.agent_plugin_utils import (
+    as_list,
+    make_plugins_from_plugin_configs,
+    make_plugins_from_queue_configs,
+)
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
@@ -19,202 +23,107 @@ class CredManager(AgentBase):
         self.queue_config_mapper = queue_config_mapper
         self.pluginFactory = PluginFactory()
         self.dbProxy = DBProxy()
-        # plugin cores
-        self.exe_cores = []  # general cred managers that are not queue based, e.g. VOMS renewal on harvester instance
-        self.queue_exe_cores = []  # cred manages that are queue based, e.g. VOMS refresh on K8S clusters
-        # get plugin from harvester config
-        self.get_cores_from_harvester_config()
-        # update plugin cores from queue config
-        self.update_cores_from_queue_config()
+        # general cred managers that are not queue based, e.g. VOMS renewal on harvester instance
+        self.exe_cores = self.make_cores_from_harvester_config()
+        # cred managers that are queue based, e.g. VOMS refresh on K8S clusters; made in each cycle once the lock is taken
+        self.queue_exe_cores = []
 
-    # get list
-    def get_list(self, data):
-        if isinstance(data, list):
-            return data
+    # make plugin cores from harvester config
+    def make_cores_from_harvester_config(self):
+        tmp_log = self.make_logger(_logger, method_name="make_cores_from_harvester_config")
+        config = harvester_config.credmanager
+        # traditional attributes, one value per plugin in each
+        module_names = as_list(getattr(config, "moduleName", []))
+        class_names = as_list(getattr(config, "className", []))
+        # file names of original certificates; certFile is the old name
+        in_cert_files = as_list(getattr(config, "inCertFile", getattr(config, "certFile", [])))
+        # file names of certificates to be generated; by default the certificate for panda connection
+        if hasattr(config, "outCertFile"):
+            out_cert_files = as_list(config.outCertFile)
         else:
-            return [data]
-
-    # get plugin cores from harvester config
-    def get_cores_from_harvester_config(self):
-        # get module and class names
-        if hasattr(harvester_config.credmanager, "moduleName"):
-            moduleNames = self.get_list(harvester_config.credmanager.moduleName)
-        else:
-            moduleNames = []
-        if hasattr(harvester_config.credmanager, "className"):
-            classNames = self.get_list(harvester_config.credmanager.className)
-        else:
-            classNames = []
-        # file names of original certificates
-        if hasattr(harvester_config.credmanager, "inCertFile"):
-            inCertFiles = self.get_list(harvester_config.credmanager.inCertFile)
-        elif hasattr(harvester_config.credmanager, "certFile"):
-            inCertFiles = self.get_list(harvester_config.credmanager.certFile)
-        else:
-            inCertFiles = []
-        # file names of certificates to be generated
-        if hasattr(harvester_config.credmanager, "outCertFile"):
-            outCertFiles = self.get_list(harvester_config.credmanager.outCertFile)
-        else:
-            # use the file name of the certificate for panda connection as output name
-            outCertFiles = self.get_list(harvester_config.pandacon.cert_file)
-        # VOMS
-        if hasattr(harvester_config.credmanager, "voms"):
-            vomses = self.get_list(harvester_config.credmanager.voms)
-        else:
-            vomses = []
-        # direct and merged plugin configuration in json
-        if hasattr(harvester_config.credmanager, "pluginConfigs"):
-            pluginConfigs = harvester_config.credmanager.pluginConfigs
-        else:
-            pluginConfigs = []
-        # from traditional attributes
-        for moduleName, className, inCertFile, outCertFile, voms in zip(moduleNames, classNames, inCertFiles, outCertFiles, vomses):
-            plugin_params = {}
-            plugin_params["module"] = moduleName
-            plugin_params["name"] = className
-            plugin_params["inCertFile"] = inCertFile
-            plugin_params["outCertFile"] = outCertFile
-            plugin_params["voms"] = voms
+            out_cert_files = as_list(harvester_config.pandacon.cert_file)
+        vomses = as_list(getattr(config, "voms", []))
+        attr_lists = (module_names, class_names, in_cert_files, out_cert_files, vomses)
+        n_values = [len(attr_list) for attr_list in attr_lists]
+        if len(set(n_values)) > 1:
+            tmp_log.warning(f"moduleName, className, inCertFile, outCertFile, voms have {n_values} values; only the first {min(n_values)} plugins are used")
+        exe_cores = []
+        for module_name, class_name, in_cert_file, out_cert_file, voms in zip(*attr_lists):
+            plugin_params = {"module": module_name, "name": class_name, "inCertFile": in_cert_file, "outCertFile": out_cert_file, "voms": voms}
             try:
                 exe_core = self.pluginFactory.get_plugin(plugin_params)
-                self.exe_cores.append(exe_core)
+                if exe_core is not None:
+                    exe_cores.append(exe_core)
             except Exception:
-                _logger.error(f"failed to launch credmanager with traditional attributes for {plugin_params}")
-                core_utils.dump_error_message(_logger)
-        # from pluginConfigs
-        for pc in pluginConfigs:
-            try:
-                setup_maps = pc["configs"]
-                for setup_name, setup_map in setup_maps.items():
-                    try:
-                        plugin_params = {"module": pc["module"], "name": pc["name"], "setup_name": setup_name}
-                        plugin_params.update(setup_map)
-                        exe_core = self.pluginFactory.get_plugin(plugin_params)
-                        self.exe_cores.append(exe_core)
-                    except Exception:
-                        _logger.error(f"failed to launch credmanager in pluginConfigs for {plugin_params}")
-                        core_utils.dump_error_message(_logger)
-            except Exception:
-                _logger.error(f"failed to parse pluginConfigs {pc}")
-                core_utils.dump_error_message(_logger)
+                tmp_log.error(f"failed to launch credmanager with traditional attributes for {plugin_params}")
+                core_utils.dump_error_message(tmp_log)
+        # direct and merged plugin configuration in json
+        exe_cores += make_plugins_from_plugin_configs(self.pluginFactory, getattr(config, "pluginConfigs", []), tmp_log)
+        return exe_cores
 
     # update plugin cores from queue config
     def update_cores_from_queue_config(self):
-        self.queue_exe_cores = []
-        for queue_name, queue_config in self.queue_config_mapper.get_all_queues().items():
-            if queue_config.queueStatus == "offline" or not hasattr(queue_config, "credmanagers") or not isinstance(queue_config.credmanagers, list):
-                continue
-            for cm_setup in queue_config.credmanagers:
-                try:
-                    plugin_params = {"module": cm_setup["module"], "name": cm_setup["name"], "setup_name": queue_name, "queueName": queue_name}
-                    for k, v in cm_setup.items():
-                        if k in ("module", "name"):
-                            pass
-                        if isinstance(v, str) and "$" in v:
-                            # replace placeholders
-                            value = v
-                            patts = re.findall("\$\{([a-zA-Z\d_.]+)\}", v)
-                            for patt in patts:
-                                tmp_ph = "${" + patt + "}"
-                                tmp_val = None
-                                if patt == "harvesterID":
-                                    tmp_val = harvester_config.master.harvester_id
-                                elif patt == "queueName":
-                                    tmp_val = queue_name
-                                elif patt.startswith("common."):
-                                    # values from common blocks
-                                    attr = patt.replace("common.", "")
-                                    if hasattr(queue_config, "common") and attr in queue_config.common:
-                                        tmp_val = queue_config.common[attr]
-                                if tmp_val is not None:
-                                    value = value.replace(tmp_ph, tmp_val)
-                            # fill in
-                            plugin_params[k] = value
-                        else:
-                            # fill in
-                            plugin_params[k] = v
-                    exe_core = self.pluginFactory.get_plugin(plugin_params)
-                    self.queue_exe_cores.append(exe_core)
-                except Exception:
-                    _logger.error(f"failed to launch plugin for queue={queue_name} and {plugin_params}")
-                    core_utils.dump_error_message(_logger)
+        tmp_log = self.make_logger(_logger, method_name="update_cores_from_queue_config")
+        self.queue_exe_cores = make_plugins_from_queue_configs(self.pluginFactory, self.queue_config_mapper, "credmanagers", tmp_log)
+
+    # make a logger for a plugin core
+    def make_core_logger(self, exe_core, method_name):
+        if hasattr(exe_core, "setup_name"):
+            credmanager_name = exe_core.setup_name
+        else:
+            credmanager_name = f"{exe_core.inCertFile} {exe_core.outCertFile}"
+        return self.make_logger(_logger, f"{exe_core.__class__.__name__} {credmanager_name}", method_name=method_name)
 
     # main loop
     def run(self):
+        main_log = self.make_logger(_logger, f"id={self.get_pid()}", method_name="run")
         while True:
-            # update plugin cores from queue config
-            self.update_cores_from_queue_config()
-
-            # execute
-            self.execute()  # this is the main run
-
+            self.run_stages((self.execute,), main_log)
             # check if being terminated
             if self.terminated(harvester_config.credmanager.sleepTime, randomize=False):
                 return
 
-    # main
+    # check and renew credentials
     def execute(self):
         # get lock
-        locked = self.dbProxy.get_process_lock("credmanager", self.get_pid(), harvester_config.credmanager.sleepTime)
-        if not locked:
+        if not self.dbProxy.get_process_lock("credmanager", self.get_pid(), harvester_config.credmanager.sleepTime):
             return
+        # update plugin cores from queue config; the previous ones are kept on failure
+        self.run_stages((self.update_cores_from_queue_config,), self.make_logger(_logger, f"id={self.get_pid()}", method_name="execute"))
         # loop over all plugins
         for exe_core in itertools.chain(self.exe_cores, self.queue_exe_cores):
-            # do nothing
-            if exe_core is None:
-                continue
-            # make logger
-            if hasattr(exe_core, "setup_name"):
-                credmanager_name = exe_core.setup_name
-            else:
-                credmanager_name = f"{exe_core.inCertFile} {exe_core.outCertFile}"
-            mainLog = self.make_logger(_logger, f"{exe_core.__class__.__name__} {credmanager_name}", method_name="execute")
+            tmp_log = self.make_core_logger(exe_core, "execute")
             try:
                 # check credential
-                mainLog.debug("check credential")
-                isValid = exe_core.check_credential()
-                if isValid:
-                    mainLog.debug("valid")
-                elif not isValid:
+                tmp_log.debug("check credential")
+                if exe_core.check_credential():
+                    tmp_log.debug("valid")
+                else:
                     # renew it if necessary
-                    mainLog.debug("invalid")
-                    mainLog.debug("renew credential")
-                    tmpStat, tmpOut = exe_core.renew_credential()
-                    if not tmpStat:
-                        mainLog.error(f"failed : {tmpOut}")
+                    tmp_log.debug("invalid")
+                    tmp_log.debug("renew credential")
+                    tmp_stat, tmp_out = exe_core.renew_credential()
+                    if not tmp_stat:
+                        tmp_log.error(f"failed : {tmp_out}")
                         continue
             except Exception:
-                core_utils.dump_error_message(mainLog)
-            mainLog.debug("done")
+                core_utils.dump_error_message(tmp_log)
+            tmp_log.debug("done")
 
-    # monit main
+    # get credential lifetimes for monitoring
     def execute_monit(self):
         self.update_cores_from_queue_config()
-
         metrics = {}
         # loop over all plugins
         for exe_core in itertools.chain(self.exe_cores, self.queue_exe_cores):
-            # do nothing
-            if exe_core is None:
-                continue
-
-            # make logger
-            if hasattr(exe_core, "setup_name"):
-                credmanager_name = exe_core.setup_name
-            else:
-                credmanager_name = f"{exe_core.inCertFile} {exe_core.outCertFile}"
-
-            sub_log = self.make_logger(_logger, f"{exe_core.__class__.__name__} {credmanager_name}", method_name="execute_monit")
+            tmp_log = self.make_core_logger(exe_core, "execute_monit")
             try:
-                # check credential
-                sub_log.debug("check credential lifetime")
+                # check credential lifetime
+                tmp_log.debug("check credential lifetime")
                 lifetime = exe_core.check_credential_lifetime()
                 if lifetime is not None:
                     metrics[exe_core.outCertFile] = lifetime
             except Exception:
-                core_utils.dump_error_message(sub_log)
-
-            sub_log.debug("done")
-
+                core_utils.dump_error_message(tmp_log)
+            tmp_log.debug("done")
         return metrics

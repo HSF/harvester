@@ -27,6 +27,14 @@ class AgentBase(threading.Thread):
             return True
         return core_utils.sleep(wait_interval, self.stopEvent, randomize)
 
+    # run stages in order; a failure in one stage is logged and does not skip the others
+    def run_stages(self, stages, tmp_log):
+        for stage in stages:
+            try:
+                stage()
+            except Exception:
+                core_utils.dump_error_message(tmp_log)
+
     # get process identifier
     def get_pid(self):
         thread_id = self.ident if self.ident else 0
