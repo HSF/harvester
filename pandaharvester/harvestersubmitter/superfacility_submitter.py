@@ -1,10 +1,11 @@
-import os
 import json
+import os
 import stat
 import tempfile
-import requests
 import time
 from math import ceil
+
+import requests
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -20,13 +21,13 @@ class SuperfacilitySubmitter(PluginBase):
     # constructor
     def __init__(self, **kwarg):
         self.uploadLog = False
-        self.logBaseURL = None  #Need to fix the logic with that!
+        self.logBaseURL = None  # Need to fix the logic with that!
         PluginBase.__init__(self, **kwarg)
         self.num_retry_get_batch_id = kwarg.get("num_retry_get_batch_id", 5)
         self.time_interval_retry_get_batch_id = kwarg.get("time_interval_retry_get_batch_id", 5)
         self.cred_dir = kwarg.get("superfacility_cred_dir")
         self.sf_client = SuperfacilityClient(self.cred_dir)
-        
+
         if not hasattr(self, "localQueueName"):
             self.localQueueName = "grid"
         # ncore factor
@@ -57,7 +58,7 @@ class SuperfacilitySubmitter(PluginBase):
             # make batch script, here we create batch script at where harvester install
             batchFile = self.make_batch_script(workSpec, tmpLog)
             try:
-                with open(batchFile, 'r') as f:
+                with open(batchFile, "r") as f:
                     script_string = f.read()
             except (FileNotFoundError, IOError) as e:
                 err = f"Failed to open batch script '{batchFile}': {e}"
@@ -65,8 +66,7 @@ class SuperfacilitySubmitter(PluginBase):
                 retList.append((False, err))
                 continue
             try:
-                r = self.sf_client.post("/compute/jobs/perlmutter", 
-                                        data = {"job": script_string, "isPath": False})
+                r = self.sf_client.post("/compute/jobs/perlmutter", data={"job": script_string, "isPath": False})
                 data = r.json()
             except requests.HTTPError as e:
                 err = f"Superfacility submit error: {e}"
@@ -94,13 +94,13 @@ class SuperfacilitySubmitter(PluginBase):
                     stop = True
                     retList.append((False, err))
                     break
-                
-                if data.get('status') == 'completed':
-                    inner_r = json.loads(data.get('result'))
+
+                if data.get("status") == "completed":
+                    inner_r = json.loads(data.get("result"))
                     tmpLog.debug(f"Command status: {inner_r['status']}")
                     tmpLog.debug(f"Command error:  {inner_r['error']}")
                     tmpLog.debug(f"Assigned batchID: {inner_r['jobid']}")
-                    workSpec.batchID = inner_r['jobid']
+                    workSpec.batchID = inner_r["jobid"]
                     break
                 time.sleep(self.time_interval_retry_get_batch_id)
 
@@ -127,7 +127,7 @@ class SuperfacilitySubmitter(PluginBase):
         this_panda_queue_dict = dict()
 
         # get default information from queue info
-        n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1) if this_panda_queue_dict.get("corecount", 1) else 1
+        n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1)
 
         # get override requirements from queue configured
         try:
@@ -201,4 +201,3 @@ class SuperfacilitySubmitter(PluginBase):
         os.chmod(tmpFile.name, st.st_mode | stat.S_IEXEC | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
 
         return tmpFile.name
-

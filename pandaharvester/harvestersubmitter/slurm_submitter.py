@@ -99,7 +99,7 @@ class SlurmSubmitter(PluginBase):
         this_panda_queue_dict = dict()
 
         # get default information from queue info
-        n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1) if this_panda_queue_dict.get("corecount", 1) else 1
+        n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1)
         n_core_per_node = getattr(self, "nCorePerNode", n_core_per_node_from_queue)
         if not n_core_per_node:
             n_core_per_node = self.nCore

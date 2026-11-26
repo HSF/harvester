@@ -6,6 +6,10 @@ from pandaharvester.harvestercore.job_spec import JobSpec
 from pandaharvester.harvestercore.resource_type_constants import (
     BASIC_RESOURCE_TYPE_MULTI_CORE,
     BASIC_RESOURCE_TYPE_SINGLE_CORE,
+    CAPABILITY_TAG,
+    CRIC_CORE_TAG,
+    CRIC_RAM_TAG,
+    UNIFIED_QUEUE_TAG,
 )
 from pandaharvester.harvestercore.resource_type_mapper import ResourceTypeMapper
 from pandaharvester.harvestercore.work_spec import WorkSpec
@@ -40,11 +44,11 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         job_memory = job_spec.jobParams.get("minRamCount", 0) or 0
         job_core_count = job_spec.jobParams.get("coreCount", 1) or 1
 
-        is_ucore = queue_dict.get("capability", "") == "ucore"
+        is_ucore = queue_dict.get(CAPABILITY_TAG, "") == UNIFIED_QUEUE_TAG
 
         if not job_memory and is_ucore:
-            site_maxrss = queue_dict.get("maxrss", 0) or 0
-            site_corecount = queue_dict.get("corecount", 1) or 1
+            site_maxrss = queue_dict.get(CRIC_RAM_TAG, 0) or 0
+            site_corecount = queue_dict.get(CRIC_CORE_TAG, 1)
 
             if job_core_count == 1:
                 job_memory = int(math.ceil(site_maxrss / site_corecount))
@@ -52,7 +56,7 @@ class SimpleWorkerMaker(BaseWorkerMaker):
                 job_memory = site_maxrss
 
             # cap the default memory with maxrampercore of the job's resource type, unless the site requires max memory
-            if "useMaxRam" not in (queue_dict.get("catchall", "") or ""):
+            if "useMaxRam" not in queue_dict.get("catchall", ""):
                 job_resource_type = getattr(job_spec, "resourceType", None) or job_spec.jobParams.get("resourceType")
                 max_ram_per_core = self.rt_mapper.get_max_ram_per_core(job_resource_type) if job_resource_type else None
                 if max_ram_per_core:
@@ -103,19 +107,18 @@ class SimpleWorkerMaker(BaseWorkerMaker):
         queue_dict = panda_queues_dict.get(queue_config.queueName, {})
         associated_params_dict = panda_queues_dict.get_harvester_params(queue_config.queueName)
 
-        is_ucore = queue_dict.get("capability", "") == "ucore"
+        is_ucore = queue_dict.get(CAPABILITY_TAG, "") == UNIFIED_QUEUE_TAG
         # case of traditional (non-ucore) queue: look at the queue configuration
         if not is_ucore:
-            work_spec.nCore = queue_dict.get("corecount", 1) or 1
-            work_spec.minRamCount = queue_dict.get("maxrss", 1) or 1
+            work_spec.nCore = queue_dict.get(CRIC_CORE_TAG, 1)
+            work_spec.minRamCount = queue_dict.get(CRIC_RAM_TAG, 1) or 1
 
         # case of unified queue: look at the job & resource type and queue configuration
         else:
-            catchall = queue_dict.get("catchall", "") or ""
-            if "useMaxRam" in catchall:
+            if "useMaxRam" in queue_dict.get("catchall", ""):
                 # some sites require to always set the maximum memory due to memory killing jobs
-                site_corecount = queue_dict.get("corecount", 1) or 1
-                site_maxrss = queue_dict.get("maxrss", 1) or 1
+                site_corecount = queue_dict.get(CRIC_CORE_TAG, 1)
+                site_maxrss = queue_dict.get(CRIC_RAM_TAG, 1) or 1
 
                 # some cases need to overwrite those values
                 if self.rt_mapper.is_single_core_resource_type(resource_type):

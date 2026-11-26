@@ -113,7 +113,7 @@ class ResourceTypeMapper(metaclass=SingletonWithID):
 
             # retrieve the queue configuration
             site_max_rss = queue_dict.get(CRIC_RAM_TAG, 0) or 0
-            site_core_count = queue_dict.get(CRIC_CORE_TAG, 1) or 1
+            site_core_count = queue_dict.get(CRIC_CORE_TAG, 1)
 
             unified_queue = queue_dict.get(CAPABILITY_TAG, "") == UNIFIED_QUEUE_TAG
             if not unified_queue:
@@ -202,7 +202,7 @@ class ResourceTypeMapper(metaclass=SingletonWithID):
 
         # retrieve the queue configuration
         site_max_rss = queue_dict.get(CRIC_RAM_TAG, 0) or 0
-        site_core_count = queue_dict.get(CRIC_CORE_TAG, 1) or 1
+        site_core_count = queue_dict.get(CRIC_CORE_TAG, 1)
         capability = queue_dict.get(CAPABILITY_TAG, "")
 
         # unified queues are not mapped to any particular resource type

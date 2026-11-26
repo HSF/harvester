@@ -4,7 +4,10 @@ import socket
 
 from pandaharvester.harvesterbody.agent_base import AgentBase
 from pandaharvester.harvesterbody.monitor import get_schedule_config
-from pandaharvester.harvesterbody.worker_adjuster import WorkerAdjuster
+from pandaharvester.harvesterbody.worker_adjuster import (
+    DEFAULT_JOB_TYPE,
+    WorkerAdjuster,
+)
 from pandaharvester.harvesterbody.worker_maker import WorkerMaker
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -17,8 +20,6 @@ from pandaharvester.harvestermisc.apfmon import Apfmon
 
 # logger
 _logger = core_utils.setup_logger("submitter")
-
-DEFAULT_JOB_TYPE = "managed"
 
 
 # class to submit workers
@@ -156,11 +157,11 @@ class Submitter(AgentBase):
         tmp_log.debug("start")
         tmp_log.debug(f"workers status: {tmp_val}")
         nReady = tmp_val["nReady"]
-        nWorkers = self.get_num_workers_to_make(queue_config, worker_maker_core, resource_type, tmp_val, tmp_log)
+        nWorkers = self.get_num_workers_to_make(worker_maker_core, tmp_val, tmp_log)
         if nWorkers <= 0:
             return False
         # get job chunks; jobs are locked from here
-        jobChunks = self.get_job_chunks(queue_config, worker_maker_core, resource_type, nWorkers, nReady, locked_by, tmp_log)
+        jobChunks = self.get_job_chunks(queue_config, worker_maker_core, nWorkers, nReady, locked_by, tmp_log)
         tmp_log.debug(f"got {len(jobChunks)} job chunks")
         if len(jobChunks) == 0:
             return False
@@ -186,7 +187,6 @@ class Submitter(AgentBase):
             work_specList = self.prepare_workers(okChunks, queue_config, pandaIDs)
             if len(work_specList) == 0:
                 return False
-            sw = core_utils.get_stopwatch()
             # setup access points and feed jobs
             messenger = plugins["messenger"]
             messenger.setup_access_points(work_specList)
@@ -200,7 +200,7 @@ class Submitter(AgentBase):
             # insert workers
             self.dbProxy.insert_workers(work_specList, locked_by)
             # submit
-            sw.reset()
+            sw = core_utils.get_stopwatch()
             tmp_log.info(f"submitting {len(work_specList)} workers")
             result_list = self.submit_workers(plugins["submitter"], work_specList, tmp_log)
             tmp_log.debug(f"done submitting {len(result_list)} workers" + sw.get_elapsed_time())
@@ -220,7 +220,7 @@ class Submitter(AgentBase):
             tmp_log.info("done")
 
     # get the number of workers to make, considering ready resources for dynamic sizing
-    def get_num_workers_to_make(self, queue_config, worker_maker_core, resource_type, tmp_val, tmp_log):
+    def get_num_workers_to_make(self, worker_maker_core, tmp_val, tmp_log):
         nWorkers = tmp_val["nNewWorkers"] + tmp_val["nReady"]
         # no new workers
         if nWorkers <= 0:
@@ -229,7 +229,7 @@ class Submitter(AgentBase):
         # check if resource is ready
         if getattr(worker_maker_core, "dynamicSizing", False) is not True:
             return nWorkers
-        numReadyResources = self.workerMaker.num_ready_resources(queue_config, DEFAULT_JOB_TYPE, resource_type, maker=worker_maker_core)
+        numReadyResources = worker_maker_core.num_ready_resources()
         tmp_log.debug(f"numReadyResources: {numReadyResources}")
         if numReadyResources:
             return min(nWorkers, numReadyResources)
@@ -246,8 +246,7 @@ class Submitter(AgentBase):
         return nWorkers
 
     # get job chunks for workers according to the mapping type; jobs in the chunks are locked by locked_by
-    def get_job_chunks(self, queue_config, worker_maker_core, resource_type, n_workers, n_ready, locked_by, tmp_log):
-        job_type = DEFAULT_JOB_TYPE
+    def get_job_chunks(self, queue_config, worker_maker_core, n_workers, n_ready, locked_by, tmp_log):
         map_type = queue_config.mapType
         if map_type == WorkSpec.MT_NoJob:
             # workers without jobs
@@ -266,22 +265,20 @@ class Submitter(AgentBase):
             return self.dbProxy.get_job_chunks_for_workers(n_jobs_per_worker=1, n_workers_per_job=None, **common_args)
         if map_type == WorkSpec.MT_MultiJobs:
             # one worker for multiple jobs
-            nJobsPerWorker = self.workerMaker.get_num_jobs_per_worker(queue_config, n_workers, job_type, resource_type, maker=worker_maker_core)
+            nJobsPerWorker = worker_maker_core.get_num_jobs_per_worker(n_workers)
             tmp_log.debug(f"nJobsPerWorker={nJobsPerWorker}")
             return self.dbProxy.get_job_chunks_for_workers(
                 n_jobs_per_worker=nJobsPerWorker, n_workers_per_job=None, allow_job_mixture=queue_config.allowJobMixture, **common_args
             )
         if map_type == WorkSpec.MT_MultiWorkers:
             # multiple workers for one job
-            nWorkersPerJob = self.workerMaker.get_num_workers_per_job(queue_config, n_workers, job_type, resource_type, maker=worker_maker_core)
+            nWorkersPerJob = worker_maker_core.get_num_workers_per_job(n_workers)
             tmp_log.debug(f"nWorkersPerJob={nWorkersPerJob}")
             return self.dbProxy.get_job_chunks_for_workers(
                 n_jobs_per_worker=None,
                 n_workers_per_job=nWorkersPerJob,
-                max_workers_per_job_in_total=self.workerMaker.get_max_workers_per_job_in_total(queue_config, job_type, resource_type, maker=worker_maker_core),
-                max_workers_per_job_per_cycle=self.workerMaker.get_max_workers_per_job_per_cycle(
-                    queue_config, job_type, resource_type, maker=worker_maker_core
-                ),
+                max_workers_per_job_in_total=worker_maker_core.get_max_workers_per_job_in_total(),
+                max_workers_per_job_per_cycle=worker_maker_core.get_max_workers_per_job_per_cycle(),
                 **common_args,
             )
         tmp_log.error(f"unknown mapType={map_type}")

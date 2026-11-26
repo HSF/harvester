@@ -201,7 +201,7 @@ class SlurmSubmitter(PluginBase):
         timeNow = core_utils.naive_utcnow()
 
         # get default information from queue info
-        n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1) if this_panda_queue_dict.get("corecount", 1) else 1
+        n_core_per_node_from_queue = this_panda_queue_dict.get("corecount", 1)
 
         is_unified_queue = this_panda_queue_dict.get("capability", "") == "ucore"
         special_par = this_panda_queue_dict.get("special_par", "")

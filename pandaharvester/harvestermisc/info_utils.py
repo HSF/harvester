@@ -169,14 +169,19 @@ class PandaQueuesDict(CachedDictBase):
     def _update_from_cache(self, cache_data):
         panda_queues_dict = cache_data
         for k, v in panda_queues_dict.items():
-            # handle per-core attributes: scale with corecount if per-core
-            # work on a copy so repeated refreshes never re-scale the same shared cached dict
+            # work on a copy so repeated refreshes never modify the same shared cached dict
             # (cache_data can be the same object reused across refreshes; mutating it in place
             # would compound the scaling by corecount on every refresh cycle)
+            v = dict(v)
+            # CRIC can give null or 0 corecount and null catchall; normalize them here, so that users need no guards
+            if not v.get("corecount"):
+                v["corecount"] = 1
+            if v.get("catchall") is None:
+                v["catchall"] = ""
+            # handle per-core attributes: scale with corecount if per-core
             if PandaQueuesDict.use_per_core_attr(v):
-                core_count = v.get("corecount", 1)
+                core_count = v["corecount"]
                 if core_count > 0:
-                    v = dict(v)
                     for attr in self.candidate_per_core_attrs:
                         if attr in v:
                             v[attr] = v[attr] * core_count
