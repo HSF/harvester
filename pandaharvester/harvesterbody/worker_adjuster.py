@@ -55,16 +55,7 @@ class WorkerAdjuster(object):
             tmp_log.error(err_str)
             tmp_log.warning("default activate_worker_factor = 1")
             self.activate_worker_factor = 1.0
-        try:
-            if harvester_config.submitter.noPilotsWhenNoActiveJobs:
-                self.no_pilots_when_no_active_jobs = True
-        except AttributeError:
-            self.no_pilots_when_no_active_jobs = False
-        except Exception:
-            err_str = traceback.format_exc()
-            tmp_log.error(err_str)
-            tmp_log.warning("default no_pilots_when_no_active_jobs = False")
-            self.no_pilots_when_no_active_jobs = False
+        self.no_pilots_when_no_active_jobs = bool(getattr(harvester_config.submitter, "noPilotsWhenNoActiveJobs", False))
 
     # transform job statistics dict to polars dataframe
     def _job_stats_to_df(self, job_stats_dict: dict | None) -> pl.DataFrame:
@@ -503,7 +494,7 @@ class WorkerAdjuster(object):
                     )
         return master_df
 
-    def _format_result_dataframe(self, dyn_num_workers, queue_name, tmp_log):
+    def _format_result_dataframe(self, dyn_num_workers, tmp_log):
         """Format result dataframe for logging."""
         dyn_num_workers_rows = []
         for qn, job_types in dyn_num_workers.items():
@@ -587,11 +578,11 @@ class WorkerAdjuster(object):
             queue_dict[DEFAULT_JOB_TYPE] = merged
             tmp_log.debug(f"normalize_job_type_any returned: {queue_dict}")
 
-        static_num_workers = copy.deepcopy(static_num_workers)
-        for queue_name, queue_dict in static_num_workers.items():
-            _normalize_job_type_any(queue_dict)
-
         try:
+            static_num_workers = copy.deepcopy(static_num_workers)
+            for queue_dict in static_num_workers.values():
+                _normalize_job_type_any(queue_dict)
+
             # get queue status
             queue_stat = self.dbProxy.get_cache("panda_queues.json", None)
             if queue_stat is None:
@@ -711,11 +702,12 @@ class WorkerAdjuster(object):
                         rtype_request_cores, rtype_request_memory = rt_mapper.calculate_worker_requirements(resource_type, queue_dict)
 
                         # set 0 to num of new workers when the queue is disabled
-                        if queue_name in queue_stat and queue_stat[queue_name]["status"] in ["offline", "standby", "maintenance"]:
+                        queue_status = (queue_stat.get(queue_name) or {}).get("status")
+                        if queue_status in ["offline", "standby", "maintenance"]:
                             dyn_num_workers[queue_name][job_type][resource_type][pilot_type]["nNewWorkers"] = 0
-                            ret_msg = f"set n_new_workers=0 since status={queue_stat[queue_name]['status']}"
+                            ret_msg = f"set n_new_workers=0 since status={queue_status}"
                             tmp_log.debug(ret_msg)
-                            apf_msg = f"Not submitting workers since queue status = {queue_stat[queue_name]['status']}"
+                            apf_msg = f"Not submitting workers since queue status = {queue_status}"
                             continue
 
                         # protection against not-up-to-date queue config
@@ -814,29 +806,30 @@ class WorkerAdjuster(object):
                                     pass
                                 else:
                                     # limit the queue to the number of activated jobs to avoid empty pilots
-                                    try:
-                                        n_min_pilots = 1
-                                        if self.get_queue_no_pilots_when_no_active_jobs(queue_name):
-                                            n_min_pilots = 0
-
-                                        tmp_n_activated_jobs = job_stats[queue_name]["activated"]
-                                        tmp_log.debug(f"available activated panda jobs {tmp_n_activated_jobs}")
-
-                                        activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
-                                        if tmp_n_activated_jobs * activate_worker_factor > 0:
-                                            n_min_pilots = 1
-                                        n_activated = max(int(tmp_n_activated_jobs * activate_worker_factor), n_min_pilots)  # avoid no activity queues
-                                    except KeyError:
+                                    no_pilots_when_no_active_jobs = self.get_queue_no_pilots_when_no_active_jobs(queue_name)
+                                    tmp_n_activated_jobs = (job_stats.get(queue_name) or {}).get("activated")
+                                    if tmp_n_activated_jobs is None:
                                         # zero job in the queue
                                         tmp_log.debug("no job in queue")
-                                        if self.get_queue_no_pilots_when_no_active_jobs(queue_name):
+                                        if no_pilots_when_no_active_jobs:
                                             n_activated = 0
                                         else:
                                             n_activated = max(1 - n_queue - n_ready - n_running, 0)
-                                    finally:
-                                        queue_limit = max_queued_workers
+                                    else:
+                                        tmp_log.debug(f"available activated panda jobs {tmp_n_activated_jobs}")
+                                        activate_worker_factor = self.get_activate_worker_factor(queue_name, job_type, resource_type, queue_dict, queue_config)
+                                        # at least one pilot to avoid no activity queues, unless no pilots wanted without activated jobs
+                                        if no_pilots_when_no_active_jobs and tmp_n_activated_jobs * activate_worker_factor <= 0:
+                                            n_min_pilots = 0
+                                        else:
+                                            n_min_pilots = 1
+                                        n_activated = max(int(tmp_n_activated_jobs * activate_worker_factor), n_min_pilots)
+                                    queue_limit = max_queued_workers
+                                    if max_queued_workers is None:
+                                        max_queued_workers = n_activated
+                                    else:
                                         max_queued_workers = min(n_activated, max_queued_workers)
-                                        tmp_log.debug(f"limiting max_queued_workers to min(n_activated={n_activated}, queue_limit={queue_limit})")
+                                    tmp_log.debug(f"limiting max_queued_workers to min(n_activated={n_activated}, queue_limit={queue_limit})")
 
                             if max_queued_workers is None:  # no value found, use default value
                                 max_queued_workers = 1
@@ -943,10 +936,9 @@ class WorkerAdjuster(object):
             # dump
             tmp_log.debug(f"defined {str(dyn_num_workers)}")
             # print result in table
-            self._format_result_dataframe(dyn_num_workers, queue_name, tmp_log)
+            self._format_result_dataframe(dyn_num_workers, tmp_log)
             return dyn_num_workers
         except Exception:
             # dump error
-            err_msg = core_utils.dump_error_message(tmp_log)
-            tmp_log.error(err_msg)
+            core_utils.dump_error_message(tmp_log)
             return None
