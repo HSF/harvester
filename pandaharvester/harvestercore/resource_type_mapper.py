@@ -100,6 +100,7 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
     def calculate_worker_requirements(self, resource_name, queue_dict):
         """
         Calculates worker requirements (cores and memory) to request in pilot streaming mode/unified pull queue
+        :return: tuple of (cores, memory in MB), both at least 1
         """
         worker_cores = 1
         worker_memory = 1
@@ -115,8 +116,8 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
 
             unified_queue = queue_dict.get(CAPABILITY_TAG, "") == UNIFIED_QUEUE_TAG
             if not unified_queue:
-                # site is not unified, just request whatever is configured in CRIC
-                return site_max_rss, site_core_count
+                # site is not unified, just request whatever is configured in CRIC; at least 1 MB as callers divide by it
+                return site_core_count, max(site_max_rss, 1)
 
             if resource_type.max_core:
                 worker_cores = min(resource_type.max_core, site_core_count)
@@ -127,7 +128,8 @@ class ResourceTypeMapper(object, metaclass=SingletonWithID):
                 worker_memory = min(resource_type.max_ram_per_core * worker_cores, (site_max_rss / site_core_count) * worker_cores)
             else:
                 worker_memory = (site_max_rss / site_core_count) * worker_cores
-            worker_memory = int(math.ceil(worker_memory))
+            # at least 1 MB as callers divide by it
+            worker_memory = max(int(math.ceil(worker_memory)), 1)
 
         except KeyError:
             pass
