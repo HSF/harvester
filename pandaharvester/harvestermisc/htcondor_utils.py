@@ -2,9 +2,7 @@
 
 import datetime
 import functools
-import os
 import re
-import socket
 import subprocess
 import tempfile
 import threading
@@ -60,6 +58,10 @@ CONDOR_SESSION_ERRORS = (RuntimeError,) + ((htcondor.HTCondorException,) if hasa
 
 # harvesterID
 harvesterID = harvester_config.master.harvester_id
+
+# condor job cache shared in DB; global settings since the cache and its lock are shared by all queues and processes
+CACHE_ENABLE = bool(getattr(harvester_config.monitor, "pluginCacheEnable", False))
+CACHE_REFRESH_INTERVAL = getattr(harvester_config.monitor, "pluginCacheRefreshInterval", 240)
 
 # minimum interval in sec between forced refreshes of the condor job cache of a submission host
 _cache_force_refresh_min_interval = 60
@@ -124,12 +126,35 @@ def get_job_id_tuple_from_batchid(batchid):
     """
     Get tuple (ClusterId, ProcId) from batchID string
     """
-    batchid_str_list = str(batchid).split(".")
-    clusterid = batchid_str_list[0]
-    procid = batchid_str_list[1]
+    clusterid, procid = _normalize_batchid(batchid).split(".")[0:2]
     if not procid:
         procid = 0
     return (clusterid, procid)
+
+
+def _cluster_constraint(batchids):
+    """
+    Get condor constraint of the clusters of batchIDs
+    """
+    clusterids_str = ",".join(sorted({get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchids}))
+    return f"member(ClusterID, {{{clusterids_str}}})"
+
+
+def remove_workers(workspec_list):
+    """
+    Remove condor jobs of workers, in bulk per submissionHost. Workers without batchID are skipped.
+    Return {condor_job_id: (is_ok, error string)}; failures of a submissionHost are given to all its jobs
+    """
+    tmpLog = core_utils.make_logger(baseLogger, method_name="remove_workers")
+    ret_map = {}
+    for submissionHost, batchIDs_dict in get_host_batchid_map(workspec_list).items():
+        try:
+            ret_map.update(CondorJobManage(id=submissionHost).remove(list(batchIDs_dict.keys())))
+        except Exception as e:
+            errStr = f"failed to remove jobs on submissionHost={submissionHost} ; {e.__class__.__name__}: {e}"
+            tmpLog.error(errStr)
+            ret_map.update({f"{submissionHost}#{batchid}": (False, errStr) for batchid in batchIDs_dict})
+    return ret_map
 
 
 # ===============================================================
@@ -149,14 +174,21 @@ class CondorClient(object):
         def wrapper(self, *args, **kwargs):
             # Make logger
             tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorClient.renew_session_if_error")
-            # no session if failed to create one in initialization
-            if getattr(self, "schedd", None) is None:
+
+            # renew the session unless another thread is doing it; None if another thread is, else whether renewed
+            def try_renew():
                 if not self.lock.acquire(False):
-                    raise Exception(f"no session with {self.submissionHost} while another thread is renewing it")
+                    return None
                 try:
-                    is_renewed = self.renew_session()
+                    return self.renew_session()
                 finally:
                     self.lock.release()
+
+            # no session if failed to create one in initialization
+            if getattr(self, "schedd", None) is None:
+                is_renewed = try_renew()
+                if is_renewed is None:
+                    raise Exception(f"no session with {self.submissionHost} while another thread is renewing it")
                 if not is_renewed:
                     errStr = f"failed to communicate with {self.submissionHost}"
                     tmpLog.error(errStr)
@@ -165,13 +197,10 @@ class CondorClient(object):
                 return func(self, *args, **kwargs)
             except CONDOR_SESSION_ERRORS as e:
                 tmpLog.debug(f"got {e.__class__.__name__}: {e}")
-                if not self.lock.acquire(False):
+                is_renewed = try_renew()
+                if is_renewed is None:
                     tmpLog.debug("another thread is renewing condor session; skipped...")
                     raise
-                try:
-                    is_renewed = self.renew_session()
-                finally:
-                    self.lock.release()
                 if not is_renewed:
                     tmpLog.error("failed to renew condor session")
                     raise
@@ -256,7 +285,7 @@ class CondorClient(object):
 # Condor job query
 class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
     """
-    One instance per submissionHost, shared by all queues using it; query settings are thus given in each call rather than in the constructor
+    One instance per submissionHost, shared by all queues using it; per-queue query settings are thus given in each call rather than in the constructor
     """
 
     def __init__(self, *args, **kwargs):
@@ -272,16 +301,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         self.dbProxy = DBProxy()
         tmpLog.debug("Initialize done")
 
-    def get_all(
-        self,
-        batchIDs_dict=None,
-        allJobs=False,
-        to_update_cache=False,
-        cacheEnable=False,
-        cacheRefreshInterval=240,
-        useCondorHistory=True,
-        useCondorHistoryMaxAge=7200,
-    ):
+    def get_all(self, batchIDs_dict=None, allJobs=False, to_update_cache=False, useCondorHistory=True, useCondorHistoryMaxAge=7200):
         """
         Return {condor_job_id: job ads dict} of all jobs of this harvester if allJobs, else of jobs in batchIDs_dict ({batchID: workspec}).
         Jobs in batchIDs_dict not found get an empty dict
@@ -291,13 +311,13 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         # Get all
         tmpLog.debug("Start")
         try:
-            return self.query_with_python(batchIDs_dict, allJobs, to_update_cache, cacheEnable, cacheRefreshInterval, useCondorHistory, useCondorHistoryMaxAge)
+            return self.query_with_python(batchIDs_dict, allJobs, to_update_cache, useCondorHistory, useCondorHistoryMaxAge)
         except Exception as e:
             tmpLog.error(f"Exception {e.__class__.__name__}: {e} ; {traceback.format_exc()}")
             raise
 
     @CondorClient.renew_session_and_retry
-    def query_with_python(self, batchIDs_dict, allJobs, to_update_cache, cacheEnable, cacheRefreshInterval, useCondorHistory, useCondorHistoryMaxAge):
+    def query_with_python(self, batchIDs_dict, allJobs, to_update_cache, useCondorHistory, useCondorHistoryMaxAge):
         # Make logger
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_with_python")
         # Start query
@@ -320,8 +340,8 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                 batchIDs_set.discard(batchid)
 
         # query from the cache shared in DB
-        if cacheEnable:
-            cached_jobs = self.query_from_cache(batchIDs_set, cacheRefreshInterval, allJobs=allJobs, to_update_cache=to_update_cache)
+        if CACHE_ENABLE:
+            cached_jobs = self.query_from_cache(batchIDs_set, allJobs=allJobs, to_update_cache=to_update_cache)
             if cached_jobs is not None:
                 add_jobs(cached_jobs, "cache")
                 if allJobs:
@@ -333,23 +353,22 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
             return job_ads_all_dict
         # jobs not found yet, in the queue
         if batchIDs_set:
-            clusterids_str = ",".join(sorted({get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_set}))
-            tmpLog.debug(f'Query method: query ; clusterids: "{clusterids_str}"')
-            add_jobs(self.schedd.query(constraint=f"member(ClusterID, {{{clusterids_str}}})", projection=CONDOR_JOB_ADS_LIST), "schedd query")
+            constraint = _cluster_constraint(batchIDs_set)
+            tmpLog.debug(f"Query method: query ; {constraint}")
+            add_jobs(self.schedd.query(constraint=constraint, projection=CONDOR_JOB_ADS_LIST), "schedd query")
         # jobs not found yet, in condor history; excluding outdated ones
         if batchIDs_set and useCondorHistory:
             update_time_threshold = core_utils.naive_utcnow() - datetime.timedelta(seconds=useCondorHistoryMaxAge)
-            clusterids_set = set()
-            for batchid in batchIDs_set:
-                workspec = batchIDs_dict[batchid]
-                if (workspec.submitTime and workspec.submitTime >= update_time_threshold) or (
-                    workspec.startTime and workspec.startTime >= update_time_threshold
-                ):
-                    clusterids_set.add(get_job_id_tuple_from_batchid(batchid)[0])
-            if clusterids_set:
-                clusterids_str = ",".join(sorted(clusterids_set))
-                tmpLog.debug(f'Query method: history ; clusterids: "{clusterids_str}"')
-                add_jobs(self.schedd.history(constraint=f"member(ClusterID, {{{clusterids_str}}})", projection=CONDOR_JOB_ADS_LIST), "schedd history")
+            recent_batchids = [
+                batchid
+                for batchid in batchIDs_set
+                if (batchIDs_dict[batchid].submitTime and batchIDs_dict[batchid].submitTime >= update_time_threshold)
+                or (batchIDs_dict[batchid].startTime and batchIDs_dict[batchid].startTime >= update_time_threshold)
+            ]
+            if recent_batchids:
+                constraint = _cluster_constraint(recent_batchids)
+                tmpLog.debug(f"Query method: history ; {constraint}")
+                add_jobs(self.schedd.history(constraint=constraint, projection=CONDOR_JOB_ADS_LIST), "schedd history")
         # Remaining
         if batchIDs_set:
             # Job unfound via both condor_q or condor_history, marked as unknown worker in harvester
@@ -360,7 +379,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         return job_ads_all_dict
 
     # get condor jobs from the cache shared in DB, refreshing the cache from the schedd when due
-    def query_from_cache(self, batchIDs_set, cacheRefreshInterval, allJobs=False, to_update_cache=False):
+    def query_from_cache(self, batchIDs_set, allJobs=False, to_update_cache=False):
         """
         Return a list of job ads dicts of all jobs if allJobs, else of jobs in batchIDs_set.
         Jobs missing in the cache are not included. None if the cache is not usable
@@ -368,11 +387,11 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobQuery.query_from_cache")
         # refresh if due; one at a time across threads and processes
         lock_name = f"condor_job_cache:{self.submissionHost}"
-        locked_by = f"{socket.gethostname()}_{os.getpid()}-{get_ident():x}"
+        locked_by = core_utils.get_pid()
         if to_update_cache:
-            lock_interval = min(_cache_force_refresh_min_interval, cacheRefreshInterval)
+            lock_interval = min(_cache_force_refresh_min_interval, CACHE_REFRESH_INTERVAL)
         else:
-            lock_interval = cacheRefreshInterval
+            lock_interval = CACHE_REFRESH_INTERVAL
         if self.dbProxy.get_process_lock(lock_name, locked_by, lock_interval):
             jobs = self.refresh_cache(tmpLog)
             if jobs is not None:
@@ -381,7 +400,7 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
                 return [job for job in jobs if get_batchid_from_job(job) in batchIDs_set]
         # read from the cache
         refresh_time, target_map = self.dbProxy.get_worker_target_cache(self.submissionHost, None if allJobs else list(batchIDs_set))
-        max_age = 2 * cacheRefreshInterval
+        max_age = 2 * CACHE_REFRESH_INTERVAL
         if refresh_time is None or refresh_time < core_utils.naive_utcnow() - datetime.timedelta(seconds=max_age):
             tmpLog.debug(f"cache not refreshed in last {max_age} sec; not used")
             return None
@@ -487,8 +506,17 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
             if job_id_match is not None:
                 n_jobs = int(job_id_match.group(1))
                 clusterid = job_id_match.group(2)
-                batchIDs_list = [f"{clusterid}.{procid}" for procid in range(n_jobs)]
-                tmpLog.debug(f"submitted {n_jobs} jobs: {' '.join(batchIDs_list)}")
+                if n_jobs == len(jdl_list):
+                    batchIDs_list = [f"{clusterid}.{procid}" for procid in range(n_jobs)]
+                    tmpLog.debug(f"submitted {n_jobs} jobs: {' '.join(batchIDs_list)}")
+                else:
+                    # jobs cannot be matched with jdls, e.g. a template queuing more than one job; remove them all
+                    errStr = f"submitted {n_jobs} jobs in cluster {clusterid} for {len(jdl_list)} jdls; removed the cluster"
+                    tmpLog.error(errStr)
+                    try:
+                        subprocess.run(f"condor_rm {name_opt} {pool_opt} {clusterid}".split(), capture_output=True, timeout=120)
+                    except Exception as e:
+                        tmpLog.error(f"failed to remove cluster {clusterid} ; {e.__class__.__name__}: {e}")
             else:
                 errStr = f"no job submitted: {errStr}"
                 tmpLog.error(errStr)
@@ -540,9 +568,7 @@ class CondorJobManage(CondorClient, metaclass=SingletonWithID):
             else:
                 tmpLog.error(f"job removal failed; batchIDs_list={batchIDs_list}, got: {act_ret}")
                 # need to query queue for unterminated jobs not removed yet
-                clusterids_set = set([get_job_id_tuple_from_batchid(batchid)[0] for batchid in batchIDs_list])
-                clusterids_str = ",".join(list(clusterids_set))
-                constraint = f"member(ClusterID, {{{clusterids_str}}}) && JobStatus =!= 3 && JobStatus =!= 4"
+                constraint = f"{_cluster_constraint(batchIDs_list)} && JobStatus =!= 3 && JobStatus =!= 4"
                 jobs_iter = self.schedd.query(constraint=constraint, projection=CONDOR_JOB_ADS_LIST)
                 all_batchid_map = {}
                 ok_batchid_list = []

@@ -3,9 +3,8 @@ import shutil
 
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestermisc.htcondor_utils import (
-    CondorJobManage,
     condor_job_id_from_workspec,
-    get_host_batchid_map,
+    remove_workers,
 )
 from pandaharvester.harvestersweeper.base_sweeper import BaseSweeper
 
@@ -24,18 +23,9 @@ class HTCondorSweeper(BaseSweeper):
         # Make logger
         tmpLog = self.make_logger(baseLogger, method_name="kill_workers")
         tmpLog.debug("start")
-        # Initialization
-        all_job_ret_map = {}
         retList = []
         # Kill
-        for submissionHost, batchIDs_dict in get_host_batchid_map(workspec_list).items():
-            try:
-                ret_map = CondorJobManage(id=submissionHost).remove(list(batchIDs_dict.keys()))
-            except Exception as e:
-                ret_err_str = f"failed to kill jobs on submissionHost={submissionHost} ; {e.__class__.__name__}: {e}"
-                tmpLog.error(ret_err_str)
-                ret_map = {condor_job_id_from_workspec(workspec): (False, ret_err_str) for workspec in batchIDs_dict.values()}
-            all_job_ret_map.update(ret_map)
+        all_job_ret_map = remove_workers(workspec_list)
         # Fill return list
         for workspec in workspec_list:
             if workspec.batchID is None:
