@@ -66,6 +66,9 @@ CACHE_REFRESH_INTERVAL = getattr(harvester_config.monitor, "pluginCacheRefreshIn
 # minimum interval in sec between forced refreshes of the condor job cache of a submission host
 _cache_force_refresh_min_interval = 60
 
+# submit with the version 2 Python API (Schedd.submit) instead of condor_submit command; for testing, no effect with the version 1 API
+SUBMIT_WITH_PYTHON = False
+
 # ===============================================================
 
 # === Functions =================================================
@@ -462,11 +465,20 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
 
     def submit(self, jdl_list, use_spool=False):
         """
-        Submit jdls as one cluster with condor_submit command; the Python API (Schedd.submit) got segfaults or C++ errors after many submissions.
+        Submit jdls as one cluster, with condor_submit command by default, or with the Python API if SUBMIT_WITH_PYTHON.
+        Return (list of batchIDs, one per jdl in order, error string)
+        """
+        if SUBMIT_WITH_PYTHON and CONDOR_API_VERSION == 2:
+            return self.submit_with_python(jdl_list, use_spool=use_spool)
+        return self.submit_with_command(jdl_list, use_spool=use_spool)
+
+    def submit_with_command(self, jdl_list, use_spool=False):
+        """
+        Submit jdls as one cluster with condor_submit command; the version 1 Python API (Schedd.submit) got segfaults or C++ errors after many submissions.
         Return (list of batchIDs, error string)
         """
         # Make logger
-        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobSubmit.submit")
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobSubmit.submit_with_command")
         # Initialize
         errStr = ""
         batchIDs_list = []
@@ -525,6 +537,79 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
             tmpLog.error(f"submission failed: {errStr}")
         # Return
         return (batchIDs_list, errStr)
+
+    @CondorClient.renew_session_and_retry
+    def submit_with_python(self, jdl_list, use_spool=False):
+        """
+        Submit jdls as one cluster with the version 2 Python API, as condor_submit -single-cluster does.
+        Schedd.submit takes one submit description, so attributes with the same value in all jdls go to the description as they are,
+        while each of the others is set to a variable in the description, e.g. "arguments = $(HarvesterItem3)", given per job via itemdata.
+        Unlike condor_submit, an attribute missing in a jdl is unset for its job instead of inherited from the previous jdl.
+        Return (list of batchIDs, error string)
+        """
+        # Make logger
+        tmpLog = core_utils.make_logger(baseLogger, f"submissionHost={self.submissionHost}", method_name="CondorJobSubmit.submit_with_python")
+        tmpLog.debug("Start")
+        n_jdls = len(jdl_list)
+        # parse jdls and make the submit description and itemdata
+        try:
+            jdl_map_list = []
+            for jdl in jdl_list:
+                jdl_submit = htcondor.Submit(jdl)
+                if jdl_submit.getQArgs().strip() not in ("", "1"):
+                    errStr = f"jdl queues more than one job: queue {jdl_submit.getQArgs()}"
+                    tmpLog.error(errStr)
+                    return [], errStr
+                jdl_map_list.append(dict(jdl_submit.items()))
+            # empty value is the same as unset in submit language
+            description_map = {}
+            varying_keys = []
+            for key in dict.fromkeys(key for jdl_map in jdl_map_list for key in jdl_map):
+                values = {jdl_map.get(key, "") for jdl_map in jdl_map_list}
+                if len(values) == 1:
+                    description_map[key] = values.pop()
+                else:
+                    description_map[key] = f"$(HarvesterItem{len(varying_keys)})"
+                    varying_keys.append(key)
+            description = htcondor.Submit(description_map)
+            item_list = [{f"HarvesterItem{i}": jdl_map.get(key, "") for i, key in enumerate(varying_keys)} for jdl_map in jdl_map_list]
+        except Exception as e:
+            errStr = f"failed to make submit description; {e.__class__.__name__}: {e}"
+            tmpLog.error(errStr)
+            return [], errStr
+        # submit; errors raised for renewing the session and retrying
+        spool = bool(use_spool and self.condor_schedd)
+        tmpLog.debug(f"submit {n_jdls} jobs with {len(description_map)} attributes of which {len(varying_keys)} vary; spool={spool}")
+        if varying_keys:
+            submit_result = self.schedd.submit(description, spool=spool, itemdata=iter(item_list))
+        else:
+            submit_result = self.schedd.submit(description, count=n_jdls, spool=spool)
+        clusterid = submit_result.cluster()
+        first_proc = submit_result.first_proc()
+        batchIDs_list = [f"{clusterid}.{procid}" for procid in range(first_proc, first_proc + submit_result.num_procs())]
+
+        def remove_cluster():
+            try:
+                self.schedd.act(htcondor.JobAction.Remove, str(clusterid))
+            except Exception as e:
+                tmpLog.error(f"failed to remove cluster {clusterid} ; {e.__class__.__name__}: {e}")
+
+        if len(batchIDs_list) != n_jdls:
+            errStr = f"submitted {len(batchIDs_list)} jobs in cluster {clusterid} for {n_jdls} jdls; removed the cluster"
+            tmpLog.error(errStr)
+            remove_cluster()
+            return [], errStr
+        # upload input files of jobs submitted on hold for spooling
+        if spool:
+            try:
+                self.schedd.spool(submit_result)
+            except Exception as e:
+                errStr = f"failed to spool input files of cluster {clusterid}; removed the cluster; {e.__class__.__name__}: {e}"
+                tmpLog.error(errStr)
+                remove_cluster()
+                return [], errStr
+        tmpLog.debug(f"submitted {n_jdls} jobs: {' '.join(batchIDs_list)}")
+        return batchIDs_list, ""
 
 
 # Condor job remove
