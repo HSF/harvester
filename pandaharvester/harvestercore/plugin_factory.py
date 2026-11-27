@@ -1,3 +1,5 @@
+import importlib
+
 from . import core_utils
 from .db_interface import DBInterface
 
@@ -9,52 +11,36 @@ _logger = core_utils.setup_logger("plugin_factory")
 class PluginFactory(object):
     # constructor
     def __init__(self, no_db=False):
+        # plugin classes by plugin key
         self.classMap = {}
         self.noDB = no_db
 
-    # get plugin key
+    # get plugin key, module + class
     def get_plugin_key(self, plugin_conf):
-        # use module + class as key
-        moduleName = plugin_conf["module"]
-        className = plugin_conf["name"]
-        pluginKey = f"{moduleName}.{className}"
-        return pluginKey
+        return f"{plugin_conf['module']}.{plugin_conf['name']}"
 
-    # get plugin instance
+    # get plugin instance; None if module or class is None
     def get_plugin(self, plugin_conf):
-        # use module + class as key
-        moduleName = plugin_conf["module"]
-        className = plugin_conf["name"]
-        pluginKey = f"{moduleName}.{className}"
-        if moduleName is None or className is None:
+        module_name = plugin_conf["module"]
+        class_name = plugin_conf["name"]
+        if module_name is None or class_name is None:
             return None
-        # get class
-        if pluginKey not in self.classMap:
-            tmpLog = core_utils.make_logger(_logger, method_name="get_plugin")
-            # import module
-            tmpLog.debug(f"importing {moduleName}")
-            mod = __import__(moduleName)
-            for subModuleName in moduleName.split(".")[1:]:
-                mod = getattr(mod, subModuleName)
-            # get class
-            tmpLog.debug(f"getting class {className}")
-            cls = getattr(mod, className)
-            # add
-            self.classMap[pluginKey] = cls
-        # make args
-        args = {}
-        for tmpKey, tmpVal in plugin_conf.items():
-            if tmpKey in ["module", "name"]:
-                continue
-            args[tmpKey] = tmpVal
+        # get class, importing the module at the first call
+        plugin_key = self.get_plugin_key(plugin_conf)
+        if plugin_key not in self.classMap:
+            tmp_log = core_utils.make_logger(_logger, method_name="get_plugin")
+            tmp_log.debug(f"importing {module_name}")
+            module = importlib.import_module(module_name)
+            tmp_log.debug(f"getting class {class_name}")
+            self.classMap[plugin_key] = getattr(module, class_name)
+        cls = self.classMap[plugin_key]
+        # plugin parameters become instance attributes
+        args = {key: value for key, value in plugin_conf.items() if key not in ("module", "name")}
         # add database interface
         if not self.noDB:
             args["dbInterface"] = DBInterface()
-        # instantiate
-        cls = self.classMap[pluginKey]
         impl = cls(**args)
         # bare instance when middleware is used
         if "original_config" in plugin_conf and "bareFunctions" in plugin_conf:
-            bare_impl = self.get_plugin(plugin_conf["original_config"])
-            impl.bare_impl = bare_impl
+            impl.bare_impl = self.get_plugin(plugin_conf["original_config"])
         return impl

@@ -7,7 +7,6 @@ import base64
 import codecs
 import fcntl
 import functools
-import inspect
 import json
 import math
 import os
@@ -91,24 +90,19 @@ class MapWithLock(object):
         self.dataMap = dict()
 
     def __getitem__(self, item):
-        ret = self.dataMap.__getitem__(item)
-        return ret
+        return self.dataMap[item]
 
     def __setitem__(self, item, value):
-        self.dataMap.__setitem__(item, value)
+        self.dataMap[item] = value
 
     def __contains__(self, item):
-        ret = self.dataMap.__contains__(item)
-        return ret
+        return item in self.dataMap
 
     def acquire(self):
         self.lock.acquire()
 
     def release(self):
         self.lock.release()
-
-    def iteritems(self):
-        return self.dataMap.items()
 
 
 # global dict for all threads
@@ -129,22 +123,7 @@ class SingletonWithID(type):
         return cls.__instance.get(obj_id)
 
 
-# singleton distinguishable with each thread and id
-class SingletonWithThreadAndID(type):
-    def __init__(cls, *args, **kwargs):
-        cls.__instance = {}
-        super(SingletonWithThreadAndID, cls).__init__(*args, **kwargs)
-
-    @synchronize
-    def __call__(cls, *args, **kwargs):
-        thread_id = get_ident()
-        obj_id = (thread_id, str(kwargs.get("id", "")))
-        if obj_id not in cls.__instance:
-            cls.__instance[obj_id] = super(SingletonWithThreadAndID, cls).__call__(*args, **kwargs)
-        return cls.__instance.get(obj_id)
-
-
-# replacement for slow namedtuple in python 2
+# tuple of a DB row which can also be converted to a dict of column names and values
 class DictTupleHybrid(tuple):
     def set_attributes(self, attributes):
         self.attributes = attributes
@@ -153,7 +132,7 @@ class DictTupleHybrid(tuple):
         return dict(zip(self.attributes, self))
 
 
-# safe dictionary to retrun original strings for missing keys
+# safe dictionary to return original strings for missing keys
 class SafeDict(dict):
     def __missing__(self, key):
         return "{" + key + "}"
@@ -170,12 +149,10 @@ def enable_memory_profiling():
     with_memory_profile = True
 
 
-# setup logger
+# setup logger; the name is the module name of the caller by default
 def setup_logger(name=None):
     if name is None:
-        frm = inspect.stack()[1][0]
-        mod = inspect.getmodule(frm)
-        name = mod.__name__.split(".")[-1]
+        name = sys._getframe(1).f_globals["__name__"].split(".")[-1]
     try:
         log_level = getattr(harvester_config.log_level, name)
         return PandaLogger().getLogger(name, log_level=log_level)
@@ -184,25 +161,21 @@ def setup_logger(name=None):
     return PandaLogger().getLogger(name)
 
 
-# make logger
+# make logger; the method name is the name of the caller by default
 def make_logger(tmp_log, token=None, method_name=None, hook=None):
-    # get method name of caller
     if method_name is None:
-        tmp_str = inspect.stack()[1][3]
-    else:
-        tmp_str = method_name
+        method_name = sys._getframe(1).f_code.co_name
     if token is not None:
-        tmp_str += f" <{token}>"
+        prefix = f"{method_name} <{token}>"
     else:
-        tmp_str += " :".format(token)
-    new_log = LogWrapper(tmp_log, tmp_str, seeMem=with_memory_profile, hook=hook)
-    return new_log
+        prefix = f"{method_name} :"
+    return LogWrapper(tmp_log, prefix, seeMem=with_memory_profile, hook=hook)
 
 
 # dump error message
 def dump_error_message(tmp_log, err_str=None, no_message=False):
     if not isinstance(tmp_log, LogWrapper):
-        method_name = f"{inspect.stack()[1][3]} : "
+        method_name = f"{sys._getframe(1).f_code.co_name} : "
     else:
         method_name = ""
     # error
@@ -270,9 +243,7 @@ def calc_adler32(file_name):
             if not data:
                 break
             val = zlib.adler32(data, val)
-    if val < 0:
-        val += 2**32
-    return hex(val)[2:10].zfill(8).lower()
+    return f"{val:08x}"
 
 
 # get output file report
@@ -317,179 +288,149 @@ def create_shards(input_list, size):
         yield shard
 
 
+# add output files of a job reported by workers, a dict of {workerID: {PandaID: {lfn: [file attributes, ...]}}}
+def _add_output_files_to_job(jobspec, files_to_stage_out_list):
+    out_file_attrs = jobspec.get_output_file_attributes()
+    for worker_id, files_to_stage_out in files_to_stage_out_list.items():
+        for lfn, file_attrs_list in files_to_stage_out.get(jobspec.PandaID, {}).items():
+            for file_attrs in file_attrs_list:
+                file_spec = FileSpec()
+                file_spec.lfn = lfn
+                file_spec.PandaID = jobspec.PandaID
+                file_spec.taskID = jobspec.taskID
+                file_spec.path = file_attrs["path"]
+                file_spec.fsize = file_attrs["fsize"]
+                file_spec.fileType = file_attrs["type"]
+                file_spec.fileAttributes = file_attrs
+                file_spec.workerID = worker_id
+                if "isZip" in file_attrs:
+                    file_spec.isZip = file_attrs["isZip"]
+                if "chksum" in file_attrs:
+                    file_spec.chksum = file_attrs["chksum"]
+                if "eventRangeID" in file_attrs:
+                    file_spec.eventRangeID = file_attrs["eventRangeID"]
+                    # use input fileID as provenanceID
+                    try:
+                        file_spec.provenanceID = file_spec.eventRangeID.split("-")[2]
+                    except Exception:
+                        file_spec.provenanceID = None
+                if lfn in out_file_attrs:
+                    file_spec.scope = out_file_attrs[lfn]["scope"]
+                jobspec.add_out_file(file_spec)
+
+
+# add events of a job reported by workers, a list of {PandaID: [event data, ...]}
+def _add_events_to_job(jobspec, events_to_update_list):
+    for events_to_update in events_to_update_list:
+        for data in events_to_update.get(jobspec.PandaID, []):
+            event_spec = EventSpec()
+            event_spec.from_data(data, jobspec.PandaID)
+            jobspec.add_event(event_spec, None)
+
+
+# update jobs with one worker, for OneToOne and ManyToOne (MultiJobs)
+def _update_jobs_with_one_worker(jobspec_list, workspec, files_to_stage_out_list, events_to_update_list):
+    for jobSpec in jobspec_list:
+        jobSpec.set_attributes(workspec.workAttributes)
+        # delete job metadata from worker attributes
+        try:
+            del workspec.workAttributes[jobSpec.PandaID]["metaData"]
+        except Exception:
+            pass
+        # set start and end times
+        if workspec.status == WorkSpec.ST_running:
+            jobSpec.set_start_time()
+        elif workspec.pilot_closed:
+            jobSpec.reset_start_end_time()
+        elif workspec.is_final_status():
+            jobSpec.set_end_time()
+        # core count, shared by the jobs
+        if workspec.nCore is not None and jobSpec.nCore is None:
+            try:
+                jobSpec.nCore = max(int(workspec.nCore / len(jobspec_list)), 1)
+            except Exception:
+                pass
+        # batch ID
+        if not jobSpec.has_attribute("batchID") and workspec.batchID is not None:
+            jobSpec.set_one_attribute("batchID", workspec.batchID)
+        _add_output_files_to_job(jobSpec, files_to_stage_out_list)
+        _add_events_to_job(jobSpec, events_to_update_list)
+        # status
+        statusInJobAttr = jobSpec.get_job_status_from_attributes()
+        jobSpec.status, jobSpec.subStatus = workspec.convert_to_job_status(statusInJobAttr)
+        if workspec.pilot_closed:
+            jobSpec.set_pilot_closed()
+        if workspec.new_status:
+            jobSpec.trigger_propagation()
+
+
+# update a job with many workers, for OneToMany (MultiWorkers)
+def _update_job_with_many_workers(jobSpec, workspec_list, files_to_stage_out_list, events_to_update_list):
+    # scan all workers
+    allDone = True
+    isRunning = False
+    oneFinished = False
+    oneFailed = False
+    nCore = 0
+    nCoreTime = 0
+    for workSpec in workspec_list:
+        if workSpec.new_status:
+            jobSpec.trigger_propagation()
+        # the worker is running
+        if workSpec.status == WorkSpec.ST_running:
+            isRunning = True
+            # set start time
+            jobSpec.set_start_time()
+            nCore += workSpec.nCore
+        # the worker is done
+        if workSpec.is_final_status():
+            if workSpec.startTime is not None and workSpec.endTime is not None:
+                nCoreTime += workSpec.nCore * (workSpec.endTime - workSpec.startTime).total_seconds()
+            if workSpec.status == WorkSpec.ST_finished:
+                oneFinished = True
+            elif workSpec.status == WorkSpec.ST_failed:
+                oneFailed = True
+        else:
+            # the worker is still active
+            allDone = False
+    # set final values
+    if allDone:
+        # set end time
+        jobSpec.set_end_time()
+        # time-averaged core count
+        if jobSpec.startTime is not None:
+            total_time = (jobSpec.endTime - jobSpec.startTime).total_seconds()
+            if total_time > 0:
+                jobSpec.nCore = int(math.ceil(nCoreTime / total_time))
+        # disable to get more workers
+        jobSpec.moreWorkers = 0
+    else:
+        # live core count
+        jobSpec.nCore = nCore
+    # worker attributes are not set to the job, since attributes from many workers would need to be merged without conflicts
+    _add_output_files_to_job(jobSpec, files_to_stage_out_list)
+    _add_events_to_job(jobSpec, events_to_update_list)
+    # set job status
+    if allDone:
+        if oneFinished:
+            job_status = WorkSpec.ST_finished
+        elif oneFailed:
+            job_status = WorkSpec.ST_failed
+        else:
+            job_status = WorkSpec.ST_cancelled
+    elif isRunning or jobSpec.status == "running":
+        job_status = WorkSpec.ST_running
+    else:
+        job_status = WorkSpec.ST_submitted
+    jobSpec.status, jobSpec.subStatus = workspec_list[0].convert_to_job_status(job_status)
+
+
 # update job attributes with workers
 def update_job_attributes_with_workers(map_type, jobspec_list, workspec_list, files_to_stage_out_list, events_to_update_list):
     if map_type in [WorkSpec.MT_OneToOne, WorkSpec.MT_MultiJobs]:
-        workSpec = workspec_list[0]
-        for jobSpec in jobspec_list:
-            jobSpec.set_attributes(workSpec.workAttributes)
-            # delete job metadata from worker attributes
-            try:
-                del workSpec.workAttributes[jobSpec.PandaID]["metaData"]
-            except Exception:
-                pass
-            # set start and end times
-            if workSpec.status in [WorkSpec.ST_running]:
-                jobSpec.set_start_time()
-            elif workSpec.pilot_closed:
-                jobSpec.reset_start_end_time()
-            elif workSpec.is_final_status():
-                jobSpec.set_end_time()
-            # core count
-            if workSpec.nCore is not None and jobSpec.nCore is None:
-                try:
-                    jobSpec.nCore = int(workSpec.nCore / len(jobspec_list))
-                    if jobSpec.nCore == 0:
-                        jobSpec.nCore = 1
-                except Exception:
-                    pass
-            # batch ID
-            if not jobSpec.has_attribute("batchID"):
-                if workSpec.batchID is not None:
-                    jobSpec.set_one_attribute("batchID", workSpec.batchID)
-            # add files
-            outFileAttrs = jobSpec.get_output_file_attributes()
-            for tmpWorkerID, files_to_stage_out in files_to_stage_out_list.items():
-                if jobSpec.PandaID in files_to_stage_out:
-                    for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].items():
-                        for fileAtters in fileAttersList:
-                            fileSpec = FileSpec()
-                            fileSpec.lfn = lfn
-                            fileSpec.PandaID = jobSpec.PandaID
-                            fileSpec.taskID = jobSpec.taskID
-                            fileSpec.path = fileAtters["path"]
-                            fileSpec.fsize = fileAtters["fsize"]
-                            fileSpec.fileType = fileAtters["type"]
-                            fileSpec.fileAttributes = fileAtters
-                            fileSpec.workerID = tmpWorkerID
-                            if "isZip" in fileAtters:
-                                fileSpec.isZip = fileAtters["isZip"]
-                            if "chksum" in fileAtters:
-                                fileSpec.chksum = fileAtters["chksum"]
-                            if "eventRangeID" in fileAtters:
-                                fileSpec.eventRangeID = fileAtters["eventRangeID"]
-                                # use input fileID as provenanceID
-                                try:
-                                    provenanceID = fileSpec.eventRangeID.split("-")[2]
-                                except Exception:
-                                    provenanceID = None
-                                fileSpec.provenanceID = provenanceID
-                            if lfn in outFileAttrs:
-                                fileSpec.scope = outFileAttrs[lfn]["scope"]
-                            jobSpec.add_out_file(fileSpec)
-            # add events
-            for events_to_update in events_to_update_list:
-                if jobSpec.PandaID in events_to_update:
-                    for data in events_to_update[jobSpec.PandaID]:
-                        eventSpec = EventSpec()
-                        eventSpec.from_data(data, jobSpec.PandaID)
-                        jobSpec.add_event(eventSpec, None)
-            statusInJobAttr = jobSpec.get_job_status_from_attributes()
-            jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(statusInJobAttr)
-            if workSpec.pilot_closed:
-                jobSpec.set_pilot_closed()
-            if workSpec.new_status:
-                jobSpec.trigger_propagation()
+        _update_jobs_with_one_worker(jobspec_list, workspec_list[0], files_to_stage_out_list, events_to_update_list)
     elif map_type == WorkSpec.MT_MultiWorkers:
-        jobSpec = jobspec_list[0]
-        # scan all workers
-        allDone = True
-        isRunning = False
-        oneFinished = False
-        oneFailed = False
-        nCore = 0
-        nCoreTime = 0
-        for workSpec in workspec_list:
-            if workSpec.new_status:
-                jobSpec.trigger_propagation()
-            # the worker is running
-            if workSpec.status in [WorkSpec.ST_running]:
-                isRunning = True
-                # set start time
-                jobSpec.set_start_time()
-                nCore += workSpec.nCore
-            # the worker is done
-            if workSpec.is_final_status():
-                if workSpec.startTime is not None and workSpec.endTime is not None:
-                    nCoreTime += workSpec.nCore * (workSpec.endTime - workSpec.startTime).total_seconds()
-                if workSpec.status == WorkSpec.ST_finished:
-                    oneFinished = True
-                elif workSpec.status == WorkSpec.ST_failed:
-                    oneFailed = True
-            else:
-                # the worker is still active
-                allDone = False
-        # set final values
-        if allDone:
-            # set end time
-            jobSpec.set_end_time()
-            # time-averaged core count
-            if jobSpec.startTime is not None:
-                total_time = (jobSpec.endTime - jobSpec.startTime).total_seconds()
-                if total_time > 0:
-                    jobSpec.nCore = float(nCoreTime) / float(total_time)
-                    jobSpec.nCore = int(math.ceil(jobSpec.nCore))
-            # disable to get more workers
-            jobSpec.moreWorkers = 0
-        else:
-            # live core count
-            jobSpec.nCore = nCore
-        # combine worker attributes and set it to job
-        # NOTE: Setting worker attributes is commented out for MultiWorkers map type
-        # as it requires aggregating attributes from multiple workers, which needs
-        # careful implementation to avoid conflicts
-        # jobSpec.set_attributes(workAttributes)
-        # add files
-        outFileAttrs = jobSpec.get_output_file_attributes()
-        for tmpWorkerID, files_to_stage_out in files_to_stage_out_list.items():
-            if jobSpec.PandaID in files_to_stage_out:
-                for lfn, fileAttersList in files_to_stage_out[jobSpec.PandaID].items():
-                    for fileAtters in fileAttersList:
-                        fileSpec = FileSpec()
-                        fileSpec.lfn = lfn
-                        fileSpec.PandaID = jobSpec.PandaID
-                        fileSpec.taskID = jobSpec.taskID
-                        fileSpec.path = fileAtters["path"]
-                        fileSpec.fsize = fileAtters["fsize"]
-                        fileSpec.fileType = fileAtters["type"]
-                        fileSpec.fileAttributes = fileAtters
-                        fileSpec.workerID = tmpWorkerID
-                        if "isZip" in fileAtters:
-                            fileSpec.isZip = fileAtters["isZip"]
-                        if "chksum" in fileAtters:
-                            fileSpec.chksum = fileAtters["chksum"]
-                        if "eventRangeID" in fileAtters:
-                            fileSpec.eventRangeID = fileAtters["eventRangeID"]
-                            # use input fileID as provenanceID
-                            try:
-                                provenanceID = fileSpec.eventRangeID.split("-")[2]
-                            except Exception:
-                                provenanceID = None
-                            fileSpec.provenanceID = provenanceID
-                        if lfn in outFileAttrs:
-                            fileSpec.scope = outFileAttrs[lfn]["scope"]
-                        jobSpec.add_out_file(fileSpec)
-        # add events
-        for events_to_update in events_to_update_list:
-            if jobSpec.PandaID in events_to_update:
-                for data in events_to_update[jobSpec.PandaID]:
-                    eventSpec = EventSpec()
-                    eventSpec.from_data(data, jobSpec.PandaID)
-                    jobSpec.add_event(eventSpec, None)
-        # set job status
-        workSpec = workspec_list[0]
-        if allDone:
-            if oneFinished:
-                jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_finished)
-            elif oneFailed:
-                jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_failed)
-            else:
-                jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_cancelled)
-        else:
-            if isRunning or jobSpec.status == "running":
-                jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_running)
-            else:
-                jobSpec.status, jobSpec.subStatus = workSpec.convert_to_job_status(WorkSpec.ST_submitted)
+        _update_job_with_many_workers(jobspec_list[0], workspec_list, files_to_stage_out_list, events_to_update_list)
     return True
 
 
@@ -592,14 +533,6 @@ def set_file_permission(path):
     os.umask(umask)
 
 
-# get URL of queues config file
-def get_queues_config_url():
-    try:
-        return os.environ["HARVESTER_QUEUE_CONFIG_URL"]
-    except Exception:
-        return None
-
-
 # get unique queue name
 def get_unique_queue_name(queue_name, resource_type, job_type):
     return f"{queue_name}:{resource_type}:{job_type}"
@@ -607,14 +540,13 @@ def get_unique_queue_name(queue_name, resource_type, job_type):
 
 # capability to dynamically change plugins
 def dynamic_plugin_change():
-    try:
-        return harvester_config.master.dynamic_plugin_change
-    except Exception:
-        return True
+    return getattr(harvester_config.master, "dynamic_plugin_change", True)
 
 
 # Make a list of choice candidates according to permille weight
-def make_choice_list(pdpm={}, default=None):
+def make_choice_list(pdpm=None, default=None):
+    if pdpm is None:
+        pdpm = {}
     weight_sum = sum(pdpm.values())
     weight_default = 1000
     ret_list = []
@@ -654,12 +586,7 @@ def retry_period_sec(nth_retry, increment=1, max_retries=None, max_seconds=None,
 
 # get process identifier on the fly
 def get_pid():
-    hostname = socket.gethostname()
-    os_pid = os.getpid()
-    thread_id = get_ident()
-    if thread_id is None:
-        thread_id = 0
-    return f"{hostname}_{os_pid}-{format(get_ident(), 'x')}"
+    return f"{socket.gethostname()}_{os.getpid()}-{get_ident():x}"
 
 
 def aware_utcnow() -> datetime:
