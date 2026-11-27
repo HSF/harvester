@@ -115,7 +115,7 @@ class QueueModule(BaseModule):
 
     # get queues to submit workers
     @db_error_handler(default=({}, None, {}))
-    def get_queues_to_submit(self, lookup_interval, lock_interval, locked_by, queue_lock_interval):
+    def get_queues_to_submit(self, lookup_interval, locked_by, queue_lock_interval):
         # get logger
         tmpLog = core_utils.make_logger(_logger, method_name="get_queues_to_submit")
         tmpLog.debug("start")
@@ -133,14 +133,6 @@ class QueueModule(BaseModule):
 
         # sql to get queues
         sql_get_queues = f"SELECT queueName, jobType, resourceType, nNewWorkers FROM {pandaQueueTableName} WHERE siteName=:siteName "
-
-        # sql to get orphaned workers
-        sql_get_orphaned_workers = (
-            f"SELECT workerID FROM {workTableName} WHERE computingSite=:computingSite AND status=:status AND modificationTime<:timeLimit "
-        )
-
-        # sql to delete orphaned workers. Not to use bulk delete to avoid deadlock with 0-record deletion
-        sql_delete_orphaned_worker = f"DELETE FROM {workTableName} WHERE workerID=:workerID "
 
         # sql to count nQueue
         sql_count_workers = f"SELECT pilotType, status, COUNT(*) cnt FROM {workTableName} WHERE computingSite=:computingSite "
@@ -189,16 +181,6 @@ class QueueModule(BaseModule):
             for queueName, jobType, resourceType, nNewWorkers in resQ:
                 # conditions on jobType and resourceType shared by the queries below
                 sqlJR, varMapJR = _get_job_resource_type_condition(jobType, resourceType)
-                # delete orphaned workers
-                varMap = {":computingSite": queueName, ":status": WorkSpec.ST_pending, ":timeLimit": timeNow - datetime.timedelta(seconds=lock_interval)}
-                varMap.update(varMapJR)
-                self.execute(sql_get_orphaned_workers + sqlJR, varMap)
-                resO = self.cur.fetchall()
-                for (tmpWorkerID,) in resO:
-                    self.execute(sql_delete_orphaned_worker, {":workerID": tmpWorkerID})
-                    # commit
-                    self.commit()
-
                 # count nQueue
                 varMap = {":computingSite": queueName}
                 varMap.update(varMapJR)

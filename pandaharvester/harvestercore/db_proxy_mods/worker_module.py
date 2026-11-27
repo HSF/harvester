@@ -3,7 +3,6 @@ DB proxy module for workers
 
 """
 
-import copy
 import datetime
 import random
 
@@ -162,30 +161,6 @@ class WorkerModule(BaseModule):
         # create the worker check schedule
         if first_check_time is not None and not workspec.is_final_status() and workspec.mapType != WorkSpec.MT_MultiWorkers:
             self._insert_worker_check(workspec.workerID, first_check_time, WorkerCheckSpec.TRIG_submit)
-        # commit
-        self.commit()
-        # return
-        return True
-
-    # insert workers
-    @db_error_handler(default=False)
-    def insert_workers(self, workspec_list, locked_by):
-        tmpLog = core_utils.make_logger(_logger, f"locked_by={locked_by}", method_name="insert_workers")
-        tmpLog.debug("start")
-        timeNow = core_utils.naive_utcnow()
-        # sql to insert a worker
-        sqlI = f"INSERT INTO {workTableName} ({WorkSpec.column_names()}) "
-        sqlI += WorkSpec.bind_values_expression()
-        for workSpec in workspec_list:
-            # NOTE: copy.copy goes through WorkSpec.__getstate__/__setstate__, which resets isNew to False,
-            # so no worker is inserted here
-            tmpWorkSpec = copy.copy(workSpec)
-            # insert worker if new
-            if not tmpWorkSpec.isNew:
-                continue
-            tmpWorkSpec.modificationTime = timeNow
-            tmpWorkSpec.status = WorkSpec.ST_pending
-            self.execute(sqlI, tmpWorkSpec.values_list())
         # commit
         self.commit()
         # return

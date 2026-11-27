@@ -46,12 +46,7 @@ class Submitter(AgentBase):
             main_log.debug("getting queues to submit workers")
 
             # get queues associated to a site to submit workers
-            current_workers, site_name, res_map = self.dbProxy.get_queues_to_submit(
-                harvester_config.submitter.lookupTime,
-                harvester_config.submitter.lockInterval,
-                locked_by,
-                queue_lock_interval,
-            )
+            current_workers, site_name, res_map = self.dbProxy.get_queues_to_submit(harvester_config.submitter.lookupTime, locked_by, queue_lock_interval)
             submitted = False
             if site_name is not None:
                 main_log.debug(f"got {len(current_workers)} queues for site {site_name}")
@@ -197,8 +192,6 @@ class Submitter(AgentBase):
                         tmp_log.error(f"failed to send jobs to workerID={work_spec.workerID}")
                     else:
                         tmp_log.debug(f"sent jobs to workerID={work_spec.workerID} with {tmpStat}")
-            # insert workers
-            self.dbProxy.insert_workers(work_specList, locked_by)
             # submit
             sw = core_utils.get_stopwatch()
             tmp_log.info(f"submitting {len(work_specList)} workers")
@@ -210,9 +203,13 @@ class Submitter(AgentBase):
                 if tmpRet:
                     for job_spec in work_spec.get_jobspec_list() or []:
                         okPandaIDs.add(job_spec.PandaID)
-            # register workers
+            # register workers; a failure of one worker doesn't stop the others
             for work_spec, tmpRet, tmpStr in result_list:
-                self.register_submitted_worker(work_spec, tmpRet, tmpStr, okPandaIDs, queue_config, timeNow, pandaIDs, locked_by, tmp_log)
+                try:
+                    self.register_submitted_worker(work_spec, tmpRet, tmpStr, okPandaIDs, queue_config, timeNow, pandaIDs, locked_by, tmp_log)
+                except Exception:
+                    core_utils.dump_error_message(tmp_log)
+                    self.handle_unregistered_worker(work_spec, tmpRet, pandaIDs, tmp_log)
             return True
         finally:
             # release jobs
@@ -389,6 +386,8 @@ class Submitter(AgentBase):
         # register worker
         tmpStat = self.dbProxy.register_worker(work_spec, jobList, locked_by, first_check_time=time_now + datetime.timedelta(seconds=self.first_check_delay))
         batch_str = f"submissionHost={work_spec.submissionHost} batchID={work_spec.batchID}"
+        if not tmpStat:
+            self.handle_unregistered_worker(work_spec, tmp_ret, panda_ids, tmp_log)
         for job_spec in jobList or []:
             panda_ids.add(job_spec.PandaID)
             if not tmpStat:
@@ -397,6 +396,18 @@ class Submitter(AgentBase):
                 tmp_log.info(f"submitted a workerID={work_spec.workerID} for PandaID={job_spec.PandaID} with {batch_str}")
             else:
                 tmp_log.error(f"failed to submit a workerID={work_spec.workerID} for PandaID={job_spec.PandaID}")
+
+    # handle a worker which failed to be registered: release all its jobs, and report it if it was submitted since it is unknown to harvester
+    def handle_unregistered_worker(self, work_spec, tmp_ret, panda_ids, tmp_log):
+        for job_spec in work_spec.get_jobspec_list() or []:
+            panda_ids.add(job_spec.PandaID)
+        if tmp_ret:
+            tmp_log.error(
+                f"workerID={work_spec.workerID} was submitted but failed to be registered, so it is not managed by harvester; "
+                f"submissionHost={work_spec.submissionHost} batchID={work_spec.batchID}"
+            )
+        else:
+            tmp_log.error(f"workerID={work_spec.workerID} failed to be registered after failed submission")
 
     # submit workers with the submitter plugin, skipping ready and running workers
     # return a list of (workspec, result, message), where result is True for success, False for a permanent error, None for a temporary error
