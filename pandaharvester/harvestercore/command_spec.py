@@ -21,6 +21,14 @@ class CommandSpec(SpecBase):
     def __init__(self):
         SpecBase.__init__(self)
 
+    # get the receiver of a command; None if unknown
+    @classmethod
+    def get_receiver(cls, command):
+        for com_str, receiver in cls.receiver_map.items():
+            if command.startswith(com_str):
+                return receiver
+        return None
+
     # convert from Command JSON
     def convert_command_json(self, data):
         # mandatory fields

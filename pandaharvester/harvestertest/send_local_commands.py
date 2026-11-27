@@ -7,14 +7,7 @@ from pandaharvester.harvestercore.db_proxy_pool import DBProxyPool as DBProxy
 
 def make_command_spec(command, params, command_id):
     """
-    Build a CommandSpec to be inserted into the DB from only command and params.
-
-    command_id must be provided explicitly: it is the primary key and (unlike on
-    sqlite) is NOT auto-assigned by the backend. Locally-submitted commands use
-    negative ids so they never collide with the positive ids assigned by the
-    panda server. receiver is resolved from the command->receiver map and
-    processed/ack_requested are initialized so the command can actually be
-    retrieved by get_commands_for_receiver().
+    Build a locally-submitted CommandSpec; command_id is not auto-assigned on mariadb, so it is given explicitly
     """
     command_spec = CommandSpec()
     command_spec.command_id = command_id
@@ -22,12 +15,8 @@ def make_command_spec(command, params, command_id):
     command_spec.params = params
     command_spec.ack_requested = 0
     command_spec.processed = 0
-    # resolve receiver the same way command_manager does, otherwise the command
-    # is never picked up (retrieval filters on receiver and processed=0)
-    for com_str, receiver in CommandSpec.receiver_map.items():
-        if command.startswith(com_str):
-            command_spec.receiver = receiver
-            break
+    # commands without receiver are never picked up
+    command_spec.receiver = CommandSpec.get_receiver(command)
     return command_spec
 
 
@@ -51,11 +40,7 @@ db_proxy = DBProxy()
 
 # pick negative command_ids so local commands never collide with the positive
 # ids assigned by the panda server; keep going below any existing local id
-min_command_id = db_proxy.get_min_command_id()
-if min_command_id is None or min_command_id >= 0:
-    next_command_id = -1
-else:
-    next_command_id = min_command_id - 1
+next_command_id = min(db_proxy.get_min_command_id() or 0, 0) - 1
 
 print(f"Preparing {len(command_dict)} commands to store")
 command_specs = []

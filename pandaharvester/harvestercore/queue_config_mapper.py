@@ -537,13 +537,15 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             allQueuesNameList.discard(None)
             # identify subqueues so that their master queues are processed first
             subqueue_set = set()
+            referencedMasterSet = set()
             for queueName in allQueuesNameList:
                 for queuesDict in [remoteQueuesDict, dynamicQueuesDict, localQueuesDict]:
-                    if queuesDict.get(queueName, {}).get("masterQueue"):
+                    if queueName in queuesDict and queuesDict[queueName].get("masterQueue"):
                         subqueue_set.add(queueName)
+                        referencedMasterSet.add(queuesDict[queueName]["masterQueue"])
                         break
             orderedQueueNameList = sorted(allQueuesNameList, key=lambda x: x in subqueue_set)
-            # resolved queueDicts of master queues, for subqueues to inherit
+            # resolved queueDicts of master queues, for subqueues to inherit; queueDict is not modified in place afterwards
             masterQueueDicts = {}
             # set attributes
             for queueName in orderedQueueNameList:
@@ -593,9 +595,8 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                             continue
                         queueDict = self._deep_update(copy.deepcopy(masterQueueDicts[masterQueueName]), queueDict)
                         mainLog.debug(f"subqueue {queueName} inherits config from master queue {masterQueueName}")
-                    else:
-                        # keep resolved queueDict for potential subqueues
-                        masterQueueDicts[queueName] = copy.deepcopy(queueDict)
+                    elif queueName in referencedMasterSet:
+                        masterQueueDicts[queueName] = queueDict
                     # record sources of the queue config and its templates in log
                     if templateQueueName:
                         mainLog.debug(
@@ -635,13 +636,11 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                             else:
                                 del _t3mP_1Mp0R7_mO6U1e__
                                 del _t3mP_1Mp0R7_N4m3__
-                            # fill in siteName, queueName and masterQueue
+                            # fill in siteName and queueName
                             if "siteName" not in val:
                                 val["siteName"] = queueConfig.siteName
                             if "queueName" not in val:
                                 val["queueName"] = queueConfig.queueName
-                            if "masterQueue" not in val and masterQueueName is not None:
-                                val["masterQueue"] = masterQueueName
                             # middleware
                             if "middleware" in val and val["middleware"] in queueDict:
                                 # keep original config

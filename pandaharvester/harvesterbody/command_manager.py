@@ -38,10 +38,7 @@ class CommandManager(AgentBase):
         for command in commands:
             command_spec = CommandSpec()
             command_spec.convert_command_json(command)
-            for com_str, receiver in CommandSpec.receiver_map.items():
-                if command_spec.command.startswith(com_str):
-                    command_spec.receiver = receiver
-                    break
+            command_spec.receiver = CommandSpec.get_receiver(command_spec.command)
             if command_spec.receiver is not None:
                 command_specs.append(command_spec)
         return command_specs

@@ -311,10 +311,9 @@ class MiscModule(BaseModule):
         tmpLog.debug("start")
         sql = f"SELECT MIN(command_id) FROM {commandTableName} "
         self.execute(sql)
-        res = self.cur.fetchone()
+        min_command_id = self.cur.fetchone()[0]
         # commit
         self.commit()
-        min_command_id = res[0] if res is not None else None
         tmpLog.debug(f"min_command_id={min_command_id}")
         return min_command_id
 

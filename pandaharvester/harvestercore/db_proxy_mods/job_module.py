@@ -222,7 +222,9 @@ class JobModule(BaseModule):
         # sql to get queues
         sqlQ = "SELECT queueName "
         sqlQ += f"FROM {pandaQueueTableName} "
-        sqlQ += "WHERE jobFetchTime IS NULL OR jobFetchTime<:timeLimit "
+        sqlQ += "WHERE (jobFetchTime IS NULL OR jobFetchTime<:timeLimit) "
+        # subqueues do not fetch jobs independently
+        sqlQ += "AND masterQueue IS NULL "
         sqlQ += "ORDER BY jobFetchTime "
         # sql to count jobs group by status
         sqlN = f"SELECT status, COUNT(*) cnt, SUM(nCore) corecount FROM {jobTableName} "
