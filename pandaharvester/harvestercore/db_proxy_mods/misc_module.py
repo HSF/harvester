@@ -303,6 +303,21 @@ class MiscModule(BaseModule):
         tmpLog.debug(f"command_ids {command_ids}")
         return command_ids
 
+    # get the smallest command_id currently stored; None if the table is empty
+    @db_error_handler(default=None)
+    def get_min_command_id(self):
+        # get logger
+        tmpLog = make_logger(method_name="get_min_command_id")
+        tmpLog.debug("start")
+        sql = f"SELECT MIN(command_id) FROM {commandTableName} "
+        self.execute(sql)
+        res = self.cur.fetchone()
+        # commit
+        self.commit()
+        min_command_id = res[0] if res is not None else None
+        tmpLog.debug(f"min_command_id={min_command_id}")
+        return min_command_id
+
     @db_error_handler(default=False)
     def clean_commands_by_id(self, commands_ids):
         """

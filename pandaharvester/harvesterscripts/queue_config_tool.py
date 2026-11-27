@@ -10,7 +10,8 @@ def list_active_queues():
     qs = qcm.get_active_queues()
     ks = sorted(qs.keys())
     for k in ks:
-        print(k)
+        prefix = " * " if qs[k].is_subqueue else "   "
+        print(f"{prefix}{k}")
 
 
 def list_config_ids():

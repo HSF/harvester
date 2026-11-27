@@ -89,6 +89,7 @@ class WorkSpec(SpecBase):
         "eventFeedLock:text",
         "errorCode:integer",
         "errorDiag:text",
+        "masterQueue:text",
     )
 
     # attributes to skip when slim reading

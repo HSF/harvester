@@ -91,6 +91,12 @@ class QueueConfig(object):
         self.uniqueName = None
         self.configID = None
         self.initEventsMultipler = 2
+        self.masterQueue = None
+
+    # whether the queue is a subqueue of a master queue
+    @property
+    def is_subqueue(self):
+        return self.masterQueue is not None
 
     # get list of status without heartbeat
     def get_no_heartbeat_status(self):
@@ -204,6 +210,16 @@ class QueueConfigMapper(metaclass=SingletonWithID):
     updatable_plugin_attrs = set(
         ["common", "messenger", "monitor", "preparator", "stager", "submitter", "sweeper", "workerMaker", "throttler", "zipper", "aux_preparator", "extractor"]
     )
+
+    # recursively merge override into base in place; override wins on key conflicts
+    @staticmethod
+    def _deep_update(base, override):
+        for key, val in override.items():
+            if isinstance(base.get(key), dict) and isinstance(val, dict):
+                QueueConfigMapper._deep_update(base[key], val)
+            else:
+                base[key] = val
+        return base
 
     # constructor
     def __init__(self, update_db=True):
@@ -519,8 +535,18 @@ class QueueConfigMapper(metaclass=SingletonWithID):
             allQueuesNameList |= set(dynamicQueuesDict)
             allQueuesNameList |= set(localQueuesDict)
             allQueuesNameList.discard(None)
-            # set attributes
+            # identify subqueues so that their master queues are processed first
+            subqueue_set = set()
             for queueName in allQueuesNameList:
+                for queuesDict in [remoteQueuesDict, dynamicQueuesDict, localQueuesDict]:
+                    if queuesDict.get(queueName, {}).get("masterQueue"):
+                        subqueue_set.add(queueName)
+                        break
+            orderedQueueNameList = sorted(allQueuesNameList, key=lambda x: x in subqueue_set)
+            # resolved queueDicts of master queues, for subqueues to inherit
+            masterQueueDicts = {}
+            # set attributes
+            for queueName in orderedQueueNameList:
                 try:
                     # sources or queues and templates
                     queueSourceList = []
@@ -554,6 +580,22 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                                 queueDict[key].update(val)
                             else:
                                 queueDict[key] = val
+                    # subqueue inherits the resolved config of its master queue
+                    masterQueueName = queueDict.get("masterQueue")
+                    if masterQueueName:
+                        if masterQueueName in subqueue_set:
+                            mainLog.error(f"masterQueue {masterQueueName} of subqueue {queueName} is itself a subqueue, which is not allowed. Skipped")
+                            invalidQueueList.add(queueName)
+                            continue
+                        if masterQueueName not in masterQueueDicts or masterQueueName in invalidQueueList:
+                            mainLog.error(f"masterQueue {masterQueueName} of subqueue {queueName} is not found or invalid. Skipped")
+                            invalidQueueList.add(queueName)
+                            continue
+                        queueDict = self._deep_update(copy.deepcopy(masterQueueDicts[masterQueueName]), queueDict)
+                        mainLog.debug(f"subqueue {queueName} inherits config from master queue {masterQueueName}")
+                    else:
+                        # keep resolved queueDict for potential subqueues
+                        masterQueueDicts[queueName] = copy.deepcopy(queueDict)
                     # record sources of the queue config and its templates in log
                     if templateQueueName:
                         mainLog.debug(
@@ -593,11 +635,13 @@ class QueueConfigMapper(metaclass=SingletonWithID):
                             else:
                                 del _t3mP_1Mp0R7_mO6U1e__
                                 del _t3mP_1Mp0R7_N4m3__
-                            # fill in siteName and queueName
+                            # fill in siteName, queueName and masterQueue
                             if "siteName" not in val:
                                 val["siteName"] = queueConfig.siteName
                             if "queueName" not in val:
                                 val["queueName"] = queueConfig.queueName
+                            if "masterQueue" not in val and masterQueueName is not None:
+                                val["masterQueue"] = masterQueueName
                             # middleware
                             if "middleware" in val and val["middleware"] in queueDict:
                                 # keep original config

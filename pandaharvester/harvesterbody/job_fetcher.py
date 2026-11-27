@@ -64,6 +64,10 @@ class JobFetcher(AgentBase):
     # fetch jobs for a queue
     def fetch_jobs(self, queue_name, n_jobs, panda_queue_dict, tmp_log):
         queue_config = self.queueConfigMapper.get_queue(queue_name)
+        # subqueues do not fetch jobs independently
+        if queue_config.is_subqueue:
+            tmp_log.debug("subqueue; skip job fetching")
+            return
         site_name = queue_config.siteName
         # upper limit
         n_jobs = min(n_jobs, harvester_config.jobfetcher.maxJobs)

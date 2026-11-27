@@ -471,6 +471,8 @@ class HTCondorSubmitter(PluginBase):
         self._allowed_cric_attr_prefixes = [
             "jdl.plusattr.",
         ]
+        # masterQueue for subqueue support
+        self.masterQueue = getattr(self, "masterQueue", None)
 
     # get CE statistics of the queue
     def get_ce_statistics(self, queue_config, n_new_workers, time_window=21600):
@@ -514,11 +516,15 @@ class HTCondorSubmitter(PluginBase):
             panda_queues_dict = PandaQueuesDict()
             panda_queues_dict_last_refresh = core_utils.naive_utcfromtimestamp(panda_queues_dict.last_refresh_ts)
             tmpLog.debug(f"PandaQueuesDict last refresh at {panda_queues_dict_last_refresh}")
-            panda_queue_name = panda_queues_dict.get_panda_queue_name(self.queueName)
-            this_panda_queue_dict = panda_queues_dict.get(self.queueName, dict())
+            # subqueues are not in CRIC; use masterQueue for CRIC lookups
+            cric_queue_name = self.queueName
+            if cric_queue_name not in panda_queues_dict and self.masterQueue and self.masterQueue in panda_queues_dict:
+                cric_queue_name = self.masterQueue
+            panda_queue_name = panda_queues_dict.get_panda_queue_name(cric_queue_name)
+            this_panda_queue_dict = panda_queues_dict.get(cric_queue_name, dict())
             # tmpLog.debug('panda_queues_name and queue_info: {0}, {1}'.format(self.queueName, panda_queues_dict[self.queueName]))
             # associated params on CRIC
-            for key, val in panda_queues_dict.get_harvester_params(self.queueName).items():
+            for key, val in panda_queues_dict.get_harvester_params(cric_queue_name).items():
                 if not isinstance(key, str):
                     continue
                 if key in self._allowed_cric_attrs or any([key.startswith(the_prefix) for the_prefix in self._allowed_cric_attr_prefixes]):

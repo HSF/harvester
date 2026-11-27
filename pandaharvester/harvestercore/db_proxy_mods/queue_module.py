@@ -24,7 +24,7 @@ from pandaharvester.harvestercore.queue_config_dump_spec import QueueConfigDumpS
 from pandaharvester.harvestercore.work_spec import WorkSpec
 
 # attributes of queue config to refresh in existing PandaQueue entries
-_queue_limit_attrs = (
+_queue_refresh_attrs = (
     "nQueueLimitJob",
     "nQueueLimitWorker",
     "maxWorkers",
@@ -34,6 +34,7 @@ _queue_limit_attrs = (
     "nQueueLimitWorkerRatio",
     "nQueueLimitWorkerMax",
     "nQueueLimitWorkerMin",
+    "masterQueue",
 )
 
 
@@ -89,7 +90,7 @@ class QueueModule(BaseModule):
                 self.execute(sqlD, {":queueName": queueName})
             if resC is not None and not refill_table:
                 # update limits just in case
-                varMap = {f":{qAttr}": getattr(queueConfig, qAttr) for qAttr in _queue_limit_attrs if hasattr(queueConfig, qAttr)}
+                varMap = {f":{qAttr}": getattr(queueConfig, qAttr) for qAttr in _queue_refresh_attrs if hasattr(queueConfig, qAttr)}
                 if len(varMap) == 0:
                     continue
                 setStr = ",".join(f"{qAttr[1:]}={qAttr}" for qAttr in varMap)
