@@ -65,8 +65,12 @@ CACHE_REFRESH_INTERVAL = getattr(harvester_config.monitor, "pluginCacheRefreshIn
 # minimum interval in sec between forced refreshes of the condor job cache of a submission host
 _cache_force_refresh_min_interval = 60
 
-# submit with the version 2 Python API (Schedd.submit) instead of condor_submit command; for testing, no effect with the version 1 API
-SUBMIT_WITH_PYTHON = False
+# submit with the version 2 Python API (Schedd.submit) instead of condor_submit command; no effect with the version 1 API
+# enabled by default; disabled with "submit_with_python": false in [master] extraPluginConfigs["HTCondorSubmitter"]
+try:
+    SUBMIT_WITH_PYTHON = bool(harvester_config.master.extraPluginConfigs["HTCondorSubmitter"].get("submit_with_python", True))
+except (AttributeError, KeyError):
+    SUBMIT_WITH_PYTHON = True
 
 # ===============================================================
 
@@ -468,7 +472,7 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
 
     def submit(self, jdl_list, use_spool=False):
         """
-        Submit jdls as one cluster, with condor_submit command by default, or with the Python API if SUBMIT_WITH_PYTHON.
+        Submit jdls as one cluster, with the version 2 Python API if SUBMIT_WITH_PYTHON (default), otherwise with condor_submit command.
         Return (list of batchIDs, one per jdl in order, error string)
         """
         if SUBMIT_WITH_PYTHON and CONDOR_API_VERSION == 2:

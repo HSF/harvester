@@ -23,6 +23,16 @@ debugger_port = 19550
 # capability to dynamically change plugins
 dynamic_plugin_change = False
 
+# extra configs of plugins, in JSON as {"<plugin class name>": {<key>: <value>, ...}, ...}; must span multiple lines
+# to be parsed as JSON. Keys:
+#   HTCondorSubmitter: "submit_with_python" (default true; false to submit with condor_submit command instead of
+#     the version 2 Python API), "submit_arc_grid_type"
+#   HTCondorMonitor: "use_condor_history" (false to disable condor history)
+#extraPluginConfigs =
+#    {
+#    "HTCondorSubmitter": {"submit_with_python": false}
+#    }
+
 
 
 
