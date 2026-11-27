@@ -30,10 +30,7 @@ class FileModule(BaseModule):
             sqlF += "AND f.endpoint=:endpoint "
         sqlF += "GROUP BY f.status, f.path "
         # get files
-        varMap = dict()
-        varMap[":lfn"] = lfn
-        varMap[":type"] = file_type
-        varMap[":jobStatus"] = job_status
+        varMap = {":lfn": lfn, ":type": file_type, ":jobStatus": job_status}
         if endpoint is not None:
             varMap[":endpoint"] = endpoint
         self.execute(sqlF, varMap)
@@ -60,9 +57,7 @@ class FileModule(BaseModule):
         sqlF = f"UPDATE {fileTableName} "
         sqlF += "SET status=:status WHERE fileID=:fileID "
         # check lock
-        varMap = dict()
-        varMap[":PandaID"] = panda_id
-        self.execute(sqlJ, varMap)
+        self.execute(sqlJ, {":PandaID": panda_id})
         resJ = self.cur.fetchone()
         if resJ is None:
             tmpLog.debug("skip since job not found")
@@ -73,10 +68,7 @@ class FileModule(BaseModule):
             else:
                 # update files
                 for tmpFileID, tmpLFN, newStatus in data:
-                    varMap = dict()
-                    varMap[":fileID"] = tmpFileID
-                    varMap[":status"] = newStatus
-                    self.execute(sqlF, varMap)
+                    self.execute(sqlF, {":fileID": tmpFileID, ":status": newStatus})
                     tmpLog.debug(f"set new status {newStatus} to {tmpLFN}")
         # commit
         self.commit()
@@ -89,20 +81,15 @@ class FileModule(BaseModule):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"lfn={lfn} endpoint={endpoint}", method_name="get_group_for_file")
         tmpLog.debug("start")
-        # sql to get group with the latest update
-        sqlF = "SELECT * FROM ("
-        sqlF += f"SELECT groupID,groupStatus,groupUpdateTime FROM {fileTableName} "
+        # sql to get group with the latest update; ORDER BY must be in the same query as LIMIT since MariaDB ignores it in a derived table
+        sqlF = f"SELECT groupID,groupStatus,groupUpdateTime FROM {fileTableName} "
         sqlF += "WHERE lfn=:lfn AND fileType=:type "
         sqlF += "AND groupID IS NOT NULL AND groupStatus<>:ngStatus "
         if endpoint is not None:
             sqlF += "AND endpoint=:endpoint "
-        sqlF += "ORDER BY groupUpdateTime DESC "
-        sqlF += ") AS TMP LIMIT 1 "
+        sqlF += "ORDER BY groupUpdateTime DESC LIMIT 1 "
         # get group
-        varMap = dict()
-        varMap[":lfn"] = lfn
-        varMap[":type"] = file_type
-        varMap[":ngStatus"] = "failed"
+        varMap = {":lfn": lfn, ":type": file_type, ":ngStatus": "failed"}
         if endpoint is not None:
             varMap[":endpoint"] = endpoint
         self.execute(sqlF, varMap)
@@ -127,10 +114,8 @@ class FileModule(BaseModule):
         sqlF = f"SELECT {FileSpec.column_names()} FROM {fileTableName} "
         sqlF += "WHERE groupID=:groupID "
         # get files
-        varMap = dict()
-        varMap[":groupID"] = group_id
         retList = []
-        self.execute(sqlF, varMap)
+        self.execute(sqlF, {":groupID": group_id})
         for resFile in self.cur.fetchall():
             fileSpec = FileSpec()
             fileSpec.pack(resFile)
@@ -146,14 +131,11 @@ class FileModule(BaseModule):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"groupID={group_id}", method_name="update_file_group_status")
         tmpLog.debug("start")
-        # sql to get files
-        sqlF = f"UPDATE {fileTableName} set groupStatus=:groupStatus "
+        # sql to update files
+        sqlF = f"UPDATE {fileTableName} SET groupStatus=:groupStatus "
         sqlF += "WHERE groupID=:groupID "
-        # get files
-        varMap = dict()
-        varMap[":groupID"] = group_id
-        varMap[":groupStatus"] = status_string
-        self.execute(sqlF, varMap)
+        # update files
+        self.execute(sqlF, {":groupID": group_id, ":groupStatus": status_string})
         nRow = self.cur.rowcount
         # commit
         self.commit()
@@ -170,13 +152,8 @@ class FileModule(BaseModule):
         sqlF = f"SELECT DISTINCT groupStatus FROM {fileTableName} "
         sqlF += "WHERE groupID=:groupID "
         # get files
-        varMap = dict()
-        varMap[":groupID"] = group_id
-        self.execute(sqlF, varMap)
-        res = self.cur.fetchall()
-        retVal = set()
-        for (groupStatus,) in res:
-            retVal.add(groupStatus)
+        self.execute(sqlF, {":groupID": group_id})
+        retVal = {groupStatus for (groupStatus,) in self.cur.fetchall()}
         # commit
         self.commit()
         tmpLog.debug(f"get {str(retVal)}")
@@ -194,13 +171,9 @@ class FileModule(BaseModule):
         sqlF += "SET groupID=:groupID,groupStatus=:groupStatus,groupUpdateTime=:groupUpdateTime "
         sqlF += "WHERE lfn=:lfn "
         # update files
-        for fileSpec in file_specs:
-            varMap = dict()
-            varMap[":groupID"] = group_id
-            varMap[":groupStatus"] = status_string
-            varMap[":groupUpdateTime"] = timeNow
-            varMap[":lfn"] = fileSpec.lfn
-            self.execute(sqlF, varMap)
+        varMaps = [{":groupID": group_id, ":groupStatus": status_string, ":groupUpdateTime": timeNow, ":lfn": fileSpec.lfn} for fileSpec in file_specs]
+        if varMaps:
+            self.executemany(sqlF, varMaps)
         # commit
         self.commit()
         tmpLog.debug("done")
@@ -217,9 +190,7 @@ class FileModule(BaseModule):
         sqlF += "WHERE lfn=:lfn "
         # get info
         for fileSpec in job_spec.inFiles.union(job_spec.outFiles):
-            varMap = dict()
-            varMap[":lfn"] = fileSpec.lfn
-            self.execute(sqlF, varMap)
+            self.execute(sqlF, {":lfn": fileSpec.lfn})
             resF = self.cur.fetchone()
             if resF is None:
                 continue
@@ -239,16 +210,11 @@ class FileModule(BaseModule):
         tmpLog = core_utils.make_logger(_logger, method_name="get_all_active_input_files")
         tmpLog.debug("start")
         # sql to get files
-        sqlF = f"SELECT lfn FROM {fileTableName} "
+        sqlF = f"SELECT DISTINCT lfn FROM {fileTableName} "
         sqlF += "WHERE fileType IN (:type1,:type2) "
         # get files
-        varMap = dict()
-        varMap[":type1"] = "input"
-        varMap[":type2"] = FileSpec.AUX_INPUT
-        self.execute(sqlF, varMap)
-        ret = set()
-        for (lfn,) in self.cur.fetchall():
-            ret.add(lfn)
+        self.execute(sqlF, {":type1": "input", ":type2": FileSpec.AUX_INPUT})
+        ret = {lfn for (lfn,) in self.cur.fetchall()}
         # commit
         self.commit()
         tmpLog.debug(f"got {len(ret)} files")

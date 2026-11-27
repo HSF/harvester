@@ -4,10 +4,11 @@ DB proxy base: database connection and SQL execution helpers
 """
 
 import copy
+import datetime
 import functools
-import inspect
 import os
 import re
+import sys
 import threading
 import time
 
@@ -36,6 +37,46 @@ workerTargetCacheTableName = "worker_target_cache_table"
 
 # connection lock
 conLock = threading.Lock()
+
+# SQL that writes or locks rows; it takes the application side lock until commit or rollback
+_write_sql_pattern = re.compile(r"^(INSERT|UPDATE|DELETE)| FOR UPDATE", re.I)
+# placeholders such as :PandaID
+_placeholder_pattern = re.compile(":[^ $,)]+")
+
+
+# make a list of bind variables for IN, filling var_map
+def _bind_in(prefix, values, var_map):
+    names = []
+    for idx, val in enumerate(values):
+        name = f":{prefix}{idx}"
+        var_map[name] = val
+        names.append(name)
+    return ",".join(names)
+
+
+# sqlite adapters and converters, copied from the default ones of python
+def _adapt_date(val):
+    return val.isoformat()
+
+
+def _adapt_datetime(val):
+    return val.isoformat(" ")
+
+
+def _convert_date(val):
+    return datetime.date(*map(int, val.split(b"-")))
+
+
+def _convert_timestamp(val):
+    datepart, timepart = val.split(b" ")
+    year, month, day = map(int, datepart.split(b"-"))
+    timepart_full = timepart.split(b".")
+    hours, minutes, seconds = map(int, timepart_full[0].split(b":"))
+    if len(timepart_full) == 2:
+        microseconds = int(f"{timepart_full[1].decode():0<6.6}")
+    else:
+        microseconds = 0
+    return datetime.datetime(year, month, day, hours, minutes, seconds, microseconds)
 
 
 # get the logger a failed DB proxy method made for itself, to keep its token (e.g. PandaID=...) in the error message
@@ -81,62 +122,47 @@ class BaseModule(object):
         self.thrName = thr_name
         self.verbLog = None
         self.useInspect = False
-        self.reconnectTimeout = 300
+        self.reconnectTimeout = getattr(harvester_config.db, "reconnectTimeout", 300)
         self.read_only = read_only
-        if hasattr(harvester_config.db, "reconnectTimeout"):
-            self.reconnectTimeout = harvester_config.db.reconnectTimeout
         if harvester_config.db.verbose:
             self.verbLog = core_utils.make_logger(_logger, method_name="execute")
             if self.thrName is None:
-                currentThr = threading.current_thread()
-                if currentThr is not None:
-                    self.thrName = currentThr.ident
-            if hasattr(harvester_config.db, "useInspect") and harvester_config.db.useInspect is True:
-                self.useInspect = True
+                self.thrName = threading.current_thread().ident
+            self.useInspect = getattr(harvester_config.db, "useInspect", False) is True
         # connect DB
         self._connect_db()
         self.lockDB = False
         # using application side lock if DB doesn't have a mechanism for exclusive access
-        if harvester_config.db.engine == "mariadb":
-            self.usingAppLock = False
-        else:
-            self.usingAppLock = True
+        self.usingAppLock = harvester_config.db.engine != "mariadb"
 
     # connect DB
     def _connect_db(self):
         if harvester_config.db.engine == "mariadb":
-            if hasattr(harvester_config.db, "host"):
-                host = harvester_config.db.host
-            else:
-                host = "127.0.0.1"
-            if hasattr(harvester_config.db, "port"):
-                port = harvester_config.db.port
-            else:
-                port = 3306
-            if hasattr(harvester_config.db, "useMySQLdb") and harvester_config.db.useMySQLdb is True:
+            host = getattr(harvester_config.db, "host", "127.0.0.1")
+            port = getattr(harvester_config.db, "port", 3306)
+            if getattr(harvester_config.db, "useMySQLdb", False) is True:
                 import MySQLdb
                 import MySQLdb.cursors
+
+                # row which is accessible also by column name
+                def make_row(tmpRet, attributes):
+                    tmpRet = core_utils.DictTupleHybrid(tmpRet)
+                    tmpRet.set_attributes(attributes)
+                    return tmpRet
 
                 class MyCursor(MySQLdb.cursors.Cursor):
                     def fetchone(self):
                         tmpRet = MySQLdb.cursors.Cursor.fetchone(self)
                         if tmpRet is None:
                             return None
-                        tmpRet = core_utils.DictTupleHybrid(tmpRet)
-                        tmpRet.set_attributes([d[0] for d in self.description])
-                        return tmpRet
+                        return make_row(tmpRet, [d[0] for d in self.description])
 
                     def fetchall(self):
                         tmpRets = MySQLdb.cursors.Cursor.fetchall(self)
                         if len(tmpRets) == 0:
                             return tmpRets
-                        newTmpRets = []
                         attributes = [d[0] for d in self.description]
-                        for tmpRet in tmpRets:
-                            tmpRet = core_utils.DictTupleHybrid(tmpRet)
-                            tmpRet.set_attributes(attributes)
-                            newTmpRets.append(tmpRet)
-                        return newTmpRets
+                        return [make_row(tmpRet, attributes) for tmpRet in tmpRets]
 
                 self.con = MySQLdb.connect(
                     user=harvester_config.db.user,
@@ -158,6 +184,11 @@ class BaseModule(object):
         else:
             import sqlite3
 
+            # explicit adapters and converter, the same as the default ones deprecated since python 3.12
+            sqlite3.register_adapter(datetime.date, _adapt_date)
+            sqlite3.register_adapter(datetime.datetime, _adapt_datetime)
+            sqlite3.register_converter("date", _convert_date)
+            sqlite3.register_converter("timestamp", _convert_timestamp)
             if self.read_only:
                 fd = os.open(harvester_config.db.database_filename, os.O_RDONLY)
                 database_filename = f"/dev/fd/{fd}"
@@ -177,107 +208,126 @@ class BaseModule(object):
 
     # exception handler for type of DBs
     def _handle_exception(self, exc):
+        if harvester_config.db.engine != "mariadb":
+            return
         tmpLog = core_utils.make_logger(_logger, f"thr={self.thrName}", method_name="_handle_exception")
-        if harvester_config.db.engine == "mariadb":
-            tmpLog.warning(f"exception of mysql {exc.__class__.__name__} occurred")
-            # Case to try renew connection
-            isOperationalError = False
-            if hasattr(harvester_config.db, "useMySQLdb") and harvester_config.db.useMySQLdb is True:
-                import MySQLdb
+        tmpLog.warning(f"exception of mysql {exc.__class__.__name__} occurred")
+        # renew connection for operational errors
+        if getattr(harvester_config.db, "useMySQLdb", False) is True:
+            import MySQLdb
 
-                if isinstance(exc, MySQLdb.OperationalError):
-                    isOperationalError = True
-            else:
-                import mysql.connector
+            operational_error = MySQLdb.OperationalError
+        else:
+            import mysql.connector
 
-                if isinstance(exc, mysql.connector.errors.OperationalError):
-                    isOperationalError = True
-            if isOperationalError:
-                try_timestamp = time.time()
-                n_retry = 1
-                while time.time() - try_timestamp < self.reconnectTimeout:
-                    # close DB cursor
-                    try:
-                        self.cur.close()
-                    except Exception as e:
-                        tmpLog.error(f"failed to close cursor: {e}")
-                    # close DB connection
-                    try:
-                        self.con.close()
-                    except Exception as e:
-                        tmpLog.error(f"failed to close connection: {e}")
-                    # restart the proxy instance
-                    try:
-                        self._connect_db()
-                        tmpLog.info("renewed connection")
-                        break
-                    except Exception as e:
-                        tmpLog.error(f"failed to renew connection ({n_retry} retries); {e}")
-                        sleep_time = core_utils.retry_period_sec(n_retry, increment=2, max_seconds=300, min_seconds=1)
-                        if not sleep_time:
-                            break
-                        else:
-                            time.sleep(sleep_time)
-                            n_retry += 1
+            operational_error = mysql.connector.errors.OperationalError
+        if not isinstance(exc, operational_error):
+            return
+        try_timestamp = time.time()
+        n_retry = 1
+        while time.time() - try_timestamp < self.reconnectTimeout:
+            # close DB cursor
+            try:
+                self.cur.close()
+            except Exception as e:
+                tmpLog.error(f"failed to close cursor: {e}")
+            # close DB connection
+            try:
+                self.con.close()
+            except Exception as e:
+                tmpLog.error(f"failed to close connection: {e}")
+            # restart the proxy instance
+            try:
+                self._connect_db()
+                tmpLog.info("renewed connection")
+                break
+            except Exception as e:
+                tmpLog.error(f"failed to renew connection ({n_retry} retries); {e}")
+                time.sleep(core_utils.retry_period_sec(n_retry, increment=2, max_seconds=300, min_seconds=1))
+                n_retry += 1
 
-    # convert param dict to list
-    def convert_params(self, sql, varmap):
-        # lock database if application side lock is used
-        if self.usingAppLock and (
-            re.search("^INSERT", sql, re.I) is not None
-            or re.search("^UPDATE", sql, re.I) is not None
-            or re.search(" FOR UPDATE", sql, re.I) is not None
-            or re.search("^DELETE", sql, re.I) is not None
-        ):
+    # take the application side lock until commit or rollback if the SQL writes or locks rows
+    def _lock_db_for_write(self, sql):
+        if self.usingAppLock and _write_sql_pattern.search(sql) is not None:
             self.lockDB = True
-        # remove FOR UPDATE for sqlite
+
+    # convert SQL to the syntax of the DB engine
+    def _convert_sql(self, sql):
         if harvester_config.db.engine == "sqlite":
             sql = re.sub(" FOR UPDATE", " ", sql, flags=re.I)
             sql = re.sub("INSERT IGNORE", "INSERT OR IGNORE", sql, flags=re.I)
         else:
             sql = re.sub("INSERT OR IGNORE", "INSERT IGNORE", sql, flags=re.I)
-        # no conversation unless dict
+        return sql
+
+    # make parameters for converted SQL from placeholders and param dict or list
+    def _make_params(self, sql, placeholders, varmap):
+        # list of values in the order of placeholders
         if not isinstance(varmap, dict):
-            # using the printf style syntax for mariaDB
-            if harvester_config.db.engine == "mariadb":
-                sql = re.sub(":[^ $,)]+", "%s", sql)
+            if harvester_config.db.engine == "sqlite":
+                # qmark style; sqlite doesn't allow a list for named placeholders since python 3.14
+                sql = _placeholder_pattern.sub("?", sql)
+            else:
+                # printf style for mariadb
+                sql = _placeholder_pattern.sub("%s", sql)
             return sql, varmap
-        paramList = []
-        # extract placeholders
-        items = re.findall(":[^ $,)]+", sql)
-        for item in items:
+        for item in placeholders:
             if item not in varmap:
                 raise KeyError(f"{item} is missing in SQL parameters")
-            if item not in paramList:
-                paramList.append(varmap[item])
-        # using the printf style syntax for mariaDB
-        if harvester_config.db.engine == "mariadb":
-            sql = re.sub(":[^ $,)]+", "%s", sql)
-        return sql, paramList
+        if harvester_config.db.engine == "sqlite":
+            # named style; a placeholder used more than once takes one value
+            return sql, {item[1:]: varmap[item] for item in placeholders}
+        # printf style for mariadb; one value for each placeholder
+        return _placeholder_pattern.sub("%s", sql), [varmap[item] for item in placeholders]
 
-    # wrapper for execute
-    def execute(self, sql, varmap=None):
-        sw = core_utils.get_stopwatch()
-        if varmap is None:
-            varmap = dict()
-        # get lock if application side lock is used
+    # convert SQL and param dict or list for the DB engine
+    def convert_params(self, sql, varmap):
+        self._lock_db_for_write(sql)
+        sql = self._convert_sql(sql)
+        return self._make_params(sql, _placeholder_pattern.findall(sql), varmap)
+
+    # get the application side lock unless already held for a write
+    def _acquire_app_lock(self):
         if self.usingAppLock and not self.lockDB:
             if harvester_config.db.verbose:
                 self.verbLog.debug(f"thr={self.thrName} locking")
             conLock.acquire()
             if harvester_config.db.verbose:
                 self.verbLog.debug(f"thr={self.thrName} locked")
-        # execute
-        try:
-            # verbose
+
+    # release the application side lock unless it is kept for a write until commit or rollback
+    def _release_app_lock(self):
+        if self.usingAppLock and not self.lockDB:
             if harvester_config.db.verbose:
-                if not self.useInspect:
-                    self.verbLog.debug(f"thr={self.thrName} sql={sql} var={str(varmap)}")
-                else:
-                    self.verbLog.debug(f"thr={self.thrName} sql={sql} var={str(varmap)} exec={inspect.stack()[1][3]}")
-            # convert param dict
+                self.verbLog.debug(f"thr={self.thrName} release")
+            conLock.release()
+
+    # release the application side lock kept for a write
+    def _release_write_lock(self, action):
+        if self.usingAppLock and self.lockDB:
+            if harvester_config.db.verbose:
+                self.verbLog.debug(f"thr={self.thrName} release with {action}")
+            conLock.release()
+            self.lockDB = False
+
+    # log SQL and parameters in verbose mode
+    def _log_sql(self, sql, params):
+        msg = f"thr={self.thrName} sql={sql} var={str(params)}"
+        if self.useInspect:
+            # caller of execute or executemany
+            msg += f" exec={sys._getframe(2).f_code.co_name}"
+        self.verbLog.debug(msg)
+
+    # wrapper for execute
+    def execute(self, sql, varmap=None):
+        sw = core_utils.get_stopwatch()
+        if varmap is None:
+            varmap = dict()
+        self._acquire_app_lock()
+        try:
+            if harvester_config.db.verbose:
+                self._log_sql(sql, varmap)
             newSQL, params = self.convert_params(sql, varmap)
-            # execute
             try:
                 retVal = self.cur.execute(newSQL, params)
             except Exception as e:
@@ -286,12 +336,7 @@ class BaseModule(object):
                     self.verbLog.debug(f"thr={self.thrName} exception during execute")
                 raise
         finally:
-            # release lock
-            if self.usingAppLock and not self.lockDB:
-                if harvester_config.db.verbose:
-                    self.verbLog.debug(f"thr={self.thrName} release")
-                conLock.release()
-        # return
+            self._release_app_lock()
         if harvester_config.db.verbose:
             sql_str = newSQL.replace("\n", " ").strip()
             self.verbLog.debug(f"thr={self.thrName}  {sw.get_elapsed_time()}  sql=[{sql_str}]")
@@ -299,51 +344,33 @@ class BaseModule(object):
 
     # wrapper for executemany
     def executemany(self, sql, varmap_list):
-        # get lock
-        if self.usingAppLock and not self.lockDB:
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} locking")
-            conLock.acquire()
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} locked")
+        self._acquire_app_lock()
         try:
-            # verbose
             if harvester_config.db.verbose:
-                if not self.useInspect:
-                    self.verbLog.debug(f"thr={self.thrName} sql={sql} var={str(varmap_list)}")
-                else:
-                    self.verbLog.debug(f"thr={self.thrName} sql={sql} var={str(varmap_list)} exec={inspect.stack()[1][3]}")
-            # convert param dict
+                self._log_sql(sql, varmap_list)
+            # nothing to execute
+            if not varmap_list:
+                return None
+            # convert SQL once and make parameters for each param dict or list
+            self._lock_db_for_write(sql)
+            convertedSQL = self._convert_sql(sql)
+            placeholders = _placeholder_pattern.findall(convertedSQL)
             paramList = []
-            newSQL = sql
             for varMap in varmap_list:
                 if varMap is None:
                     varMap = dict()
-                newSQL, params = self.convert_params(sql, varMap)
+                newSQL, params = self._make_params(convertedSQL, placeholders, varMap)
                 paramList.append(params)
-            # execute
             try:
-                if harvester_config.db.engine == "sqlite":
-                    retVal = []
-                    iList = 0
-                    nList = 5000
-                    while iList < len(paramList):
-                        retVal += self.cur.executemany(newSQL, paramList[iList : iList + nList])
-                        iList += nList
-                else:
-                    retVal = self.cur.executemany(newSQL, paramList)
+                # all in one call so that rowcount covers all rows
+                retVal = self.cur.executemany(newSQL, paramList)
             except Exception as e:
                 self._handle_exception(e)
                 if harvester_config.db.verbose:
                     self.verbLog.debug(f"thr={self.thrName} exception during executemany")
                 raise
         finally:
-            # release lock
-            if self.usingAppLock and not self.lockDB:
-                if harvester_config.db.verbose:
-                    self.verbLog.debug(f"thr={self.thrName} release")
-                conLock.release()
-        # return
+            self._release_app_lock()
         return retVal
 
     # commit
@@ -355,11 +382,7 @@ class BaseModule(object):
             if harvester_config.db.verbose:
                 self.verbLog.debug(f"thr={self.thrName} exception during commit")
             raise
-        if self.usingAppLock and self.lockDB:
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} release with commit")
-            conLock.release()
-            self.lockDB = False
+        self._release_write_lock("commit")
 
     # rollback
     def rollback(self):
@@ -370,8 +393,4 @@ class BaseModule(object):
             if harvester_config.db.verbose:
                 self.verbLog.debug(f"thr={self.thrName} exception during rollback")
         finally:
-            if self.usingAppLock and self.lockDB:
-                if harvester_config.db.verbose:
-                    self.verbLog.debug(f"thr={self.thrName} release with rollback")
-                conLock.release()
-                self.lockDB = False
+            self._release_write_lock("rollback")

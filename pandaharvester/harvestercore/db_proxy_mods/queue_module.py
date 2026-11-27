@@ -23,6 +23,32 @@ from pandaharvester.harvestercore.panda_queue_spec import PandaQueueSpec
 from pandaharvester.harvestercore.queue_config_dump_spec import QueueConfigDumpSpec
 from pandaharvester.harvestercore.work_spec import WorkSpec
 
+# attributes of queue config to refresh in existing PandaQueue entries
+_queue_limit_attrs = (
+    "nQueueLimitJob",
+    "nQueueLimitWorker",
+    "maxWorkers",
+    "nQueueLimitJobRatio",
+    "nQueueLimitJobMax",
+    "nQueueLimitJobMin",
+    "nQueueLimitWorkerRatio",
+    "nQueueLimitWorkerMax",
+    "nQueueLimitWorkerMin",
+)
+
+
+# get the SQL condition and bind values on jobType and resourceType unless they are the catch-all ANY
+def _get_job_resource_type_condition(job_type, resource_type):
+    sql = ""
+    var_map = dict()
+    if job_type != "ANY":
+        var_map[":jobType"] = job_type
+        sql += "AND jobType=:jobType "
+    if resource_type != "ANY":
+        var_map[":resourceType"] = resource_type
+        sql += "AND resourceType=:resourceType "
+    return sql, var_map
+
 
 # DB proxy module for PanDA queues, worker limits and queue config dumps
 class QueueModule(BaseModule):
@@ -32,82 +58,57 @@ class QueueModule(BaseModule):
         # get logger
         tmpLog = core_utils.make_logger(_logger, method_name="fill_panda_queue_table")
         tmpLog.debug(f"start, refill={refill_table}")
-        # get existing queues
+        # sql to get existing queues
         sqlE = f"SELECT queueName FROM {pandaQueueTableName} "
-        varMap = dict()
-        self.execute(sqlE, varMap)
+        # sql to delete a queue
+        sqlD = f"DELETE FROM {pandaQueueTableName} WHERE queueName=:queueName "
+        # sql to check if the catch-all entry of a queue exists
+        sqlC = f"SELECT queueName FROM {pandaQueueTableName} WHERE queueName=:queueName AND resourceType=:resourceType AND jobType=:jobType "
+        # columns to insert
+        pqColumns = PandaQueueSpec.column_names().split(",")
+        # get existing queues
+        self.execute(sqlE)
         resE = self.cur.fetchall()
+        pandaQueueSet = set(panda_queue_list)
         for (queueName,) in resE:
             # delete if not listed in cfg
-            if queueName not in panda_queue_list:
-                sqlD = f"DELETE FROM {pandaQueueTableName} "
-                sqlD += "WHERE queueName=:queueName "
-                varMap = dict()
-                varMap[":queueName"] = queueName
-                self.execute(sqlD, varMap)
+            if queueName not in pandaQueueSet:
+                self.execute(sqlD, {":queueName": queueName})
                 # commit
                 self.commit()
         # loop over queues
         for queueName in panda_queue_list:
             queueConfig = queue_config_mapper.get_queue(queueName)
-            if queueConfig is not None:
-                # check if already exist
-                sqlC = f"SELECT * FROM {pandaQueueTableName} "
-                sqlC += "WHERE queueName=:queueName "
-                sqlC += " AND resourceType=:resourceType AND jobType=:jobType "
-                varMap = dict()
+            if queueConfig is None:
+                continue
+            # check if already exist
+            varMap = {":queueName": queueName, ":resourceType": PandaQueueSpec.RT_catchall, ":jobType": PandaQueueSpec.JT_catchall}
+            self.execute(sqlC, varMap)
+            resC = self.cur.fetchone()
+            if refill_table:
+                self.execute(sqlD, {":queueName": queueName})
+            if resC is not None and not refill_table:
+                # update limits just in case
+                varMap = {f":{qAttr}": getattr(queueConfig, qAttr) for qAttr in _queue_limit_attrs if hasattr(queueConfig, qAttr)}
+                if len(varMap) == 0:
+                    continue
+                setStr = ",".join(f"{qAttr[1:]}={qAttr}" for qAttr in varMap)
+                sqlU = f"UPDATE {pandaQueueTableName} SET {setStr} WHERE queueName=:queueName "
                 varMap[":queueName"] = queueName
-                varMap[":resourceType"] = PandaQueueSpec.RT_catchall
-                varMap[":jobType"] = PandaQueueSpec.JT_catchall
-                self.execute(sqlC, varMap)
-                resC = self.cur.fetchone()
-                if refill_table:
-                    sqlD = f"DELETE FROM {pandaQueueTableName} "
-                    sqlD += "WHERE queueName=:queueName "
-                    varMap = dict()
-                    varMap[":queueName"] = queueName
-                    self.execute(sqlD, varMap)
-                if resC is not None and not refill_table:
-                    # update limits just in case
-                    varMap = dict()
-                    sqlU = f"UPDATE {pandaQueueTableName} SET "
-                    for qAttr in [
-                        "nQueueLimitJob",
-                        "nQueueLimitWorker",
-                        "maxWorkers",
-                        "nQueueLimitJobRatio",
-                        "nQueueLimitJobMax",
-                        "nQueueLimitJobMin",
-                        "nQueueLimitWorkerRatio",
-                        "nQueueLimitWorkerMax",
-                        "nQueueLimitWorkerMin",
-                    ]:
-                        if hasattr(queueConfig, qAttr):
-                            sqlU += "{0}=:{0},".format(qAttr)
-                            varMap[f":{qAttr}"] = getattr(queueConfig, qAttr)
-                    if len(varMap) == 0:
-                        continue
-                    sqlU = sqlU[:-1]
-                    sqlU += " WHERE queueName=:queueName "
-                    varMap[":queueName"] = queueName
-                    self.execute(sqlU, varMap)
-                else:
-                    # insert queue
-                    varMap = dict()
-                    varMap[":queueName"] = queueName
-                    attrName_list = []
-                    tmpKey_list = []
-                    for attrName in PandaQueueSpec.column_names().split(","):
-                        if hasattr(queueConfig, attrName):
-                            tmpKey = f":{attrName}"
-                            attrName_list.append(attrName)
-                            tmpKey_list.append(tmpKey)
-                            varMap[tmpKey] = getattr(queueConfig, attrName)
-                    sqlP = f"INSERT IGNORE INTO {pandaQueueTableName} ({','.join(attrName_list)}) "
-                    sqlS = f"VALUES ({','.join(tmpKey_list)}) "
-                    self.execute(sqlP + sqlS, varMap)
-                # commit
-                self.commit()
+                self.execute(sqlU, varMap)
+            else:
+                # insert queue
+                varMap = {":queueName": queueName}
+                attrName_list = []
+                for attrName in pqColumns:
+                    if hasattr(queueConfig, attrName):
+                        attrName_list.append(attrName)
+                        varMap[f":{attrName}"] = getattr(queueConfig, attrName)
+                tmpKeys = ",".join(f":{attrName}" for attrName in attrName_list)
+                sqlP = f"INSERT IGNORE INTO {pandaQueueTableName} ({','.join(attrName_list)}) VALUES ({tmpKeys}) "
+                self.execute(sqlP, varMap)
+            # commit
+            self.commit()
         tmpLog.debug("done")
         # return
         return True
@@ -160,18 +161,20 @@ class QueueModule(BaseModule):
 
         # get sites
         timeNow = core_utils.naive_utcnow()
-        varMap = dict()
-        varMap[":lockTimeLimit"] = timeNow - datetime.timedelta(seconds=queue_lock_interval)
-        varMap[":lookupTimeLimit"] = timeNow - datetime.timedelta(seconds=lookup_interval)
+        varMap = {
+            ":lockTimeLimit": timeNow - datetime.timedelta(seconds=queue_lock_interval),
+            ":lookupTimeLimit": timeNow - datetime.timedelta(seconds=lookup_interval),
+        }
         self.execute(sql_get_site, varMap)
         resS = self.cur.fetchall()
-        for (siteName,) in resS:
+        for (tmpSiteName,) in resS:
             # update timestamp to lock the site
-            varMap = dict()
-            varMap[":siteName"] = siteName
-            varMap[":submitTime"] = timeNow
-            varMap[":lockedBy"] = locked_by
-            varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=lookup_interval)
+            varMap = {
+                ":siteName": tmpSiteName,
+                ":submitTime": timeNow,
+                ":lockedBy": locked_by,
+                ":timeLimit": timeNow - datetime.timedelta(seconds=lookup_interval),
+            }
             self.execute(sql_lock_site, varMap)
             nRow = self.cur.rowcount
             # commit
@@ -179,108 +182,67 @@ class QueueModule(BaseModule):
             # skip if not locked
             if nRow == 0:
                 continue
+            siteName = tmpSiteName
             # get queues
-            varMap = dict()
-            varMap[":siteName"] = siteName
-            self.execute(sql_get_queues, varMap)
+            self.execute(sql_get_queues, {":siteName": siteName})
             resQ = self.cur.fetchall()
             for queueName, jobType, resourceType, nNewWorkers in resQ:
+                # conditions on jobType and resourceType shared by the queries below
+                sqlJR, varMapJR = _get_job_resource_type_condition(jobType, resourceType)
                 # delete orphaned workers
-                varMap = dict()
-                varMap[":computingSite"] = queueName
-                varMap[":status"] = WorkSpec.ST_pending
-                varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=lock_interval)
-                sql_get_orphaned_workers_tmp = sql_get_orphaned_workers
-                if jobType != "ANY":
-                    varMap[":jobType"] = jobType
-                    sql_get_orphaned_workers_tmp += "AND jobType=:jobType "
-                if resourceType != "ANY":
-                    varMap[":resourceType"] = resourceType
-                    sql_get_orphaned_workers_tmp += "AND resourceType=:resourceType "
-                self.execute(sql_get_orphaned_workers_tmp, varMap)
+                varMap = {":computingSite": queueName, ":status": WorkSpec.ST_pending, ":timeLimit": timeNow - datetime.timedelta(seconds=lock_interval)}
+                varMap.update(varMapJR)
+                self.execute(sql_get_orphaned_workers + sqlJR, varMap)
                 resO = self.cur.fetchall()
                 for (tmpWorkerID,) in resO:
-                    varMap = dict()
-                    varMap[":workerID"] = tmpWorkerID
-                    self.execute(sql_delete_orphaned_worker, varMap)
+                    self.execute(sql_delete_orphaned_worker, {":workerID": tmpWorkerID})
                     # commit
                     self.commit()
 
                 # count nQueue
-                varMap = dict()
-                varMap[":computingSite"] = queueName
-                varMap[":resourceType"] = resourceType
-                sql_count_workers_tmp = sql_count_workers
-                if jobType != "ANY":
-                    varMap[":jobType"] = jobType
-                    sql_count_workers_tmp += "AND jobType=:jobType "
-                if resourceType != "ANY":
-                    varMap[":resourceType"] = resourceType
-                    sql_count_workers_tmp += "AND resourceType=:resourceType "
-                sql_count_workers_tmp += "GROUP BY pilotType, status "
-                self.execute(sql_count_workers_tmp, varMap)
+                varMap = {":computingSite": queueName}
+                varMap.update(varMapJR)
+                self.execute(sql_count_workers + sqlJR + "GROUP BY pilotType, status ", varMap)
                 # Fetch worker count results BEFORE executing any other query to preserve cursor state
                 resW = self.cur.fetchall()
 
                 # count nFillers once per queue/jobType/resourceType combination
-                varMap = dict()
-                varMap[":computingSite"] = queueName
-                varMap[":status"] = WorkSpec.ST_running
-                sql_count_refillers_tmp = sql_count_refillers
-                if jobType != "ANY":
-                    varMap[":jobType"] = jobType
-                    sql_count_refillers_tmp += "AND jobType=:jobType "
-                if resourceType != "ANY":
-                    varMap[":resourceType"] = resourceType
-                    sql_count_refillers_tmp += "AND resourceType=:resourceType "
-                self.execute(sql_count_refillers_tmp, varMap)
+                varMap = {":computingSite": queueName, ":status": WorkSpec.ST_running}
+                varMap.update(varMapJR)
+                self.execute(sql_count_refillers + sqlJR, varMap)
                 (nReFill,) = self.cur.fetchone()
 
                 # Initialize nested dict structure before the loop
-                retMap.setdefault(queueName, {})
-                retMap[queueName].setdefault(jobType, {})
-                retMap[queueName][jobType].setdefault(resourceType, {})
-                retMap[queueName][jobType][resourceType].setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
+                rtMap = retMap.setdefault(queueName, {}).setdefault(jobType, {}).setdefault(resourceType, {})
+                anyMap = rtMap.setdefault("ANY", {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
 
                 for pilotType, workerStatus, tmpNum in resW:
-                    nQueue = 0
-                    nReady = 0
-                    nRunning = 0
                     if workerStatus in [WorkSpec.ST_submitted, WorkSpec.ST_pending, WorkSpec.ST_idle]:
-                        nQueue += tmpNum
-                    elif workerStatus in [WorkSpec.ST_ready]:
-                        nReady += tmpNum
-                    elif workerStatus in [WorkSpec.ST_running]:
-                        nRunning += tmpNum
-
+                        countKey = "nQueue"
+                    elif workerStatus == WorkSpec.ST_ready:
+                        countKey = "nReady"
+                    elif workerStatus == WorkSpec.ST_running:
+                        countKey = "nRunning"
+                    else:
+                        countKey = None
                     # Initialize or update pilot type entry
-                    if pilotType not in retMap[queueName][jobType][resourceType]:
-                        retMap[queueName][jobType][resourceType][pilotType] = {
-                            "nReady": 0,
-                            "nRunning": 0,
-                            "nQueue": 0,
-                            "nNewWorkers": 0,
-                        }
-                    retMap[queueName][jobType][resourceType][pilotType]["nReady"] += nReady
-                    retMap[queueName][jobType][resourceType][pilotType]["nRunning"] += nRunning
-                    retMap[queueName][jobType][resourceType][pilotType]["nQueue"] += nQueue
-                    # ANY pilotType
-                    retMap[queueName][jobType][resourceType]["ANY"]["nReady"] += nReady
-                    retMap[queueName][jobType][resourceType]["ANY"]["nRunning"] += nRunning
-                    retMap[queueName][jobType][resourceType]["ANY"]["nQueue"] += nQueue
+                    pilotMap = rtMap.setdefault(pilotType, {"nReady": 0, "nRunning": 0, "nQueue": 0, "nNewWorkers": 0})
+                    if countKey is not None:
+                        pilotMap[countKey] += tmpNum
+                        # ANY pilotType
+                        anyMap[countKey] += tmpNum
 
                 # Add refiller count once to the ANY pilotType entry
-                retMap[queueName][jobType][resourceType]["ANY"]["nReady"] += nReFill
+                anyMap["nReady"] += nReFill
 
                 # set nNewWorkers only in ANY pilotType
-                retMap[queueName][jobType][resourceType]["ANY"]["nNewWorkers"] = nNewWorkers
+                anyMap["nNewWorkers"] = nNewWorkers
 
                 resourceMap.setdefault(jobType, {})
                 resourceMap[jobType][resourceType] = queueName
 
-            # enough queues
-            if len(retMap) >= 0:
-                break
+            # one locked site is enough
+            break
         tmpLog.debug(f"got retMap {str(retMap)}")
         tmpLog.debug(f"got siteName {str(siteName)}")
         tmpLog.debug(f"got resourceMap {str(resourceMap)}")
@@ -294,11 +256,8 @@ class QueueModule(BaseModule):
         tmpLog.debug("start")
 
         # get the values from one of the existing queues
-        sql_select_queue = f"SELECT {PandaQueueSpec.column_names()} FROM {pandaQueueTableName} "
-        sql_select_queue += "WHERE siteName=:siteName "
-        var_map = dict()
-        var_map[":siteName"] = site_name
-        self.execute(sql_select_queue, var_map)
+        sql_select_queue = f"SELECT {PandaQueueSpec.column_names()} FROM {pandaQueueTableName} WHERE siteName=:siteName "
+        self.execute(sql_select_queue, {":siteName": site_name})
         queue = self.cur.fetchone()
 
         if queue:  # a queue to clone was found
@@ -353,19 +312,12 @@ class QueueModule(BaseModule):
         )
 
         # reset nqueued for all job & resource types
-        varMap = dict()
-        varMap[":zero"] = 0
-        varMap[":siteName"] = site_name
-        self.execute(sql_reset, varMap)
+        self.execute(sql_reset, {":zero": 0, ":siteName": site_name})
 
         # get job & resource types
-        varMap = dict()
-        varMap[":siteName"] = site_name
-        self.execute(sql_get_job_resource, varMap)
+        self.execute(sql_get_job_resource, {":siteName": site_name})
         results = self.cur.fetchall()
-        job_resource_type_list = set()
-        for tmp_job_type, tmp_resource_type in results:
-            job_resource_type_list.add((tmp_job_type, tmp_resource_type))
+        job_resource_type_list = {(tmp_job_type, tmp_resource_type) for tmp_job_type, tmp_resource_type in results}
 
         # set all queues
         nUp = 0
@@ -378,22 +330,14 @@ class QueueModule(BaseModule):
                 tmpLog.debug(f"Processing rt {resource_type} -> {value}")
 
                 # get num of submitted workers
-                varMap = dict()
-                varMap[":siteName"] = site_name
-                varMap[":jobType"] = job_type
-                varMap[":resourceType"] = resource_type
-                varMap[":status"] = "submitted"
+                varMap = {":siteName": site_name, ":jobType": job_type, ":resourceType": resource_type, ":status": "submitted"}
                 self.execute(sql_count_workers, varMap)
                 res = self.cur.fetchone()
                 tmpLog.debug(f"{resource_type} has {res} submitted workers")
 
                 if value is None:
                     value = 0
-                varMap = dict()
-                varMap[":nQueue"] = value
-                varMap[":siteName"] = site_name
-                varMap[":jobType"] = job_type
-                varMap[":resourceType"] = resource_type
+                varMap = {":nQueue": value, ":siteName": site_name, ":jobType": job_type, ":resourceType": resource_type}
                 self.execute(sql_update_queue, varMap)
                 iUp = self.cur.rowcount
 
@@ -442,30 +386,23 @@ class QueueModule(BaseModule):
             "GROUP BY status "
         )
         # count resource types
-        varMap = dict()
-        varMap[":computingSite"] = site_name
-        varMap[":siteName"] = site_name
-        self.execute(sqlNRT, varMap)
-        resNT = self.cur.fetchall()
+        self.execute(sqlNRT, {":siteName": site_name})
+        (cnt,) = self.cur.fetchone()
+        nRT = max(1, cnt)
         # count workers by status
-        varMap = dict()
-        varMap[":computingSite"] = site_name
-        varMap[":status1"] = WorkSpec.ST_running
-        varMap[":status2"] = WorkSpec.ST_submitted
-        varMap[":status3"] = WorkSpec.ST_idle
-        varMap[":status4"] = WorkSpec.ST_pending
-        varMap[":status5"] = WorkSpec.ST_ready
+        workerStatusList = [WorkSpec.ST_running, WorkSpec.ST_submitted, WorkSpec.ST_idle, WorkSpec.ST_pending, WorkSpec.ST_ready]
+        varMap = {":computingSite": site_name}
+        for idx, status in enumerate(workerStatusList):
+            varMap[f":status{idx + 1}"] = status
         self.execute(sqlNW, varMap)
         resNW = self.cur.fetchall()
-        # n resource types and worker stats
-        nRT = 1
-        for (cnt,) in resNT:
-            nRT = max(nRT, cnt)
-        worker_stats_map = {}
-        for status in [WorkSpec.ST_running, WorkSpec.ST_submitted, WorkSpec.ST_idle, WorkSpec.ST_pending, WorkSpec.ST_ready]:
-            worker_stats_map.setdefault(status, {"n": 0, "core": 0, "mem": 0})
-        worker_stats_map.setdefault("queue", {"n": 0, "core": 0, "mem": 0})
+        # worker stats
+        worker_stats_map = {status: {"n": 0, "core": 0, "mem": 0} for status in workerStatusList}
+        worker_stats_map["queue"] = {"n": 0, "core": 0, "mem": 0}
         for status, cnt, corecount, ramcount in resNW:
+            # SUM is NULL when all values are NULL
+            corecount = corecount or 0
+            ramcount = ramcount or 0
             worker_stats_map[status] = {
                 "n": cnt,
                 "core": corecount,
@@ -487,7 +424,6 @@ class QueueModule(BaseModule):
         nQueueLimitWorkerMemoryRatio = getattr(queue_config, "nQueueLimitWorkerMemoryRatio", None)
         nQueueLimitWorkerMemoryMin = getattr(queue_config, "nQueueLimitWorkerMemoryMin", None)
         # initialize
-        worker_limits_dict = dict()
         n_queue_limit_worker_eval = nQueueLimitWorker if nQueueLimitWorker is not None else maxWorkers
         n_queue_limit_worker_per_rt_eval = n_queue_limit_worker_eval
         n_queue_limit_worker_cores_eval = nQueueLimitWorkerCores
@@ -541,16 +477,14 @@ class QueueModule(BaseModule):
                     n_queue_limit_worker_mem_eval = min(n_queue_limit_worker_mem_eval, n_queue_limit_mem_by_ratio)
                 else:
                     n_queue_limit_worker_mem_eval = n_queue_limit_mem_by_ratio
-        # update map
-        worker_limits_dict.update(
-            {
-                "maxWorkers": maxWorkers,
-                "nQueueLimitWorker": n_queue_limit_worker_eval,
-                "nQueueLimitWorkerPerRT": n_queue_limit_worker_per_rt_eval,
-                "nQueueWorkerCores": n_queue_limit_worker_cores_eval,
-                "nQueueWorkerMemory": n_queue_limit_worker_mem_eval,
-            }
-        )
+        # make map
+        worker_limits_dict = {
+            "maxWorkers": maxWorkers,
+            "nQueueLimitWorker": n_queue_limit_worker_eval,
+            "nQueueLimitWorkerPerRT": n_queue_limit_worker_per_rt_eval,
+            "nQueueWorkerCores": n_queue_limit_worker_cores_eval,
+            "nQueueWorkerMemory": n_queue_limit_worker_mem_eval,
+        }
         # commit
         self.commit()
         tmpLog.debug(f"got {str(worker_limits_dict)}")
@@ -658,10 +592,10 @@ class QueueModule(BaseModule):
                 self.execute(f"SELECT DISTINCT configID FROM {tableName} ")
                 usedIDs |= {configID for (configID,) in self.cur.fetchall()}
             # delete
-            sqlD = f"DELETE FROM {queueConfigDumpTableName} WHERE configID=:configID "
-            for configID in sorted(candidateIDs - usedIDs):
-                self.execute(sqlD, {":configID": configID})
-                deletedIDs.append(configID)
+            deletedIDs = sorted(candidateIDs - usedIDs)
+            if deletedIDs:
+                sqlD = f"DELETE FROM {queueConfigDumpTableName} WHERE configID=:configID "
+                self.executemany(sqlD, [{":configID": configID} for configID in deletedIDs])
         # commit
         self.commit()
         tmpLog.debug(f"deleted {len(deletedIDs)} dumps")
@@ -670,11 +604,11 @@ class QueueModule(BaseModule):
     # add queue config dump
     @db_error_handler(default=False)
     def add_queue_config_dump(self, dump_spec):
-        # sql to insert a job
+        # sql to insert a dump
         sqlJ = f"INSERT INTO {queueConfigDumpTableName} ({QueueConfigDumpSpec.column_names()}) "
         sqlJ += QueueConfigDumpSpec.bind_values_expression()
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="add_queue_config_dumps")
+        tmpLog = core_utils.make_logger(_logger, method_name="add_queue_config_dump")
         tmpLog.debug(f"start for {dump_spec.dumpUniqueName}")
         varMap = dump_spec.values_list()
         # insert
@@ -692,18 +626,14 @@ class QueueModule(BaseModule):
         sqlJ = f"SELECT configID FROM {queueConfigDumpTableName} "
         sqlJ += "WHERE queueName=:queueName AND dumpUniqueName=:dumpUniqueName "
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_config_id_for_dump")
+        tmpLog = core_utils.make_logger(_logger, method_name="get_config_id_dump")
         tmpLog.debug(f"start for {dump_spec.queueName}:{dump_spec.dumpUniqueName}")
         # get
-        varMap = dict()
-        varMap[":queueName"] = dump_spec.queueName
-        varMap[":dumpUniqueName"] = dump_spec.dumpUniqueName
-        self.execute(sqlJ, varMap)
+        self.execute(sqlJ, {":queueName": dump_spec.queueName, ":dumpUniqueName": dump_spec.dumpUniqueName})
         resJ = self.cur.fetchone()
-        if resJ is not None:
-            (configID,) = resJ
-        else:
-            configID = None
+        configID = resJ[0] if resJ is not None else None
+        # commit
+        self.commit()
         tmpLog.debug(f"got configID={configID}")
         # return
         return configID
@@ -715,80 +645,41 @@ class QueueModule(BaseModule):
         tmpLog = core_utils.make_logger(_logger, f"queueName={queue_name}", method_name="purge_pq")
         tmpLog.debug("start")
         # sql to get jobs
-        sqlJ = f"SELECT PandaID FROM {jobTableName} "
-        sqlJ += "WHERE computingSite=:computingSite "
+        sqlJ = f"SELECT PandaID FROM {jobTableName} WHERE computingSite=:computingSite "
         # sql to get workers
-        sqlW = f"SELECT workerID FROM {workTableName} "
-        sqlW += "WHERE computingSite=:computingSite "
+        sqlW = f"SELECT workerID FROM {workTableName} WHERE computingSite=:computingSite "
         # sql to get queue configs
-        sqlQ = f"SELECT configID FROM {queueConfigDumpTableName} "
-        sqlQ += "WHERE queueName=:queueName "
-        # sql to delete job
-        sqlDJ = f"DELETE FROM {jobTableName} "
-        sqlDJ += "WHERE PandaID=:PandaID "
-        # sql to delete files
-        sqlDF = f"DELETE FROM {fileTableName} "
-        sqlDF += "WHERE PandaID=:PandaID "
-        # sql to delete events
-        sqlDE = f"DELETE FROM {eventTableName} "
-        sqlDE += "WHERE PandaID=:PandaID "
-        # sql to delete relations by job
-        sqlDRJ = f"DELETE FROM {jobWorkerTableName} "
-        sqlDRJ += "WHERE PandaID=:PandaID "
-        # sql to delete worker
-        sqlDW = f"DELETE FROM {workTableName} "
-        sqlDW += "WHERE workerID=:workerID "
-        # sql to delete relations by worker
-        sqlDRW = f"DELETE FROM {jobWorkerTableName} "
-        sqlDRW += "WHERE workerID=:workerID "
+        sqlQ = f"SELECT configID FROM {queueConfigDumpTableName} WHERE queueName=:queueName "
+        # sql to delete jobs, files, events and relations by job
+        sqlDJList = [f"DELETE FROM {tableName} WHERE PandaID=:PandaID " for tableName in (jobTableName, fileTableName, eventTableName, jobWorkerTableName)]
+        # sql to delete workers and relations by worker
+        sqlDWList = [f"DELETE FROM {tableName} WHERE workerID=:workerID " for tableName in (workTableName, jobWorkerTableName)]
         # sql to delete queue config
-        sqlDQ = f"DELETE FROM {queueConfigDumpTableName} "
-        sqlDQ += "WHERE configID=:configID "
+        sqlDQ = f"DELETE FROM {queueConfigDumpTableName} WHERE configID=:configID "
         # sql to delete panda queue
-        sqlDP = f"DELETE FROM {pandaQueueTableName} "
-        sqlDP += "WHERE queueName=:queueName "
+        sqlDP = f"DELETE FROM {pandaQueueTableName} WHERE queueName=:queueName "
         # get jobs
-        varMap = dict()
-        varMap[":computingSite"] = queue_name
-        self.execute(sqlJ, varMap)
-        resJ = self.cur.fetchall()
-        for (pandaID,) in resJ:
-            varMap = dict()
-            varMap[":PandaID"] = pandaID
-            # delete job
-            self.execute(sqlDJ, varMap)
-            # delete files
-            self.execute(sqlDF, varMap)
-            # delete events
-            self.execute(sqlDE, varMap)
-            # delete relations
-            self.execute(sqlDRJ, varMap)
+        self.execute(sqlJ, {":computingSite": queue_name})
+        varMaps = [{":PandaID": pandaID} for (pandaID,) in self.cur.fetchall()]
+        if varMaps:
+            # delete jobs, files, events and relations
+            for sqlDJ in sqlDJList:
+                self.executemany(sqlDJ, varMaps)
         # get workers
-        varMap = dict()
-        varMap[":computingSite"] = queue_name
-        self.execute(sqlW, varMap)
-        resW = self.cur.fetchall()
-        for (workerID,) in resW:
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            # delete workers
-            self.execute(sqlDW, varMap)
-            # delete relations
-            self.execute(sqlDRW, varMap)
+        self.execute(sqlW, {":computingSite": queue_name})
+        varMaps = [{":workerID": workerID} for (workerID,) in self.cur.fetchall()]
+        if varMaps:
+            # delete workers and relations
+            for sqlDW in sqlDWList:
+                self.executemany(sqlDW, varMaps)
         # get queue configs
-        varMap = dict()
-        varMap[":queueName"] = queue_name
-        self.execute(sqlQ, varMap)
-        resQ = self.cur.fetchall()
-        for (configID,) in resQ:
-            varMap = dict()
-            varMap[":configID"] = configID
+        self.execute(sqlQ, {":queueName": queue_name})
+        varMaps = [{":configID": configID} for (configID,) in self.cur.fetchall()]
+        if varMaps:
             # delete queue configs
-            self.execute(sqlDQ, varMap)
+            self.executemany(sqlDQ, varMaps)
         # delete panda queue
-        varMap = dict()
-        varMap[":queueName"] = queue_name
-        self.execute(sqlDP, varMap)
+        self.execute(sqlDP, {":queueName": queue_name})
         # commit
         self.commit()
         tmpLog.debug("done")
@@ -798,18 +689,15 @@ class QueueModule(BaseModule):
     @db_error_handler(default=False)
     def update_panda_queue_attribute(self, key, value, site_name=None, queue_name=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"site={site_name} queue={queue_name}", method_name="update_panda_queue")
+        tmpLog = core_utils.make_logger(_logger, f"site={site_name} queue={queue_name}", method_name="update_panda_queue_attribute")
         tmpLog.debug(f"start key={key}")
         # sql to update
-        sqlJ = "UPDATE {0} SET {1}=:{1} ".format(pandaQueueTableName, key)
-        sqlJ += "WHERE "
-        varMap = dict()
-        varMap[f":{key}"] = value
+        varMap = {f":{key}": value}
         if site_name is not None:
-            sqlJ += "siteName=:siteName "
+            sqlJ = f"UPDATE {pandaQueueTableName} SET {key}=:{key} WHERE siteName=:siteName "
             varMap[":siteName"] = site_name
         else:
-            sqlJ += "queueName=:queueName "
+            sqlJ = f"UPDATE {pandaQueueTableName} SET {key}=:{key} WHERE queueName=:queueName "
             varMap[":queueName"] = queue_name
         # update
         self.execute(sqlJ, varMap)
@@ -827,13 +715,9 @@ class QueueModule(BaseModule):
         tmpLog = core_utils.make_logger(_logger, method_name="release_site")
         tmpLog.debug("start")
         # sql to release site
-        sql = f"UPDATE {pandaQueueTableName} SET lockedBy=NULL "
-        sql += "WHERE siteName=:siteName AND lockedBy=:lockedBy "
+        sql = f"UPDATE {pandaQueueTableName} SET lockedBy=NULL WHERE siteName=:siteName AND lockedBy=:lockedBy "
         # release site
-        varMap = dict()
-        varMap[":siteName"] = site_name
-        varMap[":lockedBy"] = locked_by
-        self.execute(sql, varMap)
+        self.execute(sql, {":siteName": site_name, ":lockedBy": locked_by})
         n_done = self.cur.rowcount
         # commit
         self.commit()

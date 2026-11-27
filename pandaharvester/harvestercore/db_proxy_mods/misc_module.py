@@ -44,9 +44,7 @@ class MiscModule(BaseModule):
     def add_seq_number(self, number_name, init_value):
         # check if already there
         sqlC = f"SELECT curVal FROM {seqNumberTableName} WHERE numberName=:numberName "
-        varMap = dict()
-        varMap[":numberName"] = number_name
-        self.execute(sqlC, varMap)
+        self.execute(sqlC, {":numberName": number_name})
         res = self.cur.fetchone()
         # insert if missing
         if res is None:
@@ -57,8 +55,7 @@ class MiscModule(BaseModule):
             # insert
             sqlI = f"INSERT INTO {seqNumberTableName} ({SeqNumberSpec.column_names()}) "
             sqlI += SeqNumberSpec.bind_values_expression()
-            varMap = seqNumberSpec.values_list()
-            self.execute(sqlI, varMap)
+            self.execute(sqlI, seqNumberSpec.values_list())
         # commit
         self.commit()
         return True
@@ -69,14 +66,11 @@ class MiscModule(BaseModule):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"name={number_name}", method_name="get_next_seq_number")
         # increment
+        varMap = {":numberName": number_name}
         sqlU = f"UPDATE {seqNumberTableName} SET curVal=curVal+1 WHERE numberName=:numberName "
-        varMap = dict()
-        varMap[":numberName"] = number_name
         self.execute(sqlU, varMap)
         # get
         sqlG = f"SELECT curVal FROM {seqNumberTableName} WHERE numberName=:numberName "
-        varMap = dict()
-        varMap[":numberName"] = number_name
         self.execute(sqlG, varMap)
         (retVal,) = self.cur.fetchone()
         # commit
@@ -90,8 +84,7 @@ class MiscModule(BaseModule):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"mainKey={main_key} subKey={sub_key}", method_name="get_cache_last_update_time")
         # get
-        varMap = dict()
-        varMap[":mainKey"] = main_key
+        varMap = {":mainKey": main_key}
         sqlU = f"SELECT lastUpdate FROM {cacheTableName} WHERE mainKey=:mainKey "
         if sub_key is not None:
             sqlU += "AND subKey=:subKey "
@@ -113,9 +106,7 @@ class MiscModule(BaseModule):
         """
         # get logger
         tmpLog = core_utils.make_logger(_logger, method_name="get_cache_last_update_times")
-        varMap = dict()
-        for idx, main_key in enumerate(main_keys):
-            varMap[f":mainKey{idx}"] = main_key
+        varMap = {f":mainKey{idx}": main_key for idx, main_key in enumerate(main_keys)}
         sqlS = f"SELECT mainKey,lastUpdate FROM {cacheTableName} WHERE mainKey IN ({','.join(varMap)}) "
         self.execute(sqlS, varMap)
         retVal = {mainKey: lastUpdate for mainKey, lastUpdate in self.cur.fetchall()}
@@ -134,8 +125,7 @@ class MiscModule(BaseModule):
         cacheSpec.lastUpdate = core_utils.naive_utcnow()
         cacheSpec.data = new_info
         # check if already there
-        varMap = dict()
-        varMap[":mainKey"] = main_key
+        varMap = {":mainKey": main_key}
         sqlC = f"SELECT lastUpdate FROM {cacheTableName} WHERE mainKey=:mainKey "
         if sub_key is not None:
             sqlC += "AND subKey=:subKey "
@@ -165,8 +155,10 @@ class MiscModule(BaseModule):
         cacheKey = f"cache|{main_key}|{sub_key}"
         globalDict = core_utils.get_global_dict()
         globalDict.acquire()
-        globalDict[cacheKey] = _LocalCacheItem(cacheSpec.lastUpdate, cacheSpec.data)
-        globalDict.release()
+        try:
+            globalDict[cacheKey] = _LocalCacheItem(cacheSpec.lastUpdate, cacheSpec.data)
+        finally:
+            globalDict.release()
         tmpLog.debug("refreshed")
         return True
 
@@ -184,8 +176,7 @@ class MiscModule(BaseModule):
             tmpLog.debug("start")
             # where clause
             sqlW = "WHERE mainKey=:mainKey "
-            varMap = dict()
-            varMap[":mainKey"] = main_key
+            varMap = {":mainKey": main_key}
             if sub_key is not None:
                 sqlW += "AND subKey=:subKey "
                 varMap[":subKey"] = sub_key
@@ -226,13 +217,11 @@ class MiscModule(BaseModule):
                     self.commit()
                     if not resJ:
                         return None
-                    else:
-                        res_one = resJ[0]
-                        # make spec
-                        cacheSpec = CacheSpec()
-                        cacheSpec.pack(res_one)
-                        # put into global dict
-                        globalDict[cacheKey] = _LocalCacheItem(cacheSpec.lastUpdate, cacheSpec.data)
+                    # make spec
+                    cacheSpec = CacheSpec()
+                    cacheSpec.pack(resJ[0])
+                    # put into global dict
+                    globalDict[cacheKey] = _LocalCacheItem(cacheSpec.lastUpdate, cacheSpec.data)
             finally:
                 # release dict
                 globalDict.release()
@@ -259,13 +248,8 @@ class MiscModule(BaseModule):
         # sql to insert a command
         sql = f"INSERT INTO {commandTableName} ({CommandSpec.column_names()}) "
         sql += CommandSpec.bind_values_expression()
-        # loop over all commands
-        var_maps = []
-        for command_spec in command_specs:
-            var_map = command_spec.values_list()
-            var_maps.append(var_map)
         # insert
-        self.executemany(sql, var_maps)
+        self.executemany(sql, [command_spec.values_list() for command_spec in command_specs])
         # commit
         self.commit()
         # return
@@ -278,9 +262,7 @@ class MiscModule(BaseModule):
         tmpLog = core_utils.make_logger(_logger, method_name="get_commands_for_receiver")
         tmpLog.debug("start")
         # sql to get commands
-        varMap = dict()
-        varMap[":receiver"] = receiver
-        varMap[":processed"] = 0
+        varMap = {":receiver": receiver, ":processed": 0}
         sqlG = f"SELECT {CommandSpec.column_names()} FROM {commandTableName} WHERE receiver=:receiver AND processed=:processed "
         if command_pattern is not None:
             varMap[":command"] = command_pattern
@@ -297,13 +279,10 @@ class MiscModule(BaseModule):
             # make command
             commandSpec = CommandSpec()
             commandSpec.pack(res)
-            # lock
-            varMap = dict()
-            varMap[":command_id"] = commandSpec.command_id
-            varMap[":processed"] = 1
-            self.execute(sqlL, varMap)
-            # append
             commandSpecList.append(commandSpec)
+        # lock
+        if commandSpecList:
+            self.executemany(sqlL, [{":command_id": commandSpec.command_id, ":processed": 1} for commandSpec in commandSpecList])
         # commit
         self.commit()
         tmpLog.debug(f"got {len(commandSpecList)} commands")
@@ -319,6 +298,8 @@ class MiscModule(BaseModule):
         sql = f"SELECT command_id FROM {commandTableName} WHERE ack_requested=1 AND processed=1"
         self.execute(sql)
         command_ids = [row[0] for row in self.cur.fetchall()]
+        # commit
+        self.commit()
         tmpLog.debug(f"command_ids {command_ids}")
         return command_ids
 
@@ -327,14 +308,10 @@ class MiscModule(BaseModule):
         """
         Deletes the commands specified in a list of IDs
         """
-        # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="clean_commands_by_id")
         # sql to delete a specific command
         sql = f"DELETE FROM {commandTableName} WHERE command_id=:command_id"
-
-        for command_id in commands_ids:
-            var_map = {":command_id": command_id}
-            self.execute(sql, var_map)
+        if commands_ids:
+            self.executemany(sql, [{":command_id": command_id} for command_id in commands_ids])
         self.commit()
         return True
 
@@ -343,7 +320,6 @@ class MiscModule(BaseModule):
         """
         Deletes the commands that have been processed and do not need acknowledgement
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="clean_processed_commands")
         # sql to delete all processed commands that do not need an ACK
         sql = f"DELETE FROM {commandTableName} WHERE (ack_requested=0 AND processed=1)"
         self.execute(sql)
@@ -358,7 +334,6 @@ class MiscModule(BaseModule):
         tmpLog.debug("start")
         # delete locks
         sqlW = f"DELETE FROM {processLockTableName} "
-        # get worker stats
         self.execute(sqlW)
         # commit
         self.commit()
@@ -374,17 +349,13 @@ class MiscModule(BaseModule):
         # delete old lock
         sqlD = f"DELETE FROM {processLockTableName} "
         sqlD += "WHERE lockTime<:timeLimit "
-        varMap = dict()
-        varMap[":timeLimit"] = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
-        self.execute(sqlD, varMap)
+        self.execute(sqlD, {":timeLimit": core_utils.naive_utcnow() - datetime.timedelta(hours=6)})
         # commit
         self.commit()
         # check lock
         sqlC = f"SELECT lockTime FROM {processLockTableName} "
         sqlC += "WHERE processName=:processName "
-        varMap = dict()
-        varMap[":processName"] = process_name
-        self.execute(sqlC, varMap)
+        self.execute(sqlC, {":processName": process_name})
         resC = self.cur.fetchone()
         retVal = False
         timeNow = core_utils.naive_utcnow()
@@ -396,8 +367,7 @@ class MiscModule(BaseModule):
             processLockSpec.processName = process_name
             processLockSpec.lockedBy = locked_by
             processLockSpec.lockTime = timeNow
-            varMap = processLockSpec.values_list()
-            self.execute(sqlI, varMap)
+            self.execute(sqlI, processLockSpec.values_list())
             retVal = True
         else:
             (oldLockTime,) = resC
@@ -406,11 +376,7 @@ class MiscModule(BaseModule):
                 # update lock if old
                 sqlU = f"UPDATE {processLockTableName} SET lockedBy=:lockedBy,lockTime=:timeNow "
                 sqlU += "WHERE processName=:processName AND lockTime<=:timeLimit "
-                varMap = dict()
-                varMap[":processName"] = process_name
-                varMap[":lockedBy"] = locked_by
-                varMap[":timeLimit"] = timeLimit
-                varMap[":timeNow"] = timeNow
+                varMap = {":processName": process_name, ":lockedBy": locked_by, ":timeLimit": timeLimit, ":timeNow": timeNow}
                 self.execute(sqlU, varMap)
                 if self.cur.rowcount > 0:
                     retVal = True
@@ -425,13 +391,10 @@ class MiscModule(BaseModule):
         # get logger
         tmpLog = core_utils.make_logger(_logger, f"proc={process_name} by={locked_by}", method_name="release_process_lock")
         tmpLog.debug("start")
-        # delete old lock
+        # delete lock
         sqlC = f"DELETE FROM {processLockTableName} "
         sqlC += "WHERE processName=:processName AND lockedBy=:lockedBy "
-        varMap = dict()
-        varMap[":processName"] = process_name
-        varMap[":lockedBy"] = locked_by
-        self.execute(sqlC, varMap)
+        self.execute(sqlC, {":processName": process_name, ":lockedBy": locked_by})
         # commit
         self.commit()
         tmpLog.debug("done")
@@ -446,16 +409,12 @@ class MiscModule(BaseModule):
         # delete old messages
         sqlS = f"SELECT diagID FROM {diagTableName} "
         sqlS += "WHERE creationTime<:timeLimit "
-        varMap = dict()
-        varMap[":timeLimit"] = core_utils.naive_utcnow() - datetime.timedelta(minutes=60)
-        self.execute(sqlS, varMap)
+        self.execute(sqlS, {":timeLimit": core_utils.naive_utcnow() - datetime.timedelta(minutes=60)})
         resS = self.cur.fetchall()
         sqlD = f"DELETE FROM {diagTableName} "
         sqlD += "WHERE diagID=:diagID "
         for (diagID,) in resS:
-            varMap = dict()
-            varMap[":diagID"] = diagID
-            self.execute(sqlD, varMap)
+            self.execute(sqlD, {":diagID": diagID})
             # commit
             self.commit()
         # make spec
@@ -471,8 +430,7 @@ class MiscModule(BaseModule):
         # insert
         sqlI = f"INSERT INTO {diagTableName} ({DiagSpec.column_names()}) "
         sqlI += DiagSpec.bind_values_expression()
-        varMap = diagSpec.values_list()
-        self.execute(sqlI, varMap)
+        self.execute(sqlI, diagSpec.values_list())
         # commit
         self.commit()
         tmpLog.debug("done")
@@ -497,24 +455,16 @@ class MiscModule(BaseModule):
         sqlM += "WHERE diagID=:diagID "
         # select messages
         timeLimit = core_utils.naive_utcnow() - datetime.timedelta(seconds=lock_interval)
-        varMap = dict()
-        varMap[":timeLimit"] = timeLimit
-        self.execute(sqlD, varMap)
+        self.execute(sqlD, {":timeLimit": timeLimit})
         resD = self.cur.fetchall()
         diagList = []
         for (diagID,) in resD:
             # lock
-            varMap = dict()
-            varMap[":diagID"] = diagID
-            varMap[":timeLimit"] = timeLimit
-            varMap[":timeNow"] = core_utils.naive_utcnow()
+            varMap = {":diagID": diagID, ":timeLimit": timeLimit, ":timeNow": core_utils.naive_utcnow()}
             self.execute(sqlL, varMap)
-            nRow = self.cur.rowcount
-            if nRow == 1:
+            if self.cur.rowcount == 1:
                 # get
-                varMap = dict()
-                varMap[":diagID"] = diagID
-                self.execute(sqlM, varMap)
+                self.execute(sqlM, {":diagID": diagID})
                 resM = self.cur.fetchone()
                 # make spec
                 diagSpec = DiagSpec()
@@ -535,10 +485,8 @@ class MiscModule(BaseModule):
         sqlM = f"DELETE FROM {diagTableName} "
         sqlM += "WHERE diagID=:diagID "
         for diagID in ids:
-            # lock
-            varMap = dict()
-            varMap[":diagID"] = diagID
-            self.execute(sqlM, varMap)
+            # delete
+            self.execute(sqlM, {":diagID": diagID})
             # commit
             self.commit()
         tmpLog.debug("done")

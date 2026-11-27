@@ -13,6 +13,7 @@ import json
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
+    _bind_in,
     _logger,
     db_error_handler,
     workerTargetCacheTableName,
@@ -21,16 +22,6 @@ from pandaharvester.harvestercore.worker_target_cache_spec import WorkerTargetCa
 
 # max number of bind variables in one IN clause
 _in_chunk_size = 1000
-
-
-# make a list of bind variables for IN, filling var_map
-def _bind_in(prefix, values, var_map):
-    names = []
-    for idx, val in enumerate(values):
-        name = f":{prefix}{idx}"
-        var_map[name] = val
-        names.append(name)
-    return ",".join(names)
 
 
 # split a list into chunks

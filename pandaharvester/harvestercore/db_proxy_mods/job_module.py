@@ -21,9 +21,24 @@ from pandaharvester.harvestercore.event_spec import EventSpec
 from pandaharvester.harvestercore.file_spec import FileSpec
 from pandaharvester.harvestercore.job_spec import JobSpec
 
+# sql to delete a job, and its files, events and job-worker relations
+_sqlDeleteJob = f"DELETE FROM {jobTableName} WHERE PandaID=:PandaID "
+_sqlDeleteJobRelated = [f"DELETE FROM {tableName} WHERE PandaID=:PandaID " for tableName in (fileTableName, eventTableName, jobWorkerTableName)]
+
 
 # DB proxy module for jobs and their files
 class JobModule(BaseModule):
+    # delete a job and, if it existed, its files, events and relations without commit; return the number of deleted jobs
+    def _delete_job_and_related(self, panda_id):
+        varMap = {":PandaID": panda_id}
+        self.execute(_sqlDeleteJob, varMap)
+        iDel = self.cur.rowcount
+        if iDel <= 0:
+            return 0
+        for sqlD in _sqlDeleteJobRelated:
+            self.execute(sqlD, varMap)
+        return iDel
+
     # insert jobs
     @db_error_handler(default=False)
     def insert_jobs(self, jobspec_list):
@@ -36,42 +51,18 @@ class JobModule(BaseModule):
         # sql to insert a file
         sqlF = f"INSERT INTO {fileTableName} ({FileSpec.column_names()}) "
         sqlF += FileSpec.bind_values_expression()
-        # sql to delete job
-        sqlDJ = f"DELETE FROM {jobTableName} "
-        sqlDJ += "WHERE PandaID=:PandaID "
-        # sql to delete files
-        sqlDF = f"DELETE FROM {fileTableName} "
-        sqlDF += "WHERE PandaID=:PandaID "
-        # sql to delete events
-        sqlDE = f"DELETE FROM {eventTableName} "
-        sqlDE += "WHERE PandaID=:PandaID "
-        # sql to delete relations
-        sqlDR = f"DELETE FROM {jobWorkerTableName} "
-        sqlDR += "WHERE PandaID=:PandaID "
         # loop over all jobs
         varMapsJ = []
         varMapsF = []
         for jobSpec in jobspec_list:
             # delete job just in case
-            varMap = dict()
-            varMap[":PandaID"] = jobSpec.PandaID
-            self.execute(sqlDJ, varMap)
-            iDel = self.cur.rowcount
-            if iDel > 0:
-                # delete files
-                self.execute(sqlDF, varMap)
-                # delete events
-                self.execute(sqlDE, varMap)
-                # delete relations
-                self.execute(sqlDR, varMap)
+            self._delete_job_and_related(jobSpec.PandaID)
             # commit
             self.commit()
             # insert job and files
-            varMap = jobSpec.values_list()
-            varMapsJ.append(varMap)
+            varMapsJ.append(jobSpec.values_list())
             for fileSpec in jobSpec.inFiles:
-                varMap = fileSpec.values_list()
-                varMapsF.append(varMap)
+                varMapsF.append(fileSpec.values_list())
         # insert
         self.executemany(sqlJ, varMapsJ)
         self.executemany(sqlF, varMapsF)
@@ -90,9 +81,7 @@ class JobModule(BaseModule):
         sql = f"SELECT {JobSpec.column_names()} FROM {jobTableName} "
         sql += "WHERE PandaID=:pandaID "
         # get job
-        varMap = dict()
-        varMap[":pandaID"] = panda_id
-        self.execute(sql, varMap)
+        self.execute(sql, {":pandaID": panda_id})
         resJ = self.cur.fetchone()
         if resJ is None:
             jobSpec = None
@@ -103,11 +92,8 @@ class JobModule(BaseModule):
             # get files
             sqlF = f"SELECT {FileSpec.column_names()} FROM {fileTableName} "
             sqlF += "WHERE PandaID=:PandaID "
-            varMap = dict()
-            varMap[":PandaID"] = panda_id
-            self.execute(sqlF, varMap)
-            resFileList = self.cur.fetchall()
-            for resFile in resFileList:
+            self.execute(sqlF, {":PandaID": panda_id})
+            for resFile in self.cur.fetchall():
                 fileSpec = FileSpec()
                 fileSpec.pack(resFile)
                 jobSpec.add_file(fileSpec)
@@ -127,14 +113,10 @@ class JobModule(BaseModule):
         sql = f"SELECT {JobSpec.column_names()} FROM {jobTableName} "
         sql += "WHERE PandaID IS NOT NULL"
         # get jobs
-        varMap = None
-        self.execute(sql, varMap)
-        resJobs = self.cur.fetchall()
-        if resJobs is None:
-            return None
+        self.execute(sql)
         jobSpecList = []
         # make jobs list
-        for resJ in resJobs:
+        for resJ in self.cur.fetchall():
             jobSpec = JobSpec()
             jobSpec.pack(resJ)
             jobSpecList.append(jobSpec)
@@ -171,43 +153,30 @@ class JobModule(BaseModule):
                     sqlE += "WHERE eventRangeID=:eventRangeID "
                     varMap[":eventRangeID"] = eventSpec.eventRangeID
                     self.execute(sqlE, varMap)
-            # update input file
+            # set file status to done if jobs are done, unless input files are updated individually
+            if not update_in_file and jobspec.is_final_status():
+                sqlF = f"UPDATE {fileTableName} SET status=:status "
+                sqlF += "WHERE PandaID=:PandaID AND fileType IN (:type1,:type2) "
+                varMap = {":PandaID": jobspec.PandaID, ":type1": "input", ":type2": FileSpec.AUX_INPUT, ":status": "done"}
+                self.execute(sqlF, varMap)
+            # update changed input and/or output files
+            filesToUpdate = []
             if update_in_file:
-                for fileSpec in jobspec.inFiles:
-                    varMap = fileSpec.values_map(only_changed=True)
-                    if varMap != {}:
-                        sqlF = f"UPDATE {fileTableName} SET {fileSpec.bind_update_changes_expression()} "
-                        sqlF += "WHERE fileID=:fileID "
-                        varMap[":fileID"] = fileSpec.fileID
-                        self.execute(sqlF, varMap)
-            else:
-                # set file status to done if jobs are done
-                if jobspec.is_final_status():
-                    varMap = dict()
-                    varMap[":PandaID"] = jobspec.PandaID
-                    varMap[":type1"] = "input"
-                    varMap[":type2"] = FileSpec.AUX_INPUT
-                    varMap[":status"] = "done"
-                    sqlF = f"UPDATE {fileTableName} SET status=:status "
-                    sqlF += "WHERE PandaID=:PandaID AND fileType IN (:type1,:type2) "
-                    self.execute(sqlF, varMap)
-            # update output file
+                filesToUpdate += jobspec.inFiles
             if update_out_file:
-                for fileSpec in jobspec.outFiles:
-                    varMap = fileSpec.values_map(only_changed=True)
-                    if varMap != {}:
-                        sqlF = f"UPDATE {fileTableName} SET {fileSpec.bind_update_changes_expression()} "
-                        sqlF += "WHERE fileID=:fileID "
-                        varMap[":fileID"] = fileSpec.fileID
-                        self.execute(sqlF, varMap)
+                filesToUpdate += jobspec.outFiles
+            for fileSpec in filesToUpdate:
+                varMap = fileSpec.values_map(only_changed=True)
+                if varMap != {}:
+                    sqlF = f"UPDATE {fileTableName} SET {fileSpec.bind_update_changes_expression()} "
+                    sqlF += "WHERE fileID=:fileID "
+                    varMap[":fileID"] = fileSpec.fileID
+                    self.execute(sqlF, varMap)
             # set to_delete flag
             if jobspec.subStatus == "done":
                 sqlD = f"UPDATE {fileTableName} SET todelete=:to_delete "
                 sqlD += "WHERE PandaID=:PandaID "
-                varMap = dict()
-                varMap[":PandaID"] = jobspec.PandaID
-                varMap[":to_delete"] = 1
-                self.execute(sqlD, varMap)
+                self.execute(sqlD, {":PandaID": jobspec.PandaID, ":to_delete": 1})
         # commit
         self.commit()
         tmpLog.debug(f"done with {nRow}")
@@ -224,11 +193,7 @@ class JobModule(BaseModule):
         sqlF = f"INSERT INTO {fileTableName} ({FileSpec.column_names()}) "
         sqlF += FileSpec.bind_values_expression()
         # loop over all jobs
-        varMapsF = []
-        for jobSpec in jobspec_list:
-            for fileSpec in jobSpec.outFiles:
-                varMap = fileSpec.values_list()
-                varMapsF.append(varMap)
+        varMapsF = [fileSpec.values_list() for jobSpec in jobspec_list for fileSpec in jobSpec.outFiles]
         # insert
         self.executemany(sqlF, varMapsF)
         # commit
@@ -269,17 +234,13 @@ class JobModule(BaseModule):
         sqlU += "AND (jobFetchTime IS NULL OR jobFetchTime<:timeLimit) "
         # get queues
         timeNow = core_utils.naive_utcnow()
-        varMap = dict()
-        varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=interval)
-        self.execute(sqlQ, varMap)
+        timeLimit = timeNow - datetime.timedelta(seconds=interval)
+        self.execute(sqlQ, {":timeLimit": timeLimit})
         resQ = self.cur.fetchall()
         i_queues = 0
         for (queue_name,) in resQ:
             # update timestamp to lock the queue
-            varMap = dict()
-            varMap[":queueName"] = queue_name
-            varMap[":jobFetchTime"] = timeNow
-            varMap[":timeLimit"] = timeNow - datetime.timedelta(seconds=interval)
+            varMap = {":queueName": queue_name, ":jobFetchTime": timeNow, ":timeLimit": timeLimit}
             self.execute(sqlU, varMap)
             nRow = self.cur.rowcount
             # commit
@@ -288,18 +249,13 @@ class JobModule(BaseModule):
             if nRow == 0:
                 continue
             # count nQueue
-            varMap = dict()
-            varMap[":computingSite"] = queue_name
-            varMap[":status1"] = "starting"
-            varMap[":status2"] = "running"
+            varMap = {":computingSite": queue_name, ":status1": "starting", ":status2": "running"}
             self.execute(sqlN, varMap)
-            resN = self.cur.fetchall()
-            job_stats_map = dict()
-            for status in ["starting", "running"]:
-                job_stats_map.setdefault(status, {"n": 0, "core": 0})
-            for status, cnt, corecount in resN:
+            job_stats_map = {status: {"n": 0, "core": 0} for status in ("starting", "running")}
+            for status, cnt, corecount in self.cur.fetchall():
                 job_stats_map[status]["n"] = cnt
-                job_stats_map[status]["core"] = corecount
+                # SUM is NULL when nCore is NULL for all jobs
+                job_stats_map[status]["core"] = corecount if corecount is not None else 0
             # get job limit attributes from queue config
             queue_config = queue_config_mapper.get_queue(queue_name)
             nQueueLimitJob = getattr(queue_config, "nQueueLimitJob", None)
@@ -402,20 +358,13 @@ class JobModule(BaseModule):
         timeNow = core_utils.naive_utcnow()
         lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
         updateTimeLimit = timeNow - datetime.timedelta(seconds=update_interval)
-        varMap = dict()
-        varMap[":lockTimeLimit"] = lockTimeLimit
-        varMap[":updateTimeLimit"] = updateTimeLimit
-        self.execute(sql, varMap)
-        resList = self.cur.fetchall()
-        pandaIDs = []
-        for (pandaID,) in resList:
-            pandaIDs.append(pandaID)
+        self.execute(sql, {":lockTimeLimit": lockTimeLimit, ":updateTimeLimit": updateTimeLimit})
+        pandaIDs = [pandaID for (pandaID,) in self.cur.fetchall()]
         # partially randomise to increase success rate for lock
         nJobs = int(max_jobs * 0.2)
-        subPandaIDs = list(pandaIDs[nJobs:])
+        subPandaIDs = pandaIDs[nJobs:]
         random.shuffle(subPandaIDs)
-        pandaIDs = pandaIDs[:nJobs] + subPandaIDs
-        pandaIDs = pandaIDs[:max_jobs]
+        pandaIDs = (pandaIDs[:nJobs] + subPandaIDs)[:max_jobs]
         jobSpecList = []
         iEvents = 0
         for pandaID in pandaIDs:
@@ -423,56 +372,34 @@ class JobModule(BaseModule):
             if iEvents > 10000:
                 break
             # lock job
-            varMap = dict()
-            varMap[":PandaID"] = pandaID
-            varMap[":timeNow"] = timeNow
-            varMap[":lockedBy"] = locked_by
-            varMap[":lockTimeLimit"] = lockTimeLimit
-            varMap[":updateTimeLimit"] = updateTimeLimit
+            varMap = {":PandaID": pandaID, ":timeNow": timeNow, ":lockedBy": locked_by, ":lockTimeLimit": lockTimeLimit, ":updateTimeLimit": updateTimeLimit}
             self.execute(sqlL, varMap)
             nRow = self.cur.rowcount
             # commit
             self.commit()
             if nRow > 0:
                 # read job
-                varMap = dict()
-                varMap[":PandaID"] = pandaID
-                self.execute(sqlJ, varMap)
+                self.execute(sqlJ, {":PandaID": pandaID})
                 res = self.cur.fetchone()
                 # make job
                 jobSpec = JobSpec()
                 jobSpec.pack(res)
                 jobSpec.propagatorLock = locked_by
-                zipFiles = {}
-                zipIdMap = dict()
+                # parameters to get finished/failed events and their files
+                varMapE = {":PandaID": jobSpec.PandaID, ":statusFinished": "finished", ":statusFailed": "failed"}
                 # get zipIDs
-                varMap = dict()
-                varMap[":PandaID"] = jobSpec.PandaID
-                varMap[":statusFinished"] = "finished"
-                varMap[":statusFailed"] = "failed"
-                self.execute(sqlZ, varMap)
-                resZ = self.cur.fetchall()
-                for tmpFileID, tmpZipFileID in resZ:
-                    zipIdMap[tmpFileID] = tmpZipFileID
+                self.execute(sqlZ, varMapE)
+                zipIdMap = {tmpFileID: tmpZipFileID for tmpFileID, tmpZipFileID in self.cur.fetchall()}
                 # get zip files
-                varMap = dict()
-                varMap[":PandaID"] = jobSpec.PandaID
-                varMap[":statusFinished"] = "finished"
-                varMap[":statusFailed"] = "failed"
-                self.execute(sqlF, varMap)
-                resFs = self.cur.fetchall()
-                for resF in resFs:
+                zipFiles = {}
+                self.execute(sqlF, varMapE)
+                for resF in self.cur.fetchall():
                     fileSpec = FileSpec()
                     fileSpec.pack(resF)
                     zipFiles[fileSpec.fileID] = fileSpec
                 # read events
-                varMap = dict()
-                varMap[":PandaID"] = jobSpec.PandaID
-                varMap[":statusFinished"] = "finished"
-                varMap[":statusFailed"] = "failed"
-                self.execute(sqlE, varMap)
-                resEs = self.cur.fetchall()
-                for resE in resEs:
+                self.execute(sqlE, varMapE)
+                for resE in self.cur.fetchall():
                     eventSpec = EventSpec()
                     eventSpec.pack(resE)
                     zipFileSpec = None
@@ -486,13 +413,8 @@ class JobModule(BaseModule):
                     jobSpec.add_event(eventSpec, zipFileSpec)
                     iEvents += 1
                 # read checkpoint files
-                varMap = dict()
-                varMap[":PandaID"] = pandaID
-                varMap[":type"] = "checkpoint"
-                varMap[":status"] = "renewed"
-                self.execute(sqlC, varMap)
-                resC = self.cur.fetchall()
-                for resFile in resC:
+                self.execute(sqlC, {":PandaID": pandaID, ":type": "checkpoint", ":status": "renewed"})
+                for resFile in self.cur.fetchall():
                     fileSpec = FileSpec()
                     fileSpec.pack(resFile)
                     jobSpec.add_out_file(fileSpec)
@@ -517,13 +439,16 @@ class JobModule(BaseModule):
         ng_file_status_list=None,
     ):
         # get logger
-        if locked_by is None:
-            msgPfx = None
-        else:
-            msgPfx = f"id={locked_by}"
+        msgPfx = None if locked_by is None else f"id={locked_by}"
         tmpLog = core_utils.make_logger(_logger, msgPfx, method_name="get_jobs_in_sub_status")
         tmpLog.debug(f"start subStatus={sub_status} timeColumn={time_column}")
         timeNow = core_utils.naive_utcnow()
+        # time limits for lock
+        timeLimitMap = {}
+        if interval_with_lock is not None:
+            timeLimitMap[":lockTimeLimit"] = timeNow - datetime.timedelta(seconds=interval_with_lock)
+        if interval_without_lock is not None:
+            timeLimitMap[":updateTimeLimit"] = timeNow - datetime.timedelta(seconds=interval_without_lock)
         # sql to count jobs being processed
         sqlC = f"SELECT COUNT(*) cnt FROM {jobTableName} "
         sqlC += f"WHERE ({lock_column} IS NOT NULL AND subStatus=:subStatus "
@@ -532,11 +457,9 @@ class JobModule(BaseModule):
         sqlC += ") OR subStatus=:newSubStatus "
         # count jobs
         if max_jobs > 0 and new_sub_status is not None:
-            varMap = dict()
-            varMap[":subStatus"] = sub_status
-            varMap[":newSubStatus"] = new_sub_status
+            varMap = {":subStatus": sub_status, ":newSubStatus": new_sub_status}
             if time_column is not None and interval_with_lock is not None:
-                varMap[":lockTimeLimit"] = timeNow - datetime.timedelta(seconds=interval_with_lock)
+                varMap[":lockTimeLimit"] = timeLimitMap[":lockTimeLimit"]
             self.execute(sqlC, varMap)
             (nProcessing,) = self.cur.fetchone()
             if nProcessing >= max_jobs:
@@ -548,70 +471,45 @@ class JobModule(BaseModule):
         # sql to get job IDs
         sql = f"SELECT PandaID FROM {jobTableName} "
         sql += "WHERE subStatus=:subStatus "
+        # condition on lock time, shared with sql to lock job
+        sqlTimeCond = ""
         if time_column is not None:
-            sql += f"AND ({time_column} IS NULL "
             if interval_with_lock is not None:
-                sql += f"OR ({time_column}<:lockTimeLimit AND {lock_column} IS NOT NULL) "
+                sqlTimeCond += f"OR ({time_column}<:lockTimeLimit AND {lock_column} IS NOT NULL) "
             if interval_without_lock is not None:
-                sql += f"OR ({time_column}<:updateTimeLimit AND {lock_column} IS NULL) "
-            sql += ") "
+                sqlTimeCond += f"OR ({time_column}<:updateTimeLimit AND {lock_column} IS NULL) "
+            sql += f"AND ({time_column} IS NULL {sqlTimeCond}) "
             sql += f"ORDER BY {time_column} "
         # sql to lock job
         sqlL = f"UPDATE {jobTableName} SET {time_column}=:timeNow,{lock_column}=:lockedBy "
         sqlL += "WHERE PandaID=:PandaID AND subStatus=:subStatus "
         if time_column is not None:
-            sqlL += f"AND ({time_column} IS NULL "
-            if interval_with_lock is not None:
-                sqlL += f"OR ({time_column}<:lockTimeLimit AND {lock_column} IS NOT NULL) "
-            if interval_without_lock is not None:
-                sqlL += f"OR ({time_column}<:updateTimeLimit AND {lock_column} IS NULL) "
-            sqlL += ") "
+            sqlL += f"AND ({time_column} IS NULL {sqlTimeCond}) "
         # sql to get jobs
         sqlGJ = f"SELECT {JobSpec.column_names()} FROM {jobTableName} "
         sqlGJ += "WHERE PandaID=:PandaID "
         # sql to get file
         sqlGF = f"SELECT {FileSpec.column_names()} FROM {fileTableName} "
         sqlGF += "WHERE PandaID=:PandaID AND fileType=:type "
-        if ng_file_status_list is not None:
-            sqlGF += "AND status NOT IN ("
-            for tmpStatus in ng_file_status_list:
-                tmpKey = f":status_{tmpStatus}"
-                sqlGF += f"{tmpKey},"
-            sqlGF = sqlGF[:-1]
-            sqlGF += ") "
+        ngStatusMap = {}
+        if ng_file_status_list:
+            ngStatusMap = {f":status_{tmpStatus}": tmpStatus for tmpStatus in ng_file_status_list}
+            sqlGF += f"AND status NOT IN ({','.join(ngStatusMap)}) "
         if max_files_per_job is not None and max_files_per_job > 0:
             sqlGF += f"LIMIT {max_files_per_job} "
         # get jobs
-        varMap = dict()
-        varMap[":subStatus"] = sub_status
-        if interval_with_lock is not None:
-            varMap[":lockTimeLimit"] = timeNow - datetime.timedelta(seconds=interval_with_lock)
-        if interval_without_lock is not None:
-            varMap[":updateTimeLimit"] = timeNow - datetime.timedelta(seconds=interval_without_lock)
-        self.execute(sql, varMap)
-        resList = self.cur.fetchall()
-        pandaIDs = []
-        for (pandaID,) in resList:
-            pandaIDs.append(pandaID)
+        self.execute(sql, {":subStatus": sub_status, **timeLimitMap})
+        pandaIDs = [pandaID for (pandaID,) in self.cur.fetchall()]
         # partially randomise to increase success rate for lock
         nJobs = int(max_jobs * 0.2)
-        subPandaIDs = list(pandaIDs[nJobs:])
+        subPandaIDs = pandaIDs[nJobs:]
         random.shuffle(subPandaIDs)
-        pandaIDs = pandaIDs[:nJobs] + subPandaIDs
-        pandaIDs = pandaIDs[:max_jobs]
+        pandaIDs = (pandaIDs[:nJobs] + subPandaIDs)[:max_jobs]
         jobSpecList = []
         for pandaID in pandaIDs:
             # lock job
             if locked_by is not None:
-                varMap = dict()
-                varMap[":PandaID"] = pandaID
-                varMap[":timeNow"] = timeNow
-                varMap[":lockedBy"] = locked_by
-                varMap[":subStatus"] = sub_status
-                if interval_with_lock is not None:
-                    varMap[":lockTimeLimit"] = timeNow - datetime.timedelta(seconds=interval_with_lock)
-                if interval_without_lock is not None:
-                    varMap[":updateTimeLimit"] = timeNow - datetime.timedelta(seconds=interval_without_lock)
+                varMap = {":PandaID": pandaID, ":timeNow": timeNow, ":lockedBy": locked_by, ":subStatus": sub_status, **timeLimitMap}
                 self.execute(sqlL, varMap)
                 nRow = self.cur.rowcount
                 # commit
@@ -620,9 +518,7 @@ class JobModule(BaseModule):
                 nRow = 1
             if nRow > 0:
                 # get job
-                varMap = dict()
-                varMap[":PandaID"] = pandaID
-                self.execute(sqlGJ, varMap)
+                self.execute(sqlGJ, {":PandaID": pandaID})
                 resGJ = self.cur.fetchone()
                 # make job
                 jobSpec = JobSpec()
@@ -631,19 +527,12 @@ class JobModule(BaseModule):
                     jobSpec.lockedBy = locked_by
                     setattr(jobSpec, time_column, timeNow)
                 # get files
-                varMap = dict()
-                varMap[":PandaID"] = jobSpec.PandaID
                 if jobSpec.auxInput in [None, JobSpec.AUX_hasAuxInput, JobSpec.AUX_allTriggered]:
-                    varMap[":type"] = "input"
+                    fileType = "input"
                 else:
-                    varMap[":type"] = FileSpec.AUX_INPUT
-                if ng_file_status_list is not None:
-                    for tmpStatus in ng_file_status_list:
-                        tmpKey = f":status_{tmpStatus}"
-                        varMap[tmpKey] = tmpStatus
-                self.execute(sqlGF, varMap)
-                resGF = self.cur.fetchall()
-                for resFile in resGF:
+                    fileType = FileSpec.AUX_INPUT
+                self.execute(sqlGF, {":PandaID": jobSpec.PandaID, ":type": fileType, **ngStatusMap})
+                for resFile in self.cur.fetchall():
                     fileSpec = FileSpec()
                     fileSpec.pack(resFile)
                     jobSpec.add_in_file(fileSpec)
@@ -663,10 +552,7 @@ class JobModule(BaseModule):
         sql += "WHERE PandaID=:pandaID AND lockedBy=:lockedBy "
         nJobs = 0
         for pandaID in panda_ids:
-            varMap = dict()
-            varMap[":pandaID"] = pandaID
-            varMap[":lockedBy"] = locked_by
-            self.execute(sql, varMap)
+            self.execute(sql, {":pandaID": pandaID, ":lockedBy": locked_by})
             if self.cur.rowcount > 0:
                 nJobs += 1
         # commit
@@ -684,9 +570,7 @@ class JobModule(BaseModule):
         sqlC = f"SELECT {lock_column},{time_column} FROM {jobTableName} "
         sqlC += "WHERE PandaID=:pandaID "
         sqlC += "FOR UPDATE "
-        varMap = dict()
-        varMap[":pandaID"] = panda_id
-        self.execute(sqlC, varMap)
+        self.execute(sqlC, {":pandaID": panda_id})
         resC = self.cur.fetchone()
         if resC is None:
             retVal = False
@@ -699,10 +583,7 @@ class JobModule(BaseModule):
             else:
                 # update locked time
                 sqlU = f"UPDATE {jobTableName} SET {time_column}=:timeNow WHERE pandaID=:pandaID "
-                varMap = dict()
-                varMap[":pandaID"] = panda_id
-                varMap[":timeNow"] = core_utils.naive_utcnow()
-                self.execute(sqlU, varMap)
+                self.execute(sqlU, {":pandaID": panda_id, ":timeNow": core_utils.naive_utcnow()})
                 retVal = True
         # commit
         self.commit()
@@ -719,10 +600,7 @@ class JobModule(BaseModule):
         # sql to update attempt number
         sqlL = f"UPDATE {jobTableName} SET submissionAttempts=:newNum "
         sqlL += "WHERE PandaID=:PandaID "
-        varMap = dict()
-        varMap[":PandaID"] = panda_id
-        varMap[":newNum"] = new_number
-        self.execute(sqlL, varMap)
+        self.execute(sqlL, {":PandaID": panda_id, ":newNum": new_number})
         # commit
         self.commit()
         tmpLog.debug("done")
@@ -739,40 +617,19 @@ class JobModule(BaseModule):
         sqlGJ += "WHERE subStatus=:subStatus AND propagatorTime IS NULL "
         sqlGJ += "AND ((modificationTime IS NOT NULL AND modificationTime<:timeLimit1) "
         sqlGJ += "OR (modificationTime IS NULL AND creationTime<:timeLimit2)) "
-        # sql to delete job
-        sqlDJ = f"DELETE FROM {jobTableName} "
-        sqlDJ += "WHERE PandaID=:PandaID "
-        # sql to delete files
-        sqlDF = f"DELETE FROM {fileTableName} "
-        sqlDF += "WHERE PandaID=:PandaID "
-        # sql to delete events
-        sqlDE = f"DELETE FROM {eventTableName} "
-        sqlDE += "WHERE PandaID=:PandaID "
-        # sql to delete relations
-        sqlDR = f"DELETE FROM {jobWorkerTableName} "
-        sqlDR += "WHERE PandaID=:PandaID "
         # get jobs
-        varMap = dict()
-        varMap[":subStatus"] = "done"
-        varMap[":timeLimit1"] = core_utils.naive_utcnow() - datetime.timedelta(hours=timeout)
-        varMap[":timeLimit2"] = core_utils.naive_utcnow() - datetime.timedelta(hours=timeout * 2)
+        timeNow = core_utils.naive_utcnow()
+        varMap = {
+            ":subStatus": "done",
+            ":timeLimit1": timeNow - datetime.timedelta(hours=timeout),
+            ":timeLimit2": timeNow - datetime.timedelta(hours=timeout * 2),
+        }
         self.execute(sqlGJ, varMap)
         resGJ = self.cur.fetchall()
         nDel = 0
         for (pandaID,) in resGJ:
-            varMap = dict()
-            varMap[":PandaID"] = pandaID
-            # delete job
-            self.execute(sqlDJ, varMap)
-            iDel = self.cur.rowcount
-            if iDel > 0:
-                nDel += iDel
-                # delete files
-                self.execute(sqlDF, varMap)
-                # delete events
-                self.execute(sqlDE, varMap)
-                # delete relations
-                self.execute(sqlDR, varMap)
+            # delete job, its files, events and relations
+            nDel += self._delete_job_and_related(pandaID)
             # commit
             self.commit()
         tmpLog.debug(f"deleted {nDel} jobs")
@@ -789,9 +646,7 @@ class JobModule(BaseModule):
         sqlJ += "WHERE PandaID=:pandaID AND nWorkers IS NOT NULL AND nWorkersLimit IS NOT NULL "
         sqlJ += "AND nWorkers>0 "
         # set flag
-        varMap = dict()
-        varMap[":pandaID"] = panda_id
-        self.execute(sqlJ, varMap)
+        self.execute(sqlJ, {":pandaID": panda_id})
         nRow = self.cur.rowcount
         # commit
         self.commit()
@@ -805,33 +660,17 @@ class JobModule(BaseModule):
         # get logger
         tmpLog = core_utils.make_logger(_logger, method_name="delete_orphaned_job_info")
         tmpLog.debug("start")
-        # sql to get job info to be deleted
-        sqlGJ = "SELECT PandaID FROM {0} "
-        sqlGJ += "WHERE PandaID NOT IN ("
-        sqlGJ += "SELECT PandaID FROM {1}) "
-        # sql to delete job info
-        sqlDJ = "DELETE FROM {0} "
-        sqlDJ += "WHERE PandaID=:PandaID "
-        # sql to delete files
-        sqlDF = f"DELETE FROM {fileTableName} "
-        sqlDF += "WHERE PandaID=:PandaID "
-        # sql to delete events
-        sqlDE = f"DELETE FROM {eventTableName} "
-        sqlDE += "WHERE PandaID=:PandaID "
-        # sql to delete relations
-        sqlDR = f"DELETE FROM {jobWorkerTableName} "
-        sqlDR += "WHERE PandaID=:PandaID "
         # loop over all tables
-        for tableName in [fileTableName, eventTableName, jobWorkerTableName]:
-            # get job info
-            self.execute(sqlGJ.format(tableName, jobTableName))
+        for tableName, sqlDJ in zip((fileTableName, eventTableName, jobWorkerTableName), _sqlDeleteJobRelated):
+            # get job info to be deleted; DISTINCT since tables have many rows per PandaID and one delete removes them all
+            sqlGJ = f"SELECT DISTINCT PandaID FROM {tableName} "
+            sqlGJ += f"WHERE PandaID NOT IN (SELECT PandaID FROM {jobTableName}) "
+            self.execute(sqlGJ)
             resGJ = self.cur.fetchall()
             nDel = 0
             for (pandaID,) in resGJ:
                 # delete
-                varMap = dict()
-                varMap[":PandaID"] = pandaID
-                self.execute(sqlDJ.format(tableName), varMap)
+                self.execute(sqlDJ, {":PandaID": pandaID})
                 iDel = self.cur.rowcount
                 if iDel > 0:
                     nDel += iDel

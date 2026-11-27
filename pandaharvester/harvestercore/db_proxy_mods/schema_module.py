@@ -87,7 +87,6 @@ class SchemaModule(BaseModule):
         # initialize old NULL entries to ANY in pq_table and work_table
         # get logger
         tmp_log = core_utils.make_logger(_logger, method_name="initialize_jobType")
-
         sql_update = f"UPDATE {table_name} SET jobType = 'ANY' WHERE jobType is NULL "
         try:
             self.execute(sql_update)
@@ -101,85 +100,61 @@ class SchemaModule(BaseModule):
 
     # make table
     def make_table(self, cls, table_name):
+        # get logger
+        tmpLog = core_utils.make_logger(_logger, method_name="make_table")
+        tmpLog.debug(f"table={table_name}")
         try:
-            # get logger
-            tmpLog = core_utils.make_logger(_logger, method_name="make_table")
-            tmpLog.debug(f"table={table_name}")
             # check if table already exists
-            varMap = dict()
-            varMap[":name"] = table_name
             if harvester_config.db.engine == "mariadb":
-                varMap[":schema"] = harvester_config.db.schema
+                varMap = {":name": table_name, ":schema": harvester_config.db.schema}
                 sqlC = "SELECT * FROM information_schema.tables WHERE table_schema=:schema AND table_name=:name "
             else:
-                varMap[":type"] = "table"
+                varMap = {":name": table_name, ":type": "table"}
                 sqlC = "SELECT name FROM sqlite_master WHERE type=:type AND tbl_name=:name "
             self.execute(sqlC, varMap)
             resC = self.cur.fetchone()
+            # columns to add; all for a new table, otherwise only missing ones
+            missingAttrs = None if resC is None else set(self.check_table(cls, table_name, True))
+            columns = []
             indexes = []
             uniques = set()
-            # not exists
-            if resC is None:
-                #  sql to make table
-                sqlM = f"CREATE TABLE {table_name}("
-                # collect columns
-                for attr in cls.attributesWithTypes:
-                    # split to name and type
-                    attrName, attrType = attr.split(":")
-                    attrType = self.type_conversion(attrType)
-                    # check if index is needed
-                    isIndex, isUnique = self.need_index(attr)
-                    if isIndex:
-                        indexes.append(attrName)
-                        if isUnique:
-                            uniques.add(attrName)
-                    sqlM += f"{attrName} {attrType},"
-                sqlM = sqlM[:-1]
-                sqlM += ")"
+            for attr in cls.attributesWithTypes:
+                # split to name and type
+                attrName, attrType = attr.split(":")
+                if missingAttrs is not None and attrName not in missingAttrs:
+                    continue
+                # check if index is needed
+                isIndex, isUnique = self.need_index(attr)
+                if isIndex:
+                    indexes.append(attrName)
+                    if isUnique:
+                        uniques.add(attrName)
+                columns.append((attr, attrName, self.type_conversion(attrType)))
+            if missingAttrs is None:
                 # make table
-                self.execute(sqlM)
+                columnsStr = ",".join(f"{attrName} {attrType}" for _, attrName, attrType in columns)
+                self.execute(f"CREATE TABLE {table_name}({columnsStr})")
                 # commit
                 self.commit()
                 tmpLog.debug(f"made {table_name}")
             else:
-                # check table
-                missingAttrs = self.check_table(cls, table_name, True)
-                if len(missingAttrs) > 0:
-                    for attr in cls.attributesWithTypes:
-                        # split to name and type
-                        attrName, attrType = attr.split(":")
-                        attrType = self.type_conversion(attrType)
-                        # ony missing
-                        if attrName not in missingAttrs:
-                            continue
-                        # check if index is needed
-                        isIndex, isUnique = self.need_index(attr)
-                        if isIndex:
-                            indexes.append(attrName)
-                            if isUnique:
-                                uniques.add(attrName)
-                        # add column
-                        sqlA = f"ALTER TABLE {table_name} ADD COLUMN "
-                        sqlA += f"{attrName} {attrType}"
-                        try:
-                            self.execute(sqlA)
-                            # commit
-                            self.commit()
-                            tmpLog.debug(f"added {attr} to {table_name}")
-                        except Exception:
-                            core_utils.dump_error_message(tmpLog)
-
-                        # if we just added the jobType, old entries need to be initialized
-                        if (table_name == pandaQueueTableName and attrName == "jobType") or (table_name == workTableName and attrName == "jobType"):
-                            self.initialize_jobType(table_name)
-
+                for attr, attrName, attrType in columns:
+                    # add column
+                    try:
+                        self.execute(f"ALTER TABLE {table_name} ADD COLUMN {attrName} {attrType}")
+                        # commit
+                        self.commit()
+                        tmpLog.debug(f"added {attr} to {table_name}")
+                    except Exception:
+                        self.rollback()
+                        core_utils.dump_error_message(tmpLog)
+                    # if we just added the jobType, old entries need to be initialized
+                    if attrName == "jobType" and table_name in (pandaQueueTableName, workTableName):
+                        self.initialize_jobType(table_name)
             # make indexes
             for index in indexes:
                 indexName = f"idx_{index}_{table_name}"
-                if index in uniques:
-                    sqlI = "CREATE UNIQUE INDEX "
-                else:
-                    sqlI = "CREATE INDEX "
+                sqlI = "CREATE UNIQUE INDEX " if index in uniques else "CREATE INDEX "
                 sqlI += f"{indexName} ON {table_name}({index}) "
                 try:
                     self.execute(sqlI)
@@ -187,12 +162,13 @@ class SchemaModule(BaseModule):
                     self.commit()
                     tmpLog.debug(f"added {indexName}")
                 except Exception:
+                    self.rollback()
                     core_utils.dump_error_message(tmpLog)
         except Exception:
             # roll back
             self.rollback()
             # dump error
-            core_utils.dump_error_message(_logger)
+            core_utils.dump_error_message(tmpLog)
         return self.check_table(cls, table_name)
 
     # make tables
@@ -201,28 +177,33 @@ class SchemaModule(BaseModule):
         tmpLog = core_utils.make_logger(_logger, method_name="make_tables")
         tmpLog.debug("start")
         outStrs = []
-        outStrs += self.make_table(CommandSpec, commandTableName)
-        outStrs += self.make_table(JobSpec, jobTableName)
-        outStrs += self.make_table(WorkSpec, workTableName)
-        outStrs += self.make_table(FileSpec, fileTableName)
-        outStrs += self.make_table(EventSpec, eventTableName)
-        outStrs += self.make_table(CacheSpec, cacheTableName)
-        outStrs += self.make_table(SeqNumberSpec, seqNumberTableName)
-        outStrs += self.make_table(PandaQueueSpec, pandaQueueTableName)
-        outStrs += self.make_table(JobWorkerRelationSpec, jobWorkerTableName)
-        outStrs += self.make_table(ProcessLockSpec, processLockTableName)
-        outStrs += self.make_table(DiagSpec, diagTableName)
-        outStrs += self.make_table(QueueConfigDumpSpec, queueConfigDumpTableName)
-        outStrs += self.make_table(ServiceMetricSpec, serviceMetricsTableName)
-        outStrs += self.make_table(WorkerCheckSpec, workerCheckTableName)
-        outStrs += self.make_table(WorkerTargetCacheSpec, workerTargetCacheTableName)
+        for cls, table_name in (
+            (CommandSpec, commandTableName),
+            (JobSpec, jobTableName),
+            (WorkSpec, workTableName),
+            (FileSpec, fileTableName),
+            (EventSpec, eventTableName),
+            (CacheSpec, cacheTableName),
+            (SeqNumberSpec, seqNumberTableName),
+            (PandaQueueSpec, pandaQueueTableName),
+            (JobWorkerRelationSpec, jobWorkerTableName),
+            (ProcessLockSpec, processLockTableName),
+            (DiagSpec, diagTableName),
+            (QueueConfigDumpSpec, queueConfigDumpTableName),
+            (ServiceMetricSpec, serviceMetricsTableName),
+            (WorkerCheckSpec, workerCheckTableName),
+            (WorkerTargetCacheSpec, workerTargetCacheTableName),
+        ):
+            outStrs += self.make_table(cls, table_name)
 
-        # dump error messages
+        # dump error messages and exit
         if len(outStrs) > 0:
-            errMsg = "ERROR : Definitions of some database tables are incorrect. "
-            errMsg += "Please add missing columns, or drop those tables "
-            errMsg += "so that harvester automatically re-creates those tables."
-            errMsg += "\n"
+            errMsg = (
+                "ERROR : Definitions of some database tables are incorrect. "
+                "Please add missing columns, or drop those tables "
+                "so that harvester automatically re-creates those tables."
+                "\n"
+            )
             print(errMsg)
             for outStr in outStrs:
                 print(outStr)
@@ -230,7 +211,7 @@ class SchemaModule(BaseModule):
 
         # sync workerID
         init_worker = 1
-        if hasattr(harvester_config.db, "syncMaxWorkerID") and harvester_config.db.syncMaxWorkerID:
+        if getattr(harvester_config.db, "syncMaxWorkerID", False):
             retVal, out = communicator_pool.get_max_worker_id()
             if not retVal:
                 tmpLog.warning(f"failed to get max workerID with {out}")
@@ -253,8 +234,7 @@ class SchemaModule(BaseModule):
         # get columns in DB
         varMap = dict()
         if harvester_config.db.engine == "mariadb":
-            varMap[":name"] = table_name
-            varMap[":schema"] = harvester_config.db.schema
+            varMap = {":name": table_name, ":schema": harvester_config.db.schema}
             sqlC = "SELECT column_name,column_type FROM information_schema.columns WHERE table_schema=:schema AND table_name=:name "
         else:
             sqlC = f"PRAGMA table_info({table_name}) "

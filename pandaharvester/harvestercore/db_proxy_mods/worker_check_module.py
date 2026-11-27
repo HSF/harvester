@@ -13,6 +13,7 @@ import random
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
+    _bind_in,
     _logger,
     db_error_handler,
     jobWorkerTableName,
@@ -27,16 +28,6 @@ _active_statuses = (WorkSpec.ST_submitted, WorkSpec.ST_running, WorkSpec.ST_idle
 
 # worker statuses that keep a schedule row
 _non_final_statuses = _active_statuses + (WorkSpec.ST_ready, WorkSpec.ST_pending)
-
-
-# make a list of bind variables for IN, filling var_map
-def _bind_in(prefix, values, var_map):
-    names = []
-    for idx, val in enumerate(values):
-        name = f":{prefix}{idx}"
-        var_map[name] = val
-        names.append(name)
-    return ",".join(names)
 
 
 # DB proxy module for the worker check schedule of the monitor

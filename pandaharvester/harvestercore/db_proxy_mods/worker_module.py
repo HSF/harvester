@@ -25,6 +25,16 @@ from pandaharvester.harvestercore.job_worker_relation_spec import JobWorkerRelat
 from pandaharvester.harvestercore.work_spec import WorkSpec
 from pandaharvester.harvestercore.worker_check_spec import WorkerCheckSpec
 
+# worker statuses not to be killed
+_final_status_map = {":st1": WorkSpec.ST_finished, ":st2": WorkSpec.ST_failed, ":st3": WorkSpec.ST_cancelled}
+
+
+# time to set to killTime: a past time to trigger the sweeper immediately, or a future time to delay the trigger
+def _get_kill_time(delay_seconds):
+    if delay_seconds is None:
+        return core_utils.naive_utcnow() - datetime.timedelta(hours=6)
+    return core_utils.naive_utcnow() + datetime.timedelta(seconds=delay_seconds)
+
 
 # DB proxy module for workers
 class WorkerModule(BaseModule):
@@ -83,22 +93,16 @@ class WorkerModule(BaseModule):
         # insert worker if new
         isNew = False
         if workspec.isNew:
-            varMap = dict()
-            varMap[":workerID"] = workspec.workerID
-            self.execute(sqlE, varMap)
-            resE = self.cur.fetchone()
-            if resE is None:
+            self.execute(sqlE, {":workerID": workspec.workerID})
+            if self.cur.fetchone() is None:
                 isNew = True
         if isNew:
             # insert a worker
             sqlI = f"INSERT INTO {workTableName} ({WorkSpec.column_names()}) "
             sqlI += WorkSpec.bind_values_expression()
-            varMap = workspec.values_list()
-            self.execute(sqlI, varMap)
+            self.execute(sqlI, workspec.values_list())
             # decrement nNewWorkers
-            varMap = dict()
-            varMap[":queueName"] = workspec.computingSite
-            self.execute(sqlDN, varMap)
+            self.execute(sqlDN, {":queueName": workspec.computingSite})
         else:
             # not update workerID
             workspec.force_not_update("workerID")
@@ -112,54 +116,37 @@ class WorkerModule(BaseModule):
         varMapsR = []
         if jobspec_list is not None:
             for jobSpec in jobspec_list:
-                # get number of workers for the job
-                varMap = dict()
-                varMap[":pandaID"] = jobSpec.PandaID
-                varMap[":st_submitted"] = WorkSpec.ST_submitted
-                varMap[":st_running"] = WorkSpec.ST_running
-                varMap[":st_idle"] = WorkSpec.ST_idle
+                # get active workers for the job, including this worker
+                varMap = {":pandaID": jobSpec.PandaID, ":st_submitted": WorkSpec.ST_submitted, ":st_running": WorkSpec.ST_running, ":st_idle": WorkSpec.ST_idle}
                 self.execute(sqlNW, varMap)
-                resNW = self.cur.fetchall()
-                workerIDs = set()
-                workerIDs.add(workspec.workerID)
-                for (tmpWorkerID,) in resNW:
-                    workerIDs.add(tmpWorkerID)
+                workerIDs = {workspec.workerID}
+                workerIDs.update(tmpWorkerID for (tmpWorkerID,) in self.cur.fetchall())
                 # update attributes
                 if jobSpec.subStatus in ["submitted", "running"]:
-                    jobSpec.nWorkers = len(workerIDs)
-                    try:
-                        jobSpec.nWorkersInTotal += 1
-                    except Exception:
-                        jobSpec.nWorkersInTotal = jobSpec.nWorkers
-                elif workspec.hasJob == 1:
-                    if workspec.status == WorkSpec.ST_missed:
-                        # not update if other workers are active
-                        if len(workerIDs) > 1:
-                            continue
-                        core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec], [workspec], {}, {})
-                        jobSpec.trigger_propagation()
-                    else:
-                        jobSpec.subStatus = "submitted"
-                    jobSpec.nWorkers = len(workerIDs)
-                    try:
-                        jobSpec.nWorkersInTotal += 1
-                    except Exception:
-                        jobSpec.nWorkersInTotal = jobSpec.nWorkers
+                    countWorkers = True
                 else:
+                    countWorkers = workspec.hasJob == 1
                     if workspec.status == WorkSpec.ST_missed:
                         # not update if other workers are active
                         if len(workerIDs) > 1:
                             continue
                         core_utils.update_job_attributes_with_workers(workspec.mapType, [jobSpec], [workspec], {}, {})
                         jobSpec.trigger_propagation()
+                    elif countWorkers:
+                        jobSpec.subStatus = "submitted"
                     else:
                         jobSpec.subStatus = "queued"
-                # sql to update job
-                if len(jobSpec.values_map(only_changed=True)) > 0:
+                if countWorkers:
+                    jobSpec.nWorkers = len(workerIDs)
+                    try:
+                        jobSpec.nWorkersInTotal += 1
+                    except Exception:
+                        jobSpec.nWorkersInTotal = jobSpec.nWorkers
+                # update job
+                varMap = jobSpec.values_map(only_changed=True)
+                if len(varMap) > 0:
                     sqlJ = f"UPDATE {jobTableName} SET {jobSpec.bind_update_changes_expression()} "
                     sqlJ += "WHERE PandaID=:cr_PandaID AND lockedBy=:cr_lockedBy "
-                    # update job
-                    varMap = jobSpec.values_map(only_changed=True)
                     varMap[":cr_PandaID"] = jobSpec.PandaID
                     varMap[":cr_lockedBy"] = locked_by
                     self.execute(sqlJ, varMap)
@@ -168,8 +155,7 @@ class WorkerModule(BaseModule):
                     jwRelation = JobWorkerRelationSpec()
                     jwRelation.PandaID = jobSpec.PandaID
                     jwRelation.workerID = workspec.workerID
-                    varMap = jwRelation.values_list()
-                    varMapsR.append(varMap)
+                    varMapsR.append(jwRelation.values_list())
         # insert job/worker mapping
         if len(varMapsR) > 0:
             self.executemany(sqlR, varMapsR)
@@ -191,14 +177,15 @@ class WorkerModule(BaseModule):
         sqlI = f"INSERT INTO {workTableName} ({WorkSpec.column_names()}) "
         sqlI += WorkSpec.bind_values_expression()
         for workSpec in workspec_list:
+            # NOTE: copy.copy goes through WorkSpec.__getstate__/__setstate__, which resets isNew to False,
+            # so no worker is inserted here
             tmpWorkSpec = copy.copy(workSpec)
             # insert worker if new
             if not tmpWorkSpec.isNew:
                 continue
             tmpWorkSpec.modificationTime = timeNow
             tmpWorkSpec.status = WorkSpec.ST_pending
-            varMap = tmpWorkSpec.values_list()
-            self.execute(sqlI, varMap)
+            self.execute(sqlI, tmpWorkSpec.values_list())
         # commit
         self.commit()
         # return
@@ -227,45 +214,28 @@ class WorkerModule(BaseModule):
         timeNow = core_utils.naive_utcnow()
         timeLimit = timeNow - datetime.timedelta(seconds=check_interval)
         # get workerIDs
-        varMap = dict()
-        varMap[":checkTimeLimit"] = timeLimit
-        self.execute(sqlW, varMap)
-        resW = self.cur.fetchall()
-        tmpWorkers = []
-        for (workerID,) in resW:
-            tmpWorkers.append(workerID)
+        self.execute(sqlW, {":checkTimeLimit": timeLimit})
+        tmpWorkers = [workerID for (workerID,) in self.cur.fetchall()]
         # partially randomize to increase hit rate
         nWorkers = int(max_workers * 0.2)
-        subTmpWorkers = list(tmpWorkers[nWorkers:])
+        subTmpWorkers = tmpWorkers[nWorkers:]
         random.shuffle(subTmpWorkers)
-        tmpWorkers = tmpWorkers[:nWorkers] + subTmpWorkers
-        tmpWorkers = tmpWorkers[:max_workers]
+        tmpWorkers = (tmpWorkers[:nWorkers] + subTmpWorkers)[:max_workers]
         retVal = []
         for workerID in tmpWorkers:
             # lock worker
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            varMap[":timeNow"] = timeNow
-            varMap[":checkTimeLimit"] = timeLimit
+            varMap = {":workerID": workerID, ":timeNow": timeNow, ":checkTimeLimit": timeLimit}
             self.execute(sqlL, varMap)
-            nRow = self.cur.rowcount
-            if nRow > 0:
+            if self.cur.rowcount > 0:
                 # get worker
-                varMap = dict()
-                varMap[":workerID"] = workerID
+                varMap = {":workerID": workerID}
                 self.execute(sqlG, varMap)
-                resG = self.cur.fetchone()
                 workSpec = WorkSpec()
-                workSpec.pack(resG)
+                workSpec.pack(self.cur.fetchone())
                 retVal.append(workSpec)
                 # get associated PandaIDs
-                varMap = dict()
-                varMap[":workerID"] = workerID
                 self.execute(sqlA, varMap)
-                resA = self.cur.fetchall()
-                workSpec.pandaid_list = []
-                for (pandaID,) in resA:
-                    workSpec.pandaid_list.append(pandaID)
+                workSpec.pandaid_list = [pandaID for (pandaID,) in self.cur.fetchall()]
             # commit
             self.commit()
         tmpLog.debug(f"got {len(retVal)} workers")
@@ -293,26 +263,26 @@ class WorkerModule(BaseModule):
         # get workerIDs
         timeNow = core_utils.naive_utcnow()
         lockTimeLimit = timeNow - datetime.timedelta(seconds=lock_interval)
-        varMap = dict()
-        varMap[":status1"] = WorkSpec.ST_running
-        varMap[":status2"] = WorkSpec.ST_submitted
-        varMap[":eventsRequest"] = WorkSpec.EV_requestEvents
-        varMap[":lockTimeLimit"] = lockTimeLimit
+        varMap = {
+            ":status1": WorkSpec.ST_running,
+            ":status2": WorkSpec.ST_submitted,
+            ":eventsRequest": WorkSpec.EV_requestEvents,
+            ":lockTimeLimit": lockTimeLimit,
+        }
         self.execute(sqlW, varMap)
         resW = self.cur.fetchall()
-        tmpWorkers = dict()
-        for tmpWorkerID, tmpWorkStatus in resW:
-            tmpWorkers[tmpWorkerID] = tmpWorkStatus
         retVal = {}
-        for workerID, workStatus in tmpWorkers.items():
+        nWorkers = 0
+        for workerID, workStatus in resW:
             # lock worker
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            varMap[":timeNow"] = timeNow
-            varMap[":status"] = workStatus
-            varMap[":eventsRequest"] = WorkSpec.EV_requestEvents
-            varMap[":lockTimeLimit"] = lockTimeLimit
-            varMap[":lockedBy"] = locked_by
+            varMap = {
+                ":workerID": workerID,
+                ":timeNow": timeNow,
+                ":status": workStatus,
+                ":eventsRequest": WorkSpec.EV_requestEvents,
+                ":lockTimeLimit": lockTimeLimit,
+                ":lockedBy": locked_by,
+            }
             self.execute(sqlL, varMap)
             nRow = self.cur.rowcount
             # commit
@@ -321,16 +291,12 @@ class WorkerModule(BaseModule):
             if nRow == 0:
                 continue
             # get worker
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            self.execute(sqlG, varMap)
-            resG = self.cur.fetchone()
+            self.execute(sqlG, {":workerID": workerID})
             workSpec = WorkSpec()
-            workSpec.pack(resG)
-            if workSpec.computingSite not in retVal:
-                retVal[workSpec.computingSite] = []
-            retVal[workSpec.computingSite].append(workSpec)
-        tmpLog.debug(f"got {len(retVal)} workers")
+            workSpec.pack(self.cur.fetchone())
+            retVal.setdefault(workSpec.computingSite, []).append(workSpec)
+            nWorkers += 1
+        tmpLog.debug(f"got {nWorkers} workers in {len(retVal)} queues")
         return retVal
 
     # get ready workers
@@ -348,10 +314,7 @@ class WorkerModule(BaseModule):
         sqlP = f"SELECT COUNT(*) cnt FROM {jobWorkerTableName} "
         sqlP += "WHERE workerID=:workerID "
         # get workers
-        varMap = dict()
-        varMap[":status_ready"] = WorkSpec.ST_ready
-        varMap[":status_running"] = WorkSpec.ST_running
-        varMap[":queueName"] = queue_name
+        varMap = {":status_ready": WorkSpec.ST_ready, ":status_running": WorkSpec.ST_running, ":queueName": queue_name}
         self.execute(sqlG, varMap)
         resList = self.cur.fetchall()
         retVal = []
@@ -359,9 +322,7 @@ class WorkerModule(BaseModule):
             workSpec = WorkSpec()
             workSpec.pack(res)
             # get number of jobs
-            varMap = dict()
-            varMap[":workerID"] = workSpec.workerID
-            self.execute(sqlP, varMap)
+            self.execute(sqlP, {":workerID": workSpec.workerID})
             resP = self.cur.fetchone()
             if resP is not None and resP[0] > 0:
                 workSpec.nJobs = resP[0]
@@ -381,14 +342,15 @@ class WorkerModule(BaseModule):
         sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} "
         sqlG += "WHERE workerID=:workerID "
         # get a worker
-        varMap = dict()
-        varMap[":workerID"] = worker_id
-        self.execute(sqlG, varMap)
+        self.execute(sqlG, {":workerID": worker_id})
         res = self.cur.fetchone()
-        workSpec = WorkSpec()
-        workSpec.pack(res)
         # commit
         self.commit()
+        if res is None:
+            tmpLog.debug("not found")
+            return None
+        workSpec = WorkSpec()
+        workSpec.pack(res)
         tmpLog.debug("got")
         return workSpec
 
@@ -414,42 +376,29 @@ class WorkerModule(BaseModule):
         timeLimit = timeNow - datetime.timedelta(seconds=check_interval)
 
         # get workerIDs
-        varMap = dict()
-        varMap[":checkTimeLimit"] = timeLimit
-        self.execute(sqlW, varMap)
+        self.execute(sqlW, {":checkTimeLimit": timeLimit})
         resW = self.cur.fetchall()
+        useConfigID = core_utils.dynamic_plugin_change()
         retVal = dict()
+        nWorkers = 0
         for workerID, workerStatus, configID in resW:
             # ignore configID
-            if not core_utils.dynamic_plugin_change():
+            if not useConfigID:
                 configID = None
-            # lock or release worker
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            varMap[":checkTimeLimit"] = timeLimit
-            if workerStatus in (WorkSpec.ST_cancelled, WorkSpec.ST_failed, WorkSpec.ST_finished):
-                # release
-                varMap[":setTime"] = None
-            else:
-                # lock
-                varMap[":setTime"] = timeNow
+            # release worker in final status, or lock it
+            toLock = workerStatus not in (WorkSpec.ST_cancelled, WorkSpec.ST_failed, WorkSpec.ST_finished)
+            varMap = {":workerID": workerID, ":checkTimeLimit": timeLimit, ":setTime": timeNow if toLock else None}
             self.execute(sqlL, varMap)
             # get worker
-            nRow = self.cur.rowcount
-            if nRow == 1 and varMap[":setTime"] is not None:
-                varMap = dict()
-                varMap[":workerID"] = workerID
-                self.execute(sqlG, varMap)
-                resG = self.cur.fetchone()
+            if self.cur.rowcount == 1 and toLock:
+                self.execute(sqlG, {":workerID": workerID})
                 workSpec = WorkSpec()
-                workSpec.pack(resG)
-                queueName = workSpec.computingSite
-                retVal.setdefault(queueName, dict())
-                retVal[queueName].setdefault(configID, [])
-                retVal[queueName][configID].append(workSpec)
+                workSpec.pack(self.cur.fetchone())
+                retVal.setdefault(workSpec.computingSite, dict()).setdefault(configID, []).append(workSpec)
+                nWorkers += 1
             # commit
             self.commit()
-        tmpLog.debug(f"got {len(retVal)} workers")
+        tmpLog.debug(f"got {nWorkers} workers in {len(retVal)} queues")
         return retVal
 
     # send kill command to workers associated to a job
@@ -464,27 +413,14 @@ class WorkerModule(BaseModule):
         # sql to get associated workers
         sqlA = f"SELECT workerID FROM {jobWorkerTableName} WHERE PandaID=:pandaID "
         # set time to trigger sweeper
-        if delay_seconds is None:
-            # set a past time to trigger sweeper immediately
-            setTime = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
-        else:
-            # set a future time to delay trigger
-            setTime = core_utils.naive_utcnow() + datetime.timedelta(seconds=delay_seconds)
+        setTime = _get_kill_time(delay_seconds)
         # get workers
-        varMap = dict()
-        varMap[":pandaID"] = panda_id
-        self.execute(sqlA, varMap)
+        self.execute(sqlA, {":pandaID": panda_id})
         resA = self.cur.fetchall()
         nRow = 0
         for (workerID,) in resA:
             # set killTime
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            varMap[":setTime"] = setTime
-            varMap[":st1"] = WorkSpec.ST_finished
-            varMap[":st2"] = WorkSpec.ST_failed
-            varMap[":st3"] = WorkSpec.ST_cancelled
-            self.execute(sqlL, varMap)
+            self.execute(sqlL, {":workerID": workerID, ":setTime": setTime, **_final_status_map})
             nRow += self.cur.rowcount
         # commit
         self.commit()
@@ -501,23 +437,12 @@ class WorkerModule(BaseModule):
         sqlL = f"UPDATE {workTableName} SET killTime=:setTime "
         sqlL += "WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
         # set time to trigger sweeper
-        if delay_seconds is None:
-            # set a past time to trigger sweeper immediately
-            setTime = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
-        else:
-            # set a future time to delay trigger
-            setTime = core_utils.naive_utcnow() + datetime.timedelta(seconds=delay_seconds)
-        varMaps = []
-        for worker_id in worker_ids:
-            varMap = dict()
-            varMap[":workerID"] = worker_id
-            varMap[":setTime"] = setTime
-            varMap[":st1"] = WorkSpec.ST_finished
-            varMap[":st2"] = WorkSpec.ST_failed
-            varMap[":st3"] = WorkSpec.ST_cancelled
-            varMaps.append(varMap)
-        self.executemany(sqlL, varMaps)
-        nRow = self.cur.rowcount
+        setTime = _get_kill_time(delay_seconds)
+        varMaps = [{":workerID": worker_id, ":setTime": setTime, **_final_status_map} for worker_id in worker_ids]
+        nRow = 0
+        if varMaps:
+            self.executemany(sqlL, varMaps)
+            nRow = self.cur.rowcount
         # commit
         self.commit()
         tmpLog.debug(f"set killTime with {nRow}")
@@ -532,18 +457,16 @@ class WorkerModule(BaseModule):
         # sql to get worker IDs
         timeNow = core_utils.naive_utcnow()
         modTimeLimit = timeNow - datetime.timedelta(minutes=60)
-        varMap = dict()
-        varMap[":timeLimit"] = modTimeLimit
-        sqlW = f"SELECT workerID, configID FROM {workTableName} "
-        sqlW += "WHERE lastUpdate IS NULL AND ("
+        varMap = {":timeLimit": modTimeLimit}
+        statusConds = []
         for tmpStatus, tmpTimeout in status_timeout_map.items():
             tmpStatusKey = f":status_{tmpStatus}"
             tmpTimeoutKey = f":timeLimit_{tmpStatus}"
-            sqlW += f"(status={tmpStatusKey} AND endTime<={tmpTimeoutKey}) OR "
+            statusConds.append(f"(status={tmpStatusKey} AND endTime<={tmpTimeoutKey})")
             varMap[tmpStatusKey] = tmpStatus
             varMap[tmpTimeoutKey] = timeNow - datetime.timedelta(hours=tmpTimeout)
-        sqlW = sqlW[:-4]
-        sqlW += ") "
+        sqlW = f"SELECT workerID, configID FROM {workTableName} "
+        sqlW += f"WHERE lastUpdate IS NULL AND ({' OR '.join(statusConds)}) "
         sqlW += "AND modificationTime<:timeLimit "
         sqlW += f"ORDER BY modificationTime LIMIT {max_workers} "
         # sql to lock or release worker
@@ -566,76 +489,55 @@ class WorkerModule(BaseModule):
         sqlF = f"SELECT {FileSpec.column_names()} FROM {fileTableName} "
         sqlF += "WHERE PandaID=:PandaID "
         # sql to get files not to be deleted. b.todelete is not used to use index on b.lfn
-        sqlD = "SELECT b.lfn,b.todelete  FROM {0} a, {0} b ".format(fileTableName)
+        sqlD = f"SELECT b.lfn,b.todelete FROM {fileTableName} a, {fileTableName} b "
         sqlD += "WHERE a.PandaID=:PandaID AND a.fileType IN (:fileType1,:fileType2) AND b.lfn=a.lfn "
         # get workerIDs
-        timeNow = core_utils.naive_utcnow()
         self.execute(sqlW, varMap)
         resW = self.cur.fetchall()
+        useConfigID = core_utils.dynamic_plugin_change()
         retVal = dict()
         iWorkers = 0
         for workerID, configID in resW:
             # lock worker
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            varMap[":setTime"] = timeNow
-            varMap[":timeLimit"] = modTimeLimit
+            varMap = {":workerID": workerID, ":setTime": timeNow, ":timeLimit": modTimeLimit}
             self.execute(sqlL, varMap)
+            nRow = self.cur.rowcount
             # commit
             self.commit()
-            if self.cur.rowcount == 0:
+            if nRow == 0:
                 continue
             # ignore configID
-            if not core_utils.dynamic_plugin_change():
+            if not useConfigID:
                 configID = None
             # check associated jobs
-            varMap = dict()
-            varMap[":workerID"] = workerID
+            varMap = {":workerID": workerID}
             self.execute(sqlA, varMap)
             (nActJobs,) = self.cur.fetchone()
             # cleanup when there is no active job
             if nActJobs == 0:
                 # get worker
-                varMap = dict()
-                varMap[":workerID"] = workerID
                 self.execute(sqlG, varMap)
-                resG = self.cur.fetchone()
                 workSpec = WorkSpec()
-                workSpec.pack(resG)
-                queueName = workSpec.computingSite
-                retVal.setdefault(queueName, dict())
-                retVal[queueName].setdefault(configID, [])
-                retVal[queueName][configID].append(workSpec)
+                workSpec.pack(self.cur.fetchone())
+                retVal.setdefault(workSpec.computingSite, dict()).setdefault(configID, []).append(workSpec)
                 # get jobs
                 jobSpecs = []
                 checkedLFNs = set()
                 keepLFNs = set()
-                varMap = dict()
-                varMap[":workerID"] = workerID
                 self.execute(sqlP, varMap)
                 resP = self.cur.fetchall()
                 for (pandaID,) in resP:
-                    varMap = dict()
-                    varMap[":PandaID"] = pandaID
-                    self.execute(sqlJ, varMap)
-                    resJ = self.cur.fetchone()
+                    self.execute(sqlJ, {":PandaID": pandaID})
                     jobSpec = JobSpec()
-                    jobSpec.pack(resJ)
+                    jobSpec.pack(self.cur.fetchone())
                     jobSpecs.append(jobSpec)
                     # get LFNs not to be deleted
-                    varMap = dict()
-                    varMap[":PandaID"] = pandaID
-                    varMap[":fileType1"] = "input"
-                    varMap[":fileType2"] = FileSpec.AUX_INPUT
-                    self.execute(sqlD, varMap)
-                    resDs = self.cur.fetchall()
-                    for tmpLFN, tmpTodelete in resDs:
+                    self.execute(sqlD, {":PandaID": pandaID, ":fileType1": "input", ":fileType2": FileSpec.AUX_INPUT})
+                    for tmpLFN, tmpTodelete in self.cur.fetchall():
                         if tmpTodelete == 0:
                             keepLFNs.add(tmpLFN)
                     # get files to be deleted
-                    varMap = dict()
-                    varMap[":PandaID"] = jobSpec.PandaID
-                    self.execute(sqlF, varMap)
+                    self.execute(sqlF, {":PandaID": pandaID})
                     resFs = self.cur.fetchall()
                     for resF in resFs:
                         fileSpec = FileSpec()
@@ -677,24 +579,14 @@ class WorkerModule(BaseModule):
         sqlDW = f"DELETE FROM {workTableName} "
         sqlDW += "WHERE workerID=:workerID "
         # get jobs
-        varMap = dict()
-        varMap[":workerID"] = worker_id
+        varMap = {":workerID": worker_id}
         self.execute(sqlJ, varMap)
-        resJ = self.cur.fetchall()
-        for (pandaID,) in resJ:
-            varMap = dict()
-            varMap[":PandaID"] = pandaID
-            # delete job
-            self.execute(sqlDJ, varMap)
-            # delete files
-            self.execute(sqlDF, varMap)
-            # delete events
-            self.execute(sqlDE, varMap)
-            # delete relations
-            self.execute(sqlDR, varMap)
+        varMapsJ = [{":PandaID": pandaID} for (pandaID,) in self.cur.fetchall()]
+        if varMapsJ:
+            # delete jobs, files, events and relations
+            for sqlD in (sqlDJ, sqlDF, sqlDE, sqlDR):
+                self.executemany(sqlD, varMapsJ)
         # delete worker
-        varMap = dict()
-        varMap[":workerID"] = worker_id
         self.execute(sqlDW, varMap)
         # commit
         self.commit()
@@ -718,10 +610,10 @@ class WorkerModule(BaseModule):
                 sqlW += "AND wt.submitTime>:timeLimit "
                 varMap[":timeLimit"] = val
             elif attr in ["siteName"]:
-                sqlW += "AND pq.{0}=:{0} ".format(attr)
+                sqlW += f"AND pq.{attr}=:{attr} "
                 varMap[f":{attr}"] = val
             elif attr in ["computingSite", "computingElement"]:
-                sqlW += "AND wt.{0}=:{0} ".format(attr)
+                sqlW += f"AND wt.{attr}=:{attr} "
                 varMap[f":{attr}"] = val
         varMap[":status"] = "missed"
         self.execute(sqlW, varMap)
@@ -748,18 +640,13 @@ class WorkerModule(BaseModule):
             sqlG = f"SELECT {WorkSpec.column_names(slim=True)} FROM {workTableName} "
             sqlG += "WHERE workerID=:workerID "
             # get workerIDs
-            varMap = dict()
-            varMap[":PandaID"] = panda_id
-            self.execute(sqlW, varMap)
+            self.execute(sqlW, {":PandaID": panda_id})
             retList = []
             for (worker_id,) in self.cur.fetchall():
                 # get a worker
-                varMap = dict()
-                varMap[":workerID"] = worker_id
-                self.execute(sqlG, varMap)
-                res = self.cur.fetchone()
+                self.execute(sqlG, {":workerID": worker_id})
                 workSpec = WorkSpec()
-                workSpec.pack(res, slim=True)
+                workSpec.pack(self.cur.fetchone(), slim=True)
                 retList.append(workSpec)
             # commit
             if use_commit:
@@ -784,9 +671,7 @@ class WorkerModule(BaseModule):
         sqlC = f"SELECT eventFeedLock,eventFeedTime FROM {workTableName} "
         sqlC += "WHERE workerID=:workerID "
         sqlC += "FOR UPDATE "
-        varMap = dict()
-        varMap[":workerID"] = worker_id
-        self.execute(sqlC, varMap)
+        self.execute(sqlC, {":workerID": worker_id})
         resC = self.cur.fetchone()
         if resC is None:
             retVal = False
@@ -799,10 +684,7 @@ class WorkerModule(BaseModule):
             else:
                 # update locked time
                 sqlU = f"UPDATE {workTableName} SET eventFeedTime=:timeNow WHERE workerID=:workerID "
-                varMap = dict()
-                varMap[":workerID"] = worker_id
-                varMap[":timeNow"] = core_utils.naive_utcnow()
-                self.execute(sqlU, varMap)
+                self.execute(sqlU, {":workerID": worker_id, ":timeNow": core_utils.naive_utcnow()})
                 retVal = True
         # commit
         self.commit()
@@ -844,27 +726,14 @@ class WorkerModule(BaseModule):
         sqlW = f"SELECT workerID FROM {workTableName} "
         sqlW += f"WHERE {constraints_query_string} "
         # set time to trigger sweeper
-        if delay_seconds is None:
-            # set a past time to trigger sweeper immediately
-            setTime = core_utils.naive_utcnow() - datetime.timedelta(hours=6)
-        else:
-            # set a future time to delay trigger
-            setTime = core_utils.naive_utcnow() + datetime.timedelta(seconds=delay_seconds)
+        setTime = _get_kill_time(delay_seconds)
         # get workers
-        varMap = dict()
-        varMap.update(tmp_varMap)
-        self.execute(sqlW, varMap)
+        self.execute(sqlW, tmp_varMap)
         resW = self.cur.fetchall()
         nRow = 0
         for (workerID,) in resW:
             # set killTime
-            varMap = dict()
-            varMap[":workerID"] = workerID
-            varMap[":setTime"] = setTime
-            varMap[":st1"] = WorkSpec.ST_finished
-            varMap[":st2"] = WorkSpec.ST_failed
-            varMap[":st3"] = WorkSpec.ST_cancelled
-            self.execute(sqlL, varMap)
+            self.execute(sqlL, {":workerID": workerID, ":setTime": setTime, **_final_status_map})
             nRow += self.cur.rowcount
         # commit
         self.commit()
