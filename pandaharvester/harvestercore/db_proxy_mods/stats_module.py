@@ -9,9 +9,9 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
     _bind_in,
-    _logger,
     db_error_handler,
     jobTableName,
+    make_logger,
     pandaQueueTableName,
     serviceMetricsTableName,
     workTableName,
@@ -28,7 +28,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default={})
     def get_worker_stats(self, site_name):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_worker_stats")
+        tmpLog = make_logger(method_name="get_worker_stats")
         tmpLog.debug("start")
         # sql to get nQueueLimit
         sqlQ = f"SELECT queueName, jobType, resourceType, nNewWorkers FROM {pandaQueueTableName} "
@@ -66,7 +66,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default={})
     def get_worker_stats_bulk(self, active_ups_queues):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_worker_stats_bulk")
+        tmpLog = make_logger(method_name="get_worker_stats_bulk")
         tmpLog.debug("start")
         # sql to get nQueueLimit
         sqlQ = f"SELECT queueName, jobType, resourceType, nNewWorkers FROM {pandaQueueTableName} "
@@ -113,7 +113,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default={})
     def get_worker_stats_full(self, filter_site_list=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_worker_stats_full")
+        tmpLog = make_logger(method_name="get_worker_stats_full")
         tmpLog.debug("start")
         # bind variables of sites, shared by the two queries
         varMap = dict()
@@ -164,7 +164,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default={})
     def get_worker_ce_stats(self, site_name):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_worker_ce_stats")
+        tmpLog = make_logger(method_name="get_worker_ce_stats")
         tmpLog.debug("start")
         # get worker CE stats
         sqlW = "SELECT wt.status,wt.computingSite,wt.computingElement,COUNT(*) cnt "
@@ -187,7 +187,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default={})
     def get_worker_ce_backend_throughput(self, site_name, time_window):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_worker_ce_backend_throughput")
+        tmpLog = make_logger(method_name="get_worker_ce_backend_throughput")
         tmpLog.debug("start")
         # get worker CE throughput
         sqlW = "SELECT wt.computingElement,wt.status,COUNT(*) cnt "
@@ -226,7 +226,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default=False)
     def insert_service_metrics(self, service_metric_spec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="insert_service_metrics")
+        tmpLog = make_logger(method_name="insert_service_metrics")
         tmpLog.debug("start")
         sql = f"INSERT INTO {serviceMetricsTableName} ({ServiceMetricSpec.column_names()}) "
         sql += ServiceMetricSpec.bind_values_expression()
@@ -238,7 +238,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default={})
     def get_service_metrics(self, last_update):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_service_metrics")
+        tmpLog = make_logger(method_name="get_service_metrics")
         tmpLog.debug(f"start with last_update: {last_update}")
         sql = f"SELECT creationTime, hostName, metrics FROM {serviceMetricsTableName} "
         sql += "WHERE creationTime>=:last_update "
@@ -261,7 +261,7 @@ class StatsModule(BaseModule):
     # clean service metrics older than a week
     @db_error_handler(default=False)
     def clean_service_metrics(self):
-        tmp_logger = core_utils.make_logger(_logger, method_name="clean_service_metrics")
+        tmp_logger = make_logger(method_name="clean_service_metrics")
         tmp_logger.debug("start")
         # time limit in UTC like creationTime, bound rather than NOW() - INTERVAL which SQLite lacks
         sql = f"DELETE FROM {serviceMetricsTableName} WHERE creationTime<:timeLimit "
@@ -274,7 +274,7 @@ class StatsModule(BaseModule):
     @db_error_handler(default=None)
     def get_job_stats_full(self, filter_site_list=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_job_stats_full")
+        tmpLog = make_logger(method_name="get_job_stats_full")
         tmpLog.debug("start")
         # get job stats
         varMap = dict()

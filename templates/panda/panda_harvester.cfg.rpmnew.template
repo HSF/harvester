@@ -33,11 +33,8 @@ dynamic_plugin_change = False
 
 [db]
 
-# verbose
+# verbose; log every SQL statement with the name of the DB proxy method running it
 verbose = False
-
-# use inspect for decorator of verbose messages
-useInspect = False
 
 # number of database connections in each process
 nConnections = 10

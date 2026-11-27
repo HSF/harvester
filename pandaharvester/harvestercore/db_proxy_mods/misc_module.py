@@ -11,11 +11,11 @@ from pandaharvester.harvestercore.cache_spec import CacheSpec
 from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
-    _logger,
     cacheTableName,
     commandTableName,
     db_error_handler,
     diagTableName,
+    make_logger,
     processLockTableName,
     seqNumberTableName,
 )
@@ -64,7 +64,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=None)
     def get_next_seq_number(self, number_name):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"name={number_name}", method_name="get_next_seq_number")
+        tmpLog = make_logger(f"name={number_name}", method_name="get_next_seq_number")
         # increment
         varMap = {":numberName": number_name}
         sqlU = f"UPDATE {seqNumberTableName} SET curVal=curVal+1 WHERE numberName=:numberName "
@@ -82,7 +82,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=None)
     def get_cache_last_update_time(self, main_key, sub_key):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"mainKey={main_key} subKey={sub_key}", method_name="get_cache_last_update_time")
+        tmpLog = make_logger(f"mainKey={main_key} subKey={sub_key}", method_name="get_cache_last_update_time")
         # get
         varMap = {":mainKey": main_key}
         sqlU = f"SELECT lastUpdate FROM {cacheTableName} WHERE mainKey=:mainKey "
@@ -105,7 +105,7 @@ class MiscModule(BaseModule):
         Return {mainKey: lastUpdate} for main_keys in the cache, or None if failed. Missing keys are omitted
         """
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_cache_last_update_times")
+        tmpLog = make_logger(method_name="get_cache_last_update_times")
         varMap = {f":mainKey{idx}": main_key for idx, main_key in enumerate(main_keys)}
         sqlS = f"SELECT mainKey,lastUpdate FROM {cacheTableName} WHERE mainKey IN ({','.join(varMap)}) "
         self.execute(sqlS, varMap)
@@ -119,7 +119,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=False)
     def refresh_cache(self, main_key, sub_key, new_info):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"mainKey={main_key} subKey={sub_key}", method_name="refresh_cache")
+        tmpLog = make_logger(f"mainKey={main_key} subKey={sub_key}", method_name="refresh_cache")
         # make spec
         cacheSpec = CacheSpec()
         cacheSpec.lastUpdate = core_utils.naive_utcnow()
@@ -170,9 +170,9 @@ class MiscModule(BaseModule):
         _local_cache_check_interval seconds, so that updates by other processes are seen
         """
         useDB = False
+        # get logger
+        tmpLog = make_logger(f"mainKey={main_key} subKey={sub_key}", method_name="get_cache")
         try:
-            # get logger
-            tmpLog = core_utils.make_logger(_logger, f"mainKey={main_key} subKey={sub_key}", method_name="get_cache")
             tmpLog.debug("start")
             # where clause
             sqlW = "WHERE mainKey=:mainKey "
@@ -233,7 +233,7 @@ class MiscModule(BaseModule):
                 # roll back
                 self.rollback()
             # dump error
-            core_utils.dump_error_message(_logger)
+            core_utils.dump_error_message(tmpLog)
             # return
             return None
 
@@ -241,7 +241,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=False)
     def store_commands(self, command_specs):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="store_commands")
+        tmpLog = make_logger(method_name="store_commands")
         tmpLog.debug(f"{len(command_specs)} commands")
         if not command_specs:
             return True
@@ -259,7 +259,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=[])
     def get_commands_for_receiver(self, receiver, command_pattern=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_commands_for_receiver")
+        tmpLog = make_logger(method_name="get_commands_for_receiver")
         tmpLog.debug("start")
         # sql to get commands
         varMap = {":receiver": receiver, ":processed": 0}
@@ -292,7 +292,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=[])
     def get_commands_ack(self):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_commands_ack")
+        tmpLog = make_logger(method_name="get_commands_ack")
         tmpLog.debug("start")
         # sql to get commands that have been processed and need acknowledgement
         sql = f"SELECT command_id FROM {commandTableName} WHERE ack_requested=1 AND processed=1"
@@ -330,7 +330,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=False)
     def clean_process_locks(self):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="clean_process_locks")
+        tmpLog = make_logger(method_name="clean_process_locks")
         tmpLog.debug("start")
         # delete locks
         sqlW = f"DELETE FROM {processLockTableName} "
@@ -344,7 +344,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=False)
     def get_process_lock(self, process_name, locked_by, lock_interval):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"proc={process_name} by={locked_by}", method_name="get_process_lock")
+        tmpLog = make_logger(f"proc={process_name} by={locked_by}", method_name="get_process_lock")
         tmpLog.debug("start")
         # delete old lock
         sqlD = f"DELETE FROM {processLockTableName} "
@@ -389,7 +389,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=False)
     def release_process_lock(self, process_name, locked_by):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"proc={process_name} by={locked_by}", method_name="release_process_lock")
+        tmpLog = make_logger(f"proc={process_name} by={locked_by}", method_name="release_process_lock")
         tmpLog.debug("start")
         # delete lock
         sqlC = f"DELETE FROM {processLockTableName} "
@@ -404,7 +404,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=False)
     def add_dialog_message(self, message, level, module_name, identifier=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="add_dialog_message")
+        tmpLog = make_logger(method_name="add_dialog_message")
         tmpLog.debug("start")
         # delete old messages
         sqlS = f"SELECT diagID FROM {diagTableName} "
@@ -440,7 +440,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=[])
     def get_dialog_messages_to_send(self, n_messages, lock_interval):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_dialog_messages_to_send")
+        tmpLog = make_logger(method_name="get_dialog_messages_to_send")
         tmpLog.debug("start")
         # sql to select messages
         sqlD = f"SELECT diagID FROM {diagTableName} "
@@ -479,7 +479,7 @@ class MiscModule(BaseModule):
     @db_error_handler(default=False)
     def delete_dialog_messages(self, ids):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="delete_dialog_messages")
+        tmpLog = make_logger(method_name="delete_dialog_messages")
         tmpLog.debug("start")
         # sql to delete message
         sqlM = f"DELETE FROM {diagTableName} "

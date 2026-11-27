@@ -14,9 +14,9 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
     _bind_in,
-    _logger,
     db_error_handler,
     jobWorkerTableName,
+    make_logger,
     workerCheckTableName,
     workTableName,
 )
@@ -43,7 +43,7 @@ class WorkerCheckModule(BaseModule):
         - check_specs: {workerID: WorkerCheckSpec} of claimed workers, as when claimed
         Schedule rows of workers missing in work_table or of multi-worker mapping are deleted.
         """
-        tmpLog = core_utils.make_logger(_logger, f"by={locked_by}", method_name="claim_workers_to_check")
+        tmpLog = make_logger(f"by={locked_by}", method_name="claim_workers_to_check")
         timeNow = core_utils.naive_utcnow()
         lock_token = f"{locked_by}-{random.getrandbits(32):08x}"
         # get candidates
@@ -139,7 +139,7 @@ class WorkerCheckModule(BaseModule):
         A worker that got a new event while leased is kept due now with at least event priority.
         Workers are updated with one statement per group of identical values.
         """
-        tmpLog = core_utils.make_logger(_logger, f"by={lock_token}", method_name="release_checked_workers")
+        tmpLog = make_logger(f"by={lock_token}", method_name="release_checked_workers")
         tmpLog.debug(f"start for {len(release_list)} workers")
         timeNow = core_utils.naive_utcnow()
         to_delete = [item["workerID"] for item in release_list if item.get("delete")]
@@ -220,7 +220,7 @@ class WorkerCheckModule(BaseModule):
         An event is applied only if newer than the last applied event of the worker, which ignores repeated reports.
         Return the number of events applied.
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="apply_worker_events")
+        tmpLog = make_logger(method_name="apply_worker_events")
         tmpLog.debug(f"start for {len(event_list)} events")
         timeNow = core_utils.naive_utcnow()
         # assignments reading priority come before the assignment of priority
@@ -264,7 +264,7 @@ class WorkerCheckModule(BaseModule):
         - count active workers whose checkTime is older than stale_age
         Return dict of n_inserted, n_deleted, n_clamped, n_stale.
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="reconcile_worker_checks")
+        tmpLog = make_logger(method_name="reconcile_worker_checks")
         tmpLog.debug("start")
         timeNow = core_utils.naive_utcnow()
         retVal = {}
@@ -347,7 +347,7 @@ class WorkerCheckModule(BaseModule):
         Return dict of n_total, n_due (due and not leased), n_leased, lag (seconds since the oldest due and not leased
         worker became due; 0 if none), per_priority {priority: n}, per_trigger {lastTrigger: n}.
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="get_worker_check_stats")
+        tmpLog = make_logger(method_name="get_worker_check_stats")
         tmpLog.debug("start")
         timeNow = core_utils.naive_utcnow()
         retVal = {"n_total": 0, "per_priority": {}, "per_trigger": {}}
@@ -387,7 +387,7 @@ class WorkerCheckModule(BaseModule):
         """
         Return the number of schedules updated.
         """
-        tmpLog = core_utils.make_logger(_logger, f"queue={queue_name}", method_name="force_worker_checks")
+        tmpLog = make_logger(f"queue={queue_name}", method_name="force_worker_checks")
         tmpLog.debug("start")
         timeNow = core_utils.naive_utcnow()
         varMap = {

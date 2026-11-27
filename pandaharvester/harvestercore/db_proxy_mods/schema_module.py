@@ -12,7 +12,6 @@ from pandaharvester.harvestercore.cache_spec import CacheSpec
 from pandaharvester.harvestercore.command_spec import CommandSpec
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
-    _logger,
     cacheTableName,
     commandTableName,
     diagTableName,
@@ -20,6 +19,7 @@ from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     fileTableName,
     jobTableName,
     jobWorkerTableName,
+    make_logger,
     pandaQueueTableName,
     processLockTableName,
     queueConfigDumpTableName,
@@ -86,7 +86,7 @@ class SchemaModule(BaseModule):
     def initialize_jobType(self, table_name):
         # initialize old NULL entries to ANY in pq_table and work_table
         # get logger
-        tmp_log = core_utils.make_logger(_logger, method_name="initialize_jobType")
+        tmp_log = make_logger(method_name="initialize_jobType")
         sql_update = f"UPDATE {table_name} SET jobType = 'ANY' WHERE jobType is NULL "
         try:
             self.execute(sql_update)
@@ -101,7 +101,7 @@ class SchemaModule(BaseModule):
     # make table
     def make_table(self, cls, table_name):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="make_table")
+        tmpLog = make_logger(method_name="make_table")
         tmpLog.debug(f"table={table_name}")
         try:
             # check if table already exists
@@ -174,7 +174,7 @@ class SchemaModule(BaseModule):
     # make tables
     def make_tables(self, queue_config_mapper, communicator_pool):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="make_tables")
+        tmpLog = make_logger(method_name="make_tables")
         tmpLog.debug("start")
         outStrs = []
         for cls, table_name in (

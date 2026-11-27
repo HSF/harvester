@@ -9,12 +9,12 @@ import random
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
-    _logger,
     db_error_handler,
     eventTableName,
     fileTableName,
     jobTableName,
     jobWorkerTableName,
+    make_logger,
     pandaQueueTableName,
 )
 from pandaharvester.harvestercore.event_spec import EventSpec
@@ -43,7 +43,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=False)
     def insert_jobs(self, jobspec_list):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="insert_jobs")
+        tmpLog = make_logger(method_name="insert_jobs")
         tmpLog.debug(f"{len(jobspec_list)} jobs")
         # sql to insert a job
         sqlJ = f"INSERT INTO {jobTableName} ({JobSpec.column_names()}) "
@@ -75,7 +75,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=None)
     def get_job(self, panda_id):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"PandaID={panda_id}", method_name="get_job")
+        tmpLog = make_logger(f"PandaID={panda_id}", method_name="get_job")
         tmpLog.debug("start")
         # sql to get job
         sql = f"SELECT {JobSpec.column_names()} FROM {jobTableName} "
@@ -107,7 +107,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=None)
     def get_jobs(self):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_jobs")
+        tmpLog = make_logger(method_name="get_jobs")
         tmpLog.debug("start")
         # sql to get job
         sql = f"SELECT {JobSpec.column_names()} FROM {jobTableName} "
@@ -128,7 +128,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=None)
     def update_job(self, jobspec, criteria=None, update_in_file=False, update_out_file=False):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"PandaID={jobspec.PandaID} subStatus={jobspec.subStatus}", method_name="update_job")
+        tmpLog = make_logger(f"PandaID={jobspec.PandaID} subStatus={jobspec.subStatus}", method_name="update_job")
         tmpLog.debug("start")
         if criteria is None:
             criteria = {}
@@ -187,7 +187,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=False)
     def insert_files(self, jobspec_list):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="insert_files")
+        tmpLog = make_logger(method_name="insert_files")
         tmpLog.debug(f"{len(jobspec_list)} jobs")
         # sql to insert a file
         sqlF = f"INSERT INTO {fileTableName} ({FileSpec.column_names()}) "
@@ -216,7 +216,7 @@ class JobModule(BaseModule):
             dict: map in the form {"queue1": N1_jobs_to_fetch, ...} for all queues queried
         """
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_num_jobs_to_fetch")
+        tmpLog = make_logger(method_name="get_num_jobs_to_fetch")
         tmpLog.debug("start")
         ret_map = {}
         # sql to get queues
@@ -323,7 +323,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=[])
     def get_jobs_to_propagate(self, max_jobs, lock_interval, update_interval, locked_by):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"thr={locked_by}", method_name="get_jobs_to_propagate")
+        tmpLog = make_logger(f"by={locked_by}", method_name="get_jobs_to_propagate")
         tmpLog.debug("start")
         # sql to get jobs
         sql = f"SELECT PandaID FROM {jobTableName} "
@@ -443,7 +443,7 @@ class JobModule(BaseModule):
     ):
         # get logger
         msgPfx = None if locked_by is None else f"id={locked_by}"
-        tmpLog = core_utils.make_logger(_logger, msgPfx, method_name="get_jobs_in_sub_status")
+        tmpLog = make_logger(msgPfx, method_name="get_jobs_in_sub_status")
         tmpLog.debug(f"start subStatus={sub_status} timeColumn={time_column}")
         timeNow = core_utils.naive_utcnow()
         # time limits for lock
@@ -548,7 +548,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=False)
     def release_jobs(self, panda_ids, locked_by):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="release_jobs")
+        tmpLog = make_logger(method_name="release_jobs")
         tmpLog.debug(f"start for {len(panda_ids)} jobs")
         # sql to release job
         sql = f"UPDATE {jobTableName} SET lockedBy=NULL "
@@ -567,7 +567,7 @@ class JobModule(BaseModule):
     # lock job again
     @db_error_handler(default=False)
     def lock_job_again(self, panda_id, time_column, lock_column, locked_by):
-        tmpLog = core_utils.make_logger(_logger, f"PandaID={panda_id}", method_name="lock_job_again")
+        tmpLog = make_logger(f"PandaID={panda_id}", method_name="lock_job_again")
         tmpLog.debug(f"start column={lock_column} id={locked_by}")
         # check lock
         sqlC = f"SELECT {lock_column},{time_column} FROM {jobTableName} "
@@ -598,7 +598,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=False)
     def increment_submission_attempt(self, panda_id, new_number):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"pandaID={panda_id}", method_name="increment_submission_attempt")
+        tmpLog = make_logger(f"pandaID={panda_id}", method_name="increment_submission_attempt")
         tmpLog.debug(f"start with newNum={new_number}")
         # sql to update attempt number
         sqlL = f"UPDATE {jobTableName} SET submissionAttempts=:newNum "
@@ -613,7 +613,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=False)
     def delete_old_jobs(self, timeout):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"timeout={timeout}", method_name="delete_old_jobs")
+        tmpLog = make_logger(f"timeout={timeout}", method_name="delete_old_jobs")
         tmpLog.debug("start")
         # sql to get old jobs to be deleted
         sqlGJ = f"SELECT PandaID FROM {jobTableName} "
@@ -642,7 +642,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=None)
     def disable_multi_workers(self, panda_id):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"PandaID={panda_id}", method_name="disable_multi_workers")
+        tmpLog = make_logger(f"PandaID={panda_id}", method_name="disable_multi_workers")
         tmpLog.debug("start")
         # sql to update flag
         sqlJ = f"UPDATE {jobTableName} SET moreWorkers=0 "
@@ -661,7 +661,7 @@ class JobModule(BaseModule):
     @db_error_handler(default=False)
     def delete_orphaned_job_info(self):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="delete_orphaned_job_info")
+        tmpLog = make_logger(method_name="delete_orphaned_job_info")
         tmpLog.debug("start")
         # loop over all tables
         for tableName, sqlDJ in zip((fileTableName, eventTableName, jobWorkerTableName), _sqlDeleteJobRelated):

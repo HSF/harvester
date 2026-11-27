@@ -14,8 +14,8 @@ from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
     _bind_in,
-    _logger,
     db_error_handler,
+    make_logger,
     workerTargetCacheTableName,
 )
 from pandaharvester.harvestercore.worker_target_cache_spec import WorkerTargetCacheSpec
@@ -40,7 +40,7 @@ class WorkerTargetCacheModule(BaseModule):
         Targets of the host missing in target_list are deleted.
         Return dict of n_targets, n_written, n_deleted.
         """
-        tmpLog = core_utils.make_logger(_logger, f"host={target_host}", method_name="refresh_worker_target_cache")
+        tmpLog = make_logger(f"host={target_host}", method_name="refresh_worker_target_cache")
         tmpLog.debug(f"start with {len(target_list)} targets")
         # get digests in DB
         varMap = {":targetHost": target_host}
@@ -102,7 +102,7 @@ class WorkerTargetCacheModule(BaseModule):
         Get targets in target_ids, or all targets if None.
         Return (refresh_time, {targetID: attributes dict}); refresh_time is the time of the last refresh, or None if never refreshed.
         """
-        tmpLog = core_utils.make_logger(_logger, f"host={target_host}", method_name="get_worker_target_cache")
+        tmpLog = make_logger(f"host={target_host}", method_name="get_worker_target_cache")
         refresh_key = WorkerTargetCacheSpec.make_refresh_key(target_host)
         rows = []
         if target_ids is None:
@@ -138,7 +138,7 @@ class WorkerTargetCacheModule(BaseModule):
         """
         Return the number of deleted rows.
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="clean_worker_target_cache")
+        tmpLog = make_logger(method_name="clean_worker_target_cache")
         tmpLog.debug("start")
         timeLimit = core_utils.naive_utcnow() - datetime.timedelta(seconds=max_age)
         # target hosts whose last refresh is too old

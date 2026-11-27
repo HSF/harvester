@@ -9,12 +9,12 @@ import math
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
-    _logger,
     db_error_handler,
     eventTableName,
     fileTableName,
     jobTableName,
     jobWorkerTableName,
+    make_logger,
     pandaQueueTableName,
     queueConfigDumpTableName,
     workTableName,
@@ -56,7 +56,7 @@ class QueueModule(BaseModule):
     @db_error_handler(default=False)
     def fill_panda_queue_table(self, panda_queue_list, queue_config_mapper, refill_table=False):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="fill_panda_queue_table")
+        tmpLog = make_logger(method_name="fill_panda_queue_table")
         tmpLog.debug(f"start, refill={refill_table}")
         # sql to get existing queues
         sqlE = f"SELECT queueName FROM {pandaQueueTableName} "
@@ -117,7 +117,7 @@ class QueueModule(BaseModule):
     @db_error_handler(default=({}, None, {}))
     def get_queues_to_submit(self, lookup_interval, locked_by, queue_lock_interval):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_queues_to_submit")
+        tmpLog = make_logger(method_name="get_queues_to_submit")
         tmpLog.debug("start")
         retMap = dict()
         siteName = None
@@ -234,7 +234,7 @@ class QueueModule(BaseModule):
     @db_error_handler(default=False)
     def clone_queue_with_new_job_and_resource_type(self, site_name, queue_name, job_type, resource_type, new_workers):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"site_name={site_name} queue_name={queue_name}", method_name="clone_queue_with_new_job_and_resource_type")
+        tmpLog = make_logger(f"site_name={site_name} queue_name={queue_name}", method_name="clone_queue_with_new_job_and_resource_type")
         tmpLog.debug("start")
 
         # get the values from one of the existing queues
@@ -273,7 +273,7 @@ class QueueModule(BaseModule):
     @db_error_handler(default={})
     def set_queue_limit(self, site_name, params):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"siteName={site_name}", method_name="set_queue_limit")
+        tmpLog = make_logger(f"siteName={site_name}", method_name="set_queue_limit")
         tmpLog.debug("start")
 
         # sql to reset queue limits before setting new command to avoid old values being repeated again and again
@@ -357,7 +357,7 @@ class QueueModule(BaseModule):
             tuple[dict, dict]: First dict for evaluated values of worker limits and per-resource-type limits, second dict for worker stats queried
         """
         # get logger
-        tmpLog = core_utils.make_logger(_logger, token=f"site_name={site_name}", method_name="get_worker_limits")
+        tmpLog = make_logger(token=f"site_name={site_name}", method_name="get_worker_limits")
         tmpLog.debug("start")
         # sql to count resource types
         sqlNRT = f"SELECT COUNT(*) cnt FROM {pandaQueueTableName} WHERE siteName=:siteName AND resourceType!='ANY' "
@@ -478,7 +478,7 @@ class QueueModule(BaseModule):
         """
         Return {dumpUniqueName: QueueConfigDumpSpec} of all queue config dumps, or None if failed
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="get_queue_config_dumps")
+        tmpLog = make_logger(method_name="get_queue_config_dumps")
         tmpLog.debug("start")
         sqlQ = f"SELECT {QueueConfigDumpSpec.column_names()} FROM {queueConfigDumpTableName} "
         self.execute(sqlQ)
@@ -499,7 +499,7 @@ class QueueModule(BaseModule):
         """
         Return {dumpUniqueName: (configID, creationTime)} of all queue config dumps, or None if failed
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="get_queue_config_dump_ids")
+        tmpLog = make_logger(method_name="get_queue_config_dump_ids")
         sqlQ = f"SELECT dumpUniqueName,configID,creationTime FROM {queueConfigDumpTableName} "
         self.execute(sqlQ)
         retVal = {dumpUniqueName: (configID, creationTime) for dumpUniqueName, configID, creationTime in self.cur.fetchall()}
@@ -514,7 +514,7 @@ class QueueModule(BaseModule):
         """
         Return QueueConfigDumpSpec of config_id, or None if missing or failed
         """
-        tmpLog = core_utils.make_logger(_logger, f"configID={config_id}", method_name="get_queue_config_dump")
+        tmpLog = make_logger(f"configID={config_id}", method_name="get_queue_config_dump")
         sqlQ = f"SELECT {QueueConfigDumpSpec.column_names()} FROM {queueConfigDumpTableName} WHERE configID=:configID "
         self.execute(sqlQ, {":configID": config_id})
         resQ = self.cur.fetchone()
@@ -534,7 +534,7 @@ class QueueModule(BaseModule):
         """
         Return the number of updated dumps, or None if failed
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="touch_queue_config_dumps")
+        tmpLog = make_logger(method_name="touch_queue_config_dumps")
         config_ids = sorted(config_ids)
         timeNow = core_utils.naive_utcnow()
         nUpdated = 0
@@ -559,7 +559,7 @@ class QueueModule(BaseModule):
         """
         Dumps with configID in protected_ids are kept. Return the list of deleted configIDs, or None if failed
         """
-        tmpLog = core_utils.make_logger(_logger, method_name="clean_queue_config_dumps")
+        tmpLog = make_logger(method_name="clean_queue_config_dumps")
         tmpLog.debug("start")
         timeLimit = core_utils.naive_utcnow() - datetime.timedelta(hours=max_age_hours)
         # old dumps
@@ -590,7 +590,7 @@ class QueueModule(BaseModule):
         sqlJ = f"INSERT INTO {queueConfigDumpTableName} ({QueueConfigDumpSpec.column_names()}) "
         sqlJ += QueueConfigDumpSpec.bind_values_expression()
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="add_queue_config_dump")
+        tmpLog = make_logger(method_name="add_queue_config_dump")
         tmpLog.debug(f"start for {dump_spec.dumpUniqueName}")
         varMap = dump_spec.values_list()
         # insert
@@ -608,7 +608,7 @@ class QueueModule(BaseModule):
         sqlJ = f"SELECT configID FROM {queueConfigDumpTableName} "
         sqlJ += "WHERE queueName=:queueName AND dumpUniqueName=:dumpUniqueName "
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_config_id_dump")
+        tmpLog = make_logger(method_name="get_config_id_dump")
         tmpLog.debug(f"start for {dump_spec.queueName}:{dump_spec.dumpUniqueName}")
         # get
         self.execute(sqlJ, {":queueName": dump_spec.queueName, ":dumpUniqueName": dump_spec.dumpUniqueName})
@@ -624,7 +624,7 @@ class QueueModule(BaseModule):
     @db_error_handler(default=False)
     def purge_pq(self, queue_name):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"queueName={queue_name}", method_name="purge_pq")
+        tmpLog = make_logger(f"queueName={queue_name}", method_name="purge_pq")
         tmpLog.debug("start")
         # sql to get jobs
         sqlJ = f"SELECT PandaID FROM {jobTableName} WHERE computingSite=:computingSite "
@@ -671,7 +671,7 @@ class QueueModule(BaseModule):
     @db_error_handler(default=False)
     def update_panda_queue_attribute(self, key, value, site_name=None, queue_name=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"site={site_name} queue={queue_name}", method_name="update_panda_queue_attribute")
+        tmpLog = make_logger(f"site={site_name} queue={queue_name}", method_name="update_panda_queue_attribute")
         tmpLog.debug(f"start key={key}")
         # sql to update
         varMap = {f":{key}": value}
@@ -694,7 +694,7 @@ class QueueModule(BaseModule):
     @db_error_handler(default=False)
     def release_site(self, site_name, locked_by):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="release_site")
+        tmpLog = make_logger(method_name="release_site")
         tmpLog.debug("start")
         # sql to release site
         sql = f"UPDATE {pandaQueueTableName} SET lockedBy=NULL WHERE siteName=:siteName AND lockedBy=:lockedBy "

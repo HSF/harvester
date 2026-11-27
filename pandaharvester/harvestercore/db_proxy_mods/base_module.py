@@ -79,6 +79,14 @@ def _convert_timestamp(val):
     return datetime.datetime(year, month, day, hours, minutes, seconds, microseconds)
 
 
+# make a logger for a DB proxy method, with the process and thread IDs first in the token
+def make_logger(token=None, method_name=None):
+    if method_name is None:
+        method_name = sys._getframe(1).f_code.co_name
+    pid = core_utils.get_pid(with_hostname=False)
+    return core_utils.make_logger(_logger, pid if token is None else f"{pid} {token}", method_name=method_name)
+
+
 # get the logger a failed DB proxy method made for itself, to keep its token (e.g. PandaID=...) in the error message
 def _get_method_logger(func, exc_traceback):
     # find the frame of the method in the traceback
@@ -92,7 +100,7 @@ def _get_method_logger(func, exc_traceback):
             break
         tb = tb.tb_next
     # fallback when the method failed before making its logger or has none
-    return core_utils.make_logger(_logger, method_name=func.__name__)
+    return make_logger(method_name=func.__name__)
 
 
 # decorator for DB proxy methods: on any exception, roll back, dump the error, and return a fresh copy of default
@@ -118,17 +126,10 @@ def db_error_handler(default=None):
 # base class of DB proxy modules
 class BaseModule(object):
     # constructor
-    def __init__(self, thr_name=None, read_only=False):
-        self.thrName = thr_name
-        self.verbLog = None
-        self.useInspect = False
+    def __init__(self, read_only=False):
+        self.verbose = harvester_config.db.verbose
         self.reconnectTimeout = getattr(harvester_config.db, "reconnectTimeout", 300)
         self.read_only = read_only
-        if harvester_config.db.verbose:
-            self.verbLog = core_utils.make_logger(_logger, method_name="execute")
-            if self.thrName is None:
-                self.thrName = threading.current_thread().ident
-            self.useInspect = getattr(harvester_config.db, "useInspect", False) is True
         # connect DB
         self._connect_db()
         self.lockDB = False
@@ -210,7 +211,7 @@ class BaseModule(object):
     def _handle_exception(self, exc):
         if harvester_config.db.engine != "mariadb":
             return
-        tmpLog = core_utils.make_logger(_logger, f"thr={self.thrName}", method_name="_handle_exception")
+        tmpLog = make_logger(method_name=self._get_caller_name())
         tmpLog.warning(f"exception of mysql {exc.__class__.__name__} occurred")
         # renew connection for operational errors
         if getattr(harvester_config.db, "useMySQLdb", False) is True:
@@ -289,34 +290,47 @@ class BaseModule(object):
     # get the application side lock unless already held for a write
     def _acquire_app_lock(self):
         if self.usingAppLock and not self.lockDB:
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} locking")
+            if self.verbose:
+                self._log_verbose("locking")
             conLock.acquire()
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} locked")
+            if self.verbose:
+                self._log_verbose("locked")
 
     # release the application side lock unless it is kept for a write until commit or rollback
     def _release_app_lock(self):
         if self.usingAppLock and not self.lockDB:
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} release")
+            if self.verbose:
+                self._log_verbose("release")
             conLock.release()
 
     # release the application side lock kept for a write
     def _release_write_lock(self, action):
         if self.usingAppLock and self.lockDB:
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} release with {action}")
+            if self.verbose:
+                self._log_verbose(f"release with {action}")
             conLock.release()
             self.lockDB = False
 
-    # log SQL and parameters in verbose mode
-    def _log_sql(self, sql, params):
-        msg = f"thr={self.thrName} sql={sql} var={str(params)}"
-        if self.useInspect:
-            # caller of execute or executemany
-            msg += f" exec={sys._getframe(2).f_code.co_name}"
-        self.verbLog.debug(msg)
+    # get the name of the DB proxy method running SQL on this connection, skipping the internals of this class and private helpers
+    def _get_caller_name(self):
+        frame = sys._getframe(1)
+        while frame is not None:
+            code = frame.f_code
+            if code is _error_handler_code:
+                # rollback by db_error_handler after the method has exited
+                return frame.f_locals["func"].__name__
+            if code not in _base_codes and not (code.co_name.startswith("_") and frame.f_locals.get("self") is self):
+                return code.co_name
+            frame = frame.f_back
+        return "unknown"
+
+    # log in verbose mode with the method name and the process and thread IDs, e.g. "register_worker <123-7f0a> execute : sql=..."
+    def _log_verbose(self, msg):
+        operation = sys._getframe(1).f_code.co_name
+        if operation.startswith("_"):
+            # called from a lock helper
+            operation = sys._getframe(2).f_code.co_name
+        make_logger(method_name=self._get_caller_name()).debug(f"{operation} : {msg}")
 
     # wrapper for execute
     def execute(self, sql, varmap=None):
@@ -325,29 +339,29 @@ class BaseModule(object):
             varmap = dict()
         self._acquire_app_lock()
         try:
-            if harvester_config.db.verbose:
-                self._log_sql(sql, varmap)
+            if self.verbose:
+                self._log_verbose(f"sql={sql} var={varmap}")
             newSQL, params = self.convert_params(sql, varmap)
             try:
                 retVal = self.cur.execute(newSQL, params)
             except Exception as e:
                 self._handle_exception(e)
-                if harvester_config.db.verbose:
-                    self.verbLog.debug(f"thr={self.thrName} exception during execute")
+                if self.verbose:
+                    self._log_verbose("exception")
                 raise
         finally:
             self._release_app_lock()
-        if harvester_config.db.verbose:
+        if self.verbose:
             sql_str = newSQL.replace("\n", " ").strip()
-            self.verbLog.debug(f"thr={self.thrName}  {sw.get_elapsed_time()}  sql=[{sql_str}]")
+            self._log_verbose(f"took {sw.get_elapsed_time_in_sec():.3f} sec sql=[{sql_str}]")
         return retVal
 
     # wrapper for executemany
     def executemany(self, sql, varmap_list):
         self._acquire_app_lock()
         try:
-            if harvester_config.db.verbose:
-                self._log_sql(sql, varmap_list)
+            if self.verbose:
+                self._log_verbose(f"sql={sql} var={varmap_list}")
             # nothing to execute
             if not varmap_list:
                 return None
@@ -366,8 +380,8 @@ class BaseModule(object):
                 retVal = self.cur.executemany(newSQL, paramList)
             except Exception as e:
                 self._handle_exception(e)
-                if harvester_config.db.verbose:
-                    self.verbLog.debug(f"thr={self.thrName} exception during executemany")
+                if self.verbose:
+                    self._log_verbose("exception")
                 raise
         finally:
             self._release_app_lock()
@@ -379,8 +393,8 @@ class BaseModule(object):
             self.con.commit()
         except Exception as e:
             self._handle_exception(e)
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} exception during commit")
+            if self.verbose:
+                self._log_verbose("exception")
             raise
         self._release_write_lock("commit")
 
@@ -390,7 +404,12 @@ class BaseModule(object):
             self.con.rollback()
         except Exception as e:
             self._handle_exception(e)
-            if harvester_config.db.verbose:
-                self.verbLog.debug(f"thr={self.thrName} exception during rollback")
+            if self.verbose:
+                self._log_verbose("exception")
         finally:
             self._release_write_lock("rollback")
+
+
+# code objects to skip when looking for the DB proxy method running SQL
+_base_codes = {func.__code__ for func in vars(BaseModule).values() if callable(func)}
+_error_handler_code = db_error_handler()(lambda self: None).__code__

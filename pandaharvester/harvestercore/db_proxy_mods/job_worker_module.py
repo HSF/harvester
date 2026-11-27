@@ -8,12 +8,12 @@ import datetime
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
-    _logger,
     db_error_handler,
     eventTableName,
     fileTableName,
     jobTableName,
     jobWorkerTableName,
+    make_logger,
     workTableName,
 )
 from pandaharvester.harvestercore.event_spec import EventSpec
@@ -43,7 +43,7 @@ class JobWorkerModule(BaseModule):
         max_workers_per_job_per_cycle=None,
     ):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"queue={queue_name}", method_name="get_job_chunks_for_workers")
+        tmpLog = make_logger(f"queue={queue_name}", method_name="get_job_chunks_for_workers")
         tmpLog.debug("start")
         # define maxJobs
         if n_jobs_per_worker is not None:
@@ -238,7 +238,7 @@ class JobWorkerModule(BaseModule):
         if jobspec_list is not None:
             isMultiWorkers = len(workspec_list) > 0 and workspec_list[0].mapType == WorkSpec.MT_MultiWorkers
             for jobSpec in jobspec_list:
-                tmpLog = core_utils.make_logger(_logger, f"PandaID={jobSpec.PandaID} by {locked_by}", method_name="update_jobs_workers")
+                tmpLog = make_logger(f"PandaID={jobSpec.PandaID} by {locked_by}", method_name="update_jobs_workers")
                 # check job
                 self.execute(sqlCJ, {":PandaID": jobSpec.PandaID})
                 resCJ = self.cur.fetchone()
@@ -453,7 +453,7 @@ class JobWorkerModule(BaseModule):
         # update worker
         retVal = True
         for idxW, workSpec in enumerate(workspec_list):
-            tmpLog = core_utils.make_logger(_logger, f"workerID={workSpec.workerID}", method_name="update_jobs_workers")
+            tmpLog = make_logger(f"workerID={workSpec.workerID}", method_name="update_jobs_workers")
             tmpLog.debug("update worker")
             workSpec.lockedBy = None
             if workSpec.status == WorkSpec.ST_running and workSpec.startTime is None:
@@ -506,7 +506,7 @@ class JobWorkerModule(BaseModule):
     @db_error_handler(default=[])
     def get_jobs_with_worker_id(self, worker_id, locked_by, with_file=False, only_running=False, slim=False):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"workerID={worker_id}", method_name="get_jobs_with_worker_id")
+        tmpLog = make_logger(f"workerID={worker_id}", method_name="get_jobs_with_worker_id")
         tmpLog.debug("start")
         # sql to get PandaIDs
         sqlP = f"SELECT PandaID FROM {jobWorkerTableName} "
@@ -581,8 +581,8 @@ class JobWorkerModule(BaseModule):
         max_files_per_job=None,
     ):
         # get logger
-        msgPfx = f"thr={locked_by}"
-        tmpLog = core_utils.make_logger(_logger, msgPfx, method_name="get_jobs_for_stage_out")
+        msgPfx = f"by={locked_by}"
+        tmpLog = make_logger(msgPfx, method_name="get_jobs_for_stage_out")
         tmpLog.debug("start")
         timeNow = core_utils.naive_utcnow()
         # core part of sql and its parameters
@@ -710,9 +710,7 @@ class JobWorkerModule(BaseModule):
     @db_error_handler(default=None)
     def update_job_for_stage_out(self, jobspec, update_event_status, locked_by):
         # get logger
-        tmpLog = core_utils.make_logger(
-            _logger, f"PandaID={jobspec.PandaID} subStatus={jobspec.subStatus} thr={locked_by}", method_name="update_job_for_stage_out"
-        )
+        tmpLog = make_logger(f"PandaID={jobspec.PandaID} subStatus={jobspec.subStatus} by={locked_by}", method_name="update_job_for_stage_out")
         tmpLog.debug("start")
         # sql to update event, also used for events associated with zip files
         sqlEU = f"UPDATE {eventTableName} "

@@ -9,12 +9,12 @@ import random
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
-    _logger,
     db_error_handler,
     eventTableName,
     fileTableName,
     jobTableName,
     jobWorkerTableName,
+    make_logger,
     pandaQueueTableName,
     workTableName,
 )
@@ -41,7 +41,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=None)
     def update_worker(self, workspec, criteria=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"workerID={workspec.workerID}", method_name="update_worker")
+        tmpLog = make_logger(f"workerID={workspec.workerID}", method_name="update_worker")
         tmpLog.debug("start")
         if criteria is None:
             criteria = {}
@@ -74,7 +74,7 @@ class WorkerModule(BaseModule):
         first_check_time: time of the first check by the monitor; when given, the worker check schedule is created
         in the same transaction, unless the worker is in final status or of multi-worker mapping
         """
-        tmpLog = core_utils.make_logger(_logger, f"batchID={workspec.batchID}", method_name="register_worker")
+        tmpLog = make_logger(f"batchID={workspec.batchID}", method_name="register_worker")
         tmpLog.debug("start")
         # sql to check if exists
         sqlE = f"SELECT 1 c FROM {workTableName} WHERE workerID=:workerID "
@@ -170,7 +170,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=[])
     def get_workers_to_propagate(self, max_workers, check_interval):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_workers_to_propagate")
+        tmpLog = make_logger(method_name="get_workers_to_propagate")
         tmpLog.debug("start")
         # sql to get worker IDs
         sqlW = f"SELECT workerID FROM {workTableName} "
@@ -220,7 +220,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default={})
     def get_workers_to_feed_events(self, max_workers, lock_interval, locked_by):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_workers_to_feed_events")
+        tmpLog = make_logger(method_name="get_workers_to_feed_events")
         tmpLog.debug("start")
         # sql to get workers
         sqlW = f"SELECT workerID, status FROM {workTableName} "
@@ -278,7 +278,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=[])
     def get_ready_workers(self, queue_name, n_ready):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"queue={queue_name}", method_name="get_ready_workers")
+        tmpLog = make_logger(f"queue={queue_name}", method_name="get_ready_workers")
         tmpLog.debug("start")
         # sql to get workers
         sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} "
@@ -311,7 +311,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=None)
     def get_worker_with_id(self, worker_id):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"workerID={worker_id}", method_name="get_worker_with_id")
+        tmpLog = make_logger(f"workerID={worker_id}", method_name="get_worker_with_id")
         tmpLog.debug("start")
         # sql to get a worker
         sqlG = f"SELECT {WorkSpec.column_names()} FROM {workTableName} "
@@ -333,7 +333,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default={})
     def get_workers_to_kill(self, max_workers, check_interval):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_workers_to_kill")
+        tmpLog = make_logger(method_name="get_workers_to_kill")
         tmpLog.debug("start")
         # sql to get worker IDs
         sqlW = (
@@ -380,7 +380,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=None)
     def mark_workers_to_kill_by_pandaid(self, panda_id, delay_seconds=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"PandaID={panda_id}", method_name="mark_workers_to_kill_by_pandaid")
+        tmpLog = make_logger(f"PandaID={panda_id}", method_name="mark_workers_to_kill_by_pandaid")
         tmpLog.debug("start")
         # sql to set killTime
         sqlL = f"UPDATE {workTableName} SET killTime=:setTime WHERE workerID=:workerID AND killTime IS NULL AND NOT status IN (:st1,:st2,:st3) "
@@ -406,7 +406,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=None)
     def mark_workers_to_kill_by_workerids(self, worker_ids, delay_seconds=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="mark_workers_to_kill_by_workerids")
+        tmpLog = make_logger(method_name="mark_workers_to_kill_by_workerids")
         tmpLog.debug("start")
         # sql to set killTime
         sqlL = f"UPDATE {workTableName} SET killTime=:setTime "
@@ -427,7 +427,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default={})
     def get_workers_for_cleanup(self, max_workers, status_timeout_map):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_workers_for_cleanup")
+        tmpLog = make_logger(method_name="get_workers_for_cleanup")
         tmpLog.debug("start")
         # sql to get worker IDs
         timeNow = core_utils.naive_utcnow()
@@ -533,7 +533,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=False)
     def delete_worker(self, worker_id):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"workerID={worker_id}", method_name="delete_worker")
+        tmpLog = make_logger(f"workerID={worker_id}", method_name="delete_worker")
         tmpLog.debug("start")
         # sql to get jobs
         sqlJ = f"SELECT PandaID FROM {jobWorkerTableName} "
@@ -572,7 +572,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=0)
     def get_num_missed_workers(self, queue_name, criteria):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"queue={queue_name}", method_name="get_num_missed_workers")
+        tmpLog = make_logger(f"queue={queue_name}", method_name="get_num_missed_workers")
         tmpLog.debug("start")
         # get worker stats
         sqlW = "SELECT COUNT(*) cnt "
@@ -604,9 +604,9 @@ class WorkerModule(BaseModule):
 
     # get a worker
     def get_workers_with_job_id(self, panda_id, use_commit=True):
+        # get logger
+        tmpLog = make_logger(f"pandaID={panda_id}", method_name="get_workers_with_job_id")
         try:
-            # get logger
-            tmpLog = core_utils.make_logger(_logger, f"pandaID={panda_id}", method_name="get_workers_with_job_id")
             tmpLog.debug("start")
             # sql to get workerIDs
             sqlW = f"SELECT workerID FROM {jobWorkerTableName} WHERE PandaID=:PandaID "
@@ -633,14 +633,14 @@ class WorkerModule(BaseModule):
             if use_commit:
                 self.rollback()
             # dump error
-            core_utils.dump_error_message(_logger)
+            core_utils.dump_error_message(tmpLog)
             # return
             return []
 
     # lock worker again to feed events
     @db_error_handler(default=False)
     def lock_worker_again_to_feed_events(self, worker_id, locked_by):
-        tmpLog = core_utils.make_logger(_logger, f"workerID={worker_id}", method_name="lock_worker_again_to_feed_events")
+        tmpLog = make_logger(f"workerID={worker_id}", method_name="lock_worker_again_to_feed_events")
         tmpLog.debug(f"start id={locked_by}")
         # check lock
         sqlC = f"SELECT eventFeedLock,eventFeedTime FROM {workTableName} "
@@ -671,7 +671,7 @@ class WorkerModule(BaseModule):
     @db_error_handler(default=None)
     def mark_workers_to_kill_by_query(self, params, delay_seconds=None):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="mark_workers_to_kill_by_query")
+        tmpLog = make_logger(method_name="mark_workers_to_kill_by_query")
         tmpLog.debug("start")
         # sql to set killTime
         sqlL = f"UPDATE {workTableName} SET killTime=:setTime "

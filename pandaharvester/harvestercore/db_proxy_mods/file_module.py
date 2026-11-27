@@ -6,10 +6,10 @@ DB proxy module for files and file groups
 from pandaharvester.harvestercore import core_utils
 from pandaharvester.harvestercore.db_proxy_mods.base_module import (
     BaseModule,
-    _logger,
     db_error_handler,
     fileTableName,
     jobTableName,
+    make_logger,
 )
 from pandaharvester.harvestercore.file_spec import FileSpec
 
@@ -20,7 +20,7 @@ class FileModule(BaseModule):
     @db_error_handler(default={})
     def get_file_status(self, lfn, file_type, endpoint, job_status):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"lfn={lfn} endpoint={endpoint}", method_name="get_file_status")
+        tmpLog = make_logger(f"lfn={lfn} endpoint={endpoint}", method_name="get_file_status")
         tmpLog.debug("start")
         # sql to get files
         sqlF = f"SELECT f.status, f.path, COUNT(*) cnt FROM {fileTableName} f, {jobTableName} j "
@@ -48,7 +48,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=False)
     def change_file_status(self, panda_id, data, locked_by):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"PandaID={panda_id}", method_name="change_file_status")
+        tmpLog = make_logger(f"PandaID={panda_id}", method_name="change_file_status")
         tmpLog.debug(f"start lockedBy={locked_by}")
         # sql to check lock of job
         sqlJ = f"SELECT lockedBy FROM {jobTableName} "
@@ -79,7 +79,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=None)
     def get_group_for_file(self, lfn, file_type, endpoint):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"lfn={lfn} endpoint={endpoint}", method_name="get_group_for_file")
+        tmpLog = make_logger(f"lfn={lfn} endpoint={endpoint}", method_name="get_group_for_file")
         tmpLog.debug("start")
         # sql to get group with the latest update; ORDER BY must be in the same query as LIMIT since MariaDB ignores it in a derived table
         sqlF = f"SELECT groupID,groupStatus,groupUpdateTime FROM {fileTableName} "
@@ -108,7 +108,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=[])
     def get_files_with_group_id(self, group_id):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"groupID={group_id}", method_name="get_files_with_group_id")
+        tmpLog = make_logger(f"groupID={group_id}", method_name="get_files_with_group_id")
         tmpLog.debug("start")
         # sql to get files
         sqlF = f"SELECT {FileSpec.column_names()} FROM {fileTableName} "
@@ -129,7 +129,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=False)
     def update_file_group_status(self, group_id, status_string):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"groupID={group_id}", method_name="update_file_group_status")
+        tmpLog = make_logger(f"groupID={group_id}", method_name="update_file_group_status")
         tmpLog.debug("start")
         # sql to update files
         sqlF = f"UPDATE {fileTableName} SET groupStatus=:groupStatus "
@@ -146,7 +146,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=[])
     def get_file_group_status(self, group_id):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"groupID={group_id}", method_name="get_file_group_status")
+        tmpLog = make_logger(f"groupID={group_id}", method_name="get_file_group_status")
         tmpLog.debug("start")
         # sql to get files
         sqlF = f"SELECT DISTINCT groupStatus FROM {fileTableName} "
@@ -163,7 +163,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=False)
     def set_file_group(self, file_specs, group_id, status_string):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"groupID={group_id}", method_name="set_file_group")
+        tmpLog = make_logger(f"groupID={group_id}", method_name="set_file_group")
         tmpLog.debug("start")
         timeNow = core_utils.naive_utcnow()
         # sql to update files
@@ -183,7 +183,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=False)
     def refresh_file_group_info(self, job_spec):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, f"pandaID={job_spec.PandaID}", method_name="refresh_file_group_info")
+        tmpLog = make_logger(f"pandaID={job_spec.PandaID}", method_name="refresh_file_group_info")
         tmpLog.debug("start")
         # sql to get info
         sqlF = f"SELECT groupID,groupStatus,groupUpdateTime FROM {fileTableName} "
@@ -207,7 +207,7 @@ class FileModule(BaseModule):
     @db_error_handler(default=None)
     def get_all_active_input_files(self):
         # get logger
-        tmpLog = core_utils.make_logger(_logger, method_name="get_all_active_input_files")
+        tmpLog = make_logger(method_name="get_all_active_input_files")
         tmpLog.debug("start")
         # sql to get files
         sqlF = f"SELECT DISTINCT lfn FROM {fileTableName} "

@@ -1,4 +1,3 @@
-import os
 import queue
 import threading
 
@@ -20,7 +19,7 @@ class DBProxyMethod(object):
 
     # method emulation
     def __call__(self, *args, **kwargs):
-        tmpLog = core_utils.make_logger(_logger, f"method={self.methodName}", method_name="call")
+        tmpLog = core_utils.make_logger(_logger, f"{core_utils.get_pid(with_hostname=False)} method={self.methodName}", method_name="call")
         sw = core_utils.get_stopwatch()
         try:
             # get connection
@@ -51,14 +50,8 @@ class DBProxyPool(object):
         object.__setattr__(self, "pool", None)
         # connection pool
         self.pool = queue.Queue(harvester_config.db.nConnections)
-        currentThr = threading.current_thread()
-        if currentThr is None:
-            thrID = None
-        else:
-            thrID = currentThr.ident
-        thrName = f"{os.getpid()}-{thrID}"
         for i in range(harvester_config.db.nConnections):
-            con = DBProxy(thr_name=f"{thrName}-{i}", read_only=read_only)
+            con = DBProxy(read_only=read_only)
             self.pool.put(con)
 
     # override __new__ to have a singleton
