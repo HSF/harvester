@@ -585,11 +585,13 @@ def retry_period_sec(nth_retry, increment=1, max_retries=None, max_seconds=None,
 
 
 # get process identifier on the fly
-def get_pid(with_hostname=True):
+def get_pid(with_hostname=True, with_thread_id=True):
+    ret = f"{os.getpid()}"
     if with_hostname:
-        return f"{socket.gethostname()}_{os.getpid()}-{get_ident():x}"
-    else:
-        return f"{os.getpid()}-{get_ident():x}"
+        ret = f"{socket.gethostname()}_{ret}"
+    if with_thread_id:
+        ret = f"{ret}-{get_ident():x}"
+    return ret
 
 
 def aware_utcnow() -> datetime:
