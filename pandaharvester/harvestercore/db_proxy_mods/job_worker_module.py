@@ -241,10 +241,13 @@ class JobWorkerModule(BaseModule):
                 tmpLog = core_utils.make_logger(_logger, f"PandaID={jobSpec.PandaID} by {locked_by}", method_name="update_jobs_workers")
                 # check job
                 self.execute(sqlCJ, {":PandaID": jobSpec.PandaID})
-                (tmpJobStatus,) = self.cur.fetchone()
-                # don't update cancelled jobs
-                if tmpJobStatus == ["cancelled"]:
-                    pass
+                resCJ = self.cur.fetchone()
+                if resCJ is None:
+                    # skip the job deleted in the meantime, e.g. by the sweeper
+                    tmpLog.warning("skip since the job is not found")
+                elif resCJ[0] == "cancelled":
+                    # don't update cancelled jobs
+                    tmpLog.debug("skip since the job is cancelled")
                 else:
                     # get nWorkers
                     tmpLog.debug("start")
@@ -529,6 +532,10 @@ class JobWorkerModule(BaseModule):
             # get job
             self.execute(sqlJ, {":PandaID": pandaID})
             resJ = self.cur.fetchone()
+            if resJ is None:
+                # skip the relation to a job deleted in the meantime
+                tmpLog.debug(f"skip PandaID={pandaID} since the job is not found")
+                continue
             # make job
             jobSpec = JobSpec()
             jobSpec.pack(resJ, slim=slim)

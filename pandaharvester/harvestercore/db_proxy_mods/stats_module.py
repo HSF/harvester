@@ -33,28 +33,30 @@ class StatsModule(BaseModule):
         # sql to get nQueueLimit
         sqlQ = f"SELECT queueName, jobType, resourceType, nNewWorkers FROM {pandaQueueTableName} "
         sqlQ += "WHERE siteName=:siteName "
-        # get nQueueLimit
+        # get nQueueLimit; summed over the queues of the site
         self.execute(sqlQ, {":siteName": site_name})
         resQ = self.cur.fetchall()
         retMap = dict()
         for computingSite, jobType, resourceType, nNewWorkers in resQ:
-            retMap.setdefault(jobType, {}).setdefault(resourceType, {"running": 0, "submitted": 0, "finished": 0, "to_submit": nNewWorkers})
-
-        # sql to get worker stats
+            statsMap = retMap.setdefault(jobType, {}).setdefault(resourceType, {"running": 0, "submitted": 0, "finished": 0, "to_submit": 0})
+            statsMap["to_submit"] += nNewWorkers or 0
+        # sql to get worker stats of the queues of the site, by job and resource types of workers
         sqlW = (
-            "SELECT wt.status, wt.computingSite, pq.jobType, pq.resourceType, COUNT(*) cnt "
-            f"FROM {workTableName} wt, {pandaQueueTableName} pq "
-            "WHERE pq.siteName=:siteName AND wt.computingSite=pq.queueName AND wt.status IN (:st1,:st2,:st3) "
-            "GROUP BY wt.status, wt.computingSite, pq.jobType, pq.resourceType "
+            "SELECT wt.status, wt.jobType, wt.resourceType, COUNT(*) cnt "
+            f"FROM {workTableName} wt "
+            f"WHERE wt.computingSite IN (SELECT pq.queueName FROM {pandaQueueTableName} pq WHERE pq.siteName=:siteName) "
+            "AND wt.status IN (:st1,:st2,:st3) "
+            "GROUP BY wt.status, wt.jobType, wt.resourceType "
         )
-
         # get worker stats
         varMap = {":siteName": site_name, ":st1": "running", ":st2": "submitted", ":st3": "finished"}
         self.execute(sqlW, varMap)
         resW = self.cur.fetchall()
-        for workerStatus, computingSite, jobType, resourceType, cnt in resW:
-            retMap.setdefault(jobType, {}).setdefault(resourceType, {"running": 0, "submitted": 0, "finished": 0, "to_submit": 0})
-            retMap[jobType][resourceType][workerStatus] = cnt
+        for workerStatus, jobType, resourceType, cnt in resW:
+            # skip workers without resource type
+            if resourceType:
+                statsMap = retMap.setdefault(jobType, {}).setdefault(resourceType, {"running": 0, "submitted": 0, "finished": 0, "to_submit": 0})
+                statsMap[workerStatus] += cnt
         # commit
         self.commit()
         tmpLog.debug(f"got {str(retMap)}")

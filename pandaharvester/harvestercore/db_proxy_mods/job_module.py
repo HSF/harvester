@@ -409,6 +409,9 @@ class JobModule(BaseModule):
                             continue
                         zipFileID = zipIdMap[eventSpec.fileID]
                         if zipFileID is not None:
+                            # skip like events without file if the zip file is gone
+                            if zipFileID not in zipFiles:
+                                continue
                             zipFileSpec = zipFiles[zipFileID]
                     jobSpec.add_event(eventSpec, zipFileSpec)
                     iEvents += 1
