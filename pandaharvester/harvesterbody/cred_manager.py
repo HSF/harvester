@@ -45,7 +45,9 @@ class CredManager(AgentBase):
         vomses = as_list(getattr(config, "voms", []))
         attr_lists = (module_names, class_names, in_cert_files, out_cert_files, vomses)
         n_values = [len(attr_list) for attr_list in attr_lists]
-        if len(set(n_values)) > 1:
+        # warn only when traditional attributes are used; outCertFile alone has the default from pandacon
+        traditional_attrs = ("moduleName", "className", "inCertFile", "certFile", "outCertFile", "voms")
+        if any(hasattr(config, attr) for attr in traditional_attrs) and len(set(n_values)) > 1:
             tmp_log.warning(f"moduleName, className, inCertFile, outCertFile, voms have {n_values} values; only the first {min(n_values)} plugins are used")
         exe_cores = []
         for module_name, class_name, in_cert_file, out_cert_file, voms in zip(*attr_lists):
