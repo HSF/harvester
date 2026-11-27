@@ -8,7 +8,6 @@ import tempfile
 import threading
 import time
 import traceback
-from threading import get_ident
 
 from pandaharvester.harvesterconfig import harvester_config
 from pandaharvester.harvestercore import core_utils
@@ -295,7 +294,9 @@ class CondorJobQuery(CondorClient, metaclass=SingletonWithID):
         self.submissionHost = str(kwargs.get("id"))
         # Make logger
         tmpLog = core_utils.make_logger(
-            baseLogger, f"submissionHost={self.submissionHost} thrid={get_ident()} oid={id(self)}", method_name="CondorJobQuery.__init__"
+            baseLogger,
+            f"submissionHost={self.submissionHost} pid={core_utils.get_pid(with_hostname=False)} oid={id(self)}",
+            method_name="CondorJobQuery.__init__",
         )
         # Initialize
         tmpLog.debug("Start")
@@ -456,7 +457,9 @@ class CondorJobSubmit(CondorClient, metaclass=SingletonWithID):
         self.submissionHost = str(kwargs.get("id"))
         # Make logger
         tmpLog = core_utils.make_logger(
-            baseLogger, f"submissionHost={self.submissionHost} thrid={get_ident()} oid={id(self)}", method_name="CondorJobSubmit.__init__"
+            baseLogger,
+            f"submissionHost={self.submissionHost} pid={core_utils.get_pid(with_hostname=False)} oid={id(self)}",
+            method_name="CondorJobSubmit.__init__",
         )
         # Initialize
         tmpLog.debug("Start")
@@ -618,7 +621,9 @@ class CondorJobManage(CondorClient, metaclass=SingletonWithID):
         self.submissionHost = str(kwargs.get("id"))
         # Make logger
         tmpLog = core_utils.make_logger(
-            baseLogger, f"submissionHost={self.submissionHost} thrid={get_ident()} oid={id(self)}", method_name="CondorJobManage.__init__"
+            baseLogger,
+            f"submissionHost={self.submissionHost} pid={core_utils.get_pid(with_hostname=False)} oid={id(self)}",
+            method_name="CondorJobManage.__init__",
         )
         # Initialize
         tmpLog.debug("Start")
