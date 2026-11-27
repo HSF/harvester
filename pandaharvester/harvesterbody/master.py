@@ -60,7 +60,7 @@ class Master(object):
 
     # start threads of an agent made with args and single mode; prerun is called with each agent before its thread starts
     def start_agent(self, agent_name, agent_class, *args, n_threads=1, prerun=None):
-        self.startLog.debug(f"starting {n_threads} {agent_name} thread(s)")
+        self.startLog.debug(f"starting {n_threads} {agent_name} threads")
         for _ in range(n_threads):
             thr = agent_class(*args, single_mode=self.singleMode)
             thr.set_stop_event(self.stopEvent)
